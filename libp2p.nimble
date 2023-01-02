@@ -139,9 +139,13 @@ task install_pinned, "Reads the lockfile":
 
   # Remove the automatically installed deps
   # (inefficient you say?)
-  let allowedDirectories = toInstall.mapIt(it[0] & "-" & it[1].split('@')[1])
-  for dependency in listDirs("nimbledeps/pkgs"):
-    if dependency.extractFilename notin allowedDirectories:
+  let nimblePkgs =
+    if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
+    else: "nimbledeps/pkgs2"
+  for dependency in listDirs(nimblePkgs):
+    let filename = dependency.extractFilename
+    if toInstall.anyIt(filename.startsWith(it[0]) and
+       filename.endsWith(it[1].split('#')[^1])) == false:
       rmDir(dependency)
 
 task unpin, "Restore global package use":

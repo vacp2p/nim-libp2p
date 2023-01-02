@@ -74,6 +74,28 @@ type
       peerStore*: PeerStore
       nameResolver*: NameResolver
       started: bool
+      services*: seq[Service]
+
+    Service* = ref object of RootObj
+      inUse: bool
+
+
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+  if self.inUse:
+    warn "service setup has already been called"
+    return false
+  self.inUse = true
+  return true
+
+method run*(self: Service, switch: Switch) {.base, async, gcsafe.} =
+  doAssert(false, "Not implemented!")
+
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+  if not self.inUse:
+    warn "service is already stopped"
+    return false
+  self.inUse = false
+  return true
 
 proc addConnEventHandler*(s: Switch,
                           handler: ConnEventHandler,
@@ -108,6 +130,9 @@ method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
 
+proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
+  s.connManager.connectedPeers(dir)
+
 proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
   ## associated connections
@@ -130,10 +155,15 @@ method connect*(
 
 method connect*(
   s: Switch,
-  addrs: seq[MultiAddress]): Future[PeerId] =
+  address: MultiAddress,
+  allowUnknownPeerId = false): Future[PeerId] =
   ## Connects to a peer and retrieve its PeerId
+  ##
+  ## If the P2P part is missing from the MA and `allowUnknownPeerId` is set
+  ## to true, this will discover the PeerId while connecting. This exposes
+  ## you to MiTM attacks, so it shouldn't be used without care!
 
-  s.dialer.connect(addrs)
+  s.dialer.connect(address, allowUnknownPeerId)
 
 method dial*(
   s: Switch,
@@ -291,12 +321,19 @@ proc stop*(s: Switch) {.async, public.} =
     if not a.finished:
       a.cancel()
 
+  for service in s.services:
+    discard await service.stop(s)
+
   await s.ms.stop()
 
   trace "Switch stopped"
 
 proc start*(s: Switch) {.async, gcsafe, public.} =
   ## Start listening on every transport
+
+  if s.started:
+    warn "Switch has already been started"
+    return
 
   trace "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
@@ -328,6 +365,9 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
   await s.ms.start()
 
+  for service in s.services:
+    discard await service.setup(s)
+
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
@@ -338,7 +378,8 @@ proc newSwitch*(peerInfo: PeerInfo,
                 connManager: ConnManager,
                 ms: MultistreamSelect,
                 peerStore: PeerStore,
-                nameResolver: NameResolver = nil): Switch
+                nameResolver: NameResolver = nil,
+                services = newSeq[Service]()): Switch
                 {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -350,7 +391,8 @@ proc newSwitch*(peerInfo: PeerInfo,
     connManager: connManager,
     peerStore: peerStore,
     dialer: Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nameResolver),
-    nameResolver: nameResolver)
+    nameResolver: nameResolver,
+    services: services)
 
   switch.connManager.peerStore = peerStore
   return switch

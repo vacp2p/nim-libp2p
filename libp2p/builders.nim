@@ -61,6 +61,7 @@ type
     autonat: bool
     circuitRelay: Relay
     rdv: RendezVous
+    services: seq[Service]
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -199,6 +200,10 @@ proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous = RendezVous.new()): Swit
   b.rdv = rdv
   b
 
+proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
+  b.services = services
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError], public.} =
 
@@ -253,7 +258,8 @@ proc build*(b: SwitchBuilder): Switch
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
-    peerStore = peerStore)
+    peerStore = peerStore,
+    services = b.services)
 
   switch.mount(identify)
 

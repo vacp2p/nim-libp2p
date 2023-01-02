@@ -10,6 +10,7 @@ import ../libp2p/[errors,
                   builders,
                   stream/bufferstream,
                   stream/connection,
+                  multicodec,
                   multiaddress,
                   peerinfo,
                   crypto/crypto,
@@ -213,12 +214,40 @@ suite "Switch":
       "dnsaddr=" & $switch1.peerInfo.addrs[0] & "/p2p/" & $switch1.peerInfo.peerId,
     ]
 
-    check: (await switch2.connect(@[MultiAddress.init("/dnsaddr/test.io/").tryGet()])) == switch1.peerInfo.peerId
+    check: (await switch2.connect(MultiAddress.init("/dnsaddr/test.io/").tryGet(), true)) == switch1.peerInfo.peerId
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     # via direct ip
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    check: (await switch2.connect(switch1.peerInfo.addrs)) == switch1.peerInfo.peerId
+    check: (await switch2.connect(switch1.peerInfo.addrs[0], true)) == switch1.peerInfo.peerId
+
+    await switch2.disconnect(switch1.peerInfo.peerId)
+
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop()
+    )
+
+  asyncTest "e2e connect to peer with known PeerId":
+    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    await switch1.start()
+    await switch2.start()
+
+    # via direct ip
+    check not switch2.isConnected(switch1.peerInfo.peerId)
+
+    # without specifying allow unknown, will fail
+    expect(DialFailedError):
+      discard await switch2.connect(switch1.peerInfo.addrs[0])
+
+    # with invalid PeerId, will fail
+    let fakeMa = concat(switch1.peerInfo.addrs[0], MultiAddress.init(multiCodec("p2p"), PeerId.random.tryGet().data).tryGet()).tryGet()
+    expect(CatchableError):
+      discard (await switch2.connect(fakeMa))
+
+    # real thing works
+    check (await switch2.connect(switch1.peerInfo.fullAddrs.tryGet()[0])) == switch1.peerInfo.peerId
 
     await switch2.disconnect(switch1.peerInfo.peerId)
 
@@ -1016,3 +1045,13 @@ suite "Switch":
     expect LPError:
       await switch.start()
     # test is that this doesn't leak
+
+  asyncTest "starting two times does not crash":
+    let switch = newStandardSwitch(
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    )
+
+    await switch.start()
+    await switch.start()
+
+    await allFuturesThrowing(switch.stop())

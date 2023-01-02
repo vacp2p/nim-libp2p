@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[strutils, sequtils]
+import std/[strutils, sequtils, tables]
 import chronos, chronicles, stew/byteutils
 import stream/connection,
        protocols/protocol
@@ -21,7 +21,7 @@ logScope:
   topics = "libp2p multistream"
 
 const
-  MsgSize = 64*1024
+  MsgSize = 1024
   Codec = "/multistream/1.0.0"
 
   Na = "na\n"
@@ -32,17 +32,20 @@ type
 
   MultiStreamError* = object of LPError
 
-  HandlerHolder* = object
+  HandlerHolder* = ref object
     protos*: seq[string]
     protocol*: LPProtocol
     match*: Matcher
+    openedStreams: CountTable[PeerId]
 
   MultistreamSelect* = ref object of RootObj
     handlers*: seq[HandlerHolder]
     codec*: string
 
 proc new*(T: typedesc[MultistreamSelect]): T =
-  T(codec: Codec)
+  T(
+    codec: Codec,
+  )
 
 template validateSuffix(str: string): untyped =
     if str.endsWith("\n"):
@@ -189,12 +192,26 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
       protos.add(proto)
 
   try:
-    let negotiated = await MultistreamSelect.handle(conn, protos, matchers, active)
+    let ms = await MultistreamSelect.handle(conn, protos, matchers, active)
     for h in m.handlers:
-      if h.protos.contains(negotiated) or (not isNil(h.match) and h.match(negotiated)):
-        await h.protocol.handler(conn, negotiated)
+      if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
+        trace "found handler", conn, protocol = ms
+
+        var protocolHolder = h
+        let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
+        if protocolHolder.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
+          debug "Max streams for protocol reached, blocking new stream",
+            conn, protocol = ms, maxIncomingStreams
+          return
+        protocolHolder.openedStreams.inc(conn.peerId)
+        try:
+          await protocolHolder.protocol.handler(conn, ms)
+        finally:
+          protocolHolder.openedStreams.inc(conn.peerId, -1)
+          if protocolHolder.openedStreams[conn.peerId] == 0:
+            protocolHolder.openedStreams.del(conn.peerId)
         return
-    debug "no handlers", conn, negotiated
+    debug "no handlers", conn, ms
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

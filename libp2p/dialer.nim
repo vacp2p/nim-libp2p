@@ -211,11 +211,23 @@ method connect*(
 
 method connect*(
   self: Dialer,
-  addrs: seq[MultiAddress],
-  ): Future[PeerId] {.async.} =
+  address: MultiAddress,
+  allowUnknownPeerId = false): Future[PeerId] {.async.} =
   ## Connects to a peer and retrieve its PeerId
 
-  return (await self.internalConnect(Opt.none(PeerId), addrs, false)).connection.peerId
+  let fullAddress = parseFullAddress(address)
+  if fullAddress.isOk:
+    return (await self.internalConnect(
+      Opt.some(fullAddress.get()[0]),
+      @[fullAddress.get()[1]],
+      false)).connection.peerId
+  else:
+    if allowUnknownPeerId == false:
+      raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
+    return (await self.internalConnect(
+      Opt.none(PeerId),
+      @[address],
+      false)).connection.peerId
 
 proc negotiateStream(
   self: Dialer,

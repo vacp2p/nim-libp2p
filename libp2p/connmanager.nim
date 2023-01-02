@@ -104,6 +104,13 @@ proc new*(C: type ConnManager,
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.muxed.getOrDefault(peerId).len
 
+proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
+  var peers = newSeq[PeerId]()
+  for peerId, mux in c.muxed:
+    if mux.anyIt(it.connection.dir == dir):
+      peers.add(peerId)
+  return peers
+
 proc addConnEventHandler*(c: ConnManager,
                           handler: ConnEventHandler,
                           kind: ConnEventKind) =
@@ -418,3 +425,4 @@ proc close*(c: ConnManager) {.async.} =
       await closeMuxer(mux)
 
   trace "Closed ConnManager"
+
