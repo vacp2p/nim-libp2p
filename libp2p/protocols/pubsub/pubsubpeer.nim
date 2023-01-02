@@ -168,6 +168,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
 proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
+    if p.connectedFut.finished:
+      p.connectedFut = newFuture[void]()
     let newConn = await p.getConn()
     if newConn.isNil:
       raise (ref LPError)(msg: "Cannot establish send connection")
@@ -214,27 +216,10 @@ proc connectImpl(p: PubSubPeer) {.async.} =
     debug "Could not establish send connection", msg = exc.msg
 
 proc connect*(p: PubSubPeer) =
+  if p.connected:
+    return
+
   asyncSpawn connectImpl(p)
-
-proc sendImpl(conn: Connection, encoded: seq[byte]): Future[void] {.raises: [Defect].} =
-  trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
-
-  let fut = conn.writeLp(encoded) # Avoid copying `encoded` into future
-  proc sendWaiter(): Future[void] {.async.} =
-    try:
-      await fut
-      trace "sent pubsub message to remote", conn
-
-    except CatchableError as exc: # never cancelled
-      # Because we detach the send call from the currently executing task using
-      # asyncSpawn, no exceptions may leak out of it
-      trace "Unable to send to remote", conn, msg = exc.msg
-      # Next time sendConn is used, it will be have its close flag set and thus
-      # will be recycled
-
-      await conn.close() # This will clean up the send connection
-
-  return sendWaiter()
 
 template sendMetrics(msg: RPCMsg): untyped =
   when defined(libp2p_expensive_metrics):
@@ -243,7 +228,7 @@ template sendMetrics(msg: RPCMsg): untyped =
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect].} =
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   if msg.len <= 0:
@@ -254,14 +239,27 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect].} =
     info "trying to send a too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
     return
 
-  let conn = p.sendConn
+  if p.sendConn == nil:
+    discard await p.connectedFut.withTimeout(1.seconds)
+
+  var conn = p.sendConn
   if conn == nil or conn.closed():
-    trace "No send connection, skipping message", p, msg = shortLog(msg)
+    debug "No send connection, skipping message", p, msg = shortLog(msg)
     return
 
-  # To limit the size of the closure, we only pass the encoded message and
-  # connection to the spawned send task
-  asyncSpawn sendImpl(conn, msg)
+  trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
+
+  try:
+    await conn.writeLp(msg)
+    trace "sent pubsub message to remote", conn
+  except CatchableError as exc: # never cancelled
+    # Because we detach the send call from the currently executing task using
+    # asyncSpawn, no exceptions may leak out of it
+    trace "Unable to send to remote", conn, msg = exc.msg
+    # Next time sendConn is used, it will be have its close flag set and thus
+    # will be recycled
+
+    await conn.close() # This will clean up the send connection
 
 proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
@@ -283,7 +281,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
     sendMetrics(msg)
     encodeRpcMsg(msg, anonymize)
 
-  p.sendEncoded(encoded)
+  asyncSpawn p.sendEncoded(encoded)
 
 proc new*(
   T: typedesc[PubSubPeer],
