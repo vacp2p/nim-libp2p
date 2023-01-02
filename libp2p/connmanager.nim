@@ -294,7 +294,7 @@ proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
 
   trace "Connection cleaned up", conn
 
-proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
+proc onConnUpgraded*(c: ConnManager, conn: Connection) {.async.} =
   try:
     trace "Triggering connect events", conn
     conn.upgrade()
@@ -468,8 +468,6 @@ proc storeMuxer*(c: ConnManager,
 
   trace "Stored muxer",
     muxer, handle = not handle.isNil, connections = c.conns.len
-
-  asyncSpawn c.onConnUpgraded(muxer.connection)
 
 proc getStream*(c: ConnManager,
                 peerId: PeerId,
