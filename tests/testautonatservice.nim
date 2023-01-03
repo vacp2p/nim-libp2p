@@ -13,9 +13,9 @@ import unittest2
 import ../libp2p/[builders,
                   switch,
                   services/autonatservice,
-                  protocols/connectivity/autonat]
+                  protocols/connectivity/autonat/client]
 import ./helpers
-import stubs/autonatstub
+import stubs/autonatclientstub
 
 proc createSwitch(autonatSvc: Service = nil, withAutonat = true): Switch =
   var builder = SwitchBuilder.new()
@@ -39,10 +39,10 @@ suite "Autonat Service":
 
   asyncTest "Peer must be not reachable":
 
-    let autonatStub = AutonatStub.new(expectedDials = 3)
-    autonatStub.answer = NotReachable
+    let autonatClientStub = AutonatClientStub.new(expectedDials = 3)
+    autonatClientStub.answer = NotReachable
 
-    let autonatService = AutonatService.new(autonatStub, newRng())
+    let autonatService = AutonatService.new(autonatClientStub, newRng())
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -60,7 +60,7 @@ suite "Autonat Service":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await autonatStub.finished
+    await autonatClientStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
@@ -70,9 +70,7 @@ suite "Autonat Service":
 
   asyncTest "Peer must be reachable":
 
-    let autonat = Autonat.new(switch = nil)
-
-    let autonatService = AutonatService.new(autonat, newRng(), some(1.seconds))
+    let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds))
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -86,7 +84,6 @@ suite "Autonat Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    autonat.switch = switch1
     check autonatService.networkReachability() == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
@@ -110,10 +107,10 @@ suite "Autonat Service":
 
   asyncTest "Peer must be not reachable and then reachable":
 
-    let autonatStub = AutonatStub.new(expectedDials = 6)
-    autonatStub.answer = NotReachable
+    let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
+    autonatClientStub.answer = NotReachable
 
-    let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds))
+    let autonatService = AutonatService.new(autonatClientStub, newRng(), some(1.seconds))
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -125,7 +122,7 @@ suite "Autonat Service":
     proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
         if not awaiter.finished:
-          autonatStub.answer = Reachable
+          autonatClientStub.answer = Reachable
           awaiter.complete()
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
@@ -146,7 +143,7 @@ suite "Autonat Service":
     check autonatService.networkReachability() == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
-    await autonatStub.finished
+    await autonatClientStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
@@ -154,9 +151,8 @@ suite "Autonat Service":
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
   asyncTest "Peer must be reachable when one connected peer has autonat disabled":
-    let autonat = Autonat.new(switch = nil)
 
-    let autonatService = AutonatService.new(autonat, newRng(), some(1.seconds), maxQueueSize = 2)
+    let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 2)
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch(withAutonat = false)
@@ -170,7 +166,6 @@ suite "Autonat Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    autonat.switch = switch1
     check autonatService.networkReachability() == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
@@ -194,10 +189,10 @@ suite "Autonat Service":
 
   asyncTest "Unknown answers must be ignored":
 
-    let autonatStub = AutonatStub.new(expectedDials = 6)
-    autonatStub.answer = NotReachable
+    let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
+    autonatClientStub.answer = NotReachable
 
-    let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds), maxQueueSize = 3)
+    let autonatService = AutonatService.new(autonatClientStub, newRng(), some(1.seconds), maxQueueSize = 3)
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -209,7 +204,7 @@ suite "Autonat Service":
     proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
         if not awaiter.finished:
-          autonatStub.answer = Unknown
+          autonatClientStub.answer = Unknown
           awaiter.complete()
 
     check autonatService.networkReachability() == NetworkReachability.Unknown
@@ -230,7 +225,7 @@ suite "Autonat Service":
     check autonatService.networkReachability() == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
 
-    await autonatStub.finished
+    await autonatClientStub.finished
 
     check autonatService.networkReachability() == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
@@ -240,7 +235,7 @@ suite "Autonat Service":
   asyncTest "Calling setup and stop twice must work":
 
     let switch = createSwitch()
-    let autonatService = AutonatService.new(AutonatStub.new(expectedDials = 0), newRng(), some(1.seconds))
+    let autonatService = AutonatService.new(AutonatClientStub.new(expectedDials = 0), newRng(), some(1.seconds))
 
     check (await autonatService.setup(switch)) == true
     check (await autonatService.setup(switch)) == false
