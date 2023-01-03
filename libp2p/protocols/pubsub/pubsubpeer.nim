@@ -106,14 +106,14 @@ proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
-      if not(isNil(obs)): # TODO: should never be nil, but...
+      if not(isNil(obs.onRecv)):
         obs.onRecv(p, msg)
 
 proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
-      if not(isNil(obs)): # TODO: should never be nil, but...
+      if not(isNil(obs.onSend)):
         obs.onSend(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
