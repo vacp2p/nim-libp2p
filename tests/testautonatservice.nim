@@ -12,8 +12,8 @@ import chronos, metrics
 import unittest2
 import ../libp2p/[builders,
                   switch,
-                  services/autonatservice,
-                  protocols/connectivity/autonat/client]
+                  protocols/connectivity/autonat/client,
+                  protocols/connectivity/autonat/service]
 import ./helpers
 import stubs/autonatclientstub
 

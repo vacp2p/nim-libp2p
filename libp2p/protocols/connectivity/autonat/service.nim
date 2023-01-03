@@ -14,10 +14,10 @@ else:
 
 import std/[options, deques, sequtils]
 import chronos, metrics
-import ../switch
-import ../protocols/[connectivity/autonat/client]
-import ../utils/heartbeat
-import ../crypto/crypto
+import ../../../switch
+import client
+import ../../../utils/heartbeat
+import ../../../crypto/crypto
 
 logScope:
   topics = "libp2p autonatservice"
