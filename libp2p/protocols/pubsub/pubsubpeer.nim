@@ -247,7 +247,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
     debug "No send connection, skipping message", p, msg = shortLog(msg)
     return
 
-  trace "sending encoded msgs to peer", conn, encoded = shortLog(encoded)
+  trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
 
   try:
     await conn.writeLp(msg)
