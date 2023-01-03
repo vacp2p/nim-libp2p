@@ -123,9 +123,19 @@ runs:
       shell: ${{ inputs.shell }}
       if: ${{ steps.nim-cache.outputs.cache-hit != 'true' }}
       run: |
+        case ${{ inputs.nim_branch }} in
+          "version-2-0" | "devel")
+            CSOURCES_VERSION="v2"
+            export CSOURCES_COMMIT="86742fb02c6606ab01a532a0085784effb2e753e"
+            ;;
+          *)
+            CSOURCES_VERSION="v2"
+            ;;
+        esac
         # We don't want partial matches of the cache restored
         rm -rf nim
-        curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+        curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/allowcsourceoverride/scripts/build_nim.sh
         env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
+          CSOURCES_REPO="https://github.com/nim-lang/csources_${CSOURCES_VERSION}.git" \
           QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
           bash build_nim.sh nim csources dist/nimble NimBinaries
