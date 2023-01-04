@@ -129,7 +129,8 @@ runs:
             export CSOURCES_COMMIT="86742fb02c6606ab01a532a0085784effb2e753e"
             ;;
           *)
-            CSOURCES_VERSION="v2"
+            CSOURCES_VERSION="v1"
+            export CSOURCES_COMMIT="a8a5241f9475099c823cfe1a5e0ca4022ac201ff"
             ;;
         esac
         # We don't want partial matches of the cache restored
