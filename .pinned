@@ -14,3 +14,5 @@ testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014d
 unittest2;https://github.com/status-im/nim-unittest2@#da8398c45cafd5bd7772da1fc96e3924a18d3823
 websock;https://github.com/status-im/nim-websock@#691f069b209d372b1240d5ae1f57fb7bbafeaba7
 zlib;https://github.com/status-im/nim-zlib@#6a6670afba6b97b29b920340e2641978c05ab4d8
+
+protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#a4a4610fac6eade8683a46db9d564c9cd8ac62a4

@@ -16,7 +16,8 @@ import tables, sequtils, sugar, sets, options
 import chronos,
        chronicles,
        bearssl/rand,
-       stew/[byteutils, objects]
+       stew/[byteutils, objects],
+       protobuf_serialization
 import ./protocol,
        ../switch,
        ../routing_record,
@@ -25,7 +26,7 @@ import ./protocol,
        ../utils/offsettedseq,
        ../utils/semaphore
 
-export chronicles
+export chronicles, protobuf_serialization
 
 logScope:
   topics = "libp2p discovery rendezvous"
@@ -40,244 +41,58 @@ const
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize = 5
 
-type
-  MessageType {.pure.} = enum
-    Register = 0
-    RegisterResponse = 1
-    Unregister = 2
-    Discover = 3
-    DiscoverResponse = 4
-
-  ResponseStatus = enum
-    Ok = 0
-    InvalidNamespace = 100
-    InvalidSignedPeerRecord = 101
-    InvalidTTL = 102
-    InvalidCookie = 103
-    NotAuthorized = 200
-    InternalError = 300
-    Unavailable = 400
-
-  Cookie = object
-    offset : uint64
-    ns : string
-
-  Register = object
-    ns : string
-    signedPeerRecord: seq[byte]
-    ttl: Option[uint64] # in seconds
-
-  RegisterResponse = object
-    status: ResponseStatus
-    text: Option[string]
-    ttl: Option[uint64] # in seconds
-
-  Unregister = object
-    ns: string
-
-  Discover = object
-    ns: string
-    limit: Option[uint64]
-    cookie: Option[seq[byte]]
-
-  DiscoverResponse = object
-    registrations: seq[Register]
-    cookie: Option[seq[byte]]
-    status: ResponseStatus
-    text: Option[string]
-
-  Message = object
-    msgType: MessageType
-    register: Option[Register]
-    registerResponse: Option[RegisterResponse]
-    unregister: Option[Unregister]
-    discover: Option[Discover]
-    discoverResponse: Option[DiscoverResponse]
-
-proc encode(c: Cookie): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, c.offset)
-  result.write(2, c.ns)
-  result.finish()
-
-proc encode(r: Register): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, r.ns)
-  result.write(2, r.signedPeerRecord)
-  if r.ttl.isSome():
-    result.write(3, r.ttl.get())
-  result.finish()
-
-proc encode(rr: RegisterResponse): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, rr.status.uint)
-  if rr.text.isSome():
-    result.write(2, rr.text.get())
-  if rr.ttl.isSome():
-    result.write(3, rr.ttl.get())
-  result.finish()
-
-proc encode(u: Unregister): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, u.ns)
-  result.finish()
-
-proc encode(d: Discover): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, d.ns)
-  if d.limit.isSome():
-    result.write(2, d.limit.get())
-  if d.cookie.isSome():
-    result.write(3, d.cookie.get())
-  result.finish()
-
-proc encode(d: DiscoverResponse): ProtoBuffer =
-  result = initProtoBuffer()
-  for reg in d.registrations:
-    result.write(1, reg.encode())
-  if d.cookie.isSome():
-    result.write(2, d.cookie.get())
-  result.write(3, d.status.uint)
-  if d.text.isSome():
-    result.write(4, d.text.get())
-  result.finish()
-
-proc encode(msg: Message): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, msg.msgType.uint)
-  if msg.register.isSome():
-    result.write(2, msg.register.get().encode())
-  if msg.registerResponse.isSome():
-    result.write(3, msg.registerResponse.get().encode())
-  if msg.unregister.isSome():
-    result.write(4, msg.unregister.get().encode())
-  if msg.discover.isSome():
-    result.write(5, msg.discover.get().encode())
-  if msg.discoverResponse.isSome():
-    result.write(6, msg.discoverResponse.get().encode())
-  result.finish()
-
-proc decode(_: typedesc[Cookie], buf: seq[byte]): Option[Cookie] =
-  var c: Cookie
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, c.offset)
-    r2 = pb.getRequiredField(2, c.ns)
-  if r1.isErr() or r2.isErr(): return none(Cookie)
-  some(c)
-
-proc decode(_: typedesc[Register], buf: seq[byte]): Option[Register] =
-  var
-    r: Register
-    ttl: uint64
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, r.ns)
-    r2 = pb.getRequiredField(2, r.signedPeerRecord)
-    r3 = pb.getField(3, ttl)
-  if r1.isErr() or r2.isErr() or r3.isErr(): return none(Register)
-  if r3.get(): r.ttl = some(ttl)
-  some(r)
-
-proc decode(_: typedesc[RegisterResponse], buf: seq[byte]): Option[RegisterResponse] =
-  var
-    rr: RegisterResponse
-    statusOrd: uint
-    text: string
-    ttl: uint64
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, statusOrd)
-    r2 = pb.getField(2, text)
-    r3 = pb.getField(3, ttl)
-  if r1.isErr() or r2.isErr() or r3.isErr() or
-     not checkedEnumAssign(rr.status, statusOrd): return none(RegisterResponse)
-  if r2.get(): rr.text = some(text)
-  if r3.get(): rr.ttl = some(ttl)
-  some(rr)
-
-proc decode(_: typedesc[Unregister], buf: seq[byte]): Option[Unregister] =
-  var u: Unregister
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, u.ns)
-  if r1.isErr(): return none(Unregister)
-  some(u)
-
-proc decode(_: typedesc[Discover], buf: seq[byte]): Option[Discover] =
-  var
-    d: Discover
-    limit: uint64
-    cookie: seq[byte]
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, d.ns)
-    r2 = pb.getField(2, limit)
-    r3 = pb.getField(3, cookie)
-  if r1.isErr() or r2.isErr() or r3.isErr: return none(Discover)
-  if r2.get(): d.limit = some(limit)
-  if r3.get(): d.cookie = some(cookie)
-  some(d)
-
-proc decode(_: typedesc[DiscoverResponse], buf: seq[byte]): Option[DiscoverResponse] =
-  var
-    dr: DiscoverResponse
-    registrations: seq[seq[byte]]
-    cookie: seq[byte]
-    statusOrd: uint
-    text: string
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRepeatedField(1, registrations)
-    r2 = pb.getField(2, cookie)
-    r3 = pb.getRequiredField(3, statusOrd)
-    r4 = pb.getField(4, text)
-  if r1.isErr() or r2.isErr() or r3.isErr or r4.isErr() or
-     not checkedEnumAssign(dr.status, statusOrd): return none(DiscoverResponse)
-  for reg in registrations:
-    var r: Register
-    let regOpt = Register.decode(reg)
-    if regOpt.isNone(): return none(DiscoverResponse)
-    dr.registrations.add(regOpt.get())
-  if r2.get(): dr.cookie = some(cookie)
-  if r4.get(): dr.text = some(text)
-  some(dr)
-
-proc decode(_: typedesc[Message], buf: seq[byte]): Option[Message] =
-  var
-    msg: Message
-    statusOrd: uint
-    pbr, pbrr, pbu, pbd, pbdr: ProtoBuffer
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, statusOrd)
-    r2 = pb.getField(2, pbr)
-    r3 = pb.getField(3, pbrr)
-    r4 = pb.getField(4, pbu)
-    r5 = pb.getField(5, pbd)
-    r6 = pb.getField(6, pbdr)
-  if r1.isErr() or r2.isErr() or r3.isErr() or
-     r4.isErr() or r5.isErr() or r6.isErr() or
-     not checkedEnumAssign(msg.msgType, statusOrd): return none(Message)
-  if r2.get():
-    msg.register = Register.decode(pbr.buffer)
-    if msg.register.isNone(): return none(Message)
-  if r3.get():
-    msg.registerResponse = RegisterResponse.decode(pbrr.buffer)
-    if msg.registerResponse.isNone(): return none(Message)
-  if r4.get():
-    msg.unregister = Unregister.decode(pbu.buffer)
-    if msg.unregister.isNone(): return none(Message)
-  if r5.get():
-    msg.discover = Discover.decode(pbd.buffer)
-    if msg.discover.isNone(): return none(Message)
-  if r6.get():
-    msg.discoverResponse = DiscoverResponse.decode(pbdr.buffer)
-    if msg.discoverResponse.isNone(): return none(Message)
-  some(msg)
-
+const
+  RdvRegister = 0'u64
+  RdvRegisterResponse = 1'u64
+  RdvUnregister = 2'u64
+  RdvDiscover = 3'u64
+  RdvDiscoverResponse = 4'u64
+  ResponseOk = 0'u64
+  ResponseInvalidNamespace = 100'u64
+  ResponseInvalidSignedPeerRecord = 101'u64
+  ResponseInvalidTTL = 102'u64
+  ResponseInvalidCookie = 103'u64
+  ResponseNotAuthorized = 200'u64
+  ResponseInternalError = 300'u64
+  ResponseUnavailable = 400'u64
 
 type
+  Cookie {.proto3.} = object
+    offset {.fieldNumber: 1, pint.}: uint64
+    ns {.fieldNumber: 2.}: string
+
+  Register {.proto3.} = object
+    ns {.fieldNumber: 1.}: string
+    signedPeerRecord {.fieldNumber: 2.}: seq[byte]
+    ttl {.fieldNumber: 3, pint.}: uint64 # in seconds
+
+  RegisterResponse {.proto3.} = object
+    status {.fieldNumber: 1, pint.}: uint64
+    text {.fieldNumber: 2.}: string
+    ttl {.fieldNumber: 3, pint.}: uint64 # in seconds
+
+  Unregister {.proto3.} = object
+    ns {.fieldNumber: 1.}: string
+
+  Discover {.proto3.} = object
+    ns {.fieldNumber: 1.}: string
+    limit {.fieldNumber: 2, pint.}: uint64
+    cookie {.fieldNumber: 3.}: seq[byte]
+
+  DiscoverResponse {.proto3.} = object
+    registrations {.fieldNumber: 1.}: seq[Register]
+    cookie {.fieldNumber: 2.}: seq[byte]
+    status {.fieldNumber: 3, pint.}: uint64
+    text {.fieldNumber: 4.}: string
+
+  Message {.proto3.} = object
+    msgType {.fieldNumber: 1, pint.}: uint64
+    register {.fieldNumber: 2.}: Register
+    registerResponse {.fieldNumber: 3.}: RegisterResponse
+    unregister {.fieldNumber: 4.}: Unregister
+    discover {.fieldNumber: 5.}: Discover
+    discoverResponse {.fieldNumber: 6.}: DiscoverResponse
+
   RendezVousError* = object of LPError
   RegisteredData = object
     expiration: Moment
@@ -312,39 +127,39 @@ proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
 
 proc sendRegisterResponse(conn: Connection,
                           ttl: uint64) {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.RegisterResponse,
-        registerResponse: some(RegisterResponse(status: Ok, ttl: some(ttl)))))
-  await conn.writeLp(msg.buffer)
+  let msg = Protobuf.encode(Message(
+        msgType: RdvRegisterResponse,
+        registerResponse: RegisterResponse(status: ResponseOk, ttl: ttl)))
+  await conn.writeLp(msg)
 
 proc sendRegisterResponseError(conn: Connection,
-                               status: ResponseStatus,
+                               status: uint64,
                                text: string = "") {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.RegisterResponse,
-        registerResponse: some(RegisterResponse(status: status, text: some(text)))))
-  await conn.writeLp(msg.buffer)
+  let msg = Protobuf.encode(Message(
+        msgType: RdvRegisterResponse,
+        registerResponse: RegisterResponse(status: status, text: text)))
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponse(conn: Connection,
                           s: seq[Register],
                           cookie: Cookie) {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.DiscoverResponse,
-        discoverResponse: some(DiscoverResponse(
-            status: Ok,
+  let msg = Protobuf.encode(Message(
+        msgType: RdvDiscoverResponse,
+        discoverResponse: DiscoverResponse(
+            status: ResponseOk,
             registrations: s,
-            cookie: some(cookie.encode().buffer)
-          ))
+            cookie: Protobuf.encode(cookie)
+          )
         ))
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponseError(conn: Connection,
-                               status: ResponseStatus,
+                               status: uint64,
                                text: string = "") {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.DiscoverResponse,
-        discoverResponse: some(DiscoverResponse(status: status, text: some(text)))))
-  await conn.writeLp(msg.buffer)
+  let msg = Protobuf.encode(Message(
+        msgType: RdvDiscoverResponse,
+        discoverResponse: DiscoverResponse(status: status, text: text)))
+  await conn.writeLp(msg)
 
 proc countRegister(rdv: RendezVous, peerId: PeerId): int =
   let n = Moment.now()
@@ -367,7 +182,7 @@ proc save(rdv: RendezVous,
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
-        expiration: Moment.now() + r.ttl.get(MinimumTTL).int64.seconds,
+        expiration: Moment.now() + max(r.ttl, MinimumTTL).int64.seconds,
         data: r
       )
     )
@@ -379,15 +194,15 @@ proc save(rdv: RendezVous,
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   trace "Received Register", peerId = conn.peerId, ns = r.ns
   if r.ns.len notin 1..255:
-    return conn.sendRegisterResponseError(InvalidNamespace)
-  let ttl = r.ttl.get(MinimumTTL)
+    return conn.sendRegisterResponseError(ResponseInvalidNamespace)
+  let ttl = max(r.ttl, MinimumTTL)
   if ttl notin MinimumTTL..MaximumTTL:
-    return conn.sendRegisterResponseError(InvalidTTL)
+    return conn.sendRegisterResponseError(ResponseInvalidTTL)
   let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
   if pr.isErr():
-    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
+    return conn.sendRegisterResponseError(ResponseInvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
-    return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
+    return conn.sendRegisterResponseError(ResponseNotAuthorized, "Registration limit reached")
   rdv.save(r.ns, conn.peerId, r)
   conn.sendRegisterResponse(ttl)
 
@@ -404,16 +219,16 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
 proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
   if d.ns.len notin 0..255:
-    await conn.sendDiscoverResponseError(InvalidNamespace)
+    await conn.sendDiscoverResponseError(ResponseInvalidNamespace)
     return
-  var limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
+  var limit = min(d.limit ,DiscoverLimit)
   var
     cookie =
-      if d.cookie.isSome():
+      if d.cookie != @[]:
         try:
-          Cookie.decode(d.cookie.get()).get()
+          Protobuf.decode(d.cookie, Cookie)
         except CatchableError:
-          await conn.sendDiscoverResponseError(InvalidCookie)
+          await conn.sendDiscoverResponseError(ResponseInvalidCookie)
           return
       else: Cookie(offset: rdv.registered.low().uint64 - 1)
   if cookie.ns != d.ns or
@@ -426,7 +241,7 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
         try:
           rdv.namespaces[nsSalted]
         except KeyError:
-          await conn.sendDiscoverResponseError(InvalidNamespace)
+          await conn.sendDiscoverResponseError(ResponseInvalidNamespace)
           return
       else: toSeq(cookie.offset.int..rdv.registered.high())
   if namespaces.len() == 0:
@@ -442,7 +257,7 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
           break
         if reg.expiration < n or index.uint64 <= cookie.offset: continue
         limit.dec()
-        reg.data.ttl = some((reg.expiration - Moment.now()).seconds.uint64)
+        reg.data.ttl = (reg.expiration - Moment.now()).seconds.uint64
         reg.data
   rdv.rng.shuffle(s)
   await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
@@ -457,11 +272,10 @@ proc advertisePeer(rdv: RendezVous,
       await conn.writeLp(msg)
       let
         buf = await conn.readLp(4096)
-        msgRecv = Message.decode(buf).get()
-      if msgRecv.msgType != MessageType.RegisterResponse:
+        msgRecv = Protobuf.decode(buf, Message)
+      if msgRecv.msgType != RdvRegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
-      elif msgRecv.registerResponse.isNone() or
-           msgRecv.registerResponse.get().status != ResponseStatus.Ok:
+      elif msgRecv.registerResponse.status != ResponseOk:
         trace "Refuse to register", peer, response = msgRecv.registerResponse
     except CatchableError as exc:
       trace "exception in the advertise", error = exc.msg
@@ -481,13 +295,13 @@ proc advertise*(rdv: RendezVous,
   if ttl notin MinimumDuration..MaximumDuration:
     raise newException(RendezVousError, "Invalid time to live")
   let
-    r = Register(ns: ns, signedPeerRecord: sprBuff.get(), ttl: some(ttl.seconds.uint64))
-    msg = encode(Message(msgType: MessageType.Register, register: some(r)))
+    r = Register(ns: ns, signedPeerRecord: sprBuff.get(), ttl: ttl.seconds.uint64)
+    msg = Protobuf.encode(Message(msgType: RdvRegister, register: r))
   rdv.save(ns, rdv.switch.peerInfo.peerId, r)
   let fut = collect(newSeq()):
     for peer in rdv.peers:
       trace "Send Advertise", peerId = peer, ns
-      rdv.advertisePeer(peer, msg.buffer)
+      rdv.advertisePeer(peer, msg)
   await allFutures(fut)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
@@ -519,38 +333,37 @@ proc request*(rdv: RendezVous,
   proc requestPeer(peer: PeerId) {.async.} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
     defer: await conn.close()
-    d.limit = some(limit)
+    d.limit = limit
     d.cookie =
       try:
-        some(rdv.cookiesSaved[peer][ns])
+        rdv.cookiesSaved[peer][ns]
       except KeyError as exc:
-        none(seq[byte])
-    await conn.writeLp(encode(Message(
-      msgType: MessageType.Discover,
-      discover: some(d))).buffer)
+        @[]
+    await conn.writeLp(Protobuf.encode(Message(
+      msgType: RdvDiscover,
+      discover: d)))
     let
       buf = await conn.readLp(65536)
-      msgRcv = Message.decode(buf).get()
-    if msgRcv.msgType != MessageType.DiscoverResponse or
-       msgRcv.discoverResponse.isNone():
+      msgRcv = Protobuf.decode(buf, Message)
+    if msgRcv.msgType != RdvDiscoverResponse:
       debug "Unexpected discover response", msgType = msgRcv.msgType
       return
-    let resp = msgRcv.discoverResponse.get()
-    if resp.status != ResponseStatus.Ok:
+    let resp = msgRcv.discoverResponse
+    if resp.status != ResponseOk:
       trace "Cannot discover", ns, status = resp.status, text = resp.text
       return
-    if resp.cookie.isSome() and resp.cookie.get().len < 1000:
-      if rdv.cookiesSaved.hasKeyOrPut(peer, {ns: resp.cookie.get()}.toTable):
-        rdv.cookiesSaved[peer][ns] = resp.cookie.get()
+    if resp.cookie.len < 1000:
+      if rdv.cookiesSaved.hasKeyOrPut(peer, {ns: resp.cookie}.toTable):
+        rdv.cookiesSaved[peer][ns] = resp.cookie
     for r in resp.registrations:
       if limit == 0: return
-      if r.ttl.isNone() or r.ttl.get() > MaximumTTL: continue
+      if r.ttl > MaximumTTL: continue
       let sprRes = SignedPeerRecord.decode(r.signedPeerRecord)
       if sprRes.isErr(): continue
       let pr = sprRes.get().data
       if s.hasKey(pr.peerId):
         let (prSaved, rSaved) = s[pr.peerId]
-        if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get() < r.ttl.get()) or
+        if (prSaved.seqNo == pr.seqNo and rSaved.ttl < r.ttl) or
           prSaved.seqNo < pr.seqNo:
           s[pr.peerId] = (pr, r)
       else:
@@ -587,15 +400,15 @@ proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
   if ns.len notin 1..255:
     raise newException(RendezVousError, "Invalid namespace")
   rdv.unsubscribeLocally(ns)
-  let msg = encode(Message(
-    msgType: MessageType.Unregister,
-    unregister: some(Unregister(ns: ns))))
+  let msg = Protobuf.encode(Message(
+    msgType: RdvUnregister,
+    unregister: Unregister(ns: ns)))
 
   proc unsubscribePeer(rdv: RendezVous, peerId: PeerId) {.async.} =
     try:
       let conn = await rdv.switch.dial(peerId, RendezVousCodec)
       defer: await conn.close()
-      await conn.writeLp(msg.buffer)
+      await conn.writeLp(msg)
     except CatchableError as exc:
       trace "exception while unsubscribing", error = exc.msg
 
@@ -627,15 +440,17 @@ proc new*(T: typedesc[RendezVous],
     try:
       let
         buf = await conn.readLp(4096)
-        msg = Message.decode(buf).get()
+        msg = Protobuf.decode(buf, Message)
       case msg.msgType:
-        of MessageType.Register: await rdv.register(conn, msg.register.get())
-        of MessageType.RegisterResponse:
+        of RdvRegister: await rdv.register(conn, msg.register)
+        of RdvRegisterResponse:
           trace "Got an unexpected Register Response", response = msg.registerResponse
-        of MessageType.Unregister: rdv.unregister(conn, msg.unregister.get())
-        of MessageType.Discover: await rdv.discover(conn, msg.discover.get())
-        of MessageType.DiscoverResponse:
+        of RdvUnregister: rdv.unregister(conn, msg.unregister)
+        of RdvDiscover: await rdv.discover(conn, msg.discover)
+        of RdvDiscoverResponse:
           trace "Got an unexpected Discover Response", response = msg.discoverResponse
+        else:
+          trace "Got an unexpected message type", msgtype = msg.msgType
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
