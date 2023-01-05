@@ -416,7 +416,7 @@ proc getIncomingSlot*(c: ConnManager): Future[ConnectionSlot] {.async.} =
   await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
 
-proc getOutgoingSlot*(c: ConnManager, forceDial = false): Future[ConnectionSlot] {.async.} =
+proc getOutgoingSlot*(c: ConnManager, forceDial = false): ConnectionSlot {.raises: [Defect, TooManyConnectionsError].} =
   if forceDial:
     c.outSema.forceAcquire()
   elif not c.outSema.tryAcquire():
