@@ -5,7 +5,8 @@ import
     transports/tcptransport,
     upgrademngrs/upgrade,
     builders,
-    protocols/connectivity/autonat
+    protocols/connectivity/autonat/client,
+    protocols/connectivity/autonat/server,
   ],
   ./helpers
 
@@ -44,7 +45,7 @@ suite "Autonat":
     await dst.start()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let ma = await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let ma = await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
     check ma in src.peerInfo.addrs
     await allFutures(src.stop(), dst.stop())
 
@@ -58,7 +59,7 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     expect AutonatUnreachableError:
-      discard await Autonat.new(src).dialMe(dst.peerInfo.peerId, dst.peerInfo.addrs)
+      discard await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "Timeout is triggered in autonat handle":
