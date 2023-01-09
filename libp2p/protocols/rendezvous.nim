@@ -42,19 +42,19 @@ const
   SemaphoreDefaultSize = 5
 
 const
-  RdvRegister = 0'u64
-  RdvRegisterResponse = 1'u64
-  RdvUnregister = 2'u64
-  RdvDiscover = 3'u64
-  RdvDiscoverResponse = 4'u64
-  ResponseOk = 0'u64
-  ResponseInvalidNamespace = 100'u64
-  ResponseInvalidSignedPeerRecord = 101'u64
-  ResponseInvalidTTL = 102'u64
-  ResponseInvalidCookie = 103'u64
-  ResponseNotAuthorized = 200'u64
-  ResponseInternalError = 300'u64
-  ResponseUnavailable = 400'u64
+  RdvRegister = 0'u32
+  RdvRegisterResponse = 1'u32
+  RdvUnregister = 2'u32
+  RdvDiscover = 3'u32
+  RdvDiscoverResponse = 4'u32
+  ResponseOk = 0'u32
+  ResponseInvalidNamespace = 100'u32
+  ResponseInvalidSignedPeerRecord = 101'u32
+  ResponseInvalidTTL = 102'u32
+  ResponseInvalidCookie = 103'u32
+  ResponseNotAuthorized = 200'u32
+  ResponseInternalError = 300'u32
+  ResponseUnavailable = 400'u32
 
 type
   Cookie {.proto3.} = object
