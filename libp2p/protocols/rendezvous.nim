@@ -67,7 +67,7 @@ type
     ttl {.fieldNumber: 3, pint.}: uint64 # in seconds
 
   RegisterResponse {.proto3.} = object
-    status {.fieldNumber: 1, pint.}: uint64
+    status {.fieldNumber: 1, pint.}: uint32
     text {.fieldNumber: 2.}: string
     ttl {.fieldNumber: 3, pint.}: uint64 # in seconds
 
@@ -82,11 +82,11 @@ type
   DiscoverResponse {.proto3.} = object
     registrations {.fieldNumber: 1.}: seq[Register]
     cookie {.fieldNumber: 2.}: seq[byte]
-    status {.fieldNumber: 3, pint.}: uint64
+    status {.fieldNumber: 3, pint.}: uint32
     text {.fieldNumber: 4.}: string
 
   Message {.proto3.} = object
-    msgType {.fieldNumber: 1, pint.}: uint64
+    msgType {.fieldNumber: 1, pint.}: uint32
     register {.fieldNumber: 2.}: Register
     registerResponse {.fieldNumber: 3.}: RegisterResponse
     unregister {.fieldNumber: 4.}: Unregister
@@ -133,7 +133,7 @@ proc sendRegisterResponse(conn: Connection,
   await conn.writeLp(msg)
 
 proc sendRegisterResponseError(conn: Connection,
-                               status: uint64,
+                               status: uint32,
                                text: string = "") {.async.} =
   let msg = Protobuf.encode(Message(
         msgType: RdvRegisterResponse,
@@ -154,7 +154,7 @@ proc sendDiscoverResponse(conn: Connection,
   await conn.writeLp(msg)
 
 proc sendDiscoverResponseError(conn: Connection,
-                               status: uint64,
+                               status: uint32,
                                text: string = "") {.async.} =
   let msg = Protobuf.encode(Message(
         msgType: RdvDiscoverResponse,
