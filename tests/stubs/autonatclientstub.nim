@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2022 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
 when (NimMajor, NimMinor) < (1, 4):
@@ -6,12 +15,13 @@ else:
   {.push raises: [].}
 
 import chronos
-import ../../libp2p/protocols/connectivity/autonat
-import ../../libp2p/peerid
-import ../../libp2p/multiaddress
+import ../../libp2p/[protocols/connectivity/autonat/client,
+                     peerid,
+                     multiaddress,
+                     switch]
 
 type
-  AutonatStub* = ref object of Autonat
+  AutonatClientStub* = ref object of AutonatClient
     answer*: Answer
     dials: int
     expectedDials: int
@@ -22,11 +32,12 @@ type
     NotReachable,
     Unknown
 
-proc new*(T: typedesc[AutonatStub], expectedDials: int): T =
+proc new*(T: typedesc[AutonatClientStub], expectedDials: int): T =
   return T(dials: 0, expectedDials: expectedDials, finished: newFuture[void]())
 
 method dialMe*(
-  self: AutonatStub,
+  self: AutonatClientStub,
+  switch: Switch,
   pid: PeerId,
   addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
     Future[MultiAddress] {.async.} =

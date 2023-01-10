@@ -244,7 +244,11 @@ proc completeWrite(
   except CancelledError as exc:
     # Chronos may still send the data
     raise exc
-  except LPStreamClosedError as exc:
+  except LPStreamConnDownError as exc:
+    await s.reset()
+    await s.conn.close()
+    raise exc
+  except LPStreamEOFError as exc:
     raise exc
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg

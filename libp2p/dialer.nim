@@ -171,7 +171,7 @@ proc internalConnect(
       trace "Reusing existing connection", direction = $muxed.connection.dir
       return muxed
 
-    let slot = await self.connManager.getOutgoingSlot(forceDial)
+    let slot = self.connManager.getOutgoingSlot(forceDial)
     muxed =
       try:
         await self.dialAndUpgrade(peerId, addrs)

@@ -27,7 +27,7 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
-  protocols/connectivity/[autonat, relay/relay, relay/client, relay/rtransport],
+  protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors, utility

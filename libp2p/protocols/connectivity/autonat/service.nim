@@ -14,10 +14,13 @@ else:
 
 import std/[options, deques, sequtils]
 import chronos, metrics
-import ../switch
-import ../protocols/[connectivity/autonat]
-import ../utils/heartbeat
-import ../crypto/crypto
+import ../../../switch
+import client
+import ../../../utils/heartbeat
+import ../../../crypto/crypto
+
+logScope:
+  topics = "libp2p autonatservice"
 
 declarePublicGauge(libp2p_autonat_reachability_confidence, "autonat reachability confidence", labels = ["reachability"])
 
@@ -28,7 +31,7 @@ type
     networkReachability: NetworkReachability
     confidence: Option[float]
     answers: Deque[NetworkReachability]
-    autonat: Autonat
+    autonatClient: AutonatClient
     statusAndConfidenceHandler: StatusAndConfidenceHandler
     rng: ref HmacDrbgContext
     scheduleInterval: Option[Duration]
@@ -45,7 +48,7 @@ type
 
 proc new*(
   T: typedesc[AutonatService],
-  autonat: Autonat,
+  autonatClient: AutonatClient,
   rng: ref HmacDrbgContext,
   scheduleInterval: Option[Duration] = none(Duration),
   askNewConnectedPeers = true,
@@ -58,7 +61,7 @@ proc new*(
     networkReachability: Unknown,
     confidence: none(float),
     answers: initDeque[NetworkReachability](),
-    autonat: autonat,
+    autonatClient: autonatClient,
     rng: rng,
     askNewConnectedPeers: askNewConnectedPeers,
     numPeersToAsk: numPeersToAsk,
@@ -94,11 +97,11 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
   trace "Current status", currentStats = $self.networkReachability, confidence = $self.confidence
 
-proc askPeer(self: AutonatService, s: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
+proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   trace "Asking for reachability", peerId = $peerId
   let ans =
     try:
-      discard await self.autonat.dialMe(peerId).wait(self.dialTimeout)
+      discard await self.autonatClient.dialMe(switch, peerId).wait(self.dialTimeout)
       Reachable
     except AutonatUnreachableError:
       trace "dialMe answer is not reachable", peerId = $peerId
