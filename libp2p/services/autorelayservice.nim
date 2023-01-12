@@ -103,6 +103,7 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
       await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
     else:
       await self.peerAvailable.wait()
+      await sleepAsync(200.millis)
 
 method run*(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
   if self.running:
