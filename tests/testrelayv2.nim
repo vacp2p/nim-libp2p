@@ -98,8 +98,7 @@ suite "Circuit Relay V2":
       let
         rv2add = Relay.new()
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                     $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $src2.peerInfo.peerId).get() ]
+                                     $rel.peerInfo.peerId & "/p2p-circuit").get() ]
       rv2add.setup(src2)
       await rv2add.start()
       src2.mount(rv2add)
@@ -164,8 +163,7 @@ suite "Circuit Relay V2":
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -201,8 +199,7 @@ suite "Circuit Relay V2":
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -250,8 +247,7 @@ take to the ship.""")
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -286,8 +282,7 @@ take to the ship.""")
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -332,8 +327,7 @@ take to the ship.""")
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
                                      $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $rel2.peerInfo.peerId & "/p2p/" &
-                                     $rel2.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $dst.peerInfo.peerId).get() ]
+                                     $rel2.peerInfo.peerId & "/p2p-circuit").get() ]
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel2.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -392,14 +386,11 @@ take to the ship.""")
 
       let
         addrsABC = MultiAddress.init($switchB.peerInfo.addrs[0] & "/p2p/" &
-                                     $switchB.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $switchC.peerInfo.peerId).get()
+                                     $switchB.peerInfo.peerId & "/p2p-circuit").get()
         addrsBCA = MultiAddress.init($switchC.peerInfo.addrs[0] & "/p2p/" &
-                                     $switchC.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $switchA.peerInfo.peerId).get()
+                                     $switchC.peerInfo.peerId & "/p2p-circuit").get()
         addrsCAB = MultiAddress.init($switchA.peerInfo.addrs[0] & "/p2p/" &
-                                     $switchA.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $switchB.peerInfo.peerId).get()
+                                     $switchA.peerInfo.peerId & "/p2p-circuit").get()
 
       await switchA.connect(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
       await switchB.connect(switchC.peerInfo.peerId, switchC.peerInfo.addrs)

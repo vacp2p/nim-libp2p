@@ -92,15 +92,15 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async, 
 method dial*(
   self: RelayTransport,
   hostname: string,
-  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
+  ma: MultiAddress,
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
+  let address = MultiAddress.init($ma & "/p2p/" & $peerId.get()).tryGet()
   result = await self.dial(address)
 
 method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe} =
   if ma.protocols.isOk():
     let sma = toSeq(ma.items())
-    if sma.len >= 3:
-      result = CircuitRelay.match(sma[^2].get()) and
-               P2PPattern.match(sma[^1].get())
+    result = sma.len >= 2 and CircuitRelay.match(sma[^1].get())
   trace "Handles return", ma, result
 
 proc new*(T: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): T =
