@@ -1014,9 +1014,8 @@ suite "Switch":
 
   asyncTest "e2e quic transport":
     let
-      #TODO port 0 doesn't work yet
-      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/4567/quic").tryGet()
-      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/4566/quic").tryGet()
+      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic").tryGet()
+      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic").tryGet()
 
       srcSwitch =
         SwitchBuilder.new()

@@ -14,7 +14,7 @@ import ./helpers, ./commontransport
 
 suite "Quic transport":
   asyncTest "can handle local address":
-    let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/45894/quic").tryGet()]
+    let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic").tryGet()]
     let transport1 = QuicTransport.new()
     await transport1.start(ma)
     check transport1.handles(transport1.addrs[0])
