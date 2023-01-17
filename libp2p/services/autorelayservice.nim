@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -28,7 +28,7 @@ type
     client: RelayClient
     numRelays: int
     relayPeers: Table[PeerId, Future[void]]
-    relayAddresses: Table[PeerId, MultiAddress]
+    relayAddresses: Table[PeerId, seq[MultiAddress]]
     backingOff: seq[PeerId]
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
@@ -38,9 +38,8 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId)
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
-      relayedAddr = MultiAddress.init($(rsvp.addrs[0]) &
-                                  "/p2p-circuit/p2p/" &
-                                  $selfPid).tryGet()
+      relayedAddr = rsvp.addrs.mapIt(
+        MultiAddress.init($it & "/p2p-circuit/p2p/" & $selfPid).tryGet())
       ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
     if ttl <= 60:
       # A reservation under a minute is basically useless
@@ -48,7 +47,7 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId)
     if relayPid notin self.relayAddresses or self.relayAddresses[relayPid] != relayedAddr:
       self.relayAddresses[relayPid] = relayedAddr
       if not self.onReservation.isNil():
-        self.onReservation(toSeq(self.relayAddresses.values))
+        self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
 method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsafe.} =
@@ -81,7 +80,7 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
         self.relayPeers.del(k)
         self.relayAddresses.del(k)
         if not self.onReservation.isNil():
-          self.onReservation(toSeq(self.relayAddresses.values))
+          self.onReservation(concat(toSeq(self.relayAddresses.values)))
         # To avoid ddosing our peers in certain conditions
         self.backingOff.add(k)
         asyncSpawn self.manageBackedOff(k)
@@ -120,7 +119,7 @@ method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsa
   return hasBeenStopped
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
-  result = toSeq(self.relayAddresses.values)
+  result = concat(toSeq(self.relayAddresses.values))
 
 proc new*(T: typedesc[AutoRelayService],
           numRelays: int,
