@@ -296,6 +296,10 @@ proc stop*(s: Switch) {.async, public.} =
   trace "Stopping switch"
 
   s.started = false
+
+  for service in s.services:
+    discard await service.stop(s)
+
   # close and cleanup all connections
   await s.connManager.close()
 
