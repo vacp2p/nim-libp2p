@@ -29,7 +29,7 @@ proc encode*(msg: DcutrMsg): ProtoBuffer =
     result.write(2, addr)
   result.finish()
 
-proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): Option[DcutrMsg] =
+proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg =
   var
     msgTypeOrd: uint32
     dcutrMsg: DcutrMsg
@@ -37,8 +37,8 @@ proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): Option[DcutrMsg] =
   var r1 = pb.getField(1, msgTypeOrd)
   let r2 = pb.getRepeatedField(2, dcutrMsg.addrs)
   if r1.isErr or r2.isErr or not checkedEnumAssign(dcutrMsg.msgType, msgTypeOrd):
-    return none(DcutrMsg)
-  return some(dcutrMsg)
+    raise newException(DcutrError, "Received malformed message")
+  return dcutrMsg
 
 
 
