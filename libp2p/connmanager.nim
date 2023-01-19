@@ -417,7 +417,7 @@ proc storeConn*(c: ConnManager, conn: Connection)
   if peerId in c.expectedConnections:
     for future in c.expectedConnections.getOrDefault(peerId):
       future.complete(conn)
-  elif c.conns.getOrDefault(peerId).len >= c.maxConnsPerPeer:
+  elif c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
     debug "Too many connections for peer",
       conn, conns = c.conns.getOrDefault(peerId).len
 
