@@ -79,6 +79,7 @@ type
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
+    expectedConnections: Table[PeerId, seq[Future[Connection]]]
     peerStore*: PeerStore
 
   ConnectionSlot* = object
@@ -219,6 +220,22 @@ proc triggerPeerEvents*(c: ConnManager,
     raise exc
   except CatchableError as exc: # handlers should not raise!
     warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
+
+proc expectConnection*(c: ConnManager, p: PeerId): Future[Connection] {.async.} =
+  # Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
+  if p notin c.expectedConnections:
+    c.expectedConnections[p] = newSeq[Future[Connection]]()
+
+  let future = newFuture[Connection]()
+  c.expectedConnections[p].add(future)
+
+  try:
+    return await future
+  finally:
+    if p in c.expectedConnections:
+      c.expectedConnections[p].keepItIf(it != future)
+      if c.expectedConnections[p].len == 0:
+        c.expectedConnections.del(p)
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -396,7 +413,11 @@ proc storeConn*(c: ConnManager, conn: Connection)
     raise newException(LPError, "Connection closed or EOF")
 
   let peerId = conn.peerId
-  if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
+
+  if peerId in c.expectedConnections:
+    for future in c.expectedConnections.getOrDefault(peerId):
+      future.complete(conn)
+  elif c.conns.getOrDefault(peerId).len >= c.maxConnsPerPeer:
     debug "Too many connections for peer",
       conn, conns = c.conns.getOrDefault(peerId).len
 
@@ -535,6 +556,13 @@ proc close*(c: ConnManager) {.async.} =
 
   let muxed = c.muxed
   c.muxed.clear()
+
+  let expected = c.expectedConnections
+  c.expectedConnections.clear()
+
+  for _, toCancel in expected:
+    for fut in toCancel:
+      await fut.cancelAndWait()
 
   for _, muxer in muxed:
     await closeMuxerHolder(muxer)

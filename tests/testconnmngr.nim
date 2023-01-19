@@ -96,7 +96,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
-    let connMngr = ConnManager.new()
+    let connMngr = ConnManager.new(maxConnsPerPeer = 2)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
     let conn1 = getConnection(peerId, Direction.Out)
     let conn2 = getConnection(peerId)
@@ -194,6 +194,38 @@ suite "Connection Manager":
     await allFuturesThrowing(
       allFutures(conns.mapIt( it.close() )))
 
+  asyncTest "expect connection from peer":
+    let connMngr = ConnManager.new(maxConnsPerPeer = 1)
+    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+
+    connMngr.storeConn(getConnection(peerId))
+
+    let conns = @[
+        getConnection(peerId),
+        getConnection(peerId)]
+
+    expect TooManyConnectionsError:
+      connMngr.storeConn(conns[0])
+
+    let
+      waitedConn1 = connMngr.expectConnection(peerId)
+      waitedConn2 = connMngr.expectConnection(peerId)
+      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet())
+      conn = getConnection(peerId)
+    await waitedConn1.cancelAndWait()
+    connMngr.storeConn(conn)
+    check (await waitedConn2) == conn
+
+    expect TooManyConnectionsError:
+      connMngr.storeConn(conns[1])
+
+    await connMngr.close()
+
+    checkExpiring: waitedConn3.cancelled()
+
+    await allFuturesThrowing(
+      allFutures(conns.mapIt( it.close() )))
+
   asyncTest "cleanup on connection close":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
@@ -216,7 +248,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "drop connections for peer":
-    let connMngr = ConnManager.new()
+    let connMngr = ConnManager.new(maxConnsPerPeer = 5)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     for i in 0..<2:
