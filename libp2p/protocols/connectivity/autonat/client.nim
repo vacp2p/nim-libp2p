@@ -57,7 +57,11 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
     except CatchableError as err:
       raise newException(AutonatError, "Unexpected error when dialling", err)
 
-  defer: await conn.close()
+  # To bypass maxConnectionsPerPeer
+  let incomingConnection = switch.connManager.expectConnection(pid)
+  defer:
+    await conn.close()
+    incomingConnection.cancel()
   await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
   return case response.status:

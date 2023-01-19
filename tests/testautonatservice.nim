@@ -17,11 +17,13 @@ import ../libp2p/[builders,
 import ./helpers
 import stubs/autonatclientstub
 
-proc createSwitch(autonatSvc: Service = nil, withAutonat = true): Switch =
+proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer = 1, maxConns = 100): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
+    .withMaxConnsPerPeer(maxConnsPerPeer)
+    .withMaxConnections(maxConns)
     .withMplex()
     .withNoise()
 
@@ -244,3 +246,77 @@ suite "Autonat Service":
     check (await autonatService.stop(switch)) == false
 
     await allFuturesThrowing(switch.stop())
+
+  asyncTest "Must work with low maxConnectionsPerPeer":
+    let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 1)
+
+    let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)
+    let switch2 = createSwitch(maxConnsPerPeer = 0)
+
+    let awaiter = newFuture[void]()
+
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
+        if not awaiter.finished:
+          awaiter.complete()
+
+    check autonatService.networkReachability() == NetworkReachability.Unknown
+
+    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+
+    await switch1.start()
+    await switch2.start()
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+
+    await awaiter
+
+    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
+
+    await allFuturesThrowing(
+      switch1.stop(), switch2.stop())
+
+  asyncTest "Must work with low maxConnections":
+    let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 1)
+
+    let switch1 = createSwitch(autonatService, maxConns = 4)
+    let switch2 = createSwitch()
+    let switch3 = createSwitch()
+    let switch4 = createSwitch()
+    let switch5 = createSwitch()
+
+    var awaiter = newFuture[void]()
+
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
+        if not awaiter.finished:
+          awaiter.complete()
+
+    check autonatService.networkReachability() == NetworkReachability.Unknown
+
+    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+
+    await switch1.start()
+    await switch2.start()
+    await switch3.start()
+    await switch4.start()
+    await switch5.start()
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+
+    await awaiter
+
+    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
+    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+    await switch5.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
+    # switch1 is now full, should stick to last observation
+    awaiter = newFuture[void]()
+    await autonatService.run(switch1)
+    await awaiter
+
+    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
+
+    await allFuturesThrowing(
+      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop())

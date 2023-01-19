@@ -16,7 +16,7 @@ import std/[options, deques, sequtils]
 import chronos, metrics
 import ../../../switch
 import client
-import ../../../utils/heartbeat
+import ../../../utils/[heartbeat, semaphore]
 import ../../../crypto/crypto
 
 logScope:
@@ -98,19 +98,25 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
   trace "Current status", currentStats = $self.networkReachability, confidence = $self.confidence
 
 proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
+  logScope:
+    peerId = $peerId
+  if switch.connManager.inSema.count < 2:
+    trace "Incoming slots full, not asking peer", count=switch.connManager.inSema.count
+    return Unknown
+
   trace "Asking for reachability", peerId = $peerId
   let ans =
     try:
       discard await self.autonatClient.dialMe(switch, peerId).wait(self.dialTimeout)
       Reachable
     except AutonatUnreachableError:
-      trace "dialMe answer is not reachable", peerId = $peerId
+      trace "dialMe answer is not reachable"
       NotReachable
     except AsyncTimeoutError:
-      trace "dialMe timed out", peerId = $peerId
+      trace "dialMe timed out"
       Unknown
     except CatchableError as err:
-      trace "dialMe unexpected error", peerId = $peerId, errMsg = $err.msg
+      trace "dialMe unexpected error", errMsg = $err.msg
       Unknown
   await self.handleAnswer(ans)
   if not isNil(self.statusAndConfidenceHandler):
@@ -122,8 +128,10 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   self.rng.shuffle(peers)
   var answersFromPeers = 0
   for peer in peers:
-    if answersFromPeers >= self.numPeersToAsk:
-      break
+    if
+      answersFromPeers >= self.numPeersToAsk or
+      switch.connManager.inSema.count < 2:
+        break
     elif (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
 
