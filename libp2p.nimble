@@ -128,7 +128,7 @@ task pin, "Create a lockfile":
   exec "nim c -r tools/pinner.nim"
 
 import sequtils
-import os
+import os, json
 task install_pinned, "Reads the lockfile":
   let toInstall = readFile(PinFile).splitWhitespace().mapIt((it.split(";", 1)[0], it.split(";", 1)[1]))
   # [('packageName', 'packageFullUri')]
@@ -143,10 +143,24 @@ task install_pinned, "Reads the lockfile":
     if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
     else: "nimbledeps/pkgs2"
   for dependency in listDirs(nimblePkgs):
-    let filename = dependency.extractFilename
-    if toInstall.anyIt(filename.startsWith(it[0]) and
-       filename.endsWith(it[1].split('#')[^1])) == false:
-      rmDir(dependency)
+    let
+      fileName = dependency.extractFilename
+      jsonContent = parseJson(readFile(dependency & "/nimblemeta.json"))
+      fileContent =
+        if "metaData" in jsonContent: jsonContent["metaData"]
+        else: jsonContent
+      packageName = fileName.split('-')[0]
+      version = fileContent.getOrDefault("vcsRevision").getStr("")
+
+    if toInstall.anyIt(
+        it[0] == packageName and
+        (
+          it[1].split('#')[^1] == version or # nimble for nim 2.X
+          fileName.endsWith(it[1].split('#')[^1]) # nimble for nim 1.X
+        )
+      ) == false or
+      fileName.split('-')[^1].len < 20: # safegard for nimble for nim 1.X
+        rmDir(dependency)
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")
