@@ -206,12 +206,16 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       connMngr.storeConn(conns[0])
 
+    let waitedConn1 = connMngr.expectConnection(peerId)
+
+    expect LPError:
+      discard await connMngr.expectConnection(peerId)
+
+    await waitedConn1.cancelAndWait()
     let
-      waitedConn1 = connMngr.expectConnection(peerId)
       waitedConn2 = connMngr.expectConnection(peerId)
       waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet())
       conn = getConnection(peerId)
-    await waitedConn1.cancelAndWait()
     connMngr.storeConn(conn)
     check (await waitedConn2) == conn
 

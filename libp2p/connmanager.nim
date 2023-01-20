@@ -79,7 +79,7 @@ type
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
-    expectedConnections: Table[PeerId, seq[Future[Connection]]]
+    expectedConnections: Table[PeerId, Future[Connection]]
     peerStore*: PeerStore
 
   ConnectionSlot* = object
@@ -222,20 +222,17 @@ proc triggerPeerEvents*(c: ConnManager,
     warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
 
 proc expectConnection*(c: ConnManager, p: PeerId): Future[Connection] {.async.} =
-  # Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
-  if p notin c.expectedConnections:
-    c.expectedConnections[p] = newSeq[Future[Connection]]()
+  ## Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
+  if p in c.expectedConnections:
+    raise LPError.newException("Already expecting a connection from that peer")
 
   let future = newFuture[Connection]()
-  c.expectedConnections[p].add(future)
+  c.expectedConnections[p] = future
 
   try:
     return await future
   finally:
-    if p in c.expectedConnections:
-      c.expectedConnections[p].keepItIf(it != future)
-      if c.expectedConnections[p].len == 0:
-        c.expectedConnections.del(p)
+    c.expectedConnections.del(p)
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -415,8 +412,9 @@ proc storeConn*(c: ConnManager, conn: Connection)
   let peerId = conn.peerId
 
   if peerId in c.expectedConnections:
-    for future in c.expectedConnections.getOrDefault(peerId):
-      future.complete(conn)
+    let fut = c.expectedConnections.getOrDefault(peerId)
+    if not fut.finished:
+      fut.complete(conn)
   elif c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
     debug "Too many connections for peer",
       conn, conns = c.conns.getOrDefault(peerId).len
@@ -560,9 +558,8 @@ proc close*(c: ConnManager) {.async.} =
   let expected = c.expectedConnections
   c.expectedConnections.clear()
 
-  for _, toCancel in expected:
-    for fut in toCancel:
-      await fut.cancelAndWait()
+  for _, fut in expected:
+    await fut.cancelAndWait()
 
   for _, muxer in muxed:
     await closeMuxerHolder(muxer)
