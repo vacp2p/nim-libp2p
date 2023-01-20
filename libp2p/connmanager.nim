@@ -411,10 +411,9 @@ proc storeConn*(c: ConnManager, conn: Connection)
 
   let peerId = conn.peerId
 
-  if peerId in c.expectedConnections:
-    let fut = c.expectedConnections.getOrDefault(peerId)
-    if not fut.finished:
-      fut.complete(conn)
+  if peerId in c.expectedConnections and
+     not(c.expectedConnections.getOrDefault(peerId).finished):
+      c.expectedConnections.getOrDefault(peerId).fut.complete(conn)
   elif c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
     debug "Too many connections for peer",
       conn, conns = c.conns.getOrDefault(peerId).len
