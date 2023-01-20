@@ -147,11 +147,27 @@ proc dialAndUpgrade(
         if not isNil(result):
           return result
 
+proc tryReusingConnection(peerId: PeerId, connManager: ConnManager): Future[Opt[Connection]] {.async.} =
+  var conn = connManager.selectConn(peerId)
+  if conn != nil:
+    if conn.atEof or conn.closed:
+      # This connection should already have been removed from the connection
+      # manager - it's essentially a bug that we end up here - we'll fail
+      # for now, hoping that this will clean themselves up later...
+      warn "dead connection in connection manager", conn
+      await conn.close()
+      raise newException(DialFailedError, "Zombie connection encountered")
+
+    trace "Reusing existing connection", conn, direction = $conn.dir
+    return Opt.some(conn)
+  return Opt.none(Connection)
+
 proc internalConnect(
   self: Dialer,
   peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
-  forceDial: bool):
+  forceDial: bool,
+  forceNewConnection = false):
   Future[Connection] {.async.} =
   if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -161,24 +177,13 @@ proc internalConnect(
   try:
     await lock.acquire()
 
-    # Check if we have a connection already and try to reuse it
-    var conn =
-      if peerId.isSome: self.connManager.selectConn(peerId.get())
-      else: nil
-    if conn != nil:
-      if conn.atEof or conn.closed:
-        # This connection should already have been removed from the connection
-        # manager - it's essentially a bug that we end up here - we'll fail
-        # for now, hoping that this will clean themselves up later...
-        warn "dead connection in connection manager", conn
-        await conn.close()
-        raise newException(DialFailedError, "Zombie connection encountered")
-
-      trace "Reusing existing connection", conn, direction = $conn.dir
-      return conn
+    if peerId.isSome and not forceNewConnection:
+      let connOpt = await tryReusingConnection(peerId.get(), self.connManager)
+      if connOpt.isSome:
+        return connOpt.get()
 
     let slot = self.connManager.getOutgoingSlot(forceDial)
-    conn =
+    let conn =
       try:
         await self.dialAndUpgrade(peerId, addrs)
       except CatchableError as exc:
@@ -207,15 +212,16 @@ method connect*(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  forceDial = false) {.async.} =
+  forceDial = false,
+  forceNewConnection = false) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
 
-  if self.connManager.connCount(peerId) > 0:
+  if self.connManager.connCount(peerId) > 0 and not forceNewConnection:
     return
 
-  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, forceNewConnection)
 
 method connect*(
   self: Dialer,
