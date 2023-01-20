@@ -147,20 +147,21 @@ proc dialAndUpgrade(
         if not isNil(result):
           return result
 
-proc tryReusingConnection(peerId: PeerId, connManager: ConnManager): Future[Opt[Connection]] {.async.} =
-  var conn = connManager.selectConn(peerId)
-  if conn != nil:
-    if conn.atEof or conn.closed:
-      # This connection should already have been removed from the connection
-      # manager - it's essentially a bug that we end up here - we'll fail
-      # for now, hoping that this will clean themselves up later...
-      warn "dead connection in connection manager", conn
-      await conn.close()
-      raise newException(DialFailedError, "Zombie connection encountered")
+proc tryReusingConnection(self: Dialer, peerId: PeerId): Future[Opt[Connection]] {.async.} =
+  var conn = self.connManager.selectConn(peerId)
+  if conn == nil:
+    return Opt.none(Connection)
 
-    trace "Reusing existing connection", conn, direction = $conn.dir
-    return Opt.some(conn)
-  return Opt.none(Connection)
+  if conn.atEof or conn.closed:
+    # This connection should already have been removed from the connection
+    # manager - it's essentially a bug that we end up here - we'll fail
+    # for now, hoping that this will clean themselves up later...
+    warn "dead connection in connection manager", conn
+    await conn.close()
+    raise newException(DialFailedError, "Zombie connection encountered")
+
+  trace "Reusing existing connection", conn, direction = $conn.dir
+  return Opt.some(conn)
 
 proc internalConnect(
   self: Dialer,
@@ -178,7 +179,7 @@ proc internalConnect(
     await lock.acquire()
 
     if peerId.isSome and not forceNewConnection:
-      let connOpt = await tryReusingConnection(peerId.get(), self.connManager)
+      let connOpt = await self.tryReusingConnection(peerId.get())
       if connOpt.isSome:
         return connOpt.get()
 
