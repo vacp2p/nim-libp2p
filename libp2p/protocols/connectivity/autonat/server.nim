@@ -59,8 +59,8 @@ proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
   await conn.writeLp(pb.buffer)
 
 proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
+  await autonat.sem.acquire()
   try:
-    await autonat.sem.acquire()
     let outgoingConnection = autonat.switch.connManager.expectConnection(conn.peerId)
     defer: outgoingConnection.cancel()
     let ma = await autonat.switch.dialer.tryDial(conn.peerId, addrs).wait(autonat.dialTimeout)
