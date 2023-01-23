@@ -413,7 +413,7 @@ proc storeConn*(c: ConnManager, conn: Connection)
 
   if peerId in c.expectedConnections and
      not(c.expectedConnections.getOrDefault(peerId).finished):
-      c.expectedConnections.getOrDefault(peerId).fut.complete(conn)
+      c.expectedConnections.getOrDefault(peerId).complete(conn)
   elif c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
     debug "Too many connections for peer",
       conn, conns = c.conns.getOrDefault(peerId).len
