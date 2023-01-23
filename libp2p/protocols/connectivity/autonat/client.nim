@@ -61,7 +61,7 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
   let incomingConnection = switch.connManager.expectConnection(pid)
   defer:
     await conn.close()
-    incomingConnection.cancel()
+    incomingConnection.cancel() # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
   await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
   return case response.status:
