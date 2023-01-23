@@ -79,6 +79,7 @@ type
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
+    expectedConnections: Table[PeerId, Future[Connection]]
     peerStore*: PeerStore
 
   ConnectionSlot* = object
@@ -219,6 +220,19 @@ proc triggerPeerEvents*(c: ConnManager,
     raise exc
   except CatchableError as exc: # handlers should not raise!
     warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
+
+proc expectConnection*(c: ConnManager, p: PeerId): Future[Connection] {.async.} =
+  ## Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
+  if p in c.expectedConnections:
+    raise LPError.newException("Already expecting a connection from that peer")
+
+  let future = newFuture[Connection]()
+  c.expectedConnections[p] = future
+
+  try:
+    return await future
+  finally:
+    c.expectedConnections.del(p)
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -396,7 +410,12 @@ proc storeConn*(c: ConnManager, conn: Connection)
     raise newException(LPError, "Connection closed or EOF")
 
   let peerId = conn.peerId
-  if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
+
+  # we use getOrDefault in the if below instead of [] to avoid the KeyError
+  if peerId in c.expectedConnections and
+     not(c.expectedConnections.getOrDefault(peerId).finished):
+      c.expectedConnections.getOrDefault(peerId).complete(conn)
+  elif c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
     debug "Too many connections for peer",
       conn, conns = c.conns.getOrDefault(peerId).len
 
@@ -535,6 +554,12 @@ proc close*(c: ConnManager) {.async.} =
 
   let muxed = c.muxed
   c.muxed.clear()
+
+  let expected = c.expectedConnections
+  c.expectedConnections.clear()
+
+  for _, fut in expected:
+    await fut.cancelAndWait()
 
   for _, muxer in muxed:
     await closeMuxerHolder(muxer)
