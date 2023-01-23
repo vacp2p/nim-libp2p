@@ -247,7 +247,7 @@ suite "Autonat Service":
 
     await allFuturesThrowing(switch.stop())
 
-  asyncTest "Must work with low maxConnectionsPerPeer":
+  asyncTest "Must bypass maxConnectionsPerPeer limit":
     let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 1)
 
     let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)

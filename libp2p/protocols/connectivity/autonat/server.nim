@@ -62,6 +62,7 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
   await autonat.sem.acquire()
   try:
     let outgoingConnection = autonat.switch.connManager.expectConnection(conn.peerId)
+    # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
     defer: outgoingConnection.cancel()
     let ma = await autonat.switch.dialer.tryDial(conn.peerId, addrs).wait(autonat.dialTimeout)
     if ma.isSome:

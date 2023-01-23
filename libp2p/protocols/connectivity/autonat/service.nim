@@ -16,7 +16,7 @@ import std/[options, deques, sequtils]
 import chronos, metrics
 import ../../../switch
 import client
-import ../../../utils/[heartbeat, semaphore]
+import ../../../utils/heartbeat
 import ../../../crypto/crypto
 
 logScope:
@@ -76,6 +76,10 @@ proc callHandler(self: AutonatService) {.async.} =
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
+proc notEnoughIncomingSlots(switch: Switch): bool =
+  # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
+  return switch.connManager.availableIncomingSlots() < 2
+
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
   if ans == Unknown:
@@ -100,8 +104,8 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   logScope:
     peerId = $peerId
-  if switch.connManager.inSema.count < 2:
-    trace "Incoming slots full, not asking peer", count=switch.connManager.inSema.count
+  if notEnoughIncomingSlots(switch):
+    trace "Incoming slots full, not asking peer", count=switch.connManager.availableIncomingSlots()
     return Unknown
 
   trace "Asking for reachability", peerId = $peerId
@@ -128,10 +132,8 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   self.rng.shuffle(peers)
   var answersFromPeers = 0
   for peer in peers:
-    if
-      answersFromPeers >= self.numPeersToAsk or
-      switch.connManager.inSema.count < 2:
-        break
+    if answersFromPeers >= self.numPeersToAsk or notEnoughIncomingSlots(switch):
+      break
     elif (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
 

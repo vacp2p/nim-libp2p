@@ -444,6 +444,9 @@ proc getOutgoingSlot*(c: ConnManager, forceDial = false): ConnectionSlot {.raise
     raise newTooManyConnectionsError()
   return ConnectionSlot(connManager: c, direction: Out)
 
+proc availableIncomingSlots*(c: ConnManager): int =
+  return c.inSema.count
+
 proc release*(cs: ConnectionSlot) =
   if cs.direction == In:
     cs.connManager.inSema.release()
