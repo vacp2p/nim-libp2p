@@ -96,6 +96,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
+    # This would work with 1 as well cause of a bug in connmanager that will get fixed soon
     let connMngr = ConnManager.new(maxConnsPerPeer = 2)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
     let conn1 = getConnection(peerId, Direction.Out)
@@ -194,6 +195,7 @@ suite "Connection Manager":
       allFutures(conns.mapIt( it.close() )))
 
   asyncTest "expect connection from peer":
+    # FIXME This should be 1 instead of 0, it will get fixed soon
     let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
@@ -251,7 +253,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "drop connections for peer":
-    let connMngr = ConnManager.new(maxConnsPerPeer = 5)
+    let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     for i in 0..<2:

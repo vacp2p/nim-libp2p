@@ -411,6 +411,7 @@ proc storeConn*(c: ConnManager, conn: Connection)
 
   let peerId = conn.peerId
 
+  # we use getOrDefault in the if below instead of [] to avoid the KeyError
   if peerId in c.expectedConnections and
      not(c.expectedConnections.getOrDefault(peerId).finished):
       c.expectedConnections.getOrDefault(peerId).complete(conn)
