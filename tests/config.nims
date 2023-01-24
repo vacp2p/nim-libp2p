@@ -16,7 +16,9 @@ for param in 0..<paramCount():
   if "chronicles" in paramStr(param):
     hasChroniclesParam = true
 
-if not hasChroniclesParam:
+if hasChroniclesParam:
+  echo "Since you specified chronicles params, TRACE won't be tested!"
+else:
   switch("import", "stublogger")
   switch("define", "chronicles_sinks=textlines[stdout],json[dynamic]")
   switch("define", "chronicles_log_level=TRACE")
