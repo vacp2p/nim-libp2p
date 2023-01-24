@@ -17,7 +17,8 @@ requires "nim >= 1.2.0",
          "secp256k1",
          "stew#head",
          "websock",
-         "unittest2 >= 0.0.5 & < 0.1.0"
+         "unittest2 >= 0.0.5 & < 0.1.0",
+         "protobuf_serialization"
 
 import hashes
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
