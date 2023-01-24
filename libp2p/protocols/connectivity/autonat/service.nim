@@ -76,9 +76,9 @@ proc callHandler(self: AutonatService) {.async.} =
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
-proc enoughIncomingSlots(switch: Switch): bool =
+proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
-  return switch.connManager.availableIncomingSlots() >= 2
+  return switch.connManager.incomingSlotsAvailable() >= 2
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
@@ -104,8 +104,8 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   logScope:
     peerId = $peerId
-  if not enoughIncomingSlots(switch):
-    trace "Incoming slots full, not asking peer", count=switch.connManager.availableIncomingSlots()
+  if not hasEnoughIncomingSlots(switch):
+    debug "No incoming slots available, not asking peer", incomingSlotsAvailable=switch.connManager.incomingSlotsAvailable()
     return Unknown
 
   trace "Asking for reachability"
@@ -132,9 +132,12 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   self.rng.shuffle(peers)
   var answersFromPeers = 0
   for peer in peers:
-    if answersFromPeers >= self.numPeersToAsk or not enoughIncomingSlots(switch):
+    if answersFromPeers >= self.numPeersToAsk:
       break
-    elif (await askPeer(self, switch, peer)) != Unknown:
+    if not hasEnoughIncomingSlots(switch):
+      debug "No incoming slots available, not asking peers", incomingSlotsAvailable=switch.connManager.incomingSlotsAvailable()
+      break
+    if (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
 
 proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
