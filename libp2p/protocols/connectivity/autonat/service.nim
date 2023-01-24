@@ -78,7 +78,7 @@ proc callHandler(self: AutonatService) {.async.} =
 
 proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
-  return switch.connManager.incomingSlotsAvailable() >= 2
+  return switch.connManager.slotsAvailable(In) >= 2
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
@@ -105,7 +105,7 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
   logScope:
     peerId = $peerId
   if not hasEnoughIncomingSlots(switch):
-    debug "No incoming slots available, not asking peer", incomingSlotsAvailable=switch.connManager.incomingSlotsAvailable()
+    trace "No incoming slots available, not asking peer", incomingSlotsAvailable=switch.connManager.slotsAvailable(In)
     return Unknown
 
   trace "Asking for reachability"
@@ -135,7 +135,7 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
     if answersFromPeers >= self.numPeersToAsk:
       break
     if not hasEnoughIncomingSlots(switch):
-      debug "No incoming slots available, not asking peers", incomingSlotsAvailable=switch.connManager.incomingSlotsAvailable()
+      debug "No incoming slots available, not asking peers", incomingSlotsAvailable=switch.connManager.slotsAvailable(In)
       break
     if (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
