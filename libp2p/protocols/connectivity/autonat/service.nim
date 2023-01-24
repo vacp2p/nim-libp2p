@@ -76,9 +76,9 @@ proc callHandler(self: AutonatService) {.async.} =
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
-proc notEnoughIncomingSlots(switch: Switch): bool =
+proc enoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
-  return switch.connManager.availableIncomingSlots() < 2
+  return switch.connManager.availableIncomingSlots() >= 2
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
@@ -104,11 +104,11 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   logScope:
     peerId = $peerId
-  if notEnoughIncomingSlots(switch):
+  if not enoughIncomingSlots(switch):
     trace "Incoming slots full, not asking peer", count=switch.connManager.availableIncomingSlots()
     return Unknown
 
-  trace "Asking for reachability", peerId = $peerId
+  trace "Asking for reachability"
   let ans =
     try:
       discard await self.autonatClient.dialMe(switch, peerId).wait(self.dialTimeout)
@@ -132,7 +132,7 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
   self.rng.shuffle(peers)
   var answersFromPeers = 0
   for peer in peers:
-    if answersFromPeers >= self.numPeersToAsk or notEnoughIncomingSlots(switch):
+    if answersFromPeers >= self.numPeersToAsk or not enoughIncomingSlots(switch):
       break
     elif (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
