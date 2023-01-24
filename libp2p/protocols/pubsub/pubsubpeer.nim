@@ -248,7 +248,9 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
   try:
     await conn.writeLp(msg)
     trace "sent pubsub message to remote", conn
-  except CatchableError as exc: # never cancelled
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
     trace "Unable to send to remote", conn, msg = exc.msg
@@ -257,7 +259,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
 
     await conn.close() # This will clean up the send connection
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool): Future[void] {.raises: [Defect].} =
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
 
   # When sending messages, we take care to re-encode them with the right
@@ -277,7 +279,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
     sendMetrics(msg)
     encodeRpcMsg(msg, anonymize)
 
-  asyncSpawn p.sendEncoded(encoded)
+  return p.sendEncoded(encoded)
 
 proc new*(
   T: typedesc[PubSubPeer],

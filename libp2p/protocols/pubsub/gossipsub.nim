@@ -43,6 +43,7 @@ logScope:
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
+declareCounter(libp2p_gossipsub_duplicate_during_broadcast, "number of duplicates received during message broadcast")
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
@@ -291,9 +292,27 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
     trace "sending control message", msg = shortLog(respControl), peer
-    g.send(
+    asyncSpawn g.send(
       peer,
       RPCMsg(control: some(respControl), messages: messages))
+
+proc lazyBroadcast(
+    g: GossipSub,
+    peers: seq[PubSubPeer],
+    msgIdSalted: MessageId,
+    msg: RPCMsg) {.async.} =
+  let
+    futsTable = g.cancellableBroadcast(peers, msg)
+    futs = toSeq(futsTable.values)
+  g.sendingFutures[msgIdSalted] = futsTable
+  await allFutures(futs)
+  g.sendingFutures.del(msgIdSalted)
+
+  # This isn't equal to the amount of saved bandwidth,
+  # because lower layer may send the data even after
+  # cancellation
+  let cancelledCount = futs.countIt(it.cancelled)
+  libp2p_gossipsub_duplicate_during_broadcast.inc(cancelledCount.int64)
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
@@ -339,7 +358,7 @@ proc validateAndRelay(g: GossipSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    asyncSpawn g.lazyBroadcast(toSeq(toSendPeers), msgIdSalted, RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue
@@ -396,6 +415,10 @@ method rpcHandler*(g: GossipSub,
       if not alreadyReceived:
         let delay = Moment.now() - g.firstSeen(msgId)
         g.rewardDelivered(peer, msg.topicIds, false, delay)
+
+      g.sendingFutures.withValue(msgIdSalted, futs):
+        futs[].withValue(peer.peerId, fut):
+          fut[].cancel()
 
       libp2p_gossipsub_duplicate.inc()
 

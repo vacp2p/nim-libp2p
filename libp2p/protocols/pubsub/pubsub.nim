@@ -139,20 +139,17 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) {.raises: [Defect].} =
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg): Future[void] {.raises: [Defect].} =
   ## Attempt to send `msg` to remote peer
   ##
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
   peer.send(msg, p.anonymize)
 
-proc broadcast*(
+proc updateBroadcastMetrics(
   p: PubSub,
-  sendPeers: auto, # Iteratble[PubSubPeer]
-  msg: RPCMsg) {.raises: [Defect].} =
-  ## Attempt to send `msg` to the given peers
-
-  let npeers = sendPeers.len.int64
+  msg: RPCMsg,
+  npeers: int64) =
   for sub in msg.subscriptions:
     if sub.subscribe:
       if p.knownTopics.contains(sub.topic):
@@ -192,24 +189,50 @@ proc broadcast*(
       else:
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
 
+proc broadcast*(
+  p: PubSub,
+  sendPeers: auto, # Iteratble[PubSubPeer]
+  msg: RPCMsg) {.raises: [Defect].} =
+  ## Attempt to send `msg` to the given peers
+
+  p.updateBroadcastMetrics(msg, sendPeers.len.int64)
   trace "broadcasting messages to peers",
     peers = sendPeers.len, msg = shortLog(msg)
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg)
+      asyncSpawn p.send(peer, msg)
   else:
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
       asyncSpawn peer.sendEncoded(encoded)
 
+proc cancellableBroadcast*(
+  p: PubSub,
+  sendPeers: auto, # Iteratble[PubSubPeer]
+  msg: RPCMsg): Table[PeerId, Future[void]] {.raises: [Defect].} =
+  ## Attempt to send `msg` to the given peers
+
+  p.updateBroadcastMetrics(msg, sendPeers.len)
+  trace "broadcasting messages to peers",
+    peers = sendPeers.len, msg = shortLog(msg)
+
+  if anyIt(sendPeers, it.hasObservers):
+    for peer in sendPeers:
+      result[peer.peerId] = p.send(peer, msg)
+  else:
+    # Fast path that only encodes message once
+    let encoded = encodeRpcMsg(msg, p.anonymize)
+    for peer in sendPeers:
+      result[peer.peerId] = peer.sendEncoded(encoded)
+
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: openArray[string],
                subscribe: bool) =
   ## send subscriptions to remote peer
-  p.send(peer, RPCMsg.withSubs(topics, subscribe))
+  asyncSpawn p.send(peer, RPCMsg.withSubs(topics, subscribe))
 
   for topic in topics:
     if subscribe:

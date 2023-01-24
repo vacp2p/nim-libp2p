@@ -145,6 +145,7 @@ type
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
+  SendingFuturesTable* = Table[MessageId, Table[PeerId, Future[void]]]
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
   RoutingRecordsHandler* =
@@ -164,6 +165,7 @@ type
     control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
     validationSeen*: ValidationSeenTable       # peers who sent us message in validation
+    sendingFutures*: SendingFuturesTable       # messages which are currently being sent
     heartbeatFut*: Future[void]                # cancellation future for heartbeat interval
     scoringHeartbeatFut*: Future[void]         # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool

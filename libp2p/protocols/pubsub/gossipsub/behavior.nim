@@ -677,7 +677,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
           libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicId])
         else:
           libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
-      g.send(peer, RPCMsg(control: some(control)))
+      asyncSpawn g.send(peer, RPCMsg(control: some(control)))
 
     g.mcache.shift() # shift the cache
 
