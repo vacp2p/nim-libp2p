@@ -80,7 +80,8 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
-    let connMngr = ConnManager.new()
+    # This would work with 1 as well cause of a bug in connmanager that will get fixed soon
+    let connMngr = ConnManager.new(maxConnsPerPeer = 2)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
     let mux1 = getMuxer(peerId, Direction.Out)
     let mux2 = getMuxer(peerId)
@@ -143,7 +144,24 @@ suite "Connection Manager":
     await connection.close()
 
   asyncTest "should raise on too many connections":
-    let connMngr = ConnManager.new(maxConnsPerPeer = 1)
+    let connMngr = ConnManager.new(maxConnsPerPeer = 0)
+    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+
+    connMngr.storeMuxer(getMuxer(peerId))
+
+    let muxs = @[getMuxer(peerId)]
+
+    expect TooManyConnectionsError:
+      connMngr.storeMuxer(muxs[0])
+
+    await connMngr.close()
+
+    await allFuturesThrowing(
+      allFutures(muxs.mapIt( it.close() )))
+
+  asyncTest "expect connection from peer":
+    # FIXME This should be 1 instead of 0, it will get fixed soon
+    let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     connMngr.storeMuxer(getMuxer(peerId))
@@ -154,9 +172,26 @@ suite "Connection Manager":
 
     expect TooManyConnectionsError:
       connMngr.storeMuxer(muxs[0])
+
+    let waitedConn1 = connMngr.expectConnection(peerId)
+
+    expect LPError:
+      discard await connMngr.expectConnection(peerId)
+
+    await waitedConn1.cancelAndWait()
+    let
+      waitedConn2 = connMngr.expectConnection(peerId)
+      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet())
+      conn = getMuxer(peerId)
+    connMngr.storeMuxer(conn)
+    check (await waitedConn2) == conn
+
+    expect TooManyConnectionsError:
       connMngr.storeMuxer(muxs[1])
 
     await connMngr.close()
+
+    checkExpiring: waitedConn3.cancelled()
 
     await allFuturesThrowing(
       allFutures(muxs.mapIt( it.close() )))
@@ -283,7 +318,6 @@ suite "Connection Manager":
   asyncTest "track incoming max connections limits - fail on outgoing":
     let connMngr = ConnManager.new(maxIn = 3)
 
-    var conns: seq[Connection]
     for i in 0..<3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
@@ -296,7 +330,6 @@ suite "Connection Manager":
   asyncTest "allow force dial":
     let connMngr = ConnManager.new(maxConnections = 2)
 
-    var conns: seq[Connection]
     for i in 0..<3:
       discard connMngr.getOutgoingSlot(true)
 

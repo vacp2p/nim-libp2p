@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -298,6 +298,10 @@ proc stop*(s: Switch) {.async, public.} =
   trace "Stopping switch"
 
   s.started = false
+
+  for service in s.services:
+    discard await service.stop(s)
+
   # close and cleanup all connections
   await s.connManager.close()
 
