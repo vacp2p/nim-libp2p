@@ -14,7 +14,7 @@ else:
 
 ## This module implements wire network connection procedures.
 import chronos, stew/endians2
-import multiaddress, multicodec, errors
+import multiaddress, multicodec, errors, utility
 
 when defined(windows):
   import winlean
@@ -87,7 +87,12 @@ proc connect*(
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  return connect(initTAddress(ma).tryGet(), bufferSize, child, flags)
+  let transportAddress = initTAddress(ma).tryGet()
+
+  compilesOr:
+    return connect(transportAddress, bufferSize, child, flags)
+  do:
+    return connect(transportAddress, bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             cbproc: StreamCallback,
