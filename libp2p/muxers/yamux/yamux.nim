@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -414,7 +414,8 @@ method close*(m: Yamux) {.async.} =
   let channels = toSeq(m.channels.values())
   for channel in channels:
     await channel.reset(true)
-  await m.connection.write(YamuxHeader.goAway(NormalTermination))
+  try: await m.connection.write(YamuxHeader.goAway(NormalTermination))
+  except CatchableError as exc: trace "failed to send goAway", msg=exc.msg
   await m.connection.close()
   trace "Closed yamux"
 

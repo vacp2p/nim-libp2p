@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -177,7 +177,7 @@ proc internalConnect(
       trace "Reusing existing connection", conn, direction = $conn.dir
       return conn
 
-    let slot = await self.connManager.getOutgoingSlot(forceDial)
+    let slot = self.connManager.getOutgoingSlot(forceDial)
     conn =
       try:
         await self.dialAndUpgrade(peerId, addrs)

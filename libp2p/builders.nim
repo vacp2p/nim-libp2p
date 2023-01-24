@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -27,7 +27,7 @@ import
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
-  protocols/connectivity/[autonat, relay/relay, relay/client, relay/rtransport],
+  protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
   connmanager, upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   errors, utility
@@ -61,6 +61,7 @@ type
     autonat: bool
     circuitRelay: Relay
     rdv: RendezVous
+    services: seq[Service]
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -199,6 +200,10 @@ proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous = RendezVous.new()): Swit
   b.rdv = rdv
   b
 
+proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
+  b.services = services
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError], public.} =
 
@@ -254,7 +259,8 @@ proc build*(b: SwitchBuilder): Switch
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
-    peerStore = peerStore)
+    peerStore = peerStore,
+    services = b.services)
 
   if b.autonat:
     let autonat = Autonat.new(switch)

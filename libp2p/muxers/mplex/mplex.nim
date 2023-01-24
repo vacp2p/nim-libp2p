@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -177,8 +177,14 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             raise newLPStreamLimitError()
 
           trace "pushing data to channel", m, channel, len = data.len
-          await channel.pushData(data)
-          trace "pushed data to channel", m, channel, len = data.len
+          try:
+            await channel.pushData(data)
+            trace "pushed data to channel", m, channel, len = data.len
+          except LPStreamClosedError as exc:
+            # Channel is being closed, but `cleanupChann` was not yet triggered.
+            trace "pushing data to channel failed", m, channel, len = data.len,
+              msg = exc.msg
+            discard  # Ignore message, same as if `cleanupChann` had completed.
 
         of MessageType.CloseIn, MessageType.CloseOut:
           await channel.pushEof()

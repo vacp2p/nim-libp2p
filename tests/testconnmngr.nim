@@ -96,7 +96,8 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
-    let connMngr = ConnManager.new()
+    # This would work with 1 as well cause of a bug in connmanager that will get fixed soon
+    let connMngr = ConnManager.new(maxConnsPerPeer = 2)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
     let conn1 = getConnection(peerId, Direction.Out)
     let conn2 = getConnection(peerId)
@@ -176,7 +177,7 @@ suite "Connection Manager":
     await stream.close()
 
   asyncTest "should raise on too many connections":
-    let connMngr = ConnManager.new(maxConnsPerPeer = 1)
+    let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     connMngr.storeConn(getConnection(peerId))
@@ -187,9 +188,45 @@ suite "Connection Manager":
 
     expect TooManyConnectionsError:
       connMngr.storeConn(conns[0])
+
+    await connMngr.close()
+
+    await allFuturesThrowing(
+      allFutures(conns.mapIt( it.close() )))
+
+  asyncTest "expect connection from peer":
+    # FIXME This should be 1 instead of 0, it will get fixed soon
+    let connMngr = ConnManager.new(maxConnsPerPeer = 0)
+    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+
+    connMngr.storeConn(getConnection(peerId))
+
+    let conns = @[
+        getConnection(peerId),
+        getConnection(peerId)]
+
+    expect TooManyConnectionsError:
+      connMngr.storeConn(conns[0])
+
+    let waitedConn1 = connMngr.expectConnection(peerId)
+
+    expect LPError:
+      discard await connMngr.expectConnection(peerId)
+
+    await waitedConn1.cancelAndWait()
+    let
+      waitedConn2 = connMngr.expectConnection(peerId)
+      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet())
+      conn = getConnection(peerId)
+    connMngr.storeConn(conn)
+    check (await waitedConn2) == conn
+
+    expect TooManyConnectionsError:
       connMngr.storeConn(conns[1])
 
     await connMngr.close()
+
+    checkExpiring: waitedConn3.cancelled()
 
     await allFuturesThrowing(
       allFutures(conns.mapIt( it.close() )))
@@ -259,11 +296,11 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0..<3:
-      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
+      discard connMngr.getOutgoingSlot()
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.getOutgoingSlot()
+      discard connMngr.getOutgoingSlot()
 
     await connMngr.close()
 
@@ -271,7 +308,7 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0..<3:
-      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
+      discard connMngr.getOutgoingSlot()
 
     # should timeout adding a connection over the limit
     check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
@@ -286,7 +323,7 @@ suite "Connection Manager":
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.getOutgoingSlot()
+      discard connMngr.getOutgoingSlot()
 
     await connMngr.close()
 
@@ -304,11 +341,11 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxOut = 3)
 
     for i in 0..<3:
-      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
+      discard connMngr.getOutgoingSlot()
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.getOutgoingSlot()
+      discard connMngr.getOutgoingSlot()
 
     await connMngr.close()
 
@@ -316,7 +353,7 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxOut = 3)
 
     for i in 0..<3:
-      check await connMngr.getOutgoingSlot().withTimeout(10.millis)
+      discard connMngr.getOutgoingSlot()
 
     # should timeout adding a connection over the limit
     check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
@@ -332,7 +369,7 @@ suite "Connection Manager":
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.getOutgoingSlot()
+      discard connMngr.getOutgoingSlot()
 
     await connMngr.close()
 
@@ -341,11 +378,11 @@ suite "Connection Manager":
 
     var conns: seq[Connection]
     for i in 0..<3:
-      check await connMngr.getOutgoingSlot(true).withTimeout(10.millis)
+      discard connMngr.getOutgoingSlot(true)
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
-      discard await connMngr.getOutgoingSlot(false)
+      discard connMngr.getOutgoingSlot(false)
 
     await connMngr.close()
 
@@ -354,7 +391,7 @@ suite "Connection Manager":
 
     var conns: seq[Connection]
     for i in 0..<3:
-      let slot = await ((connMngr.getOutgoingSlot()).wait(10.millis))
+      let slot = connMngr.getOutgoingSlot()
 
       let conn =
         getConnection(

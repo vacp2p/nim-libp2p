@@ -143,10 +143,20 @@ task install_pinned, "Reads the lockfile":
     if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
     else: "nimbledeps/pkgs2"
   for dependency in listDirs(nimblePkgs):
-    let filename = dependency.extractFilename
-    if toInstall.anyIt(filename.startsWith(it[0]) and
-       filename.endsWith(it[1].split('#')[^1])) == false:
-      rmDir(dependency)
+    let
+      fileName = dependency.extractFilename
+      fileContent = readFile(dependency & "/nimblemeta.json")
+      packageName = fileName.split('-')[0]
+
+    if toInstall.anyIt(
+        it[0] == packageName and
+        (
+          it[1].split('#')[^1] in fileContent or # nimble for nim 2.X
+          fileName.endsWith(it[1].split('#')[^1]) # nimble for nim 1.X
+        )
+      ) == false or
+      fileName.split('-')[^1].len < 20: # safegard for nimble for nim 1.X
+        rmDir(dependency)
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")

@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -244,7 +244,11 @@ proc completeWrite(
   except CancelledError as exc:
     # Chronos may still send the data
     raise exc
-  except LPStreamClosedError as exc:
+  except LPStreamConnDownError as exc:
+    await s.reset()
+    await s.conn.close()
+    raise exc
+  except LPStreamEOFError as exc:
     raise exc
   except CatchableError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg
