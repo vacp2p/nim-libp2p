@@ -168,7 +168,7 @@ proc internalConnect(
   peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
   forceDial: bool,
-  forceNewConnection = false):
+  reuseConnection = true):
   Future[Connection] {.async.} =
   if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -178,7 +178,7 @@ proc internalConnect(
   try:
     await lock.acquire()
 
-    if peerId.isSome and not forceNewConnection:
+    if peerId.isSome and reuseConnection:
       let connOpt = await self.tryReusingConnection(peerId.get())
       if connOpt.isSome:
         return connOpt.get()
@@ -214,15 +214,15 @@ method connect*(
   peerId: PeerId,
   addrs: seq[MultiAddress],
   forceDial = false,
-  forceNewConnection = false) {.async.} =
+  reuseConnection = true) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
 
-  if self.connManager.connCount(peerId) > 0 and not forceNewConnection:
+  if self.connManager.connCount(peerId) > 0 and reuseConnection:
     return
 
-  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, forceNewConnection)
+  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection)
 
 method connect*(
   self: Dialer,

@@ -32,7 +32,7 @@ suite "Dialer":
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
 
-    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs, true, true)
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs, true, false)
     check src.connManager.connCount(dst.peerInfo.peerId) == 2
 
     await allFutures(src.stop(), dst.stop())
