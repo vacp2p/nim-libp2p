@@ -106,14 +106,14 @@ proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
-      if not(isNil(obs.onRecv)):
+      if not(isNil(obs)): # TODO: should never be nil, but...
         obs.onRecv(p, msg)
 
 proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
-      if not(isNil(obs.onSend)):
+      if not(isNil(obs)): # TODO: should never be nil, but...
         obs.onSend(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
@@ -121,8 +121,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     conn, peer = p, closed = conn.closed
   try:
     try:
-      # wait for bidirectional connection
-      await p.connectedFut
       while not conn.atEof:
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
@@ -179,6 +177,10 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     # stop working so we make an effort to only keep a single channel alive
 
     trace "Get new send connection", p, newConn
+
+    # Careful to race conditions here.
+    # Topic subscription relies on either connectedFut
+    # to be completed, or onEvent to be called later
     p.connectedFut.complete()
     p.sendConn = newConn
     p.address = if p.sendConn.observedAddr.isSome: some(p.sendConn.observedAddr.get) else: none(MultiAddress)
@@ -188,8 +190,6 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     await handle(p, newConn)
   finally:
-    if not p.connectedFut.finished():
-      p.connectedFut.fail(newException(LPError, "can't establish conn"))
     if p.sendConn != nil:
       trace "Removing send connection", p, conn = p.sendConn
       await p.sendConn.close()
@@ -220,6 +220,9 @@ proc connect*(p: PubSubPeer) =
     return
 
   asyncSpawn connectImpl(p)
+
+proc hasSendConn*(p: PubSubPeer): bool =
+  p.sendConn != nil
 
 template sendMetrics(msg: RPCMsg): untyped =
   when defined(libp2p_expensive_metrics):

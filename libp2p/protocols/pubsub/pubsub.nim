@@ -405,7 +405,11 @@ method onTopicSubscription*(p: PubSub, topic: string, subscribed: bool) {.base, 
 
   # Notify others that we are no longer interested in the topic
   for _, peer in p.peers:
-    p.sendSubs(peer, [topic], subscribed)
+    # If we don't have a sendConn yet, we will
+    # send the full sub list when we get the sendConn,
+    # so no need to send it here
+    if peer.hasSendConn:
+      p.sendSubs(peer, [topic], subscribed)
 
   if subscribed:
     libp2p_pubsub_subscriptions.inc()
