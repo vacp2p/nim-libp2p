@@ -149,11 +149,20 @@ proc dialAndUpgrade(
         if not isNil(result):
           return result
 
+proc tryReusingConnection(self: Dialer, peerId: PeerId): Future[Opt[Muxer]] {.async.} =
+  let muxer = self.connManager.selectMuxer(peerId)
+  if muxer == nil:
+    return Opt.none(Muxer)
+
+  trace "Reusing existing connection", muxer, direction = $muxer.connection.dir
+  return Opt.some(muxer)
+
 proc internalConnect(
   self: Dialer,
   peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
-  forceDial: bool):
+  forceDial: bool,
+  reuseConnection = true):
   Future[Muxer] {.async.} =
   if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -163,16 +172,13 @@ proc internalConnect(
   try:
     await lock.acquire()
 
-    # Check if we have a connection already and try to reuse it
-    var muxed =
-      if peerId.isSome: self.connManager.selectMuxer(peerId.get())
-      else: nil
-    if muxed != nil:
-      trace "Reusing existing connection", direction = $muxed.connection.dir
-      return muxed
+    if peerId.isSome and reuseConnection:
+      let muxOpt = await self.tryReusingConnection(peerId.get())
+      if muxOpt.isSome:
+        return muxOpt.get()
 
     let slot = self.connManager.getOutgoingSlot(forceDial)
-    muxed =
+    let muxed =
       try:
         await self.dialAndUpgrade(peerId, addrs)
       except CatchableError as exc:
@@ -199,15 +205,16 @@ method connect*(
   self: Dialer,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  forceDial = false) {.async.} =
+  forceDial = false,
+  reuseConnection = true) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
 
-  if self.connManager.connCount(peerId) > 0:
+  if self.connManager.connCount(peerId) > 0 and reuseConnection:
     return
 
-  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection)
 
 method connect*(
   self: Dialer,

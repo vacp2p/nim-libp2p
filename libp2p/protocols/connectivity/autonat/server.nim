@@ -59,8 +59,13 @@ proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
   await conn.writeLp(pb.buffer)
 
 proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
+  await autonat.sem.acquire()
   try:
-    await autonat.sem.acquire()
+    # This is to bypass the per peer max connections limit
+    let outgoingConnection = autonat.switch.connManager.expectConnection(conn.peerId)
+    # Safer to always try to cancel cause we aren't sure if the connection was established
+    defer: outgoingConnection.cancel()
+    # This is to bypass the global max connections limit
     let ma = await autonat.switch.dialer.tryDial(conn.peerId, addrs).wait(autonat.dialTimeout)
     if ma.isSome:
       await conn.sendResponseOk(ma.get())
