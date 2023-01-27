@@ -57,7 +57,7 @@ proc main() {.async.} =
   let
     # Create a relay address to swDst using swRel as the relay
     addrs = MultiAddress.init($swRel.peerInfo.addrs[0] & "/p2p/" &
-                              $swRel.peerInfo.peerId & "/p2p-circuit/p2p).get()
+                              $swRel.peerInfo.peerId & "/p2p-circuit/p2p").get()
 
   # Connect Dst to the relay
   await swDst.connect(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
