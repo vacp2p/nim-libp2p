@@ -20,6 +20,8 @@ import client
 import ../../../utils/heartbeat
 import ../../../crypto/crypto
 
+export options
+
 logScope:
   topics = "libp2p autonatservice"
 

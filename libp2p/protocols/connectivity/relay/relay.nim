@@ -101,7 +101,7 @@ proc createReserveResponse(
                      status: some(Ok))
   return ok(msg)
 
-proc isRelayed(conn: Connection): bool =
+proc isRelayed*(conn: Connection): bool =
   var wrappedConn = conn
   while not isNil(wrappedConn):
     if wrappedConn of RelayConnection:

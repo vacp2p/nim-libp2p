@@ -12,66 +12,77 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import ../switch
-import chronos
 import std/tables
+import ../switch, ../wire
 import ../protocols/rendezvous
-import ../services/autonatservice
+import ../services/autorelayservice
 import ../discovery/[rendezvousinterface, discoverymngr]
-import ../protocols/connectivity/relay/[relay, client]
+import ../protocols/connectivity/relay/relay
+import ../protocols/connectivity/autonat/service
+import chronos
+
+logScope:
+  topics = "libp2p hpservice"
 
 type
   HPService* = ref object of Service
-    rdv: RendezVous
-    dm: DiscoveryManager
-    relayClient: RelayClient
+    newConnectedPeerHandler: PeerEventHandler
+    onNewStatusHandler: StatusAndConfidenceHandler
+    autoRelayService: AutoRelayService
     autonatService: AutonatService
-    onNewStatusHandler: NewStatusHandler
-    callb: Callb
+    isPublicIPAddr: isPublicIPAddrFunc
 
-  Callb* = proc (ma: MultiAddress): Future[void]  {.gcsafe, raises: [Defect].}
+  isPublicIPAddrFunc* = proc(ta: TransportAddress): bool {.gcsafe, raises: [Defect].}
 
-proc new*(T: typedesc[HPService], rdv: RendezVous, relayClient: RelayClient, autonatService: AutonatService): T =
-  let dm = DiscoveryManager()
-  dm.add(RendezVousInterface.new(rdv))
+proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService,
+          isPublicIPAddr: isPublicIPAddrFunc = isPublicAddr): T =
   return T(
-    rdv: rdv,
-    dm: dm,
-    relayClient: relayClient,
-    autonatService: autonatService)
+    autonatService: autonatService,
+    autoRelayService: autoRelayService,
+    isPublicIPAddr: isPublicIPAddr)
 
-proc relay(self: HPService) {.async.} =
-  let queryRelay = self.dm.request(RdvNamespace("relay"))
-  let res = await queryRelay.getPeer()
-  let rsvp = await self.relayClient.reserve(res[PeerId], res.getAll(MultiAddress))
-  let relayedAddr = MultiAddress.init($rsvp.addrs[0] &
-                              "/p2p-circuit/p2p/" &
-                              $rsvp.voucher.get().reservingPeerId).tryGet()
+proc startDirectConn(self: HPService, switch: Switch, relayedConnection: Connection, peerId: PeerId,
+                     publicAddr: MultiAddress) {.async.} =
+  debug "starting direct connection"
+  await switch.connect(peerId, @[publicAddr], true, false)
 
-  await self.callb(relayedAddr)
+method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
+  var hasBeenSetup = await procCall Service(self).setup(switch)
+  hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
+  hasBeenSetup = hasBeenSetup and await self.autoRelayService.setup(switch)
+  if hasBeenSetup:
+    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
+      let conn = switch.connManager.selectConn(peerId)
+      await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
+      if isRelayed(conn):
+        for address in switch.peerStore[AddressBook][peerId]:
+          if self.isPublicIPAddr(initTAddress(address).get()):
+            try:
+              await self.startDirectConn(switch, conn, peerId, address)
+            except CatchableError as exc:
+              debug "failed to start direct connection", exc = exc.msg
+              continue
+            await conn.close()
+            debug "direct connection started"
 
-  # switch1.peerInfo.listenAddrs = @[relayedAddr]
-  # await switch1.peerInfo.update()
+    switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
-# proc networkReachability*(self: HPService): NetworkReachability {.inline.} =
-#   return self.networkReachability
+    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.NotReachable:
+        discard await self.autoRelayService.setup(switch)
+      elif networkReachability == NetworkReachability.Reachable:
+        discard await self.autoRelayService.stop(switch)
 
-method setup*(self: HPService, switch: Switch) {.async.} =
-  await self.autonatService.setup(switch)
-
-  self.onNewStatusHandler = proc (networkReachability: NetworkReachability) {.gcsafe, async.} =
-    if networkReachability == NetworkReachability.NotReachable:
-      await self.relay()
-
-  self.autonatService.onNewStatuswithMaxConfidence(self.onNewStatusHandler)
+    self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
+  return hasBeenSetup
 
 method run*(self: HPService, switch: Switch) {.async, public.} =
   await self.autonatService.run(switch)
 
 method stop*(self: HPService, switch: Switch) {.async, public.} =
-  await self.autonatService.stop(switch)
-  if not isNil(self.onNewStatusHandler):
-    discard #switch.connManager.removePeerEventHandler(self.newPeerHandler, PeerEventKind.Joined)
+  discard await self.autonatService.stop(switch)
+  if not isNil(self.newConnectedPeerHandler):
+    switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
-proc onNewRelayAddr*(self: HPService, f: Callb) =
-  self.callb = f
+# proc onNewRelayAddr*(self: HPService, f: Callb) =
+#   self.callb = f
