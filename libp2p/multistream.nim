@@ -166,16 +166,12 @@ proc handle*(
         trace "handle: sending `na` for duplicate handshake while handshaked",
           conn
         await conn.writeLp(Na)
+    elif ms in protos or matchers.anyIt(it(ms)):
+      trace "found handler", conn, protocol = ms
+      await conn.writeLp(ms & "\n")
+      conn.protocol = ms
+      return ms
     else:
-      var found = ms in protos
-      if not found:
-        for matcher in matchers:
-          if matcher(ms): found = true
-      if found:
-        trace "found handler", conn, protocol = ms
-        await conn.writeLp(ms & "\n")
-        conn.protocol = ms
-        return ms
       trace "no handlers", conn, protocol = ms
       await conn.writeLp(Na)
 
