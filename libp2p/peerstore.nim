@@ -210,11 +210,12 @@ proc identify*(
       let info = await peerStore.identify.identify(stream, stream.peerId)
 
       when defined(libp2p_agents_metrics):
-        muxer.connection.shortAgent = "unknown"
+        var knownAgent = "unknown"
         if info.agentVersion.isSome and info.agentVersion.get().len > 0:
           let shortAgent = info.agentVersion.get().split("/")[0].safeToLowerAscii()
           if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-            muxer.connection.shortAgent = shortAgent.get()
+            knownAgent = shortAgent.get()
+        muxer.connection.setShortAgent(knownAgent)
 
       peerStore.updatePeerInfo(info)
   finally:

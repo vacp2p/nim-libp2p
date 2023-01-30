@@ -134,6 +134,13 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
 method getWrapped*(s: Connection): Connection {.base.} =
   doAssert(false, "not implemented!")
 
+when defined(libp2p_agents_metrics):
+  proc setShortAgent*(s: Connection, shortAgent: string) =
+    var conn = s
+    while not isNil(conn):
+      conn.shortAgent = shortAgent
+      conn = conn.getWrapped()
+
 proc new*(C: type Connection,
            peerId: PeerId,
            dir: Direction,
