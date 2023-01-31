@@ -188,7 +188,8 @@ proc dialPeer(
 method dial*(
   self: TorTransport,
   hostname: string,
-  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
+  address: MultiAddress,
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
   if not handlesDial(address):

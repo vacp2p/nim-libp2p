@@ -26,8 +26,7 @@ proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
 
 proc buildRelayMA(switchRelay: Switch, switchClient: Switch): MultiAddress =
   MultiAddress.init($switchRelay.peerInfo.addrs[0] & "/p2p/" &
-                    $switchRelay.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                    $switchClient.peerInfo.peerId).get()
+                    $switchRelay.peerInfo.peerId & "/p2p-circuit").get()
 
 suite "Autorelay":
   asyncTeardown:

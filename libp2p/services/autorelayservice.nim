@@ -39,7 +39,7 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId)
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
       relayedAddr = rsvp.addrs.mapIt(
-        MultiAddress.init($it & "/p2p-circuit/p2p/" & $selfPid).tryGet())
+        MultiAddress.init($it & "/p2p-circuit").tryGet())
       ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
     if ttl <= 60:
       # A reservation under a minute is basically useless
