@@ -108,7 +108,7 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
     debug "No incoming slots available, not asking peer", incomingSlotsAvailable=switch.connManager.slotsAvailable(In)
     return Unknown
 
-  info "Asking peer for reachability"
+  trace "Asking peer for reachability"
   let ans =
     try:
       discard await self.autonatClient.dialMe(switch, peerId).wait(self.dialTimeout)
@@ -129,7 +129,7 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
   return ans
 
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
-  info "Asking peers for reachability"
+  trace "Asking peers for reachability"
   var peers = switch.connectedPeers(Direction.Out)
   self.rng.shuffle(peers)
   var answersFromPeers = 0
@@ -160,7 +160,7 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   return hasBeenSetup
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
-  info "Running AutonatService"
+  trace "Running AutonatService"
   await askConnectedPeers(self, switch)
   await self.callHandler()
 
