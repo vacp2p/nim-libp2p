@@ -320,3 +320,26 @@ suite "Autonat Service":
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop())
+
+  asyncTest "Peer must not ask an incoming peer":
+    let autonatService = AutonatService.new(AutonatClient.new(), newRng())
+
+    let switch1 = createSwitch(autonatService)
+    let switch2 = createSwitch()
+
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      fail()
+
+    check autonatService.networkReachability() == NetworkReachability.Unknown
+
+    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+
+    await switch1.start()
+    await switch2.start()
+
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
+
+    await sleepAsync(500.milliseconds)
+
+    await allFuturesThrowing(
+      switch1.stop(), switch2.stop())
