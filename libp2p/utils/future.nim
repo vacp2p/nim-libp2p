@@ -18,10 +18,8 @@ type
   AllFuturesFailedError* = object of CatchableError
 
 proc anyCompleted*[T](futs: seq[Future[T]]): Future[Future[T]] {.async.} =
-  ## Returns a future that completes when any of the futures in futs completes.
-  ## The returned future will complete with the first future that completes.
-  ## If all futures fail, the returned future will fail with the last error.
-  ## If futs is empty, the returned future will fail immediately.
+  ## Returns a future that will complete with the first future that completes.
+  ## If all futures fail or futs is empty, the returned future will fail with AllFuturesFailedError.
 
   var requests = futs
 
