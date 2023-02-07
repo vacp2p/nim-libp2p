@@ -77,9 +77,6 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
   except CancelledError as exc:
     raise exc
   except AllFuturesFailedError as exc:
-    for f in futs:
-      if not f.finished():
-        f.cancel()
     debug "All dial attempts failed", addrs, exc = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
@@ -90,6 +87,9 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
     await conn.sendResponseError(DialError, "Unexpected error")
   finally:
     autonat.sem.release()
+    for f in futs:
+      if not f.finished():
+        f.cancel()
 
 proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if msg.dial.isNone() or msg.dial.get().peerInfo.isNone():
@@ -137,7 +137,7 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
   if len(addrs) == 0:
     return conn.sendResponseError(DialRefused, "No dialable address")
   let addrsSeq = toSeq(addrs)
-  trace "trying to dia", addrs = addrsSeq
+  trace "trying to dial", addrs = addrsSeq
   return autonat.tryDial(conn, addrsSeq)
 
 proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 15.seconds): T =
