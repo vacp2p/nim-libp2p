@@ -20,7 +20,7 @@ import ../../protocol,
        ../../../multiaddress,
        ../../../multicodec,
        ../../../peerid,
-       ../../../utils/semaphore,
+       ../../../utils/[semaphore, future],
        ../../../errors
 import core
 
@@ -60,23 +60,36 @@ proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
 
 proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   await autonat.sem.acquire()
+  var futs: seq[Future[Opt[MultiAddress]]]
   try:
     # This is to bypass the per peer max connections limit
     let outgoingConnection = autonat.switch.connManager.expectConnection(conn.peerId)
     # Safer to always try to cancel cause we aren't sure if the connection was established
     defer: outgoingConnection.cancel()
-    # This is to bypass the global max connections limit
-    let ma = await autonat.switch.dialer.tryDial(conn.peerId, addrs).wait(autonat.dialTimeout)
+    # tryDial is to bypass the global max connections limit
+    futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
+    let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
+    let ma = await fut
     if ma.isSome:
       await conn.sendResponseOk(ma.get())
     else:
       await conn.sendResponseError(DialError, "Missing observed address")
   except CancelledError as exc:
     raise exc
+  except AllFuturesFailedError as exc:
+    debug "All dial attempts failed", addrs, exc = exc.msg
+    await conn.sendResponseError(DialError, "All dial attempts failed")
+  except AsyncTimeoutError as exc:
+    debug "Dial timeout", addrs, exc = exc.msg
+    await conn.sendResponseError(DialError, "Dial timeout")
   except CatchableError as exc:
-    await conn.sendResponseError(DialError, exc.msg)
+    debug "Unexpected error", addrs, exc = exc.msg
+    await conn.sendResponseError(DialError, "Unexpected error")
   finally:
     autonat.sem.release()
+    for f in futs:
+      if not f.finished():
+        f.cancel()
 
 proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   if msg.dial.isNone() or msg.dial.get().peerInfo.isNone():
@@ -98,6 +111,7 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
     return conn.sendResponseError(InternalError, "Expected an IP address")
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(observedAddr)
+  trace "addrs received", addrs = peerInfo.addrs
   for ma in peerInfo.addrs:
     isRelayed = ma.contains(multiCodec("p2p-circuit"))
     if isRelayed.isErr() or isRelayed.get():
@@ -122,7 +136,9 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
 
   if len(addrs) == 0:
     return conn.sendResponseError(DialRefused, "No dialable address")
-  return autonat.tryDial(conn, toSeq(addrs))
+  let addrsSeq = toSeq(addrs)
+  trace "trying to dial", addrs = addrsSeq
+  return autonat.tryDial(conn, addrsSeq)
 
 proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 15.seconds): T =
   let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
@@ -136,7 +152,7 @@ proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in autonat handler", exc = exc.msg, conn
+      debug "exception in autonat handler", exc = exc.msg, conn
     finally:
       trace "exiting autonat handler", conn
       await conn.close()

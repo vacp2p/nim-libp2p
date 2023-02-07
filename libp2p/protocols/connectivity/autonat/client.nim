@@ -62,12 +62,13 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
   defer:
     await conn.close()
     incomingConnection.cancel() # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
+  trace "sending Dial", addrs = switch.peerInfo.addrs
   await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
   return case response.status:
     of ResponseStatus.Ok:
       response.ma.get()
     of ResponseStatus.DialError:
-      raise newException(AutonatUnreachableError, "Peer could not dial us back")
+      raise newException(AutonatUnreachableError, "Peer could not dial us back: " & response.text.get(""))
     else:
       raise newException(AutonatError, "Bad status " & $response.status & " " & response.text.get(""))

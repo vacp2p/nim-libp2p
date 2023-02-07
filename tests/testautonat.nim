@@ -85,6 +85,6 @@ suite "Autonat":
     let response = AutonatMsg.decode(await conn.readLp(1024)).get().response.get()
     check:
       response.status == DialError
-      response.text.get() == "Timeout exceeded!"
+      response.text.get() == "Dial timeout"
       response.ma.isNone()
     await allFutures(doesNothingListener.stop(), src.stop(), dst.stop())
