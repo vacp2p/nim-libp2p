@@ -7,18 +7,24 @@ import
     builders,
     protocols/connectivity/autonat/client,
     protocols/connectivity/autonat/server,
+    nameresolving/nameresolver,
+    nameresolving/mockresolver,
   ],
   ./helpers
 
-proc createAutonatSwitch(): Switch =
-  result = SwitchBuilder.new()
+proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
+  var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()
     .withAutonat()
     .withNoise()
-    .build()
+
+  if nameResolver != nil:
+    builder = builder.withNameResolver(nameResolver)
+
+  return builder.build()
 
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
@@ -88,3 +94,24 @@ suite "Autonat":
       response.text.get() == "Timeout exceeded!"
       response.ma.isNone()
     await allFutures(doesNothingListener.stop(), src.stop(), dst.stop())
+
+  asyncTest "dialMe dials dns and returns public address":
+    let resolver = MockResolver.new()
+    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+    resolver.ipResponses[("localhost", true)] = @["::1"]
+
+    let
+      src = newStandardSwitch()
+      dst = createAutonatSwitch(nameResolver = resolver)
+
+    await src.start()
+    await dst.start()
+
+    let testAddr = MultiAddress.init("/dns4/localhost/").tryGet() &
+                    dst.peerInfo.addrs[0][1].tryGet()
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let ma = await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, @[testAddr])
+
+    check ma in src.peerInfo.addrs
+    await allFutures(src.stop(), dst.stop())

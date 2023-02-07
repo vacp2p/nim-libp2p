@@ -55,7 +55,7 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
       else:
         await switch.dial(pid, addrs, AutonatCodec)
     except CatchableError as err:
-      raise newException(AutonatError, "Unexpected error when dialling", err)
+      raise newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
 
   # To bypass maxConnectionsPerPeer
   let incomingConnection = switch.connManager.expectConnection(pid)
