@@ -5,7 +5,8 @@ import testvarint,
        testminprotobuf,
        teststreamseq,
        testsemaphore,
-       testheartbeat
+       testheartbeat,
+       testfuture
 
 import testminasn1,
        testrsa,
