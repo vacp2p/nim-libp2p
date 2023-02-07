@@ -294,6 +294,7 @@ proc handleIWant*(g: GossipSub,
             break
         elif g.hasSeen(mid):
           libp2p_gossipsub_mcache_hit.inc(1, labelValues = ["late"])
+          info "LATE IWANT", diff=(Moment.now() - g.firstSeen(mid)), peerType=peer.shortAgent
         else:
           libp2p_gossipsub_mcache_hit.inc(1, labelValues = ["unknown"])
   return messages
