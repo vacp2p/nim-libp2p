@@ -76,7 +76,9 @@ when defined(libp2p_agents_metrics):
     if p.sendConn.isNil:
       "unknown"
     else:
-      p.sendConn.shortAgent
+      #TODO the sendConn is setup before identify,
+      #so we have to read the parents short agent..
+      p.sendConn.getWrapped().shortAgent
 
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash
