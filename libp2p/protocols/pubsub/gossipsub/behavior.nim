@@ -294,7 +294,7 @@ proc handleIWant*(g: GossipSub,
             break
         elif g.hasSeen(mid):
           libp2p_gossipsub_mcache_hit.inc(1, labelValues = ["late"])
-          info "LATE IWANT", diff=(Moment.now() - g.firstSeen(mid)), peerType=peer.shortAgent
+          info "LATE IWANT", diff=(Moment.now() - g.firstSeen(mid)), peerType=peer.shortAgent, mid
         else:
           libp2p_gossipsub_mcache_hit.inc(1, labelValues = ["unknown"])
   return messages
@@ -589,7 +589,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
 
     cacheWindowSize += midsSeq.len
 
-    trace "got messages to emit", size=midsSeq.len
+    info "got messages to emit", size=midsSeq.len, topic, msgs=midsSeq
 
     # not in spec
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
