@@ -117,7 +117,7 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
     if isRelayed.isErr() or isRelayed.get():
       continue
     let maFirst = ma[0]
-    if maFirst.isErr() or not IP.match(maFirst.get()):
+    if maFirst.isErr() or not DNS_OR_IP.match(maFirst.get()):
       continue
 
     try:
