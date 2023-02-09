@@ -57,5 +57,5 @@ when defined(libp2p_agents_metrics):
       err("toLowerAscii failed")
 
   const
-    KnownLibP2PAgents* {.strdefine.} = ""
+    KnownLibP2PAgents* {.strdefine.} = "nim-libp2p"
     KnownLibP2PAgentsSeq* = KnownLibP2PAgents.safeToLowerAscii().tryGet().split(",")

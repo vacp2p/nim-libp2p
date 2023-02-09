@@ -19,7 +19,9 @@ import utils,
                      protocols/pubsub/pubsub,
                      protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
-                     protocols/pubsub/peertable]
+                     protocols/pubsub/peertable,
+                     protocols/pubsub/pubsubpeer
+                     ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 
 import ../helpers
@@ -61,6 +63,14 @@ suite "FloodSub":
 
     check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
     check (await completionFut.wait(5.seconds)) == true
+
+    when defined(libp2p_agents_metrics):
+      let
+        agentA = nodes[0].peers[nodes[1].switch.peerInfo.peerId].shortAgent
+        agentB = nodes[1].peers[nodes[0].switch.peerInfo.peerId].shortAgent
+      check:
+        agentA == "nim-libp2p"
+        agentB == "nim-libp2p"
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
