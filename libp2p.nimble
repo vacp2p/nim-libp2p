@@ -22,9 +22,7 @@ requires "nim >= 1.2.0",
 import hashes
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  var excstr = "nim c --skipParentCfg --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
-  excstr.add(" -d:chronicles_sinks=textlines[stdout],json[dynamic] -d:chronicles_log_level=TRACE ")
-  excstr.add(" -d:chronicles_runtime_filtering=TRUE ")
+  var excstr = "nim c --skipParentCfg --opt:speed -d:debug "
   excstr.add(" " & getEnv("NIMFLAGS") & " ")
   excstr.add(" --verbosity:0 --hints:off ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
