@@ -74,6 +74,10 @@ type
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
     {.gcsafe, raises: [Defect].}
 
+proc queuedSendBytes*(p: PubSubPeer): int =
+  if p.sendConn.isNil: 0
+  else: p.sendConn.queuedSendBytes()
+
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash
 

@@ -173,6 +173,8 @@ method closed*(s: LPStream): bool {.base, public.} =
 method atEof*(s: LPStream): bool {.base, public.} =
   s.isEof
 
+method queuedSendBytes*(s: LPStream): int {.base.} = 0
+
 method readOnce*(
   s: LPStream,
   pbytes: pointer,
