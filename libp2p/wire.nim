@@ -92,6 +92,7 @@ proc connect*(
   compilesOr:
     return connect(transportAddress, bufferSize, child, flags)
   do:
+    # support for older chronos versions
     return connect(transportAddress, bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
