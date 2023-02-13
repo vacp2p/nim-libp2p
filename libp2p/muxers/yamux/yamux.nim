@@ -176,6 +176,8 @@ proc sendQueueBytes(channel: YamuxChannel, limit: bool = false): int =
   for (elem, sent, _) in channel.sendQueue:
     result.inc(min(elem.len - sent, if limit: channel.maxRecvWindow div 3 else: elem.len - sent))
 
+method queuedSendBytes*(channel: YamuxChannel): int = channel.sendQueueBytes()
+
 proc actuallyClose(channel: YamuxChannel) {.async.} =
   if channel.closedLocally and channel.sendQueue.len == 0 and
      channel.closedRemotely.done():

@@ -294,7 +294,7 @@ proc handleIWant*(g: GossipSub,
             break
         elif g.hasSeen(mid):
           libp2p_gossipsub_mcache_hit.inc(1, labelValues = ["late"])
-          info "LATE IWANT", diff=(Moment.now() - g.firstSeen(mid)), peerType=peer.shortAgent, mid
+          info "LATE IWANT", diff=(Moment.now() - g.firstSeen(mid)), peerType=peer.shortAgent, id=mid.toHex(), peerId=peer.peerId
         else:
           libp2p_gossipsub_mcache_hit.inc(1, labelValues = ["unknown"])
   return messages
@@ -589,8 +589,6 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
 
     cacheWindowSize += midsSeq.len
 
-    info "got messages to emit", size=midsSeq.len, topic, msgs=midsSeq
-
     # not in spec
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
     # and go https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L582
@@ -618,6 +616,9 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
     if target < allPeers.len:
       g.rng.shuffle(allPeers)
       allPeers.setLen(target)
+
+    info "got messages to emit", size=midsSeq.len, topic, msgs=midsSeq.mapIt(it.toHex()), peers=allPeers.len, peerValues=allPeers.mapIt((it.shortAgent, it.queuedSendBytes, it.peerId))
+
 
     for peer in allPeers:
       control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)

@@ -79,6 +79,10 @@ when defined(libp2p_agents_metrics):
       #so we have to read the parents short agent..
       p.sendConn.getWrapped().shortAgent
 
+proc queuedSendBytes*(p: PubSubPeer): int =
+  if p.sendConn.isNil: -2
+  else: p.sendConn.queuedSendBytes()
+
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash
 

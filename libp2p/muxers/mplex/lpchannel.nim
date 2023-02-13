@@ -64,6 +64,7 @@ type
     closeCode*: MessageType       # cached in/out close code
     resetCode*: MessageType       # cached in/out reset code
     writes*: int                  # In-flight writes
+    writesBytes*: int             # In-flight writes bytes
 
 func shortLog*(s: LPChannel): auto =
   try:
@@ -228,6 +229,7 @@ proc completeWrite(
     s: LPChannel, fut: Future[void], msgLen: int): Future[void] {.async.} =
   try:
     s.writes += 1
+    s.writesBytes += msgLen
 
     when defined(libp2p_mplex_metrics):
       libp2p_mplex_qlen.observe(s.writes.int64 - 1)
@@ -257,6 +259,10 @@ proc completeWrite(
     raise newLPStreamConnDownError(exc)
   finally:
     s.writes -= 1
+    s.writesBytes -= msgLen
+
+
+method queuedSendBytes*(channel: LPChannel): int = channel.writesBytes
 
 method write*(s: LPChannel, msg: seq[byte]): Future[void] =
   ## Write to mplex channel - there may be up to MaxWrite concurrent writes
