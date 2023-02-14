@@ -35,7 +35,7 @@ type
   isPublicIPAddrFunc* = proc(ta: TransportAddress): bool {.gcsafe, raises: [Defect].}
 
 proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService,
-          isPublicIPAddr: isPublicIPAddrFunc = isPublicAddr): T =
+          isPublicIPAddr: isPublicIPAddrFunc = proc(ta: TransportAddress): bool = return true): T = # FIXME: use chronos
   return T(
     autonatService: autonatService,
     autoRelayService: autoRelayService,
