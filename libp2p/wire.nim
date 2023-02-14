@@ -14,7 +14,7 @@ else:
 
 ## This module implements wire network connection procedures.
 import chronos, stew/endians2
-import multiaddress, multicodec, errors
+import multiaddress, multicodec, errors, utility
 
 when defined(windows):
   import winlean
@@ -76,7 +76,8 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
 proc connect*(
   ma: MultiAddress,
   bufferSize = DefaultStreamBufferSize,
-  child: StreamTransport = nil): Future[StreamTransport]
+  child: StreamTransport = nil,
+  flags = default(set[TransportFlags])): Future[StreamTransport]
   {.raises: [Defect, LPError, MaInvalidAddress].} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
@@ -86,7 +87,13 @@ proc connect*(
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
-  return connect(initTAddress(ma).tryGet(), bufferSize, child)
+  let transportAddress = initTAddress(ma).tryGet()
+
+  compilesOr:
+    return connect(transportAddress, bufferSize, child, flags)
+  do:
+    # support for older chronos versions
+    return connect(transportAddress, bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             cbproc: StreamCallback,
