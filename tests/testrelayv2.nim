@@ -40,7 +40,7 @@ suite "Circuit Relay V2":
       range {.threadvar.}: HSlice[times.DateTime, times.DateTime]
 
     asyncSetup:
-      ttl = 1
+      ttl = 3
       ldur = 60
       ldata = 2048
       cl1 = RelayClient.new()
