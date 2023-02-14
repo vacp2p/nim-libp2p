@@ -41,10 +41,21 @@ proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayServi
     autoRelayService: autoRelayService,
     isPublicIPAddr: isPublicIPAddr)
 
-proc startDirectConn(self: HPService, switch: Switch, relayedConnection: Connection, peerId: PeerId,
-                     publicAddr: MultiAddress) {.async.} =
-  debug "starting direct connection"
-  await switch.connect(peerId, @[publicAddr], true, false)
+proc startDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
+  let conn = switch.connManager.selectConn(peerId)
+  await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
+  if isRelayed(conn):
+    for address in switch.peerStore[AddressBook][peerId]:
+      if self.isPublicIPAddr(initTAddress(address).get()):
+        try:
+          await switch.connect(peerId, @[address], true, false)
+          await conn.close()
+          debug "direct connection started"
+          return true
+        except CatchableError as exc:
+          debug "failed to start direct connection", exc = exc.msg
+          continue
+  return false
 
 method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
@@ -52,18 +63,8 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   hasBeenSetup = hasBeenSetup and await self.autoRelayService.setup(switch)
   if hasBeenSetup:
     self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
-      let conn = switch.connManager.selectConn(peerId)
-      await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
-      if isRelayed(conn):
-        for address in switch.peerStore[AddressBook][peerId]:
-          if self.isPublicIPAddr(initTAddress(address).get()):
-            try:
-              await self.startDirectConn(switch, conn, peerId, address)
-            except CatchableError as exc:
-              debug "failed to start direct connection", exc = exc.msg
-              continue
-            await conn.close()
-            debug "direct connection started"
+      if await self.startDirectConn(switch, peerId):
+        return
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
