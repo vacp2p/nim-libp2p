@@ -31,13 +31,13 @@ suite "Dcutr":
     let clientSwitch = newStandardSwitch()
 
     let serverSwitch = newStandardSwitch()
-    let dcutrProto = Dcutr.new(serverSwitch)
+    let dcutrProto = Dcutr.new()
     serverSwitch.mount(dcutrProto)
 
     asyncSpawn serverSwitch.start()
 
     let conn = await clientSwitch.dial(serverSwitch.peerInfo.peerId, serverSwitch.peerInfo.addrs, @[DcutrCodec])
-    let directConn = await Dcutr.new(clientSwitch).startSync(conn)
+    let directConn = await Dcutr.new().startSync(clientSwitch, conn)
     echo await directConn.readLp(1024)
 
     await allFutures(serverSwitch.stop())

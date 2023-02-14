@@ -32,11 +32,10 @@ type
   DcutrError* = object of LPError
 
   Dcutr* = ref object of LPProtocol
-    switch*: Switch
     rttStart: Option[Moment]
     rttEnd: Option[Moment]
 
-proc sendConnectMsg(self: Dcutr, conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc sendConnectMsg(self: Dcutr, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   let pb = DcutrMsg(msgType: MsgType.Connect, addrs: addrs).encode()
   await conn.writeLp(pb.buffer)
 
@@ -44,35 +43,39 @@ proc sendSyncMsg(self: Dcutr, conn: Connection) {.async.} =
   let pb = DcutrMsg(msgType: MsgType.Sync, addrs: @[]).encode()
   await conn.writeLp(pb.buffer)
 
-proc startSync*(self: Dcutr, conn: Connection): Future[Connection] {.async.} =
+proc startSync*(self: Dcutr, switch: Switch, conn: Connection): Future[Connection] {.async.} =
+  logScope:
+    peerId = self.switch.peerInfo.peerId
+
   self.rttStart = some(Moment.now())
-  trace "Sending a Connect msg", conn
-  await self.sendConnectMsg(conn, self.switch.peerInfo.peerId, self.switch.peerInfo.addrs)
+  trace "Sync initiator has sent a Connect message", conn
+  await self.sendConnectMsg(conn, self.switch.peerInfo.addrs)
   let connectAnswer = DcutrMsg.decode(await conn.readLp(1024))
-  trace "Received a Connect msg back", conn
+  trace "Sync initiator has received a Connect message back", conn
   self.rttEnd = some(Moment.now())
-  trace "Sending a Sync msg", conn
+  trace "Sending a Sync message", conn
   await self.sendSyncMsg(conn)
-  let halfRtt = (self.rttEnd.get() - self.rttStart.get())
+  let halfRtt = (self.rttEnd.get() - self.rttStart.get()) / 2
   await sleepAsync(halfRtt)
   let directConn =
     try:
-      await self.switch.dial(conn.peerId, connectAnswer.addrs, DcutrCodec)
+      await switch.dial(conn.peerId, connectAnswer.addrs, DcutrCodec)
     except CatchableError as err:
       raise newException(DcutrError, "Unexpected error when dialling", err)
   return directConn
 
-proc new*(T: typedesc[Dcutr], switch: Switch): T =
+proc new*(T: typedesc[Dcutr]): T =
   let self = T(switch: switch, rttStart: none(Moment), rttEnd: none(Moment))
   proc handleStream(stream: Connection, proto: string) {.async, gcsafe.} =
     try:
       let msg = DcutrMsg.decode(await stream.readLp(1024))
+      trace "Sync receiver received a Connect message.", msg
       case msg.msgType:
         of MsgType.Connect:
-          #trace "Received a Connect msg", msg
-          trace "Sending a Connect msg back", msg
-          await self.sendConnectMsg(stream, self.switch.peerInfo.peerId, self.switch.peerInfo.addrs)
+          await self.sendConnectMsg(stream, self.switch.peerInfo.addrs)
+          trace "Sync receiver has sent a Connect message back"
         of MsgType.Sync:
+          trace "Sync receiver has received a Sync message"
           let directConn =
             try:
               await self.switch.dial(stream.peerId, msg.addrs, DcutrCodec)
