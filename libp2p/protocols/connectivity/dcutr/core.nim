@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,11 +7,24 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
 import std/options
-import ../../../multiaddress
+
+import ../../../multiaddress,
+       ../../../errors,
+       ../../../stream/connection
+
+import chronos
 import stew/objects
 
 export multiaddress
+
+const
+  DcutrCodec* = "/libp2p/dcutr/1.0.0"
 
 type
   MsgType* = enum
@@ -22,6 +35,8 @@ type
     msgType*: MsgType
     addrs*: seq[MultiAddress]
 
+  DcutrError* = object of LPError
+
 proc encode*(msg: DcutrMsg): ProtoBuffer =
   result = initProtoBuffer()
   result.write(1, msg.msgType.uint)
@@ -29,7 +44,7 @@ proc encode*(msg: DcutrMsg): ProtoBuffer =
     result.write(2, addr)
   result.finish()
 
-proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg =
+proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [DcutrError].} =
   var
     msgTypeOrd: uint32
     dcutrMsg: DcutrMsg
@@ -39,6 +54,10 @@ proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg =
   if r1.isErr or r2.isErr or not checkedEnumAssign(dcutrMsg.msgType, msgTypeOrd):
     raise newException(DcutrError, "Received malformed message")
   return dcutrMsg
+
+proc sendConnectMsg*(conn: Connection, addrs: seq[MultiAddress]) {.async.} =
+  let pb = DcutrMsg(msgType: MsgType.Connect, addrs: addrs).encode()
+  await conn.writeLp(pb.buffer)
 
 
 
