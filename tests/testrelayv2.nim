@@ -40,7 +40,7 @@ suite "Circuit Relay V2":
       range {.threadvar.}: HSlice[times.DateTime, times.DateTime]
 
     asyncSetup:
-      ttl = 1
+      ttl = 3
       ldur = 60
       ldata = 2048
       cl1 = RelayClient.new()
@@ -179,12 +179,12 @@ suite "Circuit Relay V2":
       await allFutures(src.stop(), dst.stop(), rel.stop())
 
     asyncTest "Connection duration exceeded":
-      ldur = 2
+      ldur = 3
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("yeah!")
         check "go!" == string.fromBytes(await conn.readLp(1024))
-        await sleepAsync(3000)
+        await sleepAsync(chronos.timer.seconds(ldur + 1))
         await conn.writeLp("that was a cool power nap")
         await conn.close()
       rv2 = Relay.new(reservationTTL=initDuration(seconds=ttl),
@@ -263,7 +263,7 @@ take to the ship.""")
       await allFutures(src.stop(), dst.stop(), rel.stop())
 
     asyncTest "Reservation ttl expire during connection":
-      ttl = 1
+      ttl = 3
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check: "test1" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test2")
@@ -294,7 +294,7 @@ take to the ship.""")
       await conn.writeLp("test3")
       check: "test4" == string.fromBytes(await conn.readLp(1024))
       await src.disconnect(rel.peerInfo.peerId)
-      await sleepAsync(2000)
+      await sleepAsync(chronos.timer.seconds(ttl + 1))
 
       expect(DialFailedError):
         check: conn.atEof()
