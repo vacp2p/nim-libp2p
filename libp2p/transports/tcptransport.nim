@@ -139,6 +139,7 @@ proc new*(
             {TransportFlags.TcpNoDelay}
           do:
             doAssert(false)
+            default(set[TransportFlags])
         else:
           default(set[TransportFlags]),
     upgrader: upgrade)
