@@ -130,13 +130,18 @@ proc new*(
   flags: set[ServerFlags] = {},
   upgrade: Upgrade): T {.public.} =
 
-  let transport = T(
-    flags: flags,
-    clientFlags:
-      if ServerFlags.TcpNoDelay in flags:
-        {TransportFlags.TcpNoDelay}
-      else:
-        default(set[TransportFlags]),
+  let
+    transport = T(
+      flags: flags,
+      clientFlags:
+        if ServerFlags.TcpNoDelay in flags:
+          compilesOr:
+            {TransportFlags.TcpNoDelay}
+          do:
+            doAssert(false)
+            default(set[TransportFlags])
+        else:
+          default(set[TransportFlags]),
     upgrader: upgrade)
 
   return transport
