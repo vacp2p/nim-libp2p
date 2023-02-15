@@ -13,8 +13,8 @@ import strutils, os
 # Only add chronicles param if the
 # user didn't specify any
 var hasChroniclesParam = false
-for param in 0..<paramCount():
-  if "chronicles" in paramStr(param):
+for param in 0..<system.paramCount():
+  if "chronicles" in system.paramStr(param):
     hasChroniclesParam = true
 
 if hasChroniclesParam:
