@@ -16,17 +16,14 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-
-      - uses: actions/checkout@v3
         with:
           repository: libp2p/test-plans
-          path: test-plans
           submodules: true
           fetch-depth: 0
 
       - name: Build image
         run: >
-          cd test-plans/multidim-interop/nim/v1.0 &&
+          cd multidim-interop/nim/v1.0 &&
           make commitSha=$GITHUB_SHA image_name=nim-libp2p-head
 
       - name: Create ping-version.json
