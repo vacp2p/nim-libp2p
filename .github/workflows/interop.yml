@@ -45,6 +45,7 @@ jobs:
                 ]
             }
           EOF
+          
           ) > ${{ github.workspace }}/test_head.json
 
       - uses: libp2p/test-plans/.github/actions/run-interop-ping-test@master
