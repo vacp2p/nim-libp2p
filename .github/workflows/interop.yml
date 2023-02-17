@@ -49,4 +49,4 @@ jobs:
       - uses: libp2p/test-plans/.github/actions/run-interop-ping-test@master
         with:
           test-filter: nim-libp2p-head
-          extra-versions: ${{ github.workspace }}/test-plans/ping-version.json
+          extra-versions: ${{ github.workspace }}/test_head.json
