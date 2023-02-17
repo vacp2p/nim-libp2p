@@ -19,10 +19,8 @@ jobs:
 
       - uses: actions/checkout@v3
         with:
-          #repository: libp2p/test-plans
-          repository: status-im/libp2p-test-plans
+          repository: libp2p/test-plans
           path: test-plans
-          ref: nimsupport
           submodules: true
           fetch-depth: 0
 
@@ -33,7 +31,7 @@ jobs:
 
       - name: Create ping-version.json
         run: >
-          echo """
+          (cat << EOF
             {
                 "id": "nim-libp2p-head",
                 "containerImageID": "nim-libp2p-head",
@@ -49,7 +47,8 @@ jobs:
                     "yamux"
                 ]
             }
-          """ > ${{ github.workspace }}/test_head.json
+          EOF
+          ) > ${{ github.workspace }}/test_head.json
 
       - uses: libp2p/test-plans/.github/actions/run-interop-ping-test@master
         with:
