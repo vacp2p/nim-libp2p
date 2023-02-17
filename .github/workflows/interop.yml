@@ -1,0 +1,50 @@
+name: Interoperability Testing
+on:
+  pull_request:
+  push:
+    branches:
+      - unstable
+
+jobs:
+  run-multidim-interop:
+    name: Run multidimensional interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/checkout@v3
+        with:
+          repository: libp2p/test-plans
+          path: test-plans
+          submodules: true
+          fetch-depth: 0
+
+      - name: Build image
+        run: >
+          cd test-plans/multidim-interop/nim/v1.0
+          make commitSha=$GITHUB_SHA image_name=nim-libp2p-head
+
+      - name: Create ping-version.json
+        run: >
+          echo """
+            {
+                "id": "nim-libp2p-head",
+                "containerImageID": "nim-libp2p-head",
+                "transports": [
+                    "tcp",
+                    "ws"
+                ],
+                "secureChannels": [
+                    "noise"
+                ],
+                "muxers": [
+                    "mplex",
+                    "yamux"
+                ]
+            }
+          """ > ${{ github.workspace }}/test_head.json
+
+      - uses: libp2p/test-plans/.github/actions/run-interop-ping-test@master
+        with:
+          test-filter: nim-libp2p-head
+          extra-versions: ${{ github.workspace }}/test-plans/ping-version.json
