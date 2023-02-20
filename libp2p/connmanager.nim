@@ -80,7 +80,7 @@ type
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
-    expectedConnections*: Table[(PeerId, Direction), Future[Connection]]
+    expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Connection]]
     peerStore*: PeerStore
 
   ConnectionSlot* = object
@@ -225,16 +225,16 @@ proc triggerPeerEvents*(c: ConnManager,
 proc expectConnection*(c: ConnManager, p: PeerId, dir: Direction): Future[Connection] {.async.} =
   ## Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
   let key = (p, dir)
-  if key in c.expectedConnections:
+  if key in c.expectedConnectionsOverLimit:
     raise newException(AlreadyExpectingConnectionError, "Already expecting an incoming connection from that peer")
 
   let future = newFuture[Connection]()
-  c.expectedConnections[key] = future
+  c.expectedConnectionsOverLimit[key] = future
 
   try:
     return await future
   finally:
-    c.expectedConnections.del(key)
+    c.expectedConnectionsOverLimit.del(key)
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -416,7 +416,7 @@ proc storeConn*(c: ConnManager, conn: Connection)
   # we use getOrDefault in the if below instead of [] to avoid the KeyError
   if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
     let key = (peerId, conn.dir)
-    let expectedConn = c.expectedConnections.getOrDefault(key)
+    let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
         expectedConn.complete(conn)
     else:
@@ -566,8 +566,8 @@ proc close*(c: ConnManager) {.async.} =
   let muxed = c.muxed
   c.muxed.clear()
 
-  let expected = c.expectedConnections
-  c.expectedConnections.clear()
+  let expected = c.expectedConnectionsOverLimit
+  c.expectedConnectionsOverLimit.clear()
 
   for _, fut in expected:
     await fut.cancelAndWait()
