@@ -347,7 +347,12 @@ suite "Autonat Service":
     await switch2.start()
 
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs, reuseConnection = false)
+    try:
+      # We don't care if it falis or not at this point.
+      # Bellow we check that there's only one connection between the peers
+      await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs, reuseConnection = false)
+    except CatchableError:
+      discard
 
     await awaiter1
 
@@ -355,6 +360,7 @@ suite "Autonat Service":
     check autonatService2.networkReachability() == NetworkReachability.Unknown
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
+    # Make sure remote peer can't create a connection to us
     check switch1.connManager.connCount(switch2.peerInfo.peerId) == 1
 
     await allFuturesThrowing(
