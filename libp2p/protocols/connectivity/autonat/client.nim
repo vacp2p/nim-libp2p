@@ -60,7 +60,7 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
   # To bypass maxConnectionsPerPeer
   let incomingConnection = switch.connManager.expectConnection(pid, In)
   if incomingConnection.failed() and incomingConnection.error of AlreadyExpectingConnectionError:
-    raise newException(AutonatError, "This remote peer has already asked us to dial it first.")
+    raise newException(AutonatError, incomingConnection.error.msg)
   defer:
     await conn.close()
     incomingConnection.cancel() # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
