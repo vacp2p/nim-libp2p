@@ -277,6 +277,89 @@ suite "Autonat Service":
     await allFuturesThrowing(
       switch1.stop(), switch2.stop())
 
+  asyncTest "Must work when peers ask each other at the same time":
+    let autonatService1 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
+    let autonatService2 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
+
+    let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 1)
+    let switch2 = createSwitch(autonatService2, maxConnsPerPeer = 1)
+
+    let awaiter1 = newFuture[void]()
+    let awaiter2 = newFuture[void]()
+
+    proc statusAndConfidenceHandler1(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
+        if not awaiter1.finished:
+          awaiter1.complete()
+
+    proc statusAndConfidenceHandler2(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
+        if not awaiter2.finished:
+          awaiter2.complete()
+
+    check autonatService1.networkReachability() == NetworkReachability.Unknown
+    check autonatService2.networkReachability() == NetworkReachability.Unknown
+
+    autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
+    autonatService2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
+
+    await switch1.start()
+    await switch2.start()
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs, reuseConnection = false)
+
+    await awaiter1
+    await awaiter2
+
+    check autonatService1.networkReachability() == NetworkReachability.Reachable
+    check autonatService2.networkReachability() == NetworkReachability.Reachable
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
+
+    await allFuturesThrowing(
+      switch1.stop(), switch2.stop())
+
+  asyncTest "Must work for one peer when peers ask each other at the same time with max 1 conn per peer":
+    let autonatService1 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
+    let autonatService2 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
+
+    let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 0)
+    let switch2 = createSwitch(autonatService2, maxConnsPerPeer = 0)
+
+    let awaiter1 = newFuture[void]()
+
+    proc statusAndConfidenceHandler1(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
+        if not awaiter1.finished:
+          awaiter1.complete()
+
+    proc statusAndConfidenceHandler2(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome():
+        fail()
+
+    check autonatService1.networkReachability() == NetworkReachability.Unknown
+    check autonatService2.networkReachability() == NetworkReachability.Unknown
+
+    autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
+    autonatService2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
+
+    await switch1.start()
+    await switch2.start()
+
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs, reuseConnection = false)
+
+    await awaiter1
+
+    check autonatService1.networkReachability() == NetworkReachability.Reachable
+    check autonatService2.networkReachability() == NetworkReachability.Unknown
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
+
+    check switch1.connManager.connCount(switch2.peerInfo.peerId) == 1
+
+    await allFuturesThrowing(
+      switch1.stop(), switch2.stop())
+
   asyncTest "Must work with low maxConnections":
     let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 1)
 
