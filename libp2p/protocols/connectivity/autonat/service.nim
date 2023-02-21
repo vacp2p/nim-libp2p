@@ -152,7 +152,7 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   if hasBeenSetup:
     if self.askNewConnectedPeers:
       self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
-        if switch.connManager.selectConn(peerId, In) != nil: # no need to ask an incoming peer
+        if switch.connManager.selectMuxer(peerId, In) != nil: # no need to ask an incoming peer
           return
         discard askPeer(self, switch, peerId)
         await self.callHandler()
