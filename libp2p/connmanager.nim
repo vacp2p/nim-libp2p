@@ -32,6 +32,7 @@ const
 
 type
   TooManyConnectionsError* = object of LPError
+  AlreadyExpectingConnectionError* = object of LPError
 
   ConnEventKind* {.pure.} = enum
     Connected,    # A connection was made and securely upgraded - there may be
@@ -79,7 +80,7 @@ type
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
-    expectedConnections: Table[PeerId, Future[Connection]]
+    expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Connection]]
     peerStore*: PeerStore
 
   ConnectionSlot* = object
@@ -221,18 +222,19 @@ proc triggerPeerEvents*(c: ConnManager,
   except CatchableError as exc: # handlers should not raise!
     warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
 
-proc expectConnection*(c: ConnManager, p: PeerId): Future[Connection] {.async.} =
+proc expectConnection*(c: ConnManager, p: PeerId, dir: Direction): Future[Connection] {.async.} =
   ## Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
-  if p in c.expectedConnections:
-    raise LPError.newException("Already expecting a connection from that peer")
+  let key = (p, dir)
+  if key in c.expectedConnectionsOverLimit:
+    raise newException(AlreadyExpectingConnectionError, "Already expecting an incoming connection from that peer")
 
   let future = newFuture[Connection]()
-  c.expectedConnections[p] = future
+  c.expectedConnectionsOverLimit[key] = future
 
   try:
     return await future
   finally:
-    c.expectedConnections.del(p)
+    c.expectedConnectionsOverLimit.del(key)
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -412,14 +414,16 @@ proc storeConn*(c: ConnManager, conn: Connection)
   let peerId = conn.peerId
 
   # we use getOrDefault in the if below instead of [] to avoid the KeyError
-  if peerId in c.expectedConnections and
-     not(c.expectedConnections.getOrDefault(peerId).finished):
-      c.expectedConnections.getOrDefault(peerId).complete(conn)
-  elif c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
-    debug "Too many connections for peer",
-      conn, conns = c.conns.getOrDefault(peerId).len
+  if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
+    let key = (peerId, conn.dir)
+    let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
+    if expectedConn != nil and not expectedConn.finished:
+        expectedConn.complete(conn)
+    else:
+      debug "Too many connections for peer",
+        conn, conns = c.conns.getOrDefault(peerId).len
 
-    raise newTooManyConnectionsError()
+      raise newTooManyConnectionsError()
 
   c.conns.mgetOrPut(peerId, HashSet[Connection]()).incl(conn)
   libp2p_peers.set(c.conns.len.int64)
@@ -562,8 +566,8 @@ proc close*(c: ConnManager) {.async.} =
   let muxed = c.muxed
   c.muxed.clear()
 
-  let expected = c.expectedConnections
-  c.expectedConnections.clear()
+  let expected = c.expectedConnectionsOverLimit
+  c.expectedConnectionsOverLimit.clear()
 
   for _, fut in expected:
     await fut.cancelAndWait()

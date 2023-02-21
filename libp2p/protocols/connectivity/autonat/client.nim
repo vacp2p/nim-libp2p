@@ -58,10 +58,14 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
       raise newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
 
   # To bypass maxConnectionsPerPeer
-  let incomingConnection = switch.connManager.expectConnection(pid)
+  let incomingConnection = switch.connManager.expectConnection(pid, In)
+  if incomingConnection.failed() and incomingConnection.error of AlreadyExpectingConnectionError:
+    raise newException(AutonatError, incomingConnection.error.msg)
   defer:
     await conn.close()
     incomingConnection.cancel() # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
+    if incomingConnection.completed():
+      await (await incomingConnection).close()
   trace "sending Dial", addrs = switch.peerInfo.addrs
   await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))

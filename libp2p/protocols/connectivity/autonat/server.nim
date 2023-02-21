@@ -63,7 +63,10 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
   var futs: seq[Future[Opt[MultiAddress]]]
   try:
     # This is to bypass the per peer max connections limit
-    let outgoingConnection = autonat.switch.connManager.expectConnection(conn.peerId)
+    let outgoingConnection = autonat.switch.connManager.expectConnection(conn.peerId, Out)
+    if outgoingConnection.failed() and outgoingConnection.error of AlreadyExpectingConnectionError:
+      await conn.sendResponseError(DialRefused, outgoingConnection.error.msg)
+      return
     # Safer to always try to cancel cause we aren't sure if the connection was established
     defer: outgoingConnection.cancel()
     # tryDial is to bypass the global max connections limit
