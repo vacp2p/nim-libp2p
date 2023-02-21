@@ -277,15 +277,18 @@ suite "Autonat Service":
     await allFuturesThrowing(
       switch1.stop(), switch2.stop())
 
-  asyncTest "Must work when peers ask each other at the same time":
+  asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
     let autonatService2 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
+    let autonatService3 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
 
-    let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 1)
-    let switch2 = createSwitch(autonatService2, maxConnsPerPeer = 1)
+    let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 0)
+    let switch2 = createSwitch(autonatService2, maxConnsPerPeer = 0)
+    let switch3 = createSwitch(autonatService2, maxConnsPerPeer = 0)
 
     let awaiter1 = newFuture[void]()
     let awaiter2 = newFuture[void]()
+    let awaiter3 = newFuture[void]()
 
     proc statusAndConfidenceHandler1(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
@@ -305,9 +308,11 @@ suite "Autonat Service":
 
     await switch1.start()
     await switch2.start()
+    await switch3.start()
 
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs, reuseConnection = false)
+    await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
+    await switch2.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
 
     await awaiter1
     await awaiter2
@@ -317,9 +322,9 @@ suite "Autonat Service":
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(
-      switch1.stop(), switch2.stop())
+      switch1.stop(), switch2.stop(), switch3.stop())
 
-  asyncTest "Must work for one peer when peers ask each other at the same time with max 1 conn per peer":
+  asyncTest "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
     let autonatService2 = AutonatService.new(AutonatClient.new(), newRng(), some(500.millis), maxQueueSize = 3)
 
@@ -333,22 +338,17 @@ suite "Autonat Service":
         if not awaiter1.finished:
           awaiter1.complete()
 
-    proc statusAndConfidenceHandler2(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
-      if networkReachability == NetworkReachability.Reachable and confidence.isSome():
-        fail()
-
     check autonatService1.networkReachability() == NetworkReachability.Unknown
-    check autonatService2.networkReachability() == NetworkReachability.Unknown
 
     autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
-    autonatService2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
 
     await switch1.start()
     await switch2.start()
 
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
     try:
-      # We don't care if it falis or not at this point.
+      # We allow a temp conn for the peer to dial us. It could use this conn to just connect to us and not dial.
+      # We don't care if it fails at this point or not. But this conn must be closed eventually.
       # Bellow we check that there's only one connection between the peers
       await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs, reuseConnection = false)
     except CatchableError:
@@ -357,7 +357,6 @@ suite "Autonat Service":
     await awaiter1
 
     check autonatService1.networkReachability() == NetworkReachability.Reachable
-    check autonatService2.networkReachability() == NetworkReachability.Unknown
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
     # Make sure remote peer can't create a connection to us
