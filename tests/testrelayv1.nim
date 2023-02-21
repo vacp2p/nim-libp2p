@@ -257,7 +257,7 @@ suite "Circuit Relay":
     await allFutures(dst2.stop())
 
   asyncTest "Dial Peer":
-    let maStr = $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+    let maStr = $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId & "/p2p-circuit"
     let maddr = MultiAddress.init(maStr).tryGet()
     await src.connect(srelay.peerInfo.peerId, srelay.peerInfo.addrs)
     await srelay.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)

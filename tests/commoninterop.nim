@@ -499,7 +499,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await rel.start()
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
-      let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $daemonPeer.peer
+      let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit"
       let maddr = MultiAddress.init(maStr).tryGet()
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.connect(daemonPeer.peer, daemonPeer.addresses)
@@ -542,7 +542,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await dst.start()
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
-      let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+      let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit"
       let maddr = MultiAddress.init(maStr).tryGet()
       await daemonNode.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
@@ -581,7 +581,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await dst.start()
       let daemonNode = await newDaemonApi({RelayHop})
       let daemonPeer = await daemonNode.identity()
-      let maStr = $daemonPeer.addresses[0] & "/p2p/" & $daemonPeer.peer & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+      let maStr = $daemonPeer.addresses[0] & "/p2p/" & $daemonPeer.peer & "/p2p-circuit"
       let maddr = MultiAddress.init(maStr).tryGet()
       await src.connect(daemonPeer.peer, daemonPeer.addresses)
       await daemonNode.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)

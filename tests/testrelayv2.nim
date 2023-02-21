@@ -40,7 +40,7 @@ suite "Circuit Relay V2":
       range {.threadvar.}: HSlice[times.DateTime, times.DateTime]
 
     asyncSetup:
-      ttl = 1
+      ttl = 3
       ldur = 60
       ldata = 2048
       cl1 = RelayClient.new()
@@ -98,8 +98,7 @@ suite "Circuit Relay V2":
       let
         rv2add = Relay.new()
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                     $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $src2.peerInfo.peerId).get() ]
+                                     $rel.peerInfo.peerId & "/p2p-circuit").get() ]
       rv2add.setup(src2)
       await rv2add.start()
       src2.mount(rv2add)
@@ -164,8 +163,7 @@ suite "Circuit Relay V2":
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -181,12 +179,12 @@ suite "Circuit Relay V2":
       await allFutures(src.stop(), dst.stop(), rel.stop())
 
     asyncTest "Connection duration exceeded":
-      ldur = 2
+      ldur = 3
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("yeah!")
         check "go!" == string.fromBytes(await conn.readLp(1024))
-        await sleepAsync(3000)
+        await sleepAsync(chronos.timer.seconds(ldur + 1))
         await conn.writeLp("that was a cool power nap")
         await conn.close()
       rv2 = Relay.new(reservationTTL=initDuration(seconds=ttl),
@@ -201,8 +199,7 @@ suite "Circuit Relay V2":
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -250,8 +247,7 @@ take to the ship.""")
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -267,7 +263,7 @@ take to the ship.""")
       await allFutures(src.stop(), dst.stop(), rel.stop())
 
     asyncTest "Reservation ttl expire during connection":
-      ttl = 1
+      ttl = 3
       proto.handler = proc(conn: Connection, proto: string) {.async.} =
         check: "test1" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test2")
@@ -286,8 +282,7 @@ take to the ship.""")
       await dst.start()
 
       let addrs = MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
-                                $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                $dst.peerInfo.peerId).get()
+                                $rel.peerInfo.peerId & "/p2p-circuit").get()
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await dst.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -299,7 +294,7 @@ take to the ship.""")
       await conn.writeLp("test3")
       check: "test4" == string.fromBytes(await conn.readLp(1024))
       await src.disconnect(rel.peerInfo.peerId)
-      await sleepAsync(2000)
+      await sleepAsync(chronos.timer.seconds(ttl + 1))
 
       expect(DialFailedError):
         check: conn.atEof()
@@ -332,8 +327,7 @@ take to the ship.""")
         addrs = @[ MultiAddress.init($rel.peerInfo.addrs[0] & "/p2p/" &
                                      $rel.peerInfo.peerId & "/p2p-circuit/p2p/" &
                                      $rel2.peerInfo.peerId & "/p2p/" &
-                                     $rel2.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $dst.peerInfo.peerId).get() ]
+                                     $rel2.peerInfo.peerId & "/p2p-circuit").get() ]
 
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel2.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -392,14 +386,11 @@ take to the ship.""")
 
       let
         addrsABC = MultiAddress.init($switchB.peerInfo.addrs[0] & "/p2p/" &
-                                     $switchB.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $switchC.peerInfo.peerId).get()
+                                     $switchB.peerInfo.peerId & "/p2p-circuit").get()
         addrsBCA = MultiAddress.init($switchC.peerInfo.addrs[0] & "/p2p/" &
-                                     $switchC.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $switchA.peerInfo.peerId).get()
+                                     $switchC.peerInfo.peerId & "/p2p-circuit").get()
         addrsCAB = MultiAddress.init($switchA.peerInfo.addrs[0] & "/p2p/" &
-                                     $switchA.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                                     $switchB.peerInfo.peerId).get()
+                                     $switchA.peerInfo.peerId & "/p2p-circuit").get()
 
       await switchA.connect(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
       await switchB.connect(switchC.peerInfo.peerId, switchC.peerInfo.addrs)
