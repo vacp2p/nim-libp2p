@@ -358,6 +358,8 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   channel.opened = true
   await channel.conn.write(YamuxHeader.data(channel.id, 0, {if channel.isSrc: Syn else: Ack}))
 
+method getWrapped*(channel: YamuxChannel): Connection = channel.conn
+
 type
   Yamux* = ref object of Muxer
     channels: Table[uint32, YamuxChannel]
