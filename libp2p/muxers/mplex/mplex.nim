@@ -178,7 +178,12 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 
           trace "pushing data to channel", m, channel, len = data.len
           try:
+            let start = Moment.now()
             await channel.pushData(data)
+            let delay = Moment.now() - start
+
+            if delay > 1.seconds:
+              debug "pushData was slow!", delay, protocol=channel.protocol, peer = $m.connection.peerId
             trace "pushed data to channel", m, channel, len = data.len
           except LPStreamClosedError as exc:
             # Channel is being closed, but `cleanupChann` was not yet triggered.
