@@ -80,6 +80,9 @@ proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
   return switch.connManager.slotsAvailable(In) >= 2
 
+proc doesPeerHaveIncomingConn(switch: Switch, peerId: PeerId): bool =
+  return switch.connManager.selectMuxer(peerId, In) != nil
+
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
   if ans == Unknown:
@@ -104,6 +107,10 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   logScope:
     peerId = $peerId
+
+  if doesPeerHaveIncomingConn(switch, peerId):
+    return Unknown
+
   if not hasEnoughIncomingSlots(switch):
     debug "No incoming slots available, not asking peer", incomingSlotsAvailable=switch.connManager.slotsAvailable(In)
     return Unknown
@@ -152,10 +159,7 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   if hasBeenSetup:
     if self.askNewConnectedPeers:
       self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
-        if switch.connManager.selectMuxer(peerId, In) != nil: # no need to ask an incoming peer
-          return
         discard askPeer(self, switch, peerId)
-        await self.callHandler()
       switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
       self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())

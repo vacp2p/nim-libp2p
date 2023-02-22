@@ -173,15 +173,15 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       connMngr.storeMuxer(muxs[0])
 
-    let waitedConn1 = connMngr.expectConnection(peerId)
+    let waitedConn1 = connMngr.expectConnection(peerId, In)
 
-    expect LPError:
-      discard await connMngr.expectConnection(peerId)
+    expect AlreadyExpectingConnectionError:
+      discard await connMngr.expectConnection(peerId, In)
 
     await waitedConn1.cancelAndWait()
     let
-      waitedConn2 = connMngr.expectConnection(peerId)
-      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet())
+      waitedConn2 = connMngr.expectConnection(peerId, In)
+      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(), In)
       conn = getMuxer(peerId)
     connMngr.storeMuxer(conn)
     check (await waitedConn2) == conn
