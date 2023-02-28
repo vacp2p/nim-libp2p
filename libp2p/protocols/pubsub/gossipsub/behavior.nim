@@ -272,6 +272,8 @@ proc handleIHave*(g: GossipSub,
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] {.raises: [Defect].} =
+  if peer.shortAgent == "lodestar":
+    info "Got IWANT", peerType=peer.shortAgent, peerId=peer.peerId, msgs=iwants.mapIt(it.messageIds.len)
   var messages: seq[Message]
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
