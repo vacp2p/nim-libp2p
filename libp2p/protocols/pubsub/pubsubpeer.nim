@@ -159,7 +159,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
 
-        await p.handler(p, rmsg.get())
+        discard p.handler(p, rmsg.get())
     finally:
       await conn.close()
   except CancelledError:
