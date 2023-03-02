@@ -133,6 +133,7 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
   await self.handleAnswer(ans)
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
+  await switch.peerInfo.update()
   return ans
 
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
@@ -153,7 +154,69 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
   heartbeat "Scheduling AutonatService run", interval:
     await service.run(switch)
 
+proc handleManualPortForwarding(
+  observedMAManager: ObservedMAManager,
+  listenAddr: MultiAddress,
+  isIP4: bool): Opt[MultiAddress] =
+  try:
+    let maFirst = listenAddr[0]
+    let maEnd = listenAddr[1..^1]
+
+    if maEnd.isErr():
+      return Opt.none(MultiAddress)
+
+    let observedIP =
+      if isIP4:
+        observedMAManager.getIP4()
+      else:
+        observedMAManager.getIP6()
+
+    let newMA =
+      if observedIP.isNone() or maFirst.get() == observedIP.get():
+        listenAddr
+      else:
+        observedIP.get() & maEnd.get()
+
+    return Opt.some(newMA)
+  except CatchableError as error:
+    debug "Error while handling manual port forwarding", msg = error.msg
+    return Opt.none(MultiAddress)
+
+proc addressMapper(
+  self: AutonatService,
+  observedMAManager: ObservedMAManager,
+  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+
+  var addrs = newSeq[MultiAddress]()
+  for listenAddr in listenAddrs:
+    try:
+      let maFirst = listenAddr[0]
+      if maFirst.isErr():
+        continue
+      var isIP4 = true
+      let hostIP =
+        if IP4.match(maFirst.get()):
+          getBestRoute(initTAddress("8.8.8.8:0")).source
+        elif IP6.match(maFirst.get()):
+          isIP4 = false
+          getBestRoute(initTAddress("2600:::0")).source
+        else:
+          continue
+      if not hostIP.isGlobal():
+        if self.networkReachability == NetworkReachability.Reachable:
+          let newMA = handleManualPortForwarding(observedMAManager, listenAddr, isIP4)
+          if newMA.isSome():
+            addrs.add(newMA.get())
+          continue
+      addrs.add(listenAddr) # do nothing
+    except CatchableError as exc:
+      continue
+  return addrs
+
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
+  proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+    return await self.addressMapper(switch.peerStore.observedMAManager, listenAddrs)
+
   info "Setting up AutonatService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if hasBeenSetup:
@@ -163,13 +226,13 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
       switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
       self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
+    switch.peerInfo.addressMappers.add(addressMapper)
   return hasBeenSetup
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
   trace "Running AutonatService"
   await askConnectedPeers(self, switch)
   await self.callHandler()
-
 
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
   info "Stopping AutonatService"

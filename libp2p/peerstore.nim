@@ -27,7 +27,7 @@ else:
   {.push raises: [].}
 
 import
-  std/[tables, sets, options, macros],
+  std/[tables, sets, options, macros, heapqueue],
   chronos,
   ./crypto/crypto,
   ./protocols/identify,
@@ -39,6 +39,82 @@ import
   ./multistream,
   ./muxers/muxer,
   utility
+
+type
+  ObservedMA = object
+    ma: MultiAddress
+    count: int
+
+  ObservedMAManager* = ref object of RootObj
+    observedIPs: HeapQueue[ObservedMA]
+    observedIPsAndPorts: HeapQueue[ObservedMA]
+    maxSize: int
+    minCount: int
+
+proc `<`(a, b: ObservedMA): bool = a.count < b.count
+proc `==`(a, b: ObservedMA): bool = a.ma == b.ma
+
+proc add*(self:ObservedMAManager, heap: var HeapQueue[ObservedMA], observedMA: MultiAddress) =
+  if heap.len >= self.maxSize:
+    discard heap.pop()
+
+  let idx = heap.find(ObservedMA(ma: observedMA, count: 0))
+  if idx >= 0:
+    let observedMA = heap[idx]
+    heap.del(idx)
+    heap.push(ObservedMA(ma: observedMA.ma, count: observedMA.count + 1))
+  else:
+    heap.push(ObservedMA(ma: observedMA, count: 1))
+
+proc add*(self:ObservedMAManager, observedMA: MultiAddress) =
+  self.add(self.observedIPs, observedMA[0].get())
+  self.add(self.observedIPsAndPorts, observedMA)
+
+proc getIP(self: ObservedMAManager, heap: HeapQueue[ObservedMA], ipVersion: MaPattern): Opt[MultiAddress] =
+  var i = 1
+  while heap.len - i >= 0:
+    let observedMA = heap[heap.len - i]
+    if ipVersion.match(observedMA.ma[0].get()) and observedMA.count >= self.minCount:
+      return Opt.some(observedMA.ma)
+    else:
+      i = i + 1
+  return Opt.none(MultiAddress)
+
+proc getIP6*(self: ObservedMAManager): Opt[MultiAddress] =
+  ## Returns the most observed IP6 address
+  return self.getIP(self.observedIPs, IP6)
+
+proc getIP4*(self: ObservedMAManager): Opt[MultiAddress] =
+  ## Returns the most observed IP4 address
+  return self.getIP(self.observedIPs, IP4)
+
+proc getIP6AndPort*(self: ObservedMAManager): Opt[MultiAddress] =
+  ## Returns the most observed IP6 address
+  return self.getIP(self.observedIPsAndPorts, IP6)
+
+proc getIP4AndPort*(self: ObservedMAManager): Opt[MultiAddress] =
+  ## Returns the most observed IP4 address
+  return self.getIP(self.observedIPsAndPorts, IP4)
+
+proc getIPsAndPorts*(self: ObservedMAManager): seq[MultiAddress] =
+  ## Returns the most observed IP4 and IP6 address
+  var res: seq[MultiAddress]
+  if self.getIP4().isSome():
+    res.add(self.getIP4().get())
+  if self.getIP6().isSome():
+    res.add(self.getIP6().get())
+  return res
+
+proc `$`*(self: ObservedMAManager): string =
+  return "IPs: " & $self.observedIPs & "; IPs and Ports: " & $self.observedIPsAndPorts
+
+proc new*(
+  T: typedesc[ObservedMAManager]): T =
+  return T(
+    observedIPs: initHeapQueue[ObservedMA](),
+    observedIPsAndPorts: initHeapQueue[ObservedMA](),
+    maxSize: 10,
+    minCount: 3)
 
 type
   #################
@@ -78,11 +154,13 @@ type
     identify: Identify
     capacity*: int
     toClean*: seq[PeerId]
+    observedMAManager*: ObservedMAManager
 
 proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.public.} =
   T(
     identify: identify,
-    capacity: capacity
+    capacity: capacity,
+    observedMAManager: ObservedMAManager.new(),
   )
 
 #########################
@@ -208,6 +286,9 @@ proc identify*(
   try:
     if (await MultistreamSelect.select(stream, peerStore.identify.codec())):
       let info = await peerStore.identify.identify(stream, stream.peerId)
+
+      if info.observedAddr.isSome:
+        peerStore.observedMAManager.add(info.observedAddr.get())
 
       when defined(libp2p_agents_metrics):
         var knownAgent = "unknown"
