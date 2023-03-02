@@ -1,5 +1,5 @@
 import ../config.nims
-import strutils
+import strutils, os
 
 --threads:on
 --d:metrics
@@ -9,18 +9,20 @@ import strutils
 --d:libp2p_network_protocols_metrics
 --d:libp2p_mplex_metrics
 --d:unittestPrintTime
+--skipParentCfg
 
 # Only add chronicles param if the
 # user didn't specify any
 var hasChroniclesParam = false
-for param in 0..<paramCount():
-  if "chronicles" in paramStr(param):
+for param in 0..<system.paramCount():
+  if "chronicles" in system.paramStr(param):
     hasChroniclesParam = true
 
 if hasChroniclesParam:
   echo "Since you specified chronicles params, TRACE won't be tested!"
 else:
-  switch("import", "stublogger")
+  let modulePath = currentSourcePath.parentDir / "stublogger"
+  switch("import", modulePath)
   switch("define", "chronicles_sinks=textlines[stdout],json[dynamic]")
   switch("define", "chronicles_log_level=TRACE")
   switch("define", "chronicles_runtime_filtering=TRUE")
