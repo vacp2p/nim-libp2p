@@ -179,7 +179,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
           trace "pushing data to channel", m, channel, len = data.len
           try:
             let start = Moment.now()
-            await channel.pushData(data)
+            discard channel.pushData(data)
             let delay = Moment.now() - start
 
             if delay > 1.seconds:
@@ -192,10 +192,10 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             discard  # Ignore message, same as if `cleanupChann` had completed.
 
         of MessageType.CloseIn, MessageType.CloseOut:
-          await channel.pushEof()
+          discard channel.pushEof()
         of MessageType.ResetIn, MessageType.ResetOut:
           channel.remoteReset = true
-          await channel.reset()
+          discard channel.reset()
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
