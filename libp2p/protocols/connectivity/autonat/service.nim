@@ -155,7 +155,7 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
     await service.run(switch)
 
 proc handleManualPortForwarding(
-  observedMAManager: ObservedMAManager,
+  peerStore: PeerStore,
   listenAddr: MultiAddress,
   isIP4: bool): Opt[MultiAddress] =
   try:
@@ -167,9 +167,9 @@ proc handleManualPortForwarding(
 
     let observedIP =
       if isIP4:
-        observedMAManager.getIP4()
+        peerStore.getObservedIP4()
       else:
-        observedMAManager.getIP6()
+        peerStore.getObservedIP6()
 
     let newMA =
       if observedIP.isNone() or maFirst.get() == observedIP.get():
@@ -184,7 +184,7 @@ proc handleManualPortForwarding(
 
 proc addressMapper(
   self: AutonatService,
-  observedMAManager: ObservedMAManager,
+  peerStore: PeerStore,
   listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
 
   var addrs = newSeq[MultiAddress]()
@@ -204,7 +204,7 @@ proc addressMapper(
           continue
       if not hostIP.isGlobal():
         if self.networkReachability == NetworkReachability.Reachable:
-          let newMA = handleManualPortForwarding(observedMAManager, listenAddr, isIP4)
+          let newMA = handleManualPortForwarding(peerStore, listenAddr, isIP4)
           if newMA.isSome():
             addrs.add(newMA.get())
           continue
@@ -215,7 +215,7 @@ proc addressMapper(
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
   proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
-    return await self.addressMapper(switch.peerStore.observedMAManager, listenAddrs)
+    return await self.addressMapper(switch.peerStore, listenAddrs)
 
   info "Setting up AutonatService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
