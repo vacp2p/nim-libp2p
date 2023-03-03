@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -32,6 +32,7 @@ const
 
 type
   TooManyConnectionsError* = object of LPError
+  AlreadyExpectingConnectionError* = object of LPError
 
   ConnEventKind* {.pure.} = enum
     Connected,    # A connection was made and securely upgraded - there may be
@@ -79,6 +80,7 @@ type
     muxed: Table[Connection, MuxerHolder]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
+    expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Connection]]
     peerStore*: PeerStore
 
   ConnectionSlot* = object
@@ -219,6 +221,20 @@ proc triggerPeerEvents*(c: ConnManager,
     raise exc
   except CatchableError as exc: # handlers should not raise!
     warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
+
+proc expectConnection*(c: ConnManager, p: PeerId, dir: Direction): Future[Connection] {.async.} =
+  ## Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
+  let key = (p, dir)
+  if key in c.expectedConnectionsOverLimit:
+    raise newException(AlreadyExpectingConnectionError, "Already expecting an incoming connection from that peer")
+
+  let future = newFuture[Connection]()
+  c.expectedConnectionsOverLimit[key] = future
+
+  try:
+    return await future
+  finally:
+    c.expectedConnectionsOverLimit.del(key)
 
 proc contains*(c: ConnManager, conn: Connection): bool =
   ## checks if a connection is being tracked by the
@@ -396,11 +412,18 @@ proc storeConn*(c: ConnManager, conn: Connection)
     raise newException(LPError, "Connection closed or EOF")
 
   let peerId = conn.peerId
-  if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
-    debug "Too many connections for peer",
-      conn, conns = c.conns.getOrDefault(peerId).len
 
-    raise newTooManyConnectionsError()
+  # we use getOrDefault in the if below instead of [] to avoid the KeyError
+  if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
+    let key = (peerId, conn.dir)
+    let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
+    if expectedConn != nil and not expectedConn.finished:
+        expectedConn.complete(conn)
+    else:
+      debug "Too many connections for peer",
+        conn, conns = c.conns.getOrDefault(peerId).len
+
+      raise newTooManyConnectionsError()
 
   c.conns.mgetOrPut(peerId, HashSet[Connection]()).incl(conn)
   libp2p_peers.set(c.conns.len.int64)
@@ -424,6 +447,13 @@ proc getOutgoingSlot*(c: ConnManager, forceDial = false): ConnectionSlot {.raise
                                             max = c.outSema.size
     raise newTooManyConnectionsError()
   return ConnectionSlot(connManager: c, direction: Out)
+
+proc slotsAvailable*(c: ConnManager, dir: Direction): int =
+  case dir:
+    of Direction.In:
+      return c.inSema.count
+    of Direction.Out:
+      return c.outSema.count
 
 proc release*(cs: ConnectionSlot) =
   if cs.direction == In:
@@ -535,6 +565,12 @@ proc close*(c: ConnManager) {.async.} =
 
   let muxed = c.muxed
   c.muxed.clear()
+
+  let expected = c.expectedConnectionsOverLimit
+  c.expectedConnectionsOverLimit.clear()
+
+  for _, fut in expected:
+    await fut.cancelAndWait()
 
   for _, muxer in muxed:
     await closeMuxerHolder(muxer)

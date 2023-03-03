@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -202,7 +202,7 @@ proc broadcast*(
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      peer.sendEncoded(encoded)
+      asyncSpawn peer.sendEncoded(encoded)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -307,8 +307,6 @@ proc getOrCreatePeer*(
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-  pubSubPeer.connect()
-
   return pubSubPeer
 
 proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
@@ -382,7 +380,8 @@ method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## messages
   ##
 
-  discard p.getOrCreatePeer(peer, p.codecs)
+  let pubSubPeer = p.getOrCreatePeer(peer, p.codecs)
+  pubSubPeer.connect()
 
 proc updateTopicMetrics(p: PubSub, topic: string) =
   # metrics

@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -27,7 +27,8 @@ method connect*(
   self: Dial,
   peerId: PeerId,
   addrs: seq[MultiAddress],
-  forceDial = false) {.async, base.} =
+  forceDial = false,
+  reuseConnection = true) {.async, base.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##

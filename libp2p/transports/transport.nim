@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -65,7 +65,8 @@ method accept*(self: Transport): Future[Connection]
 method dial*(
   self: Transport,
   hostname: string,
-  address: MultiAddress): Future[Connection] {.base, gcsafe.} =
+  address: MultiAddress,
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.base, gcsafe.} =
   ## dial a peer
   ##
 
@@ -73,7 +74,8 @@ method dial*(
 
 proc dial*(
   self: Transport,
-  address: MultiAddress): Future[Connection] {.gcsafe.} =
+  address: MultiAddress,
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.gcsafe.} =
   self.dial("", address)
 
 method upgradeIncoming*(

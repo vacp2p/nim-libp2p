@@ -96,7 +96,8 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
-    let connMngr = ConnManager.new()
+    # This would work with 1 as well cause of a bug in connmanager that will get fixed soon
+    let connMngr = ConnManager.new(maxConnsPerPeer = 2)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
     let conn1 = getConnection(peerId, Direction.Out)
     let conn2 = getConnection(peerId)
@@ -176,7 +177,7 @@ suite "Connection Manager":
     await stream.close()
 
   asyncTest "should raise on too many connections":
-    let connMngr = ConnManager.new(maxConnsPerPeer = 1)
+    let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     connMngr.storeConn(getConnection(peerId))
@@ -187,9 +188,45 @@ suite "Connection Manager":
 
     expect TooManyConnectionsError:
       connMngr.storeConn(conns[0])
+
+    await connMngr.close()
+
+    await allFuturesThrowing(
+      allFutures(conns.mapIt( it.close() )))
+
+  asyncTest "expect connection from peer":
+    # FIXME This should be 1 instead of 0, it will get fixed soon
+    let connMngr = ConnManager.new(maxConnsPerPeer = 0)
+    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+
+    connMngr.storeConn(getConnection(peerId))
+
+    let conns = @[
+        getConnection(peerId),
+        getConnection(peerId)]
+
+    expect TooManyConnectionsError:
+      connMngr.storeConn(conns[0])
+
+    let waitedConn1 = connMngr.expectConnection(peerId, In)
+
+    expect AlreadyExpectingConnectionError:
+      discard await connMngr.expectConnection(peerId, In)
+
+    await waitedConn1.cancelAndWait()
+    let
+      waitedConn2 = connMngr.expectConnection(peerId, In)
+      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(), In)
+      conn = getConnection(peerId)
+    connMngr.storeConn(conn)
+    check (await waitedConn2) == conn
+
+    expect TooManyConnectionsError:
       connMngr.storeConn(conns[1])
 
     await connMngr.close()
+
+    checkExpiring: waitedConn3.cancelled()
 
     await allFuturesThrowing(
       allFutures(conns.mapIt( it.close() )))

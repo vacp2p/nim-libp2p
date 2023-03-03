@@ -1,11 +1,10 @@
-import stublogger
-
 import testvarint,
        testconnection,
        testminprotobuf,
        teststreamseq,
        testsemaphore,
-       testheartbeat
+       testheartbeat,
+       testfuture
 
 import testminasn1,
        testrsa,
@@ -42,4 +41,5 @@ import testtcptransport,
        testdiscovery,
        testyamux,
        testautonat,
-       testautonatservice
+       testautonatservice,
+       testautorelay

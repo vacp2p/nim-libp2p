@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -55,15 +55,24 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
       else:
         await switch.dial(pid, addrs, AutonatCodec)
     except CatchableError as err:
-      raise newException(AutonatError, "Unexpected error when dialling", err)
+      raise newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
 
-  defer: await conn.close()
+  # To bypass maxConnectionsPerPeer
+  let incomingConnection = switch.connManager.expectConnection(pid, In)
+  if incomingConnection.failed() and incomingConnection.error of AlreadyExpectingConnectionError:
+    raise newException(AutonatError, incomingConnection.error.msg)
+  defer:
+    await conn.close()
+    incomingConnection.cancel() # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
+    if incomingConnection.completed():
+      await (await incomingConnection).close()
+  trace "sending Dial", addrs = switch.peerInfo.addrs
   await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
   return case response.status:
     of ResponseStatus.Ok:
       response.ma.get()
     of ResponseStatus.DialError:
-      raise newException(AutonatUnreachableError, "Peer could not dial us back")
+      raise newException(AutonatUnreachableError, "Peer could not dial us back: " & response.text.get(""))
     else:
       raise newException(AutonatError, "Bad status " & $response.status & " " & response.text.get(""))

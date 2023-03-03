@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -462,6 +462,7 @@ const
   IP6* = mapEq("ip6")
   DNS* = mapOr(DNSANY, DNS4, DNS6, DNSADDR)
   IP* = mapOr(IP4, IP6)
+  DNS_OR_IP* = mapOr(DNS, IP)
   TCP* = mapOr(mapAnd(DNS, mapEq("tcp")), mapAnd(IP, mapEq("tcp")))
   UDP* = mapOr(mapAnd(DNS, mapEq("udp")), mapAnd(IP, mapEq("udp")))
   UTP* = mapAnd(UDP, mapEq("utp"))

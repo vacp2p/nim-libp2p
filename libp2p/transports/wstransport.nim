@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -292,7 +292,8 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
 method dial*(
   self: WsTransport,
   hostname: string,
-  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
+  address: MultiAddress,
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
 

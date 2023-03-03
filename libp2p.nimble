@@ -22,9 +22,7 @@ requires "nim >= 1.2.0",
 import hashes
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  var excstr = "nim c --skipParentCfg --opt:speed -d:debug -d:libp2p_agents_metrics -d:libp2p_protobuf_metrics -d:libp2p_network_protocols_metrics -d:libp2p_mplex_metrics "
-  excstr.add(" -d:chronicles_sinks=textlines[stdout],json[dynamic] -d:chronicles_log_level=TRACE ")
-  excstr.add(" -d:chronicles_runtime_filtering=TRUE ")
+  var excstr = "nim c --skipParentCfg --opt:speed -d:debug "
   excstr.add(" " & getEnv("NIMFLAGS") & " ")
   excstr.add(" --verbosity:0 --hints:off ")
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
@@ -143,10 +141,20 @@ task install_pinned, "Reads the lockfile":
     if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
     else: "nimbledeps/pkgs2"
   for dependency in listDirs(nimblePkgs):
-    let filename = dependency.extractFilename
-    if toInstall.anyIt(filename.startsWith(it[0]) and
-       filename.endsWith(it[1].split('#')[^1])) == false:
-      rmDir(dependency)
+    let
+      fileName = dependency.extractFilename
+      fileContent = readFile(dependency & "/nimblemeta.json")
+      packageName = fileName.split('-')[0]
+
+    if toInstall.anyIt(
+        it[0] == packageName and
+        (
+          it[1].split('#')[^1] in fileContent or # nimble for nim 2.X
+          fileName.endsWith(it[1].split('#')[^1]) # nimble for nim 1.X
+        )
+      ) == false or
+      fileName.split('-')[^1].len < 20: # safegard for nimble for nim 1.X
+        rmDir(dependency)
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")

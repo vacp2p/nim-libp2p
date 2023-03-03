@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -18,6 +18,12 @@ template public* {.pragma.}
 
 const
   ShortDumpMax = 12
+
+template compilesOr*(a, b: untyped): untyped =
+  when compiles(a):
+    a
+  else:
+    b
 
 func shortLog*(item: openArray[byte]): string =
   if item.len <= ShortDumpMax:

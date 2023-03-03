@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -42,6 +42,7 @@ type
     servers*: seq[StreamServer]
     clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
+    clientFlags: set[TransportFlags]
     acceptFuts: seq[Future[StreamTransport]]
 
   TcpTransportTracker* = ref object of TrackerBase
@@ -129,8 +130,18 @@ proc new*(
   flags: set[ServerFlags] = {},
   upgrade: Upgrade): T {.public.} =
 
-  let transport = T(
-    flags: flags,
+  let
+    transport = T(
+      flags: flags,
+      clientFlags:
+        if ServerFlags.TcpNoDelay in flags:
+          compilesOr:
+            {TransportFlags.TcpNoDelay}
+          do:
+            doAssert(false)
+            default(set[TransportFlags])
+        else:
+          default(set[TransportFlags]),
     upgrader: upgrade)
 
   return transport
@@ -246,13 +257,14 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 method dial*(
   self: TcpTransport,
   hostname: string,
-  address: MultiAddress): Future[Connection] {.async, gcsafe.} =
+  address: MultiAddress,
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
   ## dial a peer
   ##
 
   trace "Dialing remote peer", address = $address
 
-  let transp = await connect(address)
+  let transp = await connect(address, flags = self.clientFlags)
   try:
     let observedAddr = await getObservedAddr(transp)
     return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
