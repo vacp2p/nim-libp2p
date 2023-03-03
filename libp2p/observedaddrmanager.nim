@@ -13,7 +13,7 @@ else:
   {.push raises: [].}
 
 import
-  std/[sets, options, heapqueue],
+  std/[sets, options, tables], sequtils,
   chronos,
   ./crypto/crypto,
   ./protocols/identify,
@@ -27,45 +27,34 @@ import
   utility
 
 type
-  ObservedAddr = object
-    ma: MultiAddress
-    count: int
-
   ## Manages observed MultiAddresses by reomte peers. It keeps track of the most observed IP and IP/Port.
   ObservedAddrManager* = ref object of RootObj
-    observedIPs: HeapQueue[ObservedAddr]
-    observedIPsAndPorts: HeapQueue[ObservedAddr]
+    observedIPs: seq[MultiAddress]
+    observedIPsAndPorts: seq[MultiAddress]
     maxSize: int
     minCount: int
 
-proc `<`(a, b: ObservedAddr): bool = a.count < b.count
+proc add(self:ObservedAddrManager, observations: var seq[MultiAddress], observedAddr: MultiAddress) =
+  if observations.len >= self.maxSize:
+    observations.del(0)
 
-proc add(self:ObservedAddrManager, heap: var HeapQueue[ObservedAddr], observedAddr: MultiAddress) =
-  if heap.len >= self.maxSize:
-    discard heap.pop()
-
-  for i in 0 ..< heap.len:
-    if heap[i].ma == observedAddr:
-      let count = heap[i].count
-      heap.del(i)
-      heap.push(ObservedAddr(ma: observedAddr, count: count + 1))
-      return
-
-  heap.push(ObservedAddr(ma: observedAddr, count: 1))
+  observations.add(observedAddr)
 
 proc add*(self:ObservedAddrManager, observedAddr: MultiAddress) =
   ## Adds a new observed MultiAddress. If the MultiAddress already exists, the count is increased.
   self.add(self.observedIPs, observedAddr[0].get())
   self.add(self.observedIPsAndPorts, observedAddr)
 
-proc getIP(self: ObservedAddrManager, heap: HeapQueue[ObservedAddr], ipVersion: MaPattern): Opt[MultiAddress] =
-  var i = 1
-  while heap.len - i >= 0:
-    let observedAddr = heap[heap.len - i]
-    if ipVersion.match(observedAddr.ma[0].get()) and observedAddr.count >= self.minCount:
-      return Opt.some(observedAddr.ma)
-    else:
-      i = i + 1
+proc getIP(self: ObservedAddrManager, observations: seq[MultiAddress], ipVersion: MaPattern): Opt[MultiAddress] =
+  var countTable = toCountTable(observations)
+  countTable.sort()
+  var orderedPairs = toSeq(countTable.pairs)
+  for maAndCount in orderedPairs:
+    let ma = maAndCount[0]
+    let ip = ma[0].get()
+    let count = maAndCount[1]
+    if ipVersion.match(ip) and count >= self.minCount:
+      return Opt.some(ma)
   return Opt.none(MultiAddress)
 
 proc getMostObservedIP6*(self: ObservedAddrManager): Opt[MultiAddress] =
@@ -104,7 +93,7 @@ proc new*(
   minCount = 3): T =
   ## Creates a new ObservedAddrManager.
   return T(
-    observedIPs: initHeapQueue[ObservedAddr](),
-    observedIPsAndPorts: initHeapQueue[ObservedAddr](),
+    observedIPs: newSeq[MultiAddress](),
+    observedIPsAndPorts: newSeq[MultiAddress](),
     maxSize: maxSize,
     minCount: minCount)
