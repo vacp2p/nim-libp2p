@@ -167,9 +167,9 @@ proc handleManualPortForwarding(
 
     let observedIP =
       if isIP4:
-        peerStore.getObservedIP4()
+        peerStore.getMostObservedIP4()
       else:
-        peerStore.getObservedIP6()
+        peerStore.getMostObservedIP6()
 
     let newMA =
       if observedIP.isNone() or maFirst.get() == observedIP.get():

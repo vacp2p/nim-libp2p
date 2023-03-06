@@ -38,8 +38,7 @@ import
   ./stream/connection,
   ./multistream,
   ./muxers/muxer,
-  utility,
-  observedaddrmanager
+  utility
 
 type
   #################
@@ -79,13 +78,11 @@ type
     identify: Identify
     capacity*: int
     toClean*: seq[PeerId]
-    observedAddrManager*: ObservedAddrManager
 
 proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.public.} =
   T(
     identify: identify,
     capacity: capacity,
-    observedAddrManager: ObservedAddrManager.new(),
   )
 
 #########################
@@ -212,9 +209,6 @@ proc identify*(
     if (await MultistreamSelect.select(stream, peerStore.identify.codec())):
       let info = await peerStore.identify.identify(stream, stream.peerId)
 
-      if info.observedAddr.isSome:
-        peerStore.observedAddrManager.add(info.observedAddr.get())
-
       when defined(libp2p_agents_metrics):
         var knownAgent = "unknown"
         if info.agentVersion.isSome and info.agentVersion.get().len > 0:
@@ -227,10 +221,10 @@ proc identify*(
   finally:
     await stream.closeWithEOF()
 
-proc getObservedIP6*(self: PeerStore): Opt[MultiAddress] =
+proc getMostObservedIP6*(self: PeerStore): Opt[MultiAddress] =
   ## Returns the most observed IP6 address or none if the number of observations are less than minCount.
-  return self.observedAddrManager.getMostObservedIP4()
+  return self.identify.getMostObservedIP6()
 
-proc getObservedIP4*(self: PeerStore): Opt[MultiAddress] =
+proc getMostObservedIP4*(self: PeerStore): Opt[MultiAddress] =
   ## Returns the most observed IP4 address or none if the number of observations are less than minCount.
-  return self.observedAddrManager.getMostObservedIP6()
+  return self.identify.getMostObservedIP4()

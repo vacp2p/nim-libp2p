@@ -13,18 +13,9 @@ else:
   {.push raises: [].}
 
 import
-  std/[sets, options, tables], sequtils,
+  std/[sequtils, tables],
   chronos,
-  ./crypto/crypto,
-  ./protocols/identify,
-  ./protocols/protocol,
-  ./peerid, ./peerinfo,
-  ./routing_record,
-  ./multiaddress,
-  ./stream/connection,
-  ./multistream,
-  ./muxers/muxer,
-  utility
+  ./multiaddress
 
 type
   ## Manages observed MultiAddresses by reomte peers. It keeps track of the most observed IP and IP/Port.
