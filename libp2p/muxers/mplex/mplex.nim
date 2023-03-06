@@ -182,7 +182,7 @@ method handle*(m: Mplex) {.async, gcsafe.} =
             await channel.pushData(data)
             let delay = Moment.now() - start
 
-            if delay > 1.seconds:
+            if delay > 50.milliseconds and m.connection.shortAgent == "lodestar":
               debug "pushData was slow!", delay, protocol=channel.protocol, peer = $m.connection.peerId
             trace "pushed data to channel", m, channel, len = data.len
           except LPStreamClosedError as exc:
