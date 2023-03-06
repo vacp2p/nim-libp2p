@@ -619,7 +619,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       g.rng.shuffle(allPeers)
       allPeers.setLen(target)
 
-    info "got messages to emit", size=midsSeq.len, topic, msgs=midsSeq.mapIt(it.toHex()), peers=allPeers.len, peerValues=allPeers.mapIt((it.shortAgent, it.queuedSendBytes, $it.peerId))
+    #info "got messages to emit", size=midsSeq.len, topic, msgs=midsSeq.mapIt(it.toHex()), peers=allPeers.len, peerValues=allPeers.mapIt((it.shortAgent, it.queuedSendBytes, $it.peerId))
 
 
     for peer in allPeers:
