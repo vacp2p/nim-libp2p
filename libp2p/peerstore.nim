@@ -221,10 +221,6 @@ proc identify*(
   finally:
     await stream.closeWithEOF()
 
-proc getMostObservedIP6*(self: PeerStore): Opt[MultiAddress] =
-  ## Returns the most observed IP6 address or none if the number of observations are less than minCount.
-  return self.identify.getMostObservedIP6()
-
-proc getMostObservedIP4*(self: PeerStore): Opt[MultiAddress] =
-  ## Returns the most observed IP4 address or none if the number of observations are less than minCount.
-  return self.identify.getMostObservedIP4()
+proc getMostObservedIP*(self: PeerStore, ipVersion: IPVersion): Opt[MultiAddress] =
+  ## Returns the most observed IP address or none if the number of observations are less than minCount.
+  return self.identify.getMostObservedIP(ipVersion)

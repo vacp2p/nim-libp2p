@@ -159,23 +159,23 @@ proc handleManualPortForwarding(
   listenAddr: MultiAddress,
   isIP4: bool): Opt[MultiAddress] =
   try:
-    let maFirst = listenAddr[0]
-    let maEnd = listenAddr[1..^1]
+    let maIP = listenAddr[0]
+    let maWithoutIP = listenAddr[1..^1]
 
-    if maEnd.isErr():
+    if maWithoutIP.isErr():
       return Opt.none(MultiAddress)
 
     let observedIP =
       if isIP4:
-        peerStore.getMostObservedIP4()
+        peerStore.getMostObservedIP(IPv4)
       else:
-        peerStore.getMostObservedIP6()
+        peerStore.getMostObservedIP(IPv6)
 
     let newMA =
-      if observedIP.isNone() or maFirst.get() == observedIP.get():
+      if observedIP.isNone() or maIP.get() == observedIP.get():
         listenAddr
       else:
-        observedIP.get() & maEnd.get()
+        observedIP.get() & maWithoutIP.get()
 
     return Opt.some(newMA)
   except CatchableError as error:
@@ -190,14 +190,14 @@ proc addressMapper(
   var addrs = newSeq[MultiAddress]()
   for listenAddr in listenAddrs:
     try:
-      let maFirst = listenAddr[0]
-      if maFirst.isErr():
+      let maIP = listenAddr[0]
+      if maIP.isErr():
         continue
       var isIP4 = true
       let hostIP =
-        if IP4.match(maFirst.get()):
+        if IP4.match(maIP.get()):
           getBestRoute(initTAddress("8.8.8.8:0")).source
-        elif IP6.match(maFirst.get()):
+        elif IP6.match(maIP.get()):
           isIP4 = false
           getBestRoute(initTAddress("2600:::0")).source
         else:

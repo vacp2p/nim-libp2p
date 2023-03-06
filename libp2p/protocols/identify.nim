@@ -29,6 +29,8 @@ import ../protobuf/minprotobuf,
        ../errors,
        ../observedaddrmanager
 
+export observedaddrmanager
+
 logScope:
   topics = "libp2p identify"
 
@@ -259,10 +261,6 @@ proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async, publi
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
 
-proc getMostObservedIP6*(self: Identify): Opt[MultiAddress] =
-  ## Returns the most observed IP6 address or none if the number of observations are less than minCount.
-  return self.observedAddrManager.getMostObservedIP6()
-
-proc getMostObservedIP4*(self: Identify): Opt[MultiAddress] =
-  ## Returns the most observed IP4 address or none if the number of observations are less than minCount.
-  return self.observedAddrManager.getMostObservedIP4()
+proc getMostObservedIP*(self: Identify, ipVersion: IPVersion): Opt[MultiAddress] =
+  ## Returns the most observed IP address or none if the number of observations are less than minCount.
+  return self.observedAddrManager.getMostObservedIP(ipVersion)

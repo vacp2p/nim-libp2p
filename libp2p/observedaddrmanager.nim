@@ -25,14 +25,17 @@ type
     maxSize: int
     minCount: int
 
+  IPVersion* = enum
+    IPv4, IPv6
+
 proc add(self:ObservedAddrManager, observations: var seq[MultiAddress], observedAddr: MultiAddress) =
   if observations.len >= self.maxSize:
     observations.del(0)
-
   observations.add(observedAddr)
 
 proc add*(self:ObservedAddrManager, observedAddr: MultiAddress) =
-  ## Adds a new observed MultiAddress. If the MultiAddress already exists, the count is increased.
+  ## Adds a new observed MultiAddress. If the number of observations exceeds maxSize, the oldest one is removed.
+  ## Both IP and IP/Port are tracked.
   self.add(self.observedIPs, observedAddr[0].get())
   self.add(self.observedIPsAndPorts, observedAddr)
 
@@ -40,38 +43,30 @@ proc getIP(self: ObservedAddrManager, observations: seq[MultiAddress], ipVersion
   var countTable = toCountTable(observations)
   countTable.sort()
   var orderedPairs = toSeq(countTable.pairs)
-  for maAndCount in orderedPairs:
-    let ma = maAndCount[0]
+  for (ma, count) in orderedPairs:
     let ip = ma[0].get()
-    let count = maAndCount[1]
     if ipVersion.match(ip) and count >= self.minCount:
       return Opt.some(ma)
   return Opt.none(MultiAddress)
 
-proc getMostObservedIP6*(self: ObservedAddrManager): Opt[MultiAddress] =
-  ## Returns the most observed IP6 address or none if the number of observations are less than minCount.
-  return self.getIP(self.observedIPs, IP6)
+proc getMostObservedIP*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
+  ## Returns the most observed IP address or none if the number of observations are less than minCount.
+  return self.getIP(self.observedIPs, if ipVersion == IPv4: IP4 else: IP6)
 
-proc getMostObservedIP4*(self: ObservedAddrManager): Opt[MultiAddress] =
-  ## Returns the most observed IP4 address or none if the number of observations are less than minCount.
-  return self.getIP(self.observedIPs, IP4)
-
-proc getMostObservedIP6AndPort*(self: ObservedAddrManager): Opt[MultiAddress] =
-  ## Returns the most observed IP6/Port address or none if the number of observations are less than minCount.
-  return self.getIP(self.observedIPsAndPorts, IP6)
-
-proc getMostObservedIP4AndPort*(self: ObservedAddrManager): Opt[MultiAddress] =
-  ## Returns the most observed IP4/Port address or none if the number of observations are less than minCount.
-  return self.getIP(self.observedIPsAndPorts, IP4)
+proc getMostObservedIPAndPort*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
+  ## Returns the most observed IP/Port address or none if the number of observations are less than minCount.
+  return self.getIP(self.observedIPsAndPorts, if ipVersion == IPv4: IP4 else: IP6)
 
 proc getMostObservedIPsAndPorts*(self: ObservedAddrManager): seq[MultiAddress] =
   ## Returns the most observed IP4/Port and IP6/Port address or an empty seq if the number of observations
   ## are less than minCount.
   var res: seq[MultiAddress]
-  if self.getMostObservedIP4().isSome():
-    res.add(self.getMostObservedIP4().get())
-  if self.getMostObservedIP6().isSome():
-    res.add(self.getMostObservedIP6().get())
+  let ip4 = self.getMostObservedIPAndPort(IPv4)
+  if ip4.isSome():
+    res.add(ip4.get())
+  let ip6 = self.getMostObservedIPAndPort(IPv6)
+  if ip6.isSome():
+    res.add(ip6.get())
   return res
 
 proc `$`*(self: ObservedAddrManager): string =
