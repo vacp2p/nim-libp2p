@@ -36,6 +36,7 @@ import metrics
 import stew/results
 export results
 
+export tables, sets
 export PubSubPeer
 export PubSubObserver
 export protocol
@@ -118,7 +119,7 @@ type
     anonymize*: bool                   ## if we omit fromPeer and seqno from RPC messages we send
     subscriptionValidator*: SubscriptionValidator # callback used to validate subscriptions
     topicsHigh*: int                  ## the maximum number of topics a peer is allowed to subscribe to
-    maxMessageSize*: int          ##\ 
+    maxMessageSize*: int          ##\
       ## the maximum raw message size we'll globally allow
       ## for finer tuning, check message size on topic validator
       ##
