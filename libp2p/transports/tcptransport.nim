@@ -42,7 +42,7 @@ type
     servers*: seq[StreamServer]
     clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
-    clientFlags: set[TransportFlags]
+    clientFlags: set[ClientFlags]
     acceptFuts: seq[Future[StreamTransport]]
 
   TcpTransportTracker* = ref object of TrackerBase
@@ -136,13 +136,14 @@ proc new*(
       clientFlags:
         if ServerFlags.TcpNoDelay in flags:
           compilesOr:
-            {TransportFlags.TcpNoDelay}
+            {ClientFlags.TcpNoDelay}
           do:
             doAssert(false)
             default(set[TransportFlags])
         else:
-          default(set[TransportFlags]),
-    upgrader: upgrade)
+          default(set[ClientFlags]),
+      upgrader: upgrade,
+      networkReachability: NetworkReachability.Unknown)
 
   return transport
 
@@ -165,6 +166,8 @@ method start*(
       trace "Invalid address detected, skipping!", address = ma
       continue
 
+    if self.networkReachability == NetworkReachability.NotReachable:
+      self.flags.incl(ServerFlags.ReusePort)
     let server = createStreamServer(
       ma = ma,
       flags = self.flags,
@@ -263,8 +266,13 @@ method dial*(
   ##
 
   trace "Dialing remote peer", address = $address
+  let transp =
+    if self.networkReachability == NetworkReachability.NotReachable and self.addrs.len > 0:
+      self.clientFlags.incl(ClientFlags.ReusePort)
+      await connect(address, flags = self.clientFlags, localAddress = Opt.some(self.addrs[0]))
+    else:
+      await connect(address, flags = self.clientFlags)
 
-  let transp = await connect(address, flags = self.clientFlags)
   try:
     let observedAddr = await getObservedAddr(transp)
     return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)

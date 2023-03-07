@@ -58,6 +58,9 @@ type
     dial*: Option[AutonatDial]
     response*: Option[AutonatDialResponse]
 
+  NetworkReachability* {.pure.} = enum
+    NotReachable, Reachable, Unknown
+
 proc encode(p: AutonatPeerInfo): ProtoBuffer =
   result = initProtoBuffer()
   if p.id.isSome():

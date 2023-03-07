@@ -43,9 +43,6 @@ type
     minConfidence: float
     dialTimeout: Duration
 
-  NetworkReachability* {.pure.} = enum
-    NotReachable, Reachable, Unknown
-
   StatusAndConfidenceHandler* = proc (networkReachability: NetworkReachability, confidence: Option[float]): Future[void]  {.gcsafe, raises: [Defect].}
 
 proc new*(
@@ -136,6 +133,7 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
   await switch.peerInfo.update()
+  echo switch.peerStore.getMostObservedIPsAndPorts()
   return ans
 
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =

@@ -225,6 +225,11 @@ proc getMostObservedIP*(self: PeerStore, ipVersion: IPVersion): Opt[MultiAddress
   ## Returns the most observed IP address or none if the number of observations are less than minCount.
   return self.identify.getMostObservedIP(ipVersion)
 
+proc getMostObservedIPsAndPorts*(self: PeerStore): seq[MultiAddress] =
+  ## Returns the most observed IP4/Port and IP6/Port address or an empty seq if the number of observations
+  ## are less than minCount.
+  return self.identify.getMostObservedIPsAndPorts()
+
 proc replaceMAIpByMostObserved*(
   self: PeerStore,
   ma: MultiAddress): Opt[MultiAddress] =
