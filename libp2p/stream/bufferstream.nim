@@ -89,7 +89,7 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   try:
     s.pushing = true
     trace "Pushing data", s, data = data.len
-    discard s.readQueue.addLast(data)
+    await s.readQueue.addLast(data)
   finally:
     s.pushing = false
 
