@@ -51,7 +51,9 @@ suite "Hole Punching":
 
   asyncTest "Direct connection must work when peer address is public":
 
-    let autonatService = AutonatService.new(AutonatClient.new(), newRng())
+    let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
+    autonatClientStub.answer = NotReachable
+    let autonatService = AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
 
     let relayClient = RelayClient.new()
     let fut = newFuture[seq[MultiAddress]]()
@@ -77,7 +79,10 @@ suite "Hole Punching":
 
     checkExpiring:
       switch1.connManager.connCount(switch2.peerInfo.peerId) == 1 and
-      not isRelayed(switch1.connManager.selectConn(switch2.peerInfo.peerId))
+      not isRelayed(switch1.connManager.selectMuxer(switch2.peerInfo.peerId).connection)
+
+    for t in switch1.transports:
+      echo t.networkReachability
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switchRelay.stop())

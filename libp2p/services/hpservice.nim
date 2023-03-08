@@ -42,7 +42,7 @@ proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayServi
     isPublicIPAddr: isPublicIPAddr)
 
 proc startDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
-  let conn = switch.connManager.selectConn(peerId)
+  let conn = switch.connManager.selectMuxer(peerId).connection
   await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
   if isRelayed(conn):
     for address in switch.peerStore[AddressBook][peerId]:
@@ -60,7 +60,7 @@ proc startDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bo
 method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
-  hasBeenSetup = hasBeenSetup and await self.autoRelayService.setup(switch)
+
   if hasBeenSetup:
     self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
       if await self.startDirectConn(switch, peerId):
@@ -74,13 +74,17 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
       elif networkReachability == NetworkReachability.Reachable:
         discard await self.autoRelayService.stop(switch)
 
+      # We do it here instead of in the AutonatService because this is useful only when hole punching.
+      for t in switch.transports:
+        t.networkReachability = networkReachability
+
     self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
   return hasBeenSetup
 
 method run*(self: HPService, switch: Switch) {.async, public.} =
   await self.autonatService.run(switch)
 
-method stop*(self: HPService, switch: Switch) {.async, public.} =
+method stop*(self: HPService, switch: Switch): Future[bool] {.async, public.} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
