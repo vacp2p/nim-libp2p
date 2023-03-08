@@ -82,7 +82,7 @@ type
 proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.public.} =
   T(
     identify: identify,
-    capacity: capacity,
+    capacity: capacity
   )
 
 #########################
