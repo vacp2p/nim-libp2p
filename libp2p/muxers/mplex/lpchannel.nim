@@ -236,7 +236,7 @@ proc completeWrite(
     else:
       await fut
 
-    when defined(libp2p_network_protocol_metrics):
+    when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
         libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.protocol, "out"])
 
