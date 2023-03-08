@@ -27,7 +27,7 @@ else:
   {.push raises: [].}
 
 import
-  std/[tables, sets, options, macros, heapqueue],
+  std/[tables, sets, options, macros],
   chronos,
   ./crypto/crypto,
   ./protocols/identify,

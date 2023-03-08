@@ -15,12 +15,11 @@ else:
 import
   std/[sequtils, tables],
   chronos,
-  ./multiaddress
+  multiaddress
 
 type
   ## Manages observed MultiAddresses by reomte peers. It keeps track of the most observed IP and IP/Port.
   ObservedAddrManager* = ref object of RootObj
-    observedIPs: seq[MultiAddress]
     observedIPsAndPorts: seq[MultiAddress]
     maxSize: int
     minCount: int
@@ -28,16 +27,12 @@ type
   IPVersion* = enum
     IPv4, IPv6
 
-proc add(self:ObservedAddrManager, observations: var seq[MultiAddress], observedAddr: MultiAddress) =
-  if observations.len >= self.maxSize:
-    observations.del(0)
-  observations.add(observedAddr)
-
-proc add*(self:ObservedAddrManager, observedAddr: MultiAddress) =
+proc addObservation*(self:ObservedAddrManager, observedAddr: MultiAddress) =
   ## Adds a new observed MultiAddress. If the number of observations exceeds maxSize, the oldest one is removed.
   ## Both IP and IP/Port are tracked.
-  self.add(self.observedIPs, observedAddr[0].get())
-  self.add(self.observedIPsAndPorts, observedAddr)
+  if self.observedIPsAndPorts.len >= self.maxSize:
+      self.observedIPsAndPorts.del(0)
+  self.observedIPsAndPorts.add(observedAddr)
 
 proc getIP(self: ObservedAddrManager, observations: seq[MultiAddress], ipVersion: MaPattern): Opt[MultiAddress] =
   var countTable = toCountTable(observations)
@@ -51,7 +46,8 @@ proc getIP(self: ObservedAddrManager, observations: seq[MultiAddress], ipVersion
 
 proc getMostObservedIP*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
   ## Returns the most observed IP address or none if the number of observations are less than minCount.
-  return self.getIP(self.observedIPs, if ipVersion == IPv4: IP4 else: IP6)
+  let observedIPs = self.observedIPsAndPorts.mapIt(it[0].get())
+  return self.getIP(observedIPs, if ipVersion == IPv4: IP4 else: IP6)
 
 proc getMostObservedIPAndPort*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
   ## Returns the most observed IP/Port address or none if the number of observations are less than minCount.
@@ -71,7 +67,7 @@ proc getMostObservedIPsAndPorts*(self: ObservedAddrManager): seq[MultiAddress] =
 
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.
-  return "IPs: " & $self.observedIPs & "; IPs and Ports: " & $self.observedIPsAndPorts
+  return "IPs and Ports: " & $self.observedIPsAndPorts
 
 proc new*(
   T: typedesc[ObservedAddrManager],
@@ -79,7 +75,6 @@ proc new*(
   minCount = 3): T =
   ## Creates a new ObservedAddrManager.
   return T(
-    observedIPs: newSeq[MultiAddress](),
     observedIPsAndPorts: newSeq[MultiAddress](),
     maxSize: maxSize,
     minCount: minCount)

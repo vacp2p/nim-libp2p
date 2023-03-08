@@ -15,6 +15,7 @@ else:
 import std/[options, deques, sequtils]
 import chronos, metrics
 import ../../../switch
+import ../../../wire
 import client
 import ../../../utils/heartbeat
 import ../../../crypto/crypto
@@ -156,8 +157,7 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
 
 proc handleManualPortForwarding(
   peerStore: PeerStore,
-  listenAddr: MultiAddress,
-  isIP4: bool): Opt[MultiAddress] =
+  listenAddr: MultiAddress): Opt[MultiAddress] =
   try:
     let maIP = listenAddr[0]
     let maWithoutIP = listenAddr[1..^1]
@@ -166,7 +166,7 @@ proc handleManualPortForwarding(
       return Opt.none(MultiAddress)
 
     let observedIP =
-      if isIP4:
+      if IP4.match(maIP.get()):
         peerStore.getMostObservedIP(IPv4)
       else:
         peerStore.getMostObservedIP(IPv6)
@@ -189,28 +189,17 @@ proc addressMapper(
 
   var addrs = newSeq[MultiAddress]()
   for listenAddr in listenAddrs:
+    var processedMA = listenAddr
     try:
-      let maIP = listenAddr[0]
-      if maIP.isErr():
-        continue
-      var isIP4 = true
-      let hostIP =
-        if IP4.match(maIP.get()):
-          getBestRoute(initTAddress("8.8.8.8:0")).source
-        elif IP6.match(maIP.get()):
-          isIP4 = false
-          getBestRoute(initTAddress("2600:::0")).source
-        else:
-          continue
+      let hostIP = initTAddress(listenAddr).get()
       if not hostIP.isGlobal():
         if self.networkReachability == NetworkReachability.Reachable:
-          let newMA = handleManualPortForwarding(peerStore, listenAddr, isIP4)
-          if newMA.isSome():
-            addrs.add(newMA.get())
-          continue
-      addrs.add(listenAddr) # do nothing
+          let maOpt = handleManualPortForwarding(peerStore, listenAddr)
+          if maOpt.isSome():
+            processedMA = maOpt.get()
     except CatchableError as exc:
-      continue
+      debug "Error while handling address mapper", msg = exc.msg
+    addrs.add(processedMA)
   return addrs
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =

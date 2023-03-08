@@ -214,7 +214,7 @@ proc identify*(self: Identify,
   info.peerId = peer.get()
 
   if info.observedAddr.isSome:
-    self.observedAddrManager.add(info.observedAddr.get())
+    self.observedAddrManager.addObservation(info.observedAddr.get())
   return info
 
 proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
