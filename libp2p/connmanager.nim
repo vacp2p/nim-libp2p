@@ -55,7 +55,6 @@ type
 
   PeerEventKind* {.pure.} = enum
     Left,
-    Identified,
     Joined
 
   PeerEvent* = object
@@ -68,19 +67,14 @@ type
   PeerEventHandler* =
     proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [Defect].}
 
-  MuxerHolder = object
-    muxer: Muxer
-    handle: Future[void]
-
   ConnManager* = ref object of RootObj
     maxConnsPerPeer: int
     inSema*: AsyncSemaphore
     outSema*: AsyncSemaphore
-    conns: Table[PeerId, HashSet[Connection]]
-    muxed: Table[Connection, MuxerHolder]
+    muxed: Table[PeerId, seq[Muxer]]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
-    expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Connection]]
+    expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
 
   ConnectionSlot* = object
@@ -110,12 +104,12 @@ proc new*(C: type ConnManager,
     outSema: outSema)
 
 proc connCount*(c: ConnManager, peerId: PeerId): int =
-  c.conns.getOrDefault(peerId).len
+  c.muxed.getOrDefault(peerId).len
 
 proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
   var peers = newSeq[PeerId]()
-  for peerId, conns in c.conns:
-    if conns.anyIt(it.dir == dir):
+  for peerId, mux in c.muxed:
+    if mux.anyIt(it.connection.dir == dir):
       peers.add(peerId)
   return peers
 
@@ -202,14 +196,6 @@ proc triggerPeerEvents*(c: ConnManager,
     return
 
   try:
-    let count = c.connCount(peerId)
-    if event.kind == PeerEventKind.Joined and count != 1:
-      trace "peer already joined", peer = peerId, event = $event
-      return
-    elif event.kind == PeerEventKind.Left and count != 0:
-      trace "peer still connected or already left", peer = peerId, event = $event
-      return
-
     trace "triggering peer events", peer = peerId, event = $event
 
     var peerEvents: seq[Future[void]]
@@ -222,13 +208,13 @@ proc triggerPeerEvents*(c: ConnManager,
   except CatchableError as exc: # handlers should not raise!
     warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
 
-proc expectConnection*(c: ConnManager, p: PeerId, dir: Direction): Future[Connection] {.async.} =
+proc expectConnection*(c: ConnManager, p: PeerId, dir: Direction): Future[Muxer] {.async.} =
   ## Wait for a peer to connect to us. This will bypass the `MaxConnectionsPerPeer`
   let key = (p, dir)
   if key in c.expectedConnectionsOverLimit:
     raise newException(AlreadyExpectingConnectionError, "Already expecting an incoming connection from that peer")
 
-  let future = newFuture[Connection]()
+  let future = newFuture[Muxer]()
   c.expectedConnectionsOverLimit[key] = future
 
   try:
@@ -236,18 +222,8 @@ proc expectConnection*(c: ConnManager, p: PeerId, dir: Direction): Future[Connec
   finally:
     c.expectedConnectionsOverLimit.del(key)
 
-proc contains*(c: ConnManager, conn: Connection): bool =
-  ## checks if a connection is being tracked by the
-  ## connection manager
-  ##
-
-  if isNil(conn):
-    return
-
-  return conn in c.conns.getOrDefault(conn.peerId)
-
 proc contains*(c: ConnManager, peerId: PeerId): bool =
-  peerId in c.conns
+  peerId in c.muxed
 
 proc contains*(c: ConnManager, muxer: Muxer): bool =
   ## checks if a muxer is being tracked by the connection
@@ -255,185 +231,134 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   ##
 
   if isNil(muxer):
-    return
+    return false
 
   let conn = muxer.connection
-  if conn notin c:
-    return
+  return muxer in c.muxed.getOrDefault(conn.peerId)
 
-  if conn notin c.muxed:
-    return
+proc closeMuxer(muxer: Muxer) {.async.} =
+  trace "Cleaning up muxer", m = muxer
 
-  return muxer == c.muxed.getOrDefault(conn).muxer
-
-proc closeMuxerHolder(muxerHolder: MuxerHolder) {.async.} =
-  trace "Cleaning up muxer", m = muxerHolder.muxer
-
-  await muxerHolder.muxer.close()
-  if not(isNil(muxerHolder.handle)):
+  await muxer.close()
+  if not(isNil(muxer.handler)):
     try:
-      await muxerHolder.handle # TODO noraises?
+      await muxer.handler # TODO noraises?
     except CatchableError as exc:
       trace "Exception in close muxer handler", exc = exc.msg
-  trace "Cleaned up muxer", m = muxerHolder.muxer
+  trace "Cleaned up muxer", m = muxer
 
-proc delConn(c: ConnManager, conn: Connection) =
-  let peerId = conn.peerId
-  c.conns.withValue(peerId, peerConns):
-    peerConns[].excl(conn)
-
-    if peerConns[].len == 0:
-      c.conns.del(peerId) # invalidates `peerConns`
-
-    libp2p_peers.set(c.conns.len.int64)
-    trace "Removed connection", conn
-
-proc cleanupConn(c: ConnManager, conn: Connection) {.async.} =
-  ## clean connection's resources such as muxers and streams
-
-  if isNil(conn):
-    trace "Wont cleanup a nil connection"
-    return
-
-  # Remove connection from all tables without async breaks
-  var muxer = some(MuxerHolder())
-  if not c.muxed.pop(conn, muxer.get()):
-    muxer = none(MuxerHolder)
-
-  delConn(c, conn)
-
+proc muxCleanup(c: ConnManager, mux: Muxer) {.async.} =
   try:
-    if muxer.isSome:
-      await closeMuxerHolder(muxer.get())
-  finally:
-    await conn.close()
+    trace "Triggering disconnect events", mux
+    let peerId = mux.connection.peerId
 
-  trace "Connection cleaned up", conn
+    let muxers = c.muxed.getOrDefault(peerId).filterIt(it != mux)
+    if muxers.len > 0:
+      c.muxed[peerId] = muxers
+    else:
+      c.muxed.del(peerId)
+      libp2p_peers.set(c.muxed.len.int64)
+      await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
 
-proc onConnUpgraded(c: ConnManager, conn: Connection) {.async.} =
-  try:
-    trace "Triggering connect events", conn
-    conn.upgrade()
+      if not(c.peerStore.isNil):
+        c.peerStore.cleanup(peerId)
 
-    let peerId = conn.peerId
-    await c.triggerPeerEvents(
-      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: conn.dir == Direction.Out))
-
-    await c.triggerConnEvent(
-      peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: conn.dir == Direction.In))
-  except CatchableError as exc:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propagate CancelledError and should handle other errors
-    warn "Unexpected exception in switch peer connection cleanup",
-      conn, msg = exc.msg
-
-proc peerCleanup(c: ConnManager, conn: Connection) {.async.} =
-  try:
-    trace "Triggering disconnect events", conn
-    let peerId = conn.peerId
     await c.triggerConnEvent(
       peerId, ConnEvent(kind: ConnEventKind.Disconnected))
-    await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
-
-    if not(c.peerStore.isNil):
-      c.peerStore.cleanup(peerId)
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
     warn "Unexpected exception peer cleanup handler",
-      conn, msg = exc.msg
+      mux, msg = exc.msg
 
-proc onClose(c: ConnManager, conn: Connection) {.async.} =
+proc onClose(c: ConnManager, mux: Muxer) {.async.} =
   ## connection close even handler
   ##
   ## triggers the connections resource cleanup
   ##
   try:
-    await conn.join()
-    trace "Connection closed, cleaning up", conn
-    await c.cleanupConn(conn)
-  except CancelledError:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propagate CancelledError.
-    debug "Unexpected cancellation in connection manager's cleanup", conn
+    await mux.connection.join()
+    trace "Connection closed, cleaning up", mux
   except CatchableError as exc:
     debug "Unexpected exception in connection manager's cleanup",
-          errMsg = exc.msg, conn
+          errMsg = exc.msg, mux
   finally:
-    trace "Triggering peerCleanup", conn
-    asyncSpawn c.peerCleanup(conn)
+    await c.muxCleanup(mux)
 
-proc selectConn*(c: ConnManager,
+proc selectMuxer*(c: ConnManager,
                 peerId: PeerId,
-                dir: Direction): Connection =
+                dir: Direction): Muxer =
   ## Select a connection for the provided peer and direction
   ##
   let conns = toSeq(
-    c.conns.getOrDefault(peerId))
-    .filterIt( it.dir == dir )
+    c.muxed.getOrDefault(peerId))
+    .filterIt( it.connection.dir == dir )
 
   if conns.len > 0:
     return conns[0]
 
-proc selectConn*(c: ConnManager, peerId: PeerId): Connection =
+proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
   ## Select a connection for the provided giving priority
   ## to outgoing connections
   ##
 
-  var conn = c.selectConn(peerId, Direction.Out)
-  if isNil(conn):
-    conn = c.selectConn(peerId, Direction.In)
-  if isNil(conn):
+  var mux = c.selectMuxer(peerId, Direction.Out)
+  if isNil(mux):
+    mux = c.selectMuxer(peerId, Direction.In)
+  if isNil(mux):
     trace "connection not found", peerId
+  return mux
 
-  return conn
-
-proc selectMuxer*(c: ConnManager, conn: Connection): Muxer =
-  ## select the muxer for the provided connection
+proc storeMuxer*(c: ConnManager,
+                 muxer: Muxer)
+                 {.raises: [Defect, CatchableError].} =
+  ## store the connection and muxer
   ##
 
-  if isNil(conn):
-    return
+  if isNil(muxer):
+    raise newException(LPError, "muxer cannot be nil")
 
-  if conn in c.muxed:
-    return c.muxed.getOrDefault(conn).muxer
-  else:
-    debug "no muxer for connection", conn
+  if isNil(muxer.connection):
+    raise newException(LPError, "muxer's connection cannot be nil")
 
-proc storeConn*(c: ConnManager, conn: Connection)
-  {.raises: [Defect, LPError].} =
-  ## store a connection
-  ##
-
-  if isNil(conn):
-    raise newException(LPError, "Connection cannot be nil")
-
-  if conn.closed or conn.atEof:
+  if muxer.connection.closed or muxer.connection.atEof:
     raise newException(LPError, "Connection closed or EOF")
 
-  let peerId = conn.peerId
+  let
+    peerId = muxer.connection.peerId
+    dir = muxer.connection.dir
 
   # we use getOrDefault in the if below instead of [] to avoid the KeyError
-  if c.conns.getOrDefault(peerId).len > c.maxConnsPerPeer:
-    let key = (peerId, conn.dir)
+  if c.muxed.getOrDefault(peerId).len > c.maxConnsPerPeer:
+    let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
-        expectedConn.complete(conn)
+        expectedConn.complete(muxer)
     else:
       debug "Too many connections for peer",
-        conn, conns = c.conns.getOrDefault(peerId).len
+        conns = c.muxed.getOrDefault(peerId).len
 
       raise newTooManyConnectionsError()
 
-  c.conns.mgetOrPut(peerId, HashSet[Connection]()).incl(conn)
-  libp2p_peers.set(c.conns.len.int64)
+  assert muxer notin c.muxed.getOrDefault(peerId)
 
-  # Launch on close listener
-  # All the errors are handled inside `onClose()` procedure.
-  asyncSpawn c.onClose(conn)
+  let
+    newPeer = peerId notin c.muxed
+  assert newPeer or c.muxed[peerId].len > 0
+  c.muxed.mgetOrPut(peerId, newSeq[Muxer]()).add(muxer)
+  libp2p_peers.set(c.muxed.len.int64)
 
-  trace "Stored connection",
-    conn, direction = $conn.dir, connections = c.conns.len
+  asyncSpawn c.triggerConnEvent(
+    peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In))
+
+  if newPeer:
+    asyncSpawn c.triggerPeerEvents(
+      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out))
+
+  asyncSpawn c.onClose(muxer)
+
+  trace "Stored muxer",
+    muxer, direction = $muxer.connection.dir, peers = c.muxed.len
 
 proc getIncomingSlot*(c: ConnManager): Future[ConnectionSlot] {.async.} =
   await c.inSema.acquire()
@@ -476,39 +401,17 @@ proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
 
   asyncSpawn semaphoreMonitor()
 
-proc storeMuxer*(c: ConnManager,
-                 muxer: Muxer,
-                 handle: Future[void] = nil)
-                 {.raises: [Defect, CatchableError].} =
-  ## store the connection and muxer
-  ##
-
-  if isNil(muxer):
-    raise newException(CatchableError, "muxer cannot be nil")
-
-  if isNil(muxer.connection):
-    raise newException(CatchableError, "muxer's connection cannot be nil")
-
-  if muxer.connection notin c:
-    raise newException(CatchableError, "cant add muxer for untracked connection")
-
-  c.muxed[muxer.connection] = MuxerHolder(
-    muxer: muxer,
-    handle: handle)
-
-  trace "Stored muxer",
-    muxer, handle = not handle.isNil, connections = c.conns.len
-
-  asyncSpawn c.onConnUpgraded(muxer.connection)
+proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
+  if isNil(mux):
+    cs.release()
+    return
+  cs.trackConnection(mux.connection)
 
 proc getStream*(c: ConnManager,
-                peerId: PeerId,
-                dir: Direction): Future[Connection] {.async, gcsafe.} =
-  ## get a muxed stream for the provided peer
-  ## with the given direction
+                muxer: Muxer): Future[Connection] {.async, gcsafe.} =
+  ## get a muxed stream for the passed muxer
   ##
 
-  let muxer = c.selectMuxer(c.selectConn(peerId, dir))
   if not(isNil(muxer)):
     return await muxer.newStream()
 
@@ -517,40 +420,25 @@ proc getStream*(c: ConnManager,
   ## get a muxed stream for the passed peer from any connection
   ##
 
-  let muxer = c.selectMuxer(c.selectConn(peerId))
-  if not(isNil(muxer)):
-    return await muxer.newStream()
+  return await c.getStream(c.selectMuxer(peerId))
 
 proc getStream*(c: ConnManager,
-                conn: Connection): Future[Connection] {.async, gcsafe.} =
-  ## get a muxed stream for the passed connection
+                peerId: PeerId,
+                dir: Direction): Future[Connection] {.async, gcsafe.} =
+  ## get a muxed stream for the passed peer from a connection with `dir`
   ##
 
-  let muxer = c.selectMuxer(conn)
-  if not(isNil(muxer)):
-    return await muxer.newStream()
+  return await c.getStream(c.selectMuxer(peerId, dir))
+
 
 proc dropPeer*(c: ConnManager, peerId: PeerId) {.async.} =
   ## drop connections and cleanup resources for peer
   ##
   trace "Dropping peer", peerId
-  let conns = c.conns.getOrDefault(peerId)
-  for conn in conns:
-    trace  "Removing connection", conn
-    delConn(c, conn)
-
-  var muxers: seq[MuxerHolder]
-  for conn in conns:
-    if conn in c.muxed:
-      muxers.add c.muxed[conn]
-      c.muxed.del(conn)
+  let muxers = c.muxed.getOrDefault(peerId)
 
   for muxer in muxers:
-    await closeMuxerHolder(muxer)
-
-  for conn in conns:
-    await conn.close()
-    trace "Dropped peer", peerId
+    await closeMuxer(muxer)
 
   trace "Peer dropped", peerId
 
@@ -560,9 +448,6 @@ proc close*(c: ConnManager) {.async.} =
   ##
 
   trace "Closing ConnManager"
-  let conns = c.conns
-  c.conns.clear()
-
   let muxed = c.muxed
   c.muxed.clear()
 
@@ -572,12 +457,9 @@ proc close*(c: ConnManager) {.async.} =
   for _, fut in expected:
     await fut.cancelAndWait()
 
-  for _, muxer in muxed:
-    await closeMuxerHolder(muxer)
-
-  for _, conns2 in conns:
-    for conn in conns2:
-      await conn.close()
+  for _, muxers in muxed:
+    for mux in muxers:
+      await closeMuxer(mux)
 
   trace "Closed ConnManager"
 

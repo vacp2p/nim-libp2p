@@ -56,7 +56,6 @@ proc new*(T: type SecureConn,
              peerId: peerId,
              observedAddr: observedAddr,
              closeEvent: conn.closeEvent,
-             upgraded: conn.upgraded,
              timeout: timeout,
              dir: conn.dir)
   result.initStream()

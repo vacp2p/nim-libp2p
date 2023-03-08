@@ -39,29 +39,12 @@ type
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
     observedAddr*: Opt[MultiAddress]
-    upgraded*: Future[void]
     protocol*: string               # protocol used by the connection, used as tag for metrics
     transportDir*: Direction        # The bottom level transport (generally the socket) direction
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
 proc timeoutMonitor(s: Connection) {.async, gcsafe.}
-
-proc isUpgraded*(s: Connection): bool =
-  if not isNil(s.upgraded):
-    return s.upgraded.finished
-
-proc upgrade*(s: Connection, failed: ref CatchableError = nil) =
-  if not isNil(s.upgraded):
-    if not isNil(failed):
-      s.upgraded.fail(failed)
-      return
-
-    s.upgraded.complete()
-
-proc onUpgrade*(s: Connection) {.async.} =
-  if not isNil(s.upgraded):
-    await s.upgraded
 
 func shortLog*(conn: Connection): string =
   try:
@@ -80,9 +63,6 @@ method initStream*(s: Connection) =
 
   doAssert(isNil(s.timerTaskFut))
 
-  if isNil(s.upgraded):
-    s.upgraded = newFuture[void]()
-
   if s.timeout > 0.millis:
     trace "Monitoring for timeout", s, timeout = s.timeout
 
@@ -99,10 +79,6 @@ method closeImpl*(s: Connection): Future[void] =
   if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
     s.timerTaskFut.cancel()
     s.timerTaskFut = nil
-
-  if not isNil(s.upgraded) and not s.upgraded.finished:
-    s.upgraded.cancel()
-    s.upgraded = nil
 
   trace "Closed connection", s
 
@@ -157,6 +133,13 @@ proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
 
 method getWrapped*(s: Connection): Connection {.base.} =
   doAssert(false, "not implemented!")
+
+when defined(libp2p_agents_metrics):
+  proc setShortAgent*(s: Connection, shortAgent: string) =
+    var conn = s
+    while not isNil(conn):
+      conn.shortAgent = shortAgent
+      conn = conn.getWrapped()
 
 proc new*(C: type Connection,
            peerId: PeerId,

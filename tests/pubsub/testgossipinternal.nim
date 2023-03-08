@@ -9,6 +9,7 @@ import ../../libp2p/errors
 import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
 import ../../libp2p/switch
+import ../../libp2p/muxers/muxer
 
 import ../helpers
 
@@ -495,7 +496,7 @@ suite "GossipSub internal":
       peer.handler = handler
       peer.appScore = gossipSub.parameters.graylistThreshold - 1
       gossipSub.gossipsub.mgetOrPut(topic, initHashSet[PubSubPeer]()).incl(peer)
-      gossipSub.switch.connManager.storeConn(conn)
+      gossipSub.switch.connManager.storeMuxer(Muxer(connection: conn))
 
     gossipSub.updateScores()
 

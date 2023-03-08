@@ -21,12 +21,11 @@ logScope:
   topics = "libp2p multistream"
 
 const
-  MsgSize* = 1024
-  Codec* = "/multistream/1.0.0"
+  MsgSize = 1024
+  Codec = "/multistream/1.0.0"
 
-  MSCodec* = "\x13" & Codec & "\n"
-  Na* = "\x03na\n"
-  Ls* = "\x03ls\n"
+  Na = "na\n"
+  Ls = "ls\n"
 
 type
   Matcher* = proc (proto: string): bool {.gcsafe, raises: [Defect].}
@@ -45,7 +44,7 @@ type
 
 proc new*(T: typedesc[MultistreamSelect]): T =
   T(
-    codec: MSCodec,
+    codec: Codec,
   )
 
 template validateSuffix(str: string): untyped =
@@ -54,13 +53,13 @@ template validateSuffix(str: string): untyped =
     else:
       raise newException(MultiStreamError, "MultistreamSelect failed, malformed message")
 
-proc select*(m: MultistreamSelect,
+proc select*(_: MultistreamSelect | type MultistreamSelect,
              conn: Connection,
              proto: seq[string]):
              Future[string] {.async.} =
-  trace "initiating handshake", conn, codec = m.codec
+  trace "initiating handshake", conn, codec = Codec
   ## select a remote protocol
-  await conn.write(m.codec) # write handshake
+  await conn.writeLp(Codec & "\n") # write handshake
   if proto.len() > 0:
     trace "selecting proto", conn, proto = proto[0]
     await conn.writeLp((proto[0] & "\n")) # select proto
@@ -102,13 +101,13 @@ proc select*(m: MultistreamSelect,
       # No alternatives, fail
       return ""
 
-proc select*(m: MultistreamSelect,
+proc select*(_: MultistreamSelect | type MultistreamSelect,
              conn: Connection,
              proto: string): Future[bool] {.async.} =
   if proto.len > 0:
-    return (await m.select(conn, @[proto])) == proto
+    return (await MultistreamSelect.select(conn, @[proto])) == proto
   else:
-    return (await m.select(conn, @[])) == Codec
+    return (await MultistreamSelect.select(conn, @[])) == Codec
 
 proc select*(m: MultistreamSelect, conn: Connection): Future[bool] =
   m.select(conn, "")
@@ -119,7 +118,7 @@ proc list*(m: MultistreamSelect,
   if not await m.select(conn):
     return
 
-  await conn.write(Ls) # send ls
+  await conn.writeLp(Ls) # send ls
 
   var list = newSeq[string]()
   let ms = string.fromBytes(await conn.readLp(MsgSize))
@@ -129,68 +128,86 @@ proc list*(m: MultistreamSelect,
 
   result = list
 
+proc handle*(
+  _: type MultistreamSelect,
+  conn: Connection,
+  protos: seq[string],
+  matchers = newSeq[Matcher](),
+  active: bool = false,
+  ): Future[string] {.async, gcsafe.} =
+  trace "Starting multistream negotiation", conn, handshaked = active
+  var handshaked = active
+  while not conn.atEof:
+    var ms = string.fromBytes(await conn.readLp(MsgSize))
+    validateSuffix(ms)
+
+    if not handshaked and ms != Codec:
+      debug "expected handshake message", conn, instead=ms
+      raise newException(CatchableError,
+                         "MultistreamSelect handling failed, invalid first message")
+
+    trace "handle: got request", conn, ms
+    if ms.len() <= 0:
+      trace "handle: invalid proto", conn
+      await conn.writeLp(Na)
+
+    case ms:
+    of "ls":
+      trace "handle: listing protos", conn
+      #TODO this doens't seem to follow spec, each protocol
+      # should be length prefixed. Not very important
+      # since LS is getting deprecated
+      await conn.writeLp(protos.join("\n") & "\n")
+    of Codec:
+      if not handshaked:
+        await conn.writeLp(Codec & "\n")
+        handshaked = true
+      else:
+        trace "handle: sending `na` for duplicate handshake while handshaked",
+          conn
+        await conn.writeLp(Na)
+    elif ms in protos or matchers.anyIt(it(ms)):
+      trace "found handler", conn, protocol = ms
+      await conn.writeLp(ms & "\n")
+      conn.protocol = ms
+      return ms
+    else:
+      trace "no handlers", conn, protocol = ms
+      await conn.writeLp(Na)
+
 proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async, gcsafe.} =
   trace "Starting multistream handler", conn, handshaked = active
-  var handshaked = active
+  var
+    handshaked = active
+    protos: seq[string]
+    matchers: seq[Matcher]
+  for h in m.handlers:
+    if not isNil(h.match):
+      matchers.add(h.match)
+    for proto in h.protos:
+      protos.add(proto)
+
   try:
-    while not conn.atEof:
-      var ms = string.fromBytes(await conn.readLp(MsgSize))
-      validateSuffix(ms)
+    let ms = await MultistreamSelect.handle(conn, protos, matchers, active)
+    for h in m.handlers:
+      if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
+        trace "found handler", conn, protocol = ms
 
-      if not handshaked and ms != Codec:
-        notice "expected handshake message", conn, instead=ms
-        raise newException(CatchableError,
-                           "MultistreamSelect handling failed, invalid first message")
-
-      trace "handle: got request", conn, ms
-      if ms.len() <= 0:
-        trace "handle: invalid proto", conn
-        await conn.write(Na)
-
-      if m.handlers.len() == 0:
-        trace "handle: sending `na` for protocol", conn, protocol = ms
-        await conn.write(Na)
-        continue
-
-      case ms:
-      of "ls":
-        trace "handle: listing protos", conn
-        var protos = ""
-        for h in m.handlers:
-          for proto in h.protos:
-            protos &= (proto & "\n")
-        await conn.writeLp(protos)
-      of Codec:
-        if not handshaked:
-          await conn.write(m.codec)
-          handshaked = true
-        else:
-          trace "handle: sending `na` for duplicate handshake while handshaked",
-            conn
-          await conn.write(Na)
-      else:
-        for h in m.handlers:
-          if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
-            trace "found handler", conn, protocol = ms
-
-            var protocolHolder = h
-            let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
-            if protocolHolder.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
-              debug "Max streams for protocol reached, blocking new stream",
-                conn, protocol = ms, maxIncomingStreams
-              return
-            protocolHolder.openedStreams.inc(conn.peerId)
-            try:
-              await conn.writeLp(ms & "\n")
-              conn.protocol = ms
-              await protocolHolder.protocol.handler(conn, ms)
-            finally:
-              protocolHolder.openedStreams.inc(conn.peerId, -1)
-              if protocolHolder.openedStreams[conn.peerId] == 0:
-                protocolHolder.openedStreams.del(conn.peerId)
-            return
-        debug "no handlers", conn, protocol = ms
-        await conn.write(Na)
+        var protocolHolder = h
+        let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
+        if protocolHolder.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
+          debug "Max streams for protocol reached, blocking new stream",
+            conn, protocol = ms, maxIncomingStreams
+          return
+        protocolHolder.openedStreams.inc(conn.peerId)
+        try:
+          await protocolHolder.protocol.handler(conn, ms)
+        finally:
+          protocolHolder.openedStreams.inc(conn.peerId, -1)
+          if protocolHolder.openedStreams[conn.peerId] == 0:
+            protocolHolder.openedStreams.del(conn.peerId)
+        return
+    debug "no handlers", conn, ms
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
