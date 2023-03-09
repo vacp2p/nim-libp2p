@@ -42,6 +42,7 @@ type
     servers*: seq[StreamServer]
     clients: array[Direction, seq[StreamTransport]]
     flags: set[ServerFlags]
+    clientFlags: set[TransportFlags]
     acceptFuts: seq[Future[StreamTransport]]
 
   TcpTransportTracker* = ref object of TrackerBase
@@ -129,8 +130,18 @@ proc new*(
   flags: set[ServerFlags] = {},
   upgrade: Upgrade): T {.public.} =
 
-  let transport = T(
-    flags: flags,
+  let
+    transport = T(
+      flags: flags,
+      clientFlags:
+        if ServerFlags.TcpNoDelay in flags:
+          compilesOr:
+            {TransportFlags.TcpNoDelay}
+          do:
+            doAssert(false)
+            default(set[TransportFlags])
+        else:
+          default(set[TransportFlags]),
     upgrader: upgrade)
 
   return transport
@@ -253,7 +264,7 @@ method dial*(
 
   trace "Dialing remote peer", address = $address
 
-  let transp = await connect(address)
+  let transp = await connect(address, flags = self.clientFlags)
   try:
     let observedAddr = await getObservedAddr(transp)
     return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)

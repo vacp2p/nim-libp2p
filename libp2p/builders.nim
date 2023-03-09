@@ -230,7 +230,7 @@ proc build*(b: SwitchBuilder): Switch
     identify = Identify.new(peerInfo, b.sendSignedPeerRecord)
     connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.new(identify, b.muxers, secureManagerInstances, connManager, ms)
+    muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, connManager, ms)
 
   let
     transports = block:
@@ -247,20 +247,21 @@ proc build*(b: SwitchBuilder): Switch
 
   let peerStore =
     if isSome(b.peerStoreCapacity):
-      PeerStore.new(b.peerStoreCapacity.get())
+      PeerStore.new(identify, b.peerStoreCapacity.get())
     else:
-      PeerStore.new()
+      PeerStore.new(identify)
 
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
-    identity = identify,
     secureManagers = secureManagerInstances,
     connManager = connManager,
     ms = ms,
     nameResolver = b.nameResolver,
     peerStore = peerStore,
     services = b.services)
+
+  switch.mount(identify)
 
   if b.autonat:
     let autonat = Autonat.new(switch)

@@ -28,11 +28,16 @@ else:
 
 import
   std/[tables, sets, options, macros],
+  chronos,
   ./crypto/crypto,
   ./protocols/identify,
+  ./protocols/protocol,
   ./peerid, ./peerinfo,
   ./routing_record,
   ./multiaddress,
+  ./stream/connection,
+  ./multistream,
+  ./muxers/muxer,
   utility
 
 type
@@ -70,11 +75,15 @@ type
 
   PeerStore* {.public.} = ref object
     books: Table[string, BasePeerBook]
+    identify: Identify
     capacity*: int
     toClean*: seq[PeerId]
 
-proc new*(T: type PeerStore, capacity = 1000): PeerStore {.public.} =
-  T(capacity: capacity)
+proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.public.} =
+  T(
+    identify: identify,
+    capacity: capacity
+  )
 
 #########################
 # Generic Peer Book API #
@@ -186,3 +195,28 @@ proc cleanup*(
   while peerStore.toClean.len > peerStore.capacity:
     peerStore.del(peerStore.toClean[0])
     peerStore.toClean.delete(0)
+
+proc identify*(
+  peerStore: PeerStore,
+  muxer: Muxer) {.async.} =
+
+  # new stream for identify
+  var stream = await muxer.newStream()
+  if stream == nil:
+    return
+
+  try:
+    if (await MultistreamSelect.select(stream, peerStore.identify.codec())):
+      let info = await peerStore.identify.identify(stream, stream.peerId)
+
+      when defined(libp2p_agents_metrics):
+        var knownAgent = "unknown"
+        if info.agentVersion.isSome and info.agentVersion.get().len > 0:
+          let shortAgent = info.agentVersion.get().split("/")[0].safeToLowerAscii()
+          if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
+            knownAgent = shortAgent.get()
+        muxer.connection.setShortAgent(knownAgent)
+
+      peerStore.updatePeerInfo(info)
+  finally:
+    await stream.closeWithEOF()

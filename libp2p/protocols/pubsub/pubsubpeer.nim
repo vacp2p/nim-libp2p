@@ -183,6 +183,10 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     # stop working so we make an effort to only keep a single channel alive
 
     trace "Get new send connection", p, newConn
+
+    # Careful to race conditions here.
+    # Topic subscription relies on either connectedFut
+    # to be completed, or onEvent to be called later
     p.connectedFut.complete()
     p.sendConn = newConn
     p.address = if p.sendConn.observedAddr.isSome: some(p.sendConn.observedAddr.get) else: none(MultiAddress)
@@ -222,6 +226,9 @@ proc connect*(p: PubSubPeer) =
     return
 
   asyncSpawn connectImpl(p)
+
+proc hasSendConn*(p: PubSubPeer): bool =
+  p.sendConn != nil
 
 template sendMetrics(msg: RPCMsg): untyped =
   when defined(libp2p_expensive_metrics):

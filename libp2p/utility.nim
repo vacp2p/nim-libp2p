@@ -19,6 +19,12 @@ template public* {.pragma.}
 const
   ShortDumpMax = 12
 
+template compilesOr*(a, b: untyped): untyped =
+  when compiles(a):
+    a
+  else:
+    b
+
 func shortLog*(item: openArray[byte]): string =
   if item.len <= ShortDumpMax:
     result = item.toHex()

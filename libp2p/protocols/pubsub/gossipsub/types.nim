@@ -13,10 +13,12 @@ else:
   {.push raises: [].}
 
 import chronos
-import std/[tables, sets]
+import std/[options, tables, sets]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
+
+export options, tables, sets
 
 const
   GossipSubCodec* = "/meshsub/1.1.0"

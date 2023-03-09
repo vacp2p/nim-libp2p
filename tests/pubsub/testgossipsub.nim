@@ -107,11 +107,7 @@ suite "GossipSub":
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
 
-    var subs: seq[Future[void]]
-    subs &= waitSub(nodes[1], nodes[0], "foobar")
-    subs &= waitSub(nodes[0], nodes[1], "foobar")
-
-    await allFuturesThrowing(subs)
+    await waitSubGraph(nodes, "foobar")
 
     let gossip1 = GossipSub(nodes[0])
     let gossip2 = GossipSub(nodes[1])
@@ -157,11 +153,7 @@ suite "GossipSub":
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
 
-    var subs: seq[Future[void]]
-    subs &= waitSub(nodes[1], nodes[0], "foobar")
-    subs &= waitSub(nodes[0], nodes[1], "foobar")
-
-    await allFuturesThrowing(subs)
+    await waitSubGraph(nodes, "foobar")
 
     let gossip1 = GossipSub(nodes[0])
     let gossip2 = GossipSub(nodes[1])
@@ -424,8 +416,6 @@ suite "GossipSub":
 
     await passed.wait(2.seconds)
 
-    trace "test done, stopping..."
-
     await allFuturesThrowing(
       nodes[0].switch.stop(),
       nodes[1].switch.stop()
@@ -452,21 +442,23 @@ suite "GossipSub":
         nodes[1].switch.start(),
       )
 
+    GossipSub(nodes[1]).parameters.d = 0
+    GossipSub(nodes[1]).parameters.dHigh = 0
+    GossipSub(nodes[1]).parameters.dLow = 0
+
     await subscribeNodes(nodes)
 
-    nodes[1].subscribe("foobar", handler)
     nodes[0].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
-    await waitSub(nodes[1], nodes[0], "foobar")
-
-    nodes[0].unsubscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
 
     let gsNode = GossipSub(nodes[1])
-    checkExpiring: gsNode.mesh.getOrDefault("foobar").len == 0
-
-    nodes[0].subscribe("foobar", handler)
-
-    check GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
+    checkExpiring:
+      gsNode.mesh.getOrDefault("foobar").len == 0 and
+      GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0 and
+      (
+        GossipSub(nodes[0]).gossipsub.getOrDefault("foobar").len == 1 or
+        GossipSub(nodes[0]).fanout.getOrDefault("foobar").len == 1
+      )
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
@@ -532,8 +524,8 @@ suite "GossipSub":
 
   asyncTest "e2e - GossipSub should not send to source & peers who already seen":
     # 3 nodes: A, B, C
-    # A publishes, B relays, C is having a long validation
-    # so C should not send to anyone
+    # A publishes, C relays, B is having a long validation
+    # so B should not send to anyone
 
     let
       nodes = generateNodes(
@@ -566,10 +558,7 @@ suite "GossipSub":
     nodes[0].subscribe("foobar", handlerA)
     nodes[1].subscribe("foobar", handlerB)
     nodes[2].subscribe("foobar", handlerC)
-    await waitSub(nodes[0], nodes[1], "foobar")
-    await waitSub(nodes[0], nodes[2], "foobar")
-    await waitSub(nodes[2], nodes[1], "foobar")
-    await waitSub(nodes[1], nodes[2], "foobar")
+    await waitSubGraph(nodes, "foobar")
 
     var gossip1: GossipSub = GossipSub(nodes[0])
     var gossip2: GossipSub = GossipSub(nodes[1])
@@ -587,7 +576,11 @@ suite "GossipSub":
 
     nodes[1].addValidator("foobar", slowValidator)
 
-    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+    checkExpiring(
+      gossip1.mesh.getOrDefault("foobar").len == 2 and
+      gossip2.mesh.getOrDefault("foobar").len == 2 and
+      gossip3.mesh.getOrDefault("foobar").len == 2)
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 2
 
     await bFinished
 
@@ -629,7 +622,7 @@ suite "GossipSub":
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
-    check await passed
+    check await passed.wait(10.seconds)
 
     check:
       "foobar" in gossip1.gossipsub
