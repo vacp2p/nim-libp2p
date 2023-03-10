@@ -20,7 +20,7 @@ import client
 import ../../../utils/heartbeat
 import ../../../crypto/crypto
 
-export options, core
+export options, core.NetworkReachability
 
 logScope:
   topics = "libp2p autonatservice"
