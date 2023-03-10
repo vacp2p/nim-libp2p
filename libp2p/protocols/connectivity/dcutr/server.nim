@@ -37,7 +37,7 @@ proc new*(T: typedesc[Dcutr], switch: Switch): T =
       debug "Dcutr receiver received a Connect message.", connectMsg
       var ourAddrs = switch.peerStore.getMostObservedIPsAndPorts() # likely empty when the peer is reachable
       if ourAddrs.len == 0:
-        # this list should be the same as the peer'' public addrs when it is reachable
+        # this list should be the same as the peer's public addrs when it is reachable
         ourAddrs = guessDialableAddrs(switch.peerStore, switch.peerInfo.addrs)
       await sendConnectMsg(stream, ourAddrs)
       debug "Dcutr receiver has sent a Connect message back."
