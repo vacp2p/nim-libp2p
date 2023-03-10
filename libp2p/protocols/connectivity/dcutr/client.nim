@@ -21,7 +21,7 @@ import stew/results
 import chronos, chronicles
 
 type
-  DcutrClient* = ref object of LPProtocol
+  DcutrClient* = ref object of RootObj
     rttStart: Opt[Moment]
     rttEnd: Opt[Moment]
 
@@ -31,40 +31,32 @@ logScope:
 proc new*(T: typedesc[DcutrClient]): T =
   return T(rttStart: Opt.none(Moment), rttEnd: Opt.none(Moment))
 
-proc sendSyncMsg(conn: Connection) {.async.} =
-  let pb = DcutrMsg(msgType: MsgType.Sync, addrs: @[]).encode()
-  await conn.writeLp(pb.buffer)
+proc sendSyncMsg(stream: Connection, addrs: seq[MultiAddress]) {.async.} =
+  let pb = DcutrMsg(msgType: MsgType.Sync, addrs: addrs).encode()
+  await stream.writeLp(pb.buffer)
 
-proc startSync*(self: DcutrClient, switch: Switch, conn: Connection): Future[Connection] {.async.} =
+proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: seq[MultiAddress]) {.async.} =
   logScope:
     peerId = switch.peerInfo.peerId
 
-  self.rttStart = Opt.some(Moment.now())
-  trace "Sync initiator has sent a Connect message", conn
-  await sendConnectMsg(conn, switch.peerInfo.addrs)
-  let connectAnswer = DcutrMsg.decode(await conn.readLp(1024))
-  trace "Sync initiator has received a Connect message back", conn
-  self.rttEnd = Opt.some(Moment.now())
-  trace "Sending a Sync message", conn
-  await sendSyncMsg(conn)
-  let halfRtt = (self.rttEnd.get() - self.rttStart.get()) div 2
-  await sleepAsync(halfRtt)
-  let directConn =
-    try:
-      await switch.dial(conn.peerId, connectAnswer.addrs, DcutrCodec)
-    except CatchableError as err:
-      raise newException(DcutrError, "Unexpected error when dialling", err)
-  return directConn
+  var stream: Connection
+  try:
+    stream = await switch.dial(remotePeerId, DcutrCodec)
+    await sendConnectMsg(stream, addrs)
+    debug "Dcutr initiator has sent a Connect message."
+    self.rttStart = Opt.some(Moment.now())
+    let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
+    self.rttEnd = Opt.some(Moment.now())
+    debug "Dcutr initiator has received a Connect message back.", connectAnswer
+    let halfRtt = (self.rttEnd.get() - self.rttStart.get()) div 2
+    await sendSyncMsg(stream, addrs)
+    debug "Dcutr initiator has sent a Sync message."
+    await sleepAsync(halfRtt)
+    await switch.connect(remotePeerId, connectAnswer.addrs, true, false)
+  except CatchableError as err:
+    error "Unexpected error when trying direct conn", err = err.msg
+    raise newException(DcutrError, "Unexpected error when trying a direct conn", err)
+  finally:
+    if stream != nil:
+      await stream.close()
 
-proc connect*(switch: Switch, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
-    Future[MultiAddress] {.async.} =
-  let conn =
-    try:
-      if addrs.len == 0:
-        await switch.dial(pid, @[DcutrCodec])
-      else:
-        await switch.dial(pid, addrs, DcutrCodec)
-    except CatchableError as err:
-      raise newException(DcutrError, "Unexpected error when dialling", err)
-  defer: await conn.close()
-  await sendConnectMsg(conn, switch.peerInfo.addrs)

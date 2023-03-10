@@ -34,25 +34,17 @@ proc new*(T: typedesc[Dcutr], switch: Switch): T =
   let self = T(switch: switch)
   proc handleStream(stream: Connection, proto: string) {.async, gcsafe.} =
     try:
-      let msg = DcutrMsg.decode(await stream.readLp(1024))
-      trace "Sync receiver received a Connect message.", msg
-      case msg.msgType:
-        of MsgType.Connect:
-          await sendConnectMsg(stream, self.switch.peerInfo.addrs)
-          trace "Sync receiver has sent a Connect message back"
-        of MsgType.Sync:
-          trace "Sync receiver has received a Sync message"
-          let directConn =
-            try:
-              await self.switch.dial(stream.peerId, msg.addrs, DcutrCodec)
-            except CatchableError as err:
-              raise newException(DcutrError, "Unexpected error when dialling", err)
-          await directConn.writeLp("hi")
-    except CatchableError as exc:
-      error "Unexpected error in dcutr handler", msg = exc.msg
-    finally:
-      trace "exiting dcutr handler", stream
-      await stream.close()
+      let connectMsg = DcutrMsg.decode(await stream.readLp(1024))
+      debug "Dcutr receiver received a Connect message.", connectMsg
+      let dialingAddrs = connectMsg.addrs
+      await sendConnectMsg(stream, self.switch.peerInfo.addrs)
+      debug "Dcutr receiver has sent a Connect message back."
+      let syncMsg = DcutrMsg.decode(await stream.readLp(1024))
+      debug "Dcutr receiver has received a Sync message.", syncMsg
+      await switch.connect(stream.peerId, dialingAddrs, true, false)
+    except CatchableError as err:
+      error "Unexpected error in dcutr handler", msg = err.msg
+      raise newException(DcutrError, "Unexpected error when trying a direct conn", err)
 
   self.handler = handleStream
   self.codec = DcutrCodec
