@@ -117,6 +117,8 @@ type
     dOut*: int
     dLazy*: int
 
+    lazyPushMinSize*: int
+
     heartbeatInterval*: Duration
 
     historyLength*: int
@@ -169,6 +171,8 @@ type
     heartbeatFut*: Future[void]                # cancellation future for heartbeat interval
     scoringHeartbeatFut*: Future[void]         # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
+
+    inflightIWant*: seq[(string, MessageId)]
 
     peerStats*: Table[PeerId, PeerStats]
     parameters*: GossipSubParams

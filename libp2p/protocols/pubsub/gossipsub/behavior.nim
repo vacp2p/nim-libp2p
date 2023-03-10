@@ -257,9 +257,11 @@ proc handleIHave*(g: GossipSub,
         # also avoid duplicates here!
         let deIhavesMsgs = ihave.messageIds.deduplicate()
         for msgId in deIhavesMsgs:
-          if not g.hasSeen(msgId):
+          let msgTuple = (ihave.topicId, msgId)
+          if not g.hasSeen(msgId) and msgTuple notin g.inflightIWant:
             if peer.iHaveBudget > 0:
               res.messageIds.add(msgId)
+              g.inflightIWant.add(msgTuple)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
             else:
@@ -267,6 +269,9 @@ proc handleIHave*(g: GossipSub,
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIds)
+
+    if g.inflightIWant.len > 2000:
+      g.inflightIWant = g.inflightIWant[1000..^1]
     return res
 
 proc handleIWant*(g: GossipSub,

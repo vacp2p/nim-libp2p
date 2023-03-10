@@ -337,9 +337,25 @@ proc validateAndRelay(g: GossipSub,
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
 
-    # In theory, if topics are the same in all messages, we could batch - we'd
-    # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    let lazyPushMinSize = g.parameters.lazyPushMinSize
+    if lazyPushMinSize > 0 and msg.data.len > lazyPushMinSize and
+       toSendPeers.len > g.parameters.dLow:
+      var stp = toSeq(toSendPeers)
+      g.rng.shuffle(stp)
+
+      let
+        toPush = stp[0 ..< g.parameters.dLow]
+        toIHave = stp[g.parameters.dLow .. ^1]
+      g.broadcast(toIHave, RPCMsg(control:
+        some(ControlMessage(ihave: @[
+          ControlIHave(topicID: msg.topicIds[0], messageIDs: @[msgId])
+        ]))
+      ))
+      g.broadcast(toPush, RPCMsg(messages: @[msg]))
+    else:
+      # In theory, if topics are the same in all messages, we could batch - we'd
+      # also have to be careful to only include validated messages
+      g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue
