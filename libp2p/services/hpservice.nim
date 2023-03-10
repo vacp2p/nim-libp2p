@@ -43,13 +43,12 @@ proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayServi
     autoRelayService: autoRelayService,
     isPublicIPAddr: isPublicIPAddr)
 
-proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId, relayedConn: Connection): Future[bool] {.async.} =
+proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
   await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     if self.isPublicIPAddr(initTAddress(address).get()):
       try:
         await switch.connect(peerId, @[address], true, false)
-        await relayedConn.close()
         debug "direct connection created"
         return true
       except CatchableError as err:
@@ -72,7 +71,8 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
       try:
         let conn = switch.connManager.selectMuxer(peerId).connection
         if isRelayed(conn):
-          if await self.tryStartingDirectConn(switch, peerId, conn):
+          if await self.tryStartingDirectConn(switch, peerId):
+            await conn.close()
             return
           let dcutrClient = DcutrClient.new()
           var natAddrs = switch.peerStore.getMostObservedIPsAndPorts()
