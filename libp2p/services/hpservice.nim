@@ -12,13 +12,15 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/tables
+import std/[tables, sequtils]
 import ../switch, ../wire
 import ../protocols/rendezvous
 import ../services/autorelayservice
 import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
+from ../protocols/connectivity/dcutr/core import DcutrError
+import ../protocols/connectivity/dcutr/client
 import chronos
 
 logScope:
@@ -41,21 +43,25 @@ proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayServi
     autoRelayService: autoRelayService,
     isPublicIPAddr: isPublicIPAddr)
 
-proc startDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
-  let conn = switch.connManager.selectMuxer(peerId).connection
+proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId, relayedConn: Connection): Future[bool] {.async.} =
   await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
-  if isRelayed(conn):
-    for address in switch.peerStore[AddressBook][peerId]:
-      if self.isPublicIPAddr(initTAddress(address).get()):
-        try:
-          await switch.connect(peerId, @[address], true, false)
-          await conn.close()
-          debug "direct connection started"
-          return true
-        except CatchableError as exc:
-          debug "failed to start direct connection", exc = exc.msg
-          continue
+  for address in switch.peerStore[AddressBook][peerId]:
+    if self.isPublicIPAddr(initTAddress(address).get()):
+      try:
+        await switch.connect(peerId, @[address], true, false)
+        await relayedConn.close()
+        debug "direct connection created"
+        return true
+      except CatchableError as err:
+        debug "failed to create direct connection", err = err.msg
+        continue
   return false
+
+proc guessNatAddrs(peerStore: PeerStore, addrs: seq[MultiAddress]): seq[MultiAddress] =
+  for a in addrs:
+    let guess = peerStore.replaceMAIpByMostObserved(a)
+    if guess.isSome():
+      result.add(guess.get())
 
 method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
@@ -63,8 +69,20 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
 
   if hasBeenSetup:
     self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
-      if await self.startDirectConn(switch, peerId):
-        return
+      try:
+        let conn = switch.connManager.selectMuxer(peerId).connection
+        if isRelayed(conn):
+          if await self.tryStartingDirectConn(switch, peerId, conn):
+            return
+          let dcutrClient = DcutrClient.new()
+          var natAddrs = switch.peerStore.getMostObservedIPsAndPorts()
+          if natAddrs.len == 0:
+            natAddrs = guessNatAddrs(switch.peerStore, switch.peerInfo.addrs)
+          await dcutrClient.startSync(switch, peerId, natAddrs)
+          await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
+          await conn.close()
+      except DcutrError as err:
+        error "Hole punching failed during dcutr", err = err.msg
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
