@@ -155,33 +155,6 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
   heartbeat "Scheduling AutonatService run", interval:
     await service.run(switch)
 
-proc handleManualPortForwarding(
-  peerStore: PeerStore,
-  listenAddr: MultiAddress): Opt[MultiAddress] =
-  try:
-    let maIP = listenAddr[0]
-    let maWithoutIP = listenAddr[1..^1]
-
-    if maWithoutIP.isErr():
-      return Opt.none(MultiAddress)
-
-    let observedIP =
-      if IP4.match(maIP.get()):
-        peerStore.getMostObservedIP(IPv4)
-      else:
-        peerStore.getMostObservedIP(IPv6)
-
-    let newMA =
-      if observedIP.isNone() or maIP.get() == observedIP.get():
-        listenAddr
-      else:
-        observedIP.get() & maWithoutIP.get()
-
-    return Opt.some(newMA)
-  except CatchableError as error:
-    debug "Error while handling manual port forwarding", msg = error.msg
-    return Opt.none(MultiAddress)
-
 proc addressMapper(
   self: AutonatService,
   peerStore: PeerStore,
@@ -194,7 +167,7 @@ proc addressMapper(
       let hostIP = initTAddress(listenAddr).get()
       if not hostIP.isGlobal():
         if self.networkReachability == NetworkReachability.Reachable:
-          let maOpt = handleManualPortForwarding(peerStore, listenAddr)
+          let maOpt = peerStore.replaceMAIpByMostObserved(listenAddr) # handle manual port forwarding
           if maOpt.isSome():
             processedMA = maOpt.get()
     except CatchableError as exc:
