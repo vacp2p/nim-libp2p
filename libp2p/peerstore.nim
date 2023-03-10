@@ -252,7 +252,7 @@ proc replaceMAIpByMostObserved*(
     debug "Error while handling manual port forwarding", msg = error.msg
     return Opt.none(MultiAddress)
 
-proc guessNatAddrs*(self: PeerStore, listenAddrs: seq[MultiAddress]): seq[MultiAddress] =
+proc guessDialableAddrs*(self: PeerStore, listenAddrs: seq[MultiAddress]): seq[MultiAddress] =
   for l in listenAddrs:
     let guess = self.replaceMAIpByMostObserved(l)
     if guess.isSome():
