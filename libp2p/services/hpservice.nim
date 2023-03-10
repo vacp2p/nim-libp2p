@@ -77,7 +77,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
           let dcutrClient = DcutrClient.new()
           var natAddrs = switch.peerStore.getMostObservedIPsAndPorts()
           if natAddrs.len == 0:
-            natAddrs = guessNatAddrs(switch.peerStore, switch.peerInfo.addrs)
+            natAddrs = guessDialableAddrs(switch.peerStore, switch.peerInfo.addrs)
           await dcutrClient.startSync(switch, peerId, natAddrs)
           await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
           await conn.close()
