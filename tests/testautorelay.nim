@@ -72,9 +72,12 @@ suite "Autorelay":
     await fut.wait(1.seconds)
     let addresses = autorelay.getAddresses()
     check:
-      addresses[0] == buildRelayMA(switchRelay, switchClient)
+      addresses == @[buildRelayMA(switchRelay, switchClient)]
       addresses.len() == 1
+      addresses == switchClient.peerInfo.addrs
     await allFutures(switchClient.stop(), switchRelay.stop())
+
+    check addresses != switchClient.peerInfo.addrs
 
   asyncTest "Three relays connections":
     var state = 0

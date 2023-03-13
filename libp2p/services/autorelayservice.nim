@@ -32,9 +32,15 @@ type
     backingOff: seq[PeerId]
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
+    addressMapper: AddressMapper
     rng: ref HmacDrbgContext
 
-proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId) {.async.} =
+proc addressMapper(
+  self: AutoRelayService,
+  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+  return concat(toSeq(self.relayAddresses.values))
+
+proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, switch: Switch) {.async.} =
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
@@ -46,11 +52,15 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, selfPid: PeerId)
       break
     if relayPid notin self.relayAddresses or self.relayAddresses[relayPid] != relayedAddr:
       self.relayAddresses[relayPid] = relayedAddr
+      await switch.peerInfo.update()
       if not self.onReservation.isNil():
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
 method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsafe.} =
+  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+    return await addressMapper(self, listenAddrs)
+
   let hasBeenSetUp = await procCall Service(self).setup(switch)
   if hasBeenSetUp:
     proc handlePeerJoined(peerId: PeerId, event: PeerEvent) {.async.} =
@@ -63,6 +73,7 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcs
         future[].cancel()
     switch.addPeerEventHandler(handlePeerJoined, Joined)
     switch.addPeerEventHandler(handlePeerLeft, Left)
+    switch.peerInfo.addressMappers.add(self.addressMapper)
     await self.run(switch)
   return hasBeenSetUp
 
@@ -96,7 +107,7 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
     for relayPid in connectedPeers:
       if self.relayPeers.len() >= self.numRelays:
         break
-      self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch.peerInfo.peerId)
+      self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch)
 
     if self.relayPeers.len() > 0:
       await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
@@ -116,6 +127,8 @@ method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsa
   if hasBeenStopped:
     self.running = false
     self.runner.cancel()
+    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+    await switch.peerInfo.update()
   return hasBeenStopped
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
