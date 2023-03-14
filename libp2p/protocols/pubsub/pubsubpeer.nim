@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes, options, sets]
+import std/[sequtils, strutils, tables, hashes, options, sets, deques]
 import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
@@ -62,7 +62,7 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
     score*: float64
-    sentIHaves*: seq[HashSet[MessageId]]
+    sentIHaves*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
@@ -301,12 +301,12 @@ proc new*(
   codec: string,
   maxMessageSize: int): T =
 
-  T(
+  result = T(
     getConn: getConn,
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
-    sentIHaves: newSeq[HashSet[MessageId]](1),
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize
   )
+  result.sentIHaves.addFirst(default(HashSet[MessageId]))

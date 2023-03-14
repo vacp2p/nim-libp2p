@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, sequtils, sets, algorithm]
+import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
@@ -625,10 +625,9 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
     # reset IHAVE cap
     block:
       for peer in g.peers.values:
-        if peer.sentIHaves.len >= g.parameters.historyLength:
-          peer.sentIHaves = default(HashSet[MessageId]) & peer.sentIHaves[0..^2]
-        else:
-          peer.sentIHaves.insert(default(HashSet[MessageId]), 0)
+        peer.sentIHaves.addFirst(default(HashSet[MessageId]))
+        if peer.sentIHaves.len > g.parameters.historyLength:
+          discard peer.sentIHaves.popLast()
         peer.iHaveBudget = IHavePeerBudget
 
     var meshMetrics = MeshMetrics()
