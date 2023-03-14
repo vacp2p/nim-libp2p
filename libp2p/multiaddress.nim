@@ -1123,5 +1123,5 @@ proc getRepeatedField*(pb: ProtoBuffer, field: int,
         value.add(ma.get())
       else:
         value.setLen(0)
-        return err(ProtoError.IncorrectBlob)
+        #return err(ProtoError.IncorrectBlob)
     ok(true)
