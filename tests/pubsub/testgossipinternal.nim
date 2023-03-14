@@ -713,6 +713,7 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       gossipSub.mcache.put(id, Message())
+      peer.sentIHaves[^1].incl(id)
       let msg = ControlIWant(
         messageIDs: @[id, id, id]
       )

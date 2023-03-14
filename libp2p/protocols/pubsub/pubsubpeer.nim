@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes, options]
+import std/[sequtils, strutils, tables, hashes, options, sets]
 import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
@@ -62,7 +62,7 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
     score*: float64
-    iWantBudget*: int
+    sentIHaves*: seq[HashSet[MessageId]]
     iHaveBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
@@ -286,6 +286,13 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
 
   asyncSpawn p.sendEncoded(encoded)
 
+proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
+  for sentIHave in p.sentIHaves.mitems():
+    if msgId in sentIHave:
+      sentIHave.excl(msgId)
+      return true
+  return false
+
 proc new*(
   T: typedesc[PubSubPeer],
   peerId: PeerId,
@@ -299,6 +306,7 @@ proc new*(
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
+    sentIHaves: newSeq[HashSet[MessageId]](1),
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize
   )
