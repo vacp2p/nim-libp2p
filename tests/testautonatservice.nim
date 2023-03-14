@@ -104,8 +104,12 @@ suite "Autonat Service":
     check autonatService.networkReachability() == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
+    check switch1.peerInfo.addrs == switch1.peerStore.guessDialableAddrs(switch1.peerInfo.listenAddrs)
+
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+
+    check switch1.peerInfo.addrs == switch1.peerInfo.listenAddrs
 
   asyncTest "Peer must be not reachable and then reachable":
 

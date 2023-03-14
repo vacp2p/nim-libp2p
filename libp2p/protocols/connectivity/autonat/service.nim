@@ -28,6 +28,7 @@ declarePublicGauge(libp2p_autonat_reachability_confidence, "autonat reachability
 type
   AutonatService* = ref object of Service
     newConnectedPeerHandler: PeerEventHandler
+    addressMapper: AddressMapper
     scheduleHandle: Future[void]
     networkReachability: NetworkReachability
     confidence: Option[float]
@@ -176,8 +177,8 @@ proc addressMapper(
   return addrs
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
-  proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
-    return await self.addressMapper(switch.peerStore, listenAddrs)
+  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+    return await addressMapper(self, switch.peerStore, listenAddrs)
 
   info "Setting up AutonatService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
@@ -188,7 +189,7 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
       switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
       self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
-    switch.peerInfo.addressMappers.add(addressMapper)
+    switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
@@ -205,6 +206,8 @@ method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public
       self.scheduleHandle = nil
     if not isNil(self.newConnectedPeerHandler):
       switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
+    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+    await switch.peerInfo.update()
   return hasBeenStopped
 
 proc statusAndConfidenceHandler*(self: AutonatService, statusAndConfidenceHandler: StatusAndConfidenceHandler) =
