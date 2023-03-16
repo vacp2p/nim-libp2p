@@ -44,6 +44,7 @@ proc new*(T: typedesc[Dcutr], switch: Switch): T =
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024))
       debug "Dcutr receiver has received a Sync message.", syncMsg
       await switch.connect(stream.peerId, connectMsg.addrs, true, false)
+      debug "Dcutr receiver has directly connected to the remote peer."
     except CatchableError as err:
       error "Unexpected error in dcutr handler", msg = err.msg
       raise newException(DcutrError, "Unexpected error when trying a direct conn", err)

@@ -36,7 +36,6 @@ logScope:
 declareCounter(libp2p_total_dial_attempts, "total attempted dials")
 declareCounter(libp2p_successful_dials, "dialed successful peers")
 declareCounter(libp2p_failed_dials, "failed dials")
-declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 type
   DialFailedError* = object of LPError
@@ -71,22 +70,35 @@ proc dialAndUpgrade(
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
-      # also keep track of the connection's bottom unsafe transport direction
-      # required by gossipsub scoring
-      dialed.transportDir = Direction.Out
-
       libp2p_successful_dials.inc()
 
       let mux =
         try:
-          await transport.upgradeOutgoing(dialed, peerId)
+          if self.isSimultaneousConnServer:
+            dialed.transportDir = Direction.In
+            let upgradedConn = await transport.upgradeIncoming(dialed)
+            doAssert not isNil(upgradedConn), "connection died after upgradeIncoming"
+            upgradedConn
+          else:
+            # also keep track of the connection's bottom unsafe transport direction
+            # required by gossipsub scoring
+            dialed.transportDir = Direction.Out
+            # This is related to the simultaneous connection through DCUtr. According to the spec, the server side of
+            # the DCUtr protocol should be the client of the simultaneous connection.
+            let upgradedConn = await transport.upgradeOutgoing(dialed, peerId)
+            doAssert not isNil(upgradedConn), "connection died after upgradeOutgoing"
+            upgradedConn
+
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
           await dialed.close()
           debug "Upgrade failed", msg = exc.msg, peerId
           if exc isnot CancelledError:
-            libp2p_failed_upgrades_outgoing.inc()
+            if self.isSimultaneousConnServer:
+              libp2p_failed_upgrades_outgoing.inc()
+            else:
+              libp2p_failed_upgrades_incoming.inc()
 
           # Try other address
           return nil

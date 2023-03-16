@@ -58,8 +58,6 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
-
 const
   ConcurrentUpgrades* = 4
 

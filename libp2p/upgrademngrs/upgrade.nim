@@ -28,7 +28,8 @@ import ../stream/connection,
 
 export connmanager, connection, identify, secure, multistream
 
-declarePublicCounter(libp2p_failed_upgrade, "peers failed upgrade")
+declarePublicCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
+declarePublicCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 logScope:
   topics = "libp2p upgrade"

@@ -22,6 +22,7 @@ export results
 
 type
   Dial* = ref object of RootObj
+    isSimultaneousConnServer*: bool
 
 method connect*(
   self: Dial,

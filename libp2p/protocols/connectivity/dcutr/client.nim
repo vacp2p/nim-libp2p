@@ -52,7 +52,9 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     await sendSyncMsg(stream, addrs)
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
+    switch.dialer.isSimultaneousConnServer = true
     await switch.connect(remotePeerId, connectAnswer.addrs, true, false)
+    debug "Dcutr initiator has directly connected to the remote peer."
   except CatchableError as err:
     error "Unexpected error when trying direct conn", err = err.msg
     raise newException(DcutrError, "Unexpected error when trying a direct conn", err)
