@@ -51,7 +51,7 @@ suite "Autonat Service":
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     await switch1.start()
     await switch2.start()
@@ -64,7 +64,7 @@ suite "Autonat Service":
 
     await autonatClientStub.finished
 
-    check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check autonatService.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await allFuturesThrowing(
@@ -86,7 +86,7 @@ suite "Autonat Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -101,7 +101,7 @@ suite "Autonat Service":
 
     await awaiter
 
-    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
     check switch1.peerInfo.addrs == switch1.peerInfo.listenAddrs.mapIt(switch1.peerStore.guessDialableAddr(it))
@@ -131,7 +131,7 @@ suite "Autonat Service":
           autonatClientStub.answer = Reachable
           awaiter.complete()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -146,12 +146,12 @@ suite "Autonat Service":
 
     await awaiter
 
-    check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check autonatService.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await autonatClientStub.finished
 
-    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
@@ -172,7 +172,7 @@ suite "Autonat Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -187,7 +187,7 @@ suite "Autonat Service":
 
     await awaiter
 
-    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(
@@ -213,7 +213,7 @@ suite "Autonat Service":
           autonatClientStub.answer = Unknown
           awaiter.complete()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -228,12 +228,12 @@ suite "Autonat Service":
 
     await awaiter
 
-    check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check autonatService.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
 
     await autonatClientStub.finished
 
-    check autonatService.networkReachability() == NetworkReachability.NotReachable
+    check autonatService.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1/3
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
@@ -264,7 +264,7 @@ suite "Autonat Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -275,7 +275,7 @@ suite "Autonat Service":
 
     await awaiter
 
-    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(
@@ -304,8 +304,8 @@ suite "Autonat Service":
         if not awaiter2.finished:
           awaiter2.complete()
 
-    check autonatService1.networkReachability() == NetworkReachability.Unknown
-    check autonatService2.networkReachability() == NetworkReachability.Unknown
+    check autonatService1.networkReachability == NetworkReachability.Unknown
+    check autonatService2.networkReachability == NetworkReachability.Unknown
 
     autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
     autonatService2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
@@ -321,8 +321,8 @@ suite "Autonat Service":
     await awaiter1
     await awaiter2
 
-    check autonatService1.networkReachability() == NetworkReachability.Reachable
-    check autonatService2.networkReachability() == NetworkReachability.Reachable
+    check autonatService1.networkReachability == NetworkReachability.Reachable
+    check autonatService2.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(
@@ -342,7 +342,7 @@ suite "Autonat Service":
         if not awaiter1.finished:
           awaiter1.complete()
 
-    check autonatService1.networkReachability() == NetworkReachability.Unknown
+    check autonatService1.networkReachability == NetworkReachability.Unknown
 
     autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
 
@@ -360,7 +360,7 @@ suite "Autonat Service":
 
     await awaiter1
 
-    check autonatService1.networkReachability() == NetworkReachability.Reachable
+    check autonatService1.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
     # Make sure remote peer can't create a connection to us
@@ -385,7 +385,7 @@ suite "Autonat Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -407,7 +407,7 @@ suite "Autonat Service":
     await autonatService.run(switch1)
     await awaiter
 
-    check autonatService.networkReachability() == NetworkReachability.Reachable
+    check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(
@@ -422,7 +422,7 @@ suite "Autonat Service":
     proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
       fail()
 
-    check autonatService.networkReachability() == NetworkReachability.Unknown
+    check autonatService.networkReachability == NetworkReachability.Unknown
 
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
