@@ -20,8 +20,6 @@ import ../../../switch,
        ../../../peerid
 import core
 
-export core
-
 logScope:
   topics = "libp2p autonat"
 
