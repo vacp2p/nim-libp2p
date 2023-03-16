@@ -44,7 +44,7 @@ proc encode*(msg: DcutrMsg): ProtoBuffer =
     result.write(2, addr)
   result.finish()
 
-proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [DcutrError].} =
+proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [Defect, DcutrError].} =
   var
     msgTypeOrd: uint32
     dcutrMsg: DcutrMsg
