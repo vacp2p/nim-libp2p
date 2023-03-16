@@ -16,7 +16,7 @@ import ../libp2p/[builders,
                   services/hpservice,
                   services/autorelayservice]
 import ../libp2p/protocols/connectivity/relay/[relay, client]
-import ../libp2p/protocols/connectivity/autonat/[client, service]
+import ../libp2p/protocols/connectivity/autonat/[service]
 import ../libp2p/wire
 import stubs/autonatclientstub
 
