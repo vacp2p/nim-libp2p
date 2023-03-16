@@ -106,6 +106,3 @@ method stop*(self: HPService, switch: Switch): Future[bool] {.async, public.} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
-
-# proc onNewRelayAddr*(self: HPService, f: Callb) =
-#   self.callb = f
