@@ -56,36 +56,36 @@ suite "Hole Punching":
     let autonatService = AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
 
     let relayClient = RelayClient.new()
-    let fut = newFuture[seq[MultiAddress]]()
+    let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
 
-    let switch2 = createSwitch(RelayClient.new())
+    let publicPeerSwitch = createSwitch(RelayClient.new())
     proc checkMA(address: seq[MultiAddress]) =
-      if not fut.completed():
+      if not privatePeerRelayAddr.completed():
         echo $address
-        fut.complete(address)
+        privatePeerRelayAddr.complete(address)
 
     let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
 
     let hpservice = HPService.new(autonatService, autoRelayService, isPublicAddrIPAddrMock)
 
-    let switch1 = createSwitch(relayClient, hpservice)
+    let privatePeerSwitch = createSwitch(relayClient, hpservice)
     let switchRelay = createSwitch(Relay.new())
 
-    await allFutures(switchRelay.start(), switch1.start(), switch2.start())
+    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start())
 
-    await switch1.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
 
-    await switch2.connect(switch1.peerInfo.peerId, (await fut))
+    await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
 
     checkExpiring:
-      switch1.connManager.connCount(switch2.peerInfo.peerId) == 1 and
-      not isRelayed(switch1.connManager.selectMuxer(switch2.peerInfo.peerId).connection)
+      privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1 and
+      not isRelayed(privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection)
 
-    for t in switch1.transports:
+    for t in privatePeerSwitch.transports:
       echo t.networkReachability
 
     await allFuturesThrowing(
-      switch1.stop(), switch2.stop(), switchRelay.stop())
+      privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop())
 
   # asyncTest "Hope Punching Public Reachability test":
   #   let switch1 = createSwitch()
