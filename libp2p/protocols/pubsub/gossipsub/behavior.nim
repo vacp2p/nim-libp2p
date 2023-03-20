@@ -272,15 +272,23 @@ proc handleIHave*(g: GossipSub,
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] {.raises: [Defect].} =
-  var messages: seq[Message]
+  var
+    messages: seq[Message]
+    invalidRequests = 0
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
   else:
     for iwant in iwants:
       for mid in iwant.messageIds:
         trace "peer sent iwant", peer, messageID = mid
+        # canAskIWant will only return true once for a specific message
         if not peer.canAskIWant(mid):
           libp2p_gossipsub_received_iwants.inc(1, labelValues=["notsent"])
+
+          invalidRequests.inc()
+          if invalidRequests > 20:
+            libp2p_gossipsub_received_iwants.inc(1, labelValues=["skipped"])
+            return messages
           continue
         let msg = g.mcache.get(mid)
         if msg.isSome:
