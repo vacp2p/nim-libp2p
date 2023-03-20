@@ -14,7 +14,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, sets, options, sequtils]
+import std/[sets, sequtils]
 import chronos, chronicles, metrics
 import ./pubsub,
        ./floodsub,
@@ -158,8 +158,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.appScore = stats.appScore
     peer.behaviourPenalty = stats.behaviourPenalty
 
-    peer.iWantBudget = IWantPeerBudget
-    peer.iHaveBudget = IHavePeerBudget
+  peer.iHaveBudget = IHavePeerBudget
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind

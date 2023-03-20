@@ -15,6 +15,8 @@ else:
 import std/[tables, sets]
 import ./pubsubpeer, ../../peerid
 
+export tables, sets
+
 type
   PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 

@@ -2,13 +2,14 @@ include ../../libp2p/protocols/pubsub/gossipsub
 
 {.used.}
 
-import options
+import std/[options, deques]
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors
 import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
 import ../../libp2p/switch
+import ../../libp2p/muxers/muxer
 
 import ../helpers
 
@@ -495,7 +496,7 @@ suite "GossipSub internal":
       peer.handler = handler
       peer.appScore = gossipSub.parameters.graylistThreshold - 1
       gossipSub.gossipsub.mgetOrPut(topic, initHashSet[PubSubPeer]()).incl(peer)
-      gossipSub.switch.connManager.storeConn(conn)
+      gossipSub.switch.connManager.storeMuxer(Muxer(connection: conn))
 
     gossipSub.updateScores()
 
@@ -712,6 +713,7 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       gossipSub.mcache.put(id, Message())
+      peer.sentIHaves[^1].incl(id)
       let msg = ControlIWant(
         messageIDs: @[id, id, id]
       )

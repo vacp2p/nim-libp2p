@@ -13,10 +13,12 @@ else:
   {.push raises: [].}
 
 import chronos
-import std/[tables, sets]
+import std/[options, tables, sets]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
+
+export options, tables, sets
 
 const
   GossipSubCodec* = "/meshsub/1.1.0"
@@ -46,7 +48,6 @@ const
 
 const
   BackoffSlackTime* = 2 # seconds
-  IWantPeerBudget* = 25 # 25 messages per second ( reset every heartbeat )
   IHavePeerBudget* = 10
   # the max amount of IHave to expose, not by spec, but go as example
   # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572

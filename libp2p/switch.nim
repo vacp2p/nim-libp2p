@@ -220,24 +220,27 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
 
-proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
-  ## monitor connection for upgrades
-  ##
+proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
+  let muxed = await trans.upgradeIncoming(conn)
+  switch.connManager.storeMuxer(muxed)
+  await switch.peerStore.identify(muxed)
+  trace "Connection upgrade succeeded"
+
+proc upgradeMonitor(
+    switch: Switch,
+    trans: Transport,
+    conn: Connection,
+    upgrades: AsyncSemaphore) {.async.} =
   try:
-    # Since we don't control the flow of the
-    # upgrade, this timeout guarantees that a
-    # "hanged" remote doesn't hold the upgrade
-    # forever
-    await conn.onUpgrade.wait(30.seconds) # wait for connection to be upgraded
-    trace "Connection upgrade succeeded"
+    await switch.upgrader(trans, conn).wait(30.seconds)
   except CatchableError as exc:
-    libp2p_failed_upgrades_incoming.inc()
+    if exc isnot CancelledError:
+      libp2p_failed_upgrades_incoming.inc()
     if not isNil(conn):
       await conn.close()
-
     trace "Exception awaiting connection upgrade", exc = exc.msg, conn
   finally:
-    upgrades.release() # don't forget to release the slot!
+    upgrades.release()
 
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
@@ -278,8 +281,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       conn.transportDir = Direction.In
 
       debug "Accepted an incoming connection", conn
-      asyncSpawn upgradeMonitor(conn, upgrades)
-      asyncSpawn transport.upgradeIncoming(conn)
+      asyncSpawn s.upgradeMonitor(transport, conn, upgrades)
     except CancelledError as exc:
       trace "releasing semaphore on cancellation"
       upgrades.release() # always release the slot
@@ -377,14 +379,13 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
 
 proc newSwitch*(peerInfo: PeerInfo,
                 transports: seq[Transport],
-                identity: Identify,
                 secureManagers: openArray[Secure] = [],
                 connManager: ConnManager,
                 ms: MultistreamSelect,
+                peerStore: PeerStore,
                 nameResolver: NameResolver = nil,
-                peerStore = PeerStore.new(),
                 services = newSeq[Service]()): Switch
-                {.raises: [Defect, LPError], public.} =
+                {.raises: [Defect, LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 
@@ -394,11 +395,9 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: peerStore,
-    dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
+    dialer: Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nameResolver),
     nameResolver: nameResolver,
     services: services)
 
   switch.connManager.peerStore = peerStore
-  switch.mount(identity)
-
   return switch

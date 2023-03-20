@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes, options]
+import std/[sequtils, strutils, tables, hashes, options, sets, deques]
 import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
@@ -62,7 +62,7 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
     score*: float64
-    iWantBudget*: int
+    sentIHaves*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
@@ -187,6 +187,10 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     # stop working so we make an effort to only keep a single channel alive
 
     trace "Get new send connection", p, newConn
+
+    # Careful to race conditions here.
+    # Topic subscription relies on either connectedFut
+    # to be completed, or onEvent to be called later
     p.connectedFut.complete()
     p.sendConn = newConn
     p.address = if p.sendConn.observedAddr.isSome: some(p.sendConn.observedAddr.get) else: none(MultiAddress)
@@ -226,6 +230,9 @@ proc connect*(p: PubSubPeer) =
     return
 
   asyncSpawn connectImpl(p)
+
+proc hasSendConn*(p: PubSubPeer): bool =
+  p.sendConn != nil
 
 template sendMetrics(msg: RPCMsg): untyped =
   when defined(libp2p_expensive_metrics):
@@ -289,6 +296,13 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
 
   asyncSpawn p.sendEncoded(encoded)
 
+proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
+  for sentIHave in p.sentIHaves.mitems():
+    if msgId in sentIHave:
+      sentIHave.excl(msgId)
+      return true
+  return false
+
 proc new*(
   T: typedesc[PubSubPeer],
   peerId: PeerId,
@@ -297,7 +311,7 @@ proc new*(
   codec: string,
   maxMessageSize: int): T =
 
-  T(
+  result = T(
     getConn: getConn,
     onEvent: onEvent,
     codec: codec,
@@ -305,3 +319,4 @@ proc new*(
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize
   )
+  result.sentIHaves.addFirst(default(HashSet[MessageId]))

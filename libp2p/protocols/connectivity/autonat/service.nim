@@ -81,7 +81,7 @@ proc hasEnoughIncomingSlots(switch: Switch): bool =
   return switch.connManager.slotsAvailable(In) >= 2
 
 proc doesPeerHaveIncomingConn(switch: Switch, peerId: PeerId): bool =
-  return switch.connManager.selectConn(peerId, In) != nil
+  return switch.connManager.selectMuxer(peerId, In) != nil
 
 proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
 
