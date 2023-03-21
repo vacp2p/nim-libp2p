@@ -80,9 +80,6 @@ suite "Hole Punching":
       privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1 and
       not isRelayed(privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection)
 
-    for t in privatePeerSwitch.transports:
-      echo t.networkReachability
-
     await allFuturesThrowing(
       privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop())
 
