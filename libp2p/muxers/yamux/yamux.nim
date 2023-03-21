@@ -146,6 +146,7 @@ type
     recvWindow: int
     sendWindow: int
     maxRecvWindow: int
+    automaticWindowScaling: bool
     conn: Connection
     isSrc: bool
     opened: bool
@@ -232,6 +233,10 @@ proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   ))
   trace "increasing the recvWindow", delta
 
+proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
+  channel.automaticWindowScaling = false
+  channel.maxRecvWindow = maxRecvWindow
+
 method readOnce*(
   channel: YamuxChannel,
   pbytes: pointer,
@@ -247,6 +252,7 @@ method readOnce*(
         newLPStreamConnDownError()
   if channel.returnedEof:
     raise newLPStreamRemoteClosedError()
+
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
     await channel.closedRemotely or channel.receivedData.wait()
@@ -260,6 +266,9 @@ method readOnce*(
   toOpenArray(p, 0, nbytes - 1)[0..<toRead] = channel.recvQueue.toOpenArray(0, toRead - 1)
   channel.recvQueue = channel.recvQueue[toRead..^1]
 
+  if nbytes > channel.maxRecvWindow and channel.automaticWindowScaling:
+    channel.maxRecvWindow = nbytes
+
   # We made some room in the recv buffer let the peer know
   await channel.updateRecvWindow()
   channel.activity = true
@@ -272,9 +281,6 @@ proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_recv_queue.observe(channel.recvQueue.len.int64)
   await channel.updateRecvWindow()
-
-proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
-  channel.maxRecvWindow = maxRecvWindow
 
 proc trySend(channel: YamuxChannel) {.async.} =
   if channel.isSending:
@@ -384,6 +390,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
     maxRecvWindow: DefaultWindowSize,
     recvWindow: DefaultWindowSize,
     sendWindow: DefaultWindowSize,
+    automaticWindowScaling: true,
     isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),

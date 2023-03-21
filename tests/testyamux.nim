@@ -134,6 +134,27 @@ suite "Yamux":
       # 1 for initial exhaustion + (142 / 20) = 9
       check numberOfRead == 9
 
+    asyncTest "Automatic window size":
+      mSetup()
+
+      let writerBlocker = newFuture[void]()
+      var numberOfRead = 0
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        var buffer: array[512000, byte]
+        while (await conn.readOnce(addr buffer[0], 512000)) > 0:
+          numberOfRead.inc()
+        writerBlocker.complete()
+        await conn.close()
+      let streamA = await yamuxa.newStream()
+      # Need to exhaust initial window first
+      await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
+      await streamA.write(newSeq[byte](256000 * 5))
+      await streamA.close()
+
+      await writerBlocker
+
+      check numberOfRead == 4
+
     asyncTest "Saturate until reset":
       mSetup()
       let writerBlocker = newFuture[void]()
