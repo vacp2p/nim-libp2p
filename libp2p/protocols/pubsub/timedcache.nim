@@ -38,7 +38,7 @@ func expire*(t: var TimedCache, now: Moment = Moment.now()) =
     if t.head == nil: t.tail = nil
 
 func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
-  # Removes existing key from cache, returning false if it was not present
+  # Removes existing key from cache, returning the previous value if present
   var item: TimedEntry[K]
   if t.entries.pop(key, item):
     if t.head == item: t.head = item.next
