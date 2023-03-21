@@ -61,7 +61,6 @@ suite "Hole Punching":
     let publicPeerSwitch = createSwitch(RelayClient.new())
     proc checkMA(address: seq[MultiAddress]) =
       if not privatePeerRelayAddr.completed():
-        echo $address
         privatePeerRelayAddr.complete(address)
 
     let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
@@ -87,108 +86,66 @@ suite "Hole Punching":
     await allFuturesThrowing(
       privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop())
 
-  # asyncTest "Hope Punching Public Reachability test":
-  #   let switch1 = createSwitch()
-  #
-  #   let switch2 = createSwitch()
-  #   let switch3 = createSwitch()
-  #   let switch4 = createSwitch()
-  #
-  #   let autonatService = AutonatService.new(AutonatClient.new(), newRng())
-  #
-  #   let relayClient = RelayClient.new()
-  #   let fut = newFuture[void]()
-  #   proc checkMA(address: seq[MultiAddress]) =
-  #     check: address[0] == buildRelayMA(switchRelay, switchClient)
-  #     fut.complete()
-  #   let autoRelayService = AutoRelayService.new(3, relayClient, checkMA, newRng())
-  #
-  #   let hpservice = HPService.new(autonatService, autoRelayService, newRng())
-  #
-  #   switch1.addService(hpservice)
-  #
-  #   # proc f(ma: MultiAddress) {.gcsafe, async.} =
-  #   #   echo "onNewRelayAddr shouldn't be called"
-  #   #   fail()
-  #   #
-  #   # hpservice.onNewRelayAddr(f)
-  #
-  #   await switch1.start()
-  #   await switch2.start()
-  #   await switch3.start()
-  #   await switch4.start()
-  #
-  #   await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-  #   await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-  #   await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
-  #
-  #   await autonatStub.finished
-  #
-  #   await allFuturesThrowing(
-  #     switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
-  #
-  # asyncTest "Hope Punching Full Reachability test":
-  #
-  #   let rdv1 = RendezVous.new()
-  #   let rdv2 = RendezVous.new()
-  #
-  #   let relayClient = RelayClient.new()
-  #   let switch1 = createSwitch(rdv1, relayClient)
-  #   let switch2 = createSwitch(rdv2)
-  #   let switch3 = createSwitch()
-  #   let switch4 = createSwitch()
-  #
-  #   let bootRdv = RendezVous.new()
-  #   let bootNode = createSwitch(rdv = bootRdv)
-  #   await bootNode.start()
-  #
-  #   let relay = Relay.new()
-  #   let relayRdv = RendezVous.new()
-  #   let relaySwitch = createSwitch(rdv = relayRdv, relay = relay)
-  #   await relaySwitch.start()
-  #
-  #   await relaySwitch.connect(bootNode.peerInfo.peerId, bootNode.peerInfo.addrs)
-  #
-  #   let dm = DiscoveryManager()
-  #   dm.add(RendezVousInterface.new(relayRdv))
-  #   dm.advertise(RdvNamespace("relay"))
-  #
-  #   let autonatStub = AutonatStub.new(expectedDials = 8)
-  #   autonatStub.returnSuccess = false
-  #
-  #   let autonatService = AutonatService.new(autonatStub, newRng(), some(1.seconds))
-  #   let hpservice = HPService.new(rdv1, relayClient, autonatService)
-  #
-  #   switch1.addService(hpservice)
-  #   await switch1.start()
-  #
-  #   let awaiter = Awaiter.new()
-  #
-  #   proc f(ma: MultiAddress) {.gcsafe, async.} =
-  #     autonatStub.returnSuccess = true
-  #     let expected = MultiAddress.init($relaySwitch.peerInfo.addrs[0] & "/p2p/" &
-  #                           $relaySwitch.peerInfo.peerId & "/p2p-circuit/p2p/" &
-  #                           $switch1.peerInfo.peerId).get()
-  #     check ma == expected
-  #     awaiter.finished.complete()
-  #
-  #   hpservice.onNewRelayAddr(f)
-  #
-  #   await switch2.start()
-  #   await switch3.start()
-  #   await switch4.start()
-  #
-  #   await switch1.connect(bootNode.peerInfo.peerId, bootNode.peerInfo.addrs)
-  #
-  #   await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-  #   await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-  #   await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
-  #
-  #   await awaiter.finished
-  #
-  #   await hpservice.run(switch1)
-  #
-  #   await autonatStub.finished
-  #
-  #   await allFuturesThrowing(
-  #     bootNode.stop(), relaySwitch.stop(), switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+  asyncTest "Hole punching when peers addresses are private":
+
+    # There's no check in this test cause it can't test hole punching locally. It exists just to be sure the rest of
+    # the code works properly.
+
+    let autonatClientStub1 = AutonatClientStub.new(expectedDials = 1)
+    autonatClientStub1.answer = NotReachable
+    let autonatService1 = AutonatService.new(autonatClientStub1, newRng(), maxQueueSize = 1)
+
+    let autonatClientStub2 = AutonatClientStub.new(expectedDials = 1)
+    autonatClientStub2.answer = NotReachable
+    let autonatService2 = AutonatService.new(autonatClientStub2, newRng(), maxQueueSize = 1)
+
+    let relayClient1 = RelayClient.new()
+    let relayClient2 = RelayClient.new()
+    let privatePeerRelayAddr1 = newFuture[seq[MultiAddress]]()
+
+    proc checkMA(address: seq[MultiAddress]) =
+      if not privatePeerRelayAddr1.completed():
+        privatePeerRelayAddr1.complete(address)
+
+    let autoRelayService1 = AutoRelayService.new(1, relayClient1, checkMA, newRng())
+    let autoRelayService2 = AutoRelayService.new(1, relayClient2, nil, newRng())
+
+    let hpservice1 = HPService.new(autonatService1, autoRelayService1)
+    let hpservice2 = HPService.new(autonatService2, autoRelayService2)
+
+    let privatePeerSwitch1 = createSwitch(relayClient1, hpservice1)
+    let privatePeerSwitch2 = createSwitch(relayClient2, hpservice2)
+    let switchRelay = createSwitch(Relay.new())
+    let switchAux = createSwitch()
+    let switchAux2 = createSwitch()
+    let switchAux3 = createSwitch()
+    let switchAux4 = createSwitch()
+
+    var awaiter = newFuture[void]()
+
+    await allFutures(
+      switchRelay.start(), privatePeerSwitch1.start(), privatePeerSwitch2.start(),
+      switchAux.start(), switchAux2.start(), switchAux3.start(), switchAux4.start()
+    )
+
+    await privatePeerSwitch1.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    await privatePeerSwitch2.connect(switchAux.peerInfo.peerId, switchAux.peerInfo.addrs)
+
+    await sleepAsync(200.millis)
+
+    await privatePeerSwitch1.connect(switchAux2.peerInfo.peerId, switchAux2.peerInfo.addrs)
+    await privatePeerSwitch1.connect(switchAux3.peerInfo.peerId, switchAux3.peerInfo.addrs)
+    await privatePeerSwitch1.connect(switchAux4.peerInfo.peerId, switchAux4.peerInfo.addrs)
+
+    await privatePeerSwitch2.connect(switchAux2.peerInfo.peerId, switchAux2.peerInfo.addrs)
+    await privatePeerSwitch2.connect(switchAux3.peerInfo.peerId, switchAux3.peerInfo.addrs)
+    await privatePeerSwitch2.connect(switchAux4.peerInfo.peerId, switchAux4.peerInfo.addrs)
+
+    privatePeerSwitch1.dialer.isSimultaneousConnServer = false
+    await privatePeerSwitch2.connect(privatePeerSwitch1.peerInfo.peerId, (await privatePeerRelayAddr1))
+
+    await sleepAsync(200.millis)
+
+    await allFuturesThrowing(
+      privatePeerSwitch1.stop(), privatePeerSwitch2.stop(), switchRelay.stop(),
+      switchAux.stop(), switchAux2.stop(), switchAux3.stop(), switchAux4.stop())

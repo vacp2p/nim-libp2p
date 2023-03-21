@@ -20,7 +20,7 @@ import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 from ../protocols/connectivity/dcutr/core import DcutrError
-import ../protocols/connectivity/dcutr/client
+import ../protocols/connectivity/dcutr/[client, server]
 import chronos
 
 logScope:
@@ -46,14 +46,14 @@ proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayServi
 proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
   await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
-    if self.isPublicIPAddr(initTAddress(address).get()):
-      try:
+    try:
+      if self.isPublicIPAddr(initTAddress(address).get()):
         await switch.connect(peerId, @[address], true, false)
-        debug "direct connection created"
+        debug "Direct connection created."
         return true
-      except CatchableError as err:
-        debug "failed to create direct connection", err = err.msg
-        continue
+    except Exception as err:
+      debug "Failed to create direct connection.", err = err.msg
+      continue
   return false
 
 proc guessNatAddrs(peerStore: PeerStore, addrs: seq[MultiAddress]): seq[MultiAddress] =
@@ -67,10 +67,13 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 
   if hasBeenSetup:
+    let dcutrProto = Dcutr.new(switch)
+    switch.mount(dcutrProto)
+
     self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
       try:
         let conn = switch.connManager.selectMuxer(peerId).connection
-        if isRelayed(conn):
+        if isRelayed(conn) and conn.transportDir == Direction.In:
           if await self.tryStartingDirectConn(switch, peerId):
             await conn.close()
             return
@@ -81,7 +84,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
           await dcutrClient.startSync(switch, peerId, natAddrs)
           await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
           await conn.close()
-      except DcutrError as err:
+      except CatchableError as err:
         error "Hole punching failed during dcutr", err = err.msg
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
