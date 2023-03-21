@@ -73,7 +73,7 @@ type
 
 when defined(libp2p_agents_metrics):
   func shortAgent*(p: PubSubPeer): string =
-    if p.sendConn.isNil:
+    if p.sendConn.isNil or p.sendConn.getWrapped().isNil:
       "unknown"
     else:
       #TODO the sendConn is setup before identify,

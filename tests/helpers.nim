@@ -84,6 +84,8 @@ type
 method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
   s.writeHandler(msg)
 
+method getWrapped*(s: TestBufferStream): Connection = nil
+
 proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
