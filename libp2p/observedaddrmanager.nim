@@ -14,7 +14,7 @@ else:
 
 import
   std/[sequtils, tables],
-  chronos,
+  chronos, chronicles,
   multiaddress
 
 type
@@ -61,6 +61,39 @@ proc getMostObservedIPsAndPorts*(self: ObservedAddrManager): seq[MultiAddress] =
   if ip6.isSome():
     res.add(ip6.get())
   return res
+
+proc replaceMAIpByMostObserved*(
+  self: ObservedAddrManager,
+  ma: MultiAddress): Opt[MultiAddress] =
+  try:
+    let maIP = ma[0]
+    let maWithoutIP = ma[1..^1]
+
+    if maWithoutIP.isErr():
+      return Opt.none(MultiAddress)
+
+    let observedIP =
+      if IP4.match(maIP.get()):
+        self.getMostObservedIP(IpAddressFamily.IPv4)
+      else:
+        self.getMostObservedIP(IpAddressFamily.IPv6)
+
+    let newMA =
+      if observedIP.isNone() or maIP.get() == observedIP.get():
+        ma
+      else:
+        observedIP.get() & maWithoutIP.get()
+
+    return Opt.some(newMA)
+  except CatchableError as error:
+    debug "Error while handling manual port forwarding", msg = error.msg
+    return Opt.none(MultiAddress)
+
+proc guessDialableAddrs*(self: ObservedAddrManager, listenAddrs: seq[MultiAddress]): seq[MultiAddress] =
+  for l in listenAddrs:
+    let guess = self.replaceMAIpByMostObserved(l)
+    if guess.isSome():
+      result.add(guess.get())
 
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.
