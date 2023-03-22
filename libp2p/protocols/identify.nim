@@ -261,6 +261,6 @@ proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async, publi
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
 
-proc getMostObservedIP*(self: Identify, ipVersion: IPVersion): Opt[MultiAddress] =
+proc getMostObservedIP*(self: Identify, ipAddressFamily: IpAddressFamily): Opt[MultiAddress] =
   ## Returns the most observed IP address or none if the number of observations are less than minCount.
-  return self.observedAddrManager.getMostObservedIP(ipVersion)
+  return self.observedAddrManager.getMostObservedIP(ipAddressFamily)

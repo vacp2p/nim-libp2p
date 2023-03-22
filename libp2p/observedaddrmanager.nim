@@ -24,9 +24,6 @@ type
     maxSize: int
     minCount: int
 
-  IPVersion* = enum
-    IPv4, IPv6
-
 proc addObservation*(self:ObservedAddrManager, observedAddr: MultiAddress) =
   ## Adds a new observed MultiAddress. If the number of observations exceeds maxSize, the oldest one is removed.
   ## Both IP and IP/Port are tracked.
@@ -44,23 +41,23 @@ proc getIP(self: ObservedAddrManager, observations: seq[MultiAddress], ipVersion
       return Opt.some(ma)
   return Opt.none(MultiAddress)
 
-proc getMostObservedIP*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
+proc getMostObservedIP*(self: ObservedAddrManager, ipAddressFamily: IpAddressFamily): Opt[MultiAddress] =
   ## Returns the most observed IP address or none if the number of observations are less than minCount.
   let observedIPs = self.observedIPsAndPorts.mapIt(it[0].get())
-  return self.getIP(observedIPs, if ipVersion == IPv4: IP4 else: IP6)
+  return self.getIP(observedIPs, if ipAddressFamily == IpAddressFamily.IPv4: IP4 else: IP6)
 
-proc getMostObservedIPAndPort*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
+proc getMostObservedIPAndPort*(self: ObservedAddrManager, ipAddressFamily: IpAddressFamily): Opt[MultiAddress] =
   ## Returns the most observed IP/Port address or none if the number of observations are less than minCount.
-  return self.getIP(self.observedIPsAndPorts, if ipVersion == IPv4: IP4 else: IP6)
+  return self.getIP(self.observedIPsAndPorts, if ipAddressFamily == IpAddressFamily.IPv4: IP4 else: IP6)
 
 proc getMostObservedIPsAndPorts*(self: ObservedAddrManager): seq[MultiAddress] =
   ## Returns the most observed IP4/Port and IP6/Port address or an empty seq if the number of observations
   ## are less than minCount.
   var res: seq[MultiAddress]
-  let ip4 = self.getMostObservedIPAndPort(IPv4)
+  let ip4 = self.getMostObservedIPAndPort(IpAddressFamily.IPv4)
   if ip4.isSome():
     res.add(ip4.get())
-  let ip6 = self.getMostObservedIPAndPort(IPv6)
+  let ip6 = self.getMostObservedIPAndPort(IpAddressFamily.IPv4)
   if ip6.isSome():
     res.add(ip6.get())
   return res

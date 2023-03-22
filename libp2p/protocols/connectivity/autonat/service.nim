@@ -166,11 +166,10 @@ proc addressMapper(
     var processedMA = listenAddr
     try:
       let hostIP = initTAddress(listenAddr).get()
-      if not hostIP.isGlobal():
-        if self.networkReachability == NetworkReachability.Reachable:
-          let maOpt = peerStore.replaceMAIpByMostObserved(listenAddr) # handle manual port forwarding
-          if maOpt.isSome():
-            processedMA = maOpt.get()
+      if not hostIP.isGlobal() and self.networkReachability == NetworkReachability.Reachable:
+        let maOpt = peerStore.replaceMAIpByMostObserved(listenAddr) # handle manual port forwarding
+        if maOpt.isSome():
+          processedMA = maOpt.get()
     except CatchableError as exc:
       debug "Error while handling address mapper", msg = exc.msg
     addrs.add(processedMA)

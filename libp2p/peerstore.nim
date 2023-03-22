@@ -221,9 +221,9 @@ proc identify*(
   finally:
     await stream.closeWithEOF()
 
-proc getMostObservedIP*(self: PeerStore, ipVersion: IPVersion): Opt[MultiAddress] =
+proc getMostObservedIP*(self: PeerStore, ipAddressFamily: IpAddressFamily): Opt[MultiAddress] =
   ## Returns the most observed IP address or none if the number of observations are less than minCount.
-  return self.identify.getMostObservedIP(ipVersion)
+  return self.identify.getMostObservedIP(ipAddressFamily)
 
 proc replaceMAIpByMostObserved*(
   self: PeerStore,
@@ -237,9 +237,9 @@ proc replaceMAIpByMostObserved*(
 
     let observedIP =
       if IP4.match(maIP.get()):
-        self.getMostObservedIP(IPv4)
+        self.getMostObservedIP(IpAddressFamily.IPv4)
       else:
-        self.getMostObservedIP(IPv6)
+        self.getMostObservedIP(IpAddressFamily.IPv6)
 
     let newMA =
       if observedIP.isNone() or maIP.get() == observedIP.get():
