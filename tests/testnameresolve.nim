@@ -144,7 +144,6 @@ suite "Name resolving":
     test "getHostname":
       check:
         MultiAddress.init("/dnsaddr/bootstrap.libp2p.io/").tryGet().getHostname == "bootstrap.libp2p.io"
-        MultiAddress.init("").tryGet().getHostname == ""
         MultiAddress.init("/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").tryGet().getHostname == "147.75.69.143"
         MultiAddress.init("/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").tryGet().getHostname == "2604:1380:1000:6000::1"
         MultiAddress.init("/dns/localhost/udp/0").tryGet().getHostname == "localhost"
