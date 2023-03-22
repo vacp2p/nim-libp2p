@@ -873,6 +873,8 @@ proc getProtocol(name: string): MAProtocol {.inline.} =
 proc init*(mtype: typedesc[MultiAddress],
            value: string): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from string representation ``value``.
+  if len(value) == 0 or value == "/":
+    return err("multiaddress: Address must not be empty!")
   var parts = value.trimRight('/').split('/')
   if len(parts[0]) != 0:
     err("multiaddress: Invalid MultiAddress, must start with `/`")
@@ -920,7 +922,7 @@ proc init*(mtype: typedesc[MultiAddress],
            data: openArray[byte]): MaResult[MultiAddress] =
   ## Initialize MultiAddress with array of bytes ``data``.
   if len(data) == 0:
-    err("multiaddress: Address could not be empty!")
+    err("multiaddress: Address must not be empty!")
   else:
     var res: MultiAddress
     res.data = initVBuffer()
