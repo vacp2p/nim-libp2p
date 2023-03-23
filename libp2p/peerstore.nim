@@ -221,12 +221,8 @@ proc identify*(
   finally:
     await stream.closeWithEOF()
 
-proc getMostObservedIP*(self: PeerStore, ipAddressFamily: IpAddressFamily): Opt[MultiAddress] =
-  ## Returns the most observed IP address or none if the number of observations are less than minCount.
-  return self.identify.observedAddrManager.getMostObservedIP(ipAddressFamily)
-
 proc replaceMAIpByMostObserved*(self: PeerStore, ma: MultiAddress): Opt[MultiAddress] =
-  return self.identify.observedAddrManager.replaceMAIpByMostObserved(ma)
+  return self.identify.observedAddrManager.replaceProtoValueByMostObserved(ma)
 
 proc guessDialableAddrs*(self: PeerStore, listenAddrs: seq[MultiAddress]): seq[MultiAddress] =
   return self.identify.observedAddrManager.guessDialableAddrs(listenAddrs)

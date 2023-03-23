@@ -13,37 +13,40 @@ suite "ObservedAddrManager":
 
     # Calculate the most oberserved IP4 correctly
     let mostObservedIP4AndPort = MultiAddress.init("/ip4/1.2.3.0/tcp/1").get()
+    let maIP4 = MultiAddress.init("/ip4/0.0.0.0/tcp/80").get()
 
-    observedAddrManager.addObservation(mostObservedIP4AndPort)
-    observedAddrManager.addObservation(mostObservedIP4AndPort)
+    check:
+      observedAddrManager.addObservation(mostObservedIP4AndPort)
+      observedAddrManager.addObservation(mostObservedIP4AndPort)
 
-    check observedAddrManager.getMostObservedIP(IpAddressFamily.IPv4).isNone()
-    check observedAddrManager.getMostObservedIP(IpAddressFamily.IPv6).isNone()
+      observedAddrManager.replaceProtoValueByMostObserved(maIP4).get() == maIP4
 
-    observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.0/tcp/2").get())
-    observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.1/tcp/1").get())
+      observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.0/tcp/2").get())
+      observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.1/tcp/1").get())
 
-    check observedAddrManager.getMostObservedIP(IpAddressFamily.IPv4).get() == MultiAddress.init("/ip4/1.2.3.0").get()
-    check observedAddrManager.getMostObservedIPAndPort(IpAddressFamily.IPv4).isNone()
+      observedAddrManager.replaceProtoValueByMostObserved(maIP4).get() == MultiAddress.init("/ip4/1.2.3.0/tcp/80").get()
+      observedAddrManager.getMostObservedProtosAndPorts().len == 0
 
-    observedAddrManager.addObservation(mostObservedIP4AndPort)
+      observedAddrManager.addObservation(mostObservedIP4AndPort)
 
-    check observedAddrManager.getMostObservedIPAndPort(IpAddressFamily.IPv4).get() == mostObservedIP4AndPort
+      observedAddrManager.getMostObservedProtosAndPorts() == @[mostObservedIP4AndPort]
 
     # Calculate the most oberserved IP6 correctly
-    let mostObservedIP6AndPort = MultiAddress.init("/ip6/::1/tcp/1").get()
+    let mostObservedIP6AndPort = MultiAddress.init("/ip6/::2/tcp/1").get()
+    let maIP6 = MultiAddress.init("/ip6/::1/tcp/80").get()
 
-    observedAddrManager.addObservation(mostObservedIP6AndPort)
-    observedAddrManager.addObservation(mostObservedIP6AndPort)
+    check:
+      observedAddrManager.addObservation(mostObservedIP6AndPort)
+      observedAddrManager.addObservation(mostObservedIP6AndPort)
 
-    check observedAddrManager.getMostObservedIP(IpAddressFamily.IPv6).isNone()
+      observedAddrManager.replaceProtoValueByMostObserved(maIP6).get() == maIP6
 
-    observedAddrManager.addObservation(MultiAddress.init("/ip6/::1/tcp/2").get())
-    observedAddrManager.addObservation(MultiAddress.init("/ip6/::2/tcp/1").get())
+      observedAddrManager.addObservation(MultiAddress.init("/ip6/::2/tcp/2").get())
+      observedAddrManager.addObservation(MultiAddress.init("/ip6/::3/tcp/1").get())
 
-    check observedAddrManager.getMostObservedIP(IpAddressFamily.IPv6).get() == MultiAddress.init("/ip6/::1").get()
-    check observedAddrManager.getMostObservedIPAndPort(IpAddressFamily.IPv6).isNone()
+      observedAddrManager.replaceProtoValueByMostObserved(maIP6).get() == MultiAddress.init("/ip6/::2/tcp/80").get()
+      observedAddrManager.getMostObservedProtosAndPorts().len == 1
 
-    observedAddrManager.addObservation(mostObservedIP6AndPort)
+      observedAddrManager.addObservation(mostObservedIP6AndPort)
 
-    check observedAddrManager.getMostObservedIPAndPort(IpAddressFamily.IPv6).get() == mostObservedIP6AndPort
+      observedAddrManager.getMostObservedProtosAndPorts() == @[mostObservedIP4AndPort, mostObservedIP6AndPort]
