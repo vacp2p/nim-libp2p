@@ -19,12 +19,12 @@ suite "ObservedAddrManager":
       observedAddrManager.addObservation(mostObservedIP4AndPort)
       observedAddrManager.addObservation(mostObservedIP4AndPort)
 
-      observedAddrManager.tryReplaceFirstProtoValueByMostObserved(maIP4) == maIP4
+      observedAddrManager.guessDialableAddr(maIP4) == maIP4
 
       observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.0/tcp/2").get())
       observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.1/tcp/1").get())
 
-      observedAddrManager.tryReplaceFirstProtoValueByMostObserved(maIP4) == MultiAddress.init("/ip4/1.2.3.0/tcp/80").get()
+      observedAddrManager.guessDialableAddr(maIP4) == MultiAddress.init("/ip4/1.2.3.0/tcp/80").get()
       observedAddrManager.getMostObservedProtosAndPorts().len == 0
 
       observedAddrManager.addObservation(mostObservedIP4AndPort)
@@ -39,12 +39,12 @@ suite "ObservedAddrManager":
       observedAddrManager.addObservation(mostObservedIP6AndPort)
       observedAddrManager.addObservation(mostObservedIP6AndPort)
 
-      observedAddrManager.tryReplaceFirstProtoValueByMostObserved(maIP6) == maIP6
+      observedAddrManager.guessDialableAddr(maIP6) == maIP6
 
       observedAddrManager.addObservation(MultiAddress.init("/ip6/::2/tcp/2").get())
       observedAddrManager.addObservation(MultiAddress.init("/ip6/::3/tcp/1").get())
 
-      observedAddrManager.tryReplaceFirstProtoValueByMostObserved(maIP6) == MultiAddress.init("/ip6/::2/tcp/80").get()
+      observedAddrManager.guessDialableAddr(maIP6) == MultiAddress.init("/ip6/::2/tcp/80").get()
       observedAddrManager.getMostObservedProtosAndPorts().len == 1
 
       observedAddrManager.addObservation(mostObservedIP6AndPort)
@@ -60,5 +60,5 @@ suite "ObservedAddrManager":
       observedAddrManager.addObservation(mostObservedIP4AndPort)
       observedAddrManager.addObservation(mostObservedIP4AndPort)
 
-      observedAddrManager.tryReplaceFirstProtoValueByMostObserved(
+      observedAddrManager.guessDialableAddr(
         MultiAddress.init("/ip4/0.0.0.0").get()) == MultiAddress.init("/ip4/1.2.3.4").get()

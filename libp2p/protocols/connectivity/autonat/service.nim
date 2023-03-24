@@ -164,13 +164,16 @@ proc addressMapper(
   peerStore: PeerStore,
   listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
 
+  if self.networkReachability != NetworkReachability.Reachable:
+    return listenAddrs
+
   var addrs = newSeq[MultiAddress]()
   for listenAddr in listenAddrs:
     var processedMA = listenAddr
     try:
       let hostIP = initTAddress(listenAddr).get()
       if not hostIP.isGlobal() and self.networkReachability == NetworkReachability.Reachable:
-        processedMA = peerStore.tryReplaceFirstProtoValueByMostObserved(listenAddr) # handle manual port forwarding
+        processedMA = peerStore.guessDialableAddr(listenAddr) # handle manual port forwarding
     except CatchableError as exc:
       debug "Error while handling address mapper", msg = exc.msg
     addrs.add(processedMA)
