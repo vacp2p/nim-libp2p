@@ -42,6 +42,7 @@ type
     maxQueueSize: int
     minConfidence: float
     dialTimeout: Duration
+    enableAddressMapper: bool
 
   NetworkReachability* {.pure.} = enum
     NotReachable, Reachable, Unknown
@@ -57,7 +58,8 @@ proc new*(
   numPeersToAsk: int = 5,
   maxQueueSize: int = 10,
   minConfidence: float = 0.3,
-  dialTimeout = 30.seconds): T =
+  dialTimeout = 30.seconds,
+  enableAddressMapper = true): T =
   return T(
     scheduleInterval: scheduleInterval,
     networkReachability: Unknown,
@@ -69,7 +71,8 @@ proc new*(
     numPeersToAsk: numPeersToAsk,
     maxQueueSize: maxQueueSize,
     minConfidence: minConfidence,
-    dialTimeout: dialTimeout)
+    dialTimeout: dialTimeout,
+    enableAddressMapper: enableAddressMapper)
 
 proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
   return self.networkReachability
@@ -186,7 +189,8 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
       switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
       self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
-    switch.peerInfo.addressMappers.add(self.addressMapper)
+    if self.enableAddressMapper:
+      switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
@@ -203,7 +207,8 @@ method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public
       self.scheduleHandle = nil
     if not isNil(self.newConnectedPeerHandler):
       switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+    if self.enableAddressMapper:
+      switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
     await switch.peerInfo.update()
   return hasBeenStopped
 
