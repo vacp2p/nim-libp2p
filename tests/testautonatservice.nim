@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
+import std/[options, sequtils]
 import chronos, metrics
 import unittest2
 import ../libp2p/[builders,
@@ -104,8 +104,12 @@ suite "Autonat Service":
     check autonatService.networkReachability() == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
+    check switch1.peerInfo.addrs == switch1.peerInfo.listenAddrs.mapIt(switch1.peerStore.guessDialableAddr(it))
+
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+
+    check switch1.peerInfo.addrs == switch1.peerInfo.listenAddrs
 
   asyncTest "Peer must be not reachable and then reachable":
 

@@ -28,7 +28,7 @@ else:
 
 import
   std/[tables, sets, options, macros],
-  chronos,
+  chronos, chronicles,
   ./crypto/crypto,
   ./protocols/identify,
   ./protocols/protocol,
@@ -220,3 +220,6 @@ proc identify*(
       peerStore.updatePeerInfo(info)
   finally:
     await stream.closeWithEOF()
+
+proc guessDialableAddr*(self: PeerStore, ma: MultiAddress): MultiAddress =
+  return self.identify.observedAddrManager.guessDialableAddr(ma)

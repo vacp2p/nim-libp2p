@@ -1,6 +1,6 @@
-import unittest2
+import unittest2, chronos
 
-export unittest2
+export unittest2, chronos
 
 template asyncTeardown*(body: untyped): untyped =
   teardown:

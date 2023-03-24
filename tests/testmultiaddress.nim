@@ -405,5 +405,12 @@ suite "MultiAddress test suite":
     let maWithTcp = MultiAddress.init(onionMAWithTcpStr).get()
     check $(maWithTcp[multiCodec("onion3")].tryGet()) == onionMAStr
 
+  test "matchPartial":
+    const
+      tcp = mapEq("tcp")
+    let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
+
+    check not tcp.matchPartial(ma)
+    check IP4.matchPartial(ma)
 
 

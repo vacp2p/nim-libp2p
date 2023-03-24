@@ -26,7 +26,10 @@ import ../protobuf/minprotobuf,
        ../multiaddress,
        ../protocols/protocol,
        ../utility,
-       ../errors
+       ../errors,
+       ../observedaddrmanager
+
+export observedaddrmanager
 
 logScope:
   topics = "libp2p identify"
@@ -56,6 +59,7 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
     sendSignedPeerRecord*: bool
+    observedAddrManager*: ObservedAddrManager
 
   IdentifyPushHandler* = proc (
     peer: PeerId,
@@ -160,7 +164,8 @@ proc new*(
   ): T =
   let identify = T(
     peerInfo: peerInfo,
-    sendSignedPeerRecord: sendSignedPeerRecord
+    sendSignedPeerRecord: sendSignedPeerRecord,
+    observedAddrManager: ObservedAddrManager.new(),
   )
   identify.init()
   identify
@@ -182,7 +187,7 @@ method init*(p: Identify) =
   p.handler = handle
   p.codec = IdentifyCodec
 
-proc identify*(p: Identify,
+proc identify*(self: Identify,
                conn: Connection,
                remotePeerId: PeerId): Future[IdentifyInfo] {.async, gcsafe.} =
   trace "initiating identify", conn
@@ -194,22 +199,24 @@ proc identify*(p: Identify,
   let infoOpt = decodeMsg(message)
   if infoOpt.isNone():
     raise newException(IdentityInvalidMsgError, "Incorrect message received!")
-  result = infoOpt.get()
 
-  if result.pubkey.isSome:
-    let peer = PeerId.init(result.pubkey.get())
-    if peer.isErr:
-      raise newException(IdentityInvalidMsgError, $peer.error)
-    else:
-      result.peerId = peer.get()
-      if peer.get() != remotePeerId:
-        trace "Peer ids don't match",
-              remote = peer,
-              local = remotePeerId
-
-        raise newException(IdentityNoMatchError, "Peer ids don't match")
-  else:
+  var info = infoOpt.get()
+  if info.pubkey.isNone():
     raise newException(IdentityInvalidMsgError, "No pubkey in identify")
+
+  let peer = PeerId.init(info.pubkey.get())
+  if peer.isErr:
+    raise newException(IdentityInvalidMsgError, $peer.error)
+
+  if peer.get() != remotePeerId:
+    trace "Peer ids don't match", remote = peer, local = remotePeerId
+    raise newException(IdentityNoMatchError, "Peer ids don't match")
+  info.peerId = peer.get()
+
+  if info.observedAddr.isSome:
+    if not self.observedAddrManager.addObservation(info.observedAddr.get()):
+      debug "Observed address is not valid", observedAddr = info.observedAddr.get()
+  return info
 
 proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
   ## Create a IdentifyPush protocol. `handler` will be called every time
