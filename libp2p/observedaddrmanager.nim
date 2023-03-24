@@ -14,8 +14,8 @@ else:
 
 import
   std/[sequtils, tables],
-  chronos,
-  multiaddress
+  chronos, chronicles,
+  multiaddress, multicodec
 
 type
   ## Manages observed MultiAddresses by reomte peers. It keeps track of the most observed IP and IP/Port.
@@ -24,46 +24,64 @@ type
     maxSize: int
     minCount: int
 
-  IPVersion* = enum
-    IPv4, IPv6
-
-proc addObservation*(self:ObservedAddrManager, observedAddr: MultiAddress) =
+proc addObservation*(self:ObservedAddrManager, observedAddr: MultiAddress): bool =
   ## Adds a new observed MultiAddress. If the number of observations exceeds maxSize, the oldest one is removed.
-  ## Both IP and IP/Port are tracked.
   if self.observedIPsAndPorts.len >= self.maxSize:
       self.observedIPsAndPorts.del(0)
   self.observedIPsAndPorts.add(observedAddr)
+  return true
 
-proc getIP(self: ObservedAddrManager, observations: seq[MultiAddress], ipVersion: MaPattern): Opt[MultiAddress] =
+proc getProtocol(self: ObservedAddrManager, observations: seq[MultiAddress], multiCodec: MultiCodec): Opt[MultiAddress] =
   var countTable = toCountTable(observations)
   countTable.sort()
   var orderedPairs = toSeq(countTable.pairs)
   for (ma, count) in orderedPairs:
-    let ip = ma[0].get()
-    if ipVersion.match(ip) and count >= self.minCount:
+    let maFirst = ma[0].get()
+    if maFirst.protoCode.get() == multiCodec and count >= self.minCount:
       return Opt.some(ma)
   return Opt.none(MultiAddress)
 
-proc getMostObservedIP*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
+proc getMostObservedProtocol(self: ObservedAddrManager, multiCodec: MultiCodec): Opt[MultiAddress] =
   ## Returns the most observed IP address or none if the number of observations are less than minCount.
   let observedIPs = self.observedIPsAndPorts.mapIt(it[0].get())
-  return self.getIP(observedIPs, if ipVersion == IPv4: IP4 else: IP6)
+  return self.getProtocol(observedIPs, multiCodec)
 
-proc getMostObservedIPAndPort*(self: ObservedAddrManager, ipVersion: IPVersion): Opt[MultiAddress] =
+proc getMostObservedProtoAndPort(self: ObservedAddrManager, multiCodec: MultiCodec): Opt[MultiAddress] =
   ## Returns the most observed IP/Port address or none if the number of observations are less than minCount.
-  return self.getIP(self.observedIPsAndPorts, if ipVersion == IPv4: IP4 else: IP6)
+  return self.getProtocol(self.observedIPsAndPorts, multiCodec)
 
-proc getMostObservedIPsAndPorts*(self: ObservedAddrManager): seq[MultiAddress] =
+proc getMostObservedProtosAndPorts*(self: ObservedAddrManager): seq[MultiAddress] =
   ## Returns the most observed IP4/Port and IP6/Port address or an empty seq if the number of observations
   ## are less than minCount.
   var res: seq[MultiAddress]
-  let ip4 = self.getMostObservedIPAndPort(IPv4)
+  let ip4 = self.getMostObservedProtoAndPort(multiCodec("ip4"))
   if ip4.isSome():
     res.add(ip4.get())
-  let ip6 = self.getMostObservedIPAndPort(IPv6)
+  let ip6 = self.getMostObservedProtoAndPort(multiCodec("ip6"))
   if ip6.isSome():
     res.add(ip6.get())
   return res
+
+proc guessDialableAddr*(
+  self: ObservedAddrManager,
+  ma: MultiAddress): MultiAddress =
+  ## Replaces the first proto valeu of each listen address by the corresponding (matching the proto code) most observed value.
+  ## If the most observed value is not available, the original MultiAddress is returned.
+  try:
+    let maFirst = ma[0]
+    let maRest = ma[1..^1]
+    if maRest.isErr():
+      return ma
+
+    let observedIP = self.getMostObservedProtocol(maFirst.get().protoCode().get())
+    return
+      if observedIP.isNone() or maFirst.get() == observedIP.get():
+        ma
+      else:
+        observedIP.get() & maRest.get()
+  except CatchableError as error:
+    debug "Error while handling manual port forwarding", msg = error.msg
+    return ma
 
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.

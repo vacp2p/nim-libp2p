@@ -42,6 +42,7 @@ type
     maxQueueSize: int
     minConfidence: float
     dialTimeout: Duration
+    enableAddressMapper: bool
 
   StatusAndConfidenceHandler* = proc (networkReachability: NetworkReachability, confidence: Option[float]): Future[void]  {.gcsafe, raises: [Defect].}
 
@@ -54,7 +55,8 @@ proc new*(
   numPeersToAsk: int = 5,
   maxQueueSize: int = 10,
   minConfidence: float = 0.3,
-  dialTimeout = 30.seconds): T =
+  dialTimeout = 30.seconds,
+  enableAddressMapper = true): T =
   return T(
     scheduleInterval: scheduleInterval,
     networkReachability: Unknown,
@@ -66,7 +68,8 @@ proc new*(
     numPeersToAsk: numPeersToAsk,
     maxQueueSize: maxQueueSize,
     minConfidence: minConfidence,
-    dialTimeout: dialTimeout)
+    dialTimeout: dialTimeout,
+    enableAddressMapper: enableAddressMapper)
 
 proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
   return self.networkReachability
@@ -133,7 +136,6 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
   await switch.peerInfo.update()
-  echo switch.peerStore.getMostObservedIPsAndPorts()
   return ans
 
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
@@ -159,16 +161,16 @@ proc addressMapper(
   peerStore: PeerStore,
   listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
 
+  if self.networkReachability != NetworkReachability.Reachable:
+    return listenAddrs
+
   var addrs = newSeq[MultiAddress]()
   for listenAddr in listenAddrs:
     var processedMA = listenAddr
     try:
       let hostIP = initTAddress(listenAddr).get()
-      if not hostIP.isGlobal():
-        if self.networkReachability == NetworkReachability.Reachable:
-          let maOpt = peerStore.replaceMAIpByMostObserved(listenAddr) # handle manual port forwarding
-          if maOpt.isSome():
-            processedMA = maOpt.get()
+      if not hostIP.isGlobal() and self.networkReachability == NetworkReachability.Reachable:
+        processedMA = peerStore.guessDialableAddr(listenAddr) # handle manual port forwarding
     except CatchableError as exc:
       debug "Error while handling address mapper", msg = exc.msg
     addrs.add(processedMA)
@@ -187,7 +189,8 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
       switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
     if self.scheduleInterval.isSome():
       self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
-    switch.peerInfo.addressMappers.add(self.addressMapper)
+    if self.enableAddressMapper:
+      switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
@@ -204,7 +207,8 @@ method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public
       self.scheduleHandle = nil
     if not isNil(self.newConnectedPeerHandler):
       switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+    if self.enableAddressMapper:
+      switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
     await switch.peerInfo.update()
   return hasBeenStopped
 
