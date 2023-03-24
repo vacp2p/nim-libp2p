@@ -25,6 +25,7 @@ import ./pubsub,
        ./rpc/[messages, message],
        ../protocol,
        ../../stream/connection,
+       ../../utils/semaphore,
        ../../peerinfo,
        ../../peerid,
        ../../utility,
@@ -268,6 +269,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
+  g.handleDontSend(peer, control.dontSend)
 
   if
     respControl.prune.len > 0 or
@@ -332,14 +334,36 @@ proc validateAndRelay(g: GossipSub,
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
+    if msg.data.len >= g.parameters.lazyPushThreshold:
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(dontSend: @[ControlIHave(messageIds: @[msgId])]))))
+
     # Don't send it to source peer, or peers that
     # sent it during validation
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
 
-    # In theory, if topics are the same in all messages, we could batch - we'd
-    # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    if msg.data.len < g.parameters.lazyPushThreshold:
+      # In theory, if topics are the same in all messages, we could batch - we'd
+      # also have to be careful to only include validated messages
+      g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    else:
+      let sem = newAsyncSemaphore(1)
+      var peers = toSeq(toSendPeers)
+      g.rng.shuffle(peers)
+
+      proc sendToOne(p: PubSubPeer) {.async.} =
+        await sem.acquire()
+        defer: sem.release()
+
+        let fut = p.gotMsgs.mgetOrPut(msgId, newFuture[void]())
+        if fut.completed: return
+        g.broadcast(@[p], RPCMsg(messages: @[msg]))
+        await fut or sleepAsync(200.milliseconds)
+        if not fut.completed:
+          echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+
+      for p in peers:
+        asyncSpawn sendToOne(p)
     trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue
@@ -563,7 +587,28 @@ method publish*(g: GossipSub,
 
   g.mcache.put(msgId, msg)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]))
+  if data.len < g.parameters.lazyPushThreshold:
+    g.broadcast(peers, RPCMsg(messages: @[msg]))
+  else:
+    g.broadcast(peers, RPCMsg(control: some(ControlMessage(dontSend: @[ControlIHave(messageIds: @[msgId])]))))
+
+    var peersSeq = toSeq(peers)
+    g.rng.shuffle(peersSeq)
+
+    let sem = newAsyncSemaphore(1)
+    proc sendToOne(p: PubSubPeer) {.async.} =
+      await sem.acquire()
+      defer: sem.release()
+
+      let fut = p.gotMsgs.mgetOrPut(msgId, newFuture[void]())
+      if fut.completed: return
+      g.broadcast(@[p], RPCMsg(messages: @[msg]))
+      await fut or sleepAsync(200.milliseconds)
+      if not fut.completed:
+        echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+
+    for p in peersSeq:
+      asyncSpawn sendToOne(p)
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])

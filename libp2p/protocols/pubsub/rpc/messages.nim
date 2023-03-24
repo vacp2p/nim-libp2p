@@ -42,6 +42,7 @@ type
 
     ControlMessage* = object
       ihave*: seq[ControlIHave]
+      dontSend*: seq[ControlIHave]
       iwant*: seq[ControlIWant]
       graft*: seq[ControlGraft]
       prune*: seq[ControlPrune]

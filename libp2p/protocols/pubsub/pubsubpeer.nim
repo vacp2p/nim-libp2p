@@ -60,6 +60,7 @@ type
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
+    gotMsgs*: Table[MessageId, Future[void]]
 
     score*: float64
     iWantBudget*: int

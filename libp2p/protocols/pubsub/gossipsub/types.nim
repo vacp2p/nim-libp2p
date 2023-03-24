@@ -117,6 +117,8 @@ type
     dOut*: int
     dLazy*: int
 
+    lazyPushThreshold*: int
+
     heartbeatInterval*: Duration
 
     historyLength*: int

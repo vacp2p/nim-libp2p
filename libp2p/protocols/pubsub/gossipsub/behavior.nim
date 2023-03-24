@@ -245,6 +245,15 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
       for handler in g.routingRecordsHandler:
         handler(peer.peerId, topic, routingRecords)
 
+proc handleDontSend*(g: GossipSub,
+                     peer: PubSubPeer,
+                     dontSend: seq[ControlIHave]) {.raises: [Defect].} =
+  for ds in dontSend:
+    for x in ds.messageIds:
+      let fut = peer.gotMsgs.mgetOrPut(x, newFuture[void]())
+      if not fut.completed:
+        fut.complete()
+
 proc handleIHave*(g: GossipSub,
                  peer: PubSubPeer,
                  ihaves: seq[ControlIHave]): ControlIWant {.raises: [Defect].} =
