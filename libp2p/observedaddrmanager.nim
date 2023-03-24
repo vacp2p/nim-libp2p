@@ -62,34 +62,31 @@ proc getMostObservedProtosAndPorts*(self: ObservedAddrManager): seq[MultiAddress
     res.add(ip6.get())
   return res
 
-proc replaceProtoValueByMostObserved*(
+proc tryReplaceFirstProtoValueByMostObserved*(
   self: ObservedAddrManager,
-  ma: MultiAddress): Opt[MultiAddress] =
+  ma: MultiAddress): MultiAddress =
+  ## Replaces the first protocol value of the given MultiAddress with the most observed value.
+  ## If the most observed value is not available, the original MultiAddress is returned.
   try:
     let maFirst = ma[0]
-    let maWithoutIP = ma[1..^1]
-
-    if maWithoutIP.isErr():
-      return Opt.none(MultiAddress)
+    let maRest = ma[1..^1]
+    if maRest.isErr():
+      return ma
 
     let observedIP = self.getMostObservedProtocol(maFirst.get().protoCode().get())
-
-    let newMA =
+    return
       if observedIP.isNone() or maFirst.get() == observedIP.get():
         ma
       else:
-        observedIP.get() & maWithoutIP.get()
-
-    return Opt.some(newMA)
+        observedIP.get() & maRest.get()
   except CatchableError as error:
     debug "Error while handling manual port forwarding", msg = error.msg
-    return Opt.none(MultiAddress)
+    return ma
 
 proc guessDialableAddrs*(self: ObservedAddrManager, listenAddrs: seq[MultiAddress]): seq[MultiAddress] =
-  for l in listenAddrs:
-    let guess = self.replaceProtoValueByMostObserved(l)
-    if guess.isSome():
-      result.add(guess.get())
+  ## Replaces the first proto valeu of each listen address by the corresponding (matching the proto code) most observed value.
+  ## If the most observed value is not available, the original MultiAddress is returned.
+  return listenAddrs.mapIt(self.tryReplaceFirstProtoValueByMostObserved(it))
 
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.

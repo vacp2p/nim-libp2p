@@ -221,8 +221,8 @@ proc identify*(
   finally:
     await stream.closeWithEOF()
 
-proc replaceMAIpByMostObserved*(self: PeerStore, ma: MultiAddress): Opt[MultiAddress] =
-  return self.identify.observedAddrManager.replaceProtoValueByMostObserved(ma)
+proc tryReplaceFirstProtoValueByMostObserved*(self: PeerStore, ma: MultiAddress): MultiAddress =
+  return self.identify.observedAddrManager.tryReplaceFirstProtoValueByMostObserved(ma)
 
 proc guessDialableAddrs*(self: PeerStore, listenAddrs: seq[MultiAddress]): seq[MultiAddress] =
   return self.identify.observedAddrManager.guessDialableAddrs(listenAddrs)
