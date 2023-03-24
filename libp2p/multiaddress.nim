@@ -34,7 +34,7 @@ type
     coder*: Transcoder
 
   MultiAddress* = object
-    data*: VBuffer
+    data: VBuffer
 
   MaPatternOp* = enum
     Eq, Or, And
@@ -62,6 +62,10 @@ const
   # some cint constants with the same name defined in the posix modules
   IPPROTO_TCP = Protocol.IPPROTO_TCP
   IPPROTO_UDP = Protocol.IPPROTO_UDP
+
+proc data*(ma: MultiAddress): VBuffer =
+  ## Returns the data buffer of the MultiAddress.
+  return ma.data
 
 proc hash*(a: MultiAddress): Hash =
   var h: Hash = 0
