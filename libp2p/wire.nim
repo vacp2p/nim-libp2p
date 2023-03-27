@@ -77,7 +77,7 @@ proc connect*(
   ma: MultiAddress,
   bufferSize = DefaultStreamBufferSize,
   child: StreamTransport = nil,
-  flags = default(set[ClientFlags]),
+  flags = default(set[SocketFlags]),
   localAddress: Opt[MultiAddress] = Opt.none(MultiAddress)): Future[StreamTransport]
   {.raises: [Defect, LPError, MaInvalidAddress].} =
   ## Open new connection to remote peer with address ``ma`` and create
@@ -91,10 +91,9 @@ proc connect*(
   let transportAddress = initTAddress(ma).tryGet()
 
   compilesOr:
-    if localAddress.isSome():
-      return connect(transportAddress, flags, bufferSize, child, initTAddress(localAddress.get()).tryGet())
-    else:
-      return connect(transportAddress, flags, bufferSize, child)
+    return connect(transportAddress, bufferSize, child,
+      if localAddress.isSome(): initTAddress(localAddress.get()).tryGet() else : TransportAddress(),
+      flags)
   do:
     # support for older chronos versions
     return connect(transportAddress, bufferSize, child)
