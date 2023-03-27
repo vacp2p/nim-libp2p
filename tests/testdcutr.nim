@@ -10,9 +10,11 @@
 import std/options
 import chronos, metrics
 import unittest2
-import ../libp2p/protocols/connectivity/relay/[relay, client]
+import ../libp2p/protocols/connectivity/relay/relay
+import ../libp2p/protocols/connectivity/relay/client as rclient
 import ../libp2p/services/autorelayservice
-import ../libp2p/protocols/connectivity/dcutr/[core, client, server]
+import ../libp2p/protocols/connectivity/dcutr/core as dcore
+import ../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../libp2p/protocols/connectivity/autonat/core import NetworkReachability
 import ../libp2p/builders
 import ./helpers
