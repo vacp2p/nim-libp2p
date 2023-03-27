@@ -126,16 +126,6 @@ suite "TCP transport":
     server.close()
     await server.join()
 
-  asyncTest "Starting with duplicate ports must fail":
-    # Starting with duplicate addresses must fail
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/8080").tryGet(),
-               MultiAddress.init("/ip4/0.0.0.0/tcp/8080").tryGet()]
-
-    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-
-    expect TcpTransportError:
-      await transport.start(ma)
-
   asyncTest "Starting with duplicate but zero ports addresses must NOT fail":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
                MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]

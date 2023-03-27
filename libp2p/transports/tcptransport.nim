@@ -159,17 +159,6 @@ method start*(
     warn "TCP transport already running"
     return
 
-  proc getPort(ma: MultiAddress): seq[byte] =
-    return ma[1].get().protoArgument().get()
-
-  proc isNotZeroPort(port: seq[byte]): bool =
-    return port != @[0.byte, 0]
-
-  let supported = addrs.filterIt(self.handles(it))
-  let nonZeroPorts = supported.mapIt(getPort(it)).filterIt(isNotZeroPort(it))
-  if deduplicate(nonZeroPorts).len < nonZeroPorts.len:
-    raise newException(TcpTransportError, "Duplicate ports detected")
-
   await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
   inc getTcpTransportTracker().opened
