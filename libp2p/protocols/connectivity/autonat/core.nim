@@ -59,7 +59,7 @@ type
     response*: Option[AutonatDialResponse]
 
   NetworkReachability* {.pure.} = enum
-    NotReachable, Reachable, Unknown
+    Unknown, NotReachable, Reachable
 
 proc encode(p: AutonatPeerInfo): ProtoBuffer =
   result = initProtoBuffer()
