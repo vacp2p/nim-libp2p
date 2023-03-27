@@ -35,10 +35,10 @@ proc new*(T: typedesc[Dcutr], switch: Switch): T =
     try:
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024))
       debug "Dcutr receiver received a Connect message.", connectMsg
-      var ourAddrs = switch.peerStore.getMostObservedIPsAndPorts() # likely empty when the peer is reachable
+      var ourAddrs = switch.peerStore.getMostObservedProtosAndPorts() # likely empty when the peer is reachable
       if ourAddrs.len == 0:
         # this list should be the same as the peer's public addrs when it is reachable
-        ourAddrs = guessDialableAddrs(switch.peerStore, switch.peerInfo.addrs)
+        ourAddrs =  switch.peerInfo.addrs.mapIt(switch.peerStore.guessDialableAddr(it))
       await sendConnectMsg(stream, ourAddrs)
       debug "Dcutr receiver has sent a Connect message back."
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024))
