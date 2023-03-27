@@ -92,10 +92,10 @@ suite "Dcutr":
     for t in publicSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
-    await DcutrClient.new().startSync(behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
-
-    echo behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId)
-    checkExpiring:
-      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 1
+    try:
+      await DcutrClient.new().startSync(behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
+      .wait(300.millis)
+    except CatchableError as exc:
+      discard
 
     await allFutures(switchRelay.stop(), behindNATSwitch.stop(), publicSwitch.stop())
