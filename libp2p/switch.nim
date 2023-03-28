@@ -147,10 +147,11 @@ method connect*(
   peerId: PeerId,
   addrs: seq[MultiAddress],
   forceDial = false,
-  reuseConnection = true): Future[void] {.public.} =
+  reuseConnection = true,
+  isSimultaneousConnServer = false): Future[void] {.public.} =
   ## Connects to a peer without opening a stream to it
 
-  s.dialer.connect(peerId, addrs, forceDial, reuseConnection)
+  s.dialer.connect(peerId, addrs, forceDial, reuseConnection, isSimultaneousConnServer)
 
 method connect*(
   s: Switch,

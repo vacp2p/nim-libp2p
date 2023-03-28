@@ -22,14 +22,14 @@ export results
 
 type
   Dial* = ref object of RootObj
-    isSimultaneousConnServer*: bool
 
 method connect*(
   self: Dial,
   peerId: PeerId,
   addrs: seq[MultiAddress],
   forceDial = false,
-  reuseConnection = true) {.async, base.} =
+  reuseConnection = true,
+  isSimultaneousConnServer = false) {.async, base.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
