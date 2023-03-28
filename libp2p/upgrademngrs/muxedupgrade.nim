@@ -62,14 +62,14 @@ proc mux*(
   muxer.handler = muxer.handle()
   return muxer
 
-proc upgrade(
+method upgrade*(
   self: MuxedUpgrade,
   conn: Connection,
   direction: Direction,
   peerId: Opt[PeerId]): Future[Muxer] {.async.} =
   trace "Upgrading connection", conn, direction
 
-  let sconn = await self.secure(conn, direction, peerId) # secure the connection
+  let sconn = await self.secure(conn, direction, if direction == In: Opt.none(PeerId) else: peerId) # secure the connection
   if isNil(sconn):
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
@@ -89,17 +89,6 @@ proc upgrade(
 
   trace "Upgraded connection", conn, sconn, direction
   return muxer
-
-method upgradeOutgoing*(
-  self: MuxedUpgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Muxer] {.async, gcsafe.} =
-  return await self.upgrade(conn, Out, peerId)
-
-method upgradeIncoming*(
-  self: MuxedUpgrade,
-  conn: Connection): Future[Muxer] {.async, gcsafe.} =
-  return await self.upgrade(conn, In, Opt.none(PeerId))
 
 proc new*(
   T: type MuxedUpgrade,

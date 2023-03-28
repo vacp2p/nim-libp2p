@@ -53,7 +53,7 @@ proc dialAndUpgrade(
   peerId: Opt[PeerId],
   hostname: string,
   address: MultiAddress,
-  isSimultaneousConnServer = false):
+  upgradeDir = Out):
   Future[Muxer] {.async.} =
 
   for transport in self.transports: # for each transport
@@ -75,28 +75,17 @@ proc dialAndUpgrade(
 
       let mux =
         try:
-          if isSimultaneousConnServer:
-            dialed.transportDir = Direction.In
-            let upgradedConn = await transport.upgradeIncoming(dialed)
-            doAssert not isNil(upgradedConn), "connection died after upgradeIncoming"
-            upgradedConn
-          else:
-            # also keep track of the connection's bottom unsafe transport direction
-            # required by gossipsub scoring
-            dialed.transportDir = Direction.Out
-            # This is related to the simultaneous connection through DCUtr. According to the spec, the server side of
-            # the DCUtr protocol should be the client of the simultaneous connection.
-            let upgradedConn = await transport.upgradeOutgoing(dialed, peerId)
-            doAssert not isNil(upgradedConn), "connection died after upgradeOutgoing"
-            upgradedConn
-
+          dialed.transportDir = upgradeDir
+          let upgradedConn = await transport.upgrade(dialed, upgradeDir, peerId)
+          doAssert not isNil(upgradedConn), "connection died after upgrade " & $upgradeDir
+          upgradedConn
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
           await dialed.close()
           debug "Upgrade failed", msg = exc.msg, peerId
           if exc isnot CancelledError:
-            if isSimultaneousConnServer:
+            if upgradeDir == Out:
               libp2p_failed_upgrades_outgoing.inc()
             else:
               libp2p_failed_upgrades_incoming.inc()
@@ -104,7 +93,7 @@ proc dialAndUpgrade(
           # Try other address
           return nil
 
-      doAssert not isNil(mux), "connection died after upgradeOutgoing"
+      doAssert not isNil(mux), "connection died after upgrade " & $upgradeDir
       debug "Dial successful", peerId = mux.connection.peerId
       return mux
   return nil
@@ -141,7 +130,7 @@ proc dialAndUpgrade(
   self: Dialer,
   peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
-  isSimultaneousConnServer = false):
+  upgradeDir = Out):
   Future[Muxer] {.async.} =
 
   debug "Dialing peer", peerId
@@ -159,7 +148,7 @@ proc dialAndUpgrade(
           else: await self.nameResolver.resolveMAddress(expandedAddress)
 
       for resolvedAddress in resolvedAddresses:
-        result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress, isSimultaneousConnServer)
+        result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress, upgradeDir)
         if not isNil(result):
           return result
 
@@ -177,7 +166,7 @@ proc internalConnect(
   addrs: seq[MultiAddress],
   forceDial: bool,
   reuseConnection = true,
-  isSimultaneousConnServer = false):
+  upgradeDir = Out):
   Future[Muxer] {.async.} =
   if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -195,7 +184,7 @@ proc internalConnect(
     let slot = self.connManager.getOutgoingSlot(forceDial)
     let muxed =
       try:
-        await self.dialAndUpgrade(peerId, addrs, isSimultaneousConnServer)
+        await self.dialAndUpgrade(peerId, addrs, upgradeDir)
       except CatchableError as exc:
         slot.release()
         raise exc
@@ -222,7 +211,7 @@ method connect*(
   addrs: seq[MultiAddress],
   forceDial = false,
   reuseConnection = true,
-  isSimultaneousConnServer = false) {.async.} =
+  upgradeDir = Out) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
@@ -230,7 +219,7 @@ method connect*(
   if self.connManager.connCount(peerId) > 0 and reuseConnection:
     return
 
-  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection, isSimultaneousConnServer)
+  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection, upgradeDir)
 
 method connect*(
   self: Dialer,

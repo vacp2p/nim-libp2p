@@ -42,14 +42,10 @@ type
     connManager*: ConnManager
     secureManagers*: seq[Secure]
 
-method upgradeIncoming*(
-  self: Upgrade,
-  conn: Connection): Future[Muxer] {.base.} =
-  doAssert(false, "Not implemented!")
-
-method upgradeOutgoing*(
+method upgrade*(
   self: Upgrade,
   conn: Connection,
+  direction: Direction,
   peerId: Opt[PeerId]): Future[Muxer] {.base.} =
   doAssert(false, "Not implemented!")
 
