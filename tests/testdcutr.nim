@@ -28,7 +28,6 @@ suite "Dcutr":
     let connectMsgDecoded = DcutrMsg.decode(pb.buffer)
 
     check connectMsg == connectMsgDecoded
-    echo connectMsgDecoded
 
   asyncTest "Sync msg Encode / Decode":
     let addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
@@ -66,6 +65,7 @@ suite "Dcutr":
     except CatchableError as exc:
       discard
 
+    await sleepAsync(200.millis) # wait for the dcutr server to finish
     checkExpiring:
       # we still expect a new connection to be open by the other peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
