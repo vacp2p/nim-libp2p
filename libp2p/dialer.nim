@@ -53,7 +53,7 @@ proc dialAndUpgrade(
   peerId: Opt[PeerId],
   hostname: string,
   address: MultiAddress,
-  upgradeDir = Out):
+  upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
 
   for transport in self.transports: # for each transport
@@ -85,7 +85,7 @@ proc dialAndUpgrade(
           await dialed.close()
           debug "Upgrade failed", msg = exc.msg, peerId
           if exc isnot CancelledError:
-            if upgradeDir == Out:
+            if upgradeDir == Direction.Out:
               libp2p_failed_upgrades_outgoing.inc()
             else:
               libp2p_failed_upgrades_incoming.inc()
@@ -130,7 +130,7 @@ proc dialAndUpgrade(
   self: Dialer,
   peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
-  upgradeDir = Out):
+  upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
 
   debug "Dialing peer", peerId
@@ -166,7 +166,7 @@ proc internalConnect(
   addrs: seq[MultiAddress],
   forceDial: bool,
   reuseConnection = true,
-  upgradeDir = Out):
+  upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
   if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -211,7 +211,7 @@ method connect*(
   addrs: seq[MultiAddress],
   forceDial = false,
   reuseConnection = true,
-  upgradeDir = Out) {.async.} =
+  upgradeDir = Direction.Out) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
