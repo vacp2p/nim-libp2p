@@ -58,6 +58,3 @@ proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [Defect,
 proc sendConnectMsg*(conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   let pb = DcutrMsg(msgType: MsgType.Connect, addrs: addrs).encode()
   await conn.writeLp(pb.buffer)
-
-
-
