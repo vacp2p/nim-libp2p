@@ -10,35 +10,11 @@
 import std/options
 import chronos, metrics
 import unittest2
-import ../libp2p/protocols/connectivity/relay/relay
-import ../libp2p/protocols/connectivity/relay/client as rclient
-import ../libp2p/services/autorelayservice
 import ../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../libp2p/protocols/connectivity/autonat/core import NetworkReachability
 import ../libp2p/builders
 import ./helpers
-
-proc createSwitch(r: Relay = nil, autoRelay: Service = nil): Switch =
-  var builder = SwitchBuilder.new()
-    .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-
-  if autoRelay != nil:
-    builder = builder.withServices(@[autoRelay])
-
-  if r != nil:
-    builder = builder.withCircuitRelay(r)
-
-  return builder.build()
-
-proc buildRelayMA(switchRelay: Switch, switchClient: Switch): MultiAddress =
-  MultiAddress.init($switchRelay.peerInfo.addrs[0] & "/p2p/" &
-                    $switchRelay.peerInfo.peerId & "/p2p-circuit/p2p/" &
-                    $switchClient.peerInfo.peerId).get()
 
 suite "Dcutr":
   teardown:
@@ -63,30 +39,17 @@ suite "Dcutr":
 
     check syncMsg == syncMsgDecoded
 
-  asyncTest "Direct connection":
+  asyncTest "DCUtR establishes a new connection":
 
-    let fut = newFuture[seq[MultiAddress]]()
-
-    let switch2 = createSwitch(RelayClient.new())
-    proc checkMA(address: seq[MultiAddress]) =
-      if not fut.completed():
-        echo $address
-        fut.complete(address)
-
-    let relayClient = RelayClient.new()
-    let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
-    let behindNATSwitch = createSwitch(relayClient, autoRelayService)
-
-    let switchRelay = createSwitch(Relay.new())
-    let publicSwitch = createSwitch(RelayClient.new())
+    let behindNATSwitch = newStandardSwitch()
+    let publicSwitch = newStandardSwitch()
 
     let dcutrProto = Dcutr.new(publicSwitch)
     publicSwitch.mount(dcutrProto)
 
-    await allFutures(switchRelay.start(), behindNATSwitch.start(), publicSwitch.start())
+    await allFutures(behindNATSwitch.start(), publicSwitch.start())
 
-    await behindNATSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
-    await publicSwitch.connect(behindNATSwitch.peerInfo.peerId, (await fut))
+    await publicSwitch.connect(behindNATSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
 
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
@@ -95,9 +58,16 @@ suite "Dcutr":
       t.networkReachability = NetworkReachability.NotReachable
 
     try:
+      # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
+      # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
+      # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
       await DcutrClient.new().startSync(behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
       .wait(300.millis)
     except CatchableError as exc:
       discard
 
-    await allFutures(switchRelay.stop(), behindNATSwitch.stop(), publicSwitch.stop())
+    checkExpiring:
+      # we still expect a new connection to be open by the other peer acting as the dcutr server
+      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
+
+    await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
