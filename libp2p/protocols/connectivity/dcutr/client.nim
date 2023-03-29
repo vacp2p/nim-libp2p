@@ -12,13 +12,13 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
+import stew/results
+import chronos, chronicles
+
 import core
 import ../../protocol,
        ../../../stream/connection,
        ../../../switch
-
-import stew/results
-import chronos, chronicles
 
 type
   DcutrClient* = ref object of RootObj

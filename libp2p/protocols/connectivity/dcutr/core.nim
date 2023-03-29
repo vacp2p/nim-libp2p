@@ -14,12 +14,12 @@ else:
 
 import std/options
 
+import chronos
+import stew/objects
+
 import ../../../multiaddress,
        ../../../errors,
        ../../../stream/connection
-
-import chronos
-import stew/objects
 
 export multiaddress
 

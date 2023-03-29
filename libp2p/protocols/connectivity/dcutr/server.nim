@@ -14,13 +14,13 @@ else:
 
 import std/[options, sets, sequtils]
 
+import stew/[results, objects]
+import chronos, chronicles
+
 import core
 import ../../protocol,
        ../../../stream/connection,
        ../../../switch
-
-import stew/[results, objects]
-import chronos, chronicles
 
 export chronicles
 

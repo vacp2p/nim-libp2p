@@ -7,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
-import chronos, metrics
+import chronos
 import unittest2
+
 import ../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../libp2p/protocols/connectivity/autonat/core import NetworkReachability
@@ -58,8 +58,9 @@ suite "Dcutr":
 
     try:
       # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
-      # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
+      # in two connections attemps, instead of one. This dial is likely going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
+      # The test should still pass if this doesn't fail though.
       await DcutrClient.new().startSync(behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
       .wait(300.millis)
     except CatchableError as exc:
