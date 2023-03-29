@@ -69,7 +69,7 @@ method upgrade*(
   peerId: Opt[PeerId]): Future[Muxer] {.async.} =
   trace "Upgrading connection", conn, direction
 
-  let sconn = await self.secure(conn, direction, if direction == In: Opt.none(PeerId) else: peerId) # secure the connection
+  let sconn = await self.secure(conn, direction, peerId) # secure the connection
   if isNil(sconn):
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
