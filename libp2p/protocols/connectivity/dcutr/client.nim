@@ -22,14 +22,12 @@ import chronos, chronicles
 
 type
   DcutrClient* = ref object of RootObj
-    rttStart: Opt[Moment]
-    rttEnd: Opt[Moment]
 
 logScope:
   topics = "libp2p dcutrclient"
 
 proc new*(T: typedesc[DcutrClient]): T =
-  return T(rttStart: Opt.none(Moment), rttEnd: Opt.none(Moment))
+  return T()
 
 proc sendSyncMsg(stream: Connection, addrs: seq[MultiAddress]) {.async.} =
   let pb = DcutrMsg(msgType: MsgType.Sync, addrs: addrs).encode()
@@ -44,11 +42,11 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     stream = await switch.dial(remotePeerId, DcutrCodec)
     await sendConnectMsg(stream, addrs)
     debug "Dcutr initiator has sent a Connect message."
-    self.rttStart = Opt.some(Moment.now())
+    let rttStart = Opt.some(Moment.now())
     let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
-    self.rttEnd = Opt.some(Moment.now())
+    let rttEnd = Opt.some(Moment.now())
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
-    let halfRtt = (self.rttEnd.get() - self.rttStart.get()) div 2
+    let halfRtt = (rttEnd.get() - rttStart.get()) div 2
     await sendSyncMsg(stream, addrs)
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
