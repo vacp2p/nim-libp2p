@@ -113,6 +113,9 @@ proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
       peers.add(peerId)
   return peers
 
+proc getConnections*(c: ConnManager): Table[PeerId, seq[Muxer]] =
+  return c.muxed
+
 proc addConnEventHandler*(c: ConnManager,
                           handler: ConnEventHandler,
                           kind: ConnEventKind) =

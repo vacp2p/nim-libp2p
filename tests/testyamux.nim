@@ -34,6 +34,8 @@ suite "Yamux":
         await conn.close()
 
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
       await streamA.writeLp(fromHex("1234"))
       check (await streamA.readLp(100)) == fromHex("5678")
       await streamA.close()
@@ -53,6 +55,8 @@ suite "Yamux":
         handlerBlocker.complete()
 
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
       await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
       await streamA.close()
       readerBlocker.complete()
@@ -68,7 +72,10 @@ suite "Yamux":
         var buffer: array[160000, byte]
         discard await conn.readOnce(addr buffer[0], 160000)
         await conn.close()
+
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
       await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
 
       let secondWriter = streamA.write(newSeq[byte](20))
@@ -88,7 +95,10 @@ suite "Yamux":
         var buffer: array[160000, byte]
         discard await conn.readOnce(addr buffer[0], 160000)
         await conn.close()
+
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
       await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
 
       let secondWriter = streamA.write(newSeq[byte](20))
@@ -123,7 +133,10 @@ suite "Yamux":
           numberOfRead.inc()
         writerBlocker.complete()
         await conn.close()
+
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
       # Need to exhaust initial window first
       await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
       await streamA.write(newSeq[byte](142))
@@ -144,6 +157,8 @@ suite "Yamux":
         await conn.close()
 
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
       await streamA.write(newSeq[byte](256000))
       let wrFut = collect(newSeq):
         for _ in 0..3:
@@ -164,6 +179,8 @@ suite "Yamux":
         check (await conn.readLp(100)) == fromHex("5678")
 
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
       await streamA.writeLp(fromHex("1234"))
       expect LPStreamRemoteClosedError: discard await streamA.readLp(100)
       await streamA.writeLp(fromHex("5678"))
@@ -180,6 +197,8 @@ suite "Yamux":
         await conn.close()
 
       let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+      
       await yamuxa.close()
       expect LPStreamClosedError: await streamA.writeLp(fromHex("1234"))
       expect LPStreamClosedError: discard await streamA.readLp(100)

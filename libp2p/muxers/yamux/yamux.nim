@@ -508,6 +508,9 @@ method handle*(m: Yamux) {.async, gcsafe.} =
     await m.close()
   trace "Stopped yamux handler"
 
+method getStreams*(m: Yamux): seq[Connection] =
+  for c in m.channels.values: result.add(c)
+
 method newStream*(
   m: Yamux,
   name: string = "",

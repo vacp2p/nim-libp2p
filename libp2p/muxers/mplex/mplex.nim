@@ -248,3 +248,7 @@ method close*(m: Mplex) {.async, gcsafe.} =
   m.channels[true].clear()
 
   trace "Closed mplex", m
+
+method getStreams*(m: Mplex): seq[Connection] =
+  for c in m.channels[false].values: result.add(c)
+  for c in m.channels[true].values: result.add(c)
