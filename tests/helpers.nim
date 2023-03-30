@@ -119,7 +119,7 @@ proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect], gcsafe.} ): Fu
 template checkExpiring*(code: untyped): untyped =
   check await checkExpiringInternal(proc(): bool = code)
 
-proc isEqual*[T](a, b: seq[T]): bool =
+proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:
     return true
   if a.len != b.len:
@@ -132,5 +132,5 @@ proc isEqual*[T](a, b: seq[T]): bool =
 
   if aSorted == bSorted:
     return true
-  
+
   return false

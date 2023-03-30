@@ -665,7 +665,7 @@ suite "Mplex":
       var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
 
       check:
-        isEqual(dialStreams, mplexDial.getStreams())
+        unorderedCompare(dialStreams, mplexDial.getStreams())
 
       for i, s in dialStreams:
         await s.closeWithEOF()
@@ -714,7 +714,7 @@ suite "Mplex":
       var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
 
       check:
-        isEqual(dialStreams, mplexDial.getStreams())
+        unorderedCompare(dialStreams, mplexDial.getStreams())
 
       proc dialReadLoop() {.async.} =
         for s in dialStreams:
@@ -774,7 +774,7 @@ suite "Mplex":
       var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
 
       check:
-        isEqual(dialStreams, mplexDial.getStreams())
+        unorderedCompare(dialStreams, mplexDial.getStreams())
 
       await mplexDial.close()
       await allFuturesThrowing(
@@ -818,7 +818,7 @@ suite "Mplex":
       var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
 
       check:
-        isEqual(dialStreams, mplexDial.getStreams())
+        unorderedCompare(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
@@ -865,7 +865,7 @@ suite "Mplex":
       var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
 
       check:
-        isEqual(dialStreams, mplexDial.getStreams())
+        unorderedCompare(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
@@ -909,7 +909,7 @@ suite "Mplex":
       var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
 
       check:
-        isEqual(dialStreams, mplexDial.getStreams())
+        unorderedCompare(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
@@ -956,7 +956,7 @@ suite "Mplex":
       var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
 
       check:
-        isEqual(dialStreams, mplexDial.getStreams())
+        unorderedCompare(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 

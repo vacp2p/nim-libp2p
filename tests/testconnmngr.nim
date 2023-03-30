@@ -51,7 +51,7 @@ suite "Connection Manager":
 
     let conns = connMngr.getConnections()
     let connsMux = toSeq(conns.values).mapIt(it[0])
-    check isEqual(connsMux, muxs)
+    check unorderedCompare(connsMux, muxs)
 
     await connMngr.close()
 
