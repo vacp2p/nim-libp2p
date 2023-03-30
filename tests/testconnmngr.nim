@@ -1,4 +1,4 @@
-import sequtils
+import std/[sequtils,tables]
 import stew/results
 import chronos
 import ../libp2p/[connmanager,
@@ -39,6 +39,19 @@ suite "Connection Manager":
     let peerMux = connMngr.selectMuxer(peerId)
     check peerMux == mux
     check peerMux.connection.dir == Direction.In
+
+    await connMngr.close()
+
+  asyncTest "get all connections":
+    let connMngr = ConnManager.new()
+
+    let peers = toSeq(0..<2).mapIt(PeerId.random.tryGet())
+    let muxs = toSeq(0..<2).mapIt(getMuxer(peers[it]))
+    for mux in muxs: connMngr.storeMuxer(mux)
+
+    let conns = connMngr.getConnections()
+    let connsMux = toSeq(conns.values).mapIt(it[0])
+    check isEqual(connsMux, muxs)
 
     await connMngr.close()
 

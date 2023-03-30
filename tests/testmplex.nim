@@ -15,7 +15,7 @@ import ../libp2p/[errors,
 
 import ./helpers
 
-{.used.}
+{.used.} 
 
 suite "Mplex":
   teardown:
@@ -662,9 +662,10 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams: seq[Connection]
-      for i in 0..9:
-        dialStreams.add((await mplexDial.newStream()))
+      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+
+      check:
+        isEqual(dialStreams, mplexDial.getStreams())
 
       for i, s in dialStreams:
         await s.closeWithEOF()
@@ -710,9 +711,10 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams: seq[Connection]
-      for i in 0..9:
-        dialStreams.add((await mplexDial.newStream()))
+      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+
+      check:
+        isEqual(dialStreams, mplexDial.getStreams())
 
       proc dialReadLoop() {.async.} =
         for s in dialStreams:
@@ -769,9 +771,10 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams: seq[Connection]
-      for i in 0..9:
-        dialStreams.add((await mplexDial.newStream()))
+      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+
+      check:
+        isEqual(dialStreams, mplexDial.getStreams())
 
       await mplexDial.close()
       await allFuturesThrowing(
@@ -812,9 +815,10 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams: seq[Connection]
-      for i in 0..9:
-        dialStreams.add((await mplexDial.newStream()))
+      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+
+      check:
+        isEqual(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
@@ -858,9 +862,10 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams: seq[Connection]
-      for i in 0..9:
-        dialStreams.add((await mplexDial.newStream()))
+      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+
+      check:
+        isEqual(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
@@ -901,9 +906,10 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams: seq[Connection]
-      for i in 0..9:
-        dialStreams.add((await mplexDial.newStream()))
+      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+
+      check:
+        isEqual(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
@@ -947,9 +953,10 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams: seq[Connection]
-      for i in 0..9:
-        dialStreams.add((await mplexDial.newStream()))
+      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+
+      check:
+        isEqual(dialStreams, mplexDial.getStreams())
 
       checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
 
