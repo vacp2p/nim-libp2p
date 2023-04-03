@@ -103,11 +103,11 @@ method readOnce*(s: ChronosStream, pbytes: pointer, nbytes: int): Future[int] {.
   withExceptions:
     result = await s.client.readOnce(pbytes, nbytes)
     s.activity = true # reset activity flag
-    libp2p_network_bytes.inc(nbytes.int64, labelValues = ["in"])
+    libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
     when defined(libp2p_agents_metrics):
       s.trackPeerIdentity()
       if s.tracked:
-        libp2p_peers_traffic_read.inc(nbytes.int64, labelValues = [s.shortAgent])
+        libp2p_peers_traffic_read.inc(result.int64, labelValues = [s.shortAgent])
 
 proc completeWrite(
     s: ChronosStream, fut: Future[int], msgLen: int): Future[void] {.async.} =
