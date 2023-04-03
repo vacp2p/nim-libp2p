@@ -66,7 +66,6 @@ suite "Dcutr":
     except CatchableError as exc:
       discard
 
-    await sleepAsync(200.millis) # wait for the dcutr server to finish
     checkExpiring:
       # we still expect a new connection to be open by the other peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
