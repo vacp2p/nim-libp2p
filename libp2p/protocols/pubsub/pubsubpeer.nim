@@ -68,11 +68,17 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
-    when defined(libp2p_agents_metrics):
-      shortAgent*: string
-
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
     {.gcsafe, raises: [Defect].}
+
+when defined(libp2p_agents_metrics):
+  func shortAgent*(p: PubSubPeer): string =
+    if p.sendConn.isNil or p.sendConn.getWrapped().isNil:
+      "unknown"
+    else:
+      #TODO the sendConn is setup before identify,
+      #so we have to read the parents short agent..
+      p.sendConn.getWrapped().shortAgent
 
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash

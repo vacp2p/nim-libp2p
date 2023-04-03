@@ -14,7 +14,7 @@ else:
 
 import std/[tables]
 
-import chronos/timer
+import chronos/timer, stew/results
 
 const Timeout* = 10.seconds # default timeout in ms
 
@@ -22,6 +22,7 @@ type
   TimedEntry*[K] = ref object of RootObj
     key: K
     addedAt: Moment
+    expiresAt: Moment
     next, prev: TimedEntry[K]
 
   TimedCache*[K] = object of RootObj
@@ -30,15 +31,14 @@ type
     timeout: Duration
 
 func expire*(t: var TimedCache, now: Moment = Moment.now()) =
-  let expirationLimit = now - t.timeout
-  while t.head != nil and t.head.addedAt < expirationLimit:
+  while t.head != nil and t.head.expiresAt < now:
     t.entries.del(t.head.key)
     t.head.prev = nil
     t.head = t.head.next
     if t.head == nil: t.tail = nil
 
-func del*[K](t: var TimedCache[K], key: K): bool =
-  # Removes existing key from cache, returning false if it was not present
+func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
+  # Removes existing key from cache, returning the previous value if present
   var item: TimedEntry[K]
   if t.entries.pop(key, item):
     if t.head == item: t.head = item.next
@@ -46,9 +46,9 @@ func del*[K](t: var TimedCache[K], key: K): bool =
 
     if item.next != nil: item.next.prev = item.prev
     if item.prev != nil: item.prev.next = item.next
-    true
+    Opt.some(item)
   else:
-    false
+    Opt.none(TimedEntry[K])
 
 func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   # Puts k in cache, returning true if the item was already present and false
@@ -56,9 +56,13 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   # refreshed.
   t.expire(now)
 
-  var res = t.del(k) # Refresh existing item
+  var previous = t.del(k) # Refresh existing item
 
-  let node = TimedEntry[K](key: k, addedAt: now)
+  let addedAt =
+    if previous.isSome: previous.get().addedAt
+    else: now
+
+  let node = TimedEntry[K](key: k, addedAt: addedAt, expiresAt: now + t.timeout)
 
   if t.head == nil:
     t.tail = node
@@ -66,7 +70,7 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   else:
     # search from tail because typically that's where we add when now grows
     var cur = t.tail
-    while cur != nil and node.addedAt < cur.addedAt:
+    while cur != nil and node.expiresAt < cur.expiresAt:
       cur = cur.prev
 
     if cur == nil:
@@ -82,7 +86,7 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
 
   t.entries[k] = node
 
-  res
+  previous.isSome()
 
 func contains*[K](t: TimedCache[K], k: K): bool =
   k in t.entries
