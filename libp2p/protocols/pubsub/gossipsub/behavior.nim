@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, sequtils, sets, algorithm]
+import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
 import "."/[types, scoring]
 import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
@@ -31,7 +31,7 @@ declareGauge(libp2p_gossipsub_no_peers_topics, "number of topics in mesh with no
 declareGauge(libp2p_gossipsub_low_peers_topics, "number of topics in mesh with at least one but below dlow peers")
 declareGauge(libp2p_gossipsub_healthy_peers_topics, "number of topics in mesh with at least dlow peers (but below dhigh)")
 declareCounter(libp2p_gossipsub_above_dhigh_condition, "number of above dhigh pruning branches ran", labels = ["topic"])
-declareSummary(libp2p_gossipsub_mcache_hit, "ratio of successful IWANT message cache lookups")
+declareGauge(libp2p_gossipsub_received_iwants, "received iwants", labels = ["kind"])
 
 proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [Defect].} =
   g.withPeerStats(p.peerId) do (stats: var PeerStats):
@@ -280,28 +280,30 @@ proc handleIHave*(g: GossipSub,
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] {.raises: [Defect].} =
-  var messages: seq[Message]
+  var
+    messages: seq[Message]
+    invalidRequests = 0
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
-  elif peer.iWantBudget <= 0:
-    trace "iwant: ignoring out of budget peer", peer, score = peer.score
   else:
-    let deIwants = iwants.deduplicate()
-    for iwant in deIwants:
-      let deIwantsMsgs = iwant.messageIds.deduplicate()
-      for mid in deIwantsMsgs:
+    for iwant in iwants:
+      for mid in iwant.messageIds:
         trace "peer sent iwant", peer, messageID = mid
+        # canAskIWant will only return true once for a specific message
+        if not peer.canAskIWant(mid):
+          libp2p_gossipsub_received_iwants.inc(1, labelValues=["notsent"])
+
+          invalidRequests.inc()
+          if invalidRequests > 20:
+            libp2p_gossipsub_received_iwants.inc(1, labelValues=["skipped"])
+            return messages
+          continue
         let msg = g.mcache.get(mid)
         if msg.isSome:
-          libp2p_gossipsub_mcache_hit.observe(1)
-          # avoid spam
-          if peer.iWantBudget > 0:
-            messages.add(msg.get())
-            dec peer.iWantBudget
-          else:
-            break
+          libp2p_gossipsub_received_iwants.inc(1, labelValues=["correct"])
+          messages.add(msg.get())
         else:
-          libp2p_gossipsub_mcache_hit.observe(0)
+          libp2p_gossipsub_received_iwants.inc(1, labelValues=["unknown"])
   return messages
 
 proc commitMetrics(metrics: var MeshMetrics) {.raises: [Defect].} =
@@ -624,8 +626,11 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       g.rng.shuffle(allPeers)
       allPeers.setLen(target)
 
+    let msgIdsAsSet = ihave.messageIds.toHashSet()
+
     for peer in allPeers:
       control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
+      peer.sentIHaves[^1].incl(msgIdsAsSet)
 
   libp2p_gossipsub_cache_window_size.set(cacheWindowSize.int64)
 
@@ -636,7 +641,9 @@ proc onHeartbeat(g: GossipSub) {.raises: [Defect].} =
     # reset IHAVE cap
     block:
       for peer in g.peers.values:
-        peer.iWantBudget = IWantPeerBudget
+        peer.sentIHaves.addFirst(default(HashSet[MessageId]))
+        if peer.sentIHaves.len > g.parameters.historyLength:
+          discard peer.sentIHaves.popLast()
         peer.iHaveBudget = IHavePeerBudget
 
     var meshMetrics = MeshMetrics()
