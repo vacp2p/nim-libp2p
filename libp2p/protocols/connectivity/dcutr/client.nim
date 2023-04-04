@@ -42,11 +42,12 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     stream = await switch.dial(remotePeerId, DcutrCodec)
     await sendConnectMsg(stream, addrs)
     debug "Dcutr initiator has sent a Connect message."
-    let rttStart = Opt.some(Moment.now())
+    let rttStart = Moment.now()
     let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
-    let rttEnd = Opt.some(Moment.now())
+    let rttEnd = Moment.now()
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
-    let halfRtt = (rttEnd.get() - rttStart.get()) div 2
+    let halfRtt = (rttEnd - rttStart) div 2'i64
+    echo halfRtt.type
     await sendSyncMsg(stream, addrs)
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
