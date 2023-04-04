@@ -53,21 +53,15 @@ suite "Dcutr":
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
-    for t in publicSwitch.transports:
-      t.networkReachability = NetworkReachability.NotReachable
-
-    try:
+    expect CatchableError:
       # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
-      # in two connections attemps, instead of one. This dial is likely going to fail because the dcutr client is acting as the
+      # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
-      # The test should still pass if this doesn't fail though.
       await DcutrClient.new().startSync(behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
       .wait(300.millis)
-    except CatchableError as exc:
-      discard
 
     checkExpiring:
-      # we still expect a new connection to be open by the other peer acting as the dcutr server
+      # we still expect a new connection to be open by the receiver peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
 
     await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
