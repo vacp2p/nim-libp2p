@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/options
+import std/sequtils
 
 import chronos
 import stew/objects
@@ -58,3 +58,8 @@ proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [Defect,
 proc sendConnectMsg*(conn: Connection, addrs: seq[MultiAddress]) {.async.} =
   let pb = DcutrMsg(msgType: MsgType.Connect, addrs: addrs).encode()
   await conn.writeLp(pb.buffer)
+
+proc getTCPAddrs*(addrs: seq[MultiAddress]): seq[MultiAddress] =
+  var tcpAddrs = addrs
+  tcpAddrs.keepItIf(TCP.matchPartial(it))
+  return tcpAddrs

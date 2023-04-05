@@ -39,11 +39,22 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
 
   var stream: Connection
   try:
+    var ourDialableAddrs = getTCPAddrs(addrs)
+    if ourDialableAddrs.len == 0:
+      debug "Dcutr initiator has no supported dialable addresses. Aborting Dcutr."
+      return
+
     stream = await switch.dial(remotePeerId, DcutrCodec)
     await sendConnectMsg(stream, addrs)
     debug "Dcutr initiator has sent a Connect message."
     let rttStart = Moment.now()
     let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
+
+    var peerDialableAddrs = getTCPAddrs(connectAnswer.addrs)
+    if peerDialableAddrs.len == 0:
+      debug "DDcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr."
+      return
+
     let rttEnd = Moment.now()
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
@@ -51,7 +62,7 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     await sendSyncMsg(stream, addrs)
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
-    await switch.connect(remotePeerId, connectAnswer.addrs, forceDial = true, reuseConnection = false, upgradeDir = Direction.In)
+    await switch.connect(remotePeerId, peerDialableAddrs, forceDial = true, reuseConnection = false, upgradeDir = Direction.In)
     debug "Dcutr initiator has directly connected to the remote peer."
   except CatchableError as err:
     error "Unexpected error when trying direct conn", err = err.msg
