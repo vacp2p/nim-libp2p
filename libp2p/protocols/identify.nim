@@ -261,13 +261,3 @@ proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async, publi
   ## Send new `peerInfo`s to a connection
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
-
-proc getMostObservedIP*(self: Identify, ipVersion: IPVersion): Opt[MultiAddress] =
-  ## Returns the most observed IP address or none if the number of observations are less than minCount.
-  return self.observedAddrManager.getMostObservedIP(ipVersion)
-
-proc getMostObservedIPsAndPorts*(self: Identify): seq[MultiAddress] =
-  ## Returns the most observed IP4/Port and IP6/Port address or an empty seq if the number of observations
-  ## are less than minCount.
-  echo self.observedAddrManager
-  return self.observedAddrManager.getMostObservedIPsAndPorts()

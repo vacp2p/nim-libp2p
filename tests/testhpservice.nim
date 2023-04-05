@@ -138,7 +138,6 @@ suite "Hole Punching":
     await privatePeerSwitch2.connect(switchAux3.peerInfo.peerId, switchAux3.peerInfo.addrs)
     await privatePeerSwitch2.connect(switchAux4.peerInfo.peerId, switchAux4.peerInfo.addrs)
 
-    privatePeerSwitch1.dialer.isSimultaneousConnServer = false
     await privatePeerSwitch2.connect(privatePeerSwitch1.peerInfo.peerId, (await privatePeerRelayAddr1))
 
     await sleepAsync(200.millis)

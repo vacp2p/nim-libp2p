@@ -56,12 +56,6 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
       continue
   return false
 
-proc guessNatAddrs(peerStore: PeerStore, addrs: seq[MultiAddress]): seq[MultiAddress] =
-  for a in addrs:
-    let guess = peerStore.replaceMAIpByMostObserved(a)
-    if guess.isSome():
-      result.add(guess.get())
-
 method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
@@ -78,9 +72,9 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
             await conn.close()
             return
           let dcutrClient = DcutrClient.new()
-          var natAddrs = switch.peerStore.getMostObservedIPsAndPorts()
+          var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
           if natAddrs.len == 0:
-            natAddrs = guessDialableAddrs(switch.peerStore, switch.peerInfo.addrs)
+            natAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
           await dcutrClient.startSync(switch, peerId, natAddrs)
           await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
           await conn.close()
