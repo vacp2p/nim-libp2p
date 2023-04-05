@@ -20,7 +20,8 @@ import chronos, chronicles
 import core
 import ../../protocol,
        ../../../stream/connection,
-       ../../../switch
+       ../../../switch,
+       ../../../utils/future
 
 export chronicles
 
@@ -29,9 +30,10 @@ type Dcutr* = ref object of LPProtocol
 logScope:
   topics = "libp2p dcutr"
 
-proc new*(T: typedesc[Dcutr], switch: Switch): T =
+proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDialableAddrs = 8): T =
 
   proc handleStream(stream: Connection, proto: string) {.async, gcsafe.} =
+    var peerDialableAddrs: seq[MultiAddress]
     try:
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024))
       debug "Dcutr receiver received a Connect message.", connectMsg
@@ -50,15 +52,28 @@ proc new*(T: typedesc[Dcutr], switch: Switch): T =
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024))
       debug "Dcutr receiver has received a Sync message.", syncMsg
 
-      var peerDialableAddrs = getTCPAddrs(connectMsg.addrs)
+      peerDialableAddrs = getTCPAddrs(connectMsg.addrs)
       if peerDialableAddrs.len == 0:
-        debug "DDcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr."
+        debug "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr."
         return
 
-      await switch.connect(stream.peerId, peerDialableAddrs, forceDial = true, reuseConnection = false)
-      debug "Dcutr receiver has directly connected to the remote peer."
+      if peerDialableAddrs.len > maxDialableAddrs:
+        peerDialableAddrs = peerDialableAddrs[0..<maxDialableAddrs]
+      var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false))
+      let fut = await anyCompleted(futs).wait(connectTimeout)
+      await fut
+      if fut.completed():
+        debug "Dcutr receiver has directly connected to the remote peer."
+      else:
+        debug "Dcutr receiver could not connect to the remote peer.", msg = fut.error.msg
+    except CancelledError as exc:
+      raise exc
+    except AllFuturesFailedError as exc:
+      debug "Dcutr receiver could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = exc.msg
+    except AsyncTimeoutError as exc:
+      debug "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = exc.msg
     except CatchableError as err:
-      error "Unexpected error in dcutr handler", msg = err.msg
+      warn "Unexpected error in dcutr handler", msg = err.msg
       raise newException(DcutrError, "Unexpected error when trying a direct conn", err)
 
   let self = T()
