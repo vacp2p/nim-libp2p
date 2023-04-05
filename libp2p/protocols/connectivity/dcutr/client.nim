@@ -12,22 +12,27 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
+import std/sequtils
+
 import stew/results
 import chronos, chronicles
 
 import core
 import ../../protocol,
        ../../../stream/connection,
-       ../../../switch
+       ../../../switch,
+       ../../../utils/future
 
 type
   DcutrClient* = ref object of RootObj
+    connectTimeout: Duration
+    maxDialableAddrs: int
 
 logScope:
   topics = "libp2p dcutrclient"
 
-proc new*(T: typedesc[DcutrClient]): T =
-  return T()
+proc new*(T: typedesc[DcutrClient], connectTimeout = 15.seconds, maxDialableAddrs = 8): T =
+  return T(connectTimeout: connectTimeout, maxDialableAddrs: maxDialableAddrs)
 
 proc sendSyncMsg(stream: Connection, addrs: seq[MultiAddress]) {.async.} =
   let pb = DcutrMsg(msgType: MsgType.Sync, addrs: addrs).encode()
@@ -37,7 +42,9 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
   logScope:
     peerId = switch.peerInfo.peerId
 
-  var stream: Connection
+  var
+    peerDialableAddrs: seq[MultiAddress]
+    stream: Connection
   try:
     var ourDialableAddrs = getTCPAddrs(addrs)
     if ourDialableAddrs.len == 0:
@@ -50,7 +57,7 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     let rttStart = Moment.now()
     let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
 
-    var peerDialableAddrs = getTCPAddrs(connectAnswer.addrs)
+    peerDialableAddrs = getTCPAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:
       debug "DDcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr."
       return
@@ -62,10 +69,24 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     await sendSyncMsg(stream, addrs)
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
-    await switch.connect(remotePeerId, peerDialableAddrs, forceDial = true, reuseConnection = false, upgradeDir = Direction.In)
-    debug "Dcutr initiator has directly connected to the remote peer."
+
+    if peerDialableAddrs.len > self.maxDialableAddrs:
+        peerDialableAddrs = peerDialableAddrs[0..<self.maxDialableAddrs]
+    var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false, upgradeDir = Direction.In))
+    let fut = await anyCompleted(futs).wait(self.connectTimeout)
+    await fut
+    if fut.completed():
+      debug "Dcutr initiator has directly connected to the remote peer."
+    else:
+      debug "Dcutr initiator could not connect to the remote peer.", msg = fut.error.msg
+  except CancelledError as exc:
+    raise exc
+  except AllFuturesFailedError as exc:
+    debug "Dcutr initiator could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = exc.msg
+  except AsyncTimeoutError as exc:
+    debug "Dcutr initiator could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = exc.msg
   except CatchableError as err:
-    error "Unexpected error when trying direct conn", err = err.msg
+    warn "Unexpected error when trying direct conn", err = err.msg
     raise newException(DcutrError, "Unexpected error when trying a direct conn", err)
   finally:
     if stream != nil:
