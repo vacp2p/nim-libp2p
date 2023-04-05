@@ -80,11 +80,6 @@ type
     opened*: uint64
     closed*: uint64
 
-# proc `$`*(dir: Direction): string =
-#   case dir
-#   of In: "In"
-#   of Out: "Out"
-
 proc setupStreamTracker*(name: string): StreamTracker =
   let tracker = new StreamTracker
 
