@@ -77,7 +77,6 @@ proc dialAndUpgrade(
         try:
           dialed.transportDir = upgradeDir
           let upgradedConn = await transport.upgrade(dialed, upgradeDir, peerId)
-          doAssert not isNil(upgradedConn), "connection died after upgrade " & $upgradeDir
           upgradedConn
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
