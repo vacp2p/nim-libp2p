@@ -34,7 +34,7 @@ type
     coder*: Transcoder
 
   MultiAddress* = object
-    data*: VBuffer
+    data: VBuffer
 
   MaPatternOp* = enum
     Eq, Or, And
@@ -62,6 +62,10 @@ const
   # some cint constants with the same name defined in the posix modules
   IPPROTO_TCP = Protocol.IPPROTO_TCP
   IPPROTO_UDP = Protocol.IPPROTO_UDP
+
+proc data*(ma: MultiAddress): VBuffer =
+  ## Returns the data buffer of the MultiAddress.
+  return ma.data
 
 proc hash*(a: MultiAddress): Hash =
   var h: Hash = 0
@@ -873,6 +877,8 @@ proc getProtocol(name: string): MAProtocol {.inline.} =
 proc init*(mtype: typedesc[MultiAddress],
            value: string): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from string representation ``value``.
+  if len(value) == 0 or value == "/":
+    return err("multiaddress: Address must not be empty!")
   var parts = value.trimRight('/').split('/')
   if len(parts[0]) != 0:
     err("multiaddress: Invalid MultiAddress, must start with `/`")
@@ -920,7 +926,7 @@ proc init*(mtype: typedesc[MultiAddress],
            data: openArray[byte]): MaResult[MultiAddress] =
   ## Initialize MultiAddress with array of bytes ``data``.
   if len(data) == 0:
-    err("multiaddress: Address could not be empty!")
+    err("multiaddress: Address must not be empty!")
   else:
     var res: MultiAddress
     res.data = initVBuffer()
