@@ -158,8 +158,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.appScore = stats.appScore
     peer.behaviourPenalty = stats.behaviourPenalty
 
-    peer.iWantBudget = IWantPeerBudget
-    peer.iHaveBudget = IHavePeerBudget
+  peer.iHaveBudget = IHavePeerBudget
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
@@ -340,7 +339,7 @@ proc validateAndRelay(g: GossipSub,
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
-    trace "forwared message to peers", peers = toSendPeers.len, msgId, peer
+    trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue
 

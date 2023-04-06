@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes, options]
+import std/[sequtils, strutils, tables, hashes, options, sets, deques]
 import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import rpc/[messages, message, protobuf],
@@ -62,17 +62,23 @@ type
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
     score*: float64
-    iWantBudget*: int
+    sentIHaves*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
 
-    when defined(libp2p_agents_metrics):
-      shortAgent*: string
-
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
     {.gcsafe, raises: [Defect].}
+
+when defined(libp2p_agents_metrics):
+  func shortAgent*(p: PubSubPeer): string =
+    if p.sendConn.isNil or p.sendConn.getWrapped().isNil:
+      "unknown"
+    else:
+      #TODO the sendConn is setup before identify,
+      #so we have to read the parents short agent..
+      p.sendConn.getWrapped().shortAgent
 
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash
@@ -286,6 +292,13 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
 
   asyncSpawn p.sendEncoded(encoded)
 
+proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
+  for sentIHave in p.sentIHaves.mitems():
+    if msgId in sentIHave:
+      sentIHave.excl(msgId)
+      return true
+  return false
+
 proc new*(
   T: typedesc[PubSubPeer],
   peerId: PeerId,
@@ -294,7 +307,7 @@ proc new*(
   codec: string,
   maxMessageSize: int): T =
 
-  T(
+  result = T(
     getConn: getConn,
     onEvent: onEvent,
     codec: codec,
@@ -302,3 +315,4 @@ proc new*(
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize
   )
+  result.sentIHaves.addFirst(default(HashSet[MessageId]))

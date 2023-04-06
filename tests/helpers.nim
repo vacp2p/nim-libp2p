@@ -4,6 +4,7 @@ else:
   {.push raises: [].}
 
 import chronos
+import algorithm
 
 import ../libp2p/transports/tcptransport
 import ../libp2p/stream/bufferstream
@@ -84,6 +85,8 @@ type
 method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
   s.writeHandler(msg)
 
+method getWrapped*(s: TestBufferStream): Connection = nil
+
 proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
@@ -117,3 +120,19 @@ proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect], gcsafe.} ): Fu
 
 template checkExpiring*(code: untyped): untyped =
   check await checkExpiringInternal(proc(): bool = code)
+
+proc unorderedCompare*[T](a, b: seq[T]): bool =
+  if a == b:
+    return true
+  if a.len != b.len:
+    return false
+
+  var aSorted = a
+  var bSorted = b
+  aSorted.sort()
+  bSorted.sort()
+
+  if aSorted == bSorted:
+    return true
+
+  return false
