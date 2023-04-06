@@ -7,6 +7,7 @@ import ../libp2p/[stream/connection,
                   transports/tcptransport,
                   upgrademngrs/upgrade,
                   multiaddress,
+                  multicodec,
                   errors,
                   wire]
 
@@ -124,6 +125,44 @@ suite "TCP transport":
     server.stop()
     server.close()
     await server.join()
+
+  asyncTest "Starting with duplicate but zero ports addresses must NOT fail":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+               MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+
+    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+
+    await transport.start(ma)
+    await transport.stop()
+
+  asyncTest "Bind to listening port when not reachable":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+    await transport.start(ma)
+
+    let ma2 = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+    await transport2.start(ma2)
+
+    let ma3 = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let transport3: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+    await transport3.start(ma3)
+
+    let listeningPort = transport.addrs[0][multiCodec("tcp")].get()
+
+    let conn = await transport.dial(transport2.addrs[0])
+    let acceptedConn = await transport2.accept()
+    let acceptedPort = acceptedConn.observedAddr.get()[multiCodec("tcp")].get()
+    check listeningPort != acceptedPort
+
+    transport.networkReachability = NetworkReachability.NotReachable
+
+    let conn2 = await transport.dial(transport3.addrs[0])
+    let acceptedConn2 = await transport3.accept()
+    let acceptedPort2 = acceptedConn2.observedAddr.get()[multiCodec("tcp")].get()
+    check listeningPort == acceptedPort2
+
+    await allFutures(transport.stop(), transport2.stop(),  transport3.stop())
 
   proc transProvider(): Transport = TcpTransport.new(upgrade = Upgrade())
 

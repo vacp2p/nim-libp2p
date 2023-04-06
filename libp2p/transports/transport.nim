@@ -19,7 +19,10 @@ import ../stream/connection,
        ../multiaddress,
        ../multicodec,
        ../muxers/muxer,
-       ../upgrademngrs/upgrade
+       ../upgrademngrs/upgrade,
+       ../protocols/connectivity/autonat/core
+
+export core.NetworkReachability
 
 logScope:
   topics = "libp2p transport"
@@ -33,6 +36,7 @@ type
     addrs*: seq[MultiAddress]
     running*: bool
     upgrader*: Upgrade
+    networkReachability*: NetworkReachability
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
   newException(TransportClosedError,

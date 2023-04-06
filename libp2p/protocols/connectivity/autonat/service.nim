@@ -44,9 +44,6 @@ type
     dialTimeout: Duration
     enableAddressMapper: bool
 
-  NetworkReachability* {.pure.} = enum
-    NotReachable, Reachable, Unknown
-
   StatusAndConfidenceHandler* = proc (networkReachability: NetworkReachability, confidence: Option[float]): Future[void]  {.gcsafe, raises: [Defect].}
 
 proc new*(
