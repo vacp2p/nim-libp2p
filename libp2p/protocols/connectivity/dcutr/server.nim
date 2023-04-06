@@ -47,7 +47,7 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
         debug "Dcutr receiver has no supported dialable addresses. Aborting Dcutr."
         return
 
-      await sendConnectMsg(stream, ourAddrs)
+      await stream.send(MsgType.Connect, ourAddrs)
       debug "Dcutr receiver has sent a Connect message back."
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024))
       debug "Dcutr receiver has received a Sync message.", syncMsg

@@ -34,10 +34,6 @@ logScope:
 proc new*(T: typedesc[DcutrClient], connectTimeout = 15.seconds, maxDialableAddrs = 8): T =
   return T(connectTimeout: connectTimeout, maxDialableAddrs: maxDialableAddrs)
 
-proc sendSyncMsg(stream: Connection, addrs: seq[MultiAddress]) {.async.} =
-  let pb = DcutrMsg(msgType: MsgType.Sync, addrs: addrs).encode()
-  await stream.writeLp(pb.buffer)
-
 proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: seq[MultiAddress]) {.async.} =
   logScope:
     peerId = switch.peerInfo.peerId
@@ -52,7 +48,7 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
       return
 
     stream = await switch.dial(remotePeerId, DcutrCodec)
-    await sendConnectMsg(stream, addrs)
+    await stream.send(MsgType.Connect, addrs)
     debug "Dcutr initiator has sent a Connect message."
     let rttStart = Moment.now()
     let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
@@ -66,7 +62,7 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
     echo halfRtt.type
-    await sendSyncMsg(stream, addrs)
+    await stream.send(MsgType.Sync, addrs)
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
 

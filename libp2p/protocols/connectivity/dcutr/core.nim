@@ -55,8 +55,8 @@ proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [Defect,
     raise newException(DcutrError, "Received malformed message")
   return dcutrMsg
 
-proc sendConnectMsg*(conn: Connection, addrs: seq[MultiAddress]) {.async.} =
-  let pb = DcutrMsg(msgType: MsgType.Connect, addrs: addrs).encode()
+proc send*(conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]) {.async.} =
+  let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
   await conn.writeLp(pb.buffer)
 
 proc getTCPAddrs*(addrs: seq[MultiAddress]): seq[MultiAddress] =
