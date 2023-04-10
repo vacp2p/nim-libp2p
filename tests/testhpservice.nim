@@ -7,10 +7,18 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
 import chronos
 
 import unittest2
 import ./helpers
+import ./stubs/switchstub
 import ../libp2p/[builders,
                   switch,
                   services/hpservice,
@@ -20,10 +28,10 @@ import ../libp2p/protocols/connectivity/autonat/[service]
 import ../libp2p/wire
 import stubs/autonatclientstub
 
-proc isPublicAddrIPAddrMock*(ta: TransportAddress): bool =
+proc isPublicAddrIPAddrMock(ta: TransportAddress): bool =
   return true
 
-proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
+proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch {.raises: [LPError, Defect].} =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
@@ -50,7 +58,6 @@ suite "Hole Punching":
     checkTrackers()
 
   asyncTest "Direct connection must work when peer address is public":
-
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
     let autonatService = AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
@@ -83,8 +90,9 @@ suite "Hole Punching":
     await allFuturesThrowing(
       privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop())
 
-  asyncTest "Hole punching when peers addresses are private":
-
+  proc holePunchingTest(connectStub: proc (): Future[void] {.async.},
+                        isPublicIPAddrProc: IsPublicIPAddrProc,
+                        answer: Answer) {.async.} =
     # There's no check in this test cause it can't test hole punching locally. It exists just to be sure the rest of
     # the code works properly.
 
@@ -93,7 +101,7 @@ suite "Hole Punching":
     let autonatService1 = AutonatService.new(autonatClientStub1, newRng(), maxQueueSize = 1)
 
     let autonatClientStub2 = AutonatClientStub.new(expectedDials = 1)
-    autonatClientStub2.answer = NotReachable
+    autonatClientStub2.answer = answer
     let autonatService2 = AutonatService.new(autonatClientStub2, newRng(), maxQueueSize = 1)
 
     let relayClient1 = RelayClient.new()
@@ -107,10 +115,10 @@ suite "Hole Punching":
     let autoRelayService1 = AutoRelayService.new(1, relayClient1, checkMA, newRng())
     let autoRelayService2 = AutoRelayService.new(1, relayClient2, nil, newRng())
 
-    let hpservice1 = HPService.new(autonatService1, autoRelayService1)
+    let hpservice1 = HPService.new(autonatService1, autoRelayService1, isPublicIPAddrProc)
     let hpservice2 = HPService.new(autonatService2, autoRelayService2)
 
-    let privatePeerSwitch1 = createSwitch(relayClient1, hpservice1)
+    let privatePeerSwitch1 = SwitchStub.new(createSwitch(relayClient1, hpservice1))
     let privatePeerSwitch2 = createSwitch(relayClient2, hpservice2)
     let switchRelay = createSwitch(Relay.new())
     let switchAux = createSwitch()
@@ -138,6 +146,7 @@ suite "Hole Punching":
     await privatePeerSwitch2.connect(switchAux3.peerInfo.peerId, switchAux3.peerInfo.addrs)
     await privatePeerSwitch2.connect(switchAux4.peerInfo.peerId, switchAux4.peerInfo.addrs)
 
+    privatePeerSwitch1.connectStub = connectStub
     await privatePeerSwitch2.connect(privatePeerSwitch1.peerInfo.peerId, (await privatePeerRelayAddr1))
 
     await sleepAsync(200.millis)
@@ -145,3 +154,14 @@ suite "Hole Punching":
     await allFuturesThrowing(
       privatePeerSwitch1.stop(), privatePeerSwitch2.stop(), switchRelay.stop(),
       switchAux.stop(), switchAux2.stop(), switchAux3.stop(), switchAux4.stop())
+
+  asyncTest "Hole punching when peers addresses are private":
+    await holePunchingTest(nil, isGlobal, NotReachable)
+
+  asyncTest "Hole punching when there is an error during unilateral direct connection":
+
+    proc connectStub(): Future[void] {.async.} =
+      raise newException(CatchableError, "error")
+
+    await holePunchingTest(connectStub, isPublicAddrIPAddrMock, Reachable)
+

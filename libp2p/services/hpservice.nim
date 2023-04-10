@@ -32,26 +32,23 @@ type
     onNewStatusHandler: StatusAndConfidenceHandler
     autoRelayService: AutoRelayService
     autonatService: AutonatService
-    isPublicIPAddr: isPublicIPAddrFunc
+    isPublicIPAddrProc: IsPublicIPAddrProc
 
-  isPublicIPAddrFunc* = proc(ta: TransportAddress): bool {.gcsafe, raises: [Defect].}
+  IsPublicIPAddrProc* = proc(ta: TransportAddress): bool {.gcsafe, raises: [Defect].}
 
 proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService,
-          isPublicIPAddr: isPublicIPAddrFunc = proc(ta: TransportAddress): bool = return true): T = # FIXME: use chronos
-  return T(
-    autonatService: autonatService,
-    autoRelayService: autoRelayService,
-    isPublicIPAddr: isPublicIPAddr)
+          isPublicIPAddrProc: IsPublicIPAddrProc = isGlobal): T =
+  return T(autonatService: autonatService, autoRelayService: autoRelayService, isPublicIPAddrProc: isPublicIPAddrProc)
 
 proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
   await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
-      if self.isPublicIPAddr(initTAddress(address).get()):
+      if self.isPublicIPAddrProc(initTAddress(address).get()):
         await switch.connect(peerId, @[address], true, false)
         debug "Direct connection created."
         return true
-    except Exception as err:
+    except CatchableError as err:
       debug "Failed to create direct connection.", err = err.msg
       continue
   return false
