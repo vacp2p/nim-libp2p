@@ -75,14 +75,16 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
       debug "Dcutr initiator has directly connected to the remote peer."
     else:
       debug "Dcutr initiator could not connect to the remote peer.", msg = fut.error.msg
-  except CancelledError as exc:
-    raise exc
-  except AllFuturesFailedError as exc:
-    debug "Dcutr initiator could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = exc.msg
-  except AsyncTimeoutError as exc:
-    debug "Dcutr initiator could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = exc.msg
+  except CancelledError as err:
+    raise err
+  except AllFuturesFailedError as err:
+    debug "Dcutr initiator could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = err.msg
+    raise newException(DcutrError, "Dcutr initiator could not connect to the remote peer, all connect attempts failed", err)
+  except AsyncTimeoutError as err:
+    debug "Dcutr initiator could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = err.msg
+    raise newException(DcutrError, "Dcutr initiator could not connect to the remote peer, all connect attempts timed out", err)
   except CatchableError as err:
-    warn "Unexpected error when trying direct conn", err = err.msg
+    debug "Unexpected error when trying direct conn", err = err.msg
     raise newException(DcutrError, "Unexpected error when trying a direct conn", err)
   finally:
     if stream != nil:
