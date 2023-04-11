@@ -44,7 +44,7 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
         ourAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
       var ourDialableAddrs = getTCPAddrs(ourAddrs)
       if ourDialableAddrs.len == 0:
-        debug "Dcutr receiver has no supported dialable addresses. Aborting Dcutr."
+        debug "Dcutr receiver has no supported dialable addresses. Aborting Dcutr.", ourAddrs
         return
 
       await stream.send(MsgType.Connect, ourAddrs)

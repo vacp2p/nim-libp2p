@@ -60,6 +60,4 @@ proc send*(conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]) {.async
   await conn.writeLp(pb.buffer)
 
 proc getTCPAddrs*(addrs: seq[MultiAddress]): seq[MultiAddress] =
-  var tcpAddrs = addrs
-  tcpAddrs.keepItIf(TCP.matchPartial(it))
-  return tcpAddrs
+  addrs.filterIt(TCP.matchPartial(it))

@@ -24,7 +24,7 @@ import ../../protocol,
        ../../../utils/future
 
 type
-  DcutrClient* = ref object of RootObj
+  DcutrClient* = ref object
     connectTimeout: Duration
     maxDialableAddrs: int
 
@@ -44,7 +44,7 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
   try:
     var ourDialableAddrs = getTCPAddrs(addrs)
     if ourDialableAddrs.len == 0:
-      debug "Dcutr initiator has no supported dialable addresses. Aborting Dcutr."
+      debug "Dcutr initiator has no supported dialable addresses. Aborting Dcutr.", addrs
       return
 
     stream = await switch.dial(remotePeerId, DcutrCodec)
@@ -55,13 +55,12 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
 
     peerDialableAddrs = getTCPAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:
-      debug "DDcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr."
+      debug "DDcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.", addrs=connectAnswer.adds
       return
 
     let rttEnd = Moment.now()
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
-    echo halfRtt.type
     await stream.send(MsgType.Sync, addrs)
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
