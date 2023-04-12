@@ -68,12 +68,11 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     if peerDialableAddrs.len > self.maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0..<self.maxDialableAddrs]
     var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false, upgradeDir = Direction.In))
-    let fut = await anyCompleted(futs).wait(self.connectTimeout)
-    await fut
-    if fut.completed():
+    try:
+      discard await anyCompleted(futs).wait(self.connectTimeout)
       debug "Dcutr initiator has directly connected to the remote peer."
-    else:
-      debug "Dcutr initiator could not connect to the remote peer.", msg = fut.error.msg
+    finally:
+      for fut in futs: fut.cancel()
   except CancelledError as err:
     raise err
   except AllFuturesFailedError as err:
