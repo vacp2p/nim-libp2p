@@ -23,6 +23,8 @@ import ../../protocol,
        ../../../switch,
        ../../../utils/future
 
+export DcutrError
+
 type
   DcutrClient* = ref object
     connectTimeout: Duration

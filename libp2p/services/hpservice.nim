@@ -13,15 +13,17 @@ else:
   {.push raises: [].}
 
 import std/[tables, sequtils]
+
+import chronos, chronicles
+
 import ../switch, ../wire
 import ../protocols/rendezvous
 import ../services/autorelayservice
 import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
-from ../protocols/connectivity/dcutr/core import DcutrError
 import ../protocols/connectivity/dcutr/[client, server]
-import chronos
+
 
 logScope:
   topics = "libp2p hpservice"
@@ -41,7 +43,7 @@ proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayServi
   return T(autonatService: autonatService, autoRelayService: autoRelayService, isPublicIPAddrProc: isPublicIPAddrProc)
 
 proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
-  await sleepAsync(100.milliseconds) # wait for AddressBook to be populated
+  await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
       if self.isPublicIPAddrProc(initTAddress(address).get()):
@@ -76,7 +78,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
           await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
           await conn.close()
       except CatchableError as err:
-        error "Hole punching failed during dcutr", err = err.msg
+        debug "Hole punching failed during dcutr", err = err.msg
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
