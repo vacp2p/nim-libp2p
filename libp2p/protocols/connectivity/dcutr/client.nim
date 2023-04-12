@@ -42,7 +42,7 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     peerDialableAddrs: seq[MultiAddress]
     stream: Connection
   try:
-    var ourDialableAddrs = getTCPAddrs(addrs)
+    var ourDialableAddrs = getHolePunchableAddrs(addrs)
     if ourDialableAddrs.len == 0:
       debug "Dcutr initiator has no supported dialable addresses. Aborting Dcutr.", addrs
       return
@@ -53,9 +53,9 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     let rttStart = Moment.now()
     let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
 
-    peerDialableAddrs = getTCPAddrs(connectAnswer.addrs)
+    peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:
-      debug "DDcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.", addrs=connectAnswer.adds
+      debug "DDcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.", addrs=connectAnswer.addrs
       return
 
     let rttEnd = Moment.now()

@@ -42,7 +42,7 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
       if ourAddrs.len == 0:
         # this list should be the same as the peer's public addrs when it is reachable
         ourAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
-      var ourDialableAddrs = getTCPAddrs(ourAddrs)
+      var ourDialableAddrs = getHolePunchableAddrs(ourAddrs)
       if ourDialableAddrs.len == 0:
         debug "Dcutr receiver has no supported dialable addresses. Aborting Dcutr.", ourAddrs
         return
@@ -52,20 +52,19 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024))
       debug "Dcutr receiver has received a Sync message.", syncMsg
 
-      peerDialableAddrs = getTCPAddrs(connectMsg.addrs)
+      peerDialableAddrs = getHolePunchableAddrs(connectMsg.addrs)
       if peerDialableAddrs.len == 0:
-        debug "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr."
+        debug "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.", addrs=connectMsg.addrs
         return
 
       if peerDialableAddrs.len > maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0..<maxDialableAddrs]
       var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false))
-      let fut = await anyCompleted(futs).wait(connectTimeout)
-      await fut
-      if fut.completed():
+      try:
+        discard await anyCompleted(futs).wait(connectTimeout)
         debug "Dcutr receiver has directly connected to the remote peer."
-      else:
-        debug "Dcutr receiver could not connect to the remote peer.", msg = fut.error.msg
+      finally:
+        for fut in futs: fut.cancel()
     except CancelledError as exc:
       raise exc
     except AllFuturesFailedError as exc:

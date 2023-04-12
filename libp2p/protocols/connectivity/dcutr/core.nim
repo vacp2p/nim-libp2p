@@ -59,5 +59,5 @@ proc send*(conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]) {.async
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
   await conn.writeLp(pb.buffer)
 
-proc getTCPAddrs*(addrs: seq[MultiAddress]): seq[MultiAddress] =
+proc getHolePunchableAddrs*(addrs: seq[MultiAddress]): seq[MultiAddress] =
   addrs.filterIt(TCP.matchPartial(it))
