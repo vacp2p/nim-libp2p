@@ -65,15 +65,17 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
         debug "Dcutr receiver has directly connected to the remote peer."
       finally:
         for fut in futs: fut.cancel()
-    except CancelledError as exc:
-      raise exc
-    except AllFuturesFailedError as exc:
-      debug "Dcutr receiver could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = exc.msg
-    except AsyncTimeoutError as exc:
-      debug "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = exc.msg
+    except CancelledError as err:
+      raise err
+    except AllFuturesFailedError as err:
+      debug "Dcutr receiver could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = err.msg
+      raise newException(DcutrError, "Dcutr receiver could not connect to the remote peer, all connect attempts failed", err)
+    except AsyncTimeoutError as err:
+      debug "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = err.msg
+      raise newException(DcutrError, "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", err)
     except CatchableError as err:
       warn "Unexpected error in dcutr handler", msg = err.msg
-      raise newException(DcutrError, "Unexpected error when trying a direct conn", err)
+      raise newException(DcutrError, "Unexpected error in dcutr handler", err)
 
   let self = T()
   self.handler = handleStream
