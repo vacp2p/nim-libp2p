@@ -1,3 +1,19 @@
+# Nim-LibP2P
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+when (NimMajor, NimMinor) < (1, 4):
+  {.push raises: [Defect].}
+else:
+  {.push raises: [].}
+
+import std/sequtils
+
 import unittest2
 import stew/byteutils
 import ../libp2p/[multicodec, multiaddress]
@@ -416,5 +432,28 @@ suite "MultiAddress test suite":
 
     check not tcp.matchPartial(ma)
     check IP4.matchPartial(ma)
+
+  test "getRepeatedField works when all addresses are valid":
+    var pb = initProtoBuffer()
+    let mas = SuccessVectors.mapIt(MultiAddress.init(it).get())
+    for ma in mas:
+      pb.write(1, ma)
+    pb.finish()
+
+    var decoded = newSeq[MultiAddress]()
+    check pb.getRepeatedField(1, decoded).isOk()
+    check decoded == mas
+
+  test "getRepeatedField does not fail when some addresses are invalid":
+    var pb = initProtoBuffer()
+    var mas = @[MultiAddress.init("/ip4/1.2.3.4" ).get(), MultiAddress()]
+    for ma in mas:
+      pb.write(1, ma)
+    pb.finish()
+
+    var decoded = newSeq[MultiAddress]()
+    check pb.getRepeatedField(1, decoded).isOk()
+    check decoded == @[MultiAddress.init("/ip4/1.2.3.4" ).get()]
+
 
 

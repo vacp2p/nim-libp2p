@@ -15,13 +15,16 @@ else:
   {.push raises: [].}
 {.push public.}
 
-import pkg/chronos
+import pkg/chronos, chronicles
 import std/[nativesockets, hashes]
 import tables, strutils, sets, stew/shims/net
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf, errors, utility
 import stew/[base58, base32, endians2, results]
 export results, minprotobuf, vbuffer, utility
+
+logScope:
+  topics = "libp2p multiaddress"
 
 type
   MAKind* = enum
@@ -1128,6 +1131,5 @@ proc getRepeatedField*(pb: ProtoBuffer, field: int,
       if ma.isOk():
         value.add(ma.get())
       else:
-        value.setLen(0)
-        return err(ProtoError.IncorrectBlob)
+        debug "Not supported MultiAddress in blob", ma = item
     ok(true)
