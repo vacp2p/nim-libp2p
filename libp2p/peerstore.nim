@@ -221,5 +221,8 @@ proc identify*(
   finally:
     await stream.closeWithEOF()
 
+proc getMostObservedProtosAndPorts*(self: PeerStore): seq[MultiAddress] =
+  return self.identify.observedAddrManager.getMostObservedProtosAndPorts()
+
 proc guessDialableAddr*(self: PeerStore, ma: MultiAddress): MultiAddress =
   return self.identify.observedAddrManager.guessDialableAddr(ma)

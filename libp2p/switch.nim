@@ -58,8 +58,6 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
-
 const
   ConcurrentUpgrades* = 4
 
@@ -149,10 +147,11 @@ method connect*(
   peerId: PeerId,
   addrs: seq[MultiAddress],
   forceDial = false,
-  reuseConnection = true): Future[void] {.public.} =
+  reuseConnection = true,
+  upgradeDir = Direction.Out): Future[void] {.public.} =
   ## Connects to a peer without opening a stream to it
 
-  s.dialer.connect(peerId, addrs, forceDial, reuseConnection)
+  s.dialer.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
 
 method connect*(
   s: Switch,
@@ -221,7 +220,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   s.peerInfo.protocols.add(proto.codec)
 
 proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
-  let muxed = await trans.upgradeIncoming(conn)
+  let muxed = await trans.upgrade(conn, Direction.In, Opt.none(PeerId))
   switch.connManager.storeMuxer(muxed)
   await switch.peerStore.identify(muxed)
   trace "Connection upgrade succeeded"

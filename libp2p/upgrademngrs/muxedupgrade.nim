@@ -62,7 +62,7 @@ proc mux*(
   muxer.handler = muxer.handle()
   return muxer
 
-proc upgrade(
+method upgrade*(
   self: MuxedUpgrade,
   conn: Connection,
   direction: Direction,
@@ -89,17 +89,6 @@ proc upgrade(
 
   trace "Upgraded connection", conn, sconn, direction
   return muxer
-
-method upgradeOutgoing*(
-  self: MuxedUpgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Muxer] {.async, gcsafe.} =
-  return await self.upgrade(conn, Out, peerId)
-
-method upgradeIncoming*(
-  self: MuxedUpgrade,
-  conn: Connection): Future[Muxer] {.async, gcsafe.} =
-  return await self.upgrade(conn, In, Opt.none(PeerId))
 
 proc new*(
   T: type MuxedUpgrade,

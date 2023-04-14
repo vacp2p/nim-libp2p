@@ -28,7 +28,8 @@ method connect*(
   peerId: PeerId,
   addrs: seq[MultiAddress],
   forceDial = false,
-  reuseConnection = true) {.async, base.} =
+  reuseConnection = true,
+  upgradeDir = Direction.Out) {.async, base.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##

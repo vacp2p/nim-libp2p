@@ -28,7 +28,8 @@ import ../stream/connection,
 
 export connmanager, connection, identify, secure, multistream
 
-declarePublicCounter(libp2p_failed_upgrade, "peers failed upgrade")
+declarePublicCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
+declarePublicCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 logScope:
   topics = "libp2p upgrade"
@@ -41,14 +42,10 @@ type
     connManager*: ConnManager
     secureManagers*: seq[Secure]
 
-method upgradeIncoming*(
-  self: Upgrade,
-  conn: Connection): Future[Muxer] {.base.} =
-  doAssert(false, "Not implemented!")
-
-method upgradeOutgoing*(
+method upgrade*(
   self: Upgrade,
   conn: Connection,
+  direction: Direction,
   peerId: Opt[PeerId]): Future[Muxer] {.base.} =
   doAssert(false, "Not implemented!")
 

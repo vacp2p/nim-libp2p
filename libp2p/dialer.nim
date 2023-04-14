@@ -36,7 +36,6 @@ logScope:
 declareCounter(libp2p_total_dial_attempts, "total attempted dials")
 declareCounter(libp2p_successful_dials, "dialed successful peers")
 declareCounter(libp2p_failed_dials, "failed dials")
-declareCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
 
 type
   DialFailedError* = object of LPError
@@ -53,7 +52,8 @@ proc dialAndUpgrade(
   self: Dialer,
   peerId: Opt[PeerId],
   hostname: string,
-  address: MultiAddress):
+  address: MultiAddress,
+  upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
 
   for transport in self.transports: # for each transport
@@ -71,27 +71,27 @@ proc dialAndUpgrade(
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
-      # also keep track of the connection's bottom unsafe transport direction
-      # required by gossipsub scoring
-      dialed.transportDir = Direction.Out
-
       libp2p_successful_dials.inc()
 
       let mux =
         try:
-          await transport.upgradeOutgoing(dialed, peerId)
+          dialed.transportDir = upgradeDir
+          await transport.upgrade(dialed, upgradeDir, peerId)
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
           await dialed.close()
           debug "Upgrade failed", msg = exc.msg, peerId
           if exc isnot CancelledError:
-            libp2p_failed_upgrades_outgoing.inc()
+            if upgradeDir == Direction.Out:
+              libp2p_failed_upgrades_outgoing.inc()
+            else:
+              libp2p_failed_upgrades_incoming.inc()
 
           # Try other address
           return nil
 
-      doAssert not isNil(mux), "connection died after upgradeOutgoing"
+      doAssert not isNil(mux), "connection died after upgrade " & $upgradeDir
       debug "Dial successful", peerId = mux.connection.peerId
       return mux
   return nil
@@ -127,7 +127,8 @@ proc expandDnsAddr(
 proc dialAndUpgrade(
   self: Dialer,
   peerId: Opt[PeerId],
-  addrs: seq[MultiAddress]):
+  addrs: seq[MultiAddress],
+  upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
 
   debug "Dialing peer", peerId
@@ -145,7 +146,7 @@ proc dialAndUpgrade(
           else: await self.nameResolver.resolveMAddress(expandedAddress)
 
       for resolvedAddress in resolvedAddresses:
-        result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress)
+        result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress, upgradeDir)
         if not isNil(result):
           return result
 
@@ -162,7 +163,8 @@ proc internalConnect(
   peerId: Opt[PeerId],
   addrs: seq[MultiAddress],
   forceDial: bool,
-  reuseConnection = true):
+  reuseConnection = true,
+  upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
   if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
@@ -180,7 +182,7 @@ proc internalConnect(
     let slot = self.connManager.getOutgoingSlot(forceDial)
     let muxed =
       try:
-        await self.dialAndUpgrade(peerId, addrs)
+        await self.dialAndUpgrade(peerId, addrs, upgradeDir)
       except CatchableError as exc:
         slot.release()
         raise exc
@@ -206,7 +208,8 @@ method connect*(
   peerId: PeerId,
   addrs: seq[MultiAddress],
   forceDial = false,
-  reuseConnection = true) {.async.} =
+  reuseConnection = true,
+  upgradeDir = Direction.Out) {.async.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
@@ -214,7 +217,7 @@ method connect*(
   if self.connManager.connCount(peerId) > 0 and reuseConnection:
     return
 
-  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection)
+  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection, upgradeDir)
 
 method connect*(
   self: Dialer,
