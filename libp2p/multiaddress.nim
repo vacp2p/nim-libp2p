@@ -1120,6 +1120,10 @@ proc getField*(pb: ProtoBuffer, field: int,
 proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
      inline.} =
+  ## Read repeated field from protobuf message. ``field`` is field number. If the message is malformed, an error is returned.
+  ## If field is not present in message, then ``ok(false)`` is returned and value is empty. If field is present,
+  ## but no items could be parsed, then ``err(ProtoError.IncorrectBlob)`` is returned and value is empty.
+  ## If field is present and some item could be parsed, then ``true`` is returned and value contains the parsed values.
   var items: seq[seq[byte]]
   value.setLen(0)
   let res = ? pb.getRepeatedField(field, items)
@@ -1132,4 +1136,7 @@ proc getRepeatedField*(pb: ProtoBuffer, field: int,
         value.add(ma.get())
       else:
         debug "Not supported MultiAddress in blob", ma = item
-    ok(true)
+    if value.len == 0:
+      err(ProtoError.IncorrectBlob)
+    else:
+      ok(true)

@@ -433,7 +433,7 @@ suite "MultiAddress test suite":
     check not tcp.matchPartial(ma)
     check IP4.matchPartial(ma)
 
-  test "getRepeatedField works when all addresses are valid":
+  test "getRepeatedField does not fail when all addresses are valid":
     var pb = initProtoBuffer()
     let mas = SuccessVectors.mapIt(MultiAddress.init(it).get())
     for ma in mas:
@@ -455,5 +455,14 @@ suite "MultiAddress test suite":
     check pb.getRepeatedField(1, decoded).isOk()
     check decoded == @[MultiAddress.init("/ip4/1.2.3.4" ).get()]
 
+  test "getRepeatedField fails when all addresses are invalid":
+    var pb = initProtoBuffer()
+    var mas = @[MultiAddress(), MultiAddress()]
+    for ma in mas:
+      pb.write(1, ma)
+    pb.finish()
 
-
+    var decoded = newSeq[MultiAddress]()
+    let error = pb.getRepeatedField(1, decoded).error()
+    check error == ProtoError.IncorrectBlob
+    check decoded.len == 0
