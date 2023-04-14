@@ -15,13 +15,16 @@ else:
   {.push raises: [].}
 {.push public.}
 
-import pkg/chronos
+import pkg/chronos, chronicles
 import std/[nativesockets, hashes]
 import tables, strutils, sets, stew/shims/net
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf, errors, utility
 import stew/[base58, base32, endians2, results]
 export results, minprotobuf, vbuffer, utility
+
+logScope:
+  topics = "libp2p multiaddress"
 
 type
   MAKind* = enum
@@ -1117,6 +1120,10 @@ proc getField*(pb: ProtoBuffer, field: int,
 proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
      inline.} =
+  ## Read repeated field from protobuf message. ``field`` is field number. If the message is malformed, an error is returned.
+  ## If field is not present in message, then ``ok(false)`` is returned and value is empty. If field is present,
+  ## but no items could be parsed, then ``err(ProtoError.IncorrectBlob)`` is returned and value is empty.
+  ## If field is present and some item could be parsed, then ``true`` is returned and value contains the parsed values.
   var items: seq[seq[byte]]
   value.setLen(0)
   let res = ? pb.getRepeatedField(field, items)
@@ -1128,6 +1135,8 @@ proc getRepeatedField*(pb: ProtoBuffer, field: int,
       if ma.isOk():
         value.add(ma.get())
       else:
-        value.setLen(0)
-        return err(ProtoError.IncorrectBlob)
-    ok(true)
+        debug "Not supported MultiAddress in blob", ma = item
+    if value.len == 0:
+      err(ProtoError.IncorrectBlob)
+    else:
+      ok(true)
