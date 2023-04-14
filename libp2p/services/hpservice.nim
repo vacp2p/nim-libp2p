@@ -46,7 +46,8 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
   await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
-      if self.isPublicIPAddrProc(initTAddress(address).get()):
+      let ta = initTAddress(address)
+      if ta.isOk() and self.isPublicIPAddrProc(ta.get()):
         await switch.connect(peerId, @[address], true, false)
         debug "Direct connection created."
         return true
