@@ -1,4 +1,5 @@
 import unittest2
+import stew/byteutils
 import ../libp2p/[multicodec, multiaddress]
 
 when defined(nimHasUsed): {.used.}
@@ -62,6 +63,8 @@ const
   ]
 
   FailureVectors = [
+    "",
+    "/",
     "/ip4",
     "/ip4/::1",
     "/ip4/fdpsofodsajfdoisa",
@@ -299,6 +302,7 @@ suite "MultiAddress test suite":
   test "go-multiaddr failure test vectors":
     for item in FailureVectors:
       check MultiAddress.init(item).isErr()
+      check MultiAddress.init(item.toBytes()).isErr()
 
   test "rust-multiaddr success test vectors":
     ## Rust test vectors are with changed UDP encoding and without WSS
