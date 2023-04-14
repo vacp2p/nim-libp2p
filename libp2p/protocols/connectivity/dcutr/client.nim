@@ -64,6 +64,7 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
     await stream.send(MsgType.Sync, addrs)
+    debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
 
     if peerDialableAddrs.len > self.maxDialableAddrs:

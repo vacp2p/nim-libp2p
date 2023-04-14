@@ -60,4 +60,4 @@ proc send*(conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]) {.async
   await conn.writeLp(pb.buffer)
 
 proc getHolePunchableAddrs*(addrs: seq[MultiAddress]): seq[MultiAddress] =
-  addrs.filterIt(TCP.matchPartial(it))
+  addrs.filterIt(TCP.match(it))

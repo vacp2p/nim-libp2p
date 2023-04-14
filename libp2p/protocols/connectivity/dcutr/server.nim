@@ -24,7 +24,7 @@ import ../../protocol,
        ../../../utils/future
 
 export DcutrError
-export chronicles #FIXME undertand why this is needed
+export chronicles
 
 type Dcutr* = ref object of LPProtocol
 
