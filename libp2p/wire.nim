@@ -71,7 +71,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
           res.port = Port(fromBytesBE(uint16, pbuf))
           ok(res)
   else:
-    err("MultiAddress must be wire address (tcp, udp or unix)")
+    err("MultiAddress must be wire address (tcp, udp or unix): " & $ma)
 
 proc connect*(
   ma: MultiAddress,

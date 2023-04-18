@@ -44,4 +44,5 @@ import testtcptransport,
        testautonat,
        testautonatservice,
        testautorelay,
-       testdcutr
+       testdcutr,
+       testhpservice

@@ -23,6 +23,7 @@ import ../../protocol,
        ../../../switch,
        ../../../utils/future
 
+export DcutrError
 export chronicles
 
 type Dcutr* = ref object of LPProtocol

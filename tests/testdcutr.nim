@@ -16,36 +16,7 @@ from ../libp2p/protocols/connectivity/autonat/core import NetworkReachability
 import ../libp2p/builders
 import ../libp2p/utils/future
 import ./helpers
-
-type
-  SwitchStub* = ref object of Switch
-    switch: Switch
-    connectStub*: proc(): Future[void] {.async.}
-
-proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: proc (): Future[void] {.async.} = nil): T =
-  return SwitchStub(
-    switch: switch,
-    peerInfo: switch.peerInfo,
-    ms: switch.ms,
-    transports: switch.transports,
-    connManager: switch.connManager,
-    peerStore: switch.peerStore,
-    dialer: switch.dialer,
-    nameResolver: switch.nameResolver,
-    services: switch.services,
-    connectStub: connectStub)
-
-method connect*(
- self: SwitchStub,
- peerId: PeerId,
- addrs: seq[MultiAddress],
- forceDial = false,
- reuseConnection = true,
- upgradeDir = Direction.Out) {.async.} =
-  if (self.connectStub != nil):
-    await self.connectStub()
-  else:
-    await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
+import ./stubs/switchstub
 
 suite "Dcutr":
   teardown:

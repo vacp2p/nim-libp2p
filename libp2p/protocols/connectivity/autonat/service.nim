@@ -17,8 +17,11 @@ import chronos, metrics
 import ../../../switch
 import ../../../wire
 import client
+from core import NetworkReachability, AutonatUnreachableError
 import ../../../utils/heartbeat
 import ../../../crypto/crypto
+
+export options, core.NetworkReachability
 
 logScope:
   topics = "libp2p autonatservice"
@@ -30,7 +33,7 @@ type
     newConnectedPeerHandler: PeerEventHandler
     addressMapper: AddressMapper
     scheduleHandle: Future[void]
-    networkReachability: NetworkReachability
+    networkReachability*: NetworkReachability
     confidence: Option[float]
     answers: Deque[NetworkReachability]
     autonatClient: AutonatClient
@@ -70,9 +73,6 @@ proc new*(
     minConfidence: minConfidence,
     dialTimeout: dialTimeout,
     enableAddressMapper: enableAddressMapper)
-
-proc networkReachability*(self: AutonatService): NetworkReachability {.inline.} =
-  return self.networkReachability
 
 proc callHandler(self: AutonatService) {.async.} =
   if not isNil(self.statusAndConfidenceHandler):

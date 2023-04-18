@@ -19,6 +19,7 @@ import ../../libp2p/[protocols/connectivity/autonat/client,
                      peerid,
                      multiaddress,
                      switch]
+from ../../libp2p/protocols/connectivity/autonat/core import NetworkReachability, AutonatUnreachableError, AutonatError
 
 type
   AutonatClientStub* = ref object of AutonatClient
