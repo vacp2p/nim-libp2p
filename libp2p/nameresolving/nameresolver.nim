@@ -16,7 +16,7 @@ import std/[sugar, sets, sequtils, strutils]
 import
   chronos,
   chronicles,
-  stew/[endians2, byteutils]
+  stew/endians2
 import ".."/[multiaddress, multicodec]
 
 logScope:

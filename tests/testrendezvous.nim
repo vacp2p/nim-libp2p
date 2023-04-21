@@ -1,7 +1,7 @@
 {.used.}
 
-import options, sequtils, strutils
-import stew/byteutils, chronos
+import sequtils, strutils
+import chronos
 import ../libp2p/[protocols/rendezvous,
                   switch,
                   builders,]

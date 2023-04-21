@@ -15,7 +15,7 @@ else:
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
 import "."/[types, scoring]
-import ".."/[pubsubpeer, peertable, timedcache, mcache, floodsub, pubsub]
+import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility, switch, routing_record, signed_envelope, utils/heartbeat]
 

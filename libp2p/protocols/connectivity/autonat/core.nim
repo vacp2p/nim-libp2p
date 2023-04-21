@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[options, sets, sequtils]
+import std/[options]
 import stew/[results, objects]
 import chronos, chronicles
 import ../../../multiaddress,

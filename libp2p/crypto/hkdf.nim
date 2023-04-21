@@ -15,7 +15,7 @@ else:
   {.push raises: [].}
 
 import nimcrypto
-import bearssl/[kdf, rand, hash]
+import bearssl/[kdf, hash]
 
 type HkdfResult*[len: static int] = array[len, byte]
 

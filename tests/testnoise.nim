@@ -9,7 +9,6 @@
 
 {.used.}
 
-import tables
 import chronos, stew/byteutils
 import chronicles
 import ../libp2p/[switch,

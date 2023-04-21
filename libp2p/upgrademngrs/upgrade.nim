@@ -13,7 +13,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[options, sequtils, strutils]
+import std/[sequtils, strutils]
 import pkg/[chronos, chronicles, metrics]
 
 import ../stream/connection,
@@ -21,7 +21,6 @@ import ../stream/connection,
        ../protocols/identify,
        ../muxers/muxer,
        ../multistream,
-       ../peerstore,
        ../connmanager,
        ../errors,
        ../utility

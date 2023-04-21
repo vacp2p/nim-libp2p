@@ -1,4 +1,4 @@
-import chronos, nimcrypto/utils
+import chronos
 import ../libp2p/[stream/connection,
                   stream/bufferstream]
 

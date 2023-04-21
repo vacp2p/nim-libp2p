@@ -8,7 +8,6 @@
 # those terms.
 import unittest2
 import ../libp2p/crypto/[crypto, secp]
-import nimcrypto/utils
 
 when defined(nimHasUsed): {.used.}
 

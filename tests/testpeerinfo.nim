@@ -1,7 +1,7 @@
 {.used.}
 
 import options
-import chronos, stew/byteutils
+import chronos
 import ../libp2p/crypto/crypto,
        ../libp2p/multicodec,
        ../libp2p/peerinfo,

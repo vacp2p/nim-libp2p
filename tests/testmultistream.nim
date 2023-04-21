@@ -1,7 +1,6 @@
-import strutils, strformat, stew/byteutils
+import strformat, stew/byteutils
 import chronos
-import ../libp2p/errors,
-       ../libp2p/multistream,
+import ../libp2p/multistream,
        ../libp2p/stream/bufferstream,
        ../libp2p/stream/connection,
        ../libp2p/multiaddress,

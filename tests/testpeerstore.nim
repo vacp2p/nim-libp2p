@@ -1,6 +1,6 @@
 import
   unittest2,
-  std/[tables, sequtils, sets],
+  std/[tables, sequtils],
   ../libp2p/crypto/crypto,
   ../libp2p/multiaddress,
   ../libp2p/peerid,

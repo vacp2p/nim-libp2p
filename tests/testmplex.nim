@@ -1,4 +1,4 @@
-import strformat, random, oids, sequtils
+import strformat, random, sequtils
 import chronos, nimcrypto/utils, chronicles, stew/byteutils
 import ../libp2p/[errors,
                   stream/connection,

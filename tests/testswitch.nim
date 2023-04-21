@@ -1,9 +1,8 @@
 {.used.}
 
-import options, sequtils, sets
+import options, sequtils
 import chronos
 import stew/byteutils
-import nimcrypto/sysrand
 import ../libp2p/[errors,
                   switch,
                   multistream,
@@ -19,7 +18,6 @@ import ../libp2p/[errors,
                   muxers/muxer,
                   muxers/mplex/lpchannel,
                   stream/lpstream,
-                  nameresolving/nameresolver,
                   nameresolving/mockresolver,
                   stream/chronosstream,
                   utils/semaphore,

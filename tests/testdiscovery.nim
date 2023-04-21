@@ -1,7 +1,6 @@
 {.used.}
 
 import options, chronos, sets
-import stew/byteutils
 import ../libp2p/[protocols/rendezvous,
                   switch,
                   builders,

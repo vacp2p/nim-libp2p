@@ -14,14 +14,13 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[oids, sequtils]
+import std/[sequtils]
 import stew/results
 import chronos, chronicles
 import transport,
        ../errors,
        ../wire,
        ../multicodec,
-       ../multistream,
        ../connmanager,
        ../multiaddress,
        ../stream/connection,

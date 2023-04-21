@@ -28,7 +28,7 @@ else:
 
 import
   std/[tables, sets, options, macros],
-  chronos, chronicles,
+  chronos,
   ./crypto/crypto,
   ./protocols/identify,
   ./protocols/protocol,

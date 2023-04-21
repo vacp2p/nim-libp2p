@@ -12,7 +12,6 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import hashes
 import chronicles, metrics, stew/[byteutils, endians2]
 import ./messages,
        ./protobuf,

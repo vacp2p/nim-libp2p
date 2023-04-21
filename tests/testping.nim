@@ -1,10 +1,7 @@
-import options
-import chronos, strutils
-import ../libp2p/[protocols/identify,
-                  protocols/ping,
+import chronos
+import ../libp2p/[protocols/ping,
                   multiaddress,
                   peerinfo,
-                  wire,
                   peerid,
                   stream/connection,
                   multistream,

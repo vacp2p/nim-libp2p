@@ -1,5 +1,5 @@
 import options
-import chronos, strutils, sequtils, sets, algorithm
+import chronos
 import ../libp2p/[protocols/identify,
                   multiaddress,
                   peerinfo,

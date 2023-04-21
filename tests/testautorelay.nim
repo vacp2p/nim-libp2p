@@ -4,12 +4,9 @@ import chronos, options
 import ../libp2p
 import ../libp2p/[crypto/crypto,
                   protocols/connectivity/relay/relay,
-                  protocols/connectivity/relay/messages,
-                  protocols/connectivity/relay/utils,
                   protocols/connectivity/relay/client,
                   services/autorelayservice]
 import ./helpers
-import stew/byteutils
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
   var builder = SwitchBuilder.new()
