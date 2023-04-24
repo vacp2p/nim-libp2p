@@ -58,7 +58,7 @@ template checkTrackers*() =
   # Also test the GC is not fooling with us
   try:
     GC_fullCollect()
-  except CatchableError:
+  except Exception: # FIXME replace by CatchableError when removing support for Nim 1.2
     discard
 
 type RngWrap = object
