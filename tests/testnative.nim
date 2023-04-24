@@ -1,3 +1,5 @@
+{.warning[UnusedImport]: off.}
+
 import testvarint,
        testconnection,
        testminprotobuf,
