@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import options, macros, sequtils
+import options, macros
 import stew/objects
 import ../../../peerinfo,
        ../../../signed_envelope
@@ -115,9 +115,10 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Option[RelayMessage] =
   if r2.get(): rMsg.srcPeer = some(src)
   if r3.get(): rMsg.dstPeer = some(dst)
   if r4.get():
-    if statusOrd.int notin StatusV1:
+    var status: StatusV1
+    if not checkedEnumAssign(status, statusOrd):
       return none(RelayMessage)
-    rMsg.status = some(StatusV1(statusOrd))
+    rMsg.status = some(status)
   some(rMsg)
 
 # Voucher
@@ -285,9 +286,10 @@ proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Option[HopMessage] =
   if r3.get(): msg.reservation = some(reservation)
   if r4.get(): msg.limit = limit
   if r5.get():
-    if statusOrd.int notin StatusV2:
+    var status: StatusV2
+    if not checkedEnumAssign(status, statusOrd):
       return none(HopMessage)
-    msg.status = some(StatusV2(statusOrd))
+    msg.status = some(status)
   some(msg)
 
 # Circuit Relay V2 Stop Message
@@ -364,7 +366,8 @@ proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Option[StopMessage] =
   if r2.get(): msg.peer = some(peer)
   if r3.get(): msg.limit = limit
   if r4.get():
-    if statusOrd.int notin StatusV2:
+    var status: StatusV2
+    if not checkedEnumAssign(status, statusOrd):
       return none(StopMessage)
-    msg.status = some(StatusV2(statusOrd))
+    msg.status = some(status)
   some(msg)
