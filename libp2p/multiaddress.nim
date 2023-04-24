@@ -83,7 +83,7 @@ proc ip4StB(s: string, vb: var VBuffer): bool =
     if a.family == IpAddressFamily.IPv4:
       vb.writeArray(a.address_v4)
       result = true
-  except:
+  except CatchableError:
     discard
 
 proc ip4BtS(vb: var VBuffer, s: var string): bool =
@@ -106,7 +106,7 @@ proc ip6StB(s: string, vb: var VBuffer): bool =
     if a.family == IpAddressFamily.IPv6:
       vb.writeArray(a.address_v6)
       result = true
-  except:
+  except CatchableError:
     discard
 
 proc ip6BtS(vb: var VBuffer, s: var string): bool =
@@ -150,7 +150,7 @@ proc portStB(s: string, vb: var VBuffer): bool =
       port[1] = cast[byte](nport and 0xFF)
       vb.writeArray(port)
       result = true
-  except:
+  except CatchableError:
     discard
 
 proc portBtS(vb: var VBuffer, s: var string): bool =
@@ -175,7 +175,7 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
     if MultiHash.decode(data, mh).isOk:
       vb.writeSeq(data)
       result = true
-  except:
+  except CatchableError:
     discard
 
 proc p2pBtS(vb: var VBuffer, s: var string): bool =
@@ -210,7 +210,7 @@ proc onionStB(s: string, vb: var VBuffer): bool =
       address[11] = cast[byte](nport and 0xFF)
       vb.writeArray(address)
       result = true
-  except:
+  except CatchableError:
     discard
 
 proc onionBtS(vb: var VBuffer, s: var string): bool =
@@ -244,7 +244,7 @@ proc onion3StB(s: string, vb: var VBuffer): bool =
       address[36] = cast[byte](nport and 0xFF)
       vb.writeArray(address)
       result = true
-  except:
+  except CatchableError:
     discard
 
 proc onion3BtS(vb: var VBuffer, s: var string): bool =
