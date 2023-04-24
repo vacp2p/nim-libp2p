@@ -121,28 +121,13 @@ proc addConnEventHandler*(c: ConnManager,
                           kind: ConnEventKind) =
   ## Add peer event handler - handlers must not raise exceptions!
   ##
-
-  try:
-    if isNil(handler): return
-    c.connEvents[kind].incl(handler)
-  except Exception as exc:
-    # TODO: there is an Exception being raised
-    # somewhere in the depths of the std.
-    # Might be related to https://github.com/nim-lang/Nim/issues/17382
-
-    raiseAssert exc.msg
+  if isNil(handler): return
+  c.connEvents[kind].incl(handler)
 
 proc removeConnEventHandler*(c: ConnManager,
                              handler: ConnEventHandler,
                              kind: ConnEventKind) =
-  try:
     c.connEvents[kind].excl(handler)
-  except Exception as exc:
-    # TODO: there is an Exception being raised
-    # somewhere in the depths of the std.
-    # Might be related to https://github.com/nim-lang/Nim/issues/17382
-
-    raiseAssert exc.msg
 
 proc triggerConnEvent*(c: ConnManager,
                        peerId: PeerId,
@@ -169,26 +154,12 @@ proc addPeerEventHandler*(c: ConnManager,
   ##
 
   if isNil(handler): return
-  try:
-    c.peerEvents[kind].incl(handler)
-  except Exception as exc:
-    # TODO: there is an Exception being raised
-    # somewhere in the depths of the std.
-    # Might be related to https://github.com/nim-lang/Nim/issues/17382
-
-    raiseAssert exc.msg
+  c.peerEvents[kind].incl(handler)
 
 proc removePeerEventHandler*(c: ConnManager,
                              handler: PeerEventHandler,
                              kind: PeerEventKind) =
-  try:
-    c.peerEvents[kind].excl(handler)
-  except Exception as exc:
-    # TODO: there is an Exception being raised
-    # somewhere in the depths of the std.
-    # Might be related to https://github.com/nim-lang/Nim/issues/17382
-
-    raiseAssert exc.msg
+  c.peerEvents[kind].excl(handler)
 
 proc triggerPeerEvents*(c: ConnManager,
                         peerId: PeerId,
