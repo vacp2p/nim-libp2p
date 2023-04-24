@@ -515,7 +515,7 @@ proc socketExists(address: MultiAddress): Future[bool] {.async.} =
     var transp = await connect(address)
     await transp.closeWait()
     result = true
-  except:
+  except CatchableError, Defect:
     result = false
 
 when defined(windows):
@@ -872,7 +872,7 @@ proc connect*(api: DaemonAPI, peer: PeerId,
                                                          timeout))
     pb.withMessage() do:
       discard
-  except:
+  except CatchableError, Defect:
     await api.closeConnection(transp)
 
 proc disconnect*(api: DaemonAPI, peer: PeerId) {.async.} =

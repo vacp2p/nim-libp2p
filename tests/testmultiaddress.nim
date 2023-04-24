@@ -332,7 +332,7 @@ suite "MultiAddress test suite":
       var r = false
       try:
         discard MultiAddress.init(item).get()
-      except:
+      except CatchableError, Defect:
         r = true
       check r == true
 
