@@ -1,14 +1,12 @@
 {.used.}
 
-import sequtils
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/wstransport,
                   upgrademngrs/upgrade,
                   multiaddress,
-                  errors,
-                  wire]
+                  errors]
 
 import ./helpers, ./commontransport
 
@@ -68,7 +66,8 @@ suite "WebSocket transport":
           TLSPrivateKey.init(SecureKey),
           TLSCertificate.init(SecureCert),
           {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
-      except Exception: check(false)
+      except CatchableError:
+        check(false)
 
   commonTransportTest(
     wsSecureTranspProvider,
