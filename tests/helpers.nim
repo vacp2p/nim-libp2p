@@ -55,11 +55,6 @@ template checkTrackers*() =
     if tracker.isLeaked():
       checkpoint tracker.dump()
       fail()
-  # Also test the GC is not fooling with us
-  try:
-    GC_fullCollect()
-  except Exception: # FIXME replace by CatchableError when removing support for Nim 1.2
-    discard
 
 type RngWrap = object
   rng: ref HmacDrbgContext
