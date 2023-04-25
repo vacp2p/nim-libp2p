@@ -17,7 +17,7 @@ import std/[os, osproc, strutils, tables, strtabs, sequtils]
 import pkg/[chronos, chronicles]
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf, ../errors
-import ../crypto/crypto
+import ../crypto/crypto, ../utility
 
 export
   peerid, multiaddress, multicodec, multihash, cid, crypto, wire, errors
@@ -759,12 +759,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   # Starting daemon process
   # echo "Starting ", cmd, " ", args.join(" ")
   api.process = 
-    try:
+    tryException:
       startProcess(cmd, "", args, env, {poParentStreams})
-    except CatchableError as exc:
-      raise exc
-    except Exception as exc:
-      raiseAssert exc.msg
   # Waiting until daemon will not be bound to control socket.
   while true:
     if not api.process.running():
