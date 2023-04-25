@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, sets]
+import std/[tables, sets, sequtils]
 import ./pubsubpeer, ../../peerid
 
 export tables, sets
@@ -50,6 +50,13 @@ func hasPeer*(table: PeerTable, topic: string, peer: PubSubPeer): bool =
 func peers*(table: PeerTable, topic: string): int =
   if topic in table:
     try: table[topic].len
+    except KeyError: raiseAssert "checked with in"
+  else:
+    0
+
+func outboundPeers*(table: PeerTable, topic: string): int =
+  if topic in table:
+    try: table[topic].countIt(it.outbound)
     except KeyError: raiseAssert "checked with in"
   else:
     0

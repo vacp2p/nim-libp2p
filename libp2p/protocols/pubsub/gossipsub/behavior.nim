@@ -164,8 +164,8 @@ proc handleGraft*(g: GossipSub,
     # If they send us a graft before they send us a subscribe, what should
     # we do? For now, we add them to mesh but don't add them to gossipsub.
     if topic in g.topics:
-      if g.mesh.peers(topic) < g.parameters.dHigh or (peer.outbound and
-          g.mesh.getOrDefault(topic).countIt(it.outbound) < g.parameters.dOut):
+      if g.mesh.peers(topic) < g.parameters.dHigh or
+          (peer.outbound and g.mesh.outboundPeers(topic) < g.parameters.dOut):
         # In the spec, there's no mention of DHi here, but implicitly, a
         # peer will be removed from the mesh on next rebalance, so we don't want
         # this peer to push someone else out
@@ -329,7 +329,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   var
     prunes, grafts: seq[PubSubPeer]
     npeers = g.mesh.peers(topic)
-    nOutPeers = g.mesh.getOrDefault(topic).countIt(it.outbound)
+    nOutPeers = g.mesh.outboundPeers(topic)
     defaultMesh: HashSet[PubSubPeer]
     backingOff = g.backingOff.getOrDefault(topic)
 
