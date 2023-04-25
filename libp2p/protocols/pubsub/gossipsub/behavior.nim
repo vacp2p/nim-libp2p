@@ -328,10 +328,11 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   var
     prunes, grafts: seq[PubSubPeer]
     npeers = g.mesh.peers(topic)
+    nOutPeers = g.mesh.getOrDefault(topic).countIt(it.outbound)
     defaultMesh: HashSet[PubSubPeer]
     backingOff = g.backingOff.getOrDefault(topic)
 
-  if npeers  < g.parameters.dLow:
+  if npeers < g.parameters.dLow:
     trace "replenishing mesh", peers = npeers
     # replenish the mesh if we're below Dlo
 
@@ -370,7 +371,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
           g.fanout.removePeer(topic, peer)
           grafts &= peer
 
-  else:
+  elif nOutPeers < g.parameters.dOut:
     trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
     var
@@ -399,7 +400,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     candidates.sort(byScore, SortOrder.Descending)
 
     # Graft peers so we reach a count of D
-    candidates.setLen(min(candidates.len, g.parameters.dOut))
+    candidates.setLen(min(candidates.len, g.parameters.dOut - nOutPeers))
 
     trace "grafting outbound peers", topic, peers = candidates.len
 
