@@ -66,7 +66,7 @@ when defined(libp2p_agents_metrics):
     KnownLibP2PAgents* {.strdefine.} = "nim-libp2p"
     KnownLibP2PAgentsSeq* = KnownLibP2PAgents.safeToLowerAscii().tryGet().split(",")
 
-template tryException*(body: untyped): untyped =
+template exceptionToAssert*(body: untyped): untyped =
   block:
     var res: type(body)
     when defined(nimHasWarnBareExcept):

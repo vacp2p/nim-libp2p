@@ -759,7 +759,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
   # Starting daemon process
   # echo "Starting ", cmd, " ", args.join(" ")
   api.process = 
-    tryException:
+    exceptionToAssert:
       startProcess(cmd, "", args, env, {poParentStreams})
   # Waiting until daemon will not be bound to control socket.
   while true:

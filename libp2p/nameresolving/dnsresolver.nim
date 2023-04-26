@@ -81,7 +81,7 @@ proc getDnsResponse(
     # parseResponse can has a raises: [Exception, ..] because of
     # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
     # it can't actually raise though
-    return tryException: parseResponse(string.fromBytes(rawResponse))
+    return exceptionToAssert: parseResponse(string.fromBytes(rawResponse))
   finally:
     await sock.closeWait()
 
@@ -117,7 +117,7 @@ method resolveIp*(
           # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
           # it can't actually raise though
           resolvedAddresses.incl(
-            tryException(answer.toString())
+            exceptionToAssert(answer.toString())
           )
       except CancelledError as e:
         raise e
@@ -152,7 +152,7 @@ method resolveTxt*(
       # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
       # it can't actually raise though
       let response = await getDnsResponse(server, address, TXT)
-      return tryException:
+      return exceptionToAssert:
         trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
         response.answers.mapIt(it.toString())
     except CancelledError as e:
