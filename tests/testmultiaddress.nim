@@ -329,12 +329,7 @@ suite "MultiAddress test suite":
 
   test "rust-multiaddr failure test vectors":
     for item in RustFailureVectors:
-      var r = false
-      try:
-        discard MultiAddress.init(item).get()
-      except CatchableError, Defect:
-        r = true
-      check r == true
+      check MultiAddress.init(item).isErr()
 
   test "Concatenation test":
     var ma1 = MultiAddress.init()
