@@ -1,3 +1,14 @@
+{.used.}
+
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import strformat, random, sequtils
 import chronos, nimcrypto/utils, chronicles, stew/byteutils
 import ../libp2p/[errors,
@@ -14,8 +25,6 @@ import ../libp2p/[errors,
                   varint]
 
 import ./helpers
-
-{.used.} 
 
 suite "Mplex":
   teardown:

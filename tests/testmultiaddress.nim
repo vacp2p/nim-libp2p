@@ -1,4 +1,6 @@
-# Nim-LibP2P
+{.used.}
+
+# Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -17,8 +19,6 @@ import std/sequtils
 import unittest2
 import stew/byteutils
 import ../libp2p/[multicodec, multiaddress]
-
-when defined(nimHasUsed): {.used.}
 
 type
   PatternVector = object

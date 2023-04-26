@@ -1,4 +1,6 @@
-# Nim-LibP2P
+{.used.}
+
+# Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -6,8 +8,6 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
-
-{.used.}
 
 import chronos, stew/byteutils
 import chronicles

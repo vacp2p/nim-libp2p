@@ -1,3 +1,5 @@
+{.used.}
+
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -6,12 +8,11 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
 import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, ecnist]
 import stew/results
-
-when defined(nimHasUsed): {.used.}
 
 const
   TestsCount = 10 # number of random tests

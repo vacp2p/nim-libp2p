@@ -1,3 +1,5 @@
+{.used.}
+
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -13,8 +15,6 @@ import unittest2
 import bearssl/hash
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-
-when defined(nimHasUsed): {.used.}
 
 const
   PrivateKeys = [
