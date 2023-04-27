@@ -92,6 +92,10 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
     ipb.write(4, prune)
   for ihave in control.dontSend:
     ipb.write(5, ihave)
+  if control.ping.len > 0:
+    ipb.write(10, control.ping)
+  if control.pong.len > 0:
+    ipb.write(11, control.pong)
   if len(ipb.buffer) > 0:
     ipb.finish()
     pb.write(field, ipb)
@@ -231,6 +235,8 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.
     if ? cpb.getRepeatedField(5, dontsendpbs):
       for item in dontsendpbs:
         control.dontSend.add(? decodeIHave(initProtoBuffer(item)))
+    discard ? cpb.getField(10, control.ping)
+    discard ? cpb.getField(11, control.pong)
     trace "decodeControl: message statistics", graft_count = len(control.graft),
                                                prune_count = len(control.prune),
                                                ihave_count = len(control.ihave),
