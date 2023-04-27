@@ -74,6 +74,7 @@ template exceptionToAssert*(body: untyped): untyped =
     try:
       res = body
     except CatchableError as exc: raise exc
+    except Defect as exc: raise exc
     except Exception as exc: raiseAssert exc.msg
     when defined(nimHasWarnBareExcept):
       {.pop.}
