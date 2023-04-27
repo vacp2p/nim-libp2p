@@ -297,7 +297,7 @@ proc getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize, p.rng)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer

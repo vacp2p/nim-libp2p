@@ -259,6 +259,10 @@ proc handleSubscribe*(g: GossipSub,
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
+  if control.ping.len in 1..<64:
+    g.send(peer, RPCMsg(control: some(ControlMessage(pong: control.ping))))
+  if control.pong.len in 1..<64:
+    peer.handlePong(control.pong)
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage

@@ -60,6 +60,11 @@ type
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
+    sentData*: seq[(Moment, int)]
+    pings*: Table[seq[byte], Moment]
+    lastPing*: Moment
+    rtts*: seq[int]
+    bandwidth*: int # in bytes per ms
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
@@ -67,6 +72,7 @@ type
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
+    rng*: ref HmacDrbgContext
 
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
     {.gcsafe, raises: [Defect].}
@@ -107,6 +113,50 @@ func outbound*(p: PubSubPeer): bool =
     true
   else:
     false
+
+proc bufferSizeAtMoment*(p: PubSubPeer, m: Moment): int =
+  var lastSent: Moment
+  for (sent, size) in p.sentData:
+    if sent > m:
+      break
+    let timeGap = (sent - lastSent).milliseconds
+    result -= int(timeGap * p.bandwidth)
+    if result < 0: result = 0
+
+    result += size
+    lastSent = sent
+
+  let timeGap = (m - lastSent).milliseconds
+  result -= int(timeGap * p.bandwidth)
+  return max(0, result)
+
+proc minRtt*(p: PubSubPeer): int =
+  if p.rtts.len > 0:
+    p.rtts.foldl(min(a, b), 10000)
+  else: 100
+
+proc handlePong*(p: PubSubPeer, pong: seq[byte]) =
+  if pong notin p.pings: return
+  let
+    pingMoment = p.pings.getOrDefault(pong)
+    delay = int((Moment.now() - pingMoment).milliseconds)
+    minRtt = p.minRtt
+
+  p.rtts.add(delay)
+  if delay <= minRtt:
+    # can't make bandwidth estimate in this situation
+    return
+
+  let
+    bufferSizeWhenSendingPing = p.bufferSizeAtMoment(pingMoment)
+    estimatedBandwidth =
+      bufferSizeWhenSendingPing / (delay - minRtt)
+
+  if bufferSizeWhenSendingPing / p.bandwidth < minRtt / 5:
+    # can't make bandwidth estimate in this situation
+    return
+
+  p.bandwidth = (p.bandwidth * 9 + int(estimatedBandwidth)) div 10
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -258,8 +308,19 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
 
   trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
 
+  let
+    startOfSend = Moment.now()
+    lastPing = startOfSend - p.lastPing
+  p.sentData.add((startOfSend, msg.len))
   try:
-    await conn.writeLp(msg)
+    if p.bufferSizeAtMoment(startOfSend) / p.bandwidth > p.minRtt / 5 or lastPing.milliseconds > p.minRtt * 2:
+      # ping it
+      p.lastPing = startOfSend
+      let pingKey = p.rng[].generateBytes(32)
+      p.pings[pingKey] = startOfSend
+      await conn.writeLp(msg & encodeRpcMsg(RPCMsg(control: some(ControlMessage(ping: pingKey))), true))
+    else:
+      await conn.writeLp(msg)
     trace "sent pubsub message to remote", conn
   except CatchableError as exc: # never cancelled
     # Because we detach the send call from the currently executing task using
@@ -305,14 +366,18 @@ proc new*(
   getConn: GetConn,
   onEvent: OnEvent,
   codec: string,
-  maxMessageSize: int): T =
+  maxMessageSize: int,
+  rng: ref HmacDrbgContext = newRng(),
+  ): T =
 
   result = T(
     getConn: getConn,
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
+    bandwidth: 6250,
     connectedFut: newFuture[void](),
-    maxMessageSize: maxMessageSize
+    maxMessageSize: maxMessageSize,
+    rng: rng
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
