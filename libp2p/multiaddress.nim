@@ -157,7 +157,7 @@ proc portBtS(vb: var VBuffer, s: var string): bool =
   ## Port number bufferToString() implementation.
   var port: array[2, byte]
   if vb.readArray(port) == 2:
-    var nport = (uint16(port[0]) shl 8) or uint16(port[1])
+    var nport = (safeConvert[uint16](port[0]) shl 8) or safeConvert[uint16](port[1])
     s = $nport
     result = true
 
@@ -217,7 +217,7 @@ proc onionBtS(vb: var VBuffer, s: var string): bool =
   ## ONION address bufferToString() implementation.
   var buf: array[12, byte]
   if vb.readArray(buf) == 12:
-    var nport = (uint16(buf[10]) shl 8) or uint16(buf[11])
+    var nport = (safeConvert[uint16](buf[10]) shl 8) or safeConvert[uint16](buf[11])
     s = Base32Lower.encode(buf.toOpenArray(0, 9))
     s.add(":")
     s.add($nport)
@@ -251,7 +251,7 @@ proc onion3BtS(vb: var VBuffer, s: var string): bool =
   ## ONION address bufferToString() implementation.
   var buf: array[37, byte]
   if vb.readArray(buf) == 37:
-    var nport = (uint16(buf[35]) shl 8) or uint16(buf[36])
+    var nport = (safeConvert[uint16](buf[35]) shl 8) or safeConvert[uint16](buf[36])
     s = Base32Lower.encode(buf.toOpenArray(0, 34))
     s.add(":")
     s.add($nport)

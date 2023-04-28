@@ -25,6 +25,9 @@ import nimcrypto/utils as ncrutils
 import minasn1
 export minasn1.Asn1Error
 import stew/[results, ctops]
+
+import ../utility
+
 export results
 
 const
@@ -243,7 +246,7 @@ proc random*(
   var res = new EcPrivateKey
   if ecKeygen(addr rng.vtable, ecimp,
                 addr res.key, addr res.buffer[0],
-                cint(kind)) == 0:
+                safeConvert[cint](kind)) == 0:
     err(EcKeyGenError)
   else:
     ok(res)
@@ -630,11 +633,11 @@ proc init*(key: var EcPrivateKey, data: openArray[byte]): Result[void, Asn1Error
     return err(Asn1Error.Incorrect)
 
   if oid == Asn1OidSecp256r1:
-    curve = cint(Secp256r1)
+    curve = safeConvert[cint](Secp256r1)
   elif oid == Asn1OidSecp384r1:
-    curve = cint(Secp384r1)
+    curve = safeConvert[cint](Secp384r1)
   elif oid == Asn1OidSecp521r1:
-    curve = cint(Secp521r1)
+    curve = safeConvert[cint](Secp521r1)
   else:
     return err(Asn1Error.Incorrect)
 
@@ -684,11 +687,11 @@ proc init*(pubkey: var EcPublicKey, data: openArray[byte]): Result[void, Asn1Err
     return err(Asn1Error.Incorrect)
 
   if oid == Asn1OidSecp256r1:
-    curve = cint(Secp256r1)
+    curve = safeConvert[cint](Secp256r1)
   elif oid == Asn1OidSecp384r1:
-    curve = cint(Secp384r1)
+    curve = safeConvert[cint](Secp384r1)
   elif oid == Asn1OidSecp521r1:
-    curve = cint(Secp521r1)
+    curve = safeConvert[cint](Secp521r1)
   else:
     return err(Asn1Error.Incorrect)
 
@@ -774,13 +777,13 @@ proc initRaw*(key: var EcPrivateKey, data: openArray[byte]): bool =
   ## Procedure returns ``true`` on success, ``false`` otherwise.
   var curve: cint
   if len(data) == SecKey256Length:
-    curve = cint(Secp256r1)
+    curve = safeConvert[cint](Secp256r1)
     result = true
   elif len(data) == SecKey384Length:
-    curve = cint(Secp384r1)
+    curve = safeConvert[cint](Secp384r1)
     result = true
   elif len(data) == SecKey521Length:
-    curve = cint(Secp521r1)
+    curve = safeConvert[cint](Secp521r1)
     result = true
   if result:
     result = false
@@ -805,13 +808,13 @@ proc initRaw*(pubkey: var EcPublicKey, data: openArray[byte]): bool =
   if len(data) > 0:
     if data[0] == 0x04'u8:
       if len(data) == PubKey256Length:
-        curve = cint(Secp256r1)
+        curve = safeConvert[cint](Secp256r1)
         result = true
       elif len(data) == PubKey384Length:
-        curve = cint(Secp384r1)
+        curve = safeConvert[cint](Secp384r1)
         result = true
       elif len(data) == PubKey521Length:
-        curve = cint(Secp521r1)
+        curve = safeConvert[cint](Secp521r1)
         result = true
   if result:
     result = false

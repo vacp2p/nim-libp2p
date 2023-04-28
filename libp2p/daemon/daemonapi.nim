@@ -170,7 +170,7 @@ proc requestIdentity(): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doIdentify(req *pb.Request)`.
   result = initProtoBuffer({WithVarintLength})
-  result.write(1, uint(RequestType.IDENTIFY))
+  result.write(1, safeConvert[uint](RequestType.IDENTIFY))
   result.finish()
 
 proc requestConnect(peerid: PeerId,
@@ -185,7 +185,7 @@ proc requestConnect(peerid: PeerId,
     msg.write(2, item.data.buffer)
   if timeout > 0:
     msg.write(3, hint64(timeout))
-  result.write(1, uint(RequestType.CONNECT))
+  result.write(1, safeConvert[uint](RequestType.CONNECT))
   result.write(2, msg)
   result.finish()
 
@@ -195,7 +195,7 @@ proc requestDisconnect(peerid: PeerId): ProtoBuffer =
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, peerid)
-  result.write(1, uint(RequestType.DISCONNECT))
+  result.write(1, safeConvert[uint](RequestType.DISCONNECT))
   result.write(7, msg)
   result.finish()
 
@@ -211,7 +211,7 @@ proc requestStreamOpen(peerid: PeerId,
     msg.write(2, item)
   if timeout > 0:
     msg.write(3, hint64(timeout))
-  result.write(1, uint(RequestType.STREAM_OPEN))
+  result.write(1, safeConvert[uint](RequestType.STREAM_OPEN))
   result.write(3, msg)
   result.finish()
 
@@ -224,7 +224,7 @@ proc requestStreamHandler(address: MultiAddress,
   msg.write(1, address.data.buffer)
   for item in protocols:
     msg.write(2, item)
-  result.write(1, uint(RequestType.STREAM_HANDLER))
+  result.write(1, safeConvert[uint](RequestType.STREAM_HANDLER))
   result.write(4, msg)
   result.finish()
 
@@ -232,13 +232,13 @@ proc requestListPeers(): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/conn.go
   ## Processing function `doListPeers(req *pb.Request)`
   result = initProtoBuffer({WithVarintLength})
-  result.write(1, uint(RequestType.LIST_PEERS))
+  result.write(1, safeConvert[uint](RequestType.LIST_PEERS))
   result.finish()
 
 proc requestDHTFindPeer(peer: PeerId, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTFindPeer(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.FIND_PEER)
+  let msgid = safeConvert[uint](DHTRequestType.FIND_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -246,7 +246,7 @@ proc requestDHTFindPeer(peer: PeerId, timeout = 0): ProtoBuffer =
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
@@ -254,7 +254,7 @@ proc requestDHTFindPeersConnectedToPeer(peer: PeerId,
                                         timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTFindPeersConnectedToPeer(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.FIND_PEERS_CONNECTED_TO_PEER)
+  let msgid = safeConvert[uint](DHTRequestType.FIND_PEERS_CONNECTED_TO_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -262,7 +262,7 @@ proc requestDHTFindPeersConnectedToPeer(peer: PeerId,
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
@@ -270,7 +270,7 @@ proc requestDHTFindProviders(cid: Cid,
                              count: uint32, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTFindProviders(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.FIND_PROVIDERS)
+  let msgid = safeConvert[uint](DHTRequestType.FIND_PROVIDERS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -279,14 +279,14 @@ proc requestDHTFindProviders(cid: Cid,
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
 proc requestDHTGetClosestPeers(key: string, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTGetClosestPeers(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.GET_CLOSEST_PEERS)
+  let msgid = safeConvert[uint](DHTRequestType.GET_CLOSEST_PEERS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -294,14 +294,14 @@ proc requestDHTGetClosestPeers(key: string, timeout = 0): ProtoBuffer =
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
 proc requestDHTGetPublicKey(peer: PeerId, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTGetPublicKey(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.GET_PUBLIC_KEY)
+  let msgid = safeConvert[uint](DHTRequestType.GET_PUBLIC_KEY)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -309,14 +309,14 @@ proc requestDHTGetPublicKey(peer: PeerId, timeout = 0): ProtoBuffer =
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
 proc requestDHTGetValue(key: string, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTGetValue(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.GET_VALUE)
+  let msgid = safeConvert[uint](DHTRequestType.GET_VALUE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -324,14 +324,14 @@ proc requestDHTGetValue(key: string, timeout = 0): ProtoBuffer =
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
 proc requestDHTSearchValue(key: string, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTSearchValue(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.SEARCH_VALUE)
+  let msgid = safeConvert[uint](DHTRequestType.SEARCH_VALUE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -339,7 +339,7 @@ proc requestDHTSearchValue(key: string, timeout = 0): ProtoBuffer =
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
@@ -347,7 +347,7 @@ proc requestDHTPutValue(key: string, value: openArray[byte],
                         timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTPutValue(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.PUT_VALUE)
+  let msgid = safeConvert[uint](DHTRequestType.PUT_VALUE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -363,7 +363,7 @@ proc requestDHTPutValue(key: string, value: openArray[byte],
 proc requestDHTProvide(cid: Cid, timeout = 0): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/dht.go
   ## Processing function `doDHTProvide(req *pb.DHTRequest)`.
-  let msgid = uint(DHTRequestType.PROVIDE)
+  let msgid = safeConvert[uint](DHTRequestType.PROVIDE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -371,13 +371,13 @@ proc requestDHTProvide(cid: Cid, timeout = 0): ProtoBuffer =
   if timeout > 0:
     msg.write(7, hint64(timeout))
   msg.finish()
-  result.write(1, uint(RequestType.DHT))
+  result.write(1, safeConvert[uint](RequestType.DHT))
   result.write(5, msg)
   result.finish()
 
 proc requestCMTagPeer(peer: PeerId, tag: string, weight: int): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L18
-  let msgid = uint(ConnManagerRequestType.TAG_PEER)
+  let msgid = safeConvert[uint](ConnManagerRequestType.TAG_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
@@ -385,83 +385,83 @@ proc requestCMTagPeer(peer: PeerId, tag: string, weight: int): ProtoBuffer =
   msg.write(3, tag)
   msg.write(4, hint64(weight))
   msg.finish()
-  result.write(1, uint(RequestType.CONNMANAGER))
+  result.write(1, safeConvert[uint](RequestType.CONNMANAGER))
   result.write(6, msg)
   result.finish()
 
 proc requestCMUntagPeer(peer: PeerId, tag: string): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L33
-  let msgid = uint(ConnManagerRequestType.UNTAG_PEER)
+  let msgid = safeConvert[uint](ConnManagerRequestType.UNTAG_PEER)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
   msg.write(2, peer)
   msg.write(3, tag)
   msg.finish()
-  result.write(1, uint(RequestType.CONNMANAGER))
+  result.write(1, safeConvert[uint](RequestType.CONNMANAGER))
   result.write(6, msg)
   result.finish()
 
 proc requestCMTrim(): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/connmgr.go#L47
-  let msgid = uint(ConnManagerRequestType.TRIM)
+  let msgid = safeConvert[uint](ConnManagerRequestType.TRIM)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
   msg.finish()
-  result.write(1, uint(RequestType.CONNMANAGER))
+  result.write(1, safeConvert[uint](RequestType.CONNMANAGER))
   result.write(6, msg)
   result.finish()
 
 proc requestPSGetTopics(): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/pubsub.go
   ## Processing function `doPubsubGetTopics(req *pb.PSRequest)`.
-  let msgid = uint(PSRequestType.GET_TOPICS)
+  let msgid = safeConvert[uint](PSRequestType.GET_TOPICS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
   msg.finish()
-  result.write(1, uint(RequestType.PUBSUB))
+  result.write(1, safeConvert[uint](RequestType.PUBSUB))
   result.write(8, msg)
   result.finish()
 
 proc requestPSListPeers(topic: string): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/pubsub.go
   ## Processing function `doPubsubListPeers(req *pb.PSRequest)`.
-  let msgid = uint(PSRequestType.LIST_PEERS)
+  let msgid = safeConvert[uint](PSRequestType.LIST_PEERS)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
   msg.write(2, topic)
   msg.finish()
-  result.write(1, uint(RequestType.PUBSUB))
+  result.write(1, safeConvert[uint](RequestType.PUBSUB))
   result.write(8, msg)
   result.finish()
 
 proc requestPSPublish(topic: string, data: openArray[byte]): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/pubsub.go
   ## Processing function `doPubsubPublish(req *pb.PSRequest)`.
-  let msgid = uint(PSRequestType.PUBLISH)
+  let msgid = safeConvert[uint](PSRequestType.PUBLISH)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
   msg.write(2, topic)
   msg.write(3, data)
   msg.finish()
-  result.write(1, uint(RequestType.PUBSUB))
+  result.write(1, safeConvert[uint](RequestType.PUBSUB))
   result.write(8, msg)
   result.finish()
 
 proc requestPSSubscribe(topic: string): ProtoBuffer =
   ## https://github.com/libp2p/go-libp2p-daemon/blob/master/pubsub.go
   ## Processing function `doPubsubSubscribe(req *pb.PSRequest)`.
-  let msgid = uint(PSRequestType.SUBSCRIBE)
+  let msgid = safeConvert[uint](PSRequestType.SUBSCRIBE)
   result = initProtoBuffer({WithVarintLength})
   var msg = initProtoBuffer()
   msg.write(1, msgid)
   msg.write(2, topic)
   msg.finish()
-  result.write(1, uint(RequestType.PUBSUB))
+  result.write(1, safeConvert[uint](RequestType.PUBSUB))
   result.write(8, msg)
   result.finish()
 
@@ -1029,7 +1029,7 @@ proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): ProtoBuffer
     var dtype: uint
     if pbDhtResponse.getRequiredField(1, dtype).isErr():
       raise newException(DaemonLocalError, "Missing required DHT field `type`!")
-    if dtype != uint(rt):
+    if dtype != safeConvert[uint](rt):
       raise newException(DaemonLocalError, "Wrong DHT answer type! ")
 
     var value: seq[byte]
@@ -1053,9 +1053,9 @@ proc getDhtMessageType(pb: ProtoBuffer): DHTResponseType
   var dtype: uint
   if pb.getRequiredField(1, dtype).isErr():
     raise newException(DaemonLocalError, "Missing required DHT field `type`!")
-  if dtype == uint(DHTResponseType.VALUE):
+  if dtype == safeConvert[uint](DHTResponseType.VALUE):
     result = DHTResponseType.VALUE
-  elif dtype == uint(DHTResponseType.END):
+  elif dtype == safeConvert[uint](DHTResponseType.END):
     result = DHTResponseType.END
   else:
     raise newException(DaemonLocalError, "Wrong DHT answer type!")

@@ -66,6 +66,12 @@ when defined(libp2p_agents_metrics):
     KnownLibP2PAgents* {.strdefine.} = "nim-libp2p"
     KnownLibP2PAgentsSeq* = KnownLibP2PAgents.safeToLowerAscii().tryGet().split(",")
 
+template safeConvert*[T: SomeInteger, S: Ordinal](a: S): T =
+  when int64(T.low) <= int64(S.low()) and uint64(T.high) >= uint64(S.high):
+    T(a)
+  else:
+    {.error: "Source type larger than target type".}
+
 template exceptionToAssert*(body: untyped): untyped =
   block:
     var res: type(body)

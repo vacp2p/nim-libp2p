@@ -24,6 +24,8 @@ import stew/[results, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 
+import ../utility
+
 export Asn1Error, results
 
 const
@@ -686,7 +688,7 @@ proc `==`*(a, b: RsaPrivateKey): bool =
     false
   else:
     if a.seck.nBitlen == b.seck.nBitlen:
-      if int64(a.seck.nBitlen) > 0:
+      if safeConvert[int](a.seck.nBitlen) > 0:
         let r1 = CT.isEqual(getArray(a.buffer, a.seck.p, a.seck.plen),
                             getArray(b.buffer, b.seck.p, b.seck.plen))
         let r2 = CT.isEqual(getArray(a.buffer, a.seck.q, a.seck.qlen),
