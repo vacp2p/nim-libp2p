@@ -17,7 +17,8 @@ import chronos, stew/endians2
 import multiaddress, multicodec, errors, utility
 
 when defined(windows):
-  import winlean
+  when not declared(Sockaddr_storage):
+    import winlean
 else:
   import posix
 
