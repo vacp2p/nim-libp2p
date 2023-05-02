@@ -14,3 +14,4 @@ testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014d
 unittest2;https://github.com/status-im/nim-unittest2@#da8398c45cafd5bd7772da1fc96e3924a18d3823
 websock;https://github.com/status-im/nim-websock@#fea05cde8b123b38d1a0a8524b77efbc84daa848
 zlib;https://github.com/status-im/nim-zlib@#826e2fc013f55b4478802d4f2e39f187c50d520a
+testground_sdk;https://github.com/status-im/testground-nim-sdk@#872753fe083c470ecce8e3a90091cf8dee7840ac

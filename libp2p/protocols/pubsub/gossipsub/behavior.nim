@@ -164,7 +164,7 @@ proc handleGraft*(g: GossipSub,
     # If they send us a graft before they send us a subscribe, what should
     # we do? For now, we add them to mesh but don't add them to gossipsub.
     if topic in g.topics:
-      if g.mesh.peers(topic) < g.parameters.dHigh or peer.outbound:
+      if g.mesh.peers(topic) < g.parameters.dHigh:# or peer.outbound:
         # In the spec, there's no mention of DHi here, but implicitly, a
         # peer will be removed from the mesh on next rebalance, so we don't want
         # this peer to push someone else out
@@ -253,6 +253,15 @@ proc handleDontSend*(g: GossipSub,
       let fut = peer.gotMsgs.mgetOrPut(x, newFuture[void]())
       if not fut.completed:
         fut.complete()
+
+proc handleSending*(g: GossipSub,
+                    peer: PubSubPeer,
+                    sending: seq[ControlIHave]) {.raises: [Defect].} =
+  for ds in sending:
+    var toSendPeers: HashSet[PubSubPeer]
+    g.mesh.withValue(ds.topicId, peer): toSendPeers.incl(peer[])
+    toSendPeers.excl(peer)
+    g.broadcast(toSeq(toSendPeers), RPCMsg(control: some(ControlMessage(dontSend: @[ControlIHave(messageIds: ds.messageIds)]))))
 
 proc handleIHave*(g: GossipSub,
                  peer: PubSubPeer,
@@ -380,41 +389,44 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   else:
     trace "replenishing mesh outbound quota", peers = g.mesh.peers(topic)
 
-    var
-      candidates: seq[PubSubPeer]
-      currentMesh = addr defaultMesh
+    var currentMesh = addr defaultMesh
     g.mesh.withValue(topic, v): currentMesh = v
-    g.gossipsub.withValue(topic, peerList):
-      for it in peerList[]:
-        if
-            it.connected and
-            # get only outbound ones
-            it.outbound and
-            it notin currentMesh[] and
-            # avoid negative score peers
-            it.score >= 0.0 and
-            # don't pick explicit peers
-            it.peerId notin g.parameters.directPeers and
-            # and avoid peers we are backing off
-            it.peerId notin backingOff:
-          candidates.add(it)
 
-    # shuffle anyway, score might be not used
-    g.rng.shuffle(candidates)
+    let outboundPeers = currentMesh[].countIt(it.outbound)
 
-    # sort peers by score, high score first, we are grafting
-    candidates.sort(byScore, SortOrder.Descending)
+    if outboundPeers < g.parameters.dOut:
+      var candidates: seq[PubSubPeer]
+      g.gossipsub.withValue(topic, peerList):
+        for it in peerList[]:
+          if
+              it.connected and
+              # get only outbound ones
+              it.outbound and
+              it notin currentMesh[] and
+              # avoid negative score peers
+              it.score >= 0.0 and
+              # don't pick explicit peers
+              it.peerId notin g.parameters.directPeers and
+              # and avoid peers we are backing off
+              it.peerId notin backingOff:
+            candidates.add(it)
 
-    # Graft peers so we reach a count of D
-    candidates.setLen(min(candidates.len, g.parameters.dOut))
+      # shuffle anyway, score might be not used
+      g.rng.shuffle(candidates)
 
-    trace "grafting outbound peers", topic, peers = candidates.len
+      # sort peers by score, high score first, we are grafting
+      candidates.sort(byScore, SortOrder.Descending)
 
-    for peer in candidates:
-      if g.mesh.addPeer(topic, peer):
-        g.grafted(peer, topic)
-        g.fanout.removePeer(topic, peer)
-        grafts &= peer
+      # Graft peers so we reach a count of D
+      candidates.setLen(min(candidates.len, g.parameters.dOut - outboundPeers))
+
+      trace "grafting outbound peers", topic, peers = candidates.len
+
+      for peer in candidates:
+        if g.mesh.addPeer(topic, peer):
+          g.grafted(peer, topic)
+          g.fanout.removePeer(topic, peer)
+          grafts &= peer
 
 
   # get again npeers after possible grafts

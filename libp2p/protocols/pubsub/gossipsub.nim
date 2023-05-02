@@ -44,8 +44,8 @@ logScope:
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
-declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
-declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
+declarePublicCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
+declarePublicCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
@@ -274,6 +274,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
   g.handleDontSend(peer, control.dontSend)
+  #g.handleSending(peer, control.sending)
 
   if
     respControl.prune.len > 0 or
@@ -338,12 +339,11 @@ proc validateAndRelay(g: GossipSub,
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
-    if msg.data.len >= g.parameters.lazyPushThreshold:
-      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(dontSend: @[ControlIHave(messageIds: @[msgId])]))))
-
     # Don't send it to source peer, or peers that
     # sent it during validation
     toSendPeers.excl(peer)
+    if msg.data.len >= g.parameters.lazyPushThreshold:
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(dontSend: @[ControlIHave(messageIds: @[msgId])]))))
     toSendPeers.excl(seenPeers)
 
     if msg.data.len < g.parameters.lazyPushThreshold:
@@ -351,7 +351,7 @@ proc validateAndRelay(g: GossipSub,
       # also have to be careful to only include validated messages
       g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     else:
-      let sem = newAsyncSemaphore(1)
+      let sem = newAsyncSemaphore(2)
       var peers = toSeq(toSendPeers)
       g.rng.shuffle(peers)
 
@@ -361,10 +361,17 @@ proc validateAndRelay(g: GossipSub,
 
         let fut = p.gotMsgs.mgetOrPut(msgId, newFuture[void]())
         if fut.completed: return
+
+        #g.broadcast(@[p], RPCMsg(control: some(ControlMessage(sending: @[ControlIHave(messageIds: @[msgId], topicId: msg.topicIds[0])]))))
         g.broadcast(@[p], RPCMsg(messages: @[msg]))
-        await fut or sleepAsync(200.milliseconds)
-        if not fut.completed:
-          echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+        let estimation =
+          p.bufferSizeAtMoment(Moment.now()) div p.bandwidth# + p.minRtt
+        let start = Moment.now()
+        #await fut or sleepAsync(2.seconds)
+        await sleepAsync(milliseconds(estimation))
+        #if not fut.completed:
+        #  echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+        #echo g.switch.peerInfo.peerId, " sent in ", $(Moment.now() - start), " estimated ", milliseconds(estimation)
 
       for p in peers:
         asyncSpawn sendToOne(p)
@@ -409,6 +416,8 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
+
+    g.broadcast(@[peer], RPCMsg(control: some(ControlMessage(dontSend: @[ControlIHave(messageIds: @[msgId])]))))
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -599,17 +608,26 @@ method publish*(g: GossipSub,
     var peersSeq = toSeq(peers)
     g.rng.shuffle(peersSeq)
 
-    let sem = newAsyncSemaphore(1)
+    let sem = newAsyncSemaphore(2)
     proc sendToOne(p: PubSubPeer) {.async.} =
       await sem.acquire()
       defer: sem.release()
 
       let fut = p.gotMsgs.mgetOrPut(msgId, newFuture[void]())
-      if fut.completed: return
+      if fut.completed:
+        echo "peer already got"
+        return
+      g.broadcast(@[p], RPCMsg(control: some(ControlMessage(sending: @[ControlIHave(messageIds: @[msgId], topicId: topic)]))))
       g.broadcast(@[p], RPCMsg(messages: @[msg]))
-      await fut or sleepAsync(200.milliseconds)
-      if not fut.completed:
-        echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+      let estimation =
+        p.bufferSizeAtMoment(Moment.now()) div p.bandwidth# + p.minRtt
+      let start = Moment.now()
+      #await fut or sleepAsync(2.seconds)
+      await sleepAsync(milliseconds(estimation))
+      #if not fut.completed:
+      #  echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+      #echo g.switch.peerInfo.peerId, " sent in ", $(Moment.now() - start)
+      #echo g.switch.peerInfo.peerId, " sent in ", $(Moment.now() - start), " estimated ", milliseconds(estimation)
 
     for p in peersSeq:
       asyncSpawn sendToOne(p)

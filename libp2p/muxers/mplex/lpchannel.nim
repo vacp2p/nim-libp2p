@@ -31,7 +31,7 @@ when defined(libp2p_mplex_metrics):
   declareHistogram libp2p_mplex_qtime, "message queuing time"
 
 when defined(libp2p_network_protocols_metrics):
-  declareCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
+  declarePublicCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
 
 ## Channel half-closed states
 ##
@@ -236,7 +236,7 @@ proc completeWrite(
     else:
       await fut
 
-    when defined(libp2p_network_protocol_metrics):
+    when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
         libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.protocol, "out"])
 

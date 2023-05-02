@@ -63,6 +63,7 @@ type
     gotMsgs*: Table[MessageId, Future[void]]
     sentData*: seq[(Moment, int)]
     pings*: Table[seq[byte], Moment]
+    lastPing*: Moment
     rtts*: seq[int]
     bandwidth*: int # in bytes per ms
 
@@ -114,14 +115,15 @@ proc bufferSizeAtMoment*(p: PubSubPeer, m: Moment): int =
     if sent > m:
       break
     let timeGap = (sent - lastSent).milliseconds
-    result -= timeGap * p.bandwidth
+    result -= int(timeGap * p.bandwidth)
     if result < 0: result = 0
 
     result += size
     lastSent = sent
 
   let timeGap = (m - lastSent).milliseconds
-  result -= timeGap * p.bandwidth
+  result -= int(timeGap * p.bandwidth)
+
   return max(0, result)
 
 proc minRtt*(p: PubSubPeer): int =
@@ -130,27 +132,29 @@ proc minRtt*(p: PubSubPeer): int =
   else: 100
 
 proc handlePong*(p: PubSubPeer, pong: seq[byte]) =
-  if pong notin p.pings: return
+  if pong notin p.pings:
+    return
   let
     pingMoment = p.pings.getOrDefault(pong)
-    delay = (Moment.now() - pingMoment).milliseconds
+    delay = int((Moment.now() - pingMoment).milliseconds)
     minRtt = p.minRtt
 
   p.rtts.add(delay)
-  if delay < minRtt:
+  if delay <= minRtt:
     # can't make bandwidth estimate in this situation
     return
 
   let
     bufferSizeWhenSendingPing = p.bufferSizeAtMoment(pingMoment)
     estimatedBandwidth =
-      bufferSizeWhenSendingPing / delay
+      bufferSizeWhenSendingPing / (delay - minRtt)
 
-  if bufferSizeWhenSendingPing / p.bandwidth < minRtt / 5:
-    # can't make bandwidth estimate in this situation
+  if bufferSizeWhenSendingPing / p.bandwidth < minRtt / 6:
     return
 
   p.bandwidth = (p.bandwidth * 9 + int(estimatedBandwidth)) div 10
+  #echo minRtt, ", ", delay, " : ", bufferSizeWhenSendingPing, " ___ ", bufferSizeWhenSendingPing / p.bandwidth, " xx ", minRtt / 10
+  #echo "estimated ", p.bandwidth, " (", estimatedBandwidth, ")"
 
 proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -302,14 +306,18 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
 
   trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
 
-  let startOfSend = Moment.now()
+  let
+    startOfSend = Moment.now()
+    lastPing = startOfSend - p.lastPing
   p.sentData.add((startOfSend, msg.len))
   try:
-    if p.bufferSizeAtMoment(startOfSend) / p.bandwidth < p.minRtt / 5:
+    if (p.bufferSizeAtMoment(startOfSend) / p.bandwidth > p.minRtt / 5) or# and lastPing.milliseconds > p.minRtt div 10) or
+        lastPing.milliseconds > p.minRtt * 2:
       # ping it
       let pingKey = p.rng[].generateBytes(32)
       p.pings[pingKey] = startOfSend
-      await conn.writeLp(msg & encodeRpcMsg(RPCMsg(control: some(ControlMessage(ping: pingKey))), true))
+      p.lastPing = startOfSend
+      await conn.writeLp(msg) and conn.writeLp(encodeRpcMsg(RPCMsg(control: some(ControlMessage(ping: pingKey))), true))
     else:
       await conn.writeLp(msg)
     trace "sent pubsub message to remote", conn
@@ -359,7 +367,7 @@ proc new*(
     onEvent: onEvent,
     codec: codec,
     peerId: peerId,
-    bandwidth: 6250,
+    bandwidth: 625,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
     rng: rng
