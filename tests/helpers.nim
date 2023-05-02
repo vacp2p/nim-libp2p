@@ -55,6 +55,10 @@ template checkTrackers*() =
     if tracker.isLeaked():
       checkpoint tracker.dump()
       fail()
+  # Also test the GC is not fooling with us
+  try:
+    GC_fullCollect()
+  except: discard
 
 type RngWrap = object
   rng: ref HmacDrbgContext
