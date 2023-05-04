@@ -965,8 +965,8 @@ proc equal(b, c: int8): byte =
   result = cast[byte](y)
 
 proc negative(b: int8): byte =
-  var x = cast[uint64](b) # FIXME int8 to uint64 potentially unsafe
-  x = x shr 63
+  var x = cast[uint8](b)
+  x = x shr 7
   result = cast[byte](x)
 
 proc cmov(t: var GePrecomp, u: GePrecomp, b: byte) =
