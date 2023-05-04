@@ -18,9 +18,6 @@ import chronos, chronicles, metrics
 import ../stream/connection
 import ./streamseq
 
-when chronicles.enabledLogLevel == LogLevel.TRACE:
-  import oids
-
 export connection
 
 logScope:
