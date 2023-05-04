@@ -24,8 +24,6 @@ import stew/[results, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 
-import ../utility
-
 export Asn1Error, results
 
 const
