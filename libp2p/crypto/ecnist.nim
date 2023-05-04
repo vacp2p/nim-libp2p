@@ -77,7 +77,7 @@ type
   EcResult*[T] = Result[T, EcError]
 
 const
-  EcSupportedCurvesCint* = {cint(Secp256r1), cint(Secp384r1), cint(Secp521r1)}
+  EcSupportedCurvesCint* = @[cint(Secp256r1), cint(Secp384r1), cint(Secp521r1)]
 
 proc `-`(x: uint32): uint32 {.inline.} =
   result = (0xFFFF_FFFF'u32 - x) + 1'u32
