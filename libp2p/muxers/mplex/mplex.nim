@@ -203,7 +203,8 @@ method handle*(m: Mplex) {.async, gcsafe.} =
 
 proc new*(M: type Mplex,
            conn: Connection,
-           inTimeout, outTimeout: Duration = DefaultChanTimeout,
+           inTimeout: Duration = DefaultChanTimeout,
+           outTimeout: Duration = DefaultChanTimeout,
            maxChannCount: int = MaxChannelCount): Mplex =
   M(connection: conn,
     inChannTimeout: inTimeout,
