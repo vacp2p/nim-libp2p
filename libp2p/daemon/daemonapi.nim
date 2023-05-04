@@ -525,7 +525,7 @@ when defined(windows):
     result = cast[int](getCurrentProcessId())
 else:
   proc getProcessId(): int =
-    result = cast[int](posix.getpid())
+    result = int(posix.getpid())
 
 proc getSocket(pattern: string,
                count: ptr int): Future[MultiAddress] {.async.} =
