@@ -73,10 +73,10 @@ type
 
 const
   SupportedWireTypes* = @[
-    uint(ProtoFieldKind.Varint),
-    uint(ProtoFieldKind.Fixed64),
-    uint(ProtoFieldKind.Length),
-    uint(ProtoFieldKind.Fixed32)
+    uint64(ProtoFieldKind.Varint),
+    uint64(ProtoFieldKind.Fixed64),
+    uint64(ProtoFieldKind.Length),
+    uint64(ProtoFieldKind.Fixed32)
   ]
 
 template checkFieldNumber*(i: int) =
