@@ -456,14 +456,14 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[uint64] =
       return err(Asn1Error.Indefinite)
     if b == 0xFF'u8:
       return err(Asn1Error.Incorrect)
-    let octets = safeConvert[uint64](b and 0x7F'u8)
-    if octets > 8'u64:
+    let octets = safeConvert[int](b and 0x7F'u8)
+    if octets > 8:
       return err(Asn1Error.Overflow)
-    if ab.isEnough(cast[int](octets)): # FIXME uint64 to int potentially unsafe
+    if ab.isEnough(octets):
       var length: uint64 = 0
-      for i in 0..<cast[int](octets): # FIXME uint64 to int potentially unsafe
+      for i in 0..<octets:
         length = (length shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
-      ab.offset = ab.offset + cast[int](octets) + 1 # FIXME uint64 to int potentially unsafe
+      ab.offset = ab.offset + octets + 1
       return ok(length)
     else:
       return err(Asn1Error.Incomplete)
