@@ -174,7 +174,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
     if p.connectedFut.finished:
       p.connectedFut = newFuture[void]()
-    let newConn = await p.getConn()
+    let newConn = await p.getConn().withTimeout(5.seconds)
     if newConn.isNil:
       raise (ref LPError)(msg: "Cannot establish send connection")
 
