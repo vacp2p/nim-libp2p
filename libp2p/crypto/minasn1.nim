@@ -444,12 +444,12 @@ proc asn1EncodeContextTag*(dest: var openArray[byte], value: openArray[byte],
     copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
   res
 
-proc getLength(ab: var Asn1Buffer): Asn1Result[uint64] =
+proc getLength(ab: var Asn1Buffer): Asn1Result[int64] =
   ## Decode length part of ASN.1 TLV triplet.
   if not ab.isEmpty():
     let b = ab.buffer[ab.offset]
     if (b and 0x80'u8) == 0x00'u8:
-      let length = safeConvert[uint64](b)
+      let length = safeConvert[int64](b)
       ab.offset += 1
       return ok(length)
     if b == 0x80'u8:
@@ -460,15 +460,19 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[uint64] =
     if octets > 8:
       return err(Asn1Error.Overflow)
     if ab.isEnough(octets):
-      var length: uint64 = 0
+      var lengthU: uint64 = 0
       for i in 0..<octets:
-        length = (length shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
+        lengthU = (lengthU shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
+      if lengthU > uint64(int64.high):
+        return err(Asn1Error.Overflow)
+      let length = int64(lengthU)
       ab.offset = ab.offset + octets + 1
       return ok(length)
     else:
       return err(Asn1Error.Incomplete)
   else:
     return err(Asn1Error.Incomplete)
+
 
 proc getTag(ab: var Asn1Buffer, tag: var int): Asn1Result[Asn1Class] =
   ## Decode tag part of ASN.1 TLV triplet.
@@ -490,7 +494,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
   var
     field: Asn1Field
     tag, ttag, offset: int
-    length, tlength: uint64
+    length, tlength: int64
     aclass: Asn1Class
     inclass: bool
 
@@ -520,7 +524,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         if length != 1:
           return err(Asn1Error.Incorrect)
 
-        if not ab.isEnough(cast[int](length)): # FIXME uint64 to int potentially unsafe
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         let b = ab.buffer[ab.offset]
@@ -539,12 +543,12 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         if length == 0:
           return err(Asn1Error.Incorrect)
 
-        if not ab.isEnough(cast[int](length)): # FIXME uint64 to int potentially unsafe
+        if not ab.isEnough(length):
          return err(Asn1Error.Incomplete)
 
         # Count number of leading zeroes
         var zc = 0
-        while (zc < cast[int](length)) and (ab.buffer[ab.offset + zc] == 0x00'u8): # FIXME uint64 to int potentially unsafe
+        while (zc < length) and (ab.buffer[ab.offset + zc] == 0x00'u8):
           inc(zc)
 
         if zc > 1:
@@ -554,44 +558,44 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           # Negative or Positive integer
           field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
                             index: ttag, offset: safeConvert[int](ab.offset),
-                            length: cast[int](length), buffer: ab.buffer) # FIXME uint64 to int potentially unsafe
+                            length: length, buffer: ab.buffer)
           if (ab.buffer[ab.offset] and 0x80'u8) == 0x80'u8:
             # Negative integer
             if length <= 8:
               # We need this transformation because our field.vint is uint64.
               for i in 0 ..< 8:
-                if i < 8 - cast[int](length): # FIXME uint64 to int potentially unsafe
+                if i < 8 - length:
                   field.vint = (field.vint shl 8) or 0xFF'u64
                 else:
-                  let offset = ab.offset + i - (8 - cast[int](length)) # FIXME uint64 to int potentially unsafe
+                  let offset = ab.offset + i - (8 - length)
                   field.vint = (field.vint shl 8) or safeConvert[uint64](ab.buffer[offset])
           else:
             # Positive integer
             if length <= 8:
-              for i in 0 ..< cast[int](length): # FIXME uint64 to int potentially unsafe
+              for i in 0 ..< length:
                 field.vint = (field.vint shl 8) or
                               safeConvert[uint64](ab.buffer[ab.offset + i])
-          ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+          ab.offset += length
           return ok(field)
         else:
           if length == 1:
             # Zero value integer
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
                               index: ttag, offset: safeConvert[int](ab.offset),
-                              length: cast[int](length), vint: 0'u64, # FIXME uint64 to int potentially unsafe
+                              length: length, vint: 0'u64,
                               buffer: ab.buffer)
-            ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+            ab.offset += length
             return ok(field)
           else:
             # Positive integer with leading zero
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
                               index: ttag, offset: safeConvert[int](ab.offset) + 1,
-                              length: cast[int](length) - 1, buffer: ab.buffer) # FIXME uint64 to int potentially unsafe
+                              length: length - 1, buffer: ab.buffer)
             if length <= 9:
-              for i in 1 ..< cast[int](length): # FIXME uint64 to int potentially unsafe
+              for i in 1 ..< length:
                 field.vint = (field.vint shl 8) or
                               safeConvert[uint64](ab.buffer[ab.offset + i])
-            ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+            ab.offset += length
             return ok(field)
 
       of Asn1Tag.BitString.code():
@@ -609,11 +613,11 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
             field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
                               index: ttag, offset: safeConvert[int](ab.offset + 1),
                               length: 0, ubits: 0, buffer: ab.buffer)
-            ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+            ab.offset += length
             return ok(field)
 
         else:
-          if not ab.isEnough(cast[int](length)): # FIXME uint64 to int potentially unsafe
+          if not ab.isEnough(length):
             return err(Asn1Error.Incomplete)
 
           let unused = ab.buffer[ab.offset]
@@ -622,26 +626,26 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
             return err(Asn1Error.Incorrect)
 
           let mask = (1'u8 shl safeConvert[int](unused)) - 1'u8
-          if (ab.buffer[ab.offset + cast[int](length) - 1] and mask) != 0x00'u8: # FIXME uint64 to int potentially unsafe
+          if (ab.buffer[ab.offset + length - 1] and mask) != 0x00'u8:
             ## All unused bits should be set to `0`.
             return err(Asn1Error.Incorrect)
 
           field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
                             index: ttag, offset: safeConvert[int](ab.offset + 1),
-                            length: cast[int](length - 1), ubits: safeConvert[int](unused), # FIXME uint64 to int potentially unsafe
+                            length: length - 1, ubits: safeConvert[int](unused),
                             buffer: ab.buffer)
-          ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+          ab.offset += length
           return ok(field)
 
       of Asn1Tag.OctetString.code():
         # OCTET STRING
-        if not ab.isEnough(cast[int](length)): # FIXME uint64 to int potentially unsafe
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.OctetString, klass: aclass,
                           index: ttag, offset: safeConvert[int](ab.offset),
-                          length: cast[int](length), buffer: ab.buffer) # FIXME uint64 to int potentially unsafe
-        ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+                          length: length, buffer: ab.buffer)
+        ab.offset += length
         return ok(field)
 
       of Asn1Tag.Null.code():
@@ -651,29 +655,29 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
 
         field = Asn1Field(kind: Asn1Tag.Null, klass: aclass, index: ttag,
                           offset: safeConvert[int](ab.offset), length: 0, buffer: ab.buffer)
-        ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+        ab.offset += length
         return ok(field)
 
       of Asn1Tag.Oid.code():
         # OID
-        if not ab.isEnough(cast[int](length)): # FIXME uint64 to int potentially unsafe
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.Oid, klass: aclass,
                           index: ttag, offset: safeConvert[int](ab.offset),
-                          length: cast[int](length), buffer: ab.buffer) # FIXME uint64 to int potentially unsafe
-        ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+                          length: length, buffer: ab.buffer)
+        ab.offset += length
         return ok(field)
 
       of Asn1Tag.Sequence.code():
         # SEQUENCE
-        if not ab.isEnough(cast[int](length)): # FIXME uint64 to int potentially unsafe
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.Sequence, klass: aclass,
                           index: ttag, offset: safeConvert[int](ab.offset),
-                          length: cast[int](length), buffer: ab.buffer) # FIXME uint64 to int potentially unsafe
-        ab.offset += cast[int](length) # FIXME uint64 to int potentially unsafe
+                          length: length, buffer: ab.buffer)
+        ab.offset += length
         return ok(field)
 
       else:
