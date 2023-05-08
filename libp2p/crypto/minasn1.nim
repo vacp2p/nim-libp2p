@@ -120,7 +120,7 @@ template toOpenArray*(af: Asn1Field): untyped =
 template isEmpty*(ab: Asn1Buffer): bool =
   ab.offset >= len(ab.buffer)
 
-template isEnough*(ab: Asn1Buffer, length: int): bool =
+template isEnough*(ab: Asn1Buffer, length: int64): bool =
   len(ab.buffer) >= ab.offset + length
 
 proc len*[T: Asn1Buffer|Asn1Composite](abc: T): int {.inline.} =
@@ -444,12 +444,12 @@ proc asn1EncodeContextTag*(dest: var openArray[byte], value: openArray[byte],
     copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
   res
 
-proc getLength(ab: var Asn1Buffer): Asn1Result[int64] =
+proc getLength(ab: var Asn1Buffer): Asn1Result[int] =
   ## Decode length part of ASN.1 TLV triplet.
   if not ab.isEmpty():
     let b = ab.buffer[ab.offset]
     if (b and 0x80'u8) == 0x00'u8:
-      let length = safeConvert[int64](b)
+      let length = safeConvert[int](b)
       ab.offset += 1
       return ok(length)
     if b == 0x80'u8:
@@ -463,9 +463,9 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[int64] =
       var lengthU: uint64 = 0
       for i in 0..<octets:
         lengthU = (lengthU shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
-      if lengthU > uint64(int64.high):
+      if lengthU > uint64(int.high):
         return err(Asn1Error.Overflow)
-      let length = int64(lengthU)
+      let length = int(lengthU)
       ab.offset = ab.offset + octets + 1
       return ok(length)
     else:
@@ -494,7 +494,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
   var
     field: Asn1Field
     tag, ttag, offset: int
-    length, tlength: int64
+    length, tlength: int
     aclass: Asn1Class
     inclass: bool
 
@@ -557,7 +557,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         if zc == 0:
           # Negative or Positive integer
           field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
-                            index: ttag, offset: safeConvert[int](ab.offset),
+                            index: ttag, offset: ab.offset,
                             length: length, buffer: ab.buffer)
           if (ab.buffer[ab.offset] and 0x80'u8) == 0x80'u8:
             # Negative integer
