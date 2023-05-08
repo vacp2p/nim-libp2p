@@ -75,14 +75,19 @@ template safeConvert*[T: SomeInteger, S: Ordinal](value: S): T =
 
 template exceptionToAssert*(body: untyped): untyped =
   block:
-    var res: type(body)
+    when static(type(body)) isnot void:
+      var res: type(body)
     when defined(nimHasWarnBareExcept):
       {.push warning[BareExcept]:off.}
     try:
-      res = body
+      when static(type(body)) is void:
+        body
+      else:
+        res = body
     except CatchableError as exc: raise exc
     except Defect as exc: raise exc
     except Exception as exc: raiseAssert exc.msg
     when defined(nimHasWarnBareExcept):
       {.pop.}
-    res
+    when static(type(body)) isnot void:
+      res

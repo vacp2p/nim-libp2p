@@ -57,8 +57,10 @@ template checkTrackers*() =
       fail()
   # Also test the GC is not fooling with us
   try:
-    GC_fullCollect()
-  except: discard
+    exceptionToAssert:
+      GC_fullCollect()
+  except CatchableError:
+    discard
 
 type RngWrap = object
   rng: ref HmacDrbgContext
