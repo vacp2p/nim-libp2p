@@ -345,32 +345,6 @@ proc asn1EncodeTag[T: SomeUnsignedInt](dest: var openArray[byte],
       dest[k - 1] = dest[k - 1] and 0x7F'u8
     res
 
-proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[int]): int =
-  ## Encode array of integers ``value`` as ASN.1 DER `OBJECT IDENTIFIER` and
-  ## return number of bytes (octets) used.
-  ##
-  ## If length of ``dest`` is less then number of required bytes to encode
-  ## ``value``, then result of encoding will not be stored in ``dest``
-  ## but number of bytes (octets) required will be returned.
-  var buffer: array[16, byte]
-  var res = 1
-  var oidlen = 1
-  for i in 2..<len(value):
-    oidlen += asn1EncodeTag(buffer, cast[uint64](value[i])) # FIXME int to uint64 potentially unsafe
-  res += asn1EncodeLength(buffer, uint64(oidlen))
-  res += oidlen
-  if len(dest) >= res:
-    let last = dest.high
-    var offset = 1
-    dest[0] = Asn1Tag.Oid.code()
-    offset += asn1EncodeLength(dest.toOpenArray(offset, last), uint64(oidlen))
-    dest[offset] = cast[byte](value[0] * 40 + value[1])
-    offset += 1
-    for i in 2..<len(value):
-      offset += asn1EncodeTag(dest.toOpenArray(offset, last),
-                              cast[uint64](value[i]))
-  res
-
 proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[byte]): int =
   ## Encode array of bytes ``value`` as ASN.1 DER `OBJECT IDENTIFIER` and return
   ## number of bytes (octets) used.
@@ -463,7 +437,7 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[int] =
       var lengthU: uint64 = 0
       for i in 0..<octets:
         lengthU = (lengthU shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
-      if lengthU > uint64(int.high):
+      if lengthU > uint64(int64.high):
         return err(Asn1Error.Overflow)
       let length = int(lengthU)
       ab.offset = ab.offset + octets + 1
