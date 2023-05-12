@@ -447,7 +447,6 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[int] =
   else:
     return err(Asn1Error.Incomplete)
 
-
 proc getTag(ab: var Asn1Buffer, tag: var int): Asn1Result[Asn1Class] =
   ## Decode tag part of ASN.1 TLV triplet.
   if not ab.isEmpty():
@@ -506,7 +505,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
            return err(Asn1Error.Incorrect)
 
         field = Asn1Field(kind: Asn1Tag.Boolean, klass: aclass,
-                          index: ttag, offset: safeConvert[int](ab.offset),
+                          index: ttag, offset: ab.offset,
                           length: 1, buffer: ab.buffer)
         field.vbool = (b == 0xFF'u8)
         ab.offset += 1
@@ -555,7 +554,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           if length == 1:
             # Zero value integer
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
-                              index: ttag, offset: safeConvert[int](ab.offset),
+                              index: ttag, offset: ab.offset,
                               length: length, vint: 0'u64,
                               buffer: ab.buffer)
             ab.offset += length
@@ -563,7 +562,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           else:
             # Positive integer with leading zero
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
-                              index: ttag, offset: safeConvert[int](ab.offset) + 1,
+                              index: ttag, offset: ab.offset + 1,
                               length: length - 1, buffer: ab.buffer)
             if length <= 9:
               for i in 1 ..< length:
@@ -585,7 +584,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           else:
             # Zero-length BIT STRING.
             field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
-                              index: ttag, offset: safeConvert[int](ab.offset + 1),
+                              index: ttag, offset: ab.offset + 1,
                               length: 0, ubits: 0, buffer: ab.buffer)
             ab.offset += length
             return ok(field)
@@ -605,7 +604,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
             return err(Asn1Error.Incorrect)
 
           field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
-                            index: ttag, offset: safeConvert[int](ab.offset + 1),
+                            index: ttag, offset: ab.offset + 1,
                             length: length - 1, ubits: safeConvert[int](unused),
                             buffer: ab.buffer)
           ab.offset += length
@@ -617,7 +616,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.OctetString, klass: aclass,
-                          index: ttag, offset: safeConvert[int](ab.offset),
+                          index: ttag, offset: ab.offset,
                           length: length, buffer: ab.buffer)
         ab.offset += length
         return ok(field)
@@ -628,7 +627,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           return err(Asn1Error.Incorrect)
 
         field = Asn1Field(kind: Asn1Tag.Null, klass: aclass, index: ttag,
-                          offset: safeConvert[int](ab.offset), length: 0, buffer: ab.buffer)
+                          offset: ab.offset, length: 0, buffer: ab.buffer)
         ab.offset += length
         return ok(field)
 
@@ -638,7 +637,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.Oid, klass: aclass,
-                          index: ttag, offset: safeConvert[int](ab.offset),
+                          index: ttag, offset: ab.offset,
                           length: length, buffer: ab.buffer)
         ab.offset += length
         return ok(field)
@@ -649,7 +648,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.Sequence, klass: aclass,
-                          index: ttag, offset: safeConvert[int](ab.offset),
+                          index: ttag, offset: ab.offset,
                           length: length, buffer: ab.buffer)
         ab.offset += length
         return ok(field)
