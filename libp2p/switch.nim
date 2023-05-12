@@ -339,7 +339,7 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
     warn "Switch has already been started"
     return
 
-  trace "starting switch for peer", peerInfo = s.peerInfo
+  debug "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports:
     let addrs = s.peerInfo.listenAddrs.filterIt(

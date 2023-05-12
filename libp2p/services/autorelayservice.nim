@@ -53,6 +53,7 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, switch: Switch) 
     if relayPid notin self.relayAddresses or self.relayAddresses[relayPid] != relayedAddr:
       self.relayAddresses[relayPid] = relayedAddr
       await switch.peerInfo.update()
+      debug "Updated relay addresses", relayPid, relayedAddr
       if not self.onReservation.isNil():
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
