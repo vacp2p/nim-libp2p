@@ -63,6 +63,31 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
       continue
   return false
 
+proc newConnectedPeerHandlerAux(self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent) {.async.} =
+  try:
+    # Get all connections to the peer. If there is at least one non-relayed connection, return.
+    var relayedConnt: Connection
+    for muxer in switch.connManager.getConnections()[peerId]:
+      let conn = muxer.connection
+      if not isRelayed(conn):
+        return
+      elif conn.transportDir == Direction.In:
+        relayedConnt = conn
+
+    if not isNil(relayedConnt):
+      if await self.tryStartingDirectConn(switch, peerId):
+        await relayedConnt.close()
+        return
+      let dcutrClient = DcutrClient.new()
+      var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
+      if natAddrs.len == 0:
+        natAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+      await dcutrClient.startSync(switch, peerId, natAddrs)
+      await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
+      await relayedConnt.close()
+  except CatchableError as err:
+    debug "Hole punching failed during dcutr", err = err.msg
+
 method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
@@ -71,22 +96,10 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     let dcutrProto = Dcutr.new(switch)
     switch.mount(dcutrProto)
 
-    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
-      try:
-        let conn = switch.connManager.selectMuxer(peerId).connection
-        if isRelayed(conn) and conn.transportDir == Direction.In:
-          if await self.tryStartingDirectConn(switch, peerId):
-            await conn.close()
-            return
-          let dcutrClient = DcutrClient.new()
-          var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
-          if natAddrs.len == 0:
-            natAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
-          await dcutrClient.startSync(switch, peerId, natAddrs)
-          await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
-          await conn.close()
-      except CatchableError as err:
-        debug "Hole punching failed during dcutr", err = err.msg
+    proc newConnectedPeerHandler(peerId: PeerId, event: PeerEvent) {.async.} =
+      await newConnectedPeerHandlerAux(self, switch, peerId, event)
+
+    self.newConnectedPeerHandler = newConnectedPeerHandler
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
