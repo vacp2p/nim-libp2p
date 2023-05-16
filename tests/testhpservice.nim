@@ -26,12 +26,15 @@ import ../libp2p/[builders,
 import ../libp2p/protocols/connectivity/relay/[relay, client]
 import ../libp2p/protocols/connectivity/autonat/[service]
 import ../libp2p/wire
+import ../libp2p/nameresolving/nameresolver
+import ../libp2p/nameresolving/mockresolver
+
 import stubs/autonatclientstub
 
 proc isPublicAddrIPAddrMock(ta: TransportAddress): bool =
   return true
 
-proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch {.raises: [LPError, Defect].} =
+proc createSwitch(r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil): Switch {.raises: [LPError, Defect].} =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
@@ -45,6 +48,9 @@ proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch {.raises: [L
 
   if r != nil:
     builder = builder.withCircuitRelay(r)
+
+  if nameResolver != nil:
+    builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
 
@@ -75,6 +81,51 @@ suite "Hole Punching":
     let hpservice = HPService.new(autonatService, autoRelayService, isPublicAddrIPAddrMock)
 
     let privatePeerSwitch = createSwitch(relayClient, hpservice)
+    let switchRelay = createSwitch(Relay.new())
+
+    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start())
+
+    await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+
+    await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
+
+    checkExpiring:
+      privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1 and
+      not isRelayed(privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection)
+
+    await allFuturesThrowing(
+      privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop())
+
+  asyncTest "Direct connection must work when peer address is public and dns is used":
+
+    let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
+    autonatClientStub.answer = NotReachable
+    let autonatService = AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
+
+    let relayClient = RelayClient.new()
+    let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
+
+
+    let resolver = MockResolver.new()
+    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+    resolver.ipResponses[("localhost", true)] = @["::1"]
+
+    let publicPeerSwitch = createSwitch(RelayClient.new(), nameResolver = resolver)
+
+    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+        return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
+    publicPeerSwitch.peerInfo.addressMappers.add(addressMapper)
+    await publicPeerSwitch.peerInfo.update()
+
+    proc checkMA(address: seq[MultiAddress]) =
+      if not privatePeerRelayAddr.completed():
+        privatePeerRelayAddr.complete(address)
+
+    let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
+
+    let hpservice = HPService.new(autonatService, autoRelayService, isPublicAddrIPAddrMock)
+
+    let privatePeerSwitch = createSwitch(relayClient, hpservice, nameResolver = resolver)
     let switchRelay = createSwitch(Relay.new())
 
     await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start())

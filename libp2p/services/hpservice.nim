@@ -43,14 +43,21 @@ proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayServi
   return T(autonatService: autonatService, autoRelayService: autoRelayService, isPublicIPAddrProc: isPublicIPAddrProc)
 
 proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
+  proc tryConnect(address: MultiAddress): Future[bool] {.async.} =
+    debug "Trying to create direct connection", peerId, address
+    await switch.connect(peerId, @[address], true, false)
+    debug "Direct connection created."
+    return true
+
   await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
-      let ta = initTAddress(address)
-      if ta.isOk() and self.isPublicIPAddrProc(ta.get()):
-        await switch.connect(peerId, @[address], true, false)
-        debug "Direct connection created."
-        return true
+      if DNS.matchPartial(address):
+        return await tryConnect(address)
+      else:
+        let ta = initTAddress(address)
+        if ta.isOk() and self.isPublicIPAddrProc(ta.get()):
+          return await tryConnect(address)
     except CatchableError as err:
       debug "Failed to create direct connection.", err = err.msg
       continue
