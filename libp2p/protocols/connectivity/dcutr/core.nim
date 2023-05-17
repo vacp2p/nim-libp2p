@@ -24,7 +24,7 @@ import ../../../multiaddress,
 export multiaddress
 
 const
-  DcutrCodec* = "/libp2p/dcutr/1.0.0"
+  DcutrCodec* = "/libp2p/dcutr"
 
 type
   MsgType* = enum

@@ -23,7 +23,7 @@ import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 import ../protocols/connectivity/dcutr/[client, server]
-
+import ../multicodec
 
 logScope:
   topics = "libp2p hpservice"
@@ -52,6 +52,9 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
   await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
+      let isRelayed = address.contains(multiCodec("p2p-circuit"))
+      if isRelayed.isErr() or isRelayed.get():
+        continue
       if DNS.matchPartial(address):
         return await tryConnect(address)
       else:
