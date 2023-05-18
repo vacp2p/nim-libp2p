@@ -13,7 +13,7 @@ else:
   {.push raises: [].}
 
 import
-  std/[streams, strutils, tables],
+  std/tables,
   chronos, chronicles
 
 import nameresolver

@@ -65,3 +65,24 @@ when defined(libp2p_agents_metrics):
   const
     KnownLibP2PAgents* {.strdefine.} = "nim-libp2p"
     KnownLibP2PAgentsSeq* = KnownLibP2PAgents.safeToLowerAscii().tryGet().split(",")
+
+template safeConvert*[T: SomeInteger, S: Ordinal](value: S): T =
+  ## Converts `value` from S to `T` iff `value` is guaranteed to be preserved.
+  when int64(T.low) <= int64(S.low()) and uint64(T.high) >= uint64(S.high):
+    T(value)
+  else:
+    {.error: "Source and target types have an incompatible range low..high".}
+
+template exceptionToAssert*(body: untyped): untyped =
+  block:
+    var res: type(body)
+    when defined(nimHasWarnBareExcept):
+      {.push warning[BareExcept]:off.}
+    try:
+      res = body
+    except CatchableError as exc: raise exc
+    except Defect as exc: raise exc
+    except Exception as exc: raiseAssert exc.msg
+    when defined(nimHasWarnBareExcept):
+      {.pop.}
+    res

@@ -56,9 +56,14 @@ template checkTrackers*() =
       checkpoint tracker.dump()
       fail()
   # Also test the GC is not fooling with us
+  when defined(nimHasWarnBareExcept):
+    {.push warning[BareExcept]:off.}
   try:
     GC_fullCollect()
-  except: discard
+  except:
+    discard
+  when defined(nimHasWarnBareExcept):
+    {.pop.}
 
 type RngWrap = object
   rng: ref HmacDrbgContext

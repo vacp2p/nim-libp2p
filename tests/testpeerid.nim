@@ -1,3 +1,5 @@
+{.used.}
+
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -13,7 +15,6 @@ import unittest2
 import nimcrypto/utils, stew/base58
 import ../libp2p/crypto/crypto, ../libp2p/peerid
 import bearssl/hash
-when defined(nimHasUsed): {.used.}
 
 const
   # Test vectors are generated using

@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sugar, tables, sequtils]
+import std/tables
 
 import stew/results
 import pkg/[chronos,

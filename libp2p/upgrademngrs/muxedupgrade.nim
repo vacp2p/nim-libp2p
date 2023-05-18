@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, sequtils]
+import std/sequtils
 import pkg/[chronos, chronicles, metrics]
 
 import ../upgrademngrs/upgrade,

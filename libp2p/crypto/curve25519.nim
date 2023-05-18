@@ -20,7 +20,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import bearssl/[ec, rand, hash]
+import bearssl/[ec, rand]
 import stew/results
 from stew/assign2 import assign
 export results

@@ -13,7 +13,7 @@ else:
   {.push raises: [].}
 
 import std/[oids, strformat]
-import pkg/[chronos, chronicles, metrics, nimcrypto/utils]
+import pkg/[chronos, chronicles, metrics]
 import ./coder,
        ../muxer,
        ../../stream/[bufferstream, connection, streamseq],

@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[oids, strformat]
+import std/[strformat]
 import stew/results
 import chronos, chronicles, metrics
 import connection

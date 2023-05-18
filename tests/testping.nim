@@ -1,10 +1,18 @@
-import options
-import chronos, strutils
-import ../libp2p/[protocols/identify,
-                  protocols/ping,
+{.used.}
+
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import chronos
+import ../libp2p/[protocols/ping,
                   multiaddress,
                   peerinfo,
-                  wire,
                   peerid,
                   stream/connection,
                   multistream,
@@ -13,8 +21,6 @@ import ../libp2p/[protocols/identify,
                   crypto/crypto,
                   upgrademngrs/upgrade]
 import ./helpers
-
-when defined(nimHasUsed): {.used.}
 
 suite "Ping":
   var

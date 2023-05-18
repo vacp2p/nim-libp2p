@@ -1,3 +1,5 @@
+{.used.}
+
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -6,11 +8,10 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
 import unittest2
 import ../libp2p/crypto/minasn1
 import nimcrypto/utils as ncrutils
-
-when defined(nimHasUsed): {.used.}
 
 const Asn1EdgeValues = [
   0'u64, (1'u64 shl 7) - 1'u64,

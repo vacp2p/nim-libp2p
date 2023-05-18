@@ -1,14 +1,21 @@
 {.used.}
 
-import sequtils
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/wstransport,
                   upgrademngrs/upgrade,
                   multiaddress,
-                  errors,
-                  wire]
+                  errors]
 
 import ./helpers, ./commontransport
 
@@ -68,7 +75,8 @@ suite "WebSocket transport":
           TLSPrivateKey.init(SecureKey),
           TLSCertificate.init(SecureCert),
           {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
-      except Exception: check(false)
+      except CatchableError:
+        check(false)
 
   commonTransportTest(
     wsSecureTranspProvider,

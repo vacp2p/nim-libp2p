@@ -1,3 +1,5 @@
+{.used.}
+
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -12,8 +14,6 @@ import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/crypto
 import ../libp2p/crypto/ed25519/ed25519
-
-when defined(nimHasUsed): {.used.}
 
 const TestsCount = 20
 

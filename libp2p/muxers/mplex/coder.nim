@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import pkg/[chronos, nimcrypto/utils, chronicles, stew/byteutils]
+import pkg/[chronos, chronicles, stew/byteutils]
 import ../../stream/connection,
        ../../utility,
        ../../varint,

@@ -72,12 +72,12 @@ type
                  hint | hint32 | hint64 | float32 | float64
 
 const
-  SupportedWireTypes* = {
-    int(ProtoFieldKind.Varint),
-    int(ProtoFieldKind.Fixed64),
-    int(ProtoFieldKind.Length),
-    int(ProtoFieldKind.Fixed32)
-  }
+  SupportedWireTypes* = @[
+    uint64(ProtoFieldKind.Varint),
+    uint64(ProtoFieldKind.Fixed64),
+    uint64(ProtoFieldKind.Length),
+    uint64(ProtoFieldKind.Fixed32)
+  ]
 
 template checkFieldNumber*(i: int) =
   doAssert((i > 0 and i < (1 shl 29)) and not(i >= 19000 and i <= 19999),

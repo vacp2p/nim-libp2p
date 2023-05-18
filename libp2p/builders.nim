@@ -298,9 +298,10 @@ proc newStandardSwitch*(
   peerStoreCapacity = 1000): Switch
   {.raises: [Defect, LPError], public.} =
   ## Helper for common switch configurations.
-
+  {.push warning[Deprecated]:off.}
   if SecureProtocol.Secio in secureManagers:
       quit("Secio is deprecated!") # use of secio is unsafe
+  {.pop.}
 
   let addrs = when addrs is MultiAddress: @[addrs] else: addrs
   var b = SwitchBuilder

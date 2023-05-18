@@ -1,17 +1,23 @@
 {.used.}
 
-import std/[streams, strutils, sets, sequtils, tables, algorithm]
-import chronos, stew/byteutils
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import std/[strutils, sequtils, tables]
+import chronos
 import ../libp2p/[stream/connection,
-                  transports/transport,
                   transports/tcptransport,
                   upgrademngrs/upgrade,
                   multiaddress,
-                  errors,
                   nameresolving/nameresolver,
                   nameresolving/dnsresolver,
-                  nameresolving/mockresolver,
-                  wire]
+                  nameresolving/mockresolver]
 
 import ./helpers
 #
@@ -41,8 +47,8 @@ proc guessOsNameServers(): seq[TransportAddress] =
           resultSeq.add(initTAddress(lineParsed[1], Port(53)))
 
           if resultSeq.len > 2: break #3 nameserver max on linux
-    except Exception as e:
-      echo "Failed to get unix nameservers ", e.msg
+    except CatchableError as err:
+      echo "Failed to get unix nameservers ", err.msg
     finally:
       if resultSeq.len > 0:
         return resultSeq

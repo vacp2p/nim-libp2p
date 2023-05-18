@@ -1,5 +1,14 @@
 {.used.}
 
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import options, bearssl, chronos
 import stew/byteutils
 import ../libp2p/[protocols/connectivity/relay/relay,
@@ -12,7 +21,6 @@ import ../libp2p/[protocols/connectivity/relay/relay,
                   peerid,
                   stream/connection,
                   multistream,
-                  transports/transport,
                   switch,
                   builders,
                   upgrademngrs/upgrade,

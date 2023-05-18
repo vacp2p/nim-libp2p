@@ -15,7 +15,8 @@ else:
 import
   std/[streams, strutils, sets, sequtils],
   chronos, chronicles, stew/byteutils,
-  dnsclientpkg/[protocol, types]
+  dnsclientpkg/[protocol, types],
+  ../utility
 
 import
   nameresolver
@@ -80,9 +81,7 @@ proc getDnsResponse(
     # parseResponse can has a raises: [Exception, ..] because of
     # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
     # it can't actually raise though
-    return parseResponse(string.fromBytes(rawResponse))
-  except CatchableError as exc: raise exc
-  except Exception as exc: raiseAssert exc.msg
+    return exceptionToAssert: parseResponse(string.fromBytes(rawResponse))
   finally:
     await sock.closeWait()
 
@@ -118,9 +117,7 @@ method resolveIp*(
           # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
           # it can't actually raise though
           resolvedAddresses.incl(
-            try: answer.toString()
-            except CatchableError as exc: raise exc
-            except Exception as exc: raiseAssert exc.msg
+            exceptionToAssert(answer.toString())
           )
       except CancelledError as e:
         raise e
@@ -151,9 +148,13 @@ method resolveTxt*(
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
     try:
+      # toString can has a raises: [Exception, ..] because of
+      # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
+      # it can't actually raise though
       let response = await getDnsResponse(server, address, TXT)
-      trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
-      return response.answers.mapIt(it.toString())
+      return exceptionToAssert:
+        trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
+        response.answers.mapIt(it.toString())
     except CancelledError as e:
       raise e
     except CatchableError as e:
@@ -161,11 +162,6 @@ method resolveTxt*(
       self.nameServers.add(self.nameServers[0])
       self.nameServers.delete(0)
       continue
-    except Exception as e:
-      # toString can has a raises: [Exception, ..] because of
-      # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
-      # it can't actually raise though
-      raiseAssert e.msg
 
   debug "Failed to resolve TXT, returning empty set"
   return @[]

@@ -18,6 +18,7 @@ import stew/[endians2, results, ctops]
 export results
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
+import ../utility
 
 type
   Asn1Error* {.pure.} = enum
@@ -119,7 +120,7 @@ template toOpenArray*(af: Asn1Field): untyped =
 template isEmpty*(ab: Asn1Buffer): bool =
   ab.offset >= len(ab.buffer)
 
-template isEnough*(ab: Asn1Buffer, length: int): bool =
+template isEnough*(ab: Asn1Buffer, length: int64): bool =
   len(ab.buffer) >= ab.offset + length
 
 proc len*[T: Asn1Buffer|Asn1Composite](abc: T): int {.inline.} =
@@ -344,32 +345,6 @@ proc asn1EncodeTag[T: SomeUnsignedInt](dest: var openArray[byte],
       dest[k - 1] = dest[k - 1] and 0x7F'u8
     res
 
-proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[int]): int =
-  ## Encode array of integers ``value`` as ASN.1 DER `OBJECT IDENTIFIER` and
-  ## return number of bytes (octets) used.
-  ##
-  ## If length of ``dest`` is less then number of required bytes to encode
-  ## ``value``, then result of encoding will not be stored in ``dest``
-  ## but number of bytes (octets) required will be returned.
-  var buffer: array[16, byte]
-  var res = 1
-  var oidlen = 1
-  for i in 2..<len(value):
-    oidlen += asn1EncodeTag(buffer, cast[uint64](value[i]))
-  res += asn1EncodeLength(buffer, uint64(oidlen))
-  res += oidlen
-  if len(dest) >= res:
-    let last = dest.high
-    var offset = 1
-    dest[0] = Asn1Tag.Oid.code()
-    offset += asn1EncodeLength(dest.toOpenArray(offset, last), uint64(oidlen))
-    dest[offset] = cast[byte](value[0] * 40 + value[1])
-    offset += 1
-    for i in 2..<len(value):
-      offset += asn1EncodeTag(dest.toOpenArray(offset, last),
-                              cast[uint64](value[i]))
-  res
-
 proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[byte]): int =
   ## Encode array of bytes ``value`` as ASN.1 DER `OBJECT IDENTIFIER` and return
   ## number of bytes (octets) used.
@@ -443,26 +418,29 @@ proc asn1EncodeContextTag*(dest: var openArray[byte], value: openArray[byte],
     copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
   res
 
-proc getLength(ab: var Asn1Buffer): Asn1Result[uint64] =
+proc getLength(ab: var Asn1Buffer): Asn1Result[int] =
   ## Decode length part of ASN.1 TLV triplet.
   if not ab.isEmpty():
     let b = ab.buffer[ab.offset]
     if (b and 0x80'u8) == 0x00'u8:
-      let length = cast[uint64](b)
+      let length = safeConvert[int](b)
       ab.offset += 1
       return ok(length)
     if b == 0x80'u8:
       return err(Asn1Error.Indefinite)
     if b == 0xFF'u8:
       return err(Asn1Error.Incorrect)
-    let octets = cast[uint64](b and 0x7F'u8)
-    if octets > 8'u64:
+    let octets = safeConvert[int](b and 0x7F'u8)
+    if octets > 8:
       return err(Asn1Error.Overflow)
-    if ab.isEnough(int(octets)):
-      var length: uint64 = 0
-      for i in 0..<int(octets):
-        length = (length shl 8) or cast[uint64](ab.buffer[ab.offset + i + 1])
-      ab.offset = ab.offset + int(octets) + 1
+    if ab.isEnough(octets):
+      var lengthU: uint64 = 0
+      for i in 0..<octets:
+        lengthU = (lengthU shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
+      if lengthU > uint64(int64.high):
+        return err(Asn1Error.Overflow)
+      let length = int(lengthU)
+      ab.offset = ab.offset + octets + 1
       return ok(length)
     else:
       return err(Asn1Error.Incomplete)
@@ -474,8 +452,8 @@ proc getTag(ab: var Asn1Buffer, tag: var int): Asn1Result[Asn1Class] =
   if not ab.isEmpty():
     let
       b = ab.buffer[ab.offset]
-      c = int((b and 0xC0'u8) shr 6)
-    tag = int(b and 0x3F)
+      c = safeConvert[int]((b and 0xC0'u8) shr 6)
+    tag = safeConvert[int](b and 0x3F)
     ab.offset += 1
     if c >= 0 and c < 4:
       ok(cast[Asn1Class](c))
@@ -489,7 +467,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
   var
     field: Asn1Field
     tag, ttag, offset: int
-    length, tlength: uint64
+    length, tlength: int
     aclass: Asn1Class
     inclass: bool
 
@@ -519,7 +497,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         if length != 1:
           return err(Asn1Error.Incorrect)
 
-        if not ab.isEnough(int(length)):
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         let b = ab.buffer[ab.offset]
@@ -527,7 +505,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
            return err(Asn1Error.Incorrect)
 
         field = Asn1Field(kind: Asn1Tag.Boolean, klass: aclass,
-                          index: ttag, offset: int(ab.offset),
+                          index: ttag, offset: ab.offset,
                           length: 1, buffer: ab.buffer)
         field.vbool = (b == 0xFF'u8)
         ab.offset += 1
@@ -538,12 +516,12 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         if length == 0:
           return err(Asn1Error.Incorrect)
 
-        if not ab.isEnough(int(length)):
+        if not ab.isEnough(length):
          return err(Asn1Error.Incomplete)
 
         # Count number of leading zeroes
         var zc = 0
-        while (zc < int(length)) and (ab.buffer[ab.offset + zc] == 0x00'u8):
+        while (zc < length) and (ab.buffer[ab.offset + zc] == 0x00'u8):
           inc(zc)
 
         if zc > 1:
@@ -552,45 +530,45 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         if zc == 0:
           # Negative or Positive integer
           field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
-                            index: ttag, offset: int(ab.offset),
-                            length: int(length), buffer: ab.buffer)
+                            index: ttag, offset: ab.offset,
+                            length: length, buffer: ab.buffer)
           if (ab.buffer[ab.offset] and 0x80'u8) == 0x80'u8:
             # Negative integer
             if length <= 8:
               # We need this transformation because our field.vint is uint64.
               for i in 0 ..< 8:
-                if i < 8 - int(length):
+                if i < 8 - length:
                   field.vint = (field.vint shl 8) or 0xFF'u64
                 else:
-                  let offset = ab.offset + i - (8 - int(length))
-                  field.vint = (field.vint shl 8) or uint64(ab.buffer[offset])
+                  let offset = ab.offset + i - (8 - length)
+                  field.vint = (field.vint shl 8) or safeConvert[uint64](ab.buffer[offset])
           else:
             # Positive integer
             if length <= 8:
-              for i in 0 ..< int(length):
+              for i in 0 ..< length:
                 field.vint = (field.vint shl 8) or
-                              uint64(ab.buffer[ab.offset + i])
-          ab.offset += int(length)
+                              safeConvert[uint64](ab.buffer[ab.offset + i])
+          ab.offset += length
           return ok(field)
         else:
           if length == 1:
             # Zero value integer
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
-                              index: ttag, offset: int(ab.offset),
-                              length: int(length), vint: 0'u64,
+                              index: ttag, offset: ab.offset,
+                              length: length, vint: 0'u64,
                               buffer: ab.buffer)
-            ab.offset += int(length)
+            ab.offset += length
             return ok(field)
           else:
             # Positive integer with leading zero
             field = Asn1Field(kind: Asn1Tag.Integer, klass: aclass,
-                              index: ttag, offset: int(ab.offset) + 1,
-                              length: int(length) - 1, buffer: ab.buffer)
+                              index: ttag, offset: ab.offset + 1,
+                              length: length - 1, buffer: ab.buffer)
             if length <= 9:
-              for i in 1 ..< int(length):
+              for i in 1 ..< length:
                 field.vint = (field.vint shl 8) or
-                              uint64(ab.buffer[ab.offset + i])
-            ab.offset += int(length)
+                              safeConvert[uint64](ab.buffer[ab.offset + i])
+            ab.offset += length
             return ok(field)
 
       of Asn1Tag.BitString.code():
@@ -606,13 +584,13 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           else:
             # Zero-length BIT STRING.
             field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
-                              index: ttag, offset: int(ab.offset + 1),
+                              index: ttag, offset: ab.offset + 1,
                               length: 0, ubits: 0, buffer: ab.buffer)
-            ab.offset += int(length)
+            ab.offset += length
             return ok(field)
 
         else:
-          if not ab.isEnough(int(length)):
+          if not ab.isEnough(length):
             return err(Asn1Error.Incomplete)
 
           let unused = ab.buffer[ab.offset]
@@ -620,27 +598,27 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
             # Number of unused bits should not be bigger then `7`.
             return err(Asn1Error.Incorrect)
 
-          let mask = (1'u8 shl int(unused)) - 1'u8
-          if (ab.buffer[ab.offset + int(length) - 1] and mask) != 0x00'u8:
+          let mask = (1'u8 shl safeConvert[int](unused)) - 1'u8
+          if (ab.buffer[ab.offset + length - 1] and mask) != 0x00'u8:
             ## All unused bits should be set to `0`.
             return err(Asn1Error.Incorrect)
 
           field = Asn1Field(kind: Asn1Tag.BitString, klass: aclass,
-                            index: ttag, offset: int(ab.offset + 1),
-                            length: int(length - 1), ubits: int(unused),
+                            index: ttag, offset: ab.offset + 1,
+                            length: length - 1, ubits: safeConvert[int](unused),
                             buffer: ab.buffer)
-          ab.offset += int(length)
+          ab.offset += length
           return ok(field)
 
       of Asn1Tag.OctetString.code():
         # OCTET STRING
-        if not ab.isEnough(int(length)):
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.OctetString, klass: aclass,
-                          index: ttag, offset: int(ab.offset),
-                          length: int(length), buffer: ab.buffer)
-        ab.offset += int(length)
+                          index: ttag, offset: ab.offset,
+                          length: length, buffer: ab.buffer)
+        ab.offset += length
         return ok(field)
 
       of Asn1Tag.Null.code():
@@ -649,30 +627,30 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
           return err(Asn1Error.Incorrect)
 
         field = Asn1Field(kind: Asn1Tag.Null, klass: aclass, index: ttag,
-                          offset: int(ab.offset), length: 0, buffer: ab.buffer)
-        ab.offset += int(length)
+                          offset: ab.offset, length: 0, buffer: ab.buffer)
+        ab.offset += length
         return ok(field)
 
       of Asn1Tag.Oid.code():
         # OID
-        if not ab.isEnough(int(length)):
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.Oid, klass: aclass,
-                          index: ttag, offset: int(ab.offset),
-                          length: int(length), buffer: ab.buffer)
-        ab.offset += int(length)
+                          index: ttag, offset: ab.offset,
+                          length: length, buffer: ab.buffer)
+        ab.offset += length
         return ok(field)
 
       of Asn1Tag.Sequence.code():
         # SEQUENCE
-        if not ab.isEnough(int(length)):
+        if not ab.isEnough(length):
           return err(Asn1Error.Incomplete)
 
         field = Asn1Field(kind: Asn1Tag.Sequence, klass: aclass,
-                          index: ttag, offset: int(ab.offset),
-                          length: int(length), buffer: ab.buffer)
-        ab.offset += int(length)
+                          index: ttag, offset: ab.offset,
+                          length: length, buffer: ab.buffer)
+        ab.offset += length
         return ok(field)
 
       else:

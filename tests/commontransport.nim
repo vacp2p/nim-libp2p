@@ -1,13 +1,11 @@
 {.used.}
 
-import sequtils
 import chronos, stew/[byteutils, results]
 import ../libp2p/[stream/connection,
                   transports/transport,
                   upgrademngrs/upgrade,
                   multiaddress,
-                  errors,
-                  wire]
+                  errors]
 
 import ./helpers
 

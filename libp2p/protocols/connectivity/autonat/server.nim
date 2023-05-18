@@ -14,7 +14,7 @@ else:
 
 import std/[options, sets, sequtils]
 import stew/results
-import chronos, chronicles, stew/objects
+import chronos, chronicles
 import ../../protocol,
        ../../../switch,
        ../../../multiaddress,

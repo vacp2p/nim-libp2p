@@ -22,7 +22,7 @@ else:
 
 import bearssl/blockx
 from stew/assign2 import assign
-from stew/ranges/ptr_arith import baseAddr
+from stew/ptrops import baseAddr
 
 const
   ChaChaPolyKeySize = 32

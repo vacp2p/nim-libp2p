@@ -19,8 +19,6 @@ import varint, vbuffer
 import stew/results
 export results
 
-{.deadCodeElim: on.}
-
 ## List of officially supported codecs can BE found here
 ## https://github.com/multiformats/multicodec/blob/master/table.csv
 const MultiCodecList = [

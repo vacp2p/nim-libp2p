@@ -13,8 +13,7 @@ else:
   {.push raises: [].}
 
 import chronos, chronicles
-import ../protocols/protocol,
-       ../stream/connection,
+import ../stream/connection,
        ../errors
 
 logScope:

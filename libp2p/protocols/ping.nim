@@ -15,7 +15,7 @@ else:
   {.push raises: [].}
 
 import chronos, chronicles
-import bearssl/[rand, hash]
+import bearssl/rand
 import ../protobuf/minprotobuf,
        ../peerinfo,
        ../stream/connection,

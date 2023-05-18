@@ -16,7 +16,7 @@ import std/[tables, sets, options]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
-import "../../.."/[peerid, multiaddress, utility, switch, utils/heartbeat]
+import "../../.."/[peerid, multiaddress, switch, utils/heartbeat]
 
 logScope:
   topics = "libp2p gossipsub"
@@ -250,7 +250,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold and
         peer.peerId notin g.parameters.directPeers:
       debug "disconnecting bad score peer", peer, score = peer.score
-      asyncSpawn(try: g.disconnectPeer(peer) except Exception as exc: raiseAssert exc.msg)
+      asyncSpawn(g.disconnectPeer(peer))
 
     libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
 

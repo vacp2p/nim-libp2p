@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import options, sequtils, tables, sugar
+import options, sequtils, tables
 
 import chronos, chronicles
 
@@ -25,7 +25,6 @@ import ./messages,
        ../../../multicodec,
        ../../../stream/connection,
        ../../../protocols/protocol,
-       ../../../transports/transport,
        ../../../errors,
        ../../../utils/heartbeat,
        ../../../signed_envelope

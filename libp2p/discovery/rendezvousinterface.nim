@@ -12,7 +12,6 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import sequtils
 import chronos
 import ./discoverymngr,
        ../protocols/rendezvous,

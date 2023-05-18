@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import chronos, chronicles, times, tables, sequtils, options
+import chronos, chronicles, times, tables, sequtils
 import ../switch,
        ../protocols/connectivity/relay/[client, utils]
 
