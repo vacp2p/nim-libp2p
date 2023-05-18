@@ -12,14 +12,13 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/[tables, sequtils]
+import std/sequtils
 
 import chronos, chronicles
 
 import ../switch, ../wire
 import ../protocols/rendezvous
 import ../services/autorelayservice
-import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 import ../protocols/connectivity/dcutr/[client, server]

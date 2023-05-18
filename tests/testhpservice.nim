@@ -25,7 +25,6 @@ import ../libp2p/[builders,
                   services/autorelayservice]
 import ../libp2p/protocols/connectivity/relay/[relay, client]
 import ../libp2p/protocols/connectivity/autonat/[service]
-import ../libp2p/wire
 import ../libp2p/nameresolving/nameresolver
 import ../libp2p/nameresolving/mockresolver
 
