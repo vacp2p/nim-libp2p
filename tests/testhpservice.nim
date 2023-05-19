@@ -80,10 +80,12 @@ suite "Hole Punching":
     let hpservice = HPService.new(autonatService, autoRelayService, isPublicAddrIPAddrMock)
 
     let privatePeerSwitch = createSwitch(relayClient, hpservice)
+    let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start())
+    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
+    await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
 
     await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
@@ -93,7 +95,7 @@ suite "Hole Punching":
       not isRelayed(privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection)
 
     await allFuturesThrowing(
-      privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop())
+      privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop(), peerSwitch.stop())
 
   asyncTest "Direct connection must work when peer address is public and dns is used":
 
@@ -103,7 +105,6 @@ suite "Hole Punching":
 
     let relayClient = RelayClient.new()
     let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
-
 
     let resolver = MockResolver.new()
     resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
@@ -125,10 +126,12 @@ suite "Hole Punching":
     let hpservice = HPService.new(autonatService, autoRelayService, isPublicAddrIPAddrMock)
 
     let privatePeerSwitch = createSwitch(relayClient, hpservice, nameResolver = resolver)
+    let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start())
+    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
+    await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
 
     await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
@@ -138,7 +141,7 @@ suite "Hole Punching":
       not isRelayed(privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection)
 
     await allFuturesThrowing(
-      privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop())
+      privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop(), peerSwitch.stop())
 
   proc holePunchingTest(connectStub: proc (): Future[void] {.async.},
                         isPublicIPAddrProc: IsPublicIPAddrProc,
@@ -214,4 +217,3 @@ suite "Hole Punching":
       raise newException(CatchableError, "error")
 
     await holePunchingTest(connectStub, isPublicAddrIPAddrMock, Reachable)
-
