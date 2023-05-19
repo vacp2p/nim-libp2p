@@ -16,7 +16,7 @@ import ../libp2p/utility
 suite "Utility":
 
   test "successful safeConvert from int8 to int16":
-    let res = safeConvert[int16, int8](-128'i8)
+    let res = safeConvert[int16, int8]((-128).int8)
     doAssert res == -128'i16, fmt"Expected -128 but got {result}"
 
   test "unsuccessful safeConvert from int16 to int8":
@@ -71,6 +71,4 @@ suite "Utility":
 
   test "unsuccessful safeConvert from uint to int":
     doAssert not (compiles do:
-      result: uint = safeConvert[int, uint](11'uint))
-
-
+      result: uint = safeConvert[int, uint](11.uint))
