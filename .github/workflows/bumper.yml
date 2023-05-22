@@ -10,11 +10,12 @@ jobs:
   bumpProjects:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target: [
           { repo: status-im/nimbus-eth2, branch: unstable },
-          { repo: status-im/nwaku, branch: master },
-          { repo: status-im/nim-codex, branch: main }
+          { repo: waku-org/nwaku, branch: master },
+          { repo: codex-storage/nim-codex, branch: master }
         ]
     steps:
       - name: Clone repo
