@@ -217,8 +217,8 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
 
 proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
   let muxed = await trans.upgrade(conn, Direction.In, Opt.none(PeerId))
-  switch.connManager.storeMuxer(muxed)
   await switch.peerStore.identify(muxed)
+  switch.connManager.storeMuxer(muxed)
   trace "Connection upgrade succeeded"
 
 proc upgradeMonitor(

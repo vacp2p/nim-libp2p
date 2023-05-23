@@ -191,8 +191,8 @@ proc internalConnect(
       raise newException(DialFailedError, "Unable to establish outgoing link")
 
     try:
-      self.connManager.storeMuxer(muxed)
       await self.peerStore.identify(muxed)
+      self.connManager.storeMuxer(muxed)      
     except CatchableError as exc:
       trace "Failed to finish outgoung upgrade", err=exc.msg
       await muxed.close()

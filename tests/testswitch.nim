@@ -849,6 +849,20 @@ suite "Switch":
     switch1.mount(testProto)
 
     let switch2 = newStandardSwitch(peerStoreCapacity = 0)
+
+    var joined, left: bool
+    var joinedAddr, leftAddr: seq[MultiAddress]
+    proc handlerJoined(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
+      joined = true
+      joinedAddr = switch1.peerStore[AddressBook][peerId]
+
+    proc handlerLeft(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
+      left = true
+      leftAddr = switch1.peerStore[AddressBook][peerId]
+
+    switch1.addPeerEventHandler(handlerJoined, PeerEventKind.Joined)
+    switch1.addPeerEventHandler(handlerLeft, PeerEventKind.Left)
+
     await switch1.start()
     await switch2.start()
 
@@ -876,6 +890,12 @@ suite "Switch":
 
       switch1.peerInfo.peerId notin switch2.peerStore[AddressBook]
       switch1.peerInfo.peerId notin switch2.peerStore[ProtoBook]
+
+    check:
+      joined
+      left
+      joinedAddr == switch2.peerInfo.addrs
+      leftAddr == switch2.peerInfo.addrs
 
   asyncTest "e2e should allow multiple local addresses":
     when defined(windows):
