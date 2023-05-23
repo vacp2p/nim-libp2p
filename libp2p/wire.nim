@@ -23,14 +23,14 @@ else:
 
 const
   RTRANSPMA* = mapOr(
-    mapAnd(IP, mapEq("tcp")),
-    WebSockets,
+    TCP_IP,
+    WebSockets_IP,
     UNIX
   )
 
   TRANSPMA* = mapOr(
     RTRANSPMA,
-    mapAnd(IP, mapEq("udp"))
+    UDP_IP
   )
 
 
