@@ -23,7 +23,7 @@ type
   OnReservationHandler = proc (addresses: seq[MultiAddress]) {.gcsafe, raises: [Defect].}
 
   AutoRelayService* = ref object of Service
-    running: bool
+    running*: bool
     runner: Future[void]
     client: RelayClient
     numRelays: int
