@@ -63,7 +63,7 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
       continue
   return false
 
-proc newConnectedPeerHandlerAux(self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent) {.async.} =
+proc newConnectedPeerHandler(self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent) {.async.} =
   try:
     # Get all connections to the peer. If there is at least one non-relayed connection, return.
     var relayedConnt: Connection
@@ -96,10 +96,8 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     let dcutrProto = Dcutr.new(switch)
     switch.mount(dcutrProto)
 
-    proc newConnectedPeerHandler(peerId: PeerId, event: PeerEvent) {.async.} =
-      await newConnectedPeerHandlerAux(self, switch, peerId, event)
-
-    self.newConnectedPeerHandler = newConnectedPeerHandler
+    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent) {.async.} =
+      await newConnectedPeerHandler(self, switch, peerId, event)
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
