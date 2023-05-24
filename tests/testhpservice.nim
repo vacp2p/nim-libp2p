@@ -85,10 +85,8 @@ suite "Hole Punching":
 
     await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
-    await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
-    checkExpiring:
-      autoRelayService.running # wait for autorelay to kick in
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
 
     await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
 
@@ -133,10 +131,8 @@ suite "Hole Punching":
 
     await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
-    await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
-    checkExpiring:
-      autoRelayService.running # wait for autorelay to kick in
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
 
     await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
 
