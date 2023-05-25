@@ -9,7 +9,7 @@ metrics;https://github.com/status-im/nim-metrics@#abf3acc7f06cee9ee2c287d2f31413
 nimcrypto;https://github.com/cheatfate/nimcrypto@#4014ef939b51e02053c2e16dd3481d47bc9267dd
 secp256k1;https://github.com/status-im/nim-secp256k1@#fd173fdff863ce2e211cf64c9a03bc7539fe40b0
 serialization;https://github.com/status-im/nim-serialization@#5b7cea55efeb074daa8abd8146a03a34adb4521a
-stew;https://github.com/status-im/nim-stew@#8caa9771995b266e10b2e7c0de6cbfa698902e68
+stew;https://github.com/status-im/nim-stew@#003fe9f0c83c2b0b2ccbd37087e6d1ccd30a3234
 testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014de2b4bfb4dafc34
 unittest2;https://github.com/status-im/nim-unittest2@#883c7a50ad3b82158e64d074c5578fe33ab3c452
 websock;https://github.com/status-im/nim-websock@#fea05cde8b123b38d1a0a8524b77efbc84daa848
