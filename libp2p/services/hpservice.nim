@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/sequtils
+import std/[tables, sequtils]
 
 import chronos, chronicles
 
