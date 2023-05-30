@@ -91,6 +91,19 @@ suite "Signed Routing Record":
 
     check parsedRR.addresses.len == 1
 
+  test "Decode doesn't fail if there are no addresses":
+    let
+      rng = newRng()
+      privKey = PrivateKey.random(rng[]).tryGet()
+      peerId = PeerId.init(privKey).tryGet()
+      multiAddresses = newSeq[MultiAddress]()
+      routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
+
+      buffer = routingRecord.encode()
+      parsedRR = PeerRecord.decode(buffer).tryGet()
+
+    check parsedRR.addresses.len == 0
+
   test "Decode fails if all addresses are invalid":
     let
       rng = newRng()
