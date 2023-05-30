@@ -35,6 +35,9 @@ type
     addressMapper: AddressMapper
     rng: ref HmacDrbgContext
 
+proc isRunning*(self: AutoRelayService): bool =
+  return self.running
+
 proc addressMapper(
   self: AutoRelayService,
   listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =

@@ -108,9 +108,9 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
     self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
-      if networkReachability == NetworkReachability.NotReachable:
+      if networkReachability == NetworkReachability.NotReachable and not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)
-      elif networkReachability == NetworkReachability.Reachable:
+      elif networkReachability == NetworkReachability.Reachable and self.autoRelayService.isRunning():
         discard await self.autoRelayService.stop(switch)
 
       # We do it here instead of in the AutonatService because this is useful only when hole punching.
