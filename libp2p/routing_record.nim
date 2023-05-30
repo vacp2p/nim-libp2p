@@ -51,10 +51,12 @@ proc decode*(
     for address in addressInfos:
       var addressInfo = AddressInfo()
       let subProto = initProtoBuffer(address)
-      if ? subProto.getField(1, addressInfo.address) == false:
-        return err(ProtoError.RequiredFieldMissing)
+      let f = subProto.getField(1, addressInfo.address)
+      if f.isOk() and f.get():
+          record.addresses &= addressInfo
 
-      record.addresses &= addressInfo
+    if record.addresses.len == 0:
+      return err(ProtoError.RequiredFieldMissing)
 
   ok(record)
 
