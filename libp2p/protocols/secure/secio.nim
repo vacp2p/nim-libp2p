@@ -342,8 +342,8 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
 
   remotePeerId = PeerId.init(remotePubkey).tryGet()
 
-  if peerId.isSome():
-    let targetPid = peerId.get()
+  block checkPeerId:
+    let targetPid = peerId.valueOr(break checkPeerId)
     if not targetPid.validate():
       raise newException(SecioError, "Failed to validate expected peerId.")
 
@@ -439,14 +439,10 @@ proc new*(
   T: typedesc[Secio],
   rng: ref HmacDrbgContext,
   localPrivateKey: PrivateKey): T =
-  let pkRes = localPrivateKey.getPublicKey()
-  if pkRes.isErr:
-    raise newException(Defect, "Invalid private key")
-
   let secio = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
-    localPublicKey: pkRes.get(),
+    localPublicKey: localPrivateKey.getPublicKey().expect("Invalid private key"),
   )
   secio.init()
   secio

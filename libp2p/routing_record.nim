@@ -52,7 +52,7 @@ proc decode*(
       var addressInfo = AddressInfo()
       let subProto = initProtoBuffer(address)
       let f = subProto.getField(1, addressInfo.address)
-      if f.isOk() and f.get():
+      if f.get(false):
           record.addresses &= addressInfo
 
     if record.addresses.len == 0:

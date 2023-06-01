@@ -52,13 +52,13 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
   for address in switch.peerStore[AddressBook][peerId]:
     try:
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
-      if isRelayed.isErr() or isRelayed.get():
+      if isRelayed.get(false):
         continue
       if DNS.matchPartial(address):
         return await tryConnect(address)
       else:
-        let ta = initTAddress(address)
-        if ta.isOk() and self.isPublicIPAddrProc(ta.get()):
+        let ta = initTAddress(address).valueOr(continue)
+        if self.isPublicIPAddrProc(ta):
           return await tryConnect(address)
     except CatchableError as err:
       debug "Failed to create direct connection.", err = err.msg

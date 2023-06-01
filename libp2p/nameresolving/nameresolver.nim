@@ -121,7 +121,7 @@ proc resolveMAddress*(
   if not DNS.matchPartial(address):
     res.incl(address)
   else:
-    let code = address[0].get().protoCode().get()
+    let code = address[0].tryGet().protoCode().tryGet()
     let seq = case code:
       of multiCodec("dns"):
         await self.resolveOneAddress(address)

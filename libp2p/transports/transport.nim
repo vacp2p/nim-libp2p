@@ -104,7 +104,7 @@ method handles*(
   # having to repeat the check in every transport
   if address.protocols.isOk:
     return address.protocols
-    .get()
+    .tryGet()
     .filterIt(
       it == multiCodec("p2p-circuit")
     ).len == 0

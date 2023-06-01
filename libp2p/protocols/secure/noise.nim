@@ -557,8 +557,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool, peerId: Opt[PeerI
 
     trace "Remote peer id", pid = $pid
 
-    if peerId.isSome():
-      let targetPid = peerId.get()
+    peerId.withValue(targetPid):
       if not targetPid.validate():
         raise newException(NoiseHandshakeError, "Failed to validate expected peerId.")
 

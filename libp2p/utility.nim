@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import stew/byteutils
+import stew/[byteutils, results]
 
 template public* {.pragma.}
 
@@ -86,3 +86,8 @@ template exceptionToAssert*(body: untyped): untyped =
     when defined(nimHasWarnBareExcept):
       {.pop.}
     res
+
+template withValue*[T](self: Opt[T], value, body): untyped =
+  if self.isOk:
+    let value {.inject.} = self.get()
+    body

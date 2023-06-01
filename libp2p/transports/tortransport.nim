@@ -153,15 +153,15 @@ proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [
     else:
       raise newException(LPError, fmt"IP address not supported {address}")
   let
-    dstAddr = address[codec].get().protoArgument().get()
-    dstPort = address[multiCodec("tcp")].get().protoArgument().get()
+    dstAddr = address[codec].tryGet().protoArgument().tryGet()
+    dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
   (atyp, dstAddr, dstPort)
 
 proc parseDnsTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) =
   let
-    dnsAddress = address[multiCodec("dns")].get().protoArgument().get()
+    dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
-    dstPort = address[multiCodec("tcp")].get().protoArgument().get()
+    dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
   (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
 proc dialPeer(
@@ -217,9 +217,9 @@ method start*(
         warn "Invalid address detected, skipping!", address = ma
         continue
 
-    let listenAddress = ma[0..1].get()
+    let listenAddress = ma[0..1].tryGet()
     listenAddrs.add(listenAddress)
-    let onion3 = ma[multiCodec("onion3")].get()
+    let onion3 = ma[multiCodec("onion3")].tryGet()
     onion3Addrs.add(onion3)
 
   if len(listenAddrs) != 0 and len(onion3Addrs) != 0:
