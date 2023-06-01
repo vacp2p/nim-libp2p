@@ -48,6 +48,8 @@ jobs:
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
+          nim --version
+          nimble --version
           nimble testnative
           nimble testpubsub
           nimble testfilter
