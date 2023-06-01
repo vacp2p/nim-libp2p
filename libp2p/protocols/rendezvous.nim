@@ -457,12 +457,19 @@ proc advertisePeer(rdv: RendezVous,
       await conn.writeLp(msg)
       let
         buf = await conn.readLp(4096)
-        msgRecv = Message.decode(buf).get()
+        decodedMsg = Message.decode(buf)
+
+      if decodedMsg.isNone():
+        trace "Failed to decode message", peer
+        return
+
+      let msgRecv = decodedMsg.get()
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
       elif msgRecv.registerResponse.isNone() or
-           msgRecv.registerResponse.get().status != ResponseStatus.Ok:
+          msgRecv.registerResponse.get().status != ResponseStatus.Ok:
         trace "Refuse to register", peer, response = msgRecv.registerResponse
+      
     except CatchableError as exc:
       trace "exception in the advertise", error = exc.msg
     finally:
@@ -530,7 +537,13 @@ proc request*(rdv: RendezVous,
       discover: some(d))).buffer)
     let
       buf = await conn.readLp(65536)
-      msgRcv = Message.decode(buf).get()
+      decodedMsg = Message.decode(buf)
+
+    if decodedMsg.isNone():
+      trace "Failed to decode message", peer
+      return
+
+    let msgRcv = decodedMsg.get()
     if msgRcv.msgType != MessageType.DiscoverResponse or
        msgRcv.discoverResponse.isNone():
       debug "Unexpected discover response", msgType = msgRcv.msgType
@@ -627,7 +640,13 @@ proc new*(T: typedesc[RendezVous],
     try:
       let
         buf = await conn.readLp(4096)
-        msg = Message.decode(buf).get()
+        decodedMsg = Message.decode(buf)
+
+      if decodedMsg.isNone():
+        trace "Failed to decode message"
+        return
+
+      let msg = decodedMsg.get()
       case msg.msgType:
         of MessageType.Register: await rdv.register(conn, msg.register.get())
         of MessageType.RegisterResponse:
