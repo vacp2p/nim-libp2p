@@ -57,7 +57,8 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
       if DNS.matchPartial(address):
         return await tryConnect(address)
       else:
-        let ta = initTAddress(address).valueOr(continue)
+        let ta = initTAddress(address).valueOr:
+          continue
         if self.isPublicIPAddrProc(ta):
           return await tryConnect(address)
     except CatchableError as err:

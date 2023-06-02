@@ -144,7 +144,9 @@ proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: 
     dstPort = address.data.buffer[37..38]
   return (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
-proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [Defect, LPError, ValueError].} =
+proc parseIpTcp(address: MultiAddress):
+  (byte, seq[byte], seq[byte])
+  {.raises: [LPError, ValueError].} =
   let (codec, atyp) =
     if IPv4Tcp.match(address):
       (multiCodec("ip4"), Socks5AddressType.IPv4.byte)
@@ -157,7 +159,9 @@ proc parseIpTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [
     dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
   (atyp, dstAddr, dstPort)
 
-proc parseDnsTcp(address: MultiAddress): (byte, seq[byte], seq[byte]) =
+proc parseDnsTcp(address: MultiAddress):
+  (byte, seq[byte], seq[byte])
+  {.raises: [LPError, ValueError].} =
   let
     dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress

@@ -319,7 +319,7 @@ proc newStandardSwitch*(
     .withNameResolver(nameResolver)
     .withNoise()
 
-  privKey.withValue(key):
-    b = b.withPrivateKey(key)
+  privKey.withValue(pkey):
+    b = b.withPrivateKey(pkey)
 
   b.build()

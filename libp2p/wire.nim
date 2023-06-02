@@ -155,7 +155,7 @@ proc createStreamServer*[T](ma: MultiAddress,
     raise newException(LPError, exc.msg)
 
 proc createAsyncSocket*(ma: MultiAddress): AsyncFD
-  {.raises: [Defect, LPError].} =
+  {.raises: [ValueError, LPError].} =
   ## Create new asynchronous socket using MultiAddress' ``ma`` socket type and
   ## protocol information.
   ##

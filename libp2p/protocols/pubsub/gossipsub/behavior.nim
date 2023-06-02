@@ -192,19 +192,14 @@ proc handleGraft*(g: GossipSub,
 proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRecord])] =
   var routingRecords: seq[(PeerId, Option[PeerRecord])]
   for record in prune.peers:
-    let peerRecord =
-      if record.signedPeerRecord.len == 0:
-        none(PeerRecord)
-      else:
-        let signedRecord = SignedPeerRecord.decode(record.signedPeerRecord).valueOr:
-          trace "peer sent invalid SPR", peer, error=error
-          return none(PeerRecord)
+    var peerRecord = none(PeerRecord)
+    if record.signedPeerRecord.len > 0:
+      SignedPeerRecord.decode(record.signedPeerRecord).toOpt().withValue(spr):
+        if record.peerId != spr.data.peerId:
+          trace "peer sent envelope with wrong public key", peer
+          peerRecord = none(PeerRecord)
         else:
-          if record.peerId != signedRecord.data.peerId:
-            trace "peer sent envelope with wrong public key", peer
-            none(PeerRecord)
-          else:
-            some(signedRecord.data)
+          peerRecord = some(spr.data)
 
     routingRecords.add((record.peerId, peerRecord))
 
