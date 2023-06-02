@@ -150,7 +150,8 @@ proc dialAndUpgrade(
         if not isNil(result):
           return result
 
-proc tryReusingConnection(self: Dialer, peerId: PeerId): Future[Opt[Muxer]] {.async.} =
+proc tryReusingConnection(self: Dialer, peerIdOpt: Opt[PeerId]): Opt[Muxer] =
+  let peerId = peerIdOpt.valueOr: return Opt.none(Muxer)
   let muxer = self.connManager.selectMuxer(peerId)
   if muxer == nil:
     return Opt.none(Muxer)
@@ -174,10 +175,9 @@ proc internalConnect(
   try:
     await lock.acquire()
 
-    if peerId.isSome and reuseConnection:
-      let muxOpt = await self.tryReusingConnection(peerId.get())
-      if muxOpt.isSome:
-        return muxOpt.get()
+    if reuseConnection:
+      self.tryReusingConnection(peerId).withValue(mux):
+        return mux
 
     let slot = self.connManager.getOutgoingSlot(forceDial)
     let muxed =
@@ -225,19 +225,19 @@ method connect*(
   allowUnknownPeerId = false): Future[PeerId] {.async.} =
   ## Connects to a peer and retrieve its PeerId
 
-  let fullAddress = parseFullAddress(address)
-  if fullAddress.isOk:
+  parseFullAddress(address).toOpt().withValue(fullAddress):
     return (await self.internalConnect(
-      Opt.some(fullAddress.get()[0]),
-      @[fullAddress.get()[1]],
+      Opt.some(fullAddress[0]),
+      @[fullAddress[1]],
       false)).connection.peerId
-  else:
-    if allowUnknownPeerId == false:
-      raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
-    return (await self.internalConnect(
-      Opt.none(PeerId),
-      @[address],
-      false)).connection.peerId
+
+  if allowUnknownPeerId == false:
+    raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
+
+  return (await self.internalConnect(
+    Opt.none(PeerId),
+    @[address],
+    false)).connection.peerId
 
 proc negotiateStream(
   self: Dialer,

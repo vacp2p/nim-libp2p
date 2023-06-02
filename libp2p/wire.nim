@@ -92,7 +92,7 @@ proc connect*(
 
   compilesOr:
     return connect(transportAddress, bufferSize, child,
-      if localAddress.isSome(): initTAddress(localAddress.get()).tryGet() else : TransportAddress(),
+      if localAddress.isSome(): initTAddress(localAddress.expect("just checked")).tryGet() else: TransportAddress(),
       flags)
   do:
     # support for older chronos versions

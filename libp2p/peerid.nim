@@ -191,19 +191,11 @@ proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
 
 func match*(pid: PeerId, pubkey: PublicKey): bool =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.
-  let p = PeerId.init(pubkey)
-  if p.isErr:
-    false
-  else:
-    pid == p.get()
+  PeerId.init(pubkey) == Result[PeerId, cstring].ok(pid)
 
 func match*(pid: PeerId, seckey: PrivateKey): bool =
   ## Returns ``true`` if ``pid`` matches private key ``seckey``.
-  let p = PeerId.init(seckey)
-  if p.isErr:
-    false
-  else:
-    pid == p.get()
+  PeerId.init(seckey) == Result[PeerId, cstring].ok(pid)
 
 ## Serialization/Deserialization helpers
 

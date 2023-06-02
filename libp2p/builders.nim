@@ -57,7 +57,7 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
-    peerStoreCapacity: Option[int]
+    peerStoreCapacity: Opt[int]
     autonat: bool
     circuitRelay: Relay
     rdv: RendezVous
@@ -173,7 +173,7 @@ proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder
   b
 
 proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder {.public.} =
-  b.peerStoreCapacity = some(capacity)
+  b.peerStoreCapacity = Opt.some(capacity)
   b
 
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder {.public.} =
@@ -247,7 +247,7 @@ proc build*(b: SwitchBuilder): Switch
 
   let peerStore =
     if isSome(b.peerStoreCapacity):
-      PeerStore.new(identify, b.peerStoreCapacity.get())
+      PeerStore.new(identify, b.peerStoreCapacity.expect("just checked"))
     else:
       PeerStore.new(identify)
 
@@ -319,7 +319,7 @@ proc newStandardSwitch*(
     .withNameResolver(nameResolver)
     .withNoise()
 
-  if privKey.isSome():
-    b = b.withPrivateKey(privKey.get())
+  privKey.withValue(key):
+    b = b.withPrivateKey(key)
 
   b.build()

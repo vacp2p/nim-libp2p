@@ -74,9 +74,7 @@ chronicles.expandIt(IdentifyInfo):
   pubkey = ($it.pubkey).shortLog
   addresses = it.addrs.map(x => $x).join(",")
   protocols = it.protos.map(x => $x).join(",")
-  observable_address =
-    if it.observedAddr.isSome(): $it.observedAddr.get()
-    else: "None"
+  observable_address = $it.observedAddr
   proto_version = it.protoVersion.get("None")
   agent_version = it.agentVersion.get("None")
   signedPeerRecord =
@@ -91,13 +89,13 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: boo
 
   let pkey = peerInfo.publicKey
 
-  result.write(1, pkey.getBytes().get())
+  result.write(1, pkey.getBytes().expect("valid key"))
   for ma in peerInfo.addrs:
     result.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:
     result.write(3, proto)
-  if observedAddr.isSome:
-    result.write(4, observedAddr.get().data.buffer)
+  observedAddr.withValue(observed):
+    result.write(4, observed.data.buffer)
   let protoVersion = ProtoVersion
   result.write(5, protoVersion)
   let agentVersion = if peerInfo.agentVersion.len <= 0:
@@ -109,13 +107,13 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: boo
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if sendSpr:
-    let sprBuff = peerInfo.signedPeerRecord.envelope.encode()
-    if sprBuff.isOk():
-      result.write(8, sprBuff.get())
+    block trySpr:
+      let sprBuff = peerInfo.signedPeerRecord.envelope.encode().valueOr: break trySpr
+      result.write(8, sprBuff)
 
   result.finish()
 
-proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
+proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
   var
     iinfo: IdentifyInfo
     pubkey: PublicKey
@@ -140,22 +138,22 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
             r8.isOk()
 
   if res:
-    if r1.get():
+    if r1.get(false):
       iinfo.pubkey = some(pubkey)
-    if r4.get():
-      iinfo.observedAddr = some(oaddr)
-    if r5.get():
-      iinfo.protoVersion = some(protoVersion)
-    if r6.get():
-      iinfo.agentVersion = some(agentVersion)
-    if r8.get() and r1.get():
-      if iinfo.pubkey.get() == signedPeerRecord.envelope.publicKey:
+
+      if r8.get(false) and pubkey == signedPeerRecord.envelope.publicKey:
         iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
+    if r4.get(false):
+      iinfo.observedAddr = some(oaddr)
+    if r5.get(false):
+      iinfo.protoVersion = some(protoVersion)
+    if r6.get(false):
+      iinfo.agentVersion = some(agentVersion)
     debug "decodeMsg: decoded identify", iinfo
-    some(iinfo)
+    Opt.some(iinfo)
   else:
     trace "decodeMsg: failed to decode received message"
-    none[IdentifyInfo]()
+    Opt.none(IdentifyInfo)
 
 proc new*(
   T: typedesc[Identify],
@@ -196,26 +194,19 @@ proc identify*(self: Identify,
     trace "identify: Empty message received!", conn
     raise newException(IdentityInvalidMsgError, "Empty message received!")
 
-  let infoOpt = decodeMsg(message)
-  if infoOpt.isNone():
-    raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  var info = decodeMsg(message).valueOr: raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  let
+    pubkey = info.pubkey.valueOr: raise newException(IdentityInvalidMsgError, "No pubkey in identify")
+    peer = PeerId.init(pubkey).valueOr: raise newException(IdentityInvalidMsgError, $error)
 
-  var info = infoOpt.get()
-  if info.pubkey.isNone():
-    raise newException(IdentityInvalidMsgError, "No pubkey in identify")
-
-  let peer = PeerId.init(info.pubkey.get())
-  if peer.isErr:
-    raise newException(IdentityInvalidMsgError, $peer.error)
-
-  if peer.get() != remotePeerId:
+  if peer != remotePeerId:
     trace "Peer ids don't match", remote = peer, local = remotePeerId
     raise newException(IdentityNoMatchError, "Peer ids don't match")
-  info.peerId = peer.get()
+  info.peerId = peer
 
-  if info.observedAddr.isSome:
-    if not self.observedAddrManager.addObservation(info.observedAddr.get()):
-      debug "Observed address is not valid", observedAddr = info.observedAddr.get()
+  info.observedAddr.withValue(observed):
+    if not self.observedAddrManager.addObservation(observed):
+      debug "Observed address is not valid", observedAddr = observed
   return info
 
 proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
@@ -231,21 +222,18 @@ proc init*(p: IdentifyPush) =
     try:
       var message = await conn.readLp(64*1024)
 
-      let infoOpt = decodeMsg(message)
-      if infoOpt.isNone():
+      var identInfo = decodeMsg(message).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
 
-      var indentInfo = infoOpt.get()
-
-      if indentInfo.pubkey.isSome:
-        let receivedPeerId = PeerId.init(indentInfo.pubkey.get()).tryGet()
+      identInfo.pubkey.withValue(pubkey):
+        let receivedPeerId = PeerId.init(pubkey).tryGet()
         if receivedPeerId != conn.peerId:
           raise newException(IdentityNoMatchError, "Peer ids don't match")
-        indentInfo.peerId = receivedPeerId
+        identInfo.peerId = receivedPeerId
 
       trace "triggering peer event", peerInfo = conn.peerId
       if not isNil(p.identifyHandler):
-        await p.identifyHandler(conn.peerId, indentInfo)
+        await p.identifyHandler(conn.peerId, identInfo)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

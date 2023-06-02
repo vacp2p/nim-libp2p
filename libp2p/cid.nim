@@ -279,9 +279,6 @@ proc `$`*(cid: Cid): string =
     BTCBase58.encode(cid.data.buffer)
   elif cid.cidver == CIDv1:
     let res = MultiBase.encode("base58btc", cid.data.buffer)
-    if res.isOk():
-      res.get()
-    else:
-      ""
+    res.get("")
   else:
     ""

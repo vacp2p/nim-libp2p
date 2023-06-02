@@ -317,8 +317,8 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
     pb.write(1, item)
   for item in msg.messages:
     pb.write(2, item, anonymize)
-  if msg.control.isSome():
-    pb.write(3, msg.control.get())
+  msg.control.withValue(control):
+    pb.write(3, control)
   if len(pb.buffer) > 0:
     pb.finish()
   pb.buffer
@@ -326,8 +326,8 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", msg = msg.shortLog()
   var pb = initProtoBuffer(msg, maxSize = uint.high)
-  var rpcMsg = ok(RPCMsg())
-  assign(rpcMsg.get().messages, ? pb.decodeMessages())
-  assign(rpcMsg.get().subscriptions, ? pb.decodeSubscriptions())
-  assign(rpcMsg.get().control, ? pb.decodeControl())
-  rpcMsg
+  var rpcMsg = RPCMsg()
+  assign(rpcMsg.messages, ? pb.decodeMessages())
+  assign(rpcMsg.subscriptions, ? pb.decodeSubscriptions())
+  assign(rpcMsg.control, ? pb.decodeControl())
+  ok(rpcMsg)

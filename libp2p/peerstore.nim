@@ -16,7 +16,7 @@ runnableExamples:
   # Create a custom book type
   type MoodBook = ref object of PeerBook[string]
 
-  var somePeerId = PeerId.random().get()
+  var somePeerId = PeerId.random().expect("get random key")
 
   peerStore[MoodBook][somePeerId] = "Happy"
   doAssert peerStore[MoodBook][somePeerId] == "Happy"
@@ -161,20 +161,20 @@ proc updatePeerInfo*(
   if info.addrs.len > 0:
     peerStore[AddressBook][info.peerId] = info.addrs
 
-  if info.pubkey.isSome:
-    peerStore[KeyBook][info.peerId] = info.pubkey.get()
+  info.pubkey.withValue(pubkey):
+    peerStore[KeyBook][info.peerId] = pubkey
 
-  if info.agentVersion.isSome:
-    peerStore[AgentBook][info.peerId] = info.agentVersion.get().string
+  info.agentVersion.withValue(agentVersion):
+    peerStore[AgentBook][info.peerId] = agentVersion.string
 
-  if info.protoVersion.isSome:
-    peerStore[ProtoVersionBook][info.peerId] = info.protoVersion.get().string
+  info.protoVersion.withValue(protoVersion):
+    peerStore[ProtoVersionBook][info.peerId] = protoVersion.string
 
   if info.protos.len > 0:
     peerStore[ProtoBook][info.peerId] = info.protos
 
-  if info.signedPeerRecord.isSome:
-    peerStore[SPRBook][info.peerId] = info.signedPeerRecord.get()
+  info.signedPeerRecord.withValue(signedPeerRecord):
+    peerStore[SPRBook][info.peerId] = signedPeerRecord
 
   let cleanupPos = peerStore.toClean.find(info.peerId)
   if cleanupPos >= 0:
@@ -210,11 +210,11 @@ proc identify*(
       let info = await peerStore.identify.identify(stream, stream.peerId)
 
       when defined(libp2p_agents_metrics):
-        var knownAgent = "unknown"
-        if info.agentVersion.isSome and info.agentVersion.get().len > 0:
-          let shortAgent = info.agentVersion.get().split("/")[0].safeToLowerAscii()
-          if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-            knownAgent = shortAgent.get()
+        var
+          knownAgent = "unknown"
+          shortAgent = info.agentVersion.get("").split("/")[0].safeToLowerAscii().get("")
+        if shortAgent.len > 0 and KnownLibP2PAgentsSeq.contains(shortAgent):
+          knownAgent = shortAgent
         muxer.connection.setShortAgent(knownAgent)
 
       peerStore.updatePeerInfo(info)

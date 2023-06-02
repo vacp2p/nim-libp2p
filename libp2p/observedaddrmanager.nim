@@ -13,7 +13,7 @@ else:
   {.push raises: [].}
 
 import
-  std/[sequtils, tables],
+  std/[sequtils, tables, sugar],
   chronos, chronicles,
   multiaddress, multicodec
 
@@ -36,8 +36,10 @@ proc getProtocol(self: ObservedAddrManager, observations: seq[MultiAddress], mul
   countTable.sort()
   var orderedPairs = toSeq(countTable.pairs)
   for (ma, count) in orderedPairs:
-    let maFirst = ma[0].valueOr(continue)
-    if maFirst.protoCode.valueOr(continue) == multiCodec and count >= self.minCount:
+    let
+      maFirst = ma[0].valueOr: continue
+      protoCode = maFirst.protoCode.valueOr: continue
+    if protoCode == multiCodec and count >= self.minCount:
       return Opt.some(ma)
   return Opt.none(MultiAddress)
 
@@ -45,7 +47,7 @@ proc getMostObservedProtocol(self: ObservedAddrManager, multiCodec: MultiCodec):
   ## Returns the most observed IP address or none if the number of observations are less than minCount.
   let observedIPs = collect:
     for observedIp in self.observedIPsAndPorts:
-      observedIp.valueOr(continue)
+      observedIp[0].valueOr: continue
   return self.getProtocol(observedIPs, multiCodec)
 
 proc getMostObservedProtoAndPort(self: ObservedAddrManager, multiCodec: MultiCodec): Opt[MultiAddress] =
@@ -56,26 +58,24 @@ proc getMostObservedProtosAndPorts*(self: ObservedAddrManager): seq[MultiAddress
   ## Returns the most observed IP4/Port and IP6/Port address or an empty seq if the number of observations
   ## are less than minCount.
   var res: seq[MultiAddress]
-  let ip4 = self.getMostObservedProtoAndPort(multiCodec("ip4"))
-  block t:
-    res.add(ip4.valueOr(break t))
-  let ip6 = self.getMostObservedProtoAndPort(multiCodec("ip6"))
-  block t:
-    res.add(ip6.valueOr(break t))
+  self.getMostObservedProtoAndPort(multiCodec("ip4")).withValue(ip4):
+    res.add(ip4)
+  self.getMostObservedProtoAndPort(multiCodec("ip6")).withValue(ip6):
+    res.add(ip6)
   return res
 
 proc guessDialableAddr*(
   self: ObservedAddrManager,
   ma: MultiAddress): MultiAddress =
-  ## Replaces the first proto valeu of each listen address by the corresponding (matching the proto code) most observed value.
+  ## Replaces the first proto value of each listen address by the corresponding (matching the proto code) most observed value.
   ## If the most observed value is not available, the original MultiAddress is returned.
   let
-    maFirst = ma[0].valueOr(return ma)
-    maRest = ma[1..^1].valueOr(return ma)
-    maFirstProto = maFirst.protoCode().valueOr(return ma)
+    maFirst = ma[0].valueOr: return ma
+    maRest = ma[1..^1].valueOr: return ma
+    maFirstProto = maFirst.protoCode().valueOr: return ma
 
-  let observedIP = self.getMostObservedProtocol(maFirstProto).valueOr(return ma)
-  return observedIP & maRest
+  let observedIP = self.getMostObservedProtocol(maFirstProto).valueOr: return ma
+  return concat(observedIP, maRest).valueOr: return ma
 
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.

@@ -187,11 +187,11 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     return
 
   # remove from peer IPs collection too
-  if pubSubPeer.address.isSome():
-    g.peersInIP.withValue(pubSubPeer.address.get(), s):
+  pubSubPeer.address.withValue(address):
+    g.peersInIP.withValue(address, s):
       s[].excl(pubSubPeer.peerId)
       if s[].len == 0:
-        g.peersInIP.del(pubSubPeer.address.get())
+        g.peersInIP.del(address)
 
   for t in toSeq(g.mesh.keys):
     trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score

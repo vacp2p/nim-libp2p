@@ -115,7 +115,7 @@ proc getField*(pb: ProtoBuffer, field: int,
   if not(res):
     ok(false)
   else:
-    value = Envelope.decode(buffer, domain).valueOr(return err(ProtoError.IncorrectBlob))
+    value = Envelope.decode(buffer, domain).valueOr: return err(ProtoError.IncorrectBlob)
     ok(true)
 
 proc write*(pb: var ProtoBuffer, field: int, env: Envelope): Result[void, CryptoError] =

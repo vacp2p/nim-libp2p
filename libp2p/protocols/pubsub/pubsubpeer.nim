@@ -135,28 +135,26 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
 
-        var rmsg = decodeRpcMsg(data)
-        data = newSeq[byte]() # Release memory
-
-        if rmsg.isErr():
-          notice "failed to decode msg from peer",
+        var rmsg = decodeRpcMsg(data).valueOr:
+          debug "failed to decode msg from peer",
             conn, peer = p, closed = conn.closed,
-            err = rmsg.error()
+            err = error
           break
+        data = newSeq[byte]() # Release memory
 
         trace "decoded msg from peer",
           conn, peer = p, closed = conn.closed,
-          msg = rmsg.get().shortLog
+          msg = rmsg.shortLog
         # trigger hooks
-        p.recvObservers(rmsg.get())
+        p.recvObservers(rmsg)
 
         when defined(libp2p_expensive_metrics):
-          for m in rmsg.get().messages:
+          for m in rmsg.messages:
             for t in m.topicIDs:
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
 
-        await p.handler(p, rmsg.get())
+        await p.handler(p, rmsg)
     finally:
       await conn.close()
   except CancelledError:
