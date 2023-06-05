@@ -43,7 +43,7 @@ type
     flags: set[ServerFlags]
     clientFlags: set[SocketFlags]
     acceptFuts: seq[Future[StreamTransport]]
-    connectionTimeouts: Duration
+    connectionsTimeout: Duration
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -99,7 +99,7 @@ proc connHandler*(self: TcpTransport,
       client = client,
       dir = dir,
       observedAddr = observedAddr,
-      timeout = self.connectionTimeouts
+      timeout = self.connectionsTimeout
     ))
 
   proc onClose() {.async.} =
@@ -132,7 +132,7 @@ proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
   upgrade: Upgrade,
-  connectionTimeouts = 10.minutes): T {.public.} =
+  connectionsTimeout = 10.minutes): T {.public.} =
 
   let
     transport = T(
@@ -148,7 +148,7 @@ proc new*(
           default(set[SocketFlags]),
       upgrader: upgrade,
       networkReachability: NetworkReachability.Unknown,
-      connectionTimeouts: connectionTimeouts)
+      connectionsTimeout: connectionsTimeout)
 
   return transport
 
