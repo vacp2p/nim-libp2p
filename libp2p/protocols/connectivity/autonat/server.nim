@@ -107,11 +107,10 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
     return conn.sendResponseError(BadRequest, "Missing observed address")
 
   var isRelayed = observedAddr.contains(multiCodec("p2p-circuit")).valueOr:
-    return conn.sendResponseError(DialRefused, "Refused to dial a relayed observed address")
+    return conn.sendResponseError(DialRefused, "Invalid observed address")
   if isRelayed:
     return conn.sendResponseError(DialRefused, "Refused to dial a relayed observed address")
   let hostIp = observedAddr[0].valueOr:
-    trace "wrong observed address", address=observedAddr
     return conn.sendResponseError(InternalError, "Wrong observed address")
   if not IP.match(hostIp):
     return conn.sendResponseError(InternalError, "Expected an IP address")

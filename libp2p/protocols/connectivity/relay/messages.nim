@@ -13,7 +13,7 @@ else:
   {.push raises: [].}
 
 import options, macros
-import stew/objects
+import stew/[objects, results]
 import ../../../peerinfo,
        ../../../signed_envelope
 
@@ -88,33 +88,24 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
     pbSrc: ProtoBuffer
     pbDst: ProtoBuffer
 
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getField(1, msgTypeOrd)
-    r2 = pb.getField(2, pbSrc)
-    r3 = pb.getField(3, pbDst)
-    r4 = pb.getField(4, statusOrd)
+  let pb = initProtoBuffer(buf)
 
-  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
-    return Opt.none(RelayMessage)
-
-  if r2.get(false) and
-     (pbSrc.getField(1, src.peerId).isErr() or
-      pbSrc.getRepeatedField(2, src.addrs).isErr()):
-    return Opt.none(RelayMessage)
-
-  if r3.get(false) and
-     (pbDst.getField(1, dst.peerId).isErr() or
-      pbDst.getRepeatedField(2, dst.addrs).isErr()):
-    return Opt.none(RelayMessage)
-
-  if r1.get(false):
+  if ? pb.getField(1, msgTypeOrd).toOpt():
     if msgTypeOrd.int notin RelayType:
-      return Opt.none(RelayMessage)
+      return err()
     rMsg.msgType = Opt.some(RelayType(msgTypeOrd))
-  if r2.get(false): rMsg.srcPeer = Opt.some(src)
-  if r3.get(false): rMsg.dstPeer = Opt.some(dst)
-  if r4.get(false):
+
+  if ? pb.getField(2, pbSrc).toOpt():
+    discard ? pbSrc.getField(1, src.peerId).toOpt()
+    discard ? pbSrc.getRepeatedField(2, src.addrs).toOpt()
+    rMsg.srcPeer = Opt.some(src)
+
+  if ? pb.getField(3, pbDst).toOpt():
+    discard ? pbDst.getField(1, dst.peerId).toOpt()
+    discard ? pbDst.getRepeatedField(2, dst.addrs).toOpt()
+    rMsg.dstPeer = Opt.some(dst)
+
+  if ? pb.getField(4, statusOrd).toOpt():
     var status: StatusV1
     if not checkedEnumAssign(status, statusOrd):
       return Opt.none(RelayMessage)
@@ -237,54 +228,39 @@ proc encode*(msg: HopMessage): ProtoBuffer =
   pb
 
 proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Opt[HopMessage] =
-  var
-    msg: HopMessage
-    msgTypeOrd: uint32
-    pbPeer: ProtoBuffer
-    pbReservation: ProtoBuffer
-    pbLimit: ProtoBuffer
-    statusOrd: uint32
-    peer: Peer
-    reservation: Reservation
-    limit: Limit
-    res: bool
+  var msg: HopMessage
+  let pb = initProtoBuffer(buf)
 
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, msgTypeOrd)
-    r2 = pb.getField(2, pbPeer)
-    r3 = pb.getField(3, pbReservation)
-    r4 = pb.getField(4, pbLimit)
-    r5 = pb.getField(5, statusOrd)
-
-  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr() or r5.isErr():
-    return Opt.none(HopMessage)
-
-  if r2.get(false) and
-     (pbPeer.getRequiredField(1, peer.peerId).isErr() or
-      pbPeer.getRepeatedField(2, peer.addrs).isErr()):
-    return Opt.none(HopMessage)
-
-  if r3.get(false):
-    var svoucher: seq[byte]
-    let rSVoucher = pbReservation.getField(3, svoucher)
-    if pbReservation.getRequiredField(1, reservation.expire).isErr() or
-       pbReservation.getRepeatedField(2, reservation.addrs).isErr() or
-       rSVoucher.isErr():
-      return Opt.none(HopMessage)
-    if rSVoucher.get(false): reservation.svoucher = Opt.some(svoucher)
-
-  if r4.get(false) and
-     (pbLimit.getField(1, limit.duration).isErr() or
-      pbLimit.getField(2, limit.data).isErr()):
-    return Opt.none(HopMessage)
-
+  var msgTypeOrd: uint32
+  ? pb.getRequiredField(1, msgTypeOrd).toOpt()
   if not checkedEnumAssign(msg.msgType, msgTypeOrd):
     return Opt.none(HopMessage)
-  if r2.get(false): msg.peer = Opt.some(peer)
-  if r3.get(false): msg.reservation = Opt.some(reservation)
-  if r4.get(false): msg.limit = limit
-  if r5.get(false):
+
+  var pbPeer: ProtoBuffer
+  if ? pb.getField(2, pbPeer).toOpt():
+    var peer: Peer
+    ? pbPeer.getRequiredField(1, peer.peerId).toOpt()
+    discard ? pbPeer.getRepeatedField(2, peer.addrs).toOpt()
+    msg.peer = Opt.some(peer)
+
+  var pbReservation: ProtoBuffer
+  if ? pb.getField(3, pbReservation).toOpt():
+    var
+      svoucher: seq[byte]
+      reservation: Reservation
+    if ? pbReservation.getField(3, svoucher).toOpt():
+      reservation.svoucher = Opt.some(svoucher)
+    ? pbReservation.getRequiredField(1, reservation.expire).toOpt()
+    discard ? pbReservation.getRepeatedField(2, reservation.addrs).toOpt()
+    msg.reservation = Opt.some(reservation)
+
+  var pbLimit: ProtoBuffer
+  if ? pb.getField(4, pbLimit).toOpt():
+    discard ? pbLimit.getField(1, msg.limit.duration).toOpt()
+    discard ? pbLimit.getField(2, msg.limit.data).toOpt()
+
+  var statusOrd: uint32
+  if ? pb.getField(5, statusOrd).toOpt():
     var status: StatusV2
     if not checkedEnumAssign(status, statusOrd):
       return Opt.none(HopMessage)
@@ -328,43 +304,31 @@ proc encode*(msg: StopMessage): ProtoBuffer =
   pb
 
 proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Opt[StopMessage] =
-  var
-    msg: StopMessage
-    msgTypeOrd: uint32
-    pbPeer: ProtoBuffer
-    pbLimit: ProtoBuffer
-    statusOrd: uint32
-    peer: Peer
-    limit: Limit
-    rVoucher: ProtoResult[bool]
-    res: bool
+  var msg: StopMessage
 
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, msgTypeOrd)
-    r2 = pb.getField(2, pbPeer)
-    r3 = pb.getField(3, pbLimit)
-    r4 = pb.getField(4, statusOrd)
+  let pb = initProtoBuffer(buf)
 
-  if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
-    return Opt.none(StopMessage)
-
-  if r2.get(false) and
-     (pbPeer.getRequiredField(1, peer.peerId).isErr() or
-      pbPeer.getRepeatedField(2, peer.addrs).isErr()):
-    return Opt.none(StopMessage)
-
-  if r3.get(false) and
-     (pbLimit.getField(1, limit.duration).isErr() or
-      pbLimit.getField(2, limit.data).isErr()):
-    return Opt.none(StopMessage)
-
-  if msgTypeOrd.int notin StopMessageType.low.ord .. StopMessageType.high.ord:
+  var msgTypeOrd: uint32
+  ? pb.getRequiredField(1, msgTypeOrd).toOpt()
+  if msgTypeOrd.int notin StopMessageType:
     return Opt.none(StopMessage)
   msg.msgType = StopMessageType(msgTypeOrd)
-  if r2.get(false): msg.peer = Opt.some(peer)
-  if r3.get(false): msg.limit = limit
-  if r4.get(false):
+
+
+  var pbPeer: ProtoBuffer
+  if ? pb.getField(2, pbPeer).toOpt():
+    var peer: Peer
+    ? pbPeer.getRequiredField(1, peer.peerId).toOpt()
+    discard ? pbPeer.getRepeatedField(2, peer.addrs).toOpt()
+    msg.peer = Opt.some(peer)
+
+  var pbLimit: ProtoBuffer
+  if ? pb.getField(3, pbLimit).toOpt():
+    discard ? pbLimit.getField(1, msg.limit.duration).toOpt()
+    discard ? pbLimit.getField(2, msg.limit.data).toOpt()
+
+  var statusOrd: uint32
+  if ? pb.getField(4, statusOrd).toOpt():
     var status: StatusV2
     if not checkedEnumAssign(status, statusOrd):
       return Opt.none(StopMessage)

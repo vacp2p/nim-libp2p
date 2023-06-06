@@ -107,8 +107,7 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: boo
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if sendSpr:
-    block trySpr:
-      let sprBuff = peerInfo.signedPeerRecord.envelope.encode().valueOr: break trySpr
+    peerInfo.signedPeerRecord.envelope.encode().toOpt().withValue(sprBuff):
       result.write(8, sprBuff)
 
   result.finish()
@@ -124,36 +123,28 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
 
   var pb = initProtoBuffer(buf)
 
-  let r1 = pb.getField(1, pubkey)
-  let r2 = pb.getRepeatedField(2, iinfo.addrs)
-  let r3 = pb.getRepeatedField(3, iinfo.protos)
-  let r4 = pb.getField(4, oaddr)
-  let r5 = pb.getField(5, protoVersion)
-  let r6 = pb.getField(6, agentVersion)
+  let r1 = ? pb.getField(1, pubkey).toOpt()
+  let r2 = ? pb.getRepeatedField(2, iinfo.addrs).toOpt()
+  let r3 = ? pb.getRepeatedField(3, iinfo.protos).toOpt()
+  let r4 = ? pb.getField(4, oaddr).toOpt()
+  let r5 = ? pb.getField(5, protoVersion).toOpt()
+  let r6 = ? pb.getField(6, agentVersion).toOpt()
+  let r8 = ? pb.getField(8, signedPeerRecord).toOpt()
 
-  let r8 = pb.getField(8, signedPeerRecord)
 
-  let res = r1.isOk() and r2.isOk() and r3.isOk() and
-            r4.isOk() and r5.isOk() and r6.isOk() and
-            r8.isOk()
+  if r1:
+    iinfo.pubkey = some(pubkey)
 
-  if res:
-    if r1.get(false):
-      iinfo.pubkey = some(pubkey)
-
-      if r8.get(false) and pubkey == signedPeerRecord.envelope.publicKey:
-        iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
-    if r4.get(false):
-      iinfo.observedAddr = some(oaddr)
-    if r5.get(false):
-      iinfo.protoVersion = some(protoVersion)
-    if r6.get(false):
-      iinfo.agentVersion = some(agentVersion)
-    debug "decodeMsg: decoded identify", iinfo
-    Opt.some(iinfo)
-  else:
-    trace "decodeMsg: failed to decode received message"
-    Opt.none(IdentifyInfo)
+    if r8 and pubkey == signedPeerRecord.envelope.publicKey:
+      iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
+  if r4:
+    iinfo.observedAddr = some(oaddr)
+  if r5:
+    iinfo.protoVersion = some(protoVersion)
+  if r6:
+    iinfo.agentVersion = some(agentVersion)
+  debug "decodeMsg: decoded identify", iinfo
+  Opt.some(iinfo)
 
 proc new*(
   T: typedesc[Identify],

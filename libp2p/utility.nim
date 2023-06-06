@@ -109,6 +109,7 @@ template valueOr*[T](self: Option[T], body: untyped): untyped =
 
 template toOpt*[T, E](self: Result[T, E]): Opt[T] =
   if self.isOk:
-    Opt.some(self.unsafeGet())
+    when T is void: Result[void, void].ok()
+    else: Opt.some(self.unsafeGet())
   else:
     Opt.none(type(T))

@@ -41,8 +41,7 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
       msg = autonatMsg.valueOr: raise newException(AutonatError, "Unexpected response")
       res = msg.response.valueOr: raise newException(AutonatError, "Unexpected response")
 
-    if autonatMsg.isNone() or msg.msgType != DialResponse or
-         (res.status == Ok and res.ma.isNone()):
+    if msg.msgType != DialResponse or (res.status == Ok and res.ma.isNone()):
        raise newException(AutonatError, "Unexpected response")
     else:
       res

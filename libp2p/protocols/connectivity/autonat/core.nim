@@ -105,35 +105,27 @@ proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Opt[AutonatMsg] =
     pbResponse: ProtoBuffer
     msg: AutonatMsg
 
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getField(1, msgTypeOrd)
-    r2 = pb.getField(2, pbDial)
-    r3 = pb.getField(3, pbResponse)
-  if r1.isErr() or r2.isErr() or r3.isErr(): return Opt.none(AutonatMsg)
+  let pb = initProtoBuffer(buf)
 
-  if r1.get(false) and not checkedEnumAssign(msg.msgType, msgTypeOrd):
+  if ? pb.getField(1, msgTypeOrd).toOpt() and not checkedEnumAssign(msg.msgType, msgTypeOrd):
     return Opt.none(AutonatMsg)
-  if r2.get(false):
+  if ? pb.getField(2, pbDial).toOpt():
     var
       pbPeerInfo: ProtoBuffer
       dial: AutonatDial
-    let
-      r4 = pbDial.getField(1, pbPeerInfo)
-    if r4.isErr(): return Opt.none(AutonatMsg)
+    let r4 = ? pbDial.getField(1, pbPeerInfo).toOpt()
 
     var peerInfo: AutonatPeerInfo
-    if r4.get(false):
+    if r4:
       var pid: PeerId
       let
-        r5 = pbPeerInfo.getField(1, pid)
-        r6 = pbPeerInfo.getRepeatedField(2, peerInfo.addrs)
-      if r5.isErr() or r6.isErr(): return Opt.none(AutonatMsg)
-      if r5.get(false): peerInfo.id = Opt.some(pid)
+        r5 = ? pbPeerInfo.getField(1, pid).toOpt()
+        r6 = ? pbPeerInfo.getRepeatedField(2, peerInfo.addrs).toOpt()
+      if r5: peerInfo.id = Opt.some(pid)
       dial.peerInfo = Opt.some(peerInfo)
     msg.dial = Opt.some(dial)
 
-  if r3.get(false):
+  if ? pb.getField(3, pbResponse).toOpt():
     var
       statusOrd: uint
       text: string
@@ -141,15 +133,14 @@ proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Opt[AutonatMsg] =
       response: AutonatDialResponse
 
     let
-      r4 = pbResponse.getField(1, statusOrd)
-      r5 = pbResponse.getField(2, text)
-      r6 = pbResponse.getField(3, ma)
+      r4 = ? pbResponse.getField(1, statusOrd).toOpt()
+      r5 = ? pbResponse.getField(2, text).toOpt()
+      r6 = ? pbResponse.getField(3, ma).toOpt()
 
-    if r4.isErr() or r5.isErr() or r6.isErr() or
-       (r4.get(false) and not checkedEnumAssign(response.status, statusOrd)):
+    if r4 and not checkedEnumAssign(response.status, statusOrd):
       return Opt.none(AutonatMsg)
-    if r5.get(false): response.text = Opt.some(text)
-    if r6.get(false): response.ma = Opt.some(ma)
+    if r5: response.text = Opt.some(text)
+    if r6: response.ma = Opt.some(ma)
     msg.response = Opt.some(response)
 
   return Opt.some(msg)

@@ -118,7 +118,7 @@ proc handleReserve(r: Relay, conn: Connection) {.async, gcsafe.} =
     trace "Too many reservations", pid = conn.peerId
     await sendHopStatus(conn, ReservationRefused)
     return
-  trace "reserving rey slot for", pid = conn.peerId
+  trace "reserving relay slot for", pid = conn.peerId
   let
     pid = conn.peerId
     expire = now().utc + r.reservationTTL

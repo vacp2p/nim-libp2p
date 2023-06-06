@@ -16,6 +16,8 @@ import std/[tables]
 
 import chronos/timer, stew/results
 
+import ../../utility
+
 const Timeout* = 10.seconds # default timeout in ms
 
 type

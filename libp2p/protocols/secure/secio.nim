@@ -342,9 +342,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
 
   remotePeerId = PeerId.init(remotePubkey).tryGet()
 
-  block checkPeerId:
-    let targetPid = peerId.valueOr:
-      break checkPeerId
+  peerId.withValue(targetPid):
     if not targetPid.validate():
       raise newException(SecioError, "Failed to validate expected peerId.")
 

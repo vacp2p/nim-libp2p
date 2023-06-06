@@ -245,9 +245,9 @@ proc build*(b: SwitchBuilder): Switch
   if isNil(b.rng):
     b.rng = newRng()
 
-  let peerStore =
-    if isSome(b.peerStoreCapacity):
-      PeerStore.new(identify, b.peerStoreCapacity.expect("just checked"))
+  let peerStore = block:
+    b.peerStoreCapacity.withValue(capacity):
+      PeerStore.new(identify, capacity)
     else:
       PeerStore.new(identify)
 
