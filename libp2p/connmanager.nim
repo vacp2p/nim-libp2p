@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[options, tables, sequtils, sets]
 import pkg/[chronos, chronicles, metrics]
@@ -51,7 +48,7 @@ type
 
   ConnEventHandler* =
     proc(peerId: PeerId, event: ConnEvent): Future[void]
-      {.gcsafe, raises: [Defect].}
+      {.gcsafe, raises: [].}
 
   PeerEventKind* {.pure.} = enum
     Left,
@@ -65,7 +62,7 @@ type
         discard
 
   PeerEventHandler* =
-    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [Defect].}
+    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [].}
 
   ConnManager* = ref object of RootObj
     maxConnsPerPeer: int
@@ -285,7 +282,7 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
 
 proc storeMuxer*(c: ConnManager,
                  muxer: Muxer)
-                 {.raises: [Defect, CatchableError].} =
+                 {.raises: [CatchableError].} =
   ## store the connection and muxer
   ##
 
@@ -338,7 +335,7 @@ proc getIncomingSlot*(c: ConnManager): Future[ConnectionSlot] {.async.} =
   await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
 
-proc getOutgoingSlot*(c: ConnManager, forceDial = false): ConnectionSlot {.raises: [Defect, TooManyConnectionsError].} =
+proc getOutgoingSlot*(c: ConnManager, forceDial = false): ConnectionSlot {.raises: [TooManyConnectionsError].} =
   if forceDial:
     c.outSema.forceAcquire()
   elif not c.outSema.tryAcquire():

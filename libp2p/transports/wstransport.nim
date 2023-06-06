@@ -9,10 +9,7 @@
 
 ## WebSocket & WebSocket Secure transport implementation
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[sequtils]
 import stew/results

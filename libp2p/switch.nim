@@ -11,10 +11,7 @@
 ## transports, the connection manager, the upgrader and other
 ## parts to allow programs to use libp2p
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[tables,
             options,
@@ -198,7 +195,7 @@ proc dial*(
   dial(s, peerId, addrs, @[proto])
 
 proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
-  {.gcsafe, raises: [Defect, LPError], public.} =
+  {.gcsafe, raises: [LPError], public.} =
   ## mount a protocol to the switch
 
   if isNil(proto.handler):
@@ -380,7 +377,7 @@ proc newSwitch*(peerInfo: PeerInfo,
                 peerStore: PeerStore,
                 nameResolver: NameResolver = nil,
                 services = newSeq[Service]()): Switch
-                {.raises: [Defect, LPError].} =
+                {.raises: [LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 

@@ -10,10 +10,7 @@
 ## `Identify <https://docs.libp2p.io/concepts/protocols/#identify>`_ and
 ## `Push Identify <https://docs.libp2p.io/concepts/protocols/#identify-push>`_ implementation
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[sequtils, options, strutils, sugar]
 import stew/results
@@ -65,7 +62,7 @@ type
     peer: PeerId,
     newInfo: IdentifyInfo):
     Future[void]
-    {.gcsafe, raises: [Defect], public.}
+    {.gcsafe, raises: [], public.}
 
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
@@ -86,7 +83,7 @@ chronicles.expandIt(IdentifyInfo):
     else: "None"
 
 proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool): ProtoBuffer
-  {.raises: [Defect].} =
+  {.raises: [].} =
   result = initProtoBuffer()
 
   let pkey = peerInfo.publicKey

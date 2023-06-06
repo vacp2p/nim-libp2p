@@ -105,7 +105,7 @@ The versioning follows [semver](https://semver.org/), with some additions:
 - Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
 - The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
 
-We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `1.2 & 1.6`
+We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `1.6 & 2.0`
 
 ## Development
 Clone and Install dependencies:
