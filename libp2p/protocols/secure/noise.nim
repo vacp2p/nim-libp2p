@@ -102,7 +102,7 @@ func shortLog*(conn: NoiseConnection): auto =
     if conn.isNil: "NoiseConnection(nil)"
     else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
-    raise newException(exc.msg)
+    raise newException(Defect, exc.msg)
 
 chronicles.formatIt(NoiseConnection): shortLog(it)
 
