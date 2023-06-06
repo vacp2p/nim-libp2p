@@ -207,8 +207,7 @@ proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
 proc build*(b: SwitchBuilder): Switch
   {.raises: [Defect, LPError], public.} =
 
-  if b.rng == nil: # newRng could fail
-    raise newException(Defect, "Cannot initialize RNG")
+  doAssert b.rng != nil, "Cannot initialize RNG"
 
   let pkRes = PrivateKey.random(b.rng[])
   let
@@ -241,9 +240,6 @@ proc build*(b: SwitchBuilder): Switch
 
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
-
-  if isNil(b.rng):
-    b.rng = newRng()
 
   let peerStore =
     if isSome(b.peerStoreCapacity):
@@ -286,7 +282,7 @@ proc newStandardSwitch*(
       SecureProtocol.Noise,
     ],
   transportFlags: set[ServerFlags] = {},
-  rng = newRng(),
+  rng = HmacDrbgContext.new(),
   inTimeout: Duration = 5.minutes,
   outTimeout: Duration = 5.minutes,
   maxConnections = MaxConnections,

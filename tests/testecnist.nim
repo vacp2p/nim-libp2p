@@ -295,7 +295,7 @@ const
        35ab"""
   ]
 
-let rng = newRng()
+let rng = HmacDrbgContext.new()
 
 suite "EC NIST-P256/384/521 test suite":
   test "[secp256r1] Private key serialize/deserialize test":

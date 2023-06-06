@@ -240,7 +240,8 @@ suite "Identify":
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] != switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
-      switch2.peerInfo = PeerInfo.new(PrivateKey.random(newRng()[]).get())
+      switch2.peerInfo = PeerInfo.new(
+        PrivateKey.random(HmacDrbgContext.new()[]).get())
 
       await identifyPush2.push(switch2.peerInfo, conn)
 

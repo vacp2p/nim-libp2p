@@ -16,7 +16,7 @@ import ../libp2p/[signed_envelope]
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
       envelope = Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
       buffer = envelope.encode().tryGet()
@@ -67,7 +67,7 @@ proc payloadType*(T: typedesc[DummyPayload]): seq[byte] = @[(byte) 0x00, (byte) 
 suite "Signed payload":
   test "Simple encode -> decode":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
 
       dummyPayload = DummyPayload(awesome: 12.byte)
@@ -81,7 +81,7 @@ suite "Signed payload":
 
   test "Invalid payload":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
 
       dummyPayload = DummyPayload(awesome: 30.byte)
@@ -91,7 +91,7 @@ suite "Signed payload":
 
   test "Invalid payload type":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
 
       dummyPayload = DummyPayload(awesome: 30.byte)

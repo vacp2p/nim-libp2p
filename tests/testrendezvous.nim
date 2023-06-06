@@ -18,7 +18,7 @@ import ./helpers
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder.new()
-    .withRng(newRng())
+    .withRng(HmacDrbgContext.new())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()

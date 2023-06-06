@@ -112,7 +112,7 @@ proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
 ## Note that they are not all interconnected, but GossipSub will take care of
 ## broadcasting to the full network nonetheless.
 proc main {.async.} =
-  let rng = newRng()
+  let rng = HmacDrbgContext.new()
   var nodes: seq[Node]
 
   for hostname in ["John", "Walter", "David", "Thuy", "Amy"]:

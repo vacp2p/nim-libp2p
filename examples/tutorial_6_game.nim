@@ -165,7 +165,7 @@ proc networking(g: Game) {.async.} =
   let
     rdv = RendezVous.new()
     switch = SwitchBuilder.new()
-      .withRng(newRng())
+      .withRng(HmacDrbgContext.new())
       .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
       .withTcpTransport()
       .withYamux()

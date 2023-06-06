@@ -354,7 +354,7 @@ const
        ACB51807206B8332127E3692269013B96F0CABD95D7431805E48176ADC5D1366"""
   ]
 
-let rng = newRng()
+let rng = HmacDrbgContext.new()
 
 type
   RsaPrivateKey = rsa.RsaPrivateKey

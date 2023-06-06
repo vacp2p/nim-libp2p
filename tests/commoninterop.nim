@@ -336,7 +336,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       let nativeNode = SwitchBuilder
         .new()
         .withAddress(wsAddress)
-        .withRng(crypto.newRng())
+        .withRng(HmacDrbgContext.new())
         .withMplex()
         .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
         .withNoise()

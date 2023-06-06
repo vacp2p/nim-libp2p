@@ -10,7 +10,7 @@ import ../../libp2p/[peerid, peerinfo,
                      protocols/pubsub/rpc/message,
                      protocols/pubsub/rpc/messages]
 
-let rng = newRng()
+let rng = HmacDrbgContext.new()
 
 suite "Message":
   test "signature":

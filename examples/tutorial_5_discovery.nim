@@ -21,7 +21,7 @@ import libp2p/discovery/discoverymngr
 ## Note that other discovery methods such as [Kademlia](https://github.com/libp2p/specs/blob/master/kad-dht/README.md) or [discv5](https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md) exist.
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder.new()
-    .withRng(newRng())
+    .withRng(HmacDrbgContext.new())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withYamux()

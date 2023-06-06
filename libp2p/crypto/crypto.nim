@@ -161,20 +161,6 @@ type
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
 
-proc newRng*(): ref HmacDrbgContext =
-  # You should only create one instance of the RNG per application / library
-  # Ref is used so that it can be shared between components
-  # TODO consider moving to bearssl
-  var seeder = prngSeederSystem(nil)
-  if seeder == nil:
-    return nil
-
-  var rng = (ref HmacDrbgContext)()
-  hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-  if seeder(addr rng.vtable) == 0:
-    return nil
-  rng
-
 proc shuffle*[T](
   rng: ref HmacDrbgContext,
   x: var openArray[T]) =

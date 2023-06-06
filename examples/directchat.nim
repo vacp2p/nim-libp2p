@@ -155,7 +155,8 @@ proc readInput(wfd: AsyncFD) {.thread.} =
 
 proc main() {.async.} =
   let
-    rng = newRng() # Single random number source for the whole application
+    # Single random number source for the whole application
+    rng = HmacDrbgContext.now()
 
     # Pipe to read stdin from main thread
     (rfd, wfd) = createAsyncPipe()

@@ -13,7 +13,7 @@ import libp2p,
 # Helper to create a circuit relay node
 proc createCircuitRelaySwitch(r: Relay): Switch =
   SwitchBuilder.new()
-    .withRng(newRng())
+    .withRng(HmacDrbgContext.now())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()

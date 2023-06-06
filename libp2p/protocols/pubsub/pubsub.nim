@@ -557,7 +557,7 @@ proc init*[PubParams: object | bool](
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
   maxMessageSize: int = 1024 * 1024,
-  rng: ref HmacDrbgContext = newRng(),
+  rng = HmacDrbgContext.new(),
   parameters: PubParams = false): P
   {.raises: [Defect, InitializationError], public.} =
   let pubsub =

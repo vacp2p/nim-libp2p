@@ -55,7 +55,7 @@ proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
 ## Let's now start to create our main procedure:
 proc main() {.async, gcsafe.} =
   let
-    rng = newRng()
+    rng = HmacDrbgContext.new()
     localAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     pingProtocol = Ping.new(rng=rng)
   ## We created some variables that we'll need for the rest of the application: the global `rng` instance, our `localAddress`, and an instance of the `Ping` protocol.

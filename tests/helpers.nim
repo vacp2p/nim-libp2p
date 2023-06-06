@@ -76,7 +76,7 @@ proc getRng(): ref HmacDrbgContext =
   #      purpose of the tests, it's ok as long as we only use a single thread
   {.gcsafe.}:
     if rngVar.rng.isNil:
-      rngVar.rng = newRng()
+      rngVar.rng = HmacDrbgContext.new()
     rngVar.rng
 
 template rng*(): ref HmacDrbgContext =

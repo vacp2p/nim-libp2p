@@ -508,7 +508,7 @@ suite "Switch":
   asyncTest "e2e should trigger peer events only once per peer":
     let switch1 = newStandardSwitch()
 
-    let rng = crypto.newRng()
+    let rng = HmacDrbgContext.new()
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
     let switch2 = newStandardSwitch(
@@ -572,7 +572,7 @@ suite "Switch":
       switch3.stop())
 
   asyncTest "e2e should allow dropping peer from connection events":
-    let rng = crypto.newRng()
+    let rng = HmacDrbgContext.new()
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
@@ -609,7 +609,7 @@ suite "Switch":
       switches.mapIt( it.stop() ))
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
-    let rng = crypto.newRng()
+    let rng = HmacDrbgContext.new()
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
@@ -980,7 +980,7 @@ suite "Switch":
       srcWsSwitch =
         SwitchBuilder.new()
         .withAddress(wsAddress)
-        .withRng(crypto.newRng())
+        .withRng(HmacDrbgContext.new())
         .withMplex()
         .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
         .withNameResolver(resolver)
@@ -990,7 +990,7 @@ suite "Switch":
       destSwitch =
         SwitchBuilder.new()
         .withAddresses(@[tcpAddress, wsAddress])
-        .withRng(crypto.newRng())
+        .withRng(HmacDrbgContext.new())
         .withMplex()
         .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
         .withTcpTransport()

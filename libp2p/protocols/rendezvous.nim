@@ -613,7 +613,7 @@ proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch.addPeerEventHandler(handlePeer, Left)
 
 proc new*(T: typedesc[RendezVous],
-          rng: ref HmacDrbgContext = newRng()): T =
+          rng = HmacDrbgContext.new()): T =
   let rdv = T(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
@@ -649,7 +649,7 @@ proc new*(T: typedesc[RendezVous],
 
 proc new*(T: typedesc[RendezVous],
          switch: Switch,
-         rng: ref HmacDrbgContext = newRng()): T =
+         rng = HmacDrbgContext.new()): T =
   let rdv = T.new(rng)
   rdv.setup(switch)
   return rdv

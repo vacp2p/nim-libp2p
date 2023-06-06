@@ -127,7 +127,7 @@ proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
 
 ## We can now create our main procedure:
 proc main() {.async, gcsafe.} =
-  let rng = newRng()
+  let rng = HmacDrbgContext.new()
   proc randomMetricGenerator: Future[MetricList] {.async.} =
     let metricCount = rng[].generate(uint32) mod 16
     for i in 0 ..< metricCount + 1:

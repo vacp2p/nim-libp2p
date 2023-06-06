@@ -42,7 +42,8 @@ proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
 ##
 proc main() {.async, gcsafe.} =
   let
-    rng = newRng() # Single random number source for the whole application
+    # Single random number source for the whole application
+    rng = HmacDrbgContext.now()
     # port 0 will take a random available port
     # `tryGet` will throw an exception if the MultiAddress failed
     # (for instance, if the address is not well formatted)

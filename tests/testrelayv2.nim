@@ -21,7 +21,7 @@ import stew/byteutils
 
 proc createSwitch(r: Relay): Switch =
   result = SwitchBuilder.new()
-    .withRng(newRng())
+    .withRng(HmacDrbgContext.new())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()

@@ -12,7 +12,7 @@ import unittest2
 import ../libp2p/crypto/crypto
 import nimcrypto/utils
 
-let rng = newRng()
+let rng = HmacDrbgContext.new()
 
 const ECDSA_PrivateKey = """
   080312793077020101042070896381749FF6B30381C045F627C68C3062749BB53CB13

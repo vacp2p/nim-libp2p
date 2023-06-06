@@ -41,7 +41,8 @@ suite "Connection Manager":
 
   asyncTest "add and retrieve a muxer":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
     let mux = getMuxer(peerId)
 
     connMngr.storeMuxer(mux)
@@ -68,7 +69,8 @@ suite "Connection Manager":
 
   asyncTest "shouldn't allow a closed connection":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
     let mux = getMuxer(peerId)
     await mux.connection.close()
 
@@ -79,7 +81,8 @@ suite "Connection Manager":
 
   asyncTest "shouldn't allow an EOFed connection":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
     let mux = getMuxer(peerId)
     mux.connection.isEof = true
 
@@ -91,7 +94,8 @@ suite "Connection Manager":
 
   asyncTest "shouldn't allow a muxer with no connection":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
     let muxer = getMuxer(peerId)
     let conn = muxer.connection
     muxer.connection = nil
@@ -106,7 +110,8 @@ suite "Connection Manager":
   asyncTest "get conn with direction":
     # This would work with 1 as well cause of a bug in connmanager that will get fixed soon
     let connMngr = ConnManager.new(maxConnsPerPeer = 2)
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
     let mux1 = getMuxer(peerId, Direction.Out)
     let mux2 = getMuxer(peerId)
 
@@ -128,7 +133,8 @@ suite "Connection Manager":
 
   asyncTest "get muxed stream for peer":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
 
     let muxer = new TestMuxer
     let connection = Connection.new(peerId, Direction.In, Opt.none(MultiAddress))
@@ -148,7 +154,8 @@ suite "Connection Manager":
 
   asyncTest "get stream from directed connection":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
 
     let muxer = new TestMuxer
     let connection = Connection.new(peerId, Direction.In, Opt.none(MultiAddress))
@@ -169,7 +176,8 @@ suite "Connection Manager":
 
   asyncTest "should raise on too many connections":
     let connMngr = ConnManager.new(maxConnsPerPeer = 0)
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
 
     connMngr.storeMuxer(getMuxer(peerId))
 
@@ -186,7 +194,8 @@ suite "Connection Manager":
   asyncTest "expect connection from peer":
     # FIXME This should be 1 instead of 0, it will get fixed soon
     let connMngr = ConnManager.new(maxConnsPerPeer = 0)
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
 
     connMngr.storeMuxer(getMuxer(peerId))
 
@@ -205,7 +214,10 @@ suite "Connection Manager":
     await waitedConn1.cancelAndWait()
     let
       waitedConn2 = connMngr.expectConnection(peerId, In)
-      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(), In)
+      waitedConn3 = connMngr.expectConnection(
+        PeerId.init(PrivateKey.random(
+          ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet(),
+        In)
       conn = getMuxer(peerId)
     connMngr.storeMuxer(conn)
     check (await waitedConn2) == conn
@@ -222,7 +234,8 @@ suite "Connection Manager":
 
   asyncTest "cleanup on connection close":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
     let muxer = getMuxer(peerId)
 
     connMngr.storeMuxer(muxer)
@@ -237,7 +250,8 @@ suite "Connection Manager":
 
   asyncTest "drop connections for peer":
     let connMngr = ConnManager.new()
-    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+    let peerId = PeerId.init(
+      PrivateKey.random(ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet()
 
     for i in 0..<2:
       let dir = if i mod 2 == 0:
@@ -372,7 +386,8 @@ suite "Connection Manager":
 
       let muxer =
         getMuxer(
-          PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+          PeerId.init(PrivateKey.random(
+            ECDSA, HmacDrbgContext.new()[]).tryGet()).tryGet(),
           Direction.In)
 
       slot.trackMuxer(muxer)

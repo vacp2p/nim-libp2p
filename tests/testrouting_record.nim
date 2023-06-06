@@ -16,7 +16,7 @@ import ../libp2p/[routing_record, crypto/crypto]
 suite "Routing record":
   test "Encode -> decode test":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
@@ -50,7 +50,7 @@ suite "Routing record":
 suite "Signed Routing Record":
   test "Encode -> decode test":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
@@ -68,7 +68,7 @@ suite "Signed Routing Record":
 
   test "Can't use mismatched public key":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
       privKey2 = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
@@ -80,7 +80,7 @@ suite "Signed Routing Record":
 
   test "Decode doesn't fail if some addresses are invalid":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
@@ -93,7 +93,7 @@ suite "Signed Routing Record":
 
   test "Decode doesn't fail if there are no addresses":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = newSeq[MultiAddress]()
@@ -106,7 +106,7 @@ suite "Signed Routing Record":
 
   test "Decode fails if all addresses are invalid":
     let
-      rng = newRng()
+      rng = HmacDrbgContext.new()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress(), MultiAddress()]

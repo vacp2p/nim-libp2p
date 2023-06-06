@@ -102,7 +102,7 @@ suite "Tor transport":
 
       return T(codecs: @[TestCodec], handler: handle)
 
-    let rng = newRng()
+    let rng = HmacDrbgContext.new()
 
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()
 

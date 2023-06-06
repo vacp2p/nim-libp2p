@@ -46,7 +46,7 @@ proc hello(p: TestProto, conn: Connection) {.async.} =
 ## We can now create our main procedure:
 proc main() {.async, gcsafe.} =
   let
-    rng = newRng()
+    rng = HmacDrbgContext.new()
     testProto = TestProto.new()
     switch1 = newStandardSwitch(rng=rng)
     switch2 = newStandardSwitch(rng=rng)

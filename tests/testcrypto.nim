@@ -365,7 +365,7 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
     if not result:
       break
 
-let rng = newRng()
+let rng = HmacDrbgContext.new()
 
 suite "Key interface test suite":
 
