@@ -27,8 +27,8 @@ type
   AutonatClient* = ref object of RootObj
 
 proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
-  let pb = AutonatDial(peerInfo: some(AutonatPeerInfo(
-                         id: some(pid),
+  let pb = AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(
+                         id: Opt.some(pid),
                          addrs: addrs
                        ))).encode()
   await conn.writeLp(pb.buffer)
@@ -36,15 +36,16 @@ proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.}
 method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
     Future[MultiAddress] {.base, async.} =
 
-  proc getResponseOrRaise(autonatMsg: Option[AutonatMsg]): AutonatDialResponse {.raises: [Defect, AutonatError].} =
-    if autonatMsg.isNone() or
-       autonatMsg.get().msgType != DialResponse or
-       autonatMsg.get().response.isNone() or
-       (autonatMsg.get().response.get().status == Ok and
-        autonatMsg.get().response.get().ma.isNone()):
-      raise newException(AutonatError, "Unexpected response")
+  proc getResponseOrRaise(autonatMsg: Opt[AutonatMsg]): AutonatDialResponse {.raises: [Defect, AutonatError].} =
+    let
+      msg = autonatMsg.valueOr: raise newException(AutonatError, "Unexpected response")
+      res = msg.response.valueOr: raise newException(AutonatError, "Unexpected response")
+
+    if autonatMsg.isNone() or msg.msgType != DialResponse or
+         (res.status == Ok and res.ma.isNone()):
+       raise newException(AutonatError, "Unexpected response")
     else:
-      autonatMsg.get().response.get()
+      res
 
   let conn =
     try:
@@ -69,7 +70,7 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
   let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
   return case response.status:
     of ResponseStatus.Ok:
-      response.ma.get()
+      response.ma.tryGet()
     of ResponseStatus.DialError:
       raise newException(AutonatUnreachableError, "Peer could not dial us back: " & response.text.get(""))
     else:

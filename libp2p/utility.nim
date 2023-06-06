@@ -12,7 +12,7 @@ when (NimMajor, NimMinor) < (1, 4):
 else:
   {.push raises: [].}
 
-import std/options
+import std/options, std/macros
 import stew/[byteutils, results]
 
 export results
@@ -91,6 +91,15 @@ template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped 
   if self.isSome:
     let value {.inject.} = self.get()
     body
+
+macro withValue*[T](self: Opt[T] | Option[T], value, body, body2: untyped): untyped =
+  let elseBody = body2[0]
+  quote do:
+    if `self`.isSome:
+      let `value` {.inject.} = `self`.get()
+      `body`
+    else:
+      `elseBody`
 
 template valueOr*[T](self: Option[T], body: untyped): untyped =
   if self.isSome:

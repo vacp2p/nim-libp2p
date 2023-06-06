@@ -43,8 +43,8 @@ proc makeAutonatServicePrivate(): Switch =
     discard await conn.readLp(1024)
     await conn.writeLp(AutonatDialResponse(
       status: DialError,
-      text: some("dial failed"),
-      ma: none(MultiAddress)).encode().buffer)
+      text: Opt.some("dial failed"),
+      ma: Opt.none(MultiAddress)).encode().buffer)
     await conn.close()
   autonatProtocol.codec = AutonatCodec
   result = newStandardSwitch()
@@ -93,8 +93,8 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let conn = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
-    let buffer = AutonatDial(peerInfo: some(AutonatPeerInfo(
-                         id: some(src.peerInfo.peerId),
+    let buffer = AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(
+                         id: Opt.some(src.peerInfo.peerId),
                          # we ask to be dialed in the does nothing listener instead
                          addrs: doesNothingListener.addrs
                        ))).encode().buffer

@@ -43,10 +43,10 @@ type
     timestamp*: uint64
     direction*: FlowDirection
     message*: seq[byte]
-    seqID*: Option[uint64]
-    mtype*: Option[uint64]
-    local*: Option[MultiAddress]
-    remote*: Option[MultiAddress]
+    seqID*: Opt[uint64]
+    mtype*: Opt[uint64]
+    local*: Opt[MultiAddress]
+    remote*: Opt[MultiAddress]
 
 const
   libp2p_dump_dir* {.strdefine.} = "nim-libp2p"
@@ -72,7 +72,8 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
   var pb = initProtoBuffer(options = {WithVarintLength})
   pb.write(2, getTimestamp())
   pb.write(4, uint64(direction))
-  pb.write(6, conn.observedAddr)
+  conn.observedAddr.withValue(oaddr):
+    pb.write(6, oaddr)
   pb.write(7, data)
   pb.finish()
 
@@ -100,7 +101,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
   finally:
     close(handle)
 
-proc decodeDumpMessage*(data: openArray[byte]): Option[ProtoMessage] =
+proc decodeDumpMessage*(data: openArray[byte]): Opt[ProtoMessage] =
   ## Decode protobuf's message ProtoMessage from array of bytes ``data``.
   var
     pb = initProtoBuffer(data)
@@ -109,12 +110,12 @@ proc decodeDumpMessage*(data: openArray[byte]): Option[ProtoMessage] =
     pmsg: ProtoMessage
 
   let res2 = pb.getField(2, pmsg.timestamp)
-  if res2.isErr() or not(res2.get()):
-    return none[ProtoMessage]()
+  if res2.isErr() or not(res2.get(false)):
+    return Opt.none(ProtoMessage)
 
   let res4 = pb.getField(4, value)
-  if res4.isErr() or not(res4.get()):
-    return none[ProtoMessage]()
+  if res4.isErr() or not(res4.get(false)):
+    return Opt.none(ProtoMessage)
 
   # `case` statement could not work here with an error "selector must be of an
   # ordinal type, float or string"
@@ -124,30 +125,30 @@ proc decodeDumpMessage*(data: openArray[byte]): Option[ProtoMessage] =
     elif value == uint64(Incoming):
       Incoming
     else:
-      return none[ProtoMessage]()
+      return Opt.none(ProtoMessage)
 
   let res7 = pb.getField(7, pmsg.message)
-  if res7.isErr() or not(res7.get()):
-    return none[ProtoMessage]()
+  if res7.isErr() or not(res7.get(false)):
+    return Opt.none(ProtoMessage)
 
   value = 0'u64
   let res1 = pb.getField(1, value)
-  if res1.isOk() and res1.get():
-    pmsg.seqID = some(value)
+  if res1.isOk() and res1.get(false):
+    pmsg.seqID = Opt.some(value)
   value = 0'u64
   let res3 = pb.getField(3, value)
-  if res3.isOk() and res3.get():
-    pmsg.mtype = some(value)
+  if res3.isOk() and res3.get(false):
+    pmsg.mtype = Opt.some(value)
   let res5 = pb.getField(5, ma1)
-  if res5.isOk() and res5.get():
-    pmsg.local = some(ma1)
+  if res5.isOk() and res5.get(false):
+    pmsg.local = Opt.some(ma1)
   let res6 = pb.getField(6, ma2)
-  if res6.isOk() and res6.get():
-    pmsg.remote = some(ma2)
+  if res6.isOk() and res6.get(false):
+    pmsg.remote = Opt.some(ma2)
 
-  some(pmsg)
+  Opt.some(pmsg)
 
-iterator messages*(data: seq[byte]): Option[ProtoMessage] =
+iterator messages*(data: seq[byte]): Opt[ProtoMessage] =
   ## Iterate over sequence of bytes and decode all the ``ProtoMessage``
   ## messages we found.
   var value: uint64
@@ -242,27 +243,19 @@ proc toString*(msg: ProtoMessage, dump = true): string =
       " >> "
   let address =
     block:
-      let local =
-        if msg.local.isSome():
-          "[" & $(msg.local.get()) & "]"
-        else:
-          "[LOCAL]"
-      let remote =
-        if msg.remote.isSome():
-          "[" & $(msg.remote.get()) & "]"
-        else:
-          "[REMOTE]"
+      let local = block:
+        msg.local.withValue(loc): "[" & $loc & "]"
+        else: "[LOCAL]"
+      let remote = block:
+        msg.remote.withValue(rem): "[" & $rem & "]"
+        else: "[REMOTE]"
       local & direction & remote
-  let seqid =
-    if msg.seqID.isSome():
-      "seqID = " & $(msg.seqID.get()) & " "
-    else:
-      ""
-  let mtype =
-    if msg.mtype.isSome():
-      "type = " & $(msg.mtype.get()) & " "
-    else:
-      ""
+  let seqid = block:
+    msg.seqID.wihValue(seqid): "seqID = " & $seqid & " "
+    else: ""
+  let mtype = block:
+    msg.mtype.withValue(typ): "type = " & $typ & " "
+    else: ""
   res.add(" ")
   res.add(address)
   res.add(" ")

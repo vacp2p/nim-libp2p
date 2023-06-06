@@ -49,36 +49,36 @@ type
     addrs*: seq[MultiAddress]
 
   RelayMessage* = object
-    msgType*: Option[RelayType]
-    srcPeer*: Option[RelayPeer]
-    dstPeer*: Option[RelayPeer]
-    status*: Option[StatusV1]
+    msgType*: Opt[RelayType]
+    srcPeer*: Opt[RelayPeer]
+    dstPeer*: Opt[RelayPeer]
+    status*: Opt[StatusV1]
 
 proc encode*(msg: RelayMessage): ProtoBuffer =
   result = initProtoBuffer()
 
-  if isSome(msg.msgType):
-    result.write(1, msg.msgType.get().ord.uint)
-  if isSome(msg.srcPeer):
+  msg.msgType.withValue(typ):
+    result.write(1, typ.ord.uint)
+  msg.srcPeer.withValue(srcPeer):
     var peer = initProtoBuffer()
-    peer.write(1, msg.srcPeer.get().peerId)
-    for ma in msg.srcPeer.get().addrs:
+    peer.write(1, srcPeer.peerId)
+    for ma in srcPeer.addrs:
       peer.write(2, ma.data.buffer)
     peer.finish()
     result.write(2, peer.buffer)
-  if isSome(msg.dstPeer):
+  msg.dstPeer.withValue(dstPeer):
     var peer = initProtoBuffer()
-    peer.write(1, msg.dstPeer.get().peerId)
-    for ma in msg.dstPeer.get().addrs:
+    peer.write(1, dstPeer.peerId)
+    for ma in dstPeer.addrs:
       peer.write(2, ma.data.buffer)
     peer.finish()
     result.write(3, peer.buffer)
-  if isSome(msg.status):
-    result.write(4, msg.status.get().ord.uint)
+  msg.status.withValue(status):
+    result.write(4, status.ord.uint)
 
   result.finish()
 
-proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Option[RelayMessage] =
+proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
   var
     rMsg: RelayMessage
     msgTypeOrd: uint32
@@ -96,30 +96,30 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Option[RelayMessage] =
     r4 = pb.getField(4, statusOrd)
 
   if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
-    return none(RelayMessage)
+    return Opt.none(RelayMessage)
 
-  if r2.get() and
+  if r2.get(false) and
      (pbSrc.getField(1, src.peerId).isErr() or
       pbSrc.getRepeatedField(2, src.addrs).isErr()):
-    return none(RelayMessage)
+    return Opt.none(RelayMessage)
 
-  if r3.get() and
+  if r3.get(false) and
      (pbDst.getField(1, dst.peerId).isErr() or
       pbDst.getRepeatedField(2, dst.addrs).isErr()):
-    return none(RelayMessage)
+    return Opt.none(RelayMessage)
 
-  if r1.get():
+  if r1.get(false):
     if msgTypeOrd.int notin RelayType:
-      return none(RelayMessage)
-    rMsg.msgType = some(RelayType(msgTypeOrd))
-  if r2.get(): rMsg.srcPeer = some(src)
-  if r3.get(): rMsg.dstPeer = some(dst)
-  if r4.get():
+      return Opt.none(RelayMessage)
+    rMsg.msgType = Opt.some(RelayType(msgTypeOrd))
+  if r2.get(false): rMsg.srcPeer = Opt.some(src)
+  if r3.get(false): rMsg.dstPeer = Opt.some(dst)
+  if r4.get(false):
     var status: StatusV1
     if not checkedEnumAssign(status, statusOrd):
-      return none(RelayMessage)
-    rMsg.status = some(status)
-  some(rMsg)
+      return Opt.none(RelayMessage)
+    rMsg.status = Opt.some(status)
+  Opt.some(rMsg)
 
 # Voucher
 
@@ -179,7 +179,7 @@ type
   Reservation* = object
     expire*: uint64              # required, Unix expiration time (UTC)
     addrs*: seq[MultiAddress]    # relay address for reserving peer
-    svoucher*: Option[seq[byte]] # optional, reservation voucher
+    svoucher*: Opt[seq[byte]] # optional, reservation voucher
   Limit* = object
     duration*: uint32            # seconds
     data*: uint64                # bytes
@@ -199,30 +199,29 @@ type
     Status = 2
   HopMessage* = object
     msgType*: HopMessageType
-    peer*: Option[Peer]
-    reservation*: Option[Reservation]
+    peer*: Opt[Peer]
+    reservation*: Opt[Reservation]
     limit*: Limit
-    status*: Option[StatusV2]
+    status*: Opt[StatusV2]
 
 proc encode*(msg: HopMessage): ProtoBuffer =
   var pb = initProtoBuffer()
 
   pb.write(1, msg.msgType.ord.uint)
-  if msg.peer.isSome():
+  msg.peer.withValue(peer):
     var ppb = initProtoBuffer()
-    ppb.write(1, msg.peer.get().peerId)
-    for ma in msg.peer.get().addrs:
+    ppb.write(1, peer.peerId)
+    for ma in peer.addrs:
       ppb.write(2, ma.data.buffer)
     ppb.finish()
     pb.write(2, ppb.buffer)
-  if msg.reservation.isSome():
-    let rsrv = msg.reservation.get()
+  msg.reservation.withValue(rsrv):
     var rpb = initProtoBuffer()
     rpb.write(1, rsrv.expire)
     for ma in rsrv.addrs:
       rpb.write(2, ma.data.buffer)
-    if rsrv.svoucher.isSome():
-      rpb.write(3, rsrv.svoucher.get())
+    rsrv.svoucher.withValue(vouch):
+      rpb.write(3, vouch)
     rpb.finish()
     pb.write(3, rpb.buffer)
   if msg.limit.duration > 0 or msg.limit.data > 0:
@@ -231,13 +230,13 @@ proc encode*(msg: HopMessage): ProtoBuffer =
     if msg.limit.data > 0: lpb.write(2, msg.limit.data)
     lpb.finish()
     pb.write(4, lpb.buffer)
-  if msg.status.isSome():
-    pb.write(5, msg.status.get().ord.uint)
+  msg.status.withValue(status):
+    pb.write(5, status.ord.uint)
 
   pb.finish()
   pb
 
-proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Option[HopMessage] =
+proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Opt[HopMessage] =
   var
     msg: HopMessage
     msgTypeOrd: uint32
@@ -259,38 +258,38 @@ proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Option[HopMessage] =
     r5 = pb.getField(5, statusOrd)
 
   if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr() or r5.isErr():
-    return none(HopMessage)
+    return Opt.none(HopMessage)
 
-  if r2.get() and
+  if r2.get(false) and
      (pbPeer.getRequiredField(1, peer.peerId).isErr() or
       pbPeer.getRepeatedField(2, peer.addrs).isErr()):
-    return none(HopMessage)
+    return Opt.none(HopMessage)
 
-  if r3.get():
+  if r3.get(false):
     var svoucher: seq[byte]
     let rSVoucher = pbReservation.getField(3, svoucher)
     if pbReservation.getRequiredField(1, reservation.expire).isErr() or
        pbReservation.getRepeatedField(2, reservation.addrs).isErr() or
        rSVoucher.isErr():
-      return none(HopMessage)
-    if rSVoucher.get(): reservation.svoucher = some(svoucher)
+      return Opt.none(HopMessage)
+    if rSVoucher.get(false): reservation.svoucher = Opt.some(svoucher)
 
-  if r4.get() and
+  if r4.get(false) and
      (pbLimit.getField(1, limit.duration).isErr() or
       pbLimit.getField(2, limit.data).isErr()):
-    return none(HopMessage)
+    return Opt.none(HopMessage)
 
   if not checkedEnumAssign(msg.msgType, msgTypeOrd):
-    return none(HopMessage)
-  if r2.get(): msg.peer = some(peer)
-  if r3.get(): msg.reservation = some(reservation)
-  if r4.get(): msg.limit = limit
-  if r5.get():
+    return Opt.none(HopMessage)
+  if r2.get(false): msg.peer = Opt.some(peer)
+  if r3.get(false): msg.reservation = Opt.some(reservation)
+  if r4.get(false): msg.limit = limit
+  if r5.get(false):
     var status: StatusV2
     if not checkedEnumAssign(status, statusOrd):
-      return none(HopMessage)
-    msg.status = some(status)
-  some(msg)
+      return Opt.none(HopMessage)
+    msg.status = Opt.some(status)
+  Opt.some(msg)
 
 # Circuit Relay V2 Stop Message
 
@@ -300,19 +299,19 @@ type
     Status = 1
   StopMessage* = object
     msgType*: StopMessageType
-    peer*: Option[Peer]
+    peer*: Opt[Peer]
     limit*: Limit
-    status*: Option[StatusV2]
+    status*: Opt[StatusV2]
 
 
 proc encode*(msg: StopMessage): ProtoBuffer =
   var pb = initProtoBuffer()
 
   pb.write(1, msg.msgType.ord.uint)
-  if msg.peer.isSome():
+  msg.peer.withValue(peer):
     var ppb = initProtoBuffer()
-    ppb.write(1, msg.peer.get().peerId)
-    for ma in msg.peer.get().addrs:
+    ppb.write(1, peer.peerId)
+    for ma in peer.addrs:
       ppb.write(2, ma.data.buffer)
     ppb.finish()
     pb.write(2, ppb.buffer)
@@ -322,13 +321,13 @@ proc encode*(msg: StopMessage): ProtoBuffer =
     if msg.limit.data > 0: lpb.write(2, msg.limit.data)
     lpb.finish()
     pb.write(3, lpb.buffer)
-  if msg.status.isSome():
-    pb.write(4, msg.status.get().ord.uint)
+  msg.status.withValue(status):
+    pb.write(4, status.ord.uint)
 
   pb.finish()
   pb
 
-proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Option[StopMessage] =
+proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Opt[StopMessage] =
   var
     msg: StopMessage
     msgTypeOrd: uint32
@@ -348,26 +347,26 @@ proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Option[StopMessage] =
     r4 = pb.getField(4, statusOrd)
 
   if r1.isErr() or r2.isErr() or r3.isErr() or r4.isErr():
-    return none(StopMessage)
+    return Opt.none(StopMessage)
 
-  if r2.get() and
+  if r2.get(false) and
      (pbPeer.getRequiredField(1, peer.peerId).isErr() or
       pbPeer.getRepeatedField(2, peer.addrs).isErr()):
-    return none(StopMessage)
+    return Opt.none(StopMessage)
 
-  if r3.get() and
+  if r3.get(false) and
      (pbLimit.getField(1, limit.duration).isErr() or
       pbLimit.getField(2, limit.data).isErr()):
-    return none(StopMessage)
+    return Opt.none(StopMessage)
 
   if msgTypeOrd.int notin StopMessageType.low.ord .. StopMessageType.high.ord:
-    return none(StopMessage)
+    return Opt.none(StopMessage)
   msg.msgType = StopMessageType(msgTypeOrd)
-  if r2.get(): msg.peer = some(peer)
-  if r3.get(): msg.limit = limit
-  if r4.get():
+  if r2.get(false): msg.peer = Opt.some(peer)
+  if r3.get(false): msg.limit = limit
+  if r4.get(false):
     var status: StatusV2
     if not checkedEnumAssign(status, statusOrd):
-      return none(StopMessage)
-    msg.status = some(status)
-  some(msg)
+      return Opt.none(StopMessage)
+    msg.status = Opt.some(status)
+  Opt.some(msg)

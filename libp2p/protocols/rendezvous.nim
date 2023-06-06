@@ -549,9 +549,9 @@ proc request*(rdv: RendezVous,
       if limit == 0: return
       let ttl = r.ttl.get(MaximumTTL + 1)
       if ttl > MaximumTTL: continue
-      let sprRes = SignedPeerRecord.decode(r.signedPeerRecord)
-      if sprRes.isErr(): continue
-      let pr = sprRes.get().data
+      let
+        spr = SignedPeerRecord.decode(r.signedPeerRecord).valueOr: continue
+        pr = spr.data
       if s.hasKey(pr.peerId):
         let (prSaved, rSaved) = s[pr.peerId]
         if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(MaximumTTL) < ttl) or

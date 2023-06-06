@@ -48,20 +48,20 @@ suite "Circuit Relay":
     r {.threadvar.}: Relay
     conn {.threadvar.}: Connection
     msg {.threadvar.}: ProtoBuffer
-    rcv {.threadvar.}: Option[RelayMessage]
+    rcv {.threadvar.}: Opt[RelayMessage]
 
   proc createMsg(
-    msgType: Option[RelayType] = RelayType.none,
-    status: Option[StatusV1] = StatusV1.none,
-    src: Option[RelayPeer] = RelayPeer.none,
-    dst: Option[RelayPeer] = RelayPeer.none): ProtoBuffer =
+    msgType: Opt[RelayType] = Opt.none(RelayType),
+    status: Opt[StatusV1] = Opt.none(StatusV1),
+    src: Opt[RelayPeer] = Opt.none(RelayPeer),
+    dst: Opt[RelayPeer] = Opt.none(RelayPeer)): ProtoBuffer =
     encode(RelayMessage(msgType: msgType, srcPeer: src, dstPeer: dst, status: status))
 
-  proc checkMsg(msg: Option[RelayMessage],
-    msgType: Option[RelayType] = none[RelayType](),
-    status: Option[StatusV1] = none[StatusV1](),
-    src: Option[RelayPeer] = none[RelayPeer](),
-    dst: Option[RelayPeer] = none[RelayPeer]()) =
+  proc checkMsg(msg: Opt[RelayMessage],
+    msgType: Opt[RelayType] = Opt.none(RelayType),
+    status: Opt[StatusV1] = Opt.none(StatusV1),
+    src: Opt[RelayPeer] = Opt.none(RelayPeer),
+    dst: Opt[RelayPeer] = Opt.none(RelayPeer)) =
     check: msg.isSome
     let m = msg.get()
     check: m.msgType == msgType
@@ -119,116 +119,116 @@ suite "Circuit Relay":
     await srelay.start()
 
   asyncTest "Handle CanHop":
-    msg = createMsg(some(CanHop))
+    msg = createMsg(Opt.some(CanHop))
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(StatusV1.Success))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(StatusV1.Success))
 
     conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, RelayV1Codec)
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopCantSpeakRelay))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopCantSpeakRelay))
 
     await conn.close()
 
   asyncTest "Malformed":
     conn = await srelay.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Status))
+    msg = createMsg(Opt.some(RelayType.Status))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
     await conn.close()
-    rcv.checkMsg(some(RelayType.Status), some(StatusV1.MalformedMessage))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(StatusV1.MalformedMessage))
 
   asyncTest "Handle Stop Error":
     conn = await srelay.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Stop),
-      none(StatusV1),
-      none(RelayPeer),
-      some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Stop),
+      Opt.none(StatusV1),
+      Opt.none(RelayPeer),
+      Opt.some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(StopSrcMultiaddrInvalid))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(StopSrcMultiaddrInvalid))
 
     conn = await srelay.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Stop),
-      none(StatusV1),
-      some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
-      none(RelayPeer))
+    msg = createMsg(Opt.some(RelayType.Stop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
+      Opt.none(RelayPeer))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(StopDstMultiaddrInvalid))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(StopDstMultiaddrInvalid))
 
     conn = await srelay.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Stop),
-      none(StatusV1),
-      some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)),
-      some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Stop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)),
+      Opt.some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
     await conn.close()
-    rcv.checkMsg(some(RelayType.Status), some(StopDstMultiaddrInvalid))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(StopDstMultiaddrInvalid))
 
   asyncTest "Handle Hop Error":
     conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop))
+    msg = createMsg(Opt.some(RelayType.Hop))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopCantSpeakRelay))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopCantSpeakRelay))
 
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop),
-      none(StatusV1),
-      none(RelayPeer),
-      some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Hop),
+      Opt.none(StatusV1),
+      Opt.none(RelayPeer),
+      Opt.some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopSrcMultiaddrInvalid))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopSrcMultiaddrInvalid))
 
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop),
-      none(StatusV1),
-      some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)),
-      some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Hop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)),
+      Opt.some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopSrcMultiaddrInvalid))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopSrcMultiaddrInvalid))
 
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop),
-      none(StatusV1),
-      some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
-      none(RelayPeer))
+    msg = createMsg(Opt.some(RelayType.Hop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
+      Opt.none(RelayPeer))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopDstMultiaddrInvalid))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopDstMultiaddrInvalid))
 
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop),
-      none(StatusV1),
-      some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
-      some(RelayPeer(peerId: srelay.peerInfo.peerId, addrs: srelay.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Hop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
+      Opt.some(RelayPeer(peerId: srelay.peerInfo.peerId, addrs: srelay.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopCantRelayToSelf))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopCantRelayToSelf))
 
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop),
-      none(StatusV1),
-      some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
-      some(RelayPeer(peerId: srelay.peerInfo.peerId, addrs: srelay.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Hop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
+      Opt.some(RelayPeer(peerId: srelay.peerInfo.peerId, addrs: srelay.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopCantRelayToSelf))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopCantRelayToSelf))
 
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop),
-      none(StatusV1),
-      some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
-      some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Hop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
+      Opt.some(RelayPeer(peerId: dst.peerInfo.peerId, addrs: dst.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopNoConnToDst))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopNoConnToDst))
 
     await srelay.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
 
@@ -237,7 +237,7 @@ suite "Circuit Relay":
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopCantSpeakRelay))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopCantSpeakRelay))
     r.maxCircuit = tmp
     await conn.close()
 
@@ -246,7 +246,7 @@ suite "Circuit Relay":
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopCantSpeakRelay))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopCantSpeakRelay))
     r.maxCircuitPerPeer = tmp
     await conn.close()
 
@@ -255,13 +255,13 @@ suite "Circuit Relay":
     await srelay.connect(dst2.peerInfo.peerId, dst2.peerInfo.addrs)
 
     conn = await src.dial(srelay.peerInfo.peerId, srelay.peerInfo.addrs, RelayV1Codec)
-    msg = createMsg(some(RelayType.Hop),
-      none(StatusV1),
-      some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
-      some(RelayPeer(peerId: dst2.peerInfo.peerId, addrs: dst2.peerInfo.addrs)))
+    msg = createMsg(Opt.some(RelayType.Hop),
+      Opt.none(StatusV1),
+      Opt.some(RelayPeer(peerId: src.peerInfo.peerId, addrs: src.peerInfo.addrs)),
+      Opt.some(RelayPeer(peerId: dst2.peerInfo.peerId, addrs: dst2.peerInfo.addrs)))
     await conn.writeLp(msg.buffer)
     rcv = RelayMessage.decode(await conn.readLp(1024))
-    rcv.checkMsg(some(RelayType.Status), some(HopCantDialDst))
+    rcv.checkMsg(Opt.some(RelayType.Status), Opt.some(HopCantDialDst))
     await allFutures(dst2.stop())
 
   asyncTest "Dial Peer":

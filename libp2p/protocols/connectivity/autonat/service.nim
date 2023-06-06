@@ -168,7 +168,7 @@ proc addressMapper(
   for listenAddr in listenAddrs:
     var processedMA = listenAddr
     try:
-      let hostIP = initTAddress(listenAddr).get()
+      let hostIP = initTAddress(listenAddr).valueOr: continue
       if not hostIP.isGlobal() and self.networkReachability == NetworkReachability.Reachable:
         processedMA = peerStore.guessDialableAddr(listenAddr) # handle manual port forwarding
     except CatchableError as exc:
@@ -187,8 +187,8 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
       self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
         discard askPeer(self, switch, peerId)
       switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
-    if self.scheduleInterval.isSome():
-      self.scheduleHandle = schedule(self, switch, self.scheduleInterval.get())
+    self.scheduleInterval.withValue(interval):
+      self.scheduleHandle = schedule(self, switch, interval)
     if self.enableAddressMapper:
       switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
