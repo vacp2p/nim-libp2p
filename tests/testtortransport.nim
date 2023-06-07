@@ -9,10 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import tables
 import chronos, stew/[byteutils]
@@ -135,9 +132,6 @@ suite "Tor transport":
     await serverSwitch.stop()
 
   test "It's not possible to add another transport in TorSwitch":
-    when (NimMajor, NimMinor, NimPatch) < (1, 4, 0):
-      type AssertionDefect = AssertionError
-
     let torSwitch = TorSwitch.new(torServer = torServer, rng= rng, flags = {ReuseAddr})
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))

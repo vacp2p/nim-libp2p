@@ -1,7 +1,4 @@
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos
 import algorithm
@@ -83,7 +80,7 @@ template rng*(): ref HmacDrbgContext =
   getRng()
 
 type
-  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
+  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe, raises: [].}
   TestBufferStream* = ref object of BufferStream
     writeHandler*: WriteHandler
 
@@ -113,7 +110,7 @@ proc bridgedConnections*: (Connection, Connection) =
   return (connA, connB)
 
 
-proc checkExpiringInternal(cond: proc(): bool {.raises: [Defect], gcsafe.} ): Future[bool] {.async, gcsafe.} =
+proc checkExpiringInternal(cond: proc(): bool {.raises: [], gcsafe.} ): Future[bool] {.async, gcsafe.} =
   let start = Moment.now()
   while true:
     if Moment.now() > (start + chronos.seconds(5)):

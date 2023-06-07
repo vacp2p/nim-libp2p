@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[tables, sets, options]
 import chronos, chronicles, metrics
@@ -55,7 +52,7 @@ proc init*(_: type[TopicParams]): TopicParams =
 proc withPeerStats*(
     g: GossipSub,
     peerId: PeerId,
-    action: proc (stats: var PeerStats) {.gcsafe, raises: [Defect].}) =
+    action: proc (stats: var PeerStats) {.gcsafe, raises: [].}) =
   ## Add or update peer statistics for a particular peer id - the statistics
   ## are retained across multiple connections until they expire
   g.peerStats.withValue(peerId, stats) do:

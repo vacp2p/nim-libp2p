@@ -38,10 +38,7 @@ const
 type
   TestProto = ref object of LPProtocol
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 method init(p: TestProto) {.gcsafe.} =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =

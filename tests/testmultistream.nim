@@ -21,10 +21,7 @@ import ../libp2p/multistream,
        ../libp2p/upgrademngrs/upgrade
 
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import ./helpers
 
@@ -79,7 +76,7 @@ proc newTestSelectStream(): TestSelectStream =
 
 ## Mock stream for handles `ls` test
 type
-  LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe, raises: [Defect].}
+  LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
   TestLsStream = ref object of Connection
     step*: int
@@ -131,7 +128,7 @@ proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
 
 ## Mock stream for handles `na` test
 type
-  NaHandler = proc(procs: string): Future[void] {.gcsafe, raises: [Defect].}
+  NaHandler = proc(procs: string): Future[void] {.gcsafe, raises: [].}
 
   TestNaStream = ref object of Connection
     step*: int

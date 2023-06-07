@@ -9,10 +9,7 @@
 
 {.used.}
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos
 import ../../libp2p/[peerid, multiaddress, switch]

@@ -9,10 +9,7 @@
 
 ## Gossip based publishing
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[sets, sequtils]
 import chronos, chronicles, metrics
@@ -622,7 +619,7 @@ method stop*(g: GossipSub) {.async.} =
   g.heartbeatFut = nil
 
 method initPubSub*(g: GossipSub)
-  {.raises: [Defect, InitializationError].} =
+  {.raises: [InitializationError].} =
   procCall FloodSub(g).initPubSub()
 
   if not g.parameters.explicit:

@@ -16,10 +16,7 @@ runnableExamples:
    # etc
    .build()
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import
   options, tables, chronos, chronicles, sequtils,
@@ -36,7 +33,7 @@ export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
-  TransportProvider* {.public.} = proc(upgr: Upgrade): Transport {.gcsafe, raises: [Defect].}
+  TransportProvider* {.public.} = proc(upgr: Upgrade): Transport {.gcsafe, raises: [].}
 
   SecureProtocol* {.pure.} = enum
     Noise,
@@ -205,7 +202,7 @@ proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
   b
 
 proc build*(b: SwitchBuilder): Switch
-  {.raises: [Defect, LPError], public.} =
+  {.raises: [LPError], public.} =
 
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
@@ -296,7 +293,7 @@ proc newStandardSwitch*(
   nameResolver: NameResolver = nil,
   sendSignedPeerRecord = false,
   peerStoreCapacity = 1000): Switch
-  {.raises: [Defect, LPError], public.} =
+  {.raises: [LPError], public.} =
   ## Helper for common switch configurations.
   {.push warning[Deprecated]:off.}
   if SecureProtocol.Secio in secureManagers:

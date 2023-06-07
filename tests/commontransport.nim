@@ -9,7 +9,7 @@ import ../libp2p/[stream/connection,
 
 import ./helpers
 
-type TransportProvider* = proc(): Transport {.gcsafe, raises: [Defect].}
+type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
 
 template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string = "") =
   block:

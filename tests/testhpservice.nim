@@ -9,10 +9,7 @@
 
 {.used.}
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos
 
@@ -33,7 +30,7 @@ import stubs/autonatclientstub
 proc isPublicAddrIPAddrMock(ta: TransportAddress): bool =
   return true
 
-proc createSwitch(r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil): Switch {.raises: [LPError, Defect].} =
+proc createSwitch(r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil): Switch {.raises: [LPError].} =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
