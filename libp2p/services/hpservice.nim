@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[tables, sequtils]
 
@@ -19,11 +16,10 @@ import chronos, chronicles
 import ../switch, ../wire
 import ../protocols/rendezvous
 import ../services/autorelayservice
-import ../discovery/[rendezvousinterface, discoverymngr]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 import ../protocols/connectivity/dcutr/[client, server]
-
+import ../multicodec
 
 logScope:
   topics = "libp2p hpservice"
@@ -36,7 +32,7 @@ type
     autonatService: AutonatService
     isPublicIPAddrProc: IsPublicIPAddrProc
 
-  IsPublicIPAddrProc* = proc(ta: TransportAddress): bool {.gcsafe, raises: [Defect].}
+  IsPublicIPAddrProc* = proc(ta: TransportAddress): bool {.gcsafe, raises: [].}
 
 proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService,
           isPublicIPAddrProc: IsPublicIPAddrProc = isGlobal): T =
@@ -52,6 +48,9 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
   await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
+      let isRelayed = address.contains(multiCodec("p2p-circuit"))
+      if isRelayed.isErr() or isRelayed.get():
+        continue
       if DNS.matchPartial(address):
         return await tryConnect(address)
       else:
@@ -63,6 +62,35 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
       continue
   return false
 
+proc closeRelayConn(relayedConn: Connection) {.async.} =
+  await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
+  await relayedConn.close()
+
+proc newConnectedPeerHandler(self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent) {.async.} =
+  try:
+    # Get all connections to the peer. If there is at least one non-relayed connection, return.
+    let connections = switch.connManager.getConnections()[peerId].mapIt(it.connection)
+    if connections.anyIt(not isRelayed(it)):
+      return
+    let incomingRelays = connections.filterIt(it.transportDir == Direction.In)
+    if incomingRelays.len == 0:
+      return
+
+    let relayedConn = incomingRelays[0]
+
+    if await self.tryStartingDirectConn(switch, peerId):
+      await closeRelayConn(relayedConn)
+      return
+
+    let dcutrClient = DcutrClient.new()
+    var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
+    if natAddrs.len == 0:
+      natAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+    await dcutrClient.startSync(switch, peerId, natAddrs)
+    await closeRelayConn(relayedConn)
+  except CatchableError as err:
+    debug "Hole punching failed during dcutr", err = err.msg
+
 method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
@@ -71,22 +99,8 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     let dcutrProto = Dcutr.new(switch)
     switch.mount(dcutrProto)
 
-    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
-      try:
-        let conn = switch.connManager.selectMuxer(peerId).connection
-        if isRelayed(conn) and conn.transportDir == Direction.In:
-          if await self.tryStartingDirectConn(switch, peerId):
-            await conn.close()
-            return
-          let dcutrClient = DcutrClient.new()
-          var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
-          if natAddrs.len == 0:
-            natAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
-          await dcutrClient.startSync(switch, peerId, natAddrs)
-          await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
-          await conn.close()
-      except CatchableError as err:
-        debug "Hole punching failed during dcutr", err = err.msg
+    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent) {.async.} =
+      await newConnectedPeerHandler(self, switch, peerId, event)
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 

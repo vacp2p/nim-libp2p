@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos, stew/results
 import ../stream/connection
@@ -25,7 +22,7 @@ type
     conn: Connection,
     proto: string):
     Future[void]
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
@@ -55,8 +52,8 @@ func `codec=`*(p: LPProtocol, codec: string) =
 proc new*(
   T: type LPProtocol,
   codecs: seq[string],
-  handler: LPProtoHandler,  # default(Opt[int]) or Opt.none(int) don't work on 1.2
-  maxIncomingStreams: Opt[int] | int = Opt[int]()): T =
+  handler: LPProtoHandler,
+  maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
   T(
     codecs: codecs,
     handler: handler,

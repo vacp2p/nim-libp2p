@@ -13,10 +13,7 @@
 ## 1. base32z
 ##
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import tables
 import stew/[base32, base58, base64, results]
@@ -27,17 +24,17 @@ type
 
   MultiBase* = object
 
-  MBCodeSize = proc(length: int): int {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
+  MBCodeSize = proc(length: int): int {.nimcall, gcsafe, noSideEffect, raises: [].}
 
   MBCodec = object
     code: char
     name: string
     encr: proc(inbytes: openArray[byte],
                outbytes: var openArray[char],
-               outlen: var int): MultiBaseStatus {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
+               outlen: var int): MultiBaseStatus {.nimcall, gcsafe, noSideEffect, raises: [].}
     decr: proc(inbytes: openArray[char],
                outbytes: var openArray[byte],
-               outlen: var int): MultiBaseStatus {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
+               outlen: var int): MultiBaseStatus {.nimcall, gcsafe, noSideEffect, raises: [].}
     encl: MBCodeSize
     decl: MBCodeSize
 

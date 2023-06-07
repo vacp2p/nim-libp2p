@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[oids, strformat]
 import bearssl/rand
@@ -262,7 +259,7 @@ proc newSecioConn(conn: Connection,
                   secrets: Secret,
                   order: int,
                   remotePubKey: PublicKey): SecioConn
-                  {.raises: [Defect, LPError].} =
+                  {.raises: [LPError].} =
   ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.

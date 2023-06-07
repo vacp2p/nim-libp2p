@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 ## This module implements wire network connection procedures.
 import chronos, stew/endians2
@@ -23,14 +20,14 @@ else:
 
 const
   RTRANSPMA* = mapOr(
-    TCP,
-    WebSockets,
+    TCP_IP,
+    WebSockets_IP,
     UNIX
   )
 
   TRANSPMA* = mapOr(
     RTRANSPMA,
-    UDP
+    UDP_IP
   )
 
 
@@ -79,7 +76,7 @@ proc connect*(
   child: StreamTransport = nil,
   flags = default(set[SocketFlags]),
   localAddress: Opt[MultiAddress] = Opt.none(MultiAddress)): Future[StreamTransport]
-  {.raises: [Defect, LPError, MaInvalidAddress].} =
+  {.raises: [LPError, MaInvalidAddress].} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
@@ -107,7 +104,7 @@ proc createStreamServer*[T](ma: MultiAddress,
                             bufferSize: int = DefaultStreamBufferSize,
                             child: StreamServer = nil,
                             init: TransportInitCallback = nil): StreamServer
-                            {.raises: [Defect, LPError, MaInvalidAddress].} =
+                            {.raises: [LPError, MaInvalidAddress].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
@@ -134,7 +131,7 @@ proc createStreamServer*[T](ma: MultiAddress,
                             bufferSize: int = DefaultStreamBufferSize,
                             child: StreamServer = nil,
                             init: TransportInitCallback = nil): StreamServer
-                            {.raises: [Defect, LPError, MaInvalidAddress].} =
+                            {.raises: [LPError, MaInvalidAddress].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   ##
 
@@ -155,7 +152,7 @@ proc createStreamServer*[T](ma: MultiAddress,
     raise newException(LPError, exc.msg)
 
 proc createAsyncSocket*(ma: MultiAddress): AsyncFD
-  {.raises: [Defect, LPError].} =
+  {.raises: [LPError].} =
   ## Create new asynchronous socket using MultiAddress' ``ma`` socket type and
   ## protocol information.
   ##
@@ -188,7 +185,7 @@ proc createAsyncSocket*(ma: MultiAddress): AsyncFD
     raise newException(LPError, exc.msg)
 
 proc bindAsyncSocket*(sock: AsyncFD, ma: MultiAddress): bool
-  {.raises: [Defect, LPError].} =
+  {.raises: [LPError].} =
   ## Bind socket ``sock`` to MultiAddress ``ma``.
   ##
   ## Note: This procedure only used in `go-libp2p-daemon` wrapper.

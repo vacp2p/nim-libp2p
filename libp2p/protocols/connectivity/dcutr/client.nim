@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/sequtils
 
@@ -63,13 +60,13 @@ proc startSync*(self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: 
     let rttEnd = Moment.now()
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
-    await stream.send(MsgType.Sync, addrs)
+    await stream.send(MsgType.Sync, @[])
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
 
     if peerDialableAddrs.len > self.maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0..<self.maxDialableAddrs]
-    var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false, upgradeDir = Direction.In))
+    var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false))
     try:
       discard await anyCompleted(futs).wait(self.connectTimeout)
       debug "Dcutr initiator has directly connected to the remote peer."

@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/sequtils
 
@@ -24,7 +21,7 @@ import ../../../multiaddress,
 export multiaddress
 
 const
-  DcutrCodec* = "/libp2p/dcutr/1.0.0"
+  DcutrCodec* = "/libp2p/dcutr"
 
 type
   MsgType* = enum
@@ -44,7 +41,7 @@ proc encode*(msg: DcutrMsg): ProtoBuffer =
     result.write(2, addr)
   result.finish()
 
-proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [Defect, DcutrError].} =
+proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [DcutrError].} =
   var
     msgTypeOrd: uint32
     dcutrMsg: DcutrMsg

@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[sets, hashes, tables]
 import chronos, chronicles, metrics
@@ -223,7 +220,7 @@ method publish*(f: FloodSub,
   return peers.len
 
 method initPubSub*(f: FloodSub)
-  {.raises: [Defect, InitializationError].} =
+  {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[MessageId].init(2.minutes)
   f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))

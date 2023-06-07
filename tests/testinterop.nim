@@ -6,7 +6,7 @@ proc switchMplexCreator(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true)):
-      Switch {.raises: [Defect, LPError].} =
+      Switch {.raises: [LPError].} =
 
   SwitchBuilder.new()
     .withSignedPeerRecord(false)
@@ -28,7 +28,7 @@ proc switchYamuxCreator(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true)):
-      Switch {.raises: [Defect, LPError].} =
+      Switch {.raises: [LPError].} =
 
   SwitchBuilder.new()
     .withSignedPeerRecord(false)

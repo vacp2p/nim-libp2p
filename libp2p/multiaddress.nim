@@ -9,10 +9,7 @@
 
 ## This module implements MultiAddress.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 {.push public.}
 
 import pkg/chronos, chronicles
@@ -470,13 +467,23 @@ const
   DNS* = mapOr(DNSANY, DNS4, DNS6, DNSADDR)
   IP* = mapOr(IP4, IP6)
   DNS_OR_IP* = mapOr(DNS, IP)
-  TCP* = mapOr(mapAnd(DNS, mapEq("tcp")), mapAnd(IP, mapEq("tcp")))
-  UDP* = mapOr(mapAnd(DNS, mapEq("udp")), mapAnd(IP, mapEq("udp")))
+  TCP_DNS* = mapAnd(DNS, mapEq("tcp"))
+  TCP_IP* =mapAnd(IP, mapEq("tcp"))
+  TCP* = mapOr(TCP_DNS, TCP_IP)
+  UDP_DNS* = mapAnd(DNS, mapEq("udp"))
+  UDP_IP* = mapAnd(IP, mapEq("udp"))
+  UDP* = mapOr(UDP_DNS, UDP_IP)
   UTP* = mapAnd(UDP, mapEq("utp"))
   QUIC* = mapAnd(UDP, mapEq("quic"))
   UNIX* = mapEq("unix")
+  WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
+  WS_IP* = mapAnd(TCP_IP, mapEq("ws"))
   WS* = mapAnd(TCP, mapEq("ws"))
+  WSS_DNS* = mapAnd(TCP_DNS, mapEq("wss"))
+  WSS_IP* = mapAnd(TCP_IP, mapEq("wss"))
   WSS* = mapAnd(TCP, mapEq("wss"))
+  WebSockets_DNS* = mapOr(WS_DNS, WSS_DNS)
+  WebSockets_IP* = mapOr(WS_IP, WSS_IP)
   WebSockets* = mapOr(WS, WSS)
   Onion3* = mapEq("onion3")
   TcpOnion3* = mapAnd(TCP, Onion3)
@@ -765,7 +772,7 @@ proc toString*(value: MultiAddress): MaResult[string] =
     res = "/" & parts.join("/")
   ok(res)
 
-proc `$`*(value: MultiAddress): string {.raises: [Defect].} =
+proc `$`*(value: MultiAddress): string =
   ## Return string representation of MultiAddress ``value``.
   let s = value.toString()
   if s.isErr: s.error
@@ -1015,7 +1022,7 @@ proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
     ok()
 
 proc `&`*(m1, m2: MultiAddress): MultiAddress {.
-     raises: [Defect, LPError].} =
+     raises: [LPError].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
   ##
   ## This procedure performs validation of concatenated result and can raise
@@ -1025,7 +1032,7 @@ proc `&`*(m1, m2: MultiAddress): MultiAddress {.
   concat(m1, m2).tryGet()
 
 proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.
-     raises: [Defect, LPError].} =
+     raises: [LPError].} =
   ## Concatenates two addresses ``m1`` and ``m2``.
   ##
   ## This procedure performs validation of concatenated result and can raise
