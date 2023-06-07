@@ -155,6 +155,9 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.appScore = stats.appScore
     peer.behaviourPenalty = stats.behaviourPenalty
 
+    # Check if the score is below the threshold and disconnect the peer if necessary
+    g.disconnectBadPeerCheck(peer, stats.score)
+
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
 
