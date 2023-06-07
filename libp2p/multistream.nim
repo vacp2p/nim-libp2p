@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[strutils, sequtils, tables]
 import chronos, chronicles, stew/byteutils
@@ -28,7 +25,7 @@ const
   Ls = "ls\n"
 
 type
-  Matcher* = proc (proto: string): bool {.gcsafe, raises: [Defect].}
+  Matcher* = proc (proto: string): bool {.gcsafe, raises: [].}
 
   MultiStreamError* = object of LPError
 

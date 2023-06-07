@@ -21,10 +21,7 @@ runnableExamples:
   peerStore[MoodBook][somePeerId] = "Happy"
   doAssert peerStore[MoodBook][somePeerId] == "Happy"
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import
   std/[tables, sets, options, macros],
@@ -45,7 +42,7 @@ type
   # Handler types #
   #################
 
-  PeerBookChangeHandler* = proc(peerId: PeerId) {.gcsafe, raises: [Defect].}
+  PeerBookChangeHandler* = proc(peerId: PeerId) {.gcsafe, raises: [].}
 
   #########
   # Books #

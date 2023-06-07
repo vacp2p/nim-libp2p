@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import sequtils, strutils
 
@@ -40,7 +37,7 @@ method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
   self.client.onNewConnection = proc(
     conn: Connection,
     duration: uint32 = 0,
-    data: uint64 = 0) {.async, gcsafe, raises: [Defect].} =
+    data: uint64 = 0) {.async, gcsafe, raises: [].} =
       await self.queue.addLast(RelayConnection.new(conn, duration, data))
       await conn.join()
   self.selfRunning = true

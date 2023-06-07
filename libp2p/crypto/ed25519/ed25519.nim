@@ -11,10 +11,7 @@
 ## This code is a port of the public domain, "ref10" implementation of ed25519
 ## from SUPERCOP.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import bearssl/rand
 import constants

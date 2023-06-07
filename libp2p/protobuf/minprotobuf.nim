@@ -9,10 +9,7 @@
 
 ## This module implements minimal Google's ProtoBuf primitives.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import ../varint, ../utility, stew/[endians2, results]
 export results, utility

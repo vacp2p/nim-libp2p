@@ -9,10 +9,7 @@
 
 ## TCP transport implementation
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[sequtils]
 import stew/results
@@ -50,7 +47,7 @@ type
 
   TcpTransportError* = object of transport.TransportError
 
-proc setupTcpTransportTracker(): TcpTransportTracker {.gcsafe, raises: [Defect].}
+proc setupTcpTransportTracker(): TcpTransportTracker {.gcsafe, raises: [].}
 
 proc getTcpTransportTracker(): TcpTransportTracker {.gcsafe.} =
   result = cast[TcpTransportTracker](getTracker(TcpTransportTrackerName))

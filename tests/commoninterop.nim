@@ -10,7 +10,7 @@ type
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true)):
-       Switch {.gcsafe, raises: [Defect, LPError].}
+       Switch {.gcsafe, raises: [LPError].}
   DaemonPeerInfo = daemonapi.PeerInfo
 
 proc writeLp(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.} =

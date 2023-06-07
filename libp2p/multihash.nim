@@ -21,10 +21,7 @@
 ## 1. SKEIN
 ## 2. MURMUR
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
@@ -45,7 +42,7 @@ const
 
 type
   MHashCoderProc* = proc(data: openArray[byte],
-                         output: var openArray[byte]) {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
+                         output: var openArray[byte]) {.nimcall, gcsafe, noSideEffect, raises: [].}
   MHash* = object
     mcodec*: MultiCodec
     size*: int

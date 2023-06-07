@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos
 import std/[options, tables, sets]
@@ -152,7 +149,7 @@ type
     proc(peer: PeerId,
     tag: string, # For gossipsub, the topic
     peers: seq[RoutingRecordsPair])
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic

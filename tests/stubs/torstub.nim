@@ -9,10 +9,7 @@
 
 {.used.}
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import tables
 import chronos, stew/[byteutils, endians2, shims/net]
