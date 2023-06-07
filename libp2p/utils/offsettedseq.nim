@@ -50,10 +50,7 @@ template flushIfIt*(o, pred: untyped) =
     if not pred: break
     i.inc()
   if i > 0:
-    when (NimMajor, NimMinor) < (1, 4):
-      o.s.delete(0, i - 1)
-    else:
-      o.s.delete(0..<i)
+    o.s.delete(0..<i)
     o.offset.inc(i)
 
 proc add*[T](o: var OffsettedSeq[T], v: T) =

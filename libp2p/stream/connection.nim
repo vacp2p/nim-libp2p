@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[hashes, oids, strformat]
 import stew/results
@@ -30,7 +27,7 @@ const
   DefaultConnectionTimeout* = 5.minutes
 
 type
-  TimeoutHandler* = proc(): Future[void] {.gcsafe, raises: [Defect].}
+  TimeoutHandler* = proc(): Future[void] {.gcsafe, raises: [].}
 
   Connection* = ref object of LPStream
     activity*: bool                 # reset every time data is sent or received

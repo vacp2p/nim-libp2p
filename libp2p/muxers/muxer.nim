@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos, chronicles
 import ../stream/connection,
@@ -26,8 +23,8 @@ type
   MuxerError* = object of LPError
   TooManyChannels* = object of MuxerError
 
-  StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe, raises: [Defect].}
-  MuxerHandler* = proc(muxer: Muxer): Future[void] {.gcsafe, raises: [Defect].}
+  StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe, raises: [].}
+  MuxerHandler* = proc(muxer: Muxer): Future[void] {.gcsafe, raises: [].}
 
   Muxer* = ref object of RootObj
     streamHandler*: StreamHandler
@@ -35,7 +32,7 @@ type
     connection*: Connection
 
   # user provider proc that returns a constructed Muxer
-  MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [Defect].}
+  MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [].}
 
   # this wraps a creator proc that knows how to make muxers
   MuxerProvider* = object

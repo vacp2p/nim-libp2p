@@ -9,10 +9,7 @@
 
 ## Tor transport implementation
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/strformat
 import chronos, chronicles, strutils
@@ -133,7 +130,7 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
     else:
       raise newException(LPError, "Address not supported")
 
-proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [Defect, LPError, ValueError].} =
+proc parseOnion3(address: MultiAddress): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
   var addressArray = ($address).split('/')
   if addressArray.len < 2: raise newException(LPError, fmt"Onion address not supported {address}")
   addressArray = addressArray[2].split(':')
@@ -258,7 +255,7 @@ proc new*(
   rng: ref HmacDrbgContext,
   addresses: seq[MultiAddress] = @[],
   flags: set[ServerFlags] = {}): TorSwitch
-  {.raises: [LPError, Defect], public.} =
+  {.raises: [LPError], public.} =
     var builder = SwitchBuilder.new()
         .withRng(rng)
         .withTransport(proc(upgr: Upgrade): Transport = TorTransport.new(torServer, flags, upgr))

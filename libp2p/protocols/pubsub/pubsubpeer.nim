@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[sequtils, strutils, tables, hashes, options, sets, deques]
 import stew/results
@@ -36,8 +33,8 @@ when defined(libp2p_expensive_metrics):
 
 type
   PubSubObserver* = ref object
-    onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
-    onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [Defect].}
+    onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
+    onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
 
   PubSubPeerEventKind* {.pure.} = enum
     Connected
@@ -46,9 +43,9 @@ type
   PubSubPeerEvent* = object
     kind*: PubSubPeerEventKind
 
-  GetConn* = proc(): Future[Connection] {.gcsafe, raises: [Defect].}
-  DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [Defect].} # have to pass peer as it's unknown during init
-  OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [Defect].}
+  GetConn* = proc(): Future[Connection] {.gcsafe, raises: [].}
+  DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [].} # have to pass peer as it's unknown during init
+  OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
@@ -69,7 +66,7 @@ type
     behaviourPenalty*: float64 # the eventual penalty score
 
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
 when defined(libp2p_agents_metrics):
   func shortAgent*(p: PubSubPeer): string =
@@ -235,7 +232,7 @@ template sendMetrics(msg: RPCMsg): untyped =
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   if msg.len <= 0:
@@ -268,7 +265,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [Defect], async.} =
 
     await conn.close() # This will clean up the send connection
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [Defect].} =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
 
   # When sending messages, we take care to re-encode them with the right

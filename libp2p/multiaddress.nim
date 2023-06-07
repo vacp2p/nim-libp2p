@@ -9,10 +9,7 @@
 
 ## This module implements MultiAddress.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 {.push public.}
 
 import pkg/chronos, chronicles
@@ -775,7 +772,7 @@ proc toString*(value: MultiAddress): MaResult[string] =
     res = "/" & parts.join("/")
   ok(res)
 
-proc `$`*(value: MultiAddress): string {.raises: [Defect].} =
+proc `$`*(value: MultiAddress): string =
   ## Return string representation of MultiAddress ``value``.
   let s = value.toString()
   if s.isErr: s.error
@@ -1025,7 +1022,7 @@ proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
     ok()
 
 proc `&`*(m1, m2: MultiAddress): MultiAddress {.
-     raises: [Defect, LPError].} =
+     raises: [LPError].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
   ##
   ## This procedure performs validation of concatenated result and can raise
@@ -1035,7 +1032,7 @@ proc `&`*(m1, m2: MultiAddress): MultiAddress {.
   concat(m1, m2).tryGet()
 
 proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.
-     raises: [Defect, LPError].} =
+     raises: [LPError].} =
   ## Concatenates two addresses ``m1`` and ``m2``.
   ##
   ## This procedure performs validation of concatenated result and can raise

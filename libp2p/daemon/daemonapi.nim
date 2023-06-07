@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 ## This module implementes API for `go-libp2p-daemon`.
 import std/[os, osproc, strutils, tables, strtabs, sequtils]
@@ -153,10 +150,10 @@ type
     key*: PublicKey
 
   P2PStreamCallback* = proc(api: DaemonAPI,
-                            stream: P2PStream): Future[void] {.gcsafe, raises: [Defect, CatchableError].}
+                            stream: P2PStream): Future[void] {.gcsafe, raises: [CatchableError].}
   P2PPubSubCallback* = proc(api: DaemonAPI,
                             ticket: PubsubTicket,
-                            message: PubSubMessage): Future[bool] {.gcsafe, raises: [Defect, CatchableError].}
+                            message: PubSubMessage): Future[bool] {.gcsafe, raises: [CatchableError].}
 
   DaemonError* = object of LPError
   DaemonRemoteError* = object of DaemonError
@@ -474,7 +471,7 @@ proc checkResponse(pb: ProtoBuffer): ResponseKind {.inline.} =
     else:
       result = ResponseKind.Error
 
-proc getErrorMessage(pb: ProtoBuffer): string {.inline, raises: [Defect, DaemonLocalError].} =
+proc getErrorMessage(pb: ProtoBuffer): string {.inline, raises: [DaemonLocalError].} =
   var error: seq[byte]
   if pb.getRequiredField(ResponseType.ERROR.int, error).isOk():
     if initProtoBuffer(error).getRequiredField(1, result).isErr():
@@ -504,7 +501,7 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
   result = buffer
 
 proc newConnection*(api: DaemonAPI): Future[StreamTransport]
-  {.raises: [Defect, LPError].} =
+  {.raises: [LPError].} =
   result = connect(api.address)
 
 proc closeConnection*(api: DaemonAPI, transp: StreamTransport): Future[void] =
@@ -515,7 +512,7 @@ proc socketExists(address: MultiAddress): Future[bool] {.async.} =
     var transp = await connect(address)
     await transp.closeWait()
     result = true
-  except CatchableError, Defect:
+  except CatchableError:
     result = false
 
 when defined(windows):
@@ -837,7 +834,7 @@ proc transactMessage(transp: StreamTransport,
   result = initProtoBuffer(message)
 
 proc getPeerInfo(pb: ProtoBuffer): PeerInfo
-  {.raises: [Defect, DaemonLocalError].} =
+  {.raises: [DaemonLocalError].} =
   ## Get PeerInfo object from ``pb``.
   result.addresses = newSeq[MultiAddress]()
   if pb.getRequiredField(1, result.peer).isErr():
@@ -868,7 +865,7 @@ proc connect*(api: DaemonAPI, peer: PeerId,
                                                          timeout))
     pb.withMessage() do:
       discard
-  except CatchableError, Defect:
+  except CatchableError:
     await api.closeConnection(transp)
 
 proc disconnect*(api: DaemonAPI, peer: PeerId) {.async.} =
@@ -928,7 +925,7 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
       asyncSpawn handler(api, stream)
 
 proc addHandler*(api: DaemonAPI, protocols: seq[string],
-                 handler: P2PStreamCallback) {.async, raises: [Defect, LPError].} =
+                 handler: P2PStreamCallback) {.async, raises: [LPError].} =
   ## Add stream handler ``handler`` for set of protocols ``protocols``.
   var transp = await api.newConnection()
   let maddress = await getSocket(api.pattern, addr api.ucounter)
@@ -998,7 +995,7 @@ proc cmTrimPeers*(api: DaemonAPI) {.async.} =
     await api.closeConnection(transp)
 
 proc dhtGetSinglePeerInfo(pb: ProtoBuffer): PeerInfo
-  {.raises: [Defect, DaemonLocalError].} =
+  {.raises: [DaemonLocalError].} =
   var res: seq[byte]
   if pb.getRequiredField(2, res).isOk():
     result = initProtoBuffer(res).getPeerInfo()
@@ -1006,23 +1003,23 @@ proc dhtGetSinglePeerInfo(pb: ProtoBuffer): PeerInfo
     raise newException(DaemonLocalError, "Missing required field `peer`!")
 
 proc dhtGetSingleValue(pb: ProtoBuffer): seq[byte]
-  {.raises: [Defect, DaemonLocalError].} =
+  {.raises: [DaemonLocalError].} =
   result = newSeq[byte]()
   if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
 proc dhtGetSinglePublicKey(pb: ProtoBuffer): PublicKey
-  {.raises: [Defect, DaemonLocalError].} =
+  {.raises: [DaemonLocalError].} =
   if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
 proc dhtGetSinglePeerId(pb: ProtoBuffer): PeerId
-  {.raises: [Defect, DaemonLocalError].} =
+  {.raises: [DaemonLocalError].} =
   if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
 proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): ProtoBuffer
-  {.inline, raises: [Defect, DaemonLocalError].} =
+  {.inline, raises: [DaemonLocalError].} =
   var dhtResponse: seq[byte]
   if pb.getRequiredField(ResponseType.DHT.int, dhtResponse).isOk():
     var pbDhtResponse = initProtoBuffer(dhtResponse)
@@ -1041,7 +1038,7 @@ proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): ProtoBuffer
     raise newException(DaemonLocalError, "Wrong message type!")
 
 proc enterPsMessage(pb: ProtoBuffer): ProtoBuffer
-  {.inline, raises: [Defect, DaemonLocalError].} =
+  {.inline, raises: [DaemonLocalError].} =
   var res: seq[byte]
   if pb.getRequiredField(ResponseType.PUBSUB.int, res).isErr():
     raise newException(DaemonLocalError, "Wrong message type!")
@@ -1049,7 +1046,7 @@ proc enterPsMessage(pb: ProtoBuffer): ProtoBuffer
   initProtoBuffer(res)
 
 proc getDhtMessageType(pb: ProtoBuffer): DHTResponseType
-  {.inline, raises: [Defect, DaemonLocalError].} =
+  {.inline, raises: [DaemonLocalError].} =
   var dtype: uint
   if pb.getRequiredField(1, dtype).isErr():
     raise newException(DaemonLocalError, "Missing required DHT field `type`!")

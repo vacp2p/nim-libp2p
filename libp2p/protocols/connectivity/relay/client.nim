@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import times, options
 
@@ -39,7 +36,7 @@ type
   RelayV2DialError* = object of RelayClientError
   RelayClientAddConn* = proc(conn: Connection,
                         duration: uint32,
-                        data: uint64): Future[void] {.gcsafe, raises: [Defect].}
+                        data: uint64): Future[void] {.gcsafe, raises: [].}
   RelayClient* = ref object of Relay
     onNewConnection*: RelayClientAddConn
     canHop: bool

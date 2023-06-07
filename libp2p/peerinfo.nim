@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 {.push public.}
 
 import std/[options, sequtils]
@@ -26,7 +23,7 @@ type
 
   AddressMapper* =
     proc(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]]
-      {.gcsafe, raises: [Defect].}
+      {.gcsafe, raises: [].}
 
   PeerInfo* {.public.} = ref object
     peerId*: PeerId
@@ -97,7 +94,7 @@ proc new*(
   agentVersion: string = "",
   addressMappers = newSeq[AddressMapper](),
   ): PeerInfo
-  {.raises: [Defect, LPError].} =
+  {.raises: [LPError].} =
 
   let pubkey = try:
       key.getPublicKey().tryGet()

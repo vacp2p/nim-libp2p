@@ -8,10 +8,7 @@
 # those terms.
 
 ## This module implements Public Key and Private Key interface for libp2p.
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
 
@@ -1002,27 +999,27 @@ proc decodeExchange*(message: seq[byte],
 ## Serialization/Deserialization helpers
 
 proc write*(vb: var VBuffer, pubkey: PublicKey) {.
-     inline, raises: [Defect, ResultError[CryptoError]].} =
+     inline, raises: [ResultError[CryptoError]].} =
   ## Write PublicKey value ``pubkey`` to buffer ``vb``.
   vb.writeSeq(pubkey.getBytes().tryGet())
 
 proc write*(vb: var VBuffer, seckey: PrivateKey) {.
-     inline, raises: [Defect, ResultError[CryptoError]].} =
+     inline, raises: [ResultError[CryptoError]].} =
   ## Write PrivateKey value ``seckey`` to buffer ``vb``.
   vb.writeSeq(seckey.getBytes().tryGet())
 
 proc write*(vb: var VBuffer, sig: PrivateKey) {.
-     inline, raises: [Defect, ResultError[CryptoError]].} =
+     inline, raises: [ResultError[CryptoError]].} =
   ## Write Signature value ``sig`` to buffer ``vb``.
   vb.writeSeq(sig.getBytes().tryGet())
 
 proc write*[T: PublicKey|PrivateKey](pb: var ProtoBuffer, field: int,
                                      key: T) {.
-     inline, raises: [Defect, ResultError[CryptoError]].} =
+     inline, raises: [ResultError[CryptoError]].} =
   write(pb, field, key.getBytes().tryGet())
 
 proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.
-     inline, raises: [Defect].} =
+     inline, raises: [].} =
   write(pb, field, sig.getBytes())
 
 proc getField*[T: PublicKey|PrivateKey](pb: ProtoBuffer, field: int,

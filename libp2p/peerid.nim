@@ -9,10 +9,7 @@
 
 ## This module implementes API for libp2p peer.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 {.push public.}
 
 import
@@ -44,10 +41,7 @@ func shortLog*(pid: PeerId): string =
   if len(spid) > 10:
     spid[3] = '*'
 
-    when (NimMajor, NimMinor) > (1, 4):
-      spid.delete(4 .. spid.high - 6)
-    else:
-      spid.delete(4, spid.high - 6)
+    spid.delete(4 .. spid.high - 6)
 
   spid
 

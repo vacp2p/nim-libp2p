@@ -9,10 +9,7 @@
 
 ## `Ping <https://docs.libp2p.io/concepts/protocols/#ping>`_ protocol implementation
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos, chronicles
 import bearssl/rand
@@ -42,7 +39,7 @@ type
   PingHandler* {.public.} = proc (
     peer: PeerId):
     Future[void]
-    {.gcsafe, raises: [Defect].}
+    {.gcsafe, raises: [].}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler

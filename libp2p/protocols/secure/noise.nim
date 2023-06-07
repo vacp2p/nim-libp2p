@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/strformat
 import chronos
@@ -136,7 +133,7 @@ proc encrypt(
     state: var CipherState,
     data: var openArray[byte],
     ad: openArray[byte]): ChaChaPolyTag
-    {.noinit, raises: [Defect, NoiseNonceMaxError].} =
+    {.noinit, raises: [NoiseNonceMaxError].} =
 
   var nonce: ChaChaPolyNonce
   nonce[4..<12] = toBytesLE(state.n)
@@ -148,7 +145,7 @@ proc encrypt(
     raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
 
 proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
-  {.raises: [Defect, NoiseNonceMaxError].} =
+  {.raises: [NoiseNonceMaxError].} =
   result = newSeqOfCap[byte](data.len + sizeof(ChaChaPolyTag))
   result.add(data)
 
@@ -160,7 +157,7 @@ proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
     tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
 
 proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
-  {.raises: [Defect, NoiseDecryptTagError, NoiseNonceMaxError].} =
+  {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
   var
     tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
     tagOut: ChaChaPolyTag
@@ -209,7 +206,7 @@ proc mixKeyAndHash(ss: var SymmetricState, ikm: openArray[byte]) {.used.} =
   ss.cs = CipherState(k: temp_keys[2])
 
 proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
-  {.raises: [Defect, NoiseNonceMaxError].} =
+  {.raises: [NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey:
     result = ss.cs.encryptWithAd(ss.h.data, data)
@@ -218,7 +215,7 @@ proc encryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
   ss.mixHash(result)
 
 proc decryptAndHash(ss: var SymmetricState, data: openArray[byte]): seq[byte]
-  {.raises: [Defect, NoiseDecryptTagError, NoiseNonceMaxError].} =
+  {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
   if ss.cs.hasKey and data.len > ChaChaPolyTag.len:
     result = ss.cs.decryptWithAd(ss.h.data, data)
@@ -448,7 +445,7 @@ proc encryptFrame(
     sconn: NoiseConnection,
     cipherFrame: var openArray[byte],
     src: openArray[byte])
-    {.raises: [Defect, NoiseNonceMaxError].} =
+    {.raises: [NoiseNonceMaxError].} =
   # Frame consists of length + cipher data + tag
   doAssert src.len <= MaxPlainSize
   doAssert cipherFrame.len == 2 + src.len + sizeof(ChaChaPolyTag)
