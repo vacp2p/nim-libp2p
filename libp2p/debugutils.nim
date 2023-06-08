@@ -25,7 +25,7 @@
 ##   5. LocalAddress: optional bytes
 ##   6. RemoteAddress: optional bytes
 ##   7. Message: required bytes
-import os, options
+import os
 import nimcrypto/utils, stew/endians2
 import protobuf/minprotobuf, stream/connection, protocols/secure/secure,
        multiaddress, peerid, varint, muxers/mplex/coder
@@ -33,7 +33,7 @@ import protobuf/minprotobuf, stream/connection, protocols/secure/secure,
 from times import getTime, toUnix, fromUnix, nanosecond, format, Time,
                   NanosecondRange, initTime
 from strutils import toHex, repeat
-export peerid, options, multiaddress
+export peerid, multiaddress
 
 type
   FlowDirection* = enum

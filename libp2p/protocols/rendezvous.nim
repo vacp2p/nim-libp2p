@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import tables, sequtils, sugar, sets, options
+import tables, sequtils, sugar, sets
 import chronos,
        chronicles,
        bearssl/rand,

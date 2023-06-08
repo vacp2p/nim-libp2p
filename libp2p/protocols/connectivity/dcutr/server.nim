@@ -9,8 +9,7 @@
 
 {.push raises: [].}
 
-import std/[options, sets, sequtils]
-
+import std/[sets, sequtils]
 import stew/[results, objects]
 import chronos, chronicles
 

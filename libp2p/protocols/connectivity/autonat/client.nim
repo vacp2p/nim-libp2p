@@ -9,7 +9,6 @@
 
 {.push raises: [].}
 
-import std/options
 import stew/results
 import chronos, chronicles
 import ../../../switch,

@@ -9,10 +9,8 @@
 
 {.push raises: [].}
 
-import times, options
-
+import times
 import chronos, chronicles
-
 import ./relay,
        ./messages,
        ./rconn,
@@ -21,8 +19,6 @@ import ./relay,
        ../../../switch,
        ../../../multiaddress,
        ../../../stream/connection
-
-export options
 
 logScope:
   topics = "libp2p relay relay-client"

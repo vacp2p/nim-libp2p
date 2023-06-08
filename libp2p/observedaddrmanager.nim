@@ -9,10 +9,9 @@
 
 {.push raises: [].}
 
-import
-  std/[sequtils, tables, sugar],
-  chronos, chronicles,
-  multiaddress, multicodec
+import std/[sequtils, tables, sugar]
+import chronos
+import multiaddress, multicodec
 
 type
   ## Manages observed MultiAddresses by reomte peers. It keeps track of the most observed IP and IP/Port.

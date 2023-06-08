@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[options, deques, sequtils]
+import std/[deques, sequtils]
 import chronos, metrics
 import ../../../switch
 import ../../../wire
@@ -18,7 +18,7 @@ from core import NetworkReachability, AutonatUnreachableError
 import ../../../utils/heartbeat
 import ../../../crypto/crypto
 
-export options, core.NetworkReachability
+export core.NetworkReachability
 
 logScope:
   topics = "libp2p autonatservice"
@@ -31,12 +31,12 @@ type
     addressMapper: AddressMapper
     scheduleHandle: Future[void]
     networkReachability*: NetworkReachability
-    confidence: Option[float]
+    confidence: Opt[float]
     answers: Deque[NetworkReachability]
     autonatClient: AutonatClient
     statusAndConfidenceHandler: StatusAndConfidenceHandler
     rng: ref HmacDrbgContext
-    scheduleInterval: Option[Duration]
+    scheduleInterval: Opt[Duration]
     askNewConnectedPeers: bool
     numPeersToAsk: int
     maxQueueSize: int
@@ -44,13 +44,13 @@ type
     dialTimeout: Duration
     enableAddressMapper: bool
 
-  StatusAndConfidenceHandler* = proc (networkReachability: NetworkReachability, confidence: Option[float]): Future[void]  {.gcsafe, raises: [].}
+  StatusAndConfidenceHandler* = proc (networkReachability: NetworkReachability, confidence: Opt[float]): Future[void]  {.gcsafe, raises: [].}
 
 proc new*(
   T: typedesc[AutonatService],
   autonatClient: AutonatClient,
   rng: ref HmacDrbgContext,
-  scheduleInterval: Option[Duration] = none(Duration),
+  scheduleInterval: Opt[Duration] = Opt.none(Duration),
   askNewConnectedPeers = true,
   numPeersToAsk: int = 5,
   maxQueueSize: int = 10,
@@ -60,7 +60,7 @@ proc new*(
   return T(
     scheduleInterval: scheduleInterval,
     networkReachability: Unknown,
-    confidence: none(float),
+    confidence: Opt.none(float),
     answers: initDeque[NetworkReachability](),
     autonatClient: autonatClient,
     rng: rng,
@@ -92,14 +92,14 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
   self.answers.addLast(ans)
 
   self.networkReachability = Unknown
-  self.confidence = none(float)
+  self.confidence = Opt.none(float)
   const reachabilityPriority = [Reachable, NotReachable]
   for reachability in reachabilityPriority:
     let confidence = self.answers.countIt(it == reachability) / self.maxQueueSize
     libp2p_autonat_reachability_confidence.set(value = confidence, labelValues = [$reachability])
     if self.confidence.isNone and confidence >= self.minConfidence:
       self.networkReachability = reachability
-      self.confidence = some(confidence)
+      self.confidence = Opt.some(confidence)
 
   debug "Current status", currentStats = $self.networkReachability, confidence = $self.confidence, answers = self.answers
 

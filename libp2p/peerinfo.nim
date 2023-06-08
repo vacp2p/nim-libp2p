@@ -10,7 +10,7 @@
 {.push raises: [].}
 {.push public.}
 
-import std/[options, sequtils]
+import std/sequtils
 import pkg/[chronos, chronicles, stew/results]
 import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 

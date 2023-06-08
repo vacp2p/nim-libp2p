@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[tables, sets, options]
+import std/[tables, sets]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]

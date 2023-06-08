@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import options, macros
+import macros
 import stew/[objects, results]
 import ../../../peerinfo,
        ../../../signed_envelope
@@ -167,7 +167,7 @@ type
   Reservation* = object
     expire*: uint64              # required, Unix expiration time (UTC)
     addrs*: seq[MultiAddress]    # relay address for reserving peer
-    svoucher*: Opt[seq[byte]] # optional, reservation voucher
+    svoucher*: Opt[seq[byte]]    # optional, reservation voucher
   Limit* = object
     duration*: uint32            # seconds
     data*: uint64                # bytes

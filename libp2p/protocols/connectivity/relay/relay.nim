@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import options, sequtils, tables
+import sequtils, tables
 
 import chronos, chronicles
 

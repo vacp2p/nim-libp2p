@@ -9,10 +9,7 @@
 
 {.push raises: [].}
 
-import options
-
 import chronos, chronicles
-
 import ./messages,
        ../../../stream/connection
 
