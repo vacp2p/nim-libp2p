@@ -663,7 +663,7 @@ suite "GossipSub":
       for _ in 0..10:
         if (await nodes[0].publish("foobar", "Hello!".toBytes())) == 19:
           break setup
-        await sleepAsync(1.milliseconds)
+        await sleepAsync(10.milliseconds)
       check false
 
     check (await nodes[0].publish("foobar", newSeq[byte](1_000_000))) == 17
