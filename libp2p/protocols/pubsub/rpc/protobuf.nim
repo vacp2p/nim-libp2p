@@ -331,6 +331,6 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   assign(rpcMsg.get().messages, ? pb.decodeMessages())
   assign(rpcMsg.get().subscriptions, ? pb.decodeSubscriptions())
   assign(rpcMsg.get().control, ? pb.decodeControl())
-  discard ? pb.getField(60, rpcMsg.ping)
-  discard ? pb.getField(61, rpcMsg.pong)
+  discard ? pb.getField(60, rpcMsg.get().ping)
+  discard ? pb.getField(61, rpcMsg.get().pong)
   rpcMsg
