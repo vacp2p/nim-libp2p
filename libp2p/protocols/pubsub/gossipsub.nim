@@ -488,19 +488,27 @@ method publish*(g: GossipSub,
 
   var peers: HashSet[PubSubPeer]
 
-  if g.parameters.floodPublish:
-    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
-    # but a peer's own messages will always be published to all known peers in the topic.
-    for peer in g.gossipsub.getOrDefault(topic):
-      if peer.score >= g.parameters.publishThreshold:
-        trace "publish: including flood/high score peer", peer
-        peers.incl(peer)
-
   # add always direct peers
   peers.incl(g.explicit.getOrDefault(topic))
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
+
+  if g.parameters.floodPublish:
+    let
+      msgSize = data.len
+      bandwidth = 25_000_000 #TODO replace with bandwidth estimate
+      msToTransmit = max(msgSize div (bandwidth div 1000), 1)
+      maxFloodPublish =
+        (g.parameters.heartbeatInterval.milliseconds div msToTransmit)
+    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
+    # but a peer's own messages will always be published to all known peers in the topic, limited
+    # to the amount of peers we can send it to in one heartbeat
+    for peer in g.gossipsub.getOrDefault(topic):
+      if peers.len >= maxFloodPublish: break
+      if peer.score >= g.parameters.publishThreshold:
+        trace "publish: including flood/high score peer", peer
+        peers.incl(peer)
 
   if peers.len < g.parameters.dLow and g.parameters.floodPublish == false:
     # not subscribed or bad mesh, send to fanout peers

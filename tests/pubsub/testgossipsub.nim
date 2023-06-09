@@ -637,6 +637,47 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "e2e - GossipSub floodPublish limit":
+    var passed: Future[bool] = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+
+    let
+      nodes = generateNodes(
+        20,
+        gossip = true)
+
+    await allFuturesThrowing(
+      nodes.mapIt(it.switch.start())
+    )
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    gossip1.parameters.floodPublish = true
+    gossip1.parameters.heartbeatInterval = milliseconds(700)
+
+    for node in nodes[1..^1]:
+      node.subscribe("foobar", handler)
+      await node.switch.connect(nodes[0].peerInfo.peerId, nodes[0].peerInfo.addrs)
+
+    block setup:
+      for _ in 0..10:
+        if (await nodes[0].publish("foobar", "Hello!".toBytes())) == 19:
+          break setup
+        await sleepAsync(1.milliseconds)
+      check false
+
+    check (await nodes[0].publish("foobar", newSeq[byte](1_000_000))) == 17
+
+    # Now try with a mesh
+    gossip1.subscribe("foobar", handler)
+    checkExpiring: gossip1.mesh.peers("foobar") > 5
+
+    check (await nodes[0].publish("foobar", newSeq[byte](1_000_000))) == 17
+
+    await allFuturesThrowing(
+      nodes.mapIt(it.switch.stop())
+    )
+
   asyncTest "e2e - GossipSub with multiple peers":
     var runs = 10
 
