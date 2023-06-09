@@ -218,8 +218,5 @@ proc isPublicMA*(ma: MultiAddress): bool =
   if DNS.matchPartial(ma):
     return true
 
-  let hostIP = initTAddress(ma)
-  if hostIP.isOk() and hostIP.get().isGlobal():
-    return true
-
-  return false
+  let hostIP = initTAddress(ma).valueOr: return false
+  return hostIP.isGlobal()
