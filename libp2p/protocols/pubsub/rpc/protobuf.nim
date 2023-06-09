@@ -316,6 +316,10 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
     pb.write(2, item, anonymize)
   if msg.control.isSome():
     pb.write(3, msg.control.get())
+  if msg.ping.len > 0:
+    pb.write(60, msg.ping)
+  if msg.pong.len > 0:
+    pb.write(61, msg.pong)
   if len(pb.buffer) > 0:
     pb.finish()
   pb.buffer
@@ -327,4 +331,6 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   assign(rpcMsg.get().messages, ? pb.decodeMessages())
   assign(rpcMsg.get().subscriptions, ? pb.decodeSubscriptions())
   assign(rpcMsg.get().control, ? pb.decodeControl())
+  discard ? pb.getField(60, rpcMsg.ping)
+  discard ? pb.getField(61, rpcMsg.pong)
   rpcMsg

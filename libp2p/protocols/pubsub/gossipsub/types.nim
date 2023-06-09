@@ -45,6 +45,7 @@ const
 
 const
   BackoffSlackTime* = 2 # seconds
+  PingsPeerBudget* = 1000 # maximum 10kbit/s
   IHavePeerBudget* = 10
   # the max amount of IHave to expose, not by spec, but go as example
   # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572
