@@ -18,16 +18,15 @@ import ./helpers
 import ./stubs/switchstub
 import ../libp2p/[builders,
                   switch,
+                  wire,
                   services/hpservice,
                   services/autorelayservice]
 import ../libp2p/protocols/connectivity/relay/[relay, client]
 import ../libp2p/protocols/connectivity/autonat/[service]
-import ../libp2p/nameresolving/nameresolver
-import ../libp2p/nameresolving/mockresolver
-
+import ../libp2p/nameresolving/[nameresolver, mockresolver]
 import stubs/autonatclientstub
 
-proc isPublicAddrIPAddrMock(ta: TransportAddress): bool =
+proc isPublicAddrIPAddrMock(ma: MultiAddress): bool =
   return true
 
 proc createSwitch(r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil): Switch {.raises: [LPError].} =
@@ -80,7 +79,7 @@ suite "Hole Punching":
     let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
+    await allFuturesThrowing(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
@@ -126,7 +125,7 @@ suite "Hole Punching":
     let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
+    await allFuturesThrowing(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
@@ -178,7 +177,7 @@ suite "Hole Punching":
 
     var awaiter = newFuture[void]()
 
-    await allFutures(
+    await allFuturesThrowing(
       switchRelay.start(), privatePeerSwitch1.start(), privatePeerSwitch2.start(),
       switchAux.start(), switchAux2.start(), switchAux3.start(), switchAux4.start()
     )
@@ -206,7 +205,7 @@ suite "Hole Punching":
       switchAux.stop(), switchAux2.stop(), switchAux3.stop(), switchAux4.stop())
 
   asyncTest "Hole punching when peers addresses are private":
-    await holePunchingTest(nil, isGlobal, NotReachable)
+    await holePunchingTest(nil, isPublicMA, NotReachable)
 
   asyncTest "Hole punching when there is an error during unilateral direct connection":
 

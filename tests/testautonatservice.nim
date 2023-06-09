@@ -16,10 +16,11 @@ import ../libp2p/[builders,
                   switch,
                   protocols/connectivity/autonat/client,
                   protocols/connectivity/autonat/service]
+import ../libp2p/nameresolving/[nameresolver, mockresolver]
 import ./helpers
 import stubs/autonatclientstub
 
-proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer = 1, maxConns = 100): Switch =
+proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer = 1, maxConns = 100, nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
@@ -34,6 +35,9 @@ proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer
 
   if autonatSvc != nil:
     builder = builder.withServices(@[autonatSvc])
+
+  if nameResolver != nil:
+    builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
 
@@ -256,8 +260,17 @@ suite "Autonat Service":
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 1)
 
+    let resolver = MockResolver.new()
+    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+    resolver.ipResponses[("localhost", true)] = @["::1"]
+
     let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)
-    let switch2 = createSwitch(maxConnsPerPeer = 0)
+    let switch2 = createSwitch(maxConnsPerPeer = 0, nameResolver = resolver)
+
+    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+        return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
+    switch1.peerInfo.addressMappers.add(addressMapper)
+    await switch1.peerInfo.update()
 
     let awaiter = newFuture[void]()
 
