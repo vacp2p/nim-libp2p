@@ -40,6 +40,7 @@ type
     flags: set[ServerFlags]
     clientFlags: set[SocketFlags]
     acceptFuts: seq[Future[StreamTransport]]
+    connectionsTimeout: Duration
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -94,7 +95,8 @@ proc connHandler*(self: TcpTransport,
     ChronosStream.init(
       client = client,
       dir = dir,
-      observedAddr = observedAddr
+      observedAddr = observedAddr,
+      timeout = self.connectionsTimeout
     ))
 
   proc onClose() {.async.} =
@@ -126,7 +128,8 @@ proc connHandler*(self: TcpTransport,
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T {.public.} =
+  upgrade: Upgrade,
+  connectionsTimeout = 10.minutes): T {.public.} =
 
   let
     transport = T(
@@ -141,7 +144,8 @@ proc new*(
         else:
           default(set[SocketFlags]),
       upgrader: upgrade,
-      networkReachability: NetworkReachability.Unknown)
+      networkReachability: NetworkReachability.Unknown,
+      connectionsTimeout: connectionsTimeout)
 
   return transport
 

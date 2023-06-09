@@ -10,6 +10,7 @@
 {.push raises: [].}
 
 import tables, sequtils, sugar, sets
+import metrics except collect
 import chronos,
        chronicles,
        bearssl/rand,
@@ -26,6 +27,11 @@ export chronicles
 
 logScope:
   topics = "libp2p discovery rendezvous"
+
+declareCounter(libp2p_rendezvous_register, "number of advertise requests")
+declareCounter(libp2p_rendezvous_discover, "number of discovery requests")
+declareGauge(libp2p_rendezvous_registered, "number of registered peers")
+declareGauge(libp2p_rendezvous_namespaces, "number of registered namespaces")
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
@@ -375,6 +381,7 @@ proc save(rdv: RendezVous,
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   trace "Received Register", peerId = conn.peerId, ns = r.ns
+  libp2p_rendezvous_register.inc()
   if r.ns.len notin 1..255:
     return conn.sendRegisterResponseError(InvalidNamespace)
   let ttl = r.ttl.get(MinimumTTL)
@@ -386,6 +393,8 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
     return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
   rdv.save(r.ns, conn.peerId, r)
+  libp2p_rendezvous_registered.inc()
+  libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
   conn.sendRegisterResponse(ttl)
 
 proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
@@ -395,11 +404,13 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == conn.peerId:
         rdv.registered[index].expiration = rdv.defaultDT
+        libp2p_rendezvous_registered.dec()
   except KeyError:
     return
 
 proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
+  libp2p_rendezvous_discover.inc()
   if d.ns.len notin 0..255:
     await conn.sendDiscoverResponseError(InvalidNamespace)
     return
@@ -658,9 +669,13 @@ proc new*(T: typedesc[RendezVous],
 proc deletesRegister(rdv: RendezVous) {.async.} =
   heartbeat "Register timeout", 1.minutes:
     let n = Moment.now()
+    var total = 0
     rdv.registered.flushIfIt(it.expiration < n)
     for data in rdv.namespaces.mvalues():
       data.keepItIf(it >= rdv.registered.offset)
+      total += data.len
+    libp2p_rendezvous_registered.set(int64(total))
+    libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
 
 method start*(rdv: RendezVous) {.async.} =
   if not rdv.registerDeletionLoop.isNil:

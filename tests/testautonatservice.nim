@@ -407,7 +407,8 @@ suite "Autonat Service":
     # switch1 is now full, should stick to last observation
     awaiter = newFuture[void]()
     await autonatService.run(switch1)
-    await awaiter
+
+    await sleepAsync(200.millis)
 
     check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1

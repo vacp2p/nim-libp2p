@@ -82,10 +82,13 @@ proc hasEnoughIncomingSlots(switch: Switch): bool =
 proc doesPeerHaveIncomingConn(switch: Switch, peerId: PeerId): bool =
   return switch.connManager.selectMuxer(peerId, In) != nil
 
-proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
+proc handleAnswer(self: AutonatService, ans: NetworkReachability): Future[bool] {.async.} =
 
   if ans == Unknown:
     return
+
+  let oldNetworkReachability = self.networkReachability
+  let oldConfidence = self.confidence
 
   if self.answers.len == self.maxQueueSize:
     self.answers.popFirst()
@@ -102,6 +105,9 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability) {.async.} =
       self.confidence = Opt.some(confidence)
 
   debug "Current status", currentStats = $self.networkReachability, confidence = $self.confidence, answers = self.answers
+
+  # Return whether anything has changed
+  return self.networkReachability != oldNetworkReachability or self.confidence != oldConfidence
 
 proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
   logScope:
@@ -129,9 +135,9 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
     except CatchableError as error:
       debug "dialMe unexpected error", msg = error.msg
       Unknown
-  await self.handleAnswer(ans)
-  if not isNil(self.statusAndConfidenceHandler):
-    await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
+  let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
+  if hasReachabilityOrConfidenceChanged:
+    await self.callHandler()
   await switch.peerInfo.update()
   return ans
 
@@ -193,7 +199,6 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
   trace "Running AutonatService"
   await askConnectedPeers(self, switch)
-  await self.callHandler()
 
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
   info "Stopping AutonatService"
