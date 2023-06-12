@@ -660,8 +660,8 @@ suite "GossipSub":
       await node.switch.connect(nodes[0].peerInfo.peerId, nodes[0].peerInfo.addrs)
 
     block setup:
-      for _ in 0..500:
-        if (await nodes[0].publish("foobar", "Hello!".toBytes())) == 19:
+      for i in 0..<50:
+        if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == 19:
           break setup
         await sleepAsync(10.milliseconds)
       check false
@@ -672,7 +672,8 @@ suite "GossipSub":
     gossip1.subscribe("foobar", handler)
     checkExpiring: gossip1.mesh.peers("foobar") > 5
 
-    check (await nodes[0].publish("foobar", newSeq[byte](1_000_000))) == 17
+    # use a different length so that the message is not equal to the last
+    check (await nodes[0].publish("foobar", newSeq[byte](1_000_001))) == 17
 
     await allFuturesThrowing(
       nodes.mapIt(it.switch.stop())
