@@ -17,7 +17,16 @@ import ../../libp2p/[peerid, multiaddress, switch]
 type
   SwitchStub* = ref object of Switch
     switch*: Switch
-    connectStub*: proc(): Future[void] {.async.}
+    connectStub*: connectStubType
+    numStubToExecute*: int
+    numStubExecutions*: int
+
+  connectStubType* = proc (self: SwitchStub,
+                           peerId: PeerId,
+                           addrs: seq[MultiAddress],
+                           forceDial = false,
+                           reuseConnection = true,
+                           upgradeDir = Direction.Out): Future[void]  {.gcsafe, async.}
 
 method connect*(
  self: SwitchStub,
@@ -26,12 +35,15 @@ method connect*(
  forceDial = false,
  reuseConnection = true,
  upgradeDir = Direction.Out) {.async.} =
-  if (self.connectStub != nil):
-    await self.connectStub()
+  if (self.connectStub != nil) and self.numStubExecutions < self.numStubToExecute:
+    try:
+      await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, upgradeDir)
+    finally:
+      self.numStubExecutions = self.numStubExecutions + 1
   else:
     await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
 
-proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: proc (): Future[void] {.async.} = nil): T =
+proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil, numStubToExecute = 1): T =
   return SwitchStub(
     switch: switch,
     peerInfo: switch.peerInfo,
@@ -42,4 +54,6 @@ proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: proc (): Future[
     dialer: switch.dialer,
     nameResolver: switch.nameResolver,
     services: switch.services,
-    connectStub: connectStub)
+    connectStub: connectStub,
+    numStubToExecute: numStubToExecute,
+    numStubExecutions: 0)

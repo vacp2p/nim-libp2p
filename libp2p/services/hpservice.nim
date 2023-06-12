@@ -30,13 +30,9 @@ type
     onNewStatusHandler: StatusAndConfidenceHandler
     autoRelayService: AutoRelayService
     autonatService: AutonatService
-    isPublicIPAddrProc: IsPublicIPAddrProc
 
-  IsPublicIPAddrProc* = proc(ma: MultiAddress): bool {.gcsafe, raises: [].}
-
-proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService,
-          isPublicIPAddrProc: IsPublicIPAddrProc = isPublicMA): T =
-  return T(autonatService: autonatService, autoRelayService: autoRelayService, isPublicIPAddrProc: isPublicIPAddrProc)
+proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService): T =
+  return T(autonatService: autonatService, autoRelayService: autoRelayService)
 
 proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
   proc tryConnect(address: MultiAddress): Future[bool] {.async.} =
@@ -51,7 +47,7 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
       if isRelayed.isErr() or isRelayed.get():
         continue
-      if self.isPublicIPAddrProc(address):
+      if address.isPublicMA():
         return await tryConnect(address)
     except CatchableError as err:
       debug "Failed to create direct connection.", err = err.msg

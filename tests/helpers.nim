@@ -10,10 +10,11 @@ import ../libp2p/stream/lpstream
 import ../libp2p/stream/chronosstream
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
+import ../libp2p/switch
+import ../libp2p/nameresolving/[nameresolver, mockresolver]
 
 import ./asyncunit
-export asyncunit
-
+export asyncunit, mockresolver
 
 const
   StreamTransportTrackerName = "stream.transport"
@@ -138,3 +139,15 @@ proc unorderedCompare*[T](a, b: seq[T]): bool =
     return true
 
   return false
+
+proc default*(T: typedesc[MockResolver]): T =
+  let resolver = MockResolver.new()
+  resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
+  resolver.ipResponses[("localhost", true)] = @["::1"]
+  resolver
+
+proc setDNSAddr*(switch: Switch) {.gcsafe, async.} =
+  proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+      return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
+  switch.peerInfo.addressMappers.add(addressMapper)
+  await switch.peerInfo.update()
