@@ -17,17 +17,17 @@ jobs:
         with:
           submodules: true
 
-      - uses: jiro4989/setup-nim-action@v1
+      - name: Setup Nimble
+        uses: "./.github/actions/install_nimble"
         with:
-          nim-version: 'stable'
+          os: linux
+          cpu: amd64
 
       - name: Generate doc
         run: |
-          nim --version
-          nimble --version
-          nimble install_pinned
+          nimble install -y
           # nim doc can "fail", but the doc is still generated
-          nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
+          nimble --package:nim --lock-file=nimble-1-6.lock run compiler/nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 
           # check that the folder exists
           ls ${GITHUB_REF##*/}

@@ -1,0 +1,56 @@
+name: Install common
+description: Install common OS packages for the ci tasks
+inputs:
+  os:
+    description: "operating system"
+    default: "linux"
+  cpu:
+    description: "cpu architecture"
+    default: "amd64"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '~1.15.5'
+
+    - name: MSYS2 (Windows i386)
+      if: inputs.os == 'Windows' && inputs.cpu == 'i386'
+      uses: msys2/setup-msys2@v2
+      with:
+        path-type: inherit
+        msystem: MINGW32
+        install: >-
+          base-devel
+          git
+          mingw-w64-i686-toolchain
+
+    - name: MSYS2 (Windows amd64)
+      if: inputs.os == 'Windows' && inputs.cpu == 'amd64'
+      uses: msys2/setup-msys2@v2
+      with:
+        path-type: inherit
+        install: >-
+          base-devel
+          git
+          mingw-w64-x86_64-toolchain
+
+    - name: Install p2pd
+      shell: bash
+      run: |
+        V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+    - name: Configure git
+      shell: bash
+      run: |
+        git config --global core.eol lf
+        git config --global core.autocrlf false
+
+    - name: Restore nimble dependencies from cache
+      id: nimble_deps
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.nimble/pkgs2
+          ~/.nimble/packages_official.json
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-${{ env.cache_nonce }}

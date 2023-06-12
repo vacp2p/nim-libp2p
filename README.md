@@ -115,7 +115,7 @@ cd nim-libp2p
 # to use dependencies computed by nimble
 nimble install -dy
 # OR to install the dependencies versions used in CI
-nimble install_pinned
+nimble install --lock-file=nimble-1-6.lock
 ```
 
 Run unit tests:
