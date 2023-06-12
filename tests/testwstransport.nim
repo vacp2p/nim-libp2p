@@ -86,7 +86,9 @@ suite "WebSocket transport":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
     let transport1 = WsTransport.new(Upgrade(), TLSPrivateKey.init(SecureKey), TLSCertificate.init(SecureCert), {TLSFlags.NoVerifyHost})
 
+    const correctPattern = mapAnd(TCP, mapEq("wss"))
     await transport1.start(ma)
+    check correctPattern.match(transport1.addrs[0])
     proc acceptHandler() {.async, gcsafe.} =
       while true:
         let conn = await transport1.accept()
@@ -107,4 +109,22 @@ suite "WebSocket transport":
       check true
 
     await handlerWait.cancelAndWait()
+    await transport1.stop()
+
+  asyncTest "handles tls/ws":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+    let transport1 = wsSecureTranspProvider()
+    const correctPattern = mapAnd(TCP, mapEq("tls"), mapEq("ws"))
+    await transport1.start(ma)
+    check transport1.handles(transport1.addrs[0])
+    check correctPattern.match(transport1.addrs[0])
+
+    # Would raise somewhere if this wasn't handled:
+    let
+      inboundConn = transport1.accept()
+      outboundConn = await transport1.dial(transport1.addrs[0])
+      closing = outboundConn.close()
+    await (await inboundConn).close()
+    await closing
+
     await transport1.stop()
