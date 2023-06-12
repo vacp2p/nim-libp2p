@@ -417,6 +417,9 @@ const
       mcodec: multiCodec("wss"), kind: Marker, size: 0
     ),
     MAProtocol(
+      mcodec: multiCodec("tls"), kind: Marker, size: 0
+    ),
+    MAProtocol(
       mcodec: multiCodec("ipfs"), kind: Length, size: 0,
       coder: TranscoderP2P
     ),
@@ -468,7 +471,7 @@ const
   IP* = mapOr(IP4, IP6)
   DNS_OR_IP* = mapOr(DNS, IP)
   TCP_DNS* = mapAnd(DNS, mapEq("tcp"))
-  TCP_IP* =mapAnd(IP, mapEq("tcp"))
+  TCP_IP* = mapAnd(IP, mapEq("tcp"))
   TCP* = mapOr(TCP_DNS, TCP_IP)
   UDP_DNS* = mapAnd(DNS, mapEq("udp"))
   UDP_IP* = mapAnd(IP, mapEq("udp"))
@@ -479,9 +482,10 @@ const
   WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
   WS_IP* = mapAnd(TCP_IP, mapEq("ws"))
   WS* = mapAnd(TCP, mapEq("ws"))
-  WSS_DNS* = mapAnd(TCP_DNS, mapEq("wss"))
-  WSS_IP* = mapAnd(TCP_IP, mapEq("wss"))
-  WSS* = mapAnd(TCP, mapEq("wss"))
+  TLS_WS* = mapOr(mapEq("wss"), mapAnd(mapEq("tls"), mapEq("ws")))
+  WSS_DNS* = mapAnd(TCP_DNS, TLS_WS)
+  WSS_IP* = mapAnd(TCP_IP, TLS_WS)
+  WSS* = mapAnd(TCP, TLS_WS)
   WebSockets_DNS* = mapOr(WS_DNS, WSS_DNS)
   WebSockets_IP* = mapOr(WS_IP, WSS_IP)
   WebSockets* = mapOr(WS, WSS)
