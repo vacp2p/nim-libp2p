@@ -660,7 +660,7 @@ suite "GossipSub":
       await node.switch.connect(nodes[0].peerInfo.peerId, nodes[0].peerInfo.addrs)
 
     block setup:
-      for _ in 0..10:
+      for _ in 0..500:
         if (await nodes[0].publish("foobar", "Hello!".toBytes())) == 19:
           break setup
         await sleepAsync(10.milliseconds)
