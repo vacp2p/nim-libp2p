@@ -260,17 +260,10 @@ suite "Autonat Service":
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 1)
 
-    let resolver = MockResolver.new()
-    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
-    resolver.ipResponses[("localhost", true)] = @["::1"]
-
     let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)
-    let switch2 = createSwitch(maxConnsPerPeer = 0, nameResolver = resolver)
+    await switch1.setDNSAddr()
 
-    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
-        return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
-    switch1.peerInfo.addressMappers.add(addressMapper)
-    await switch1.peerInfo.update()
+    let switch2 = createSwitch(maxConnsPerPeer = 0, nameResolver = MockResolver.default())
 
     let awaiter = newFuture[void]()
 
