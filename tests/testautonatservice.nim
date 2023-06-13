@@ -16,10 +16,11 @@ import ../libp2p/[builders,
                   switch,
                   protocols/connectivity/autonat/client,
                   protocols/connectivity/autonat/service]
+import ../libp2p/nameresolving/[nameresolver, mockresolver]
 import ./helpers
 import stubs/autonatclientstub
 
-proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer = 1, maxConns = 100): Switch =
+proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer = 1, maxConns = 100, nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
@@ -34,6 +35,9 @@ proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer
 
   if autonatSvc != nil:
     builder = builder.withServices(@[autonatSvc])
+
+  if nameResolver != nil:
+    builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
 
@@ -257,7 +261,9 @@ suite "Autonat Service":
     let autonatService = AutonatService.new(AutonatClient.new(), newRng(), some(1.seconds), maxQueueSize = 1)
 
     let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)
-    let switch2 = createSwitch(maxConnsPerPeer = 0)
+    await switch1.setDNSAddr()
+
+    let switch2 = createSwitch(maxConnsPerPeer = 0, nameResolver = MockResolver.default())
 
     let awaiter = newFuture[void]()
 

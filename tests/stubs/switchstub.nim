@@ -17,7 +17,14 @@ import ../../libp2p/[peerid, multiaddress, switch]
 type
   SwitchStub* = ref object of Switch
     switch*: Switch
-    connectStub*: proc(): Future[void] {.async.}
+    connectStub*: connectStubType
+
+  connectStubType* = proc (self: SwitchStub,
+                           peerId: PeerId,
+                           addrs: seq[MultiAddress],
+                           forceDial = false,
+                           reuseConnection = true,
+                           upgradeDir = Direction.Out): Future[void]  {.gcsafe, async.}
 
 method connect*(
  self: SwitchStub,
@@ -27,11 +34,11 @@ method connect*(
  reuseConnection = true,
  upgradeDir = Direction.Out) {.async.} =
   if (self.connectStub != nil):
-    await self.connectStub()
+    await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, upgradeDir)
   else:
     await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
 
-proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: proc (): Future[void] {.async.} = nil): T =
+proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil): T =
   return SwitchStub(
     switch: switch,
     peerInfo: switch.peerInfo,
