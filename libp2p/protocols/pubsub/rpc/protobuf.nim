@@ -316,6 +316,8 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
     pb.write(2, item, anonymize)
   if msg.control.isSome():
     pb.write(3, msg.control.get())
+  # nim-libp2p extension, using fields which are unlikely to be used
+  # by other extensions
   if msg.ping.len > 0:
     pb.write(60, msg.ping)
   if msg.pong.len > 0:
