@@ -500,7 +500,7 @@ method publish*(g: GossipSub,
       bandwidth = 25_000_000 #TODO replace with bandwidth estimate
       msToTransmit = max(msgSize div (bandwidth div 1000), 1)
       maxFloodPublish =
-        (g.parameters.heartbeatInterval.milliseconds div msToTransmit)
+        max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
     # With flood publishing enabled, the mesh is used when propagating messages from other peers,
     # but a peer's own messages will always be published to all known peers in the topic, limited
     # to the amount of peers we can send it to in one heartbeat
@@ -510,12 +510,11 @@ method publish*(g: GossipSub,
         trace "publish: including flood/high score peer", peer
         peers.incl(peer)
 
-  if peers.len < g.parameters.dLow and g.parameters.floodPublish == false:
+  if peers.len < g.parameters.dLow:
     # not subscribed or bad mesh, send to fanout peers
-    # disable for floodPublish, since we already sent to every good peer
     #
     var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-    if fanoutPeers.len == 0:
+    if fanoutPeers.len < g.parameters.dLow:
       g.replenishFanout(topic)
       fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
 

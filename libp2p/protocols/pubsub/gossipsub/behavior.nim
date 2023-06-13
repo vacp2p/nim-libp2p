@@ -561,8 +561,8 @@ proc replenishFanout*(g: GossipSub, topic: string) {.raises: [].} =
   logScope: topic
   trace "about to replenish fanout"
 
-  let currentMesh = g.mesh.getOrDefault(topic)
   if g.fanout.peers(topic) < g.parameters.dLow:
+    let currentMesh = g.mesh.getOrDefault(topic)
     trace "replenishing fanout", peers = g.fanout.peers(topic)
     for peer in g.gossipsub.getOrDefault(topic):
       if peer in currentMesh: continue
