@@ -458,7 +458,8 @@ proc getBytes*(sig: Signature): seq[byte] =
   ## Return signature ``sig`` in binary form.
   result = sig.data
 
-proc init*[T: PrivateKey|PublicKey](key: var T, data: openArray[byte]): bool =
+template initImpl[T: PrivateKey|PublicKey](
+    key: var T, data: openArray[byte]): bool =
   ## Initialize private key ``key`` from libp2p's protobuf serialized raw
   ## binary form.
   ##
@@ -519,6 +520,14 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openArray[byte]): bool =
               false
           else:
             false
+
+{.push warning[ProveField]:off.}  # https://github.com/nim-lang/Nim/issues/22060
+proc init*(key: var PrivateKey, data: openArray[byte]): bool =
+  initImpl(key, data)
+
+proc init*(key: var PublicKey, data: openArray[byte]): bool =
+  initImpl(key, data)
+{.pop.}
 
 proc init*(sig: var Signature, data: openArray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
