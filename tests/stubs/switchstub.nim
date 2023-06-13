@@ -18,8 +18,6 @@ type
   SwitchStub* = ref object of Switch
     switch*: Switch
     connectStub*: connectStubType
-    numStubToExecute*: int
-    numStubExecutions*: int
 
   connectStubType* = proc (self: SwitchStub,
                            peerId: PeerId,
@@ -35,15 +33,12 @@ method connect*(
  forceDial = false,
  reuseConnection = true,
  upgradeDir = Direction.Out) {.async.} =
-  if (self.connectStub != nil) and self.numStubExecutions < self.numStubToExecute:
-    try:
-      await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, upgradeDir)
-    finally:
-      self.numStubExecutions = self.numStubExecutions + 1
+  if (self.connectStub != nil):
+    await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, upgradeDir)
   else:
     await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
 
-proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil, numStubToExecute = 1): T =
+proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil): T =
   return SwitchStub(
     switch: switch,
     peerInfo: switch.peerInfo,
@@ -54,6 +49,4 @@ proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType 
     dialer: switch.dialer,
     nameResolver: switch.nameResolver,
     services: switch.services,
-    connectStub: connectStub,
-    numStubToExecute: numStubToExecute,
-    numStubExecutions: 0)
+    connectStub: connectStub)

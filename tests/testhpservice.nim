@@ -212,6 +212,7 @@ suite "Hole Punching":
                     forceDial = false,
                     reuseConnection = true,
                     upgradeDir = Direction.Out): Future[void] {.async.} =
+      self.connectStub = nil # this stub should be called only once
       await sleepAsync(100.millis) # avoid simultaneous dialing that causes address in use error
       await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
     await holePunchingTest(nil, connectStub, NotReachable)
@@ -224,6 +225,7 @@ suite "Hole Punching":
                     forceDial = false,
                     reuseConnection = true,
                     upgradeDir = Direction.Out): Future[void] {.async.} =
+      self.connectStub = nil # this stub should be called only once
       raise newException(CatchableError, "error")
 
     await holePunchingTest(connectStub, nil, Reachable)
