@@ -249,14 +249,19 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     debug "OS Error", exc = exc.msg
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
+  except TransportAbortedError as exc:
+    debug "Connection aborted", exc = exc.msg
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "Unexpected error accepting connection", exc = exc.msg
-    raise exc
+    info "Unexpected error accepting connection", exc = exc.msg
+    # The above except should catch all relevant exceptions
+    # returning nil will pause the accept loop for a few ms to avoid
+    # tight loops
+    return nil
 
 method dial*(
   self: TcpTransport,
