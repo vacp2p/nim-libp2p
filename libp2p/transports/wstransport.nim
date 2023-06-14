@@ -268,8 +268,6 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     except CatchableError as exc:
       await req.stream.closeWait()
       raise exc
-  except TransportOsError as exc:
-    debug "OS Error", exc = exc.msg
   except WebSocketError as exc:
     debug "Websocket Error", exc = exc.msg
   except HttpError as exc:
@@ -284,10 +282,12 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
   except CancelledError as exc:
-    # bubble up silently
+    raise exc
+  except TransportOsError as exc:
+    info "OS Error", exc = exc.msg
     raise exc
   except CatchableError as exc:
-    warn "Unexpected error accepting connection", exc = exc.msg
+    info "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
 method dial*(
