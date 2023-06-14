@@ -156,8 +156,12 @@ method start*(
 
     self.httpservers &= httpserver
 
-    let codec = if isWss:
-        MultiAddress.init("/wss")
+    let codec =
+      if isWss:
+        if ma.contains(multiCodec("tls")) == MaResult[bool].ok(true):
+          MultiAddress.init("/tls/ws")
+        else:
+          MultiAddress.init("/wss")
       else:
         MultiAddress.init("/ws")
 

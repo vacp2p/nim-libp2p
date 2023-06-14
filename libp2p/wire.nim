@@ -20,14 +20,14 @@ else:
 
 const
   RTRANSPMA* = mapOr(
-    TCP_IP,
-    WebSockets_IP,
+    TCP,
+    WebSockets,
     UNIX
   )
 
   TRANSPMA* = mapOr(
     RTRANSPMA,
-    UDP_IP
+    UDP,
   )
 
 
@@ -37,7 +37,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
   ##
 
-  if TRANSPMA.match(ma):
+  if mapOr(TCP_IP, WebSockets_IP, UNIX, UDP_IP).match(ma):
     var pbuf: array[2, byte]
     let code = (?(?ma[0]).protoCode())
     if code == multiCodec("unix"):
@@ -213,3 +213,10 @@ proc getLocalAddress*(sock: AsyncFD): TransportAddress =
   if getsockname(SocketHandle(sock), cast[ptr SockAddr](addr saddr),
                  addr slen) == 0:
     fromSAddr(addr saddr, slen, result)
+
+proc isPublicMA*(ma: MultiAddress): bool =
+  if DNS.matchPartial(ma):
+    return true
+
+  let hostIP = initTAddress(ma).valueOr: return false
+  return hostIP.isGlobal()

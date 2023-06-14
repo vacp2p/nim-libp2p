@@ -107,13 +107,9 @@ suite "Autonat":
     await allFutures(doesNothingListener.stop(), src.stop(), dst.stop())
 
   asyncTest "dialMe dials dns and returns public address":
-    let resolver = MockResolver.new()
-    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
-    resolver.ipResponses[("localhost", true)] = @["::1"]
-
     let
       src = newStandardSwitch()
-      dst = createAutonatSwitch(nameResolver = resolver)
+      dst = createAutonatSwitch(nameResolver = MockResolver.default())
 
     await src.start()
     await dst.start()

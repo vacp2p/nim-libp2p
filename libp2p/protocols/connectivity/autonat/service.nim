@@ -171,8 +171,7 @@ proc addressMapper(
   for listenAddr in listenAddrs:
     var processedMA = listenAddr
     try:
-      let hostIP = initTAddress(listenAddr).valueOr: continue
-      if not hostIP.isGlobal() and self.networkReachability == NetworkReachability.Reachable:
+      if not listenAddr.isPublicMA() and self.networkReachability == NetworkReachability.Reachable:
         processedMA = peerStore.guessDialableAddr(listenAddr) # handle manual port forwarding
     except CatchableError as exc:
       debug "Error while handling address mapper", msg = exc.msg
