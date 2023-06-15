@@ -150,8 +150,7 @@ proc dialAndUpgrade(
         if not isNil(result):
           return result
 
-proc tryReusingConnection(self: Dialer, peerIdOpt: Opt[PeerId]): Opt[Muxer] =
-  let peerId = peerIdOpt.valueOr: return Opt.none(Muxer)
+proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)
   if muxer == nil:
     return Opt.none(Muxer)
@@ -176,8 +175,9 @@ proc internalConnect(
     await lock.acquire()
 
     if reuseConnection:
-      self.tryReusingConnection(peerId).withValue(mux):
-        return mux
+      peerId.withValue(peerId):
+        tryReusingConnection(peerId).withValue(mux):
+          return mux
 
     let slot = self.connManager.getOutgoingSlot(forceDial)
     let muxed =

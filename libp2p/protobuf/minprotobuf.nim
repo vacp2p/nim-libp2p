@@ -576,8 +576,7 @@ proc getField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
 proc getField*(pb: ProtoBuffer, field: int,
                output: var ProtoBuffer): ProtoResult[bool] {.inline.} =
   var buffer: seq[byte]
-  let res = ? pb.getField(field, buffer)
-  if res:
+  if ? pb.getField(field, buffer)
     output = initProtoBuffer(buffer)
     ok(true)
   else:
@@ -585,8 +584,7 @@ proc getField*(pb: ProtoBuffer, field: int,
 
 proc getRequiredField*[T](pb: ProtoBuffer, field: int,
                output: var T): ProtoResult[void] {.inline.} =
-  let res = ? pb.getField(field, output)
-  if res:
+  if ? pb.getField(field, output)
     ok()
   else:
     err(RequiredFieldMissing)
@@ -669,8 +667,7 @@ proc getRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
 
 proc getRequiredRepeatedField*[T](pb: ProtoBuffer, field: int,
                output: var seq[T]): ProtoResult[void] {.inline.} =
-  let res = ? pb.getRepeatedField(field, output)
-  if res:
+  if ? pb.getRepeatedField(field, output)
     ok()
   else:
     err(RequiredFieldMissing)

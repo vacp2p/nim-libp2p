@@ -33,14 +33,12 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
     Future[MultiAddress] {.base, async.} =
 
   proc getResponseOrRaise(autonatMsg: Opt[AutonatMsg]): AutonatDialResponse {.raises: [AutonatError].} =
-    let
-      msg = autonatMsg.valueOr: raise newException(AutonatError, "Unexpected response")
-      res = msg.response.valueOr: raise newException(AutonatError, "Unexpected response")
-
-    if msg.msgType != DialResponse or (res.status == Ok and res.ma.isNone()):
-       raise newException(AutonatError, "Unexpected response")
-    else:
-      res
+    autonatMsg.withValue(msg):
+      if msg.msgType == DialResponse:
+        msg.response.withValue(res):
+          if not (res.status == Ok and res.ma.isNone()):
+            return res
+    raise newException(AutonatError, "Unexpected response")
 
   let conn =
     try:

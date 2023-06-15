@@ -133,17 +133,17 @@ proc decodeDumpMessage*(data: openArray[byte]): Opt[ProtoMessage] =
 
   value = 0'u64
   let res1 = pb.getField(1, value)
-  if res1.isOk() and res1.get(false):
+  if res1.get(false):
     pmsg.seqID = Opt.some(value)
   value = 0'u64
   let res3 = pb.getField(3, value)
-  if res3.isOk() and res3.get(false):
+  if res3.get(false):
     pmsg.mtype = Opt.some(value)
   let res5 = pb.getField(5, ma1)
-  if res5.isOk() and res5.get(false):
+  if res5.get(false):
     pmsg.local = Opt.some(ma1)
   let res6 = pb.getField(6, ma2)
-  if res6.isOk() and res6.get(false):
+  if res6.get(false):
     pmsg.remote = Opt.some(ma2)
 
   Opt.some(pmsg)

@@ -210,7 +210,7 @@ proc identify*(
         var
           knownAgent = "unknown"
           shortAgent = info.agentVersion.get("").split("/")[0].safeToLowerAscii().get("")
-        if shortAgent.len > 0 and KnownLibP2PAgentsSeq.contains(shortAgent):
+        if KnownLibP2PAgentsSeq.contains(shortAgent):
           knownAgent = shortAgent
         muxer.connection.setShortAgent(knownAgent)
 
