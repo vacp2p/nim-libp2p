@@ -30,7 +30,7 @@ jobs:
       - name: Checkout this ref
         run: |
           cd nbc
-          git submodule update vendor/nim-libp2p
+          git submodule update --init vendor/nim-libp2p
           cd vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
