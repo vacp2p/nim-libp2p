@@ -24,13 +24,14 @@ jobs:
           repository: ${{ matrix.target.repo }}
           ref: ${{ matrix.target.branch }}
           path: nbc
-          submodules: true
           fetch-depth: 0
           token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
 
       - name: Checkout this ref
         run: |
-          cd nbc/vendor/nim-libp2p
+          cd nbc
+          git submodule update vendor/nim-libp2p
+          cd vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
       - name: Commit this bump
