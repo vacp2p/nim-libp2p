@@ -176,7 +176,7 @@ proc internalConnect(
 
     if reuseConnection:
       peerId.withValue(peerId):
-        tryReusingConnection(peerId).withValue(mux):
+        self.tryReusingConnection(peerId).withValue(mux):
           return mux
 
     let slot = self.connManager.getOutgoingSlot(forceDial)
