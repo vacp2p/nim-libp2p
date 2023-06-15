@@ -510,8 +510,8 @@ method publish*(g: GossipSub,
         trace "publish: including flood/high score peer", peer
         peers.incl(peer)
 
-  if peers.len < g.parameters.dLow and topic notin g.topics:
-    # not subscribed send, to fanout peers
+  if peers.len < g.parameters.dLow:
+    # not subscribed, or bad mesh, send to fanout peers
     var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
     if fanoutPeers.len < g.parameters.dLow:
       g.replenishFanout(topic)
@@ -530,19 +530,6 @@ method publish*(g: GossipSub,
     # to update the last topic publish
     # time
     g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
-
-  if peers.len < g.parameters.dLow:
-    # Bad mesh, just send to whoever
-    var allPeers = toSeq(g.gossipsub.getOrDefault(topic))
-    g.rng.shuffle(allPeers)
-    for peer in allPeers:
-      if peers.len >= g.parameters.dLow: break
-      if peer.score >= g.parameters.publishThreshold:
-        peers.incl(peer)
-
-    for peer in allPeers:
-      if peers.len >= g.parameters.dLow: break
-      peers.incl(peer)
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()

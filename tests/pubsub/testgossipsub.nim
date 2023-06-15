@@ -628,7 +628,6 @@ suite "GossipSub":
       "foobar" in gossip1.gossipsub
       "foobar" notin gossip2.gossipsub
       not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
-      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
