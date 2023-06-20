@@ -72,15 +72,6 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
   result.isLeaked = leakTransport
   addTracker(TcpTransportTrackerName, result)
 
-proc getObservedAddr(client: StreamTransport): Future[MultiAddress] {.async.} =
-  try:
-    return MultiAddress.init(client.remoteAddress).tryGet()
-  except CatchableError as exc:
-    trace "Failed to create observedAddr", exc = exc.msg
-    if not(isNil(client) and client.closed):
-      await client.closeWait()
-    raise exc
-
 proc connHandler*(self: TcpTransport,
                   client: StreamTransport,
                   observedAddr: Opt[MultiAddress],
@@ -241,7 +232,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 
     let transp = await finished
     try:
-      let observedAddr = await getObservedAddr(transp)
+      let observedAddr = MultiAddress.init(transp.remoteAddress).tryGet()
       return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
     except CancelledError as exc:
       transp.close()
@@ -282,7 +273,7 @@ method dial*(
       await connect(address, flags = self.clientFlags)
 
   try:
-    let observedAddr = await getObservedAddr(transp)
+    let observedAddr = MultiAddress.init(transp.remoteAddress).tryGet()
     return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
   except CatchableError as err:
     await transp.closeWait()
