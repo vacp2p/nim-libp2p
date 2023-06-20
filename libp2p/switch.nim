@@ -260,6 +260,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
         debug "Unable to get a connection"
+        upgrades.release()
         continue
 
       # set the direction of this bottom level transport
