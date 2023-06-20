@@ -240,8 +240,15 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     self.acceptFuts[index] = self.servers[index].accept()
 
     let transp = await finished
-    let observedAddr = await getObservedAddr(transp)
-    return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
+    try:
+      let observedAddr = await getObservedAddr(transp)
+      return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
+    except CancelledError as exc:
+      transp.close()
+      raise exc
+    except CatchableError as exc:
+      debug "Failed to handle connection", exc = exc.msg
+      transp.close()
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
   except TransportAbortedError as exc:
