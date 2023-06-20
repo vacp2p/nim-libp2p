@@ -232,7 +232,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 
     let transp = await finished
     try:
-      let observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
+      let observedAddr = MultiAddress.init(transp.remoteAddress).tryGet()
       return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
     except CancelledError as exc:
       transp.close()
@@ -273,7 +273,7 @@ method dial*(
       await connect(address, flags = self.clientFlags)
 
   try:
-    let observedAddr = MultiAddress.init(client.remoteAddress).tryGet()
+    let observedAddr = MultiAddress.init(transp.remoteAddress).tryGet()
     return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
   except CatchableError as err:
     await transp.closeWait()
