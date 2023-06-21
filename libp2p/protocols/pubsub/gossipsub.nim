@@ -156,6 +156,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.behaviourPenalty = stats.behaviourPenalty
 
   peer.iHaveBudget = IHavePeerBudget
+  peer.pingBudget = PingsPeerBudget
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
@@ -352,6 +353,9 @@ proc validateAndRelay(g: GossipSub,
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
+  if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
+    g.send(peer, RPCMsg(pong: rpcMsg.ping))
+    peer.pingBudget.dec
   for i in 0..<min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
     g.handleSubscribe(peer, sub.topic, sub.subscribe)

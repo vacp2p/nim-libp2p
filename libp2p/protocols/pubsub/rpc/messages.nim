@@ -62,6 +62,8 @@ type
       subscriptions*: seq[SubOpts]
       messages*: seq[Message]
       control*: Option[ControlMessage]
+      ping*: seq[byte]
+      pong*: seq[byte]
 
 func withSubs*(
     T: type RPCMsg, topics: openArray[string], subscribe: bool): T =

@@ -61,6 +61,7 @@ type
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
+    pingBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
