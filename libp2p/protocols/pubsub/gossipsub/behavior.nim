@@ -635,6 +635,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
         if peer.sentIHaves.len > g.parameters.historyLength:
           discard peer.sentIHaves.popLast()
         peer.iHaveBudget = IHavePeerBudget
+        peer.pingBudget = PingsPeerBudget
 
     var meshMetrics = MeshMetrics()
 

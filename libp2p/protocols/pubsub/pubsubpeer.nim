@@ -61,6 +61,7 @@ type
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
+    pingBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
@@ -169,7 +170,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
     if p.connectedFut.finished:
       p.connectedFut = newFuture[void]()
-    let newConn = await p.getConn()
+    let newConn = await p.getConn().wait(5.seconds)
     if newConn.isNil:
       raise (ref LPError)(msg: "Cannot establish send connection")
 
@@ -195,6 +196,9 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
       trace "Removing send connection", p, conn = p.sendConn
       await p.sendConn.close()
       p.sendConn = nil
+
+    if not p.connectedFut.finished:
+      p.connectedFut.complete()
 
     try:
       if p.onEvent != nil:
@@ -244,11 +248,13 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
     return
 
   if p.sendConn == nil:
-    discard await p.connectedFut.withTimeout(1.seconds)
+    # Wait for a send conn to be setup. `connectOnce` will
+    # complete this even if the sendConn setup failed
+    await p.connectedFut
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection, skipping message", p, msg = shortLog(msg)
+    debug "No send connection", p, msg = shortLog(msg)
     return
 
   trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
