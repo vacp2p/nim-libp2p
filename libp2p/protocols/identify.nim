@@ -119,27 +119,20 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
     signedPeerRecord: SignedPeerRecord
 
   var pb = initProtoBuffer(buf)
-
-  let r1 = ? pb.getField(1, pubkey).toOpt()
-  let r2 = ? pb.getRepeatedField(2, iinfo.addrs).toOpt()
-  let r3 = ? pb.getRepeatedField(3, iinfo.protos).toOpt()
-  let r4 = ? pb.getField(4, oaddr).toOpt()
-  let r5 = ? pb.getField(5, protoVersion).toOpt()
-  let r6 = ? pb.getField(6, agentVersion).toOpt()
-  let r8 = ? pb.getField(8, signedPeerRecord).toOpt()
-
-
-  if r1:
+  if ? pb.getField(1, pubkey).toOpt():
     iinfo.pubkey = some(pubkey)
-
-    if r8 and pubkey == signedPeerRecord.envelope.publicKey:
+    if ? pb.getField(8, signedPeerRecord).toOpt() and
+      pubkey == signedPeerRecord.envelope.publicKey:
       iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
-  if r4:
+  discard ? pb.getRepeatedField(2, iinfo.addrs).toOpt()
+  discard ? pb.getRepeatedField(3, iinfo.protos).toOpt()
+  if ? pb.getField(4, oaddr).toOpt():
     iinfo.observedAddr = some(oaddr)
-  if r5:
+  if ? pb.getField(5, protoVersion).toOpt():
     iinfo.protoVersion = some(protoVersion)
-  if r6:
+  if ? pb.getField(6, agentVersion).toOpt():
     iinfo.agentVersion = some(agentVersion)
+
   debug "decodeMsg: decoded identify", iinfo
   Opt.some(iinfo)
 

@@ -129,7 +129,7 @@ proc resolveMAddress*(
       of multiCodec("dnsaddr"):
         await self.resolveDnsAddr(address)
       else:
-        doAssert false
+        assert false
         @[address]
     for ad in seq:
       res.incl(ad)

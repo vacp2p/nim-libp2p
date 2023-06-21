@@ -128,15 +128,12 @@ proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Opt[AutonatMsg] =
       ma: MultiAddress
       response: AutonatDialResponse
 
-    let
-      r4 = ? pbResponse.getField(1, statusOrd).toOpt()
-      r5 = ? pbResponse.getField(2, text).toOpt()
-      r6 = ? pbResponse.getField(3, ma).toOpt()
-
-    if r4 and not checkedEnumAssign(response.status, statusOrd):
-      return Opt.none(AutonatMsg)
-    if r5: response.text = Opt.some(text)
-    if r6: response.ma = Opt.some(ma)
+    if ? pbResponse.getField(1, statusOrd).optValue():
+      if not checkedEnumAssign(response.status, statusOrd):
+        return Opt.none(AutonatMsg)
+    if ? pbResponse.getField(2, text).optValue():
+      response.text = Opt.some(text)
+    if ? pbResponse.getField(3, ma).optValue():
+      response.ma = Opt.some(ma)
     msg.response = Opt.some(response)
-
   return Opt.some(msg)

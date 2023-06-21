@@ -32,9 +32,7 @@ proc getProtocol(self: ObservedAddrManager, observations: seq[MultiAddress], mul
   countTable.sort()
   var orderedPairs = toSeq(countTable.pairs)
   for (ma, count) in orderedPairs:
-    let
-      maFirst = ma[0].valueOr: continue
-      protoCode = maFirst.protoCode.valueOr: continue
+    let protoCode = (ma[0].flatMap(protoCode)).valueOr: continue
     if protoCode == multiCodec and count >= self.minCount:
       return Opt.some(ma)
   return Opt.none(MultiAddress)

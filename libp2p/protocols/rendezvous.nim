@@ -251,32 +251,31 @@ proc decode(_: typedesc[Message], buf: seq[byte]): Opt[Message] =
     msg: Message
     statusOrd: uint
     pbr, pbrr, pbu, pbd, pbdr: ProtoBuffer
-  let
-    pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, statusOrd)
-    r2 = pb.getField(2, pbr)
-    r3 = pb.getField(3, pbrr)
-    r4 = pb.getField(4, pbu)
-    r5 = pb.getField(5, pbd)
-    r6 = pb.getField(6, pbdr)
-  if r1.isErr() or r2.isErr() or r3.isErr() or
-     r4.isErr() or r5.isErr() or r6.isErr() or
-     not checkedEnumAssign(msg.msgType, statusOrd): return Opt.none(Message)
-  if r2.get(false):
+  let pb = initProtoBuffer(buf)
+
+  ? pb.getRequiredField(1, statusOrd).toOpt
+  if not checkedEnumAssign(msg.msgType, statusOrd): return Opt.none(Message)
+
+  if ? pb.getField(2, pbr).optValue:
     msg.register = Register.decode(pbr.buffer)
     if msg.register.isNone(): return Opt.none(Message)
-  if r3.get(false):
+
+  if ? pb.getField(3, pbrr).optValue:
     msg.registerResponse = RegisterResponse.decode(pbrr.buffer)
     if msg.registerResponse.isNone(): return Opt.none(Message)
-  if r4.get(false):
+
+  if ? pb.getField(4, pbu).optValue:
     msg.unregister = Unregister.decode(pbu.buffer)
     if msg.unregister.isNone(): return Opt.none(Message)
-  if r5.get(false):
+
+  if ? pb.getField(5, pbd).optValue:
     msg.discover = Discover.decode(pbd.buffer)
     if msg.discover.isNone(): return Opt.none(Message)
-  if r6.get(false):
+
+  if ? pb.getField(6, pbdr).optValue:
     msg.discoverResponse = DiscoverResponse.decode(pbdr.buffer)
     if msg.discoverResponse.isNone(): return Opt.none(Message)
+
   Opt.some(msg)
 
 
