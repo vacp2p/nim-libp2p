@@ -176,7 +176,7 @@ proc dialPeerV2*(
     HopMessage.decode(await conn.readLp(RelayClientMsgSize)).tryGet()
   except CancelledError as exc:
     raise exc
-  except ValueError as exc:
+  except CatchableError as exc:
     trace "error reading stop response", exc=exc.msg
     raise newException(RelayV2DialError, exc.msg)
 
