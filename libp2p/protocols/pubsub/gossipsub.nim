@@ -160,7 +160,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
-    g.disconnectBadPeerCheck(peer, stats.score)
+    discard g.tryDisconnectBadPeer(peer, stats.score, g.parameters.graylistThreshold)
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
@@ -305,6 +305,7 @@ proc validateAndRelay(g: GossipSub,
                       msgId, msgIdSalted: MessageId,
                       peer: PubSubPeer) {.async.} =
   try:
+    let msgSize = sizeof(msg)
     let validation = await g.validate(msg)
 
     var seenPeers: HashSet[PubSubPeer]
@@ -316,7 +317,7 @@ proc validateAndRelay(g: GossipSub,
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIds)
+      g.punishInvalidMessage(peer, msg)
       return
     of ValidationResult.Ignore:
       debug "Dropping message after validation, reason: ignore",
@@ -442,14 +443,14 @@ method rpcHandler*(g: GossipSub,
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIds)
+      g.punishInvalidMessage(peer, msg)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIds)
+      g.punishInvalidMessage(peer, msg)
       continue
 
     # g.anonymize needs no evaluation when receiving messages
