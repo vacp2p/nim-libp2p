@@ -116,3 +116,48 @@ func shortLog*(m: RPCMsg): auto =
     messages: mapIt(m.messages, it.shortLog),
     control: m.control.get(ControlMessage()).shortLog
   )
+
+proc byteSize*(msg: Message): int =
+  var total = 0
+  total += msg.fromPeer.len
+  total += msg.data.len
+  total += msg.seqno.len
+  total += msg.signature.len
+  total += msg.key.len
+  for topicId in msg.topicIds:
+    total += topicId.len
+  return total
+
+proc byteSize*(msg: RPCMsg): int =
+  var total = 0
+
+  for sub in msg.subscriptions:
+    total += sub.topic.len
+    total += sizeof(sub.subscribe)
+
+  for msg in msg.messages:
+    total += byteSize(msg)
+
+  if msg.control.isSome:
+    let ctrl = msg.control.get()
+    for item in ctrl.ihave:
+      total += item.topicId.len
+      total += item.messageIds.len * sizeof(byte)  # Assuming MessageId is seq[byte]
+
+    for item in ctrl.iwant:
+      total += item.messageIds.len * sizeof(byte)  # Assuming MessageId is seq[byte]
+
+    for item in ctrl.graft:
+      total += item.topicId.len
+
+    for item in ctrl.prune:
+      total += item.topicId.len
+      total += sizeof(item.backoff)
+      for peer in item.peers:
+        total += peer.peerId.len
+        total += peer.signedPeerRecord.len * sizeof(byte)
+
+  total += msg.ping.len * sizeof(byte)
+  total += msg.pong.len * sizeof(byte)
+
+  return total

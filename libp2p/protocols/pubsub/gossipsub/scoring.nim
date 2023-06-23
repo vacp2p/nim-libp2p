@@ -102,13 +102,11 @@ proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   except CatchableError as exc: # Never cancelled
     trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
-proc tryDisconnectBadPeer*(g: GossipSub, peer: PubSubPeer, score: float64, threshold: float64): bool =
+proc disconnectIfBadPeer*(g: GossipSub, peer: PubSubPeer, score: float64, threshold: float64) =
   if g.parameters.disconnectBadPeers and score < threshold and
      peer.peerId notin g.parameters.directPeers:
     debug "disconnecting bad score peer", peer, score, threshold
     asyncSpawn(g.disconnectPeer(peer))
-    return true
-  return false
 
 proc updateScores*(g: GossipSub) = # avoid async
   ## https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#the-score-function
@@ -249,11 +247,7 @@ proc updateScores*(g: GossipSub) = # avoid async
 
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
-    if not g.tryDisconnectBadPeer(peer, stats.score, g.parameters.graylistThreshold):
-      if peer.totalTraffic > 0:
-        # dividing in this way to avoid integer overflow
-        let invalidTrafficRatio: float64 = (float64(peer.invalidIgnoredTraffic) / float64(peer.totalTraffic)) + (float64(peer.invalidTraffic) / float64(peer.totalTraffic))
-        discard g.tryDisconnectBadPeer(peer, -invalidTrafficRatio, -0.30'f64) #g.parameters.maxInvalidTrafficRatio)
+    g.disconnectIfBadPeer(peer, stats.score, g.parameters.graylistThreshold)
 
     libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
 
@@ -268,7 +262,7 @@ proc scoringHeartbeat*(g: GossipSub) {.async.} =
     g.updateScores()
 
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) =
-  peer.invalidTraffic += sizeof(msg)
+  peer.invalidTraffic += byteSize(msg)
   for tt in msg.topicIds:
     let t = tt
     if t notin g.topics:
