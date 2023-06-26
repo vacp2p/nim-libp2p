@@ -89,7 +89,7 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
 
   if ? pb.getField(1, msgTypeOrd).toOpt():
     if msgTypeOrd.int notin RelayType:
-      return err()
+      return Opt.none(RelayMessage)
     rMsg.msgType = Opt.some(RelayType(msgTypeOrd))
 
   if ? pb.getField(2, pbSrc).toOpt():

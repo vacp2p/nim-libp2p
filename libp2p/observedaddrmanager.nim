@@ -69,7 +69,7 @@ proc guessDialableAddr*(
     maFirstProto = maFirst.protoCode().valueOr: return ma
 
   let observedIP = self.getMostObservedProtocol(maFirstProto).valueOr: return ma
-  return concat(observedIP, maRest).valueOr: return ma
+  return concat(observedIP, maRest).valueOr: ma
 
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.

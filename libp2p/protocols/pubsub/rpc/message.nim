@@ -75,8 +75,8 @@ proc init*(
       msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
       msg.key = peer.privateKey.getPublicKey().expect("Invalid private key!")
         .getBytes().expect("Couldn't get public key bytes!")
-  if peer.isNone() and sign:
-    raise (ref LPError)(msg: "Cannot sign message without peer info")
+  else:
+    if sign: raise (ref LPError)(msg: "Cannot sign message without peer info")
 
   msg
 

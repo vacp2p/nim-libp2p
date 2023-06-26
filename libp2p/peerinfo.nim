@@ -53,13 +53,12 @@ proc update*(p: PeerInfo) {.async.} =
   for mapper in p.addressMappers:
     p.addrs = await mapper(p.addrs)
 
-  let spr = SignedPeerRecord.init(
+  p.signedPeerRecord = SignedPeerRecord.init(
     p.privateKey,
     PeerRecord.init(p.peerId, p.addrs)
-  ).valueOr:
-    #info "Can't update the signed peer record"
+  ).valueOr():
+    info "Can't update the signed peer record"
     return
-  p.signedPeerRecord = spr
 
 proc addrs*(p: PeerInfo): seq[MultiAddress] =
   p.addrs

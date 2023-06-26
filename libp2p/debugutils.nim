@@ -109,12 +109,11 @@ proc decodeDumpMessage*(data: openArray[byte]): Opt[ProtoMessage] =
     ma1, ma2: MultiAddress
     pmsg: ProtoMessage
 
-  let res2 = pb.getField(2, pmsg.timestamp)
-  if res2.isErr() or not(res2.get(false)):
-    return Opt.none(ProtoMessage)
-
-  let res4 = pb.getField(4, value)
-  if res4.isErr() or not(res4.get(false)):
+  let
+    r2 = pb.getField(2, pmsg.timestamp)
+    r4 = pb.getField(4, value)
+    r7 = pb.getField(7, pmsg.message)
+  if not r2.get(false) or not r4.get(false) or not r7.get(false):
     return Opt.none(ProtoMessage)
 
   # `case` statement could not work here with an error "selector must be of an
@@ -127,23 +126,20 @@ proc decodeDumpMessage*(data: openArray[byte]): Opt[ProtoMessage] =
     else:
       return Opt.none(ProtoMessage)
 
-  let res7 = pb.getField(7, pmsg.message)
-  if res7.isErr() or not(res7.get(false)):
-    return Opt.none(ProtoMessage)
-
-  value = 0'u64
-  let res1 = pb.getField(1, value)
-  if res1.get(false):
+  let r1 = pb.getField(1, value)
+  if r1.get(false):
     pmsg.seqID = Opt.some(value)
-  value = 0'u64
-  let res3 = pb.getField(3, value)
-  if res3.get(false):
+
+  let r3 = pb.getField(3, value)
+  if r3.get(false):
     pmsg.mtype = Opt.some(value)
-  let res5 = pb.getField(5, ma1)
-  if res5.get(false):
+
+  let
+    r5 = pb.getField(5, ma1)
+    r6 = pb.getField(6, ma2)
+  if r5.get(false):
     pmsg.local = Opt.some(ma1)
-  let res6 = pb.getField(6, ma2)
-  if res6.get(false):
+  if r6.get(false):
     pmsg.remote = Opt.some(ma2)
 
   Opt.some(pmsg)
