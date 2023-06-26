@@ -19,12 +19,22 @@ requires "nim >= 1.6.0",
          "websock",
          "unittest2 >= 0.0.5 & < 0.1.0"
 
-import hashes
+let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
+let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
+let flags = getEnv("NIMFLAGS", "") # Extra flags for the compiler
+let verbose = getEnv("V", "") notin ["", "0"]
+
+let cfg =
+  " --styleCheck:usages --styleCheck:error" &
+  (if verbose: "" else: " --verbosity:0 --hints:off") &
+  " --skipParentCfg --skipUserCfg -f" &
+  " --threads:on --opt:speed"
+
+import hashes, strutils
+
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
              moreoptions: string = "") =
-  var excstr = "nim c --skipParentCfg --opt:speed -d:debug "
-  excstr.add(" " & getEnv("NIMFLAGS") & " ")
-  excstr.add(" --verbosity:0 --hints:off ")
+  var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
@@ -34,7 +44,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false, extraFlags = "") =
-  var excstr = "nim c --opt:speed --threads:on -d:debug --verbosity:0 --hints:off -p:. " & extraFlags
+  var excstr = nimc & " " & lang & " " & cfg & " " & flags & " -p:. " & extraFlags
   excstr.add(" examples/" & filename)
   exec excstr
   if run:
@@ -42,7 +52,7 @@ proc buildSample(filename: string, run = false, extraFlags = "") =
   rmFile "examples/" & filename.toExe
 
 proc tutorialToMd(filename: string) =
-  let markdown = gorge "cat " & filename & " | nim c -r --verbosity:0 --hints:off tools/markdown_builder.nim "
+  let markdown = gorge "cat " & filename & " | " & nimc & " " & lang & " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
   writeFile(filename.replace(".nim", ".md"), markdown)
 
 task testnative, "Runs libp2p native tests":
@@ -120,7 +130,7 @@ task pin, "Create a lockfile":
   # pinner.nim was originally here
   # but you can't read output from
   # a command in a nimscript
-  exec "nim c -r tools/pinner.nim"
+  exec nimc & " c -r tools/pinner.nim"
 
 import sequtils
 import os
