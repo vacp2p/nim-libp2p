@@ -160,7 +160,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
-    g.disconnectIfBadPeer(peer, stats.score, g.parameters.graylistThreshold)
+    discard g.disconnectIfBadPeer(peer, stats.score, g.parameters.graylistThreshold)
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
@@ -380,11 +380,6 @@ proc validateAndRelay(g: GossipSub,
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
-
-  if peer.totalTraffic > 0:
-    # dividing in this way to avoid integer overflow
-    let invalidTrafficRatio: float64 = (float64(peer.invalidIgnoredTraffic) / float64(peer.totalTraffic)) + (float64(peer.invalidTraffic) / float64(peer.totalTraffic))
-    g.disconnectIfBadPeer(peer, -invalidTrafficRatio, -0.30'f64) #g.parameters.maxInvalidTrafficRatio)
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
     g.send(peer, RPCMsg(pong: rpcMsg.ping))
