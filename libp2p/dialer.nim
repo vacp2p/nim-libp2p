@@ -58,16 +58,16 @@ proc dialAndUpgrade(
 
   for transport in self.transports: # for each transport
     if transport.handles(address):   # check if it can dial it
-      trace "Dialing address", address, peerId, hostname
+      trace "Dialing address", address, peerId = peerId.get(default(PeerId)), hostname
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
           await transport.dial(hostname, address, peerId)
         except CancelledError as exc:
-          debug "Dialing canceled", msg = exc.msg, peerId
+          debug "Dialing canceled", err = exc.msg, peerId = peerId.get(default(PeerId))
           raise exc
         except CatchableError as exc:
-          debug "Dialing failed", msg = exc.msg, peerId
+          debug "Dialing failed", err = exc.msg, peerId = peerId.get(default(PeerId))
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
@@ -81,7 +81,7 @@ proc dialAndUpgrade(
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
           await dialed.close()
-          debug "Upgrade failed", msg = exc.msg, peerId
+          debug "Upgrade failed", err = exc.msg, peerId = peerId.get(default(PeerId))
           if exc isnot CancelledError:
             if upgradeDir == Direction.Out:
               libp2p_failed_upgrades_outgoing.inc()
@@ -131,7 +131,7 @@ proc dialAndUpgrade(
   upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
 
-  debug "Dialing peer", peerId
+  debug "Dialing peer", peerId = peerId.get(default(PeerId))
 
   for rawAddress in addrs:
     # resolve potential dnsaddr
@@ -324,7 +324,7 @@ method dial*(
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, msg = exc.msg
+    debug "Error dialing", conn, err = exc.msg
     await cleanup()
     raise exc
 
