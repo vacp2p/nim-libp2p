@@ -252,23 +252,18 @@ proc handleIHave*(g: GossipSub,
   elif peer.iHaveBudget <= 0:
     trace "ihave: ignoring out of budget peer", peer, score = peer.score
   else:
-    # TODO review deduplicate algorithm
-    # * https://github.com/nim-lang/Nim/blob/5f46474555ee93306cce55342e81130c1da79a42/lib/pure/collections/sequtils.nim#L184
-    # * it's probably not efficient and might give preference to the first dupe
-    let deIhaves = ihaves.deduplicate()
-    for ihave in deIhaves:
+    for ihave in ihaves:
       trace "peer sent ihave",
         peer, topic = ihave.topicId, msgs = ihave.messageIds
-      if ihave.topicId in g.mesh:
-        # also avoid duplicates here!
-        let deIhavesMsgs = ihave.messageIds.deduplicate()
-        for msgId in deIhavesMsgs:
+      if ihave.topicId in g.topics:
+        for msgId in ihave.messageIds:
           if not g.hasSeen(msgId):
-            if peer.iHaveBudget > 0:
+            if peer.iHaveBudget > 0 and msgId notin res.messageIds:
               res.messageIds.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
             else:
+              # No budget, or the peer sent duplicate
               break
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
