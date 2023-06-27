@@ -23,24 +23,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Nim
-        uses: "./.github/actions/install_nim"
+      - name: Setup Nimble
+        uses: "./.github/actions/install_nimble"
         with:
           os: linux
           cpu: amd64
-          shell: bash
-
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v3
-        with:
-          path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
-
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
 
       - name: Run
         run: |
@@ -48,6 +35,7 @@ jobs:
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
+          nimble -y install --lock-file=nimble-1-6.lock
           nimble testnative
           nimble testpubsub
           nimble testfilter
