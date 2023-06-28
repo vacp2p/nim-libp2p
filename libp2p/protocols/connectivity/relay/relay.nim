@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import options, sequtils, tables
+import sequtils, tables
 
 import chronos, chronicles
 
@@ -90,11 +90,11 @@ proc createReserveResponse(
     rsrv = Reservation(expire: expireUnix,
                        addrs: r.switch.peerInfo.addrs.mapIt(
                          ? it.concat(ma).orErr(CryptoError.KeyError)),
-                       svoucher: some(? sv.encode))
+                       svoucher: Opt.some(? sv.encode))
     msg = HopMessage(msgType: HopMessageType.Status,
-                     reservation: some(rsrv),
+                     reservation: Opt.some(rsrv),
                      limit: r.limit,
-                     status: some(Ok))
+                     status: Opt.some(Ok))
   return ok(msg)
 
 proc isRelayed*(conn: Connection): bool =
@@ -115,17 +115,16 @@ proc handleReserve(r: Relay, conn: Connection) {.async, gcsafe.} =
     trace "Too many reservations", pid = conn.peerId
     await sendHopStatus(conn, ReservationRefused)
     return
+  trace "reserving relay slot for", pid = conn.peerId
   let
     pid = conn.peerId
     expire = now().utc + r.reservationTTL
-    msg = r.createReserveResponse(pid, expire)
+    msg = r.createReserveResponse(pid, expire).valueOr:
+      trace "error signing the voucher", pid
+      return
 
-  trace "reserving relay slot for", pid
-  if msg.isErr():
-    trace "error signing the voucher", error = error(msg), pid
-    return
   r.rsvp[pid] = expire
-  await conn.writeLp(encode(msg.get()).buffer)
+  await conn.writeLp(encode(msg).buffer)
 
 proc handleConnect(r: Relay,
                    connSrc: Connection,
@@ -134,13 +133,12 @@ proc handleConnect(r: Relay,
     trace "connection attempt over relay connection"
     await sendHopStatus(connSrc, PermissionDenied)
     return
-  if msg.peer.isNone():
-    await sendHopStatus(connSrc, MalformedMessage)
-    return
-
   let
+    msgPeer = msg.peer.valueOr:
+      await sendHopStatus(connSrc, MalformedMessage)
+      return
     src = connSrc.peerId
-    dst = msg.peer.get().peerId
+    dst = msgPeer.peerId
   if dst notin r.rsvp:
     trace "refusing connection, no reservation", src, dst
     await sendHopStatus(connSrc, NoReservation)
@@ -173,16 +171,17 @@ proc handleConnect(r: Relay,
 
   proc sendStopMsg() {.async.} =
     let stopMsg = StopMessage(msgType: StopMessageType.Connect,
-                            peer: some(Peer(peerId: src, addrs: @[])),
+                            peer: Opt.some(Peer(peerId: src, addrs: @[])),
                             limit: r.limit)
     await connDst.writeLp(encode(stopMsg).buffer)
-    let msg = StopMessage.decode(await connDst.readLp(r.msgSize)).get()
+    let msg = StopMessage.decode(await connDst.readLp(r.msgSize)).valueOr:
+      raise newException(SendStopError, "Malformed message")
     if msg.msgType != StopMessageType.Status:
       raise newException(SendStopError, "Unexpected stop response, not a status message")
     if msg.status.get(UnexpectedMessage) != Ok:
       raise newException(SendStopError, "Relay stop failure")
     await connSrc.writeLp(encode(HopMessage(msgType: HopMessageType.Status,
-                                          status: some(Ok))).buffer)
+                                          status: Opt.some(Ok))).buffer)
   try:
     await sendStopMsg()
   except CancelledError as exc:
@@ -202,12 +201,10 @@ proc handleConnect(r: Relay,
   await bridge(rconnSrc, rconnDst)
 
 proc handleHopStreamV2*(r: Relay, conn: Connection) {.async, gcsafe.} =
-  let msgOpt = HopMessage.decode(await conn.readLp(r.msgSize))
-  if msgOpt.isNone():
+  let msg = HopMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return
-  trace "relayv2 handle stream", msg = msgOpt.get()
-  let msg = msgOpt.get()
+  trace "relayv2 handle stream", msg = msg
   case msg.msgType:
   of HopMessageType.Reserve: await r.handleReserve(conn)
   of HopMessageType.Connect: await r.handleConnect(conn, msg)
@@ -225,15 +222,14 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsaf
     await sendStatus(connSrc, StatusV1.HopCantSpeakRelay)
     return
 
+  var src, dst: RelayPeer
   proc checkMsg(): Result[RelayMessage, StatusV1] =
-    if msg.srcPeer.isNone:
+    src = msg.srcPeer.valueOr:
       return err(StatusV1.HopSrcMultiaddrInvalid)
-    let src = msg.srcPeer.get()
     if src.peerId != connSrc.peerId:
       return err(StatusV1.HopSrcMultiaddrInvalid)
-    if msg.dstPeer.isNone:
+    dst = msg.dstPeer.valueOr:
       return err(StatusV1.HopDstMultiaddrInvalid)
-    let dst = msg.dstPeer.get()
     if dst.peerId == r.switch.peerInfo.peerId:
       return err(StatusV1.HopCantRelayToSelf)
     if not r.switch.isConnected(dst.peerId):
@@ -245,9 +241,6 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsaf
     await sendStatus(connSrc, check.error())
     return
 
-  let
-    src = msg.srcPeer.get()
-    dst = msg.dstPeer.get()
   if r.peerCount[src.peerId] >= r.maxCircuitPerPeer or
      r.peerCount[dst.peerId] >= r.maxCircuitPerPeer:
     trace "refusing connection; too many connection from src or to dst", src, dst
@@ -271,9 +264,9 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsaf
     await connDst.close()
 
   let msgToSend = RelayMessage(
-    msgType: some(RelayType.Stop),
-    srcPeer: some(src),
-    dstPeer: some(dst))
+    msgType: Opt.some(RelayType.Stop),
+    srcPeer: Opt.some(src),
+    dstPeer: Opt.some(dst))
 
   let msgRcvFromDstOpt = try:
     await connDst.writeLp(encode(msgToSend).buffer)
@@ -285,12 +278,11 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsaf
     await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
     return
 
-  if msgRcvFromDstOpt.isNone:
+  let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
     trace "error reading stop response", msg = msgRcvFromDstOpt
     await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
     return
 
-  let msgRcvFromDst = msgRcvFromDstOpt.get()
   if msgRcvFromDst.msgType.get(RelayType.Stop) != RelayType.Status or
      msgRcvFromDst.status.get(StatusV1.StopRelayRefused) != StatusV1.Success:
     trace "unexcepted relay stop response", msgRcvFromDst
@@ -302,13 +294,16 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsaf
   await bridge(connSrc, connDst)
 
 proc handleStreamV1(r: Relay, conn: Connection) {.async, gcsafe.} =
-  let msgOpt = RelayMessage.decode(await conn.readLp(r.msgSize))
-  if msgOpt.isNone:
+  let msg = RelayMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
-  trace "relay handle stream", msg = msgOpt.get()
-  let msg = msgOpt.get()
-  case msg.msgType.get:
+  trace "relay handle stream", msg
+
+  let typ = msg.msgType.valueOr:
+    trace "Message type not set"
+    await sendStatus(conn, StatusV1.MalformedMessage)
+    return
+  case typ:
     of RelayType.Hop: await r.handleHop(conn, msg)
     of RelayType.Stop: await sendStatus(conn, StatusV1.StopRelayRefused)
     of RelayType.CanHop: await sendStatus(conn, StatusV1.Success)

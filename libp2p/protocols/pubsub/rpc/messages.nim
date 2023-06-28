@@ -110,15 +110,8 @@ func shortLog*(msg: Message): auto =
   )
 
 func shortLog*(m: RPCMsg): auto =
-  if m.control.isSome:
-    (
-      subscriptions: m.subscriptions,
-      messages: mapIt(m.messages, it.shortLog),
-      control: m.control.get().shortLog
-    )
-  else:
-    (
-      subscriptions: m.subscriptions,
-      messages: mapIt(m.messages, it.shortLog),
-      control: ControlMessage().shortLog
-    )
+  (
+    subscriptions: m.subscriptions,
+    messages: mapIt(m.messages, it.shortLog),
+    control: m.control.get(ControlMessage()).shortLog
+  )

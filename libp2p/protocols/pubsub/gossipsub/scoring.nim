@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[tables, sets, options]
+import std/[tables, sets]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
@@ -71,20 +71,17 @@ func `/`(a, b: Duration): float64 =
 func byScore*(x,y: PubSubPeer): int = system.cmp(x.score, y.score)
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
-  if peer.address.isNone():
-    0.0
+  let address = peer.address.valueOr: return 0.0
+
+  g.peersInIP.mgetOrPut(address, initHashSet[PeerId]()).incl(peer.peerId)
+  let
+    ipPeers = g.peersInIP.getOrDefault(address).len().float64
+  if ipPeers > g.parameters.ipColocationFactorThreshold:
+    trace "colocationFactor over threshold", peer, address, ipPeers
+    let over = ipPeers - g.parameters.ipColocationFactorThreshold
+    over * over
   else:
-    let
-      address = peer.address.get()
-    g.peersInIP.mgetOrPut(address, initHashSet[PeerId]()).incl(peer.peerId)
-    let
-      ipPeers = g.peersInIP.getOrDefault(address).len().float64
-    if ipPeers > g.parameters.ipColocationFactorThreshold:
-      trace "colocationFactor over threshold", peer, address, ipPeers
-      let over = ipPeers - g.parameters.ipColocationFactorThreshold
-      over * over
-    else:
-      0.0
+    0.0
 
 {.pop.}
 

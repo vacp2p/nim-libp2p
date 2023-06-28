@@ -71,9 +71,7 @@ chronicles.expandIt(IdentifyInfo):
   pubkey = ($it.pubkey).shortLog
   addresses = it.addrs.map(x => $x).join(",")
   protocols = it.protos.map(x => $x).join(",")
-  observable_address =
-    if it.observedAddr.isSome(): $it.observedAddr.get()
-    else: "None"
+  observable_address = $it.observedAddr
   proto_version = it.protoVersion.get("None")
   agent_version = it.agentVersion.get("None")
   signedPeerRecord =
@@ -88,13 +86,13 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: boo
 
   let pkey = peerInfo.publicKey
 
-  result.write(1, pkey.getBytes().get())
+  result.write(1, pkey.getBytes().expect("valid key"))
   for ma in peerInfo.addrs:
     result.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:
     result.write(3, proto)
-  if observedAddr.isSome:
-    result.write(4, observedAddr.get().data.buffer)
+  observedAddr.withValue(observed):
+    result.write(4, observed.data.buffer)
   let protoVersion = ProtoVersion
   result.write(5, protoVersion)
   let agentVersion = if peerInfo.agentVersion.len <= 0:
@@ -106,13 +104,12 @@ proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: boo
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if sendSpr:
-    let sprBuff = peerInfo.signedPeerRecord.envelope.encode()
-    if sprBuff.isOk():
-      result.write(8, sprBuff.get())
+    peerInfo.signedPeerRecord.envelope.encode().toOpt().withValue(sprBuff):
+      result.write(8, sprBuff)
 
   result.finish()
 
-proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
+proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
   var
     iinfo: IdentifyInfo
     pubkey: PublicKey
@@ -122,37 +119,22 @@ proc decodeMsg*(buf: seq[byte]): Option[IdentifyInfo] =
     signedPeerRecord: SignedPeerRecord
 
   var pb = initProtoBuffer(buf)
+  if ? pb.getField(1, pubkey).toOpt():
+    iinfo.pubkey = some(pubkey)
+    if ? pb.getField(8, signedPeerRecord).toOpt() and
+      pubkey == signedPeerRecord.envelope.publicKey:
+      iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
+  discard ? pb.getRepeatedField(2, iinfo.addrs).toOpt()
+  discard ? pb.getRepeatedField(3, iinfo.protos).toOpt()
+  if ? pb.getField(4, oaddr).toOpt():
+    iinfo.observedAddr = some(oaddr)
+  if ? pb.getField(5, protoVersion).toOpt():
+    iinfo.protoVersion = some(protoVersion)
+  if ? pb.getField(6, agentVersion).toOpt():
+    iinfo.agentVersion = some(agentVersion)
 
-  let r1 = pb.getField(1, pubkey)
-  let r2 = pb.getRepeatedField(2, iinfo.addrs)
-  let r3 = pb.getRepeatedField(3, iinfo.protos)
-  let r4 = pb.getField(4, oaddr)
-  let r5 = pb.getField(5, protoVersion)
-  let r6 = pb.getField(6, agentVersion)
-
-  let r8 = pb.getField(8, signedPeerRecord)
-
-  let res = r1.isOk() and r2.isOk() and r3.isOk() and
-            r4.isOk() and r5.isOk() and r6.isOk() and
-            r8.isOk()
-
-  if res:
-    if r1.get():
-      iinfo.pubkey = some(pubkey)
-    if r4.get():
-      iinfo.observedAddr = some(oaddr)
-    if r5.get():
-      iinfo.protoVersion = some(protoVersion)
-    if r6.get():
-      iinfo.agentVersion = some(agentVersion)
-    if r8.get() and r1.get():
-      if iinfo.pubkey.get() == signedPeerRecord.envelope.publicKey:
-        iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
-    debug "decodeMsg: decoded identify", iinfo
-    some(iinfo)
-  else:
-    trace "decodeMsg: failed to decode received message"
-    none[IdentifyInfo]()
+  debug "decodeMsg: decoded identify", iinfo
+  Opt.some(iinfo)
 
 proc new*(
   T: typedesc[Identify],
@@ -193,26 +175,19 @@ proc identify*(self: Identify,
     trace "identify: Empty message received!", conn
     raise newException(IdentityInvalidMsgError, "Empty message received!")
 
-  let infoOpt = decodeMsg(message)
-  if infoOpt.isNone():
-    raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  var info = decodeMsg(message).valueOr: raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  let
+    pubkey = info.pubkey.valueOr: raise newException(IdentityInvalidMsgError, "No pubkey in identify")
+    peer = PeerId.init(pubkey).valueOr: raise newException(IdentityInvalidMsgError, $error)
 
-  var info = infoOpt.get()
-  if info.pubkey.isNone():
-    raise newException(IdentityInvalidMsgError, "No pubkey in identify")
-
-  let peer = PeerId.init(info.pubkey.get())
-  if peer.isErr:
-    raise newException(IdentityInvalidMsgError, $peer.error)
-
-  if peer.get() != remotePeerId:
+  if peer != remotePeerId:
     trace "Peer ids don't match", remote = peer, local = remotePeerId
     raise newException(IdentityNoMatchError, "Peer ids don't match")
-  info.peerId = peer.get()
+  info.peerId = peer
 
-  if info.observedAddr.isSome:
-    if not self.observedAddrManager.addObservation(info.observedAddr.get()):
-      debug "Observed address is not valid", observedAddr = info.observedAddr.get()
+  info.observedAddr.withValue(observed):
+    if not self.observedAddrManager.addObservation(observed):
+      debug "Observed address is not valid", observedAddr = observed
   return info
 
 proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
@@ -228,21 +203,18 @@ proc init*(p: IdentifyPush) =
     try:
       var message = await conn.readLp(64*1024)
 
-      let infoOpt = decodeMsg(message)
-      if infoOpt.isNone():
+      var identInfo = decodeMsg(message).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
 
-      var indentInfo = infoOpt.get()
-
-      if indentInfo.pubkey.isSome:
-        let receivedPeerId = PeerId.init(indentInfo.pubkey.get()).tryGet()
+      identInfo.pubkey.withValue(pubkey):
+        let receivedPeerId = PeerId.init(pubkey).tryGet()
         if receivedPeerId != conn.peerId:
           raise newException(IdentityNoMatchError, "Peer ids don't match")
-        indentInfo.peerId = receivedPeerId
+        identInfo.peerId = receivedPeerId
 
       trace "triggering peer event", peerInfo = conn.peerId
       if not isNil(p.identifyHandler):
-        await p.identifyHandler(conn.peerId, indentInfo)
+        await p.identifyHandler(conn.peerId, identInfo)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

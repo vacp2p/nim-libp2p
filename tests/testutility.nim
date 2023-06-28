@@ -9,7 +9,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import strformat
 import ./helpers
 import ../libp2p/utility
 

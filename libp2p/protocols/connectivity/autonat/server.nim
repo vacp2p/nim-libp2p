@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[options, sets, sequtils]
+import std/[sets, sequtils]
 import stew/results
 import chronos, chronicles
 import ../../protocol,
@@ -33,8 +33,8 @@ type
     dialTimeout: Duration
 
 proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
-  let pb = AutonatDial(peerInfo: some(AutonatPeerInfo(
-                         id: some(pid),
+  let pb = AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(
+                         id: Opt.some(pid),
                          addrs: addrs
                        ))).encode()
   await conn.writeLp(pb.buffer)
@@ -42,16 +42,16 @@ proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.}
 proc sendResponseError(conn: Connection, status: ResponseStatus, text: string = "") {.async.} =
   let pb = AutonatDialResponse(
              status: status,
-             text: if text == "": none(string) else: some(text),
-             ma: none(MultiAddress)
+             text: if text == "": Opt.none(string) else: Opt.some(text),
+             ma: Opt.none(MultiAddress)
            ).encode()
   await conn.writeLp(pb.buffer)
 
 proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
   let pb = AutonatDialResponse(
              status: ResponseStatus.Ok,
-             text: some("Ok"),
-             ma: some(ma)
+             text: Opt.some("Ok"),
+             ma: Opt.some(ma)
            ).encode()
   await conn.writeLp(pb.buffer)
 
@@ -70,8 +70,8 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
     let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
     let ma = await fut
-    if ma.isSome:
-      await conn.sendResponseOk(ma.get())
+    ma.withValue(maddr):
+      await conn.sendResponseOk(maddr)
     else:
       await conn.sendResponseError(DialError, "Missing observed address")
   except CancelledError as exc:
@@ -92,42 +92,40 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
         f.cancel()
 
 proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
-  if msg.dial.isNone() or msg.dial.get().peerInfo.isNone():
+  let dial = msg.dial.valueOr:
+    return conn.sendResponseError(BadRequest, "Missing Dial")
+  let peerInfo = dial.peerInfo.valueOr:
     return conn.sendResponseError(BadRequest, "Missing Peer Info")
-  let peerInfo = msg.dial.get().peerInfo.get()
-  if peerInfo.id.isSome() and peerInfo.id.get() != conn.peerId:
-    return conn.sendResponseError(BadRequest, "PeerId mismatch")
+  peerInfo.id.withValue(id):
+    if id != conn.peerId:
+      return conn.sendResponseError(BadRequest, "PeerId mismatch")
 
-  if conn.observedAddr.isNone:
+  let observedAddr = conn.observedAddr.valueOr:
     return conn.sendResponseError(BadRequest, "Missing observed address")
-  let observedAddr = conn.observedAddr.get()
 
-  var isRelayed = observedAddr.contains(multiCodec("p2p-circuit"))
-  if isRelayed.isErr() or isRelayed.get():
+  var isRelayed = observedAddr.contains(multiCodec("p2p-circuit")).valueOr:
+    return conn.sendResponseError(DialRefused, "Invalid observed address")
+  if isRelayed:
     return conn.sendResponseError(DialRefused, "Refused to dial a relayed observed address")
-  let hostIp = observedAddr[0]
-  if hostIp.isErr() or not IP.match(hostIp.get()):
-    trace "wrong observed address", address=observedAddr
+  let hostIp = observedAddr[0].valueOr:
+    return conn.sendResponseError(InternalError, "Wrong observed address")
+  if not IP.match(hostIp):
     return conn.sendResponseError(InternalError, "Expected an IP address")
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(observedAddr)
   trace "addrs received", addrs = peerInfo.addrs
   for ma in peerInfo.addrs:
-    isRelayed = ma.contains(multiCodec("p2p-circuit"))
-    if isRelayed.isErr() or isRelayed.get():
-      continue
-    let maFirst = ma[0]
-    if maFirst.isErr() or not DNS_OR_IP.match(maFirst.get()):
-      continue
+    isRelayed = ma.contains(multiCodec("p2p-circuit")).valueOr: continue
+    let maFirst = ma[0].valueOr: continue
+    if not DNS_OR_IP.match(maFirst): continue
 
     try:
       addrs.incl(
-        if maFirst.get() == hostIp.get():
+        if maFirst == hostIp:
           ma
         else:
-          let maEnd = ma[1..^1]
-          if maEnd.isErr(): continue
-          hostIp.get() & maEnd.get()
+          let maEnd = ma[1..^1].valueOr: continue
+          hostIp & maEnd
       )
     except LPError as exc:
       continue
@@ -144,10 +142,10 @@ proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 
   let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
   proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
-      let msgOpt = AutonatMsg.decode(await conn.readLp(1024))
-      if msgOpt.isNone() or msgOpt.get().msgType != MsgType.Dial:
+      let msg = AutonatMsg.decode(await conn.readLp(1024)).valueOr:
         raise newException(AutonatError, "Received malformed message")
-      let msg = msgOpt.get()
+      if msg.msgType != MsgType.Dial:
+        raise newException(AutonatError, "Message type should be dial")
       await autonat.handleDial(conn, msg)
     except CancelledError as exc:
       raise exc

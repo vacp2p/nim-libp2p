@@ -9,7 +9,10 @@
 
 {.push raises: [].}
 
-import stew/byteutils
+import std/options, std/macros
+import stew/[byteutils, results]
+
+export results
 
 template public* {.pragma.}
 
@@ -50,9 +53,6 @@ when defined(libp2p_agents_metrics):
   import strutils
   export split
 
-  import stew/results
-  export results
-
   proc safeToLowerAscii*(s: string): Result[string, cstring] =
     try:
       ok(s.toLowerAscii())
@@ -83,3 +83,30 @@ template exceptionToAssert*(body: untyped): untyped =
     when defined(nimHasWarnBareExcept):
       {.pop.}
     res
+
+template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped =
+  if self.isSome:
+    let value {.inject.} = self.get()
+    body
+
+macro withValue*[T](self: Opt[T] | Option[T], value, body, body2: untyped): untyped =
+  let elseBody = body2[0]
+  quote do:
+    if `self`.isSome:
+      let `value` {.inject.} = `self`.get()
+      `body`
+    else:
+      `elseBody`
+
+template valueOr*[T](self: Option[T], body: untyped): untyped =
+  if self.isSome:
+    self.get()
+  else:
+    body
+
+template toOpt*[T, E](self: Result[T, E]): Opt[T] =
+  if self.isOk:
+    when T is void: Result[void, void].ok()
+    else: Opt.some(self.unsafeGet())
+  else:
+    Opt.none(type(T))

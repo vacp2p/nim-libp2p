@@ -66,18 +66,17 @@ proc init*(
   var msg = Message(data: data, topicIDs: @[topic])
 
   # order matters, we want to include seqno in the signature
-  if seqno.isSome:
-    msg.seqno = @(seqno.get().toBytesBE())
+  seqno.withValue(seqn):
+    msg.seqno = @(seqn.toBytesBE())
 
-  if peer.isSome:
-    let peer = peer.get()
+  peer.withValue(peer):
     msg.fromPeer = peer.peerId
     if sign:
       msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
       msg.key = peer.privateKey.getPublicKey().expect("Invalid private key!")
         .getBytes().expect("Couldn't get public key bytes!")
-  elif sign:
-    raise (ref LPError)(msg: "Cannot sign message without peer info")
+  else:
+    if sign: raise (ref LPError)(msg: "Cannot sign message without peer info")
 
   msg
 
@@ -91,6 +90,6 @@ proc init*(
   var msg = Message(data: data, topicIDs: @[topic])
   msg.fromPeer = peerId
 
-  if seqno.isSome:
-    msg.seqno = @(seqno.get().toBytesBE())
+  seqno.withValue(seqn):
+    msg.seqno = @(seqn.toBytesBE())
   msg

@@ -45,9 +45,7 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
   for address in switch.peerStore[AddressBook][peerId]:
     try:
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
-      if isRelayed.isErr() or isRelayed.get():
-        continue
-      if address.isPublicMA():
+      if not isRelayed.get(false) and address.isPublicMA():
         return await tryConnect(address)
     except CatchableError as err:
       debug "Failed to create direct connection.", err = err.msg
@@ -96,7 +94,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
-    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
+    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
       if networkReachability == NetworkReachability.NotReachable and not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)
       elif networkReachability == NetworkReachability.Reachable and self.autoRelayService.isRunning():

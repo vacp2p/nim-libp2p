@@ -49,9 +49,7 @@ proc pruned*(g: GossipSub,
              backoff = none(Duration)) {.raises: [].} =
   if setBackoff:
     let
-      backoffDuration =
-        if isSome(backoff): backoff.get()
-        else: g.parameters.pruneBackoff
+      backoffDuration = backoff.get(g.parameters.pruneBackoff)
       backoffMoment = Moment.fromNow(backoffDuration)
 
     g.backingOff
@@ -191,20 +189,15 @@ proc handleGraft*(g: GossipSub,
 proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRecord])] =
   var routingRecords: seq[(PeerId, Option[PeerRecord])]
   for record in prune.peers:
-    let peerRecord =
-      if record.signedPeerRecord.len == 0:
-        none(PeerRecord)
-      else:
-        let signedRecord = SignedPeerRecord.decode(record.signedPeerRecord)
-        if signedRecord.isErr:
-          trace "peer sent invalid SPR", peer, error=signedRecord.error
-          none(PeerRecord)
+    var peerRecord = none(PeerRecord)
+    if record.signedPeerRecord.len > 0:
+      SignedPeerRecord.decode(record.signedPeerRecord).toOpt().withValue(spr):
+        if record.peerId != spr.data.peerId:
+          trace "peer sent envelope with wrong public key", peer
         else:
-          if record.peerId != signedRecord.get().data.peerId:
-            trace "peer sent envelope with wrong public key", peer
-            none(PeerRecord)
-          else:
-            some(signedRecord.get().data)
+          peerRecord = some(spr.data)
+      else:
+        trace "peer sent invalid SPR", peer
 
     routingRecords.add((record.peerId, peerRecord))
 
@@ -296,12 +289,11 @@ proc handleIWant*(g: GossipSub,
             libp2p_gossipsub_received_iwants.inc(1, labelValues=["skipped"])
             return messages
           continue
-        let msg = g.mcache.get(mid)
-        if msg.isSome:
-          libp2p_gossipsub_received_iwants.inc(1, labelValues=["correct"])
-          messages.add(msg.get())
-        else:
+        let msg = g.mcache.get(mid).valueOr:
           libp2p_gossipsub_received_iwants.inc(1, labelValues=["unknown"])
+          continue
+        libp2p_gossipsub_received_iwants.inc(1, labelValues=["correct"])
+        messages.add(msg)
   return messages
 
 proc commitMetrics(metrics: var MeshMetrics) {.raises: [].} =
