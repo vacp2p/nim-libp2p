@@ -667,7 +667,7 @@ suite "GossipSub":
 
     check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == gossip1.parameters.dLow
 
-    check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == 17
+    check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == 17
 
     # Now try with a mesh
     gossip1.subscribe("foobar", handler)
