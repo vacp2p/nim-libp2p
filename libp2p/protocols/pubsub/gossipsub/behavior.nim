@@ -258,13 +258,12 @@ proc handleIHave*(g: GossipSub,
       if ihave.topicId in g.topics:
         for msgId in ihave.messageIds:
           if not g.hasSeen(msgId):
-            if peer.iHaveBudget > 0 and msgId notin res.messageIds:
+            if peer.iHaveBudget <= 0:
+              break
+            elif msgId notin res.messageIds:
               res.messageIds.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
-            else:
-              # No budget, or the peer sent duplicate
-              break
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIds)
