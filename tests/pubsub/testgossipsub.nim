@@ -665,14 +665,16 @@ suite "GossipSub":
         await sleepAsync(10.milliseconds)
       check false
 
-    check (await nodes[0].publish("foobar", newSeq[byte](1_000_000))) == 17
+    check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == gossip1.parameters.dLow
+
+    check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == 17
 
     # Now try with a mesh
     gossip1.subscribe("foobar", handler)
     checkExpiring: gossip1.mesh.peers("foobar") > 5
 
     # use a different length so that the message is not equal to the last
-    check (await nodes[0].publish("foobar", newSeq[byte](1_000_001))) == 17
+    check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == 17
 
     await allFuturesThrowing(
       nodes.mapIt(it.switch.stop())
