@@ -28,8 +28,8 @@ declareGauge(libp2p_gossipsub_peers_score_invalidMessageDeliveries, "Detailed go
 declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_invalidIgnoredTrafficRatio, "Invalid Ignored Traffic Ratio", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_invalidTrafficRatio, "Invalid Traffic Ratio", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_averageInvalidIgnoredTrafficRatio, "Average Invalid Ignored Traffic Ratio", labels = ["agent"])
+declareGauge(libp2p_gossipsub_peers_score_averageInvalidTrafficRatio, "Average Invalid Traffic Ratio", labels = ["agent"])
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
@@ -98,6 +98,14 @@ proc getAgent(peer: PubSubPeer): string =
     else:
     "unknown"
 
+proc numberOfPeersForAgent(g: GossipSub, agent: string): int =
+  var count = 0
+  for peerId in g.peers.keys:
+    let peer = g.peers.getOrDefault(peerId)
+    if getAgent(peer) == agent:
+      count += 1
+  return count
+
 proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   let agent = getAgent(peer)
   libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
@@ -120,11 +128,14 @@ proc disconnectIfBadTrafficPeer(g: GossipSub, peer: PubSubPeer) =
   if peer.totalTraffic > 0:
     # dividing in this way to avoid integer overflow
     let agent = getAgent(peer)
-    let invalidTrafficRatio: float64 = float64(peer.invalidTraffic) / float64(peer.totalTraffic)
-    let invalidIgnoredTrafficRatio: float64 = float64(peer.invalidIgnoredTraffic) / float64(peer.totalTraffic)
-    let totalInvalidTrafficRatio: float64 = invalidTrafficRatio + invalidIgnoredTrafficRatio
-    libp2p_gossipsub_peers_score_invalidTrafficRatio.set(invalidTrafficRatio, labelValues = [agent])
-    libp2p_gossipsub_peers_score_invalidIgnoredTrafficRatio.set(invalidIgnoredTrafficRatio, labelValues = [agent])
+    let invalidTrafficRatio = float64(peer.invalidTraffic) / float64(peer.totalTraffic)
+    let invalidIgnoredTrafficRatio = float64(peer.invalidIgnoredTraffic) / float64(peer.totalTraffic)
+    let totalInvalidTrafficRatio = invalidTrafficRatio + invalidIgnoredTrafficRatio
+    let numberOfPeersForAgent = float64(numberOfPeersForAgent(g, agent))
+    libp2p_gossipsub_peers_score_averageInvalidTrafficRatio
+      .inc(invalidTrafficRatio / (if numberOfPeersForAgent != 0: numberOfPeersForAgent else: 1), labelValues = [agent])
+    libp2p_gossipsub_peers_score_averageInvalidIgnoredTrafficRatio
+      .inc(invalidIgnoredTrafficRatio / (if numberOfPeersForAgent != 0: numberOfPeersForAgent else: 1), labelValues = [agent])
     discard g.disconnectIfBadPeer(peer, -totalInvalidTrafficRatio, -0.30'f64) #g.parameters.maxInvalidTrafficRatio)
 
 proc updateScores*(g: GossipSub) = # avoid async
