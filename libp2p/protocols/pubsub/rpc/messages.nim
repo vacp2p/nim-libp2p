@@ -142,10 +142,12 @@ proc byteSize*(msg: RPCMsg): int =
     let ctrl = msg.control.get()
     for item in ctrl.ihave:
       total += item.topicId.len
-      total += item.messageIds.len * sizeof(byte)  # Assuming MessageId is seq[byte]
+      for msgId in item.messageIds:
+        total += msgId.len
 
     for item in ctrl.iwant:
-      total += item.messageIds.len * sizeof(byte)  # Assuming MessageId is seq[byte]
+      for msgId in item.messageIds:
+        total += msgId.len
 
     for item in ctrl.graft:
       total += item.topicId.len

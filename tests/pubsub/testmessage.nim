@@ -73,3 +73,47 @@ suite "Message":
     check:
       msgIdResult.isErr
       msgIdResult.error == ValidationResult.Reject
+
+  test "byteSize for Message":
+    var msg = Message(
+      fromPeer: PeerId(data: @[]),  # Empty seq[byte]
+      data: @[1'u8, 2, 3],  # 3 bytes
+      seqno: @[1'u8],  # 1 byte
+      signature: @[],  # Empty seq[byte]
+      key: @[1'u8],  # 1 byte
+      topicIds: @["abc", "defgh"]  # 3 + 5 = 8 bytes
+    )
+
+    check byteSize(msg) == 3 + 1 + 1 + 8  # Total: 13 bytes
+
+  test "byteSize for RPCMsg":
+    var msg = RPCMsg(
+      subscriptions: @[
+        SubOpts(topic: "abc", subscribe: true),
+        SubOpts(topic: "def", subscribe: false)
+      ],  # 3 + 3 + 2 * sizeof(bool) bytes
+      messages: @[
+        Message(fromPeer: PeerId(data: @[]), data: @[1'u8, 2, 3], seqno: @[1'u8], signature: @[], key: @[1'u8], topicIds: @["abc", "defgh"]),
+        Message(fromPeer: PeerId(data: @[]), data: @[], seqno: @[], signature: @[], key: @[], topicIds: @["abc"])
+      ],  # byteSize: 13 + 3 = 16 bytes
+      control: some(ControlMessage(
+        ihave: @[
+          ControlIHave(topicId: "ghi", messageIds: @[@[1'u8, 2, 3]])
+        ],  # 3 + 3 bytes
+        iwant: @[
+          ControlIWant(messageIds: @[@[1'u8, 2]])
+        ],  # 2 bytes
+        graft: @[
+          ControlGraft(topicId: "jkl")
+        ],  # 3 bytes
+        prune: @[
+          ControlPrune(topicId: "mno", peers: @[PeerInfoMsg(peerId: PeerId(data: @[]), signedPeerRecord: @[])], backoff: 1)
+        ]  # 3 + sizeof(uint64) bytes
+      )),
+      ping: @[],  # Empty seq[byte]
+      pong: @[]  # Empty seq[byte]
+    )
+
+    let boolSize = sizeof(bool)
+    let uint64Size = sizeof(uint64)
+    check byteSize(msg) == (3 + 3 + 2 * boolSize) + 16 + (3 + 3 + 2 + 3 + 3 + uint64Size)
