@@ -141,6 +141,7 @@ type
 
     disconnectBadPeers*: bool
     enablePX*: bool
+    invalidTrafficRatioThreshold*: float64
 
     bandwidthEstimatebps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
     iwantTimeout*: Duration
