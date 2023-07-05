@@ -23,6 +23,7 @@ import ../libp2p/[errors,
                   peerinfo,
                   crypto/crypto,
                   protocols/protocol,
+                  protocols/ping,
                   protocols/secure/secure,
                   muxers/muxer,
                   muxers/mplex/lpchannel,
@@ -1062,3 +1063,40 @@ suite "Switch":
     await switch.start()
 
     await allFuturesThrowing(switch.stop())
+
+  asyncTest "works without identify":
+    let
+      rng = newRng()
+      switch1 = newStandardSwitch(
+        addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()],
+        rng = rng
+      )
+      switch2 = newStandardSwitch(
+        addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()],
+        rng = rng
+      )
+      pingProtocol = Ping.new(rng=rng)
+
+    switch1.mount(pingProtocol)
+    switch2.mount(pingProtocol)
+    template umount(s: Switch) =
+      let handlerLengths = s.ms.handlers.len
+      s.ms.handlers.keepItIf(IdentifyCodec notin it.protos)
+      check s.ms.handlers.len == handlerLengths - 1
+    umount(switch1)
+    umount(switch2)
+    await switch1.start()
+    await switch2.start()
+
+    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
+    discard await pingProtocol.ping(conn)
+    await conn.close()
+
+    await switch2.disconnect(switch1.peerInfo.peerId)
+    checkExpiring: switch1.isConnected(switch2.peerInfo.peerId) == false
+
+    let conn2 = await switch1.dial(switch2.peerInfo.peerId, switch2.peerInfo.addrs, PingCodec)
+    discard await pingProtocol.ping(conn2)
+    await conn2.close()
+
+    await allFuturesThrowing(switch1.stop(), switch2.stop())
