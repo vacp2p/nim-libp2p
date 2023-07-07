@@ -284,8 +284,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   except CancelledError as exc:
     raise exc
   except TransportOsError as exc:
-    info "OS Error", exc = exc.msg
-    raise exc
+    debug "OS Error", exc = exc.msg
   except CatchableError as exc:
     info "Unexpected error accepting connection", exc = exc.msg
     raise exc
