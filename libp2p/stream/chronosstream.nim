@@ -129,7 +129,9 @@ method write*(s: ChronosStream, msg: seq[byte]): Future[void] =
   # drives up memory usage
   if msg.len == 0:
     trace "Empty byte seq, nothing to write"
-    return
+    let fut = newFuture[void]("chronosstream.write.empty")
+    fut.complete()
+    return fut
   if s.closed:
     let fut = newFuture[void]("chronosstream.write.closed")
     fut.fail(newLPStreamClosedError())
