@@ -276,7 +276,7 @@ proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe, publ
   if length == 0:
     return
 
-  var res = newSeq[byte](length)
+  var res = newSeqUninitialized[byte](length)
   await s.readExactly(addr res[0], res.len)
   return res
 
