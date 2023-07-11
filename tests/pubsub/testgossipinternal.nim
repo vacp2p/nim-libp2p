@@ -658,11 +658,14 @@ suite "GossipSub internal":
 
     proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
       check false
+    proc handler2(topic: string, data: seq[byte]) {.async.} = discard
 
     let topic = "foobar"
     var conns = newSeq[Connection]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    gossipSub.subscribe(topic, handler2)
+
     for i in 0..<30:
       let conn = TestBufferStream.new(noop)
       conns &= conn
