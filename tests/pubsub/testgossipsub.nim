@@ -796,3 +796,63 @@ suite "GossipSub":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "e2e - iDontWant":
+    # 3 nodes: A <=> B <=> C
+    # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
+    # and check that B doesn't relay the message to C.
+    # We also check that B sends IDONTWANT to C, but not A
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let
+      nodes = generateNodes(
+        3,
+        gossip = true,
+        msgIdProvider = dumbMsgIdProvider
+        )
+
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+        nodes[2].switch.start(),
+      )
+
+    await nodes[0].switch.connect(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
+    await nodes[1].switch.connect(nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs)
+
+    let bFinished = newFuture[void]()
+    proc handlerA(topic: string, data: seq[byte]) {.async, gcsafe.} = discard
+    proc handlerB(topic: string, data: seq[byte]) {.async, gcsafe.} = bFinished.complete()
+    proc handlerC(topic: string, data: seq[byte]) {.async, gcsafe.} = doAssert false
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    nodes[2].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    var gossip2: GossipSub = GossipSub(nodes[1])
+    var gossip3: GossipSub = GossipSub(nodes[2])
+
+    check: gossip3.mesh.peers("foobar") == 1
+
+    gossip3.broadcast(gossip3.mesh["foobar"], RPCMsg(control: some(ControlMessage(
+      idontwant: @[ControlIWant(messageIds: @[newSeq[byte](10)])]
+    ))))
+    checkExpiring: gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
+
+    tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
+
+    await bFinished
+
+    checkExpiring: toSeq(gossip3.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 1)
+    check: toSeq(gossip1.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 0)
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop(),
+      nodes[2].switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+

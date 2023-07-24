@@ -42,6 +42,7 @@ type
       iwant*: seq[ControlIWant]
       graft*: seq[ControlGraft]
       prune*: seq[ControlPrune]
+      idontwant*: seq[ControlIWant]
 
     ControlIHave* = object
       topicId*: string
