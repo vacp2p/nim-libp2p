@@ -129,7 +129,8 @@ proc disconnectIfBadTrafficPeer*(g: GossipSub, peer: PubSubPeer) =
     libp2p_gossipsub_peers_invalidIgnoredTraffic_bytes.inc(float64(peer.invalidIgnoredTraffic), labelValues = [agent])
     libp2p_gossipsub_peers_totalTraffic_bytes.inc(float64(peer.totalTraffic), labelValues = [agent])
 
-    if g.disconnectIfBadPeer(peer, -totalInvalidTrafficRatio, g.parameters.invalidTrafficRatioThreshold):
+    # inverting the signs as we want to compare if the ratio is above the threshold
+    if g.disconnectIfBadPeer(peer, -totalInvalidTrafficRatio, -g.parameters.invalidTrafficRatioThreshold):
       libp2p_gossipsub_peers_badTrafficScorePeerDisconnections.inc(labelValues = [getAgent(peer)])
       debug "Bad traffic score peer disconnected", peer
 
