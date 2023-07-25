@@ -306,7 +306,6 @@ proc validateAndRelay(g: GossipSub,
                       msgId, msgIdSalted: MessageId,
                       peer: PubSubPeer) {.async.} =
   try:
-    let msgSize = sizeof(msg)
     let validation = await g.validate(msg)
 
     var seenPeers: HashSet[PubSubPeer]
