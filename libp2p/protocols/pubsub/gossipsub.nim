@@ -160,7 +160,8 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
-    discard g.disconnectIfBadPeer(peer, stats.score, g.parameters.graylistThreshold)
+    if not g.disconnectIfBadPeer(peer, stats.score, g.parameters.graylistThreshold):
+      g.disconnectIfBadTrafficPeer(peer)
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget

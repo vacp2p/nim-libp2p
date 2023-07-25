@@ -126,7 +126,7 @@ proc disconnectIfBadPeer*(g: GossipSub, peer: PubSubPeer, score: float64, thresh
 
   return false
 
-proc disconnectIfBadTrafficPeer(g: GossipSub, peer: PubSubPeer) =
+proc disconnectIfBadTrafficPeer*(g: GossipSub, peer: PubSubPeer) =
   if peer.totalTraffic > 0:
     # dividing in this way to avoid integer overflow
     let agent = getAgent(peer)
