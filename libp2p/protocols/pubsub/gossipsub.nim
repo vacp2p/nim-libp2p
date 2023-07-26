@@ -471,17 +471,16 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-proc calculateMaxNumPeersFloodPublish*(g: GossipSub, data: seq[byte]): int64 =
-  let
-    msgSize = data.len
-    bandwidth = 12_500_000 div 1000 # 100 Mbps or 12.5 MBps or 12_500 bytes/ms TODO replace with bandwidth estimate
-    msToTransmit = max(msgSize div bandwidth, 1)
-  return max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
-
-proc addPeersForFloodPublish(g: GossipSub, topic: string, peers: var HashSet[PubSubPeer], maxNumPeersFloodPublish: int64) =
+proc addFloodPublishPeers(g: GossipSub, topic: string, msgSize: int, peers: var HashSet[PubSubPeer]) =
   # With flood publishing enabled, the mesh is used when propagating messages from other peers,
   # but a peer's own messages will always be published to all known peers in the topic, limited
   # to the amount of peers we can send it to in one heartbeat
+  let
+    bandwidth = 12_500_000 div 1000 # 100 Mbps or 12.5 MBps TODO replace with bandwidth estimate
+    msToTransmit = max(msgSize div bandwidth, 1)
+    maxPeersToFlod =
+      max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
+
   for peer in g.gossipsub.getOrDefault(topic):
     if peers.len >= maxNumPeersFloodPublish: break
     if peer.score >= g.parameters.publishThreshold:
@@ -507,7 +506,7 @@ proc addFanoutPeers(g: GossipSub, topic: string, peers: var HashSet[PubSubPeer])
   # time
   g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
-proc getDirectAndMeshPeers(g: GossipSub, topic: string): HashSet[PubSubPeer] =
+proc getPublishPeers(g: GossipSub, topic: string, msgSize: int): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
   # add always direct peers
@@ -516,9 +515,38 @@ proc getDirectAndMeshPeers(g: GossipSub, topic: string): HashSet[PubSubPeer] =
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
 
-  return peers
+  if g.parameters.floodPublish:
+    addFloodPublishPeers(g, topic, peers)
 
-proc publishMessage(g: GossipSub, topic: string, data: seq[byte], peers: HashSet[PubSubPeer]): int {.raises: [LPError].} =
+  if peers.len < g.parameters.dLow:
+    # not subscribed, or bad mesh, send to fanout peers
+    addFanoutPeers(g, topic, peers)
+  peers
+
+method publish*(g: GossipSub,
+                topic: string,
+                data: seq[byte]): Future[int] {.async.} =
+  # base returns always 0
+  discard await procCall PubSub(g).publish(topic, data)
+
+  logScope:
+    topic
+
+  trace "Publishing message on topic", data = data.shortLog
+
+  if topic.len <= 0: # data could be 0/empty
+    debug "Empty topic, skipping publish"
+    return 0
+
+  let peers = g.getPublishPeers(topic, data.len)
+  if peers.len == 0:
+    let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
+    debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
+                                                   connectedPeers = topicPeers.filterIt(it.connected).len,
+                                                   topic
+    libp2p_gossipsub_failed_publish.inc()
+    return 0
+
   let
     msg =
       if g.anonymize:
@@ -552,42 +580,6 @@ proc publishMessage(g: GossipSub, topic: string, data: seq[byte], peers: HashSet
 
   trace "Published message to peers", peers=peers.len
   return peers.len
-
-method publish*(g: GossipSub,
-                topic: string,
-                data: seq[byte]): Future[int] {.async.} =
-  # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
-
-  logScope:
-    topic
-
-  trace "Publishing message on topic", data = data.shortLog
-
-  if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
-    return 0
-
-  var peers = g.getDirectAndMeshPeers(topic)
-
-  if g.parameters.floodPublish:
-    let maxNumPeersFloodPublish = calculateMaxNumPeersFloodPublish(g, data)
-    addPeersForFloodPublish(g, topic, peers, maxNumPeersFloodPublish)
-
-  if peers.len < g.parameters.dLow:
-    # not subscribed, or bad mesh, send to fanout peers
-    addFanoutPeers(g, topic, peers)
-
-  if peers.len == 0:
-    let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
-                                                   connectedPeers = topicPeers.filterIt(it.connected).len,
-                                                   topic
-    # skipping topic as our metrics finds that heavy
-    libp2p_gossipsub_failed_publish.inc()
-    return 0
-
-  return g.publishMessage(topic, data, peers)
 
 proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
   let peer = g.peers.getOrDefault(id)
