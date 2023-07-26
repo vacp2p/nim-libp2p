@@ -266,10 +266,10 @@ proc handleIDontWant*(g: GossipSub,
                       peer: PubSubPeer,
                       iDontWants: seq[ControlIWant]) =
   for dontWant in iDontWants:
-    for message in dontWant.messageIds:
+    for messageId in dontWant.messageIds:
       if peer.heDontWants[^1].len > 1000: break
-      if message.len > 100: break
-      peer.heDontWants[^1].incl(message)
+      if messageId.len > 100: continue
+      peer.heDontWants[^1].incl(messageId)
 
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,

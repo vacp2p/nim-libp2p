@@ -333,12 +333,13 @@ proc validateAndRelay(g: GossipSub,
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
-
     # Don't send it to source peer, or peers that
     # sent it during validation
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
 
+    # IDontWant is only worth it if the message is substantially
+    # bigger than the messageId
     if msg.data.len > msgId.len * 10:
       g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
           idontwant: @[ControlIWant(messageIds: @[msgId])]
