@@ -79,6 +79,8 @@ declarePublicCounter(libp2p_pubsub_received_ihave, "pubsub broadcast ihave", lab
 declarePublicCounter(libp2p_pubsub_received_graft, "pubsub broadcast graft", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", labels = ["topic"])
 
+declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
+
 type
   InitializationError* = object of LPError
 
@@ -603,3 +605,20 @@ proc removeObserver*(p: PubSub; observer: PubSubObserver) {.public.} =
   let idx = p.observers[].find(observer)
   if idx != -1:
     p.observers[].del(idx)
+
+proc disconnectPeer*(p: PubSub, peer: PubSubPeer) {.async.} =
+  let agent = peer.getAgent()
+  libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
+
+  try:
+    await p.switch.disconnect(peer.peerId)
+  except CatchableError as exc: # Never cancelled
+    trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
+
+method shoulDisconnectPeer*(p: PubSub, peer: PubSubPeer, score: float64): bool {.base.} =
+  doAssert(false, "Not implemented!")
+
+method disconnectIfBadPeer*(p: PubSub, peer: PubSubPeer, score: float64) {.base.} =
+  if p.shoulDisconnectPeer(peer, score):
+    debug "disconnecting bad score peer", peer, score
+    asyncSpawn(p.disconnectPeer(peer))

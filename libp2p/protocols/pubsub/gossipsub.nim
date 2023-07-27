@@ -160,8 +160,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
-    if not g.disconnectIfBadPeer(peer, stats.score, g.parameters.graylistThreshold):
-      g.disconnectIfBadTrafficPeer(peer)
+    g.disconnectIfBadPeer(peer, stats.score)
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
@@ -380,6 +379,10 @@ proc validateAndRelay(g: GossipSub,
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
+
+  if peer.shouldDisconnectPeer:
+    discard g.disconnectPeer(peer)
+    return
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
     g.send(peer, RPCMsg(pong: rpcMsg.ping))
@@ -673,3 +676,9 @@ method initPubSub*(g: GossipSub)
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
+
+method shoulDisconnectPeer*(g: GossipSub, peer: PubSubPeer, score: float64): bool =
+  if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
+     peer.peerId notin g.parameters.directPeers:
+    return true
+  return false

@@ -128,6 +128,21 @@ proc byteSize*(msg: Message): int =
     total += topicId.len
   return total
 
+proc byteSize*(ihave: seq[ControlIHave]): int =
+  var total = 0
+  for item in ihave:
+    total += item.topicId.len
+    for msgId in item.messageIds:
+      total += msgId.len
+  return total
+
+proc byteSize*(iwant: seq[ControlIWant]): int =
+  var total = 0
+  for item in iwant:
+    for msgId in item.messageIds:
+      total += msgId.len
+  return total
+
 proc byteSize*(msg: RPCMsg): int =
   var total = 0
 
@@ -140,14 +155,9 @@ proc byteSize*(msg: RPCMsg): int =
 
   if msg.control.isSome:
     let ctrl = msg.control.get()
-    for item in ctrl.ihave:
-      total += item.topicId.len
-      for msgId in item.messageIds:
-        total += msgId.len
+    total += byteSize(ctrl.ihave)
 
-    for item in ctrl.iwant:
-      for msgId in item.messageIds:
-        total += msgId.len
+    total += byteSize(ctrl.iwant)
 
     for item in ctrl.graft:
       total += item.topicId.len

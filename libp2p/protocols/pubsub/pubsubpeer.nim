@@ -12,6 +12,7 @@
 import std/[sequtils, strutils, tables, hashes, options, sets, deques]
 import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
+import chronos/ratelimit
 import rpc/[messages, message, protobuf],
        ../../peerid,
        ../../peerinfo,
@@ -66,9 +67,8 @@ type
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
-    totalTraffic*: int64
-    invalidTraffic*: int64 # data that was parsed by protobuf but was invalid
-    invalidIgnoredTraffic*: int64 # data that couldn't be parsed by protobuf
+    uselessAppBytesRate*: TokenBucket
+    shouldDisconnectPeer*: bool
 
   RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
     {.gcsafe, raises: [].}
@@ -130,6 +130,9 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   try:
     try:
       while not conn.atEof:
+        if p.shouldDisconnectPeer:
+          debug "Ignoring peer", conn, peer = p
+          break
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
         var data = await conn.readLp(p.maxMessageSize)
@@ -139,14 +142,22 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
         # In this way we count even ignored fields by protobuf
         let msgSize = len(data)
-        p.totalTraffic += msgSize
         var rmsg = decodeRpcMsg(data).valueOr:
-          p.invalidIgnoredTraffic += msgSize
+          if not p.uselessAppBytesRate.tryConsume(msgSize):
+            p.shouldDisconnectPeer = true
           debug "failed to decode msg from peer",
             conn, peer = p, closed = conn.closed,
             err = error
           break
-        p.invalidIgnoredTraffic += msgSize - byteSize(rmsg)
+
+        let uselessAppBytesNum = block:
+          rmsg.control.withValue(control):
+            msgSize - byteSize(control.ihave) - byteSize(control.iwant)
+          else: msgSize
+
+        if not p.uselessAppBytesRate.tryConsume(uselessAppBytesNum):
+          p.shouldDisconnectPeer = true
+
         data = newSeq[byte]() # Release memory
 
         trace "decoded msg from peer",
@@ -323,7 +334,19 @@ proc new*(
     codec: codec,
     peerId: peerId,
     connectedFut: newFuture[void](),
-    maxMessageSize: maxMessageSize
+    maxMessageSize: maxMessageSize,
+    uselessAppBytesRate: TokenBucket.new(1024, 1.seconds),
+    shouldDisconnectPeer: false,
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))
+
+proc getAgent*(peer: PubSubPeer): string =
+  return
+    when defined(libp2p_agents_metrics):
+      if peer.shortAgent.len > 0:
+        peer.shortAgent
+      else:
+        "unknown"
+    else:
+      "unknown"
