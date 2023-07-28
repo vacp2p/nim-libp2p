@@ -22,6 +22,7 @@ import ./pubsub,
        ./rpc/[messages, message],
        ../protocol,
        ../../stream/connection,
+       ../../utils/semaphore,
        ../../peerinfo,
        ../../peerid,
        ../../utility,
@@ -339,7 +340,25 @@ proc validateAndRelay(g: GossipSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    #g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    let sem = newAsyncSemaphore(1)
+    var peers = toSeq(toSendPeers)
+    g.rng.shuffle(peers)
+
+    proc sendToOne(p: PubSubPeer) {.async.} =
+      await sem.acquire()
+      defer: sem.release()
+
+      let stats = p.getStats()
+      let bandwidth = max(stats.bandwidth.get(), 2000)
+      g.broadcast(@[p], RPCMsg(messages: @[msg]))
+      echo stats
+      echo "Sleeping ", msg.data.len div bandwidth
+      await sleepAsync(milliseconds(msg.data.len div bandwidth))
+      echo "After send", p.getStats()
+
+    for p in peers:
+      asyncSpawn sendToOne(p)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue

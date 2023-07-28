@@ -16,11 +16,12 @@ import rpc/[messages, message, protobuf],
        ../../peerid,
        ../../peerinfo,
        ../../stream/connection,
+       ../../stream/chronosstream,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
        ../../utility
 
-export peerid, connection
+export peerid, connection, chronosstream
 
 logScope:
   topics = "libp2p pubsubpeer"
@@ -77,6 +78,14 @@ when defined(libp2p_agents_metrics):
       #TODO the sendConn is setup before identify,
       #so we have to read the parents short agent..
       p.sendConn.getWrapped().shortAgent
+
+proc getStats*(p: PubSubPeer): ConnStats =
+  var c = p.sendConn
+  while true:
+    let w = c.getWrapped()
+    if isNil(w): break
+    c = w
+  ChronosStream(c).getStats
 
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash

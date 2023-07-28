@@ -13,6 +13,7 @@ import chronos, stew/byteutils
 import ../libp2p/[stream/connection,
                   transports/transport,
                   transports/tcptransport,
+                  stream/chronosstream,
                   upgrademngrs/upgrade,
                   multiaddress,
                   multicodec,

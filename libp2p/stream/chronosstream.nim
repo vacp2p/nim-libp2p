@@ -166,3 +166,29 @@ method closeImpl*(s: ChronosStream) {.async.} =
   await procCall Connection(s).closeImpl()
 
 method getWrapped*(s: ChronosStream): Connection = nil
+
+when defined(linux):
+  type TcpInfo {.importc: "struct tcp_info", header: "/usr/include/netinet/tcp.h".} = object
+    tcpi_rtt: uint32
+    tcpi_snd_cwnd: uint32
+    tcpi_snd_mss: uint32
+  let SOL_TCP_INFO {.importc: "TCP_INFO", header: "/usr/include/netinet/tcp.h".}: int
+  let SOL_TCP {.importc: "SOL_TCP", header: "/usr/include/netinet/tcp.h".}: int
+
+  type ConnStats* = object
+    bandwidth*: Opt[int] # bytes per milliseconds
+    ping*: Opt[int] # in usec
+
+  proc getStats*(s: ChronosStream): ConnStats =
+    var tcpInfo: TcpInfo
+    var tcpInfoLength = sizeof(tcpInfo)
+    if getSockOpt(s.client.fd, SOL_TCP, SOL_TCP_INFO, addr tcpInfo, tcpInfoLength):
+      result.ping = Opt.some(int(tcpInfo.tcpi_rtt))
+      let
+        ping = 100000.0
+        #ping = float(tcpInfo.tcpi_rtt)
+        cwnd = float(tcpInfo.tcpi_snd_cwnd)
+        mss = float(tcpInfo.tcpi_snd_mss)
+        bandwidth = (cwnd * mss) / (ping / 1000.0)
+      info "x", ping, cwnd, mss, bandwidth, ping2=tcpInfo.tcpi_rtt
+      result.bandwidth = Opt.some(int(bandwidth))
