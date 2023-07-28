@@ -262,6 +262,15 @@ proc handleIHave*(g: GossipSub,
     g.rng.shuffle(res.messageIds)
     return res
 
+proc handleIDontWant*(g: GossipSub,
+                      peer: PubSubPeer,
+                      iDontWants: seq[ControlIWant]) =
+  for dontWant in iDontWants:
+    for messageId in dontWant.messageIds:
+      if peer.heDontWants[^1].len > 1000: break
+      if messageId.len > 100: continue
+      peer.heDontWants[^1].incl(messageId)
+
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
                  iwants: seq[ControlIWant]): seq[Message] {.raises: [].} =
@@ -629,6 +638,9 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
         peer.sentIHaves.addFirst(default(HashSet[MessageId]))
         if peer.sentIHaves.len > g.parameters.historyLength:
           discard peer.sentIHaves.popLast()
+        peer.heDontWants.addFirst(default(HashSet[MessageId]))
+        if peer.heDontWants.len > g.parameters.historyLength:
+          discard peer.heDontWants.popLast()
         peer.iHaveBudget = IHavePeerBudget
         peer.pingBudget = PingsPeerBudget
 

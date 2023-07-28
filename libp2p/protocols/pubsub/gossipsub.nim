@@ -263,6 +263,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage
+  g.handleIDontWant(peer, control.idontwant)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIds.len > 0:
     respControl.iwant.add(iwant)
@@ -336,6 +337,21 @@ proc validateAndRelay(g: GossipSub,
     # sent it during validation
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
+
+    # IDontWant is only worth it if the message is substantially
+    # bigger than the messageId
+    if msg.data.len > msgId.len * 10:
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
+          idontwant: @[ControlIWant(messageIds: @[msgId])]
+        ))))
+
+    for peer in toSendPeers:
+      for heDontWant in peer.heDontWants:
+        if msgId in heDontWant:
+          seenPeers.incl(peer)
+          break
+    toSendPeers.excl(seenPeers)
+
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages

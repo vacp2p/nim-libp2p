@@ -20,7 +20,7 @@ import rpc/[messages, message, protobuf],
        ../../protobuf/minprotobuf,
        ../../utility
 
-export peerid, connection
+export peerid, connection, deques
 
 logScope:
   topics = "libp2p pubsubpeer"
@@ -60,6 +60,7 @@ type
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
+    heDontWants*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
     pingBudget*: int
     maxMessageSize: int
@@ -317,3 +318,4 @@ proc new*(
     maxMessageSize: maxMessageSize
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
+  result.heDontWants.addFirst(default(HashSet[MessageId]))
