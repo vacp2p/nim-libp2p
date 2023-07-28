@@ -471,58 +471,6 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-proc addFloodPublishPeers(g: GossipSub, topic: string, msgSize: int, peers: var HashSet[PubSubPeer]) =
-  # With flood publishing enabled, the mesh is used when propagating messages from other peers,
-  # but a peer's own messages will always be published to all known peers in the topic, limited
-  # to the amount of peers we can send it to in one heartbeat
-  let
-    bandwidth = 12_500_000 div 1000 # 100 Mbps or 12.5 MBps TODO replace with bandwidth estimate
-    msToTransmit = max(msgSize div bandwidth, 1)
-    maxPeersToFlod =
-      max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
-
-  for peer in g.gossipsub.getOrDefault(topic):
-    if peers.len >= maxNumPeersFloodPublish: break
-    if peer.score >= g.parameters.publishThreshold:
-      trace "publish: including flood/high score peer", peer
-      peers.incl(peer)
-
-proc addFanoutPeers(g: GossipSub, topic: string, peers: var HashSet[PubSubPeer]) =
-  var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-  if fanoutPeers.len < g.parameters.dLow:
-    g.replenishFanout(topic)
-    fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-
-  g.rng.shuffle(fanoutPeers)
-
-  for fanPeer in fanoutPeers:
-    peers.incl(fanPeer)
-    if peers.len > g.parameters.d: break
-
-  # even if we couldn't publish,
-  # we still attempted to publish
-  # on the topic, so it makes sense
-  # to update the last topic publish
-  # time
-  g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
-
-proc getPublishPeers(g: GossipSub, topic: string, msgSize: int): HashSet[PubSubPeer] =
-  var peers: HashSet[PubSubPeer]
-
-  # add always direct peers
-  peers.incl(g.explicit.getOrDefault(topic))
-
-  if topic in g.topics: # if we're subscribed use the mesh
-    peers.incl(g.mesh.getOrDefault(topic))
-
-  if g.parameters.floodPublish:
-    addFloodPublishPeers(g, topic, peers)
-
-  if peers.len < g.parameters.dLow:
-    # not subscribed, or bad mesh, send to fanout peers
-    addFanoutPeers(g, topic, peers)
-  peers
-
 method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte]): Future[int] {.async.} =
@@ -538,7 +486,50 @@ method publish*(g: GossipSub,
     debug "Empty topic, skipping publish"
     return 0
 
-  let peers = g.getPublishPeers(topic, data.len)
+  var peers: HashSet[PubSubPeer]
+
+  # add always direct peers
+  peers.incl(g.explicit.getOrDefault(topic))
+
+  if topic in g.topics: # if we're subscribed use the mesh
+    peers.incl(g.mesh.getOrDefault(topic))
+
+  if g.parameters.floodPublish:
+    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
+    # but a peer's own messages will always be published to all known peers in the topic, limited
+    # to the amount of peers we can send it to in one heartbeat
+    let
+      bandwidth = 12_500_000 div 1000 # 100 Mbps or 12.5 MBps TODO replace with bandwidth estimate
+      msToTransmit = max(data.len div bandwidth, 1)
+      maxPeersToFlod =
+        max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
+
+    for peer in g.gossipsub.getOrDefault(topic):
+      if peers.len >= maxPeersToFlod: break
+      if peer.score >= g.parameters.publishThreshold:
+        trace "publish: including flood/high score peer", peer
+        peers.incl(peer)
+
+  if peers.len < g.parameters.dLow:
+    # not subscribed, or bad mesh, send to fanout peers
+    var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+    if fanoutPeers.len < g.parameters.dLow:
+      g.replenishFanout(topic)
+      fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+
+    g.rng.shuffle(fanoutPeers)
+
+    for fanPeer in fanoutPeers:
+      peers.incl(fanPeer)
+      if peers.len > g.parameters.d: break
+
+    # even if we couldn't publish,
+    # we still attempted to publish
+    # on the topic, so it makes sense
+    # to update the last topic publish
+    # time
+    g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
+
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
     debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
