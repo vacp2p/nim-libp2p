@@ -40,6 +40,7 @@ type
     flags: set[ServerFlags]
     clientFlags: set[SocketFlags]
     acceptFuts: seq[Future[StreamTransport]]
+    connectionsTimeout: Duration
 
   TcpTransportTracker* = ref object of TrackerBase
     opened*: uint64
@@ -71,15 +72,6 @@ proc setupTcpTransportTracker(): TcpTransportTracker =
   result.isLeaked = leakTransport
   addTracker(TcpTransportTrackerName, result)
 
-proc getObservedAddr(client: StreamTransport): Future[MultiAddress] {.async.} =
-  try:
-    return MultiAddress.init(client.remoteAddress).tryGet()
-  except CatchableError as exc:
-    trace "Failed to create observedAddr", exc = exc.msg
-    if not(isNil(client) and client.closed):
-      await client.closeWait()
-    raise exc
-
 proc connHandler*(self: TcpTransport,
                   client: StreamTransport,
                   observedAddr: Opt[MultiAddress],
@@ -94,7 +86,8 @@ proc connHandler*(self: TcpTransport,
     ChronosStream.init(
       client = client,
       dir = dir,
-      observedAddr = observedAddr
+      observedAddr = observedAddr,
+      timeout = self.connectionsTimeout
     ))
 
   proc onClose() {.async.} =
@@ -126,7 +119,8 @@ proc connHandler*(self: TcpTransport,
 proc new*(
   T: typedesc[TcpTransport],
   flags: set[ServerFlags] = {},
-  upgrade: Upgrade): T {.public.} =
+  upgrade: Upgrade,
+  connectionsTimeout = 10.minutes): T {.public.} =
 
   let
     transport = T(
@@ -141,7 +135,8 @@ proc new*(
         else:
           default(set[SocketFlags]),
       upgrader: upgrade,
-      networkReachability: NetworkReachability.Unknown)
+      networkReachability: NetworkReachability.Unknown,
+      connectionsTimeout: connectionsTimeout)
 
   return transport
 
@@ -236,22 +231,29 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
     self.acceptFuts[index] = self.servers[index].accept()
 
     let transp = await finished
-    let observedAddr = await getObservedAddr(transp)
-    return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
-  except TransportOsError as exc:
-    # TODO: it doesn't sound like all OS errors
-    # can  be ignored, we should re-raise those
-    # that can'self.
-    debug "OS Error", exc = exc.msg
+    try:
+      let observedAddr = MultiAddress.init(transp.remoteAddress).tryGet()
+      return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
+    except CancelledError as exc:
+      transp.close()
+      raise exc
+    except CatchableError as exc:
+      debug "Failed to handle connection", exc = exc.msg
+      transp.close()
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
+  except TransportAbortedError as exc:
+    debug "Connection aborted", exc = exc.msg
   except TransportUseClosedError as exc:
     debug "Server was closed", exc = exc.msg
     raise newTransportClosedError(exc)
   except CancelledError as exc:
     raise exc
+  except TransportOsError as exc:
+    info "OS Error", exc = exc.msg
+    raise exc
   except CatchableError as exc:
-    debug "Unexpected error accepting connection", exc = exc.msg
+    info "Unexpected error accepting connection", exc = exc.msg
     raise exc
 
 method dial*(
@@ -271,7 +273,7 @@ method dial*(
       await connect(address, flags = self.clientFlags)
 
   try:
-    let observedAddr = await getObservedAddr(transp)
+    let observedAddr = MultiAddress.init(transp.remoteAddress).tryGet()
     return await self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
   except CatchableError as err:
     await transp.closeWait()

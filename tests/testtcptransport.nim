@@ -174,6 +174,23 @@ suite "TCP transport":
 
   proc transProvider(): Transport = TcpTransport.new(upgrade = Upgrade())
 
+  asyncTest "Custom timeout":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade(), connectionsTimeout=1.milliseconds)
+    asyncSpawn transport.start(ma)
+
+    proc acceptHandler() {.async, gcsafe.} =
+      let conn = await transport.accept()
+      await conn.join()
+
+    let handlerWait = acceptHandler()
+
+    let streamTransport = await connect(transport.addrs[0])
+    await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+    await streamTransport.closeWait()
+    await transport.stop()
+
+
   commonTransportTest(
     transProvider,
     "/ip4/0.0.0.0/tcp/0")

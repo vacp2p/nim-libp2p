@@ -42,14 +42,12 @@ proc decode*(
   ? pb.getRequiredField(2, record.seqNo)
 
   var addressInfos: seq[seq[byte]]
-  let pb3 = ? pb.getRepeatedField(3, addressInfos)
-
-  if pb3:
+  if ? pb.getRepeatedField(3, addressInfos):
     for address in addressInfos:
       var addressInfo = AddressInfo()
       let subProto = initProtoBuffer(address)
       let f = subProto.getField(1, addressInfo.address)
-      if f.isOk() and f.get():
+      if f.get(false):
           record.addresses &= addressInfo
 
     if record.addresses.len == 0:

@@ -30,13 +30,9 @@ type
     onNewStatusHandler: StatusAndConfidenceHandler
     autoRelayService: AutoRelayService
     autonatService: AutonatService
-    isPublicIPAddrProc: IsPublicIPAddrProc
 
-  IsPublicIPAddrProc* = proc(ta: TransportAddress): bool {.gcsafe, raises: [].}
-
-proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService,
-          isPublicIPAddrProc: IsPublicIPAddrProc = isGlobal): T =
-  return T(autonatService: autonatService, autoRelayService: autoRelayService, isPublicIPAddrProc: isPublicIPAddrProc)
+proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService): T =
+  return T(autonatService: autonatService, autoRelayService: autoRelayService)
 
 proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
   proc tryConnect(address: MultiAddress): Future[bool] {.async.} =
@@ -49,14 +45,8 @@ proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Fut
   for address in switch.peerStore[AddressBook][peerId]:
     try:
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
-      if isRelayed.isErr() or isRelayed.get():
-        continue
-      if DNS.matchPartial(address):
+      if not isRelayed.get(false) and address.isPublicMA():
         return await tryConnect(address)
-      else:
-        let ta = initTAddress(address)
-        if ta.isOk() and self.isPublicIPAddrProc(ta.get()):
-          return await tryConnect(address)
     except CatchableError as err:
       debug "Failed to create direct connection.", err = err.msg
       continue
@@ -104,10 +94,10 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
-    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Option[float]) {.gcsafe, async.} =
-      if networkReachability == NetworkReachability.NotReachable:
+    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+      if networkReachability == NetworkReachability.NotReachable and not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)
-      elif networkReachability == NetworkReachability.Reachable:
+      elif networkReachability == NetworkReachability.Reachable and self.autoRelayService.isRunning():
         discard await self.autoRelayService.stop(switch)
 
       # We do it here instead of in the AutonatService because this is useful only when hole punching.

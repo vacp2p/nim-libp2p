@@ -13,6 +13,8 @@ import std/[tables]
 
 import chronos/timer, stew/results
 
+import ../../utility
+
 const Timeout* = 10.seconds # default timeout in ms
 
 type
@@ -55,9 +57,9 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
 
   var previous = t.del(k) # Refresh existing item
 
-  let addedAt =
-    if previous.isSome: previous.get().addedAt
-    else: now
+  var addedAt = now
+  previous.withValue(previous):
+    addedAt = previous.addedAt
 
   let node = TimedEntry[K](key: k, addedAt: addedAt, expiresAt: now + t.timeout)
 

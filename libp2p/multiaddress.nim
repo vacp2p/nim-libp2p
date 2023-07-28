@@ -417,6 +417,9 @@ const
       mcodec: multiCodec("wss"), kind: Marker, size: 0
     ),
     MAProtocol(
+      mcodec: multiCodec("tls"), kind: Marker, size: 0
+    ),
+    MAProtocol(
       mcodec: multiCodec("ipfs"), kind: Length, size: 0,
       coder: TranscoderP2P
     ),
@@ -468,7 +471,7 @@ const
   IP* = mapOr(IP4, IP6)
   DNS_OR_IP* = mapOr(DNS, IP)
   TCP_DNS* = mapAnd(DNS, mapEq("tcp"))
-  TCP_IP* =mapAnd(IP, mapEq("tcp"))
+  TCP_IP* = mapAnd(IP, mapEq("tcp"))
   TCP* = mapOr(TCP_DNS, TCP_IP)
   UDP_DNS* = mapAnd(DNS, mapEq("udp"))
   UDP_IP* = mapAnd(IP, mapEq("udp"))
@@ -479,9 +482,10 @@ const
   WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
   WS_IP* = mapAnd(TCP_IP, mapEq("ws"))
   WS* = mapAnd(TCP, mapEq("ws"))
-  WSS_DNS* = mapAnd(TCP_DNS, mapEq("wss"))
-  WSS_IP* = mapAnd(TCP_IP, mapEq("wss"))
-  WSS* = mapAnd(TCP, mapEq("wss"))
+  TLS_WS* = mapOr(mapEq("wss"), mapAnd(mapEq("tls"), mapEq("ws")))
+  WSS_DNS* = mapAnd(TCP_DNS, TLS_WS)
+  WSS_IP* = mapAnd(TCP_IP, TLS_WS)
+  WSS* = mapAnd(TCP, TLS_WS)
   WebSockets_DNS* = mapOr(WS_DNS, WSS_DNS)
   WebSockets_IP* = mapOr(WS_IP, WSS_IP)
   WebSockets* = mapOr(WS, WSS)
@@ -1076,19 +1080,15 @@ proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
 proc match*(pat: MaPattern, address: MultiAddress): bool =
   ## Match full ``address`` using pattern ``pat`` and return ``true`` if
   ## ``address`` satisfies pattern.
-  let protos = address.protocols()
-  if protos.isErr():
-    return false
-  let res = matchPart(pat, protos.get())
+  let protos = address.protocols().valueOr: return false
+  let res = matchPart(pat, protos)
   res.flag and (len(res.rem) == 0)
 
 proc matchPartial*(pat: MaPattern, address: MultiAddress): bool =
   ## Match prefix part of ``address`` using pattern ``pat`` and return
   ## ``true`` if ``address`` starts with pattern.
-  let protos = address.protocols()
-  if protos.isErr():
-    return false
-  let res = matchPart(pat, protos.get())
+  let protos = address.protocols().valueOr: return false
+  let res = matchPart(pat, protos)
   res.flag
 
 proc `$`*(pat: MaPattern): string =
@@ -1117,12 +1117,8 @@ proc getField*(pb: ProtoBuffer, field: int,
   if not(res):
     ok(false)
   else:
-    let ma = MultiAddress.init(buffer)
-    if ma.isOk():
-      value = ma.get()
-      ok(true)
-    else:
-      err(ProtoError.IncorrectBlob)
+    value = MultiAddress.init(buffer).valueOr: return err(ProtoError.IncorrectBlob)
+    ok(true)
 
 proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
@@ -1138,11 +1134,11 @@ proc getRepeatedField*(pb: ProtoBuffer, field: int,
     ok(false)
   else:
     for item in items:
-      let ma = MultiAddress.init(item)
-      if ma.isOk():
-        value.add(ma.get())
-      else:
-        debug "Not supported MultiAddress in blob", ma = item
+      let ma = MultiAddress.init(item).valueOr:
+        debug "Unsupported MultiAddress in blob", ma = item
+        continue
+
+      value.add(ma)
     if value.len == 0:
       err(ProtoError.IncorrectBlob)
     else:

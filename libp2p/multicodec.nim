@@ -191,9 +191,10 @@ const MultiCodecList = [
   ("p2p", 0x01A5),
   ("http", 0x01E0),
   ("https", 0x01BB),
+  ("tls", 0x01C0),
   ("quic", 0x01CC),
   ("ws", 0x01DD),
-  ("wss", 0x01DE), # not in multicodec list
+  ("wss", 0x01DE),
   ("p2p-websocket-star", 0x01DF), # not in multicodec list
   ("p2p-webrtc-star", 0x0113), # not in multicodec list
   ("p2p-webrtc-direct", 0x0114), # not in multicodec list

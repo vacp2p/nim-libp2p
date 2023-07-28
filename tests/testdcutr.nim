@@ -90,7 +90,12 @@ suite "Dcutr":
 
   asyncTest "Client connect timeout":
 
-     proc connectTimeoutProc(): Future[void] {.async.} =
+     proc connectTimeoutProc(self: SwitchStub,
+                             peerId: PeerId,
+                             addrs: seq[MultiAddress],
+                             forceDial = false,
+                             reuseConnection = true,
+                             upgradeDir = Direction.Out): Future[void] {.async.} =
        await sleepAsync(100.millis)
 
      let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectTimeoutProc)
@@ -104,7 +109,12 @@ suite "Dcutr":
 
   asyncTest "All client connect attempts fail":
 
-    proc connectErrorProc(): Future[void] {.async.} =
+    proc connectErrorProc(self: SwitchStub,
+                          peerId: PeerId,
+                          addrs: seq[MultiAddress],
+                          forceDial = false,
+                          reuseConnection = true,
+                          upgradeDir = Direction.Out): Future[void] {.async.} =
       raise newException(CatchableError, "error")
 
     let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectErrorProc)
@@ -116,7 +126,7 @@ suite "Dcutr":
       except DcutrError as err:
         check err.parent of AllFuturesFailedError
 
-  proc ductrServerTest(connectStub: proc (): Future[void] {.async.}) {.async.} =
+  proc ductrServerTest(connectStub: connectStubType) {.async.} =
     let behindNATSwitch = newStandardSwitch()
     let publicSwitch = SwitchStub.new(newStandardSwitch())
 
@@ -144,14 +154,24 @@ suite "Dcutr":
 
   asyncTest "DCUtR server timeout when establishing a new connection":
 
-    proc connectProc(): Future[void] {.async.} =
+    proc connectProc(self: SwitchStub,
+                     peerId: PeerId,
+                     addrs: seq[MultiAddress],
+                     forceDial = false,
+                     reuseConnection = true,
+                     upgradeDir = Direction.Out): Future[void] {.async.} =
         await sleepAsync(100.millis)
 
     await ductrServerTest(connectProc)
 
   asyncTest "DCUtR server error when establishing a new connection":
 
-    proc connectProc(): Future[void] {.async.} =
+    proc connectProc(self: SwitchStub,
+                     peerId: PeerId,
+                     addrs: seq[MultiAddress],
+                     forceDial = false,
+                     reuseConnection = true,
+                     upgradeDir = Direction.Out): Future[void] {.async.} =
         raise newException(CatchableError, "error")
 
     await ductrServerTest(connectProc)

@@ -20,7 +20,7 @@ import rpc/[messages, message, protobuf],
        ../../protobuf/minprotobuf,
        ../../utility
 
-export peerid, connection
+export peerid, connection, deques
 
 logScope:
   topics = "libp2p pubsubpeer"
@@ -60,7 +60,9 @@ type
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
+    heDontWants*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
+    pingBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
@@ -132,28 +134,26 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
 
-        var rmsg = decodeRpcMsg(data)
-        data = newSeq[byte]() # Release memory
-
-        if rmsg.isErr():
-          notice "failed to decode msg from peer",
+        var rmsg = decodeRpcMsg(data).valueOr:
+          debug "failed to decode msg from peer",
             conn, peer = p, closed = conn.closed,
-            err = rmsg.error()
+            err = error
           break
+        data = newSeq[byte]() # Release memory
 
         trace "decoded msg from peer",
           conn, peer = p, closed = conn.closed,
-          msg = rmsg.get().shortLog
+          msg = rmsg.shortLog
         # trigger hooks
-        p.recvObservers(rmsg.get())
+        p.recvObservers(rmsg)
 
         when defined(libp2p_expensive_metrics):
-          for m in rmsg.get().messages:
+          for m in rmsg.messages:
             for t in m.topicIDs:
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
 
-        await p.handler(p, rmsg.get())
+        await p.handler(p, rmsg)
     finally:
       await conn.close()
   except CancelledError:
@@ -171,7 +171,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
     if p.connectedFut.finished:
       p.connectedFut = newFuture[void]()
-    let newConn = await p.getConn()
+    let newConn = await p.getConn().wait(5.seconds)
     if newConn.isNil:
       raise (ref LPError)(msg: "Cannot establish send connection")
 
@@ -197,6 +197,9 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
       trace "Removing send connection", p, conn = p.sendConn
       await p.sendConn.close()
       p.sendConn = nil
+
+    if not p.connectedFut.finished:
+      p.connectedFut.complete()
 
     try:
       if p.onEvent != nil:
@@ -246,11 +249,13 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
     return
 
   if p.sendConn == nil:
-    discard await p.connectedFut.withTimeout(1.seconds)
+    # Wait for a send conn to be setup. `connectOnce` will
+    # complete this even if the sendConn setup failed
+    await p.connectedFut
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection, skipping message", p, msg = shortLog(msg)
+    debug "No send connection", p, msg = shortLog(msg)
     return
 
   trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
@@ -313,3 +318,4 @@ proc new*(
     maxMessageSize: maxMessageSize
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
+  result.heDontWants.addFirst(default(HashSet[MessageId]))

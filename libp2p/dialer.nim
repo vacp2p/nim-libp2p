@@ -58,16 +58,16 @@ proc dialAndUpgrade(
 
   for transport in self.transports: # for each transport
     if transport.handles(address):   # check if it can dial it
-      trace "Dialing address", address, peerId, hostname
+      trace "Dialing address", address, peerId = peerId.get(default(PeerId)), hostname
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
           await transport.dial(hostname, address, peerId)
         except CancelledError as exc:
-          debug "Dialing canceled", msg = exc.msg, peerId
+          debug "Dialing canceled", err = exc.msg, peerId = peerId.get(default(PeerId))
           raise exc
         except CatchableError as exc:
-          debug "Dialing failed", msg = exc.msg, peerId
+          debug "Dialing failed", err = exc.msg, peerId = peerId.get(default(PeerId))
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
@@ -81,7 +81,7 @@ proc dialAndUpgrade(
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
           await dialed.close()
-          debug "Upgrade failed", msg = exc.msg, peerId
+          debug "Upgrade failed", err = exc.msg, peerId = peerId.get(default(PeerId))
           if exc isnot CancelledError:
             if upgradeDir == Direction.Out:
               libp2p_failed_upgrades_outgoing.inc()
@@ -131,7 +131,7 @@ proc dialAndUpgrade(
   upgradeDir = Direction.Out):
   Future[Muxer] {.async.} =
 
-  debug "Dialing peer", peerId
+  debug "Dialing peer", peerId = peerId.get(default(PeerId))
 
   for rawAddress in addrs:
     # resolve potential dnsaddr
@@ -150,7 +150,7 @@ proc dialAndUpgrade(
         if not isNil(result):
           return result
 
-proc tryReusingConnection(self: Dialer, peerId: PeerId): Future[Opt[Muxer]] {.async.} =
+proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)
   if muxer == nil:
     return Opt.none(Muxer)
@@ -174,10 +174,10 @@ proc internalConnect(
   try:
     await lock.acquire()
 
-    if peerId.isSome and reuseConnection:
-      let muxOpt = await self.tryReusingConnection(peerId.get())
-      if muxOpt.isSome:
-        return muxOpt.get()
+    if reuseConnection:
+      peerId.withValue(peerId):
+        self.tryReusingConnection(peerId).withValue(mux):
+          return mux
 
     let slot = self.connManager.getOutgoingSlot(forceDial)
     let muxed =
@@ -225,19 +225,19 @@ method connect*(
   allowUnknownPeerId = false): Future[PeerId] {.async.} =
   ## Connects to a peer and retrieve its PeerId
 
-  let fullAddress = parseFullAddress(address)
-  if fullAddress.isOk:
+  parseFullAddress(address).toOpt().withValue(fullAddress):
     return (await self.internalConnect(
-      Opt.some(fullAddress.get()[0]),
-      @[fullAddress.get()[1]],
+      Opt.some(fullAddress[0]),
+      @[fullAddress[1]],
       false)).connection.peerId
-  else:
-    if allowUnknownPeerId == false:
-      raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
-    return (await self.internalConnect(
-      Opt.none(PeerId),
-      @[address],
-      false)).connection.peerId
+
+  if allowUnknownPeerId == false:
+    raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
+
+  return (await self.internalConnect(
+    Opt.none(PeerId),
+    @[address],
+    false)).connection.peerId
 
 proc negotiateStream(
   self: Dialer,
@@ -324,7 +324,7 @@ method dial*(
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, msg = exc.msg
+    debug "Error dialing", conn, err = exc.msg
     await cleanup()
     raise exc
 

@@ -18,17 +18,13 @@ import ./helpers
 import ./stubs/switchstub
 import ../libp2p/[builders,
                   switch,
+                  wire,
                   services/hpservice,
                   services/autorelayservice]
 import ../libp2p/protocols/connectivity/relay/[relay, client]
 import ../libp2p/protocols/connectivity/autonat/[service]
-import ../libp2p/nameresolving/nameresolver
-import ../libp2p/nameresolving/mockresolver
-
+import ../libp2p/nameresolving/[nameresolver, mockresolver]
 import stubs/autonatclientstub
-
-proc isPublicAddrIPAddrMock(ta: TransportAddress): bool =
-  return true
 
 proc createSwitch(r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil): Switch {.raises: [LPError].} =
   var builder = SwitchBuilder.new()
@@ -68,19 +64,25 @@ suite "Hole Punching":
     let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
 
     let publicPeerSwitch = createSwitch(RelayClient.new())
+
+    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+        return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
+    publicPeerSwitch.peerInfo.addressMappers.add(addressMapper)
+    await publicPeerSwitch.peerInfo.update()
+
     proc checkMA(address: seq[MultiAddress]) =
       if not privatePeerRelayAddr.completed():
         privatePeerRelayAddr.complete(address)
 
     let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
 
-    let hpservice = HPService.new(autonatService, autoRelayService, isPublicAddrIPAddrMock)
+    let hpservice = HPService.new(autonatService, autoRelayService)
 
-    let privatePeerSwitch = createSwitch(relayClient, hpservice)
+    let privatePeerSwitch = createSwitch(relayClient, hpservice, nameresolver = MockResolver.default())
     let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
+    await allFuturesThrowing(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
@@ -103,16 +105,8 @@ suite "Hole Punching":
     let relayClient = RelayClient.new()
     let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
 
-    let resolver = MockResolver.new()
-    resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
-    resolver.ipResponses[("localhost", true)] = @["::1"]
-
-    let publicPeerSwitch = createSwitch(RelayClient.new(), nameResolver = resolver)
-
-    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
-        return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
-    publicPeerSwitch.peerInfo.addressMappers.add(addressMapper)
-    await publicPeerSwitch.peerInfo.update()
+    let publicPeerSwitch = createSwitch(RelayClient.new())
+    await publicPeerSwitch.setDNSAddr()
 
     proc checkMA(address: seq[MultiAddress]) =
       if not privatePeerRelayAddr.completed():
@@ -120,13 +114,13 @@ suite "Hole Punching":
 
     let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
 
-    let hpservice = HPService.new(autonatService, autoRelayService, isPublicAddrIPAddrMock)
+    let hpservice = HPService.new(autonatService, autoRelayService)
 
-    let privatePeerSwitch = createSwitch(relayClient, hpservice, nameResolver = resolver)
+    let privatePeerSwitch = createSwitch(relayClient, hpservice, nameResolver = MockResolver.default())
     let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFutures(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
+    await allFuturesThrowing(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
 
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
@@ -140,9 +134,7 @@ suite "Hole Punching":
     await allFuturesThrowing(
       privatePeerSwitch.stop(), publicPeerSwitch.stop(), switchRelay.stop(), peerSwitch.stop())
 
-  proc holePunchingTest(connectStub: proc (): Future[void] {.async.},
-                        isPublicIPAddrProc: IsPublicIPAddrProc,
-                        answer: Answer) {.async.} =
+  proc holePunchingTest(initiatorConnectStub: connectStubType, rcvConnectStub: connectStubType, answer: Answer) {.async.} =
     # There's no check in this test cause it can't test hole punching locally. It exists just to be sure the rest of
     # the code works properly.
 
@@ -165,11 +157,12 @@ suite "Hole Punching":
     let autoRelayService1 = AutoRelayService.new(1, relayClient1, checkMA, newRng())
     let autoRelayService2 = AutoRelayService.new(1, relayClient2, nil, newRng())
 
-    let hpservice1 = HPService.new(autonatService1, autoRelayService1, isPublicIPAddrProc)
+    let hpservice1 = HPService.new(autonatService1, autoRelayService1)
     let hpservice2 = HPService.new(autonatService2, autoRelayService2)
 
-    let privatePeerSwitch1 = SwitchStub.new(createSwitch(relayClient1, hpservice1))
-    let privatePeerSwitch2 = createSwitch(relayClient2, hpservice2)
+    let privatePeerSwitch1 = SwitchStub.new(createSwitch(relayClient1, hpservice1, nameresolver = MockResolver.default()))
+    let privatePeerSwitch2 = SwitchStub.new(createSwitch(relayClient2, hpservice2))
+    await privatePeerSwitch2.setDNSAddr()
     let switchRelay = createSwitch(Relay.new())
     let switchAux = createSwitch()
     let switchAux2 = createSwitch()
@@ -178,7 +171,7 @@ suite "Hole Punching":
 
     var awaiter = newFuture[void]()
 
-    await allFutures(
+    await allFuturesThrowing(
       switchRelay.start(), privatePeerSwitch1.start(), privatePeerSwitch2.start(),
       switchAux.start(), switchAux2.start(), switchAux3.start(), switchAux4.start()
     )
@@ -196,21 +189,43 @@ suite "Hole Punching":
     await privatePeerSwitch2.connect(switchAux3.peerInfo.peerId, switchAux3.peerInfo.addrs)
     await privatePeerSwitch2.connect(switchAux4.peerInfo.peerId, switchAux4.peerInfo.addrs)
 
-    privatePeerSwitch1.connectStub = connectStub
+    privatePeerSwitch1.connectStub = initiatorConnectStub
     await privatePeerSwitch2.connect(privatePeerSwitch1.peerInfo.peerId, (await privatePeerRelayAddr1))
+    privatePeerSwitch2.connectStub = rcvConnectStub
 
-    await sleepAsync(200.millis)
+    checkExpiring:
+      # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
+      # in two connections attemps, instead of one. The server dial is going to fail because it is acting as the
+      # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case, but the client
+      # dial will succeed.
+      privatePeerSwitch1.connManager.connCount(privatePeerSwitch2.peerInfo.peerId) == 1 and
+        not isRelayed(privatePeerSwitch1.connManager.selectMuxer(privatePeerSwitch2.peerInfo.peerId).connection)
 
     await allFuturesThrowing(
       privatePeerSwitch1.stop(), privatePeerSwitch2.stop(), switchRelay.stop(),
       switchAux.stop(), switchAux2.stop(), switchAux3.stop(), switchAux4.stop())
 
   asyncTest "Hole punching when peers addresses are private":
-    await holePunchingTest(nil, isGlobal, NotReachable)
+    proc connectStub(self: SwitchStub,
+                    peerId: PeerId,
+                    addrs: seq[MultiAddress],
+                    forceDial = false,
+                    reuseConnection = true,
+                    upgradeDir = Direction.Out): Future[void] {.async.} =
+      self.connectStub = nil # this stub should be called only once
+      await sleepAsync(100.millis) # avoid simultaneous dialing that causes address in use error
+      await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
+    await holePunchingTest(nil, connectStub, NotReachable)
 
   asyncTest "Hole punching when there is an error during unilateral direct connection":
 
-    proc connectStub(): Future[void] {.async.} =
+    proc connectStub(self: SwitchStub,
+                    peerId: PeerId,
+                    addrs: seq[MultiAddress],
+                    forceDial = false,
+                    reuseConnection = true,
+                    upgradeDir = Direction.Out): Future[void] {.async.} =
+      self.connectStub = nil # this stub should be called only once
       raise newException(CatchableError, "error")
 
-    await holePunchingTest(connectStub, isPublicAddrIPAddrMock, Reachable)
+    await holePunchingTest(connectStub, nil, Reachable)

@@ -155,7 +155,11 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.appScore = stats.appScore
     peer.behaviourPenalty = stats.behaviourPenalty
 
+    # Check if the score is below the threshold and disconnect the peer if necessary
+    g.disconnectBadPeerCheck(peer, stats.score)
+
   peer.iHaveBudget = IHavePeerBudget
+  peer.pingBudget = PingsPeerBudget
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
@@ -184,11 +188,11 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     return
 
   # remove from peer IPs collection too
-  if pubSubPeer.address.isSome():
-    g.peersInIP.withValue(pubSubPeer.address.get(), s):
+  pubSubPeer.address.withValue(address):
+    g.peersInIP.withValue(address, s):
       s[].excl(pubSubPeer.peerId)
       if s[].len == 0:
-        g.peersInIP.del(pubSubPeer.address.get())
+        g.peersInIP.del(address)
 
   for t in toSeq(g.mesh.keys):
     trace "pruning unsubscribing peer", pubSubPeer, score = pubSubPeer.score
@@ -259,6 +263,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage
+  g.handleIDontWant(peer, control.idontwant)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIds.len > 0:
     respControl.iwant.add(iwant)
@@ -333,6 +338,21 @@ proc validateAndRelay(g: GossipSub,
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
 
+    # IDontWant is only worth it if the message is substantially
+    # bigger than the messageId
+    if msg.data.len > msgId.len * 10:
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
+          idontwant: @[ControlIWant(messageIds: @[msgId])]
+        ))))
+
+    for peer in toSendPeers:
+      for heDontWant in peer.heDontWants:
+        if msgId in heDontWant:
+          seenPeers.incl(peer)
+          break
+    toSendPeers.excl(seenPeers)
+
+
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
@@ -352,6 +372,9 @@ proc validateAndRelay(g: GossipSub,
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   rpcMsg: RPCMsg) {.async.} =
+  if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
+    g.send(peer, RPCMsg(pong: rpcMsg.ping))
+    peer.pingBudget.dec
   for i in 0..<min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
     g.handleSubscribe(peer, sub.topic, sub.subscribe)

@@ -258,12 +258,8 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
-        # we can get one on the next try, but we should
-        # be careful to not end up in a thigh loop that
-        # will starve the main event loop, thus we sleep
-        # here before retrying.
-        trace "Unable to get a connection, sleeping"
-        await sleepAsync(100.millis) # TODO: should be configurable?
+        # we can get one on the next try
+        debug "Unable to get a connection"
         upgrades.release()
         continue
 
@@ -278,7 +274,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       trace "releasing semaphore on cancellation"
       upgrades.release() # always release the slot
     except CatchableError as exc:
-      debug "Exception in accept loop, exiting", exc = exc.msg
+      error "Exception in accept loop, exiting", exc = exc.msg
       upgrades.release() # always release the slot
       if not isNil(conn):
         await conn.close()
