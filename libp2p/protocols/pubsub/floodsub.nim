@@ -95,7 +95,9 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
-                   rpcMsg: RPCMsg) {.async.} =
+                   data: seq[byte]) {.async.} =
+  let rpcMsg = decodeAndCheckRateLimit(f, peer, data)
+
   for i in 0..<min(f.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
     f.handleSubscribe(peer, sub.topic, sub.subscribe)
@@ -227,3 +229,6 @@ method initPubSub*(f: FloodSub)
   hmacDrbgGenerate(f.rng[], f.seenSalt)
 
   f.init()
+
+method shoulDisconnectPeer*(f: FloodSub, peer: PubSubPeer, score: float64): bool =
+  return true

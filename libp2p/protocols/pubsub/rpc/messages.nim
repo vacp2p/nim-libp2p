@@ -128,6 +128,9 @@ proc byteSize*(msg: Message): int =
     total += topicId.len
   return total
 
+proc byteSize*(msgs: seq[Message]): int =
+  msgs.mapIt(byteSize(it)).foldl(a + b, 0)
+
 proc byteSize*(ihave: seq[ControlIHave]): int =
   var total = 0
   for item in ihave:

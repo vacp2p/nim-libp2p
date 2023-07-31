@@ -10,6 +10,7 @@ import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
 import ../../libp2p/switch
 import ../../libp2p/muxers/muxer
+import ../../libp2p/protocols/pubsub/rpc/protobuf
 
 import ../helpers
 
@@ -170,7 +171,7 @@ suite "GossipSub internal":
   asyncTest "`replenishFanout` Degree Lo":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       discard
 
     let topic = "foobar"
@@ -197,7 +198,7 @@ suite "GossipSub internal":
   asyncTest "`dropFanoutPeers` drop expired fanout topics":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       discard
 
     let topic = "foobar"
@@ -227,7 +228,7 @@ suite "GossipSub internal":
   asyncTest "`dropFanoutPeers` leave unexpired fanout topics":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       discard
 
     let topic1 = "foobar1"
@@ -264,7 +265,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should gather up to degree D non intersecting peers":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       discard
 
     let topic = "foobar"
@@ -325,7 +326,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should not crash on missing topics in mesh":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       discard
 
     let topic = "foobar"
@@ -365,7 +366,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should not crash on missing topics in fanout":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       discard
 
     let topic = "foobar"
@@ -406,7 +407,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should not crash on missing topics in gossip":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       discard
 
     let topic = "foobar"
@@ -447,7 +448,7 @@ suite "GossipSub internal":
   asyncTest "Drop messages of topics without subscription":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       check false
 
     let topic = "foobar"
@@ -470,7 +471,7 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerId)
       inc seqno
       let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
-      await gossipSub.rpcHandler(peer, RPCMsg(messages: @[msg]))
+      await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     check gossipSub.mcache.msgs.len == 0
 
@@ -481,7 +482,7 @@ suite "GossipSub internal":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
     gossipSub.parameters.disconnectBadPeers = true
     gossipSub.parameters.appSpecificWeight = 1.0
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       check false
 
     let topic = "foobar"
@@ -525,7 +526,7 @@ suite "GossipSub internal":
     conn.peerId = peerId
     let peer = gossipSub.getPubSubPeer(peerId)
 
-    await gossipSub.rpcHandler(peer, lotOfSubs)
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(lotOfSubs, false))
 
     check:
       gossipSub.gossipsub.len == gossipSub.topicsHigh
@@ -656,7 +657,7 @@ suite "GossipSub internal":
   asyncTest "handleIHave/Iwant tests":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
       check false
     proc handler2(topic: string, data: seq[byte]) {.async.} = discard
 

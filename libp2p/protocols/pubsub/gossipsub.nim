@@ -378,11 +378,9 @@ proc validateAndRelay(g: GossipSub,
 
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
-                  rpcMsg: RPCMsg) {.async.} =
+                  data: seq[byte]) {.async.} =
 
-  if peer.shouldDisconnectPeer:
-    discard g.disconnectPeer(peer)
-    return
+  let rpcMsg = decodeAndCheckRateLimit(g, peer, data)
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
     g.send(peer, RPCMsg(pong: rpcMsg.ping))

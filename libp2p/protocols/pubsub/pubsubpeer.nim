@@ -33,6 +33,8 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 type
+  PeerRateLimitError* = object of CatchableError
+
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
@@ -70,7 +72,7 @@ type
     uselessAppBytesRate*: TokenBucket
     shouldDisconnectPeer*: bool
 
-  RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
+  RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
 
 when defined(libp2p_agents_metrics):
@@ -110,7 +112,7 @@ func outbound*(p: PubSubPeer): bool =
   else:
     false
 
-proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
+proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
@@ -130,9 +132,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   try:
     try:
       while not conn.atEof:
-        if p.shouldDisconnectPeer:
-          debug "Ignoring peer", conn, peer = p
-          break
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
         var data = await conn.readLp(p.maxMessageSize)
@@ -140,39 +139,19 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
 
-        # In this way we count even ignored fields by protobuf
-        let msgSize = len(data)
-        var rmsg = decodeRpcMsg(data).valueOr:
-          if not p.uselessAppBytesRate.tryConsume(msgSize):
-            p.shouldDisconnectPeer = true
-          debug "failed to decode msg from peer",
-            conn, peer = p, closed = conn.closed,
-            err = error
-          break
-
-        let uselessAppBytesNum = block:
-          rmsg.control.withValue(control):
-            msgSize - byteSize(control.ihave) - byteSize(control.iwant)
-          else: msgSize
-
-        if not p.uselessAppBytesRate.tryConsume(uselessAppBytesNum):
-          p.shouldDisconnectPeer = true
-
-        data = newSeq[byte]() # Release memory
-
-        trace "decoded msg from peer",
-          conn, peer = p, closed = conn.closed,
-          msg = rmsg.shortLog
-        # trigger hooks
-        p.recvObservers(rmsg)
-
         when defined(libp2p_expensive_metrics):
           for m in rmsg.messages:
             for t in m.topicIDs:
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
 
-        await p.handler(p, rmsg)
+        await p.handler(p, data)
+        data = newSeq[byte]() # Release memory
+    except PeerRateLimitError as exc:
+      debug "Peer rate limit exceeded, exiting read while", conn, peer = p, error = exc.msg
+    except CatchableError as exc:
+      debug "Exception occurred in PubSubPeer.handle",
+        conn, peer = p, closed = conn.closed, exc = exc.msg
     finally:
       await conn.close()
   except CancelledError:
