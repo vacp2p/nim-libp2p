@@ -511,32 +511,36 @@ method publish*(g: GossipSub,
 
   var peers: HashSet[PubSubPeer]
 
-  if g.parameters.floodPublish:
-    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
-    # but a peer's own messages will always be published to all known peers in the topic.
-    for peer in g.gossipsub.getOrDefault(topic):
-      if peer.score >= g.parameters.publishThreshold:
-        trace "publish: including flood/high score peer", peer
-        peers.incl(peer)
-
   # add always direct peers
   peers.incl(g.explicit.getOrDefault(topic))
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
 
-  if peers.len < g.parameters.dLow and g.parameters.floodPublish == false:
-    # not subscribed or bad mesh, send to fanout peers
-    # disable for floodPublish, since we already sent to every good peer
-    #
+  if g.parameters.floodPublish:
+    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
+    # but a peer's own messages will always be published to all known peers in the topic, limited
+    # to the amount of peers we can send it to in one heartbeat
+    let
+      bandwidth = 12_500_000 div 1000 # 100 Mbps or 12.5 MBps TODO replace with bandwidth estimate
+      msToTransmit = max(data.len div bandwidth, 1)
+      maxPeersToFlod =
+        max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
+
+    for peer in g.gossipsub.getOrDefault(topic):
+      if peers.len >= maxPeersToFlod: break
+      if peer.score >= g.parameters.publishThreshold:
+        trace "publish: including flood/high score peer", peer
+        peers.incl(peer)
+
+  if peers.len < g.parameters.dLow:
+    # not subscribed, or bad mesh, send to fanout peers
     var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-    if fanoutPeers.len == 0:
+    if fanoutPeers.len < g.parameters.dLow:
       g.replenishFanout(topic)
       fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
 
     g.rng.shuffle(fanoutPeers)
-    if fanoutPeers.len + peers.len > g.parameters.d:
-      fanoutPeers.setLen(g.parameters.d - peers.len)
 
     for fanPeer in fanoutPeers:
       peers.incl(fanPeer)
@@ -554,7 +558,6 @@ method publish*(g: GossipSub,
     debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
                                                    connectedPeers = topicPeers.filterIt(it.connected).len,
                                                    topic
-    # skipping topic as our metrics finds that heavy
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
@@ -590,7 +593,6 @@ method publish*(g: GossipSub,
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
   trace "Published message to peers", peers=peers.len
-
   return peers.len
 
 proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
