@@ -13,13 +13,14 @@
 
 import std/[sets, sequtils]
 import chronos, chronicles, metrics
+import chronos/ratelimit
 import ./pubsub,
        ./floodsub,
        ./pubsubpeer,
        ./peertable,
        ./mcache,
        ./timedcache,
-       ./rpc/[messages, message],
+       ./rpc/[messages, message, protobuf],
        ../protocol,
        ../../stream/connection,
        ../../peerinfo,
@@ -160,7 +161,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
-    g.disconnectIfBadPeer(peer, stats.score)
+    g.disconnectIfBadScorePeer(peer, stats.score)
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
@@ -376,11 +377,48 @@ proc validateAndRelay(g: GossipSub,
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
+proc decodeAndCheckRateLimit*(g: GossipSub, peer: PubSubPeer, data: seq[byte]): RPCMsg {.raises:[PeerRateLimitError].} =
+  # In this way we count even ignored fields by protobuf
+  let msgSize = len(data)
+  var rmsg = decodeRpcMsg(data).valueOr:
+    debug "failed to decode msg from peer", peer, err = error
+    if not peer.uselessAppBytesRate.tryConsume(msgSize):
+      discard g.disconnectPeer(peer)
+    raise newException(PeerRateLimitError, "Peer sent too much useless data that couldn't be decoded")
+
+  debug "decoded msg from peer", peer, msg = rmsg.shortLog
+  # trigger hooks
+  peer.recvObservers(rmsg)
+
+  let usefulMsgBytesNum =
+    if g.verifySignature:
+      byteSize(rmsg.messages)
+    else:
+      rmsg.messages.mapIt(it.data.len).foldl(a + b, 0) +
+      rmsg.messages
+        .mapIt(
+          it.topicIds.mapIt(it.len).foldl(a + b, 0)
+        )
+        .foldl(a + b, 0)
+
+  var uselessAppBytesNum =  msgSize - usefulMsgBytesNum
+  rmsg.control.withValue(control):
+    uselessAppBytesNum -= byteSize(control.ihave) - byteSize(control.iwant)
+
+  if not peer.uselessAppBytesRate.tryConsume(uselessAppBytesNum):
+    debug "Peer sent too many useless data", peer, msgSize, uselessAppBytesNum
+    discard g.disconnectPeer(peer)
+    raise newException(PeerRateLimitError, "Peer sent too much useless application data")
+
+  return rmsg
+
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   data: seq[byte]) {.async.} =
 
   let rpcMsg = decodeAndCheckRateLimit(g, peer, data)
+
+
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
     g.send(peer, RPCMsg(pong: rpcMsg.ping))
@@ -674,9 +712,3 @@ method initPubSub*(g: GossipSub)
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
-
-method shoulDisconnectPeer*(g: GossipSub, peer: PubSubPeer, score: float64): bool =
-  if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
-     peer.peerId notin g.parameters.directPeers:
-    return true
-  return false

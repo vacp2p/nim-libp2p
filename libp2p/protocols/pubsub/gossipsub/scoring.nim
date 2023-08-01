@@ -22,6 +22,7 @@ logScope:
   topics = "libp2p gossipsub"
 
 declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
+declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_firstMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_meshMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_meshFailurePenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
@@ -29,9 +30,6 @@ declareGauge(libp2p_gossipsub_peers_score_invalidMessageDeliveries, "Detailed go
 declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_invalidIgnoredTraffic_bytes, "Invalid Ignored Traffic", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_invalidTraffic_bytes, "Invalid Traffic", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_totalTraffic_bytes, "Total Traffic", labels = ["agent"])
 declareCounter(libp2p_gossipsub_peers_badTrafficScorePeerDisconnections, "The number of peer disconnections by gossipsub because of bad traffic", labels = ["agent"])
 
 proc init*(_: type[TopicParams]): TopicParams =
@@ -90,6 +88,19 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
     0.0
 
 {.pop.}
+
+proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async.} =
+  try:
+    await g.switch.disconnect(peer.peerId)
+  except CatchableError as exc: # Never cancelled
+    trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
+
+proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
+  if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
+     peer.peerId notin g.parameters.directPeers:
+    debug "disconnecting bad score peer", peer, score = peer.score
+    asyncSpawn(g.disconnectPeer(peer))
+    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
 
 proc updateScores*(g: GossipSub) = # avoid async
   ## https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#the-score-function
@@ -216,7 +227,7 @@ proc updateScores*(g: GossipSub) = # avoid async
 
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
-    g.disconnectIfBadPeer(peer, stats.score)
+    g.disconnectIfBadScorePeer(peer, stats.score)
     libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
 
   for peer in evicting:

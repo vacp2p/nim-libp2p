@@ -80,8 +80,6 @@ declarePublicCounter(libp2p_pubsub_received_ihave, "pubsub broadcast ihave", lab
 declarePublicCounter(libp2p_pubsub_received_graft, "pubsub broadcast graft", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", labels = ["topic"])
 
-declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
-
 type
   InitializationError* = object of LPError
 
@@ -263,58 +261,6 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
         libp2p_pubsub_received_prune.inc(labelValues = [prune.topicId])
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
-
-proc disconnectPeer*(p: PubSub, peer: PubSubPeer) {.async.} =
-  let agent = peer.getAgent()
-  libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
-
-  try:
-    await p.switch.disconnect(peer.peerId)
-    debug "Peer disconnected", peer
-  except CatchableError as exc: # Never cancelled
-    debug "Failed to close connection", peer, error = exc.name, msg = exc.msg
-
-method shoulDisconnectPeer*(p: PubSub, peer: PubSubPeer, score: float64): bool {.base.} =
-  doAssert(false, "Not implemented!")
-
-method disconnectIfBadPeer*(p: PubSub, peer: PubSubPeer, score: float64) {.base.} =
-  if p.shoulDisconnectPeer(peer, score):
-    debug "disconnecting bad score peer", peer, score
-    asyncSpawn(p.disconnectPeer(peer))
-
-proc decodeAndCheckRateLimit*(p: PubSub, peer: PubSubPeer, data: seq[byte]): RPCMsg {.raises:[PeerRateLimitError].} =
-  # In this way we count even ignored fields by protobuf
-  let msgSize = len(data)
-  var rmsg = decodeRpcMsg(data).valueOr:
-    debug "failed to decode msg from peer", peer, err = error
-    if not peer.uselessAppBytesRate.tryConsume(msgSize):
-      discard p.disconnectPeer(peer)
-    raise newException(PeerRateLimitError, "Peer sent too much useless data that couldn't be decoded")
-
-  let usefulMsgBytesNum =
-    if p.verifySignature:
-      byteSize(rmsg.messages)
-    else:
-      rmsg.messages.mapIt(it.data.len).foldl(a + b, 0) +
-      rmsg.messages
-        .mapIt(
-          it.topicIds.mapIt(it.len).foldl(a + b, 0)
-        )
-        .foldl(a + b, 0)
-
-  var uselessAppBytesNum =  msgSize - usefulMsgBytesNum
-  rmsg.control.withValue(control):
-    uselessAppBytesNum -= byteSize(control.ihave) - byteSize(control.iwant)
-
-  if not peer.uselessAppBytesRate.tryConsume(uselessAppBytesNum):
-    debug "Peer sent too many useless data", peer, msgSize, uselessAppBytesNum
-    discard p.disconnectPeer(peer)
-    raise newException(PeerRateLimitError, "Peer sent too much useless application data")
-
-  debug "decoded msg from peer", peer, msg = rmsg.shortLog
-  # trigger hooks
-  peer.recvObservers(rmsg)
-  return rmsg
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,

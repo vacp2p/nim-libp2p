@@ -70,7 +70,6 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     uselessAppBytesRate*: TokenBucket
-    shouldDisconnectPeer*: bool
 
   RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
@@ -314,8 +313,7 @@ proc new*(
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
-    uselessAppBytesRate: TokenBucket.new(1024, 1.seconds),
-    shouldDisconnectPeer: false,
+    uselessAppBytesRate: TokenBucket.new(1024, 1.seconds)
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))

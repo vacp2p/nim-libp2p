@@ -15,7 +15,7 @@ import ./pubsub,
        ./pubsubpeer,
        ./timedcache,
        ./peertable,
-       ./rpc/[message, messages],
+       ./rpc/[message, messages, protobuf],
        ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
@@ -96,7 +96,14 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
                    data: seq[byte]) {.async.} =
-  let rpcMsg = decodeAndCheckRateLimit(f, peer, data)
+  let msgSize = len(data)
+  var rpcMsg = decodeRpcMsg(data).valueOr:
+    debug "failed to decode msg from peer", peer, err = error
+    raise newException(CatchableError, "")
+
+  debug "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  # trigger hooks
+  peer.recvObservers(rpcMsg)
 
   for i in 0..<min(f.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
@@ -229,6 +236,3 @@ method initPubSub*(f: FloodSub)
   hmacDrbgGenerate(f.rng[], f.seenSalt)
 
   f.init()
-
-method shoulDisconnectPeer*(f: FloodSub, peer: PubSubPeer, score: float64): bool =
-  return true
