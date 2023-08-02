@@ -108,7 +108,7 @@ type
     flags: set[ServerFlags]
     handshakeTimeout: Duration
     factories: seq[ExtFactory]
-    rng: Rng
+    rng: ref HmacDrbgContext
 
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
@@ -327,7 +327,7 @@ proc new*(
   tlsFlags: set[TLSFlags] = {},
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil,
+  rng: ref HmacDrbgContext = nil,
   handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
   ## Creates a secure WebSocket transport
 
@@ -346,7 +346,7 @@ proc new*(
   upgrade: Upgrade,
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil,
+  rng: ref HmacDrbgContext = nil,
   handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
   ## Creates a clear-text WebSocket transport
 
