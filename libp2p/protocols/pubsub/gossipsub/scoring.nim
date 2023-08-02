@@ -30,7 +30,7 @@ declareGauge(libp2p_gossipsub_peers_score_invalidMessageDeliveries, "Detailed go
 declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareCounter(libp2p_gossipsub_peers_badTrafficScorePeerDisconnections, "The number of peer disconnections by gossipsub because of bad traffic", labels = ["agent"])
+declarePublicCounter(libp2p_gossipsub_peers_rate_limit_disconnections, "The number of peer disconnections by gossipsub because of rate limit", labels = ["agent"])
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
@@ -242,7 +242,7 @@ proc scoringHeartbeat*(g: GossipSub) {.async.} =
 
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) =
   if not peer.uselessAppBytesRate.tryConsume(len(msg.data)):
-    discard g.disconnectPeer(peer)
+    libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes. # discard g.disconnectPeer(peer)
 
   for tt in msg.topicIds:
     let t = tt

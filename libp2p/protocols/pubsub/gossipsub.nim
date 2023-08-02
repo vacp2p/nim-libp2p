@@ -381,7 +381,7 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
   # In this way we count even ignored fields by protobuf
   var rmsg = rpcMsgOpt.valueOr:
     if not peer.uselessAppBytesRate.tryConsume(msgSize):
-      discard g.disconnectPeer(peer)
+      libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes. # discard g.disconnectPeer(peer)
     raise newException(PeerRateLimitError, "Peer sent too much useless data that couldn't be decoded")
 
   let usefulMsgBytesNum =
@@ -401,7 +401,7 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
 
   if not peer.uselessAppBytesRate.tryConsume(uselessAppBytesNum):
     debug "Peer sent too much useless application data", peer, msgSize, uselessAppBytesNum
-    discard g.disconnectPeer(peer)
+    libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes. # discard g.disconnectPeer(peer)
     raise newException(PeerRateLimitError, "Peer sent too much useless application data.")
 
 method rpcHandler*(g: GossipSub,
