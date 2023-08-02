@@ -145,34 +145,3 @@ proc byteSize*(iwant: seq[ControlIWant]): int =
     for msgId in item.messageIds:
       total += msgId.len
   return total
-
-proc byteSize*(msg: RPCMsg): int =
-  var total = 0
-
-  for sub in msg.subscriptions:
-    total += sub.topic.len
-    total += sizeof(sub.subscribe)
-
-  for msg in msg.messages:
-    total += byteSize(msg)
-
-  if msg.control.isSome:
-    let ctrl = msg.control.get()
-    total += byteSize(ctrl.ihave)
-
-    total += byteSize(ctrl.iwant)
-
-    for item in ctrl.graft:
-      total += item.topicId.len
-
-    for item in ctrl.prune:
-      total += item.topicId.len
-      total += sizeof(item.backoff)
-      for peer in item.peers:
-        total += peer.peerId.len
-        total += peer.signedPeerRecord.len * sizeof(byte)
-
-  total += msg.ping.len * sizeof(byte)
-  total += msg.pong.len * sizeof(byte)
-
-  return total

@@ -377,6 +377,9 @@ proc validateAndRelay(g: GossipSub,
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
+proc dataAndTopicsIdSize(msgs: seq[Message]): int =
+  msgs.mapIt(it.data.len + it.topicIds.mapIt(it.len).foldl(a + b, 0)).foldl(a + b, 0)
+
 proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.raises:[PeerRateLimitError].} =
   # In this way we count even ignored fields by protobuf
   var rmsg = rpcMsgOpt.valueOr:
@@ -388,12 +391,7 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
     if g.verifySignature:
       byteSize(rmsg.messages)
     else:
-      rmsg.messages.mapIt(it.data.len).foldl(a + b, 0) +
-      rmsg.messages
-        .mapIt(
-          it.topicIds.mapIt(it.len).foldl(a + b, 0)
-        )
-        .foldl(a + b, 0)
+      dataAndTopicsIdSize(rmsg.messages)
 
   var uselessAppBytesNum =  msgSize - usefulMsgBytesNum
   rmsg.control.withValue(control):
