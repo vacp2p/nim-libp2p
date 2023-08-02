@@ -377,18 +377,12 @@ proc validateAndRelay(g: GossipSub,
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
-proc decodeAndCheckRateLimit*(g: GossipSub, peer: PubSubPeer, data: seq[byte]): RPCMsg {.raises:[PeerRateLimitError].} =
+proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.raises:[PeerRateLimitError].} =
   # In this way we count even ignored fields by protobuf
-  let msgSize = len(data)
-  var rmsg = decodeRpcMsg(data).valueOr:
-    debug "failed to decode msg from peer", peer, err = error
+  var rmsg = rpcMsgOpt.valueOr:
     if not peer.uselessAppBytesRate.tryConsume(msgSize):
       discard g.disconnectPeer(peer)
     raise newException(PeerRateLimitError, "Peer sent too much useless data that couldn't be decoded")
-
-  debug "decoded msg from peer", peer, msg = rmsg.shortLog
-  # trigger hooks
-  peer.recvObservers(rmsg)
 
   let usefulMsgBytesNum =
     if g.verifySignature:
@@ -406,19 +400,25 @@ proc decodeAndCheckRateLimit*(g: GossipSub, peer: PubSubPeer, data: seq[byte]): 
     uselessAppBytesNum -= byteSize(control.ihave) - byteSize(control.iwant)
 
   if not peer.uselessAppBytesRate.tryConsume(uselessAppBytesNum):
-    debug "Peer sent too many useless data", peer, msgSize, uselessAppBytesNum
+    debug "Peer sent too much useless application data", peer, msgSize, uselessAppBytesNum
     discard g.disconnectPeer(peer)
-    raise newException(PeerRateLimitError, "Peer sent too much useless application data")
-
-  return rmsg
+    raise newException(PeerRateLimitError, "Peer sent too much useless application data.")
 
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   data: seq[byte]) {.async.} =
+  let msgSize = data.len
+  let rpcMsgResult = decodeRpcMsg(data)
+  var rpcMsg = rpcMsgResult.valueOr:
+    debug "failed to decode msg from peer", peer, err = error
+    rateLimit(g, peer, Opt.none(RPCMsg), msgSize)
+    return
 
-  let rpcMsg = decodeAndCheckRateLimit(g, peer, data)
+  debug "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  rateLimit(g, peer, Opt.some(rpcMsg), msgSize)
 
-
+  # trigger hooks
+  peer.recvObservers(rpcMsg)
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
     g.send(peer, RPCMsg(pong: rpcMsg.ping))
