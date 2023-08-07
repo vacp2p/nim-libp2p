@@ -38,9 +38,7 @@ type
   Perf* = ref object of LPProtocol
 
 proc new*(T: typedesc[Perf]): T {.public.} =
-  result = Perf()
-
-method init*(p: Perf) =
+  var p = T()
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     var bytesRead = 0
     try:
@@ -71,6 +69,7 @@ method init*(p: Perf) =
 
   p.handler = handle
   p.codec = PerfCodec
+  return p
 
 proc perfDownload*(p: Perf, conn: Connection,
                    sizeToRead: uint64): Future[Duration] {.async, public.} =
