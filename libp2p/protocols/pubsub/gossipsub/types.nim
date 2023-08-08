@@ -142,6 +142,8 @@ type
     disconnectBadPeers*: bool
     enablePX*: bool
 
+    bandwidthEstimateMbps*: int
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
 
