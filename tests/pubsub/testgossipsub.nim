@@ -636,27 +636,31 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
-  asyncTest "e2e - GossipSub floodPublish limit":
-    var passed: Future[bool] = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
-      check topic == "foobar"
+  # Helper procedures to avoid repetition
+  proc setupNodes(count: int): seq[PubSub] =
+    generateNodes(count, gossip = true)
 
-    let
-      nodes = generateNodes(
-        20,
-        gossip = true)
-
+  proc startNodes(nodes: seq[PubSub]) {.async.} =
     await allFuturesThrowing(
       nodes.mapIt(it.switch.start())
     )
 
-    var gossip1: GossipSub = GossipSub(nodes[0])
-    gossip1.parameters.floodPublish = true
-    gossip1.parameters.heartbeatInterval = milliseconds(700)
+  proc stopNodes(nodes: seq[PubSub]) {.async.} =
+    await allFuturesThrowing(
+      nodes.mapIt(it.switch.stop())
+    )
 
-    for node in nodes[1..^1]:
+  proc connectNodes(nodes: seq[PubSub], target: PubSub) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+
+    for node in nodes:
       node.subscribe("foobar", handler)
-      await node.switch.connect(nodes[0].peerInfo.peerId, nodes[0].peerInfo.addrs)
+      await node.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+
+  proc baseTestProcedure(nodes: seq[PubSub], gossip1: GossipSub, numPeersFirstMsg: int, numPeersSecondMsg: int) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
 
     block setup:
       for i in 0..<50:
@@ -665,20 +669,45 @@ suite "GossipSub":
         await sleepAsync(10.milliseconds)
       check false
 
-    check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == gossip1.parameters.dLow
-
-    check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == 17
+    check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
+    check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
 
     # Now try with a mesh
     gossip1.subscribe("foobar", handler)
     checkExpiring: gossip1.mesh.peers("foobar") > 5
 
     # use a different length so that the message is not equal to the last
-    check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == 17
+    check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
 
-    await allFuturesThrowing(
-      nodes.mapIt(it.switch.stop())
-    )
+  # Actual tests
+  asyncTest "e2e - GossipSub floodPublish limit":
+
+    let
+      nodes = setupNodes(20)
+      gossip1 = GossipSub(nodes[0])
+
+    gossip1.parameters.floodPublish = true
+    gossip1.parameters.heartbeatInterval = milliseconds(700)
+
+    await startNodes(nodes)
+    await connectNodes(nodes[1..^1], nodes[0])
+    await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, 17)
+    await stopNodes(nodes)
+
+  asyncTest "e2e - GossipSub floodPublish limit with bandwidthEstimateMbps = 0":
+
+    let
+      nodes = setupNodes(20)
+      gossip1 = GossipSub(nodes[0])
+
+    gossip1.parameters.floodPublish = true
+    gossip1.parameters.heartbeatInterval = milliseconds(700)
+    gossip1.parameters.bandwidthEstimateMbps = 0
+
+    await startNodes(nodes)
+    await connectNodes(nodes[1..^1], nodes[0])
+    await baseTestProcedure(nodes, gossip1, nodes.len - 1, nodes.len - 1)
+    await stopNodes(nodes)
 
   asyncTest "e2e - GossipSub with multiple peers":
     var runs = 10
