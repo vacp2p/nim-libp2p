@@ -71,8 +71,8 @@ proc new*(T: typedesc[Perf]): T {.public.} =
   p.codec = PerfCodec
   return p
 
-proc perfDownload*(p: Perf, conn: Connection,
-                   sizeToRead: uint64): Future[Duration] {.async, public.} =
+proc perfDownload*(conn: Connection, sizeToRead: uint64):
+                   Future[Duration] {.async, public.} =
   var
     size = sizeToRead
     buf: array[PerfSize, byte]
@@ -91,8 +91,8 @@ proc perfDownload*(p: Perf, conn: Connection,
   trace "got download benchmark duration", conn, duration
   return duration
 
-proc perfUpload*(p: Perf, conn: Connection,
-                 sizeToWrite: uint64): Future[Duration] {.async, public.} =
+proc perfUpload*(conn: Connection, sizeToWrite: uint64):
+                 Future[Duration] {.async, public.} =
   var
     size = sizeToWrite
     buf: array[PerfSize, byte]
@@ -112,9 +112,8 @@ proc perfUpload*(p: Perf, conn: Connection,
   trace "got upload benchmark duration", conn, duration
   return duration
 
-proc perf*(p: Perf, conn: Connection,
-           sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0):
-             Future[Duration] {.async, public.} =
+proc perf*(conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0):
+           Future[Duration] {.async, public.} =
   var
     size = sizeToWrite
     buf: array[PerfSize, byte]
