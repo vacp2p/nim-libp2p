@@ -694,7 +694,7 @@ suite "GossipSub":
     await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, 17)
     await stopNodes(nodes)
 
-  asyncTest "e2e - GossipSub floodPublish limit with bandwidthEstimateMbps = 0":
+  asyncTest "e2e - GossipSub floodPublish limit with bandwidthEstimatebps = 0":
 
     let
       nodes = setupNodes(20)
@@ -702,7 +702,7 @@ suite "GossipSub":
 
     gossip1.parameters.floodPublish = true
     gossip1.parameters.heartbeatInterval = milliseconds(700)
-    gossip1.parameters.bandwidthEstimateMbps = 0
+    gossip1.parameters.bandwidthEstimatebps = 0
 
     await startNodes(nodes)
     await connectNodes(nodes[1..^1], nodes[0])

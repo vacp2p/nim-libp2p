@@ -75,7 +75,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       behaviourPenaltyDecay: 0.999,
       disconnectBadPeers: false,
       enablePX: false,
-      bandwidthEstimateMbps: 100
+      bandwidthEstimatebps: 100_000_000 # 100 Mbps or 12.5 MBps
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -523,9 +523,9 @@ method publish*(g: GossipSub,
     # but a peer's own messages will always be published to all known peers in the topic, limited
     # to the amount of peers we can send it to in one heartbeat
     var maxPeersToFlodOpt: Opt[int64]
-    if g.parameters.bandwidthEstimateMbps > 0:
+    if g.parameters.bandwidthEstimatebps > 0:
       let
-        bandwidth = (g.parameters.bandwidthEstimateMbps * 1_000_000) div 8 div 1000 # 100 Mbps or 12.5 MBps TODO replace with bandwidth estimate
+        bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000 # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
         msToTransmit = max(data.len div bandwidth, 1)
       maxPeersToFlodOpt = Opt.some(max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow))
 

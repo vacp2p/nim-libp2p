@@ -142,7 +142,7 @@ type
     disconnectBadPeers*: bool
     enablePX*: bool
 
-    bandwidthEstimateMbps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
+    bandwidthEstimatebps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
