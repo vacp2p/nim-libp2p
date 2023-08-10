@@ -101,7 +101,7 @@ method rpcHandler*(f: FloodSub,
     debug "failed to decode msg from peer", peer, err = error
     raise newException(CatchableError, "")
 
-  debug "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   # trigger hooks
   peer.recvObservers(rpcMsg)
 

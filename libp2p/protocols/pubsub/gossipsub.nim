@@ -380,12 +380,18 @@ proc validateAndRelay(g: GossipSub,
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topicIds.mapIt(it.len).foldl(a + b, 0)).foldl(a + b, 0)
 
-proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.raises:[PeerRateLimitError].} =
+proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.raises:[PeerRateLimitError, CatchableError].} =
   # In this way we count even ignored fields by protobuf
+
   var rmsg = rpcMsgOpt.valueOr:
     if not peer.uselessAppBytesRate.tryConsume(msgSize):
-      libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes. # discard g.disconnectPeer(peer)
-    raise newException(PeerRateLimitError, "Peer sent too much useless data that couldn't be decoded")
+      libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+      debug "Peer sent a msg that couldn't be decoded and it's above rate limit", peer, uselessAppBytesNum = msgSize
+      # discard g.disconnectPeer(peer)
+      # debug "Peer disconnected", peer, uselessAppBytesNum = msgSize
+      # raise newException(PeerRateLimitError, "Peer sent a msg that couldn't be decoded and it's above rate limit")
+
+    raise newException(CatchableError, "Peer msg couldn't be decoded")
 
   let usefulMsgBytesNum =
     if g.verifySignature:
@@ -395,12 +401,14 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
 
   var uselessAppBytesNum =  msgSize - usefulMsgBytesNum
   rmsg.control.withValue(control):
-    uselessAppBytesNum -= byteSize(control.ihave) - byteSize(control.iwant)
+    uselessAppBytesNum -= (byteSize(control.ihave) + byteSize(control.iwant))
 
   if not peer.uselessAppBytesRate.tryConsume(uselessAppBytesNum):
-    debug "Peer sent too much useless application data", peer, msgSize, uselessAppBytesNum
-    libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes. # discard g.disconnectPeer(peer)
-    raise newException(PeerRateLimitError, "Peer sent too much useless application data.")
+    libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+    debug "Peer sent too much useless application data and it's above rate limit.", peer, msgSize, uselessAppBytesNum
+    # discard g.disconnectPeer(peer)
+    # debug "Peer disconnected", peer, msgSize, uselessAppBytesNum
+    # raise newException(PeerRateLimitError, "Peer sent too much useless application data and it's above rate limit.")
 
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
@@ -412,7 +420,7 @@ method rpcHandler*(g: GossipSub,
     rateLimit(g, peer, Opt.none(RPCMsg), msgSize)
     return
 
-  debug "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   rateLimit(g, peer, Opt.some(rpcMsg), msgSize)
 
   # trigger hooks

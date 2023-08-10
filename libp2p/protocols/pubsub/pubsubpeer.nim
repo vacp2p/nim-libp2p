@@ -313,7 +313,7 @@ proc new*(
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
-    uselessAppBytesRate: TokenBucket.new(1024, 1.seconds)
+    uselessAppBytesRate: TokenBucket.new(1024, 500.milliseconds)
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))
