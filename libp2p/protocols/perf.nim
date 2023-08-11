@@ -71,54 +71,13 @@ proc new*(T: typedesc[Perf]): T {.public.} =
   p.codec = PerfCodec
   return p
 
-proc perfDownload*(conn: Connection, sizeToRead: uint64):
-                   Future[Duration] {.async, public.} =
-  var
-    size = sizeToRead
-    buf: array[PerfSize, byte]
-  let start = Moment.now()
-  trace "initiating download benchmark", conn
-
-  await conn.write(toSeq(toBytesBE(size)))
-  await conn.close()
-
-  while size > 0:
-    let toRead = min(size, PerfSize)
-    await conn.readExactly(addr buf[0], toRead.int)
-    size = size - toRead
-
-  let duration = Moment.now() - start
-  trace "got download benchmark duration", conn, duration
-  return duration
-
-proc perfUpload*(conn: Connection, sizeToWrite: uint64):
-                 Future[Duration] {.async, public.} =
-  var
-    size = sizeToWrite
-    buf: array[PerfSize, byte]
-  let start = Moment.now()
-  trace "initiating upload benchmark", conn
-
-  await conn.write(toSeq(toBytesBE(0'u64)))
-  while size > 0:
-    let toWrite = min(size, PerfSize)
-    await conn.write(buf[0..<toWrite])
-    size -= toWrite
-
-  await conn.close()
-  await conn.join()
-  
-  let duration = Moment.now() - start
-  trace "got upload benchmark duration", conn, duration
-  return duration
-
 proc perf*(conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0):
            Future[Duration] {.async, public.} =
   var
     size = sizeToWrite
     buf: array[PerfSize, byte]
   let start = Moment.now()
-  trace "starting perfomance benchmark", conn
+  trace "starting performance benchmark", conn, sizeToWrite, sizeToRead
 
   await conn.write(toSeq(toBytesBE(sizeToRead)))
   while size > 0:
@@ -136,4 +95,13 @@ proc perf*(conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0):
     size = size - toRead
 
   let duration = Moment.now() - start
+  trace "finishing performance benchmark", duration
   return duration
+
+proc perfDownload*(conn: Connection, sizeToRead: uint64):
+                   Future[Duration] {.async, public.} =
+  return await conn.perf(sizeToRead = sizeToRead)
+
+proc perfUpload*(conn: Connection, sizeToWrite: uint64):
+                 Future[Duration] {.async, public.} =
+  return await conn.perf(sizeToWrite = sizeToWrite)
