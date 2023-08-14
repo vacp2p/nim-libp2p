@@ -74,7 +74,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       behaviourPenaltyWeight: -1.0,
       behaviourPenaltyDecay: 0.999,
       disconnectBadPeers: false,
-      enablePX: false
+      enablePX: false,
+      bandwidthEstimatebps: 100_000_000 # 100 Mbps or 12.5 MBps
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -521,14 +522,16 @@ method publish*(g: GossipSub,
     # With flood publishing enabled, the mesh is used when propagating messages from other peers,
     # but a peer's own messages will always be published to all known peers in the topic, limited
     # to the amount of peers we can send it to in one heartbeat
-    let
-      bandwidth = 12_500_000 div 1000 # 100 Mbps or 12.5 MBps TODO replace with bandwidth estimate
-      msToTransmit = max(data.len div bandwidth, 1)
-      maxPeersToFlod =
-        max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
+    var maxPeersToFlodOpt: Opt[int64]
+    if g.parameters.bandwidthEstimatebps > 0:
+      let
+        bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000 # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
+        msToTransmit = max(data.len div bandwidth, 1)
+      maxPeersToFlodOpt = Opt.some(max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow))
 
     for peer in g.gossipsub.getOrDefault(topic):
-      if peers.len >= maxPeersToFlod: break
+      maxPeersToFlodOpt.withValue(maxPeersToFlod):
+        if peers.len >= maxPeersToFlod: break
       if peer.score >= g.parameters.publishThreshold:
         trace "publish: including flood/high score peer", peer
         peers.incl(peer)
