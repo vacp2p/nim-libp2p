@@ -10,6 +10,7 @@
 ## `Perf <https://github.com/libp2p/specs/blob/master/perf/perf.md>`_ protocol specification
 
 import chronos, chronicles, sequtils
+import stew/endians2
 import ./core, ../../stream/connection
 
 logScope:
