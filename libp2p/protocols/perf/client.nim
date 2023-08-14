@@ -9,7 +9,7 @@
 
 ## `Perf <https://github.com/libp2p/specs/blob/master/perf/perf.md>`_ protocol specification
 
-import chronos, chronicles
+import chronos, chronicles, sequtils
 import ./core, ../../stream/connection
 
 logScope:
