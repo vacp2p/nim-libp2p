@@ -65,11 +65,16 @@ when supported(PKScheme.Ed25519):
   import ed25519/ed25519
 when supported(PKScheme.Secp256k1):
   import secp
+when supported(PKScheme.ECDSA):
+  import ecnist
+
+  # These used to be declared in `crypto` itself
+  export ecnist.ephemeral, ecnist.ECDHEScheme
 
 # We are still importing `ecnist` because, it is used for SECIO handshake,
 # but it will be impossible to create ECNIST keys or import ECNIST keys.
 
-import ecnist, bearssl/rand, bearssl/hash as bhash
+import bearssl/rand, bearssl/hash as bhash
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
@@ -85,8 +90,6 @@ type
   DigestSheme* = enum
     Sha256,
     Sha512
-
-  ECDHEScheme* = EcCurveKind
 
   PublicKey* = object
     case scheme*: PKScheme
@@ -869,34 +872,6 @@ proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
   var offset = if id == 0: 0 else: (len(secret.data) div 2)
   offset += secret.ivsize + secret.keysize
   copyMem(addr result[0], unsafeAddr secret.data[offset], secret.macsize)
-
-proc ephemeral*(
-    scheme: ECDHEScheme,
-    rng: var HmacDrbgContext): CryptoResult[EcKeyPair] =
-  ## Generate ephemeral keys used to perform ECDHE.
-  var keypair: EcKeyPair
-  if scheme == Secp256r1:
-    keypair = ? EcKeyPair.random(Secp256r1, rng).orError(KeyError)
-  elif scheme == Secp384r1:
-    keypair = ? EcKeyPair.random(Secp384r1, rng).orError(KeyError)
-  elif scheme == Secp521r1:
-    keypair = ? EcKeyPair.random(Secp521r1, rng).orError(KeyError)
-  ok(keypair)
-
-proc ephemeral*(
-    scheme: string, rng: var HmacDrbgContext): CryptoResult[EcKeyPair] =
-  ## Generate ephemeral keys used to perform ECDHE using string encoding.
-  ##
-  ## Currently supported encoding strings are P-256, P-384, P-521, if encoding
-  ## string is not supported P-521 key will be generated.
-  if scheme == "P-256":
-    ephemeral(Secp256r1, rng)
-  elif scheme == "P-384":
-    ephemeral(Secp384r1, rng)
-  elif scheme == "P-521":
-    ephemeral(Secp521r1, rng)
-  else:
-    ephemeral(Secp521r1, rng)
 
 proc getOrder*(remotePubkey, localNonce: openArray[byte],
                localPubkey, remoteNonce: openArray[byte]): CryptoResult[int] =
