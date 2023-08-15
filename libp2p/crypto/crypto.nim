@@ -71,9 +71,6 @@ when supported(PKScheme.ECDSA):
   # These used to be declared in `crypto` itself
   export ecnist.ephemeral, ecnist.ECDHEScheme
 
-# We are still importing `ecnist` because, it is used for SECIO handshake,
-# but it will be impossible to create ECNIST keys or import ECNIST keys.
-
 import bearssl/rand, bearssl/hash as bhash
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
