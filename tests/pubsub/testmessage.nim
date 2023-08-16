@@ -83,3 +83,5 @@ suite "Message":
       key: @[1'u8],  # 1 byte
       topicIds: @["abc", "defgh"]  # 3 + 5 = 8 bytes
     )
+
+    check byteSize(msg) == 3 + 1 + 1 + 8  # Total: 13 bytes

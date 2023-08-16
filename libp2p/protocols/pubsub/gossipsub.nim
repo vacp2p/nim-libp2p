@@ -401,7 +401,7 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
     else:
       dataAndTopicsIdSize(rmsg.messages)
 
-  var uselessAppBytesNum =  msgSize - usefulMsgBytesNum
+  var uselessAppBytesNum = msgSize - usefulMsgBytesNum
   rmsg.control.withValue(control):
     uselessAppBytesNum -= (byteSize(control.ihave) + byteSize(control.iwant))
 
@@ -416,9 +416,9 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
                   data: seq[byte]) {.async.} =
+
   let msgSize = data.len
-  let rpcMsgResult = decodeRpcMsg(data)
-  var rpcMsg = rpcMsgResult.valueOr:
+  var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     rateLimit(g, peer, Opt.none(RPCMsg), msgSize)
     return
