@@ -279,10 +279,11 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {
   of PubSubPeerEventKind.Disconnected:
     discard
 
-proc getOrCreatePeer*(
+method getOrCreatePeer*(
     p: PubSub,
     peerId: PeerId,
-    protos: seq[string]): PubSubPeer =
+    protos: seq[string]): PubSubPeer {.base, gcsafe.} =
+
   p.peers.withValue(peerId, peer):
     return peer[]
 

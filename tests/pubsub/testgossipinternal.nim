@@ -23,7 +23,7 @@ proc getPubSubPeer(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] =
     p.switch.dial(peerId, GossipSubCodec)
 
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024, Opt.some(TokenBucket.new(1024, 500.milliseconds)))
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
