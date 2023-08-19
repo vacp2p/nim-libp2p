@@ -2,7 +2,7 @@ include ../../libp2p/protocols/pubsub/gossipsub
 
 {.used.}
 
-import hashes, std/[options, deques]
+import std/[options, deques]
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors
@@ -757,7 +757,7 @@ suite "GossipSub internal":
         ihaveMessageId = byteutils.toHex(seqno) & $firstPeer.peerId
       peer.handler = handler
 
-      # Action 1: Simulate that each peer sends an IHAVE message to our node
+      # Simulate that each peer sends an IHAVE message to our node
       let msg = ControlIHave(
         topicID: topic,
         messageIDs: @[ihaveMessageId.toBytes()]
@@ -766,11 +766,11 @@ suite "GossipSub internal":
       if iwants.messageIds.len > 0:
         iwantCount += 1
 
-    # Check: Verify that our node responds with only one IWANT message
+    # Verify that our node responds with only one IWANT message
     check: iwantCount == 1
     check: gossipSub.outstandingIWANTs.contains(ihaveMessageId.toBytes())
 
-    # Action 2: Simulate that our node receives the RPCMsg in response to the IWANT
+    # Simulate that our node receives the RPCMsg in response to the IWANT
     let actualMessageData = "Hello, World!".toBytes
     let rpcMsg = RPCMsg(
       messages: @[Message(
@@ -815,13 +815,11 @@ suite "GossipSub internal":
     )
     discard gossipSub.handleIHave(peer, @[ihaveMsg])
 
-    # Check that the message ID is in outstandingIWANTs
     check: gossipSub.outstandingIWANTs.contains(ihaveMessageId)
     check: peer.behaviourPenalty == 0.0
 
     await sleepAsync(60.milliseconds)
 
-    # Check that the message ID has been removed from outstandingIWANTs after the timeout and peer has been penalized
     check: not gossipSub.outstandingIWANTs.contains(ihaveMessageId)
     check: peer.behaviourPenalty == 0.1
 
