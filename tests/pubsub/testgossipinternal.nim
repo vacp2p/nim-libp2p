@@ -785,3 +785,43 @@ suite "GossipSub internal":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  asyncTest "handle unanswered IWANT messages":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+    gossipSub.parameters.heartbeatInterval = 50.milliseconds
+    gossipSub.parameters.iwantTimeout = 10.milliseconds
+    await gossipSub.start()
+
+    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} = discard
+    proc handler2(topic: string, data: seq[byte]) {.async.} = discard
+
+    let topic = "foobar"
+    var conns = newSeq[Connection]()
+    gossipSub.subscribe(topic, handler2)
+
+    # Setup a connection and a peer
+    let conn = TestBufferStream.new(noop)
+    conns &= conn
+    let peerId = randomPeerId()
+    conn.peerId = peerId
+    let peer = gossipSub.getPubSubPeer(peerId)
+    peer.handler = handler
+
+    # Simulate that the peer sends an IHAVE message to our node
+    let ihaveMessageId = @[0'u8, 1, 2, 3]
+    let ihaveMsg = ControlIHave(
+      topicID: topic,
+      messageIDs: @[ihaveMessageId]
+    )
+    discard gossipSub.handleIHave(peer, @[ihaveMsg])
+
+    # Check that the message ID is in outstandingIWANTs
+    check: gossipSub.outstandingIWANTs.contains(ihaveMessageId)
+
+    await sleepAsync(60.milliseconds)
+
+    # Check that the message ID has been removed from outstandingIWANTs after the timeout
+    check: not gossipSub.outstandingIWANTs.contains(ihaveMessageId)
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()

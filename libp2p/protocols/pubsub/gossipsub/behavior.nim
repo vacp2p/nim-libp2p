@@ -302,10 +302,13 @@ proc handleIWant*(g: GossipSub,
 
 proc checkIWANTTimeouts(g: GossipSub, timeoutDuration: Duration) {.raises: [].} =
   let currentTime = Moment.now()
+  var idsToRemove = newSeq[MessageId]()
   for msgId, request in g.outstandingIWANTs.pairs():
     if currentTime - request.timestamp > timeoutDuration:
       trace "IWANT request timed out", messageID=msgId, peer=request.peer
       # applyBehaviorPenalty(g, request.peer)
+      idsToRemove.add(msgId)
+  for msgId in idsToRemove:
       g.outstandingIWANTs.del(msgId)
 
 proc commitMetrics(metrics: var MeshMetrics) {.raises: [].} =
