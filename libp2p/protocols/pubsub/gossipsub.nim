@@ -402,9 +402,8 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
-
     g.outstandingIWANTs.withValue(msgId, iwantRequest):
-      if iwantRequest.peer == peer:
+      if iwantRequest.peer.peerId == peer.peerId:
         g.outstandingIWANTs.del(msgId)
 
     # addSeen adds salt to msgId to avoid
