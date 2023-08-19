@@ -817,11 +817,13 @@ suite "GossipSub internal":
 
     # Check that the message ID is in outstandingIWANTs
     check: gossipSub.outstandingIWANTs.contains(ihaveMessageId)
+    check: peer.behaviourPenalty == 0.0
 
     await sleepAsync(60.milliseconds)
 
-    # Check that the message ID has been removed from outstandingIWANTs after the timeout
+    # Check that the message ID has been removed from outstandingIWANTs after the timeout and peer has been penalized
     check: not gossipSub.outstandingIWANTs.contains(ihaveMessageId)
+    check: peer.behaviourPenalty == 0.1
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()

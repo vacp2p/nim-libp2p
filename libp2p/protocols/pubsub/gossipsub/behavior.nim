@@ -306,7 +306,7 @@ proc checkIWANTTimeouts(g: GossipSub, timeoutDuration: Duration) {.raises: [].} 
   for msgId, request in g.outstandingIWANTs.pairs():
     if currentTime - request.timestamp > timeoutDuration:
       trace "IWANT request timed out", messageID=msgId, peer=request.peer
-      # applyBehaviorPenalty(g, request.peer)
+      request.peer.behaviourPenalty += 0.1
       idsToRemove.add(msgId)
   for msgId in idsToRemove:
       g.outstandingIWANTs.del(msgId)
