@@ -14,16 +14,13 @@ import ../../libp2p/protocols/pubsub/rpc/protobuf
 
 import ../helpers
 
-type
-  TestGossipSub = ref object of GossipSub
-
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
 proc getPubSubPeer(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] =
     p.switch.dial(peerId, GossipSubCodec)
 
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024, Opt.some(TokenBucket.new(1024, 500.milliseconds)))
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer

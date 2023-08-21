@@ -269,7 +269,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
 
     await conn.close() # This will clean up the send connection
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool): seq[RPCMsg] {.raises: [].} =
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
 
   # When sending messages, we take care to re-encode them with the right
@@ -288,8 +288,20 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
     # protobuf for every peer - this could easily be improved!
     sendMetrics(msg)
     encodeRpcMsg(msg, anonymize)
-
-  asyncSpawn p.sendEncoded(encoded)
+  var res = newSeq[RPCMsg]()
+  # Check if the encoded message size exceeds the maxMessageSize
+  if encoded.len > p.maxMessageSize:
+    # Split the RPCMsg into individual messages and send them separately
+    for message in msg.messages:
+      var newMsg = RPCMsg(messages: @[message], control: msg.control)
+      let newMsgEncoded = encodeRpcMsg(newMsg, anonymize)
+      asyncSpawn p.sendEncoded(newMsgEncoded)
+      res.add(newMsg)
+  else:
+    # If the message size is within limits, send it as is
+    asyncSpawn p.sendEncoded(encoded)
+    res.add(msg)
+  return res
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():

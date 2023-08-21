@@ -9,15 +9,38 @@ import chronos, stew/[byteutils, results]
 import ../../libp2p/[builders,
                      protocols/pubsub/errors,
                      protocols/pubsub/pubsub,
+                     protocols/pubsub/pubsubpeer,
                      protocols/pubsub/gossipsub,
                      protocols/pubsub/floodsub,
                      protocols/pubsub/rpc/messages,
                      protocols/secure/secure]
+import ../helpers
 import chronicles
 
 export builders
 
 randomize()
+
+type
+  TestGossipSub* = ref object of GossipSub
+
+proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
+  proc getConn(): Future[Connection] =
+    p.switch.dial(peerId, GossipSubCodec)
+
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024)
+  debug "created new pubsub peer", peerId
+
+  p.peers[peerId] = pubSubPeer
+
+  onNewPeer(p, pubSubPeer)
+  pubSubPeer
+
+proc randomPeerId*(): PeerId =
+  try:
+    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+  except CatchableError as exc:
+    raise newException(Defect, exc.msg)
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
