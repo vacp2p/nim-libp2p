@@ -75,7 +75,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       behaviourPenaltyDecay: 0.999,
       disconnectBadPeers: false,
       enablePX: false,
-      bandwidthEstimatebps: 100_000_000 # 100 Mbps or 12.5 MBps
+      bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
+      iwantTimeout: 3 * GossipSubHeartbeatInterval
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -401,6 +402,9 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
+    g.outstandingIWANTs.withValue(msgId, iwantRequest):
+      if iwantRequest.peer.peerId == peer.peerId:
+        g.outstandingIWANTs.del(msgId)
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function

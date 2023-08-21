@@ -253,7 +253,8 @@ proc handleIHave*(g: GossipSub,
           if not g.hasSeen(msgId):
             if peer.iHaveBudget <= 0:
               break
-            elif msgId notin res.messageIds:
+            elif msgId notin res.messageIds and msgId notin g.outstandingIWANTs:
+              g.outstandingIWANTs[msgId] = IWANTRequest(messageId: msgId, peer: peer, timestamp: Moment.now())
               res.messageIds.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
@@ -298,6 +299,17 @@ proc handleIWant*(g: GossipSub,
         libp2p_gossipsub_received_iwants.inc(1, labelValues=["correct"])
         messages.add(msg)
   return messages
+
+proc checkIWANTTimeouts(g: GossipSub, timeoutDuration: Duration) {.raises: [].} =
+  let currentTime = Moment.now()
+  var idsToRemove = newSeq[MessageId]()
+  for msgId, request in g.outstandingIWANTs.pairs():
+    if currentTime - request.timestamp > timeoutDuration:
+      trace "IWANT request timed out", messageID=msgId, peer=request.peer
+      request.peer.behaviourPenalty += 0.1
+      idsToRemove.add(msgId)
+  for msgId in idsToRemove:
+      g.outstandingIWANTs.del(msgId)
 
 proc commitMetrics(metrics: var MeshMetrics) {.raises: [].} =
   libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)
@@ -704,3 +716,5 @@ proc heartbeat*(g: GossipSub) {.async.} =
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
+
+    checkIWANTTimeouts(g, g.parameters.iwantTimeout)
