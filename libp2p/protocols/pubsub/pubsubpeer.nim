@@ -242,7 +242,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
     return
 
   if msg.len > p.maxMessageSize:
-    info "trying to send a too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
+    info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
     return
 
   if p.sendConn == nil:

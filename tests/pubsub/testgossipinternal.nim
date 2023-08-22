@@ -1,16 +1,26 @@
-include ../../libp2p/protocols/pubsub/gossipsub
+# Nim-LibP2P
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.used.}
 
-import std/[options, deques]
+import std/[options, deques, sequtils]
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors
 import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
+import ../../libp2p/protocols/pubsub/[pubsub, gossipsub, mcache, mcache, peertable]
+import ../../libp2p/protocols/pubsub/rpc/[message, messages]
 import ../../libp2p/switch
 import ../../libp2p/muxers/muxer
 import ../../libp2p/protocols/pubsub/rpc/protobuf
+import utils
 
 import ../helpers
 
