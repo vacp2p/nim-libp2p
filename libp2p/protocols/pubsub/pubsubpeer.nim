@@ -66,7 +66,7 @@ type
     heDontWants*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
     pingBudget*: int
-    maxMessageSize: int
+    maxMessageSize*: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
@@ -288,20 +288,27 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool): seq[RPCMsg] {.raises: [
     # protobuf for every peer - this could easily be improved!
     sendMetrics(msg)
     encodeRpcMsg(msg, anonymize)
-  var res = newSeq[RPCMsg]()
+
+  var sentMessages: seq[RPCMsg]
   # Check if the encoded message size exceeds the maxMessageSize
   if encoded.len > p.maxMessageSize:
+    var controlSent = false
     # Split the RPCMsg into individual messages and send them separately
     for message in msg.messages:
-      var newMsg = RPCMsg(messages: @[message], control: msg.control)
+      var newMsg: RPCMsg
+      if not controlSent:
+        newMsg = RPCMsg(messages: @[message], control: msg.control)
+        controlSent = true
+      else:
+        newMsg = RPCMsg(messages: @[message])
       let newMsgEncoded = encodeRpcMsg(newMsg, anonymize)
       asyncSpawn p.sendEncoded(newMsgEncoded)
-      res.add(newMsg)
+      sentMessages.add(newMsg)
   else:
     # If the message size is within limits, send it as is
     asyncSpawn p.sendEncoded(encoded)
-    res.add(msg)
-  return res
+    sentMessages.add(msg)
+  return sentMessages
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
