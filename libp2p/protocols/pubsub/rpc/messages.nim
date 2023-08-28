@@ -145,3 +145,57 @@ proc byteSize*(iwant: seq[ControlIWant]): int =
     for msgId in item.messageIds:
       total += msgId.len
   return total
+
+proc `$` (msg: PeerInfoMsg): string =
+  try:
+    return "PeerInfoMsg(peerId: " & $msg.peerId & ", signedPeerRecord: " & $msg.signedPeerRecord & ")"
+  except Exception:
+    return "PeerInfoMsg: exception raised"
+
+proc `$` (msg: SubOpts): string =
+  try:
+    return "SubOpts(subscribe: " & $msg.subscribe & ", topic: " & $msg.topic & ")"
+  except Exception:
+    return "SubOpts: exception raised"
+
+proc `$` (msg: Message): string =
+  try:
+    return "Message(fromPeer: " & $msg.fromPeer & ", data: " & $msg.data & ", seqno: " & $msg.seqno & ", topicIds: " & $msg.topicIds & ", signature: " & $msg.signature & ", key: " & $msg.key & ")"
+  except Exception:
+    return "Message: exception raised"
+
+proc `$` (msg: ControlIHave): string =
+  try:
+    return "ControlIHave(topicId: " & $msg.topicId & ", messageIds: " & $msg.messageIds & ")"
+  except Exception:
+    return "ControlIHave: exception raised"
+
+proc `$` (msg: ControlIWant): string =
+  try:
+    return "ControlIWant(messageIds: " & $msg.messageIds & ")"
+  except Exception:
+    return "ControlIWant: exception raised"
+
+proc `$` (msg: ControlGraft): string =
+  try:
+    return "ControlGraft(topicId: " & $msg.topicId & ")"
+  except Exception:
+    return "ControlGraft: exception raised"
+
+proc `$` (msg: ControlPrune): string =
+  try:
+    return "ControlPrune(topicId: " & $msg.topicId & ", peers: " & $msg.peers & ", backoff: " & $msg.backoff & ")"
+  except Exception:
+    return "ControlPrune: exception raised"
+
+proc `$` (msg: ControlMessage): string =
+  try:
+    return "ControlMessage(ihave: " & $msg.ihave & ", iwant: " & $msg.iwant & ", graft: " & $msg.graft & ", prune: " & $msg.prune & ", idontwant: " & $msg.idontwant & ")"
+  except Exception:
+    return "ControlMessage: exception raised"
+
+proc `$` (msg: RPCMsg): string =
+  try:
+    return "RPCMsg(subscriptions: " & $msg.subscriptions & ", messages: " & $msg.messages & ", control: " & $msg.control & ", ping: " & $msg.ping & ", pong: " & $msg.pong & ")"
+  except Exception:
+    return "RPCMsg: exception raised"

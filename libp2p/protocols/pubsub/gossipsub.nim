@@ -80,7 +80,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
       iwantTimeout: 3 * GossipSubHeartbeatInterval,
-      uselessAppBytesRate: (1024, 500.milliseconds)
+      uselessAppBytesRate: (10000, 500.milliseconds)
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -406,9 +406,9 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
     uselessAppBytesNum -= (byteSize(control.ihave) + byteSize(control.iwant))
 
   peer.uselessAppBytesRateOpt.withValue(uselessAppBytesRate):
-    if not uselessAppBytesRate.tryConsume(msgSize):
+    if not uselessAppBytesRate.tryConsume(uselessAppBytesNum):
       libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
-      debug "Peer sent too much useless application data and it's above rate limit.", peer, msgSize, uselessAppBytesNum
+      debug "Peer sent too much useless application data and it's above rate limit.", peer, msgSize, uselessAppBytesNum, rmsg
       # discard g.disconnectPeer(peer)
       # debug "Peer disconnected", peer, msgSize, uselessAppBytesNum
       # raise newException(PeerRateLimitError, "Peer sent too much useless application data and it's above rate limit.")
