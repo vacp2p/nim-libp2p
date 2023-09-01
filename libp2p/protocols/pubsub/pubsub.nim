@@ -85,6 +85,9 @@ type
   TopicHandler* {.public.} = proc(topic: string,
                        data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
+  ValidationStrategy* {.pure, public.} = enum
+    Paralel, Sequential
+
   ValidatorHandler* {.public.} = proc(topic: string,
                            message: Message): Future[ValidationResult] {.gcsafe, raises: [].}
 
@@ -109,7 +112,8 @@ type
     triggerSelf*: bool                 ## trigger own local handler on publish
     verifySignature*: bool             ## enable signature verification
     sign*: bool                        ## enable message signing
-    validators*: Table[string, HashSet[ValidatorHandler]]
+    validators*: Table[string, OrderedSet[ValidatorHandler]]
+    validationStrategy*: ValidationStrategy
     observers: ref seq[PubSubObserver] # ref as in smart_ptr
     msgIdProvider*: MsgIdProvider      ## Turn message into message id (not nil)
     msgSeqno*: uint64
@@ -500,7 +504,7 @@ method addValidator*(p: PubSub,
   ## `Ignore` or `Reject` (which can descore the peer)
   for t in topic:
     trace "adding validator for topic", topicId = t
-    p.validators.mgetOrPut(t, HashSet[ValidatorHandler]()).incl(hook)
+    p.validators.mgetOrPut(t, OrderedSet[ValidatorHandler]()).incl(hook)
 
 method removeValidator*(p: PubSub,
                         topic: varargs[string],
@@ -513,6 +517,8 @@ method removeValidator*(p: PubSub,
 
 method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
   var pending: seq[Future[ValidationResult]]
+  result = ValidationResult.Accept
+
   trace "about to validate message"
   for topic in message.topicIds:
     trace "looking for validators on topic", topicId = topic,
@@ -520,19 +526,30 @@ method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async,
     if topic in p.validators:
       trace "running validators for topic", topicId = topic
       for validator in p.validators[topic]:
-        pending.add(validator(topic, message))
+        case p.validationStrategy
+          of ValidationStrategy.Paralel:
+            pending.add(validator(topic, message))
+          of ValidationStrategy.Sequential:
+            let validatorRes = await validator(topic, message)
+            # early break on first Reject/Ignore
+            if validatorRes != ValidationResult.Accept:
+              result = validatorRes
+              # TODO: Wrong, actually need to break two loops
+              # but don't get why message.topicIds is a seq. This
+              # will just work with message.topicIds.len = 1
+              break
 
-  result = ValidationResult.Accept
-  let futs = await allFinished(pending)
-  for fut in futs:
-    if fut.failed:
-      result = ValidationResult.Reject
-      break
-    let res = fut.read()
-    if res != ValidationResult.Accept:
-      result = res
-      if res == ValidationResult.Reject:
+  if p.validationStrategy == ValidationStrategy.Paralel:
+    let futs = await allFinished(pending)
+    for fut in futs:
+      if fut.failed:
+        result = ValidationResult.Reject
         break
+      let res = fut.read()
+      if res != ValidationResult.Accept:
+        result = res
+        if res == ValidationResult.Reject:
+          break
 
   case result
   of ValidationResult.Accept:
@@ -549,6 +566,7 @@ proc init*[PubParams: object | bool](
   anonymize: bool = false,
   verifySignature: bool = true,
   sign: bool = true,
+  validationStrategy: ValidationStrategy = ValidationStrategy.Paralel,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
   maxMessageSize: int = 1024 * 1024,
@@ -563,6 +581,7 @@ proc init*[PubParams: object | bool](
         anonymize: anonymize,
         verifySignature: verifySignature,
         sign: sign,
+        validationStrategy: validationStrategy,
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         maxMessageSize: maxMessageSize,
@@ -575,6 +594,7 @@ proc init*[PubParams: object | bool](
         anonymize: anonymize,
         verifySignature: verifySignature,
         sign: sign,
+        validationStrategy: validationStrategy,
         msgIdProvider: msgIdProvider,
         subscriptionValidator: subscriptionValidator,
         parameters: parameters,

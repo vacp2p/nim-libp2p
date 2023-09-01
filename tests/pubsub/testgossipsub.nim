@@ -135,6 +135,137 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "GossipSub with multiple validators (Sequential): early return":
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check false # if we get here, it should fail
+
+    let
+      nodes = generateNodes(2, gossip = true, validationStrategy = ValidationStrategy.Sequential)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    await subscribeNodes(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    await waitSubGraph(nodes, "foobar")
+
+    let gossip1 = GossipSub(nodes[0])
+    let gossip2 = GossipSub(nodes[1])
+
+    # define 3 validators executed sequentially
+    # validator1(Rejects)->validator2(Accepts)->validator3(Accepts)
+    var validatorFut1 = newFuture[bool]() # Reject
+    var validatorFut2 = newFuture[bool]() # Accept
+    var validatorFut3 = newFuture[bool]() # Accept
+
+    proc validator1(topic: string,
+                   message: Message): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Reject
+      validatorFut1.complete(true)
+
+    proc validator2(topic: string,
+                   message: Message): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Accept
+      validatorFut2.complete(true)
+
+    proc validator3(topic: string,
+                   message: Message): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Accept
+      validatorFut3.complete(true)
+
+    nodes[1].addValidator("foobar", validator1)
+    nodes[1].addValidator("foobar", validator2)
+    nodes[1].addValidator("foobar", validator3)
+
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    # first failed, so the rest are not executed
+    check (await validatorFut1.withTimeout(chronos.seconds(1))) == true
+    check (await validatorFut2.withTimeout(chronos.seconds(1))) == false
+    check (await validatorFut3.withTimeout(chronos.seconds(1))) == false
+
+    # handler above verifies the message was not received
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "GossipSub with multiple validators (Sequential): all valid":
+    var messageFut = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      # if we complete the future, means the message arrives
+      messageFut.complete(true)
+
+    let
+      nodes = generateNodes(2, gossip = true, validationStrategy = ValidationStrategy.Sequential)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+      )
+
+    await subscribeNodes(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    await waitSubGraph(nodes, "foobar")
+
+    let gossip1 = GossipSub(nodes[0])
+    let gossip2 = GossipSub(nodes[1])
+
+    # define 3 validators that are executed sequentially
+    # validator1(Accept)->validator2(Accept)->validator3(Accept)
+    var validatorFut1 = newFuture[bool]() # Accept
+    var validatorFut2 = newFuture[bool]() # Accept
+    var validatorFut3 = newFuture[bool]() # Accept
+
+    proc validator1(topic: string,
+                   message: Message): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Accept
+      validatorFut1.complete(true)
+
+    proc validator2(topic: string,
+                   message: Message): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Accept
+      validatorFut2.complete(true)
+
+    proc validator3(topic: string,
+                   message: Message): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Accept
+      validatorFut3.complete(true)
+
+    nodes[1].addValidator("foobar", validator1)
+    nodes[1].addValidator("foobar", validator2)
+    nodes[1].addValidator("foobar", validator3)
+
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    # all validators were executed
+    check (await validatorFut1.withTimeout(chronos.seconds(1))) == true
+    check (await validatorFut2.withTimeout(chronos.seconds(1))) == true
+    check (await validatorFut3.withTimeout(chronos.seconds(1))) == true
+
+    # message was indeed received by the subscriber
+    check (await messageFut.withTimeout(chronos.seconds(1))) == true
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
   asyncTest "GossipSub validation should fail (ignore)":
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
       check false # if we get here, it should fail
