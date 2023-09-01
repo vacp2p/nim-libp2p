@@ -528,9 +528,9 @@ method publish*(g: GossipSub,
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
-                                                   connectedPeers = topicPeers.filterIt(it.connected).len,
-                                                   topic
+    info "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
+                                                  connectedPeers = topicPeers.filterIt(it.connected).len,
+                                                  topic
     # skipping topic as our metrics finds that heavy
     libp2p_gossipsub_failed_publish.inc()
     return 0
