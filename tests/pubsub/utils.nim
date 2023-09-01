@@ -41,7 +41,7 @@ proc generateNodes*(
   verifySignature: bool = libp2p_pubsub_verify,
   anonymize: bool = libp2p_pubsub_anonymize,
   sign: bool = libp2p_pubsub_sign,
-  validationStrategy: ValidationStrategy = ValidationStrategy.Paralel,
+  validationStrategy: ValidationStrategy = ValidationStrategy.Parallel,
   sendSignedPeerRecord = false,
   unsubscribeBackoff = 1.seconds,
   maxMessageSize: int = 1024 * 1024,

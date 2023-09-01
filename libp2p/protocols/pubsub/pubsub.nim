@@ -86,7 +86,7 @@ type
                        data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
   ValidationStrategy* {.pure, public.} = enum
-    Paralel, Sequential
+    Parallel, Sequential
 
   ValidatorHandler* {.public.} = proc(topic: string,
                            message: Message): Future[ValidationResult] {.gcsafe, raises: [].}
@@ -520,26 +520,24 @@ method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async,
   result = ValidationResult.Accept
 
   trace "about to validate message"
-  for topic in message.topicIds:
-    trace "looking for validators on topic", topicId = topic,
-                                             registered = toSeq(p.validators.keys)
-    if topic in p.validators:
-      trace "running validators for topic", topicId = topic
-      for validator in p.validators[topic]:
-        case p.validationStrategy
-          of ValidationStrategy.Paralel:
-            pending.add(validator(topic, message))
-          of ValidationStrategy.Sequential:
-            let validatorRes = await validator(topic, message)
-            # early break on first Reject/Ignore
-            if validatorRes != ValidationResult.Accept:
-              result = validatorRes
-              # TODO: Wrong, actually need to break two loops
-              # but don't get why message.topicIds is a seq. This
-              # will just work with message.topicIds.len = 1
-              break
+  block outer:
+    for topic in message.topicIds:
+      trace "looking for validators on topic", topicId = topic,
+                                               registered = toSeq(p.validators.keys)
+      if topic in p.validators:
+        trace "running validators for topic", topicId = topic
+        for validator in p.validators[topic]:
+          case p.validationStrategy
+            of ValidationStrategy.Parallel:
+              pending.add(validator(topic, message))
+            of ValidationStrategy.Sequential:
+              let validatorRes = await validator(topic, message)
+              # early break on first Reject/Ignore
+              if validatorRes != ValidationResult.Accept:
+                result = validatorRes
+                break outer
 
-  if p.validationStrategy == ValidationStrategy.Paralel:
+  if p.validationStrategy == ValidationStrategy.Parallel:
     let futs = await allFinished(pending)
     for fut in futs:
       if fut.failed:
@@ -566,7 +564,7 @@ proc init*[PubParams: object | bool](
   anonymize: bool = false,
   verifySignature: bool = true,
   sign: bool = true,
-  validationStrategy: ValidationStrategy = ValidationStrategy.Paralel,
+  validationStrategy: ValidationStrategy = ValidationStrategy.Parallel,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
   maxMessageSize: int = 1024 * 1024,
