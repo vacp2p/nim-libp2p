@@ -483,7 +483,7 @@ method publish*(g: GossipSub,
   trace "Publishing message on topic", data = data.shortLog
 
   if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
+    info "Empty topic, skipping publish"
     return 0
 
   var peers: HashSet[PubSubPeer]
@@ -543,7 +543,7 @@ method publish*(g: GossipSub,
         inc g.msgSeqno
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
     msgId = g.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish",
+      info "Error generating message id, skipping publish",
         error = error
       libp2p_gossipsub_failed_publish.inc()
       return 0
@@ -554,7 +554,7 @@ method publish*(g: GossipSub,
 
   if g.addSeen(msgId):
     # custom msgid providers might cause this
-    trace "Dropping already-seen message"
+    info "Dropping already-seen message"
     return 0
 
   g.mcache.put(msgId, msg)
