@@ -833,3 +833,56 @@ suite "GossipSub internal":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  asyncTest "e2e - big IWANT replies should be slipt":
+    let
+      nodes = generateNodes(2, gossip = true, verifySignature = false)
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start()
+      )
+
+    await nodes[1].switch.connect(nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs)
+
+    var receivedMessages = initHashSet[seq[byte]]()
+    proc handlerA(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      receivedMessages.incl(data)
+
+    proc handlerB(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      discard
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip0: GossipSub = GossipSub(nodes[0])
+    var gossip1: GossipSub = GossipSub(nodes[1])
+
+    # Create large messages and put them in the cache of node[1]
+    let largeMessageSize = nodes[1].maxMessageSize div 2 + 1
+    var sentMessages = initHashSet[seq[byte]]()
+    var bigIWantMessageIds = newSeq[MessageId]()
+    for i in 0..<2:
+      let data = newSeqWith[byte](largeMessageSize, i.byte)
+      sentMessages.incl(data)
+
+      let msg = Message.init(gossip1.peerInfo.peerId, data, "foobar", some(uint64(i + 1)))
+      let bigIWantMessageId = gossip1.msgIdProvider(msg).expect(MsgIdSuccess)
+      bigIWantMessageIds.add(bigIWantMessageId)
+      gossip1.mcache.put(bigIWantMessageId, msg)
+
+      let peer = nodes[1].peers[(gossip0.peerInfo.peerId)]
+      peer.sentIHaves[^1].incl(bigIWantMessageId)
+
+    gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
+      ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
+    ))))
+
+    checkExpiring: receivedMessages == sentMessages  # Check if the sets are equal
+
+    # Cleanup
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop()
+    )
+    await allFuturesThrowing(nodesFut.concat())
