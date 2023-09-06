@@ -17,7 +17,7 @@ requires "nim >= 1.6.0",
          "secp256k1",
          "stew#head",
          "websock",
-         "unittest2 >= 0.0.5 & < 0.1.0"
+         "unittest2 >= 0.0.5 & <= 0.1.0"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
