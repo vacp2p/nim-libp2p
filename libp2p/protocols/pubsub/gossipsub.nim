@@ -80,7 +80,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
       iwantTimeout: 3 * GossipSubHeartbeatInterval,
-      uselessAppBytesRate: (10000, 500.milliseconds)
+      uselessAppBytesRateConfOpt: Opt.none(tuple[bytes: int, interval: Duration])
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -728,5 +728,6 @@ method getOrCreatePeer*(
     protos: seq[string]): PubSubPeer =
 
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
-  peer.uselessAppBytesRateOpt = Opt.some(TokenBucket.new(g.parameters.uselessAppBytesRate.bytes, g.parameters.uselessAppBytesRate.interval))
+  g.parameters.uselessAppBytesRateConfOpt.withValue(uselessAppBytesRateConf):
+    peer.uselessAppBytesRateOpt = Opt.some(TokenBucket.new(uselessAppBytesRateConf.bytes, uselessAppBytesRateConf.interval))
   return peer
