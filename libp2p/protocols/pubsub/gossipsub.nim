@@ -40,6 +40,8 @@ logScope:
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
+declareCounter(libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant")
+declareCounter(libp2p_gossipsub_saved_bytes, "bytes saved by gossipsub optimizations")
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
@@ -308,6 +310,7 @@ proc validateAndRelay(g: GossipSub,
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(msgIdSalted, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
+    libp2p_gossipsub_saved_bytes.inc((msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"])
 
     case validation
     of ValidationResult.Reject:
@@ -351,6 +354,8 @@ proc validateAndRelay(g: GossipSub,
       for heDontWant in peer.heDontWants:
         if msgId in heDontWant:
           seenPeers.incl(peer)
+          libp2p_gossipsub_idontwant_saved_messages.inc
+          libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
           break
     toSendPeers.excl(seenPeers)
 
