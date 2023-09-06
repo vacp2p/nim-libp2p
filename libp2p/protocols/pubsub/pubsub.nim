@@ -143,7 +143,7 @@ proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) {.raises: [].} =
   ##
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
-  discard peer.send(msg, p.anonymize)
+  peer.send(msg, p.anonymize)
 
 proc broadcast*(
   p: PubSub,
