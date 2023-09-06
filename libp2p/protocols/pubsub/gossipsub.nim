@@ -41,7 +41,7 @@ declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
 declareCounter(libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant")
-declareCounter(libp2p_gossipsub_saved_bytes, "bytes saved by gossipsub optimizations")
+declareCounter(libp2p_gossipsub_saved_bytes, "bytes saved by gossipsub optimizations", labels=["kind"])
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
