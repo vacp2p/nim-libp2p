@@ -1,0 +1,629 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://status-im.github.io/nim-libp2p/docs/tutorial_1_connect/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../tutorial_2_customproto/">
+      
+      <link rel="icon" href="https://libp2p.io/img/logo_small.png">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
+    
+    
+      
+        <title>Simple connection - nim-libp2p</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.26e3688c.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ecc896b0.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="indigo">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#simple-ping-tutorial" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="nim-libp2p" class="md-header__button md-logo" aria-label="nim-libp2p" data-md-component="logo">
+      
+  <img src="https://libp2p.io/img/logo_small.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            nim-libp2p
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Simple connection
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+          
+            
+            
+            
+            <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+            
+              <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3Z"/></svg>
+              </label>
+            
+          
+            
+            
+            
+            <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+            
+              <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6zm0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4zM7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+              </label>
+            
+          
+        </form>
+      
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/status-im/nim-libp2p" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    status-im/nim-libp2p
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="nim-libp2p" class="md-nav__button md-logo" aria-label="nim-libp2p" data-md-component="logo">
+      
+  <img src="https://libp2p.io/img/logo_small.png" alt="logo">
+
+    </a>
+    nim-libp2p
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/status-im/nim-libp2p" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    status-im/nim-libp2p
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
+      
+      
+      
+        <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+          Tutorials
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
+        <label class="md-nav__title" for="__nav_1">
+          <span class="md-nav__icon md-icon"></span>
+          Tutorials
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Introduction
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Simple connection
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Simple connection
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    Before you start
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-simple-ping-application" class="md-nav__link">
+    A simple ping application
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_2_customproto/" class="md-nav__link">
+        Create a custom protocol
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_3_protobuf/" class="md-nav__link">
+        Protobuf
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_4_gossipsub/" class="md-nav__link">
+        GossipSub
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_5_discovery/" class="md-nav__link">
+        Discovery Manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_6_game/" class="md-nav__link">
+        Game
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuitrelay/" class="md-nav__link">
+        Circuit Relay
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="/nim-libp2p/master/libp2p.html" class="md-nav__link">
+        Reference
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    Before you start
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-simple-ping-application" class="md-nav__link">
+    A simple ping application
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+<h1 id="simple-ping-tutorial">Simple ping tutorial</h1>
+<p>Hi all, welcome to the first nim-libp2p tutorial!</p>
+<div class="admonition tips">
+<p>This tutorial is for everyone who is interested in building peer-to-peer applications. No Nim programming experience is needed.</p>
+</div>
+<p>To give you a quick overview, <strong>Nim</strong> is the programming language we are using and <strong>nim-libp2p</strong> is the Nim implementation of <a href="https://libp2p.io/">libp2p</a>, a modular library that enables the development of peer-to-peer network applications.</p>
+<p>Hope you'll find it helpful in your journey of learning. Happy coding! ;)</p>
+<h2 id="before-you-start">Before you start</h2>
+<p>The only prerequisite here is <a href="https://nim-lang.org/">Nim</a>, the programming language with a Python-like syntax and a performance similar to C. Detailed information can be found <a href="https://nim-lang.org/docs/tut1.html">here</a>.</p>
+<p>Install Nim via their <a href="https://nim-lang.org/install.html">official website</a>.
+Check Nim's installation via <code>nim --version</code> and its package manager Nimble via <code>nimble --version</code>.</p>
+<p>You can now install the latest version of <code>nim-libp2p</code>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>nimble<span class="w"> </span>install<span class="w"> </span>libp2p@#master
+</code></pre></div></p>
+<h2 id="a-simple-ping-application">A simple ping application</h2>
+<p>We'll start by creating a simple application, which is starting two libp2p <a href="https://docs.libp2p.io/concepts/stream-multiplexing/#switch-swarm">switch</a>, and pinging each other using the <a href="https://docs.libp2p.io/concepts/protocols/#ping">Ping</a> protocol.</p>
+<div class="admonition tips">
+<p>You can find the source of this tutorial (and other tutorials) in the <a href="https://github.com/status-im/nim-libp2p/tree/master/examples">libp2p/examples</a> folder!</p>
+</div>
+<p>Let's create a <code>part1.nim</code>, and import our dependencies:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="n">chronos</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">import</span><span class="w"> </span><span class="n">libp2p</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kn">import</span><span class="w"> </span><span class="n">libp2p</span><span class="o">/</span><span class="n">protocols</span><span class="o">/</span><span class="n">ping</span>
+</code></pre></div>
+<a href="https://github.com/status-im/nim-chronos">chronos</a> the asynchronous framework used by <code>nim-libp2p</code></p>
+<p>Next, we'll create an helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">createSwitch</span><span class="p">(</span><span class="n">ma</span><span class="p">:</span><span class="w"> </span><span class="n">MultiAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">:</span><span class="w"> </span><span class="k">ref</span><span class="w"> </span><span class="n">HmacDrbgContext</span><span class="p">):</span><span class="w"> </span><span class="n">Switch</span><span class="w"> </span><span class="o">=</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="kd">var</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SwitchBuilder</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p">.</span><span class="n">new</span><span class="p">()</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="p">.</span><span class="n">withRng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span><span class="w">       </span><span class="c"># Give the application RNG</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p">.</span><span class="n">withAddress</span><span class="p">(</span><span class="n">ma</span><span class="p">)</span><span class="w">    </span><span class="c"># Our local address(es)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">.</span><span class="n">withTcpTransport</span><span class="p">()</span><span class="w"> </span><span class="c"># Use TCP as transport</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="p">.</span><span class="n">withMplex</span><span class="p">()</span><span class="w">        </span><span class="c"># Use Mplex as muxer</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="p">.</span><span class="n">withNoise</span><span class="p">()</span><span class="w">        </span><span class="c"># Use Noise as secure manager</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="p">.</span><span class="n">build</span><span class="p">()</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">switch</span>
+</code></pre></div>
+This will create a switch using <a href="https://docs.libp2p.io/concepts/stream-multiplexing/">Mplex</a> as a multiplexer, Noise to secure the communication, and TCP as an underlying transport.</p>
+<p>You can of course tweak this, to use a different or multiple transport, or tweak the configuration of Mplex and Noise, but this is some sane defaults that we'll use going forward.</p>
+<p>Let's now start to create our main procedure:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="sx">{.async</span>,<span class="w"> </span><span class="sx">gcsafe.}</span><span class="w"> </span><span class="o">=</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="k">let</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">newRng</span><span class="p">()</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="n">localAddress</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MultiAddress</span><span class="p">.</span><span class="n">init</span><span class="p">(</span><span class="s">&quot;/ip4/0.0.0.0/tcp/0&quot;</span><span class="p">).</span><span class="n">tryGet</span><span class="p">()</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="n">pingProtocol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Ping</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+</code></pre></div>
+We created some variables that we'll need for the rest of the application: the global <code>rng</code> instance, our <code>localAddress</code>, and an instance of the <code>Ping</code> protocol.
+The address is in the <a href="https://github.com/multiformats/multiaddr">MultiAddress</a> format. The port <code>0</code> means "take any port available".</p>
+<p><code>tryGet</code> is procedure which is part of <a href="https://github.com/arnetheduck/nim-result/">nim-result</a>, that will throw an exception if the supplied MultiAddress is invalid.</p>
+<p>We can now create our two switches:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="w">  </span><span class="k">let</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="n">switch1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">localAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="n">switch2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">localAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="n">switch1</span><span class="p">.</span><span class="n">mount</span><span class="p">(</span><span class="n">pingProtocol</span><span class="p">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">switch1</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
+</code></pre></div>
+We've <strong>mounted</strong> the <code>pingProtocol</code> on our first switch. This means that the first switch will actually listen for any ping requests coming in, and handle them accordingly.</p>
+<p>Now that we've started the nodes, they are listening for incoming peers.
+We can find out which port was attributed, and the resulting local addresses, by using <code>switch1.peerInfo.addrs</code>.</p>
+<p>We'll <strong>dial</strong> the first switch from the second one, by specifying it's <strong>Peer ID</strong>, it's <strong>MultiAddress</strong> and the <strong><code>Ping</code> protocol codec</strong>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="w">  </span><span class="k">let</span><span class="w"> </span><span class="n">conn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">await</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">dial</span><span class="p">(</span><span class="n">switch1</span><span class="p">.</span><span class="n">peerInfo</span><span class="p">.</span><span class="n">peerId</span><span class="p">,</span><span class="w"> </span><span class="n">switch1</span><span class="p">.</span><span class="n">peerInfo</span><span class="p">.</span><span class="n">addrs</span><span class="p">,</span><span class="w"> </span><span class="n">PingCodec</span><span class="p">)</span>
+</code></pre></div>
+We now have a <code>Ping</code> connection setup between the second and the first switch, we can use it to actually ping the node:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="w">  </span><span class="c"># ping the other node and echo the ping duration</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="n">echo</span><span class="w"> </span><span class="s">&quot;ping: &quot;</span><span class="p">,</span><span class="w"> </span><span class="n">await</span><span class="w"> </span><span class="n">pingProtocol</span><span class="p">.</span><span class="n">ping</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="c"># We must close the connection ourselves when we&#39;re done with it</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">conn</span><span class="p">.</span><span class="n">close</span><span class="p">()</span>
+</code></pre></div>
+And that's it! Just a little bit of cleanup: shutting down the switches, waiting for them to stop, and we'll call our <code>main</code> procedure:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">allFutures</span><span class="p">(</span><span class="n">switch1</span><span class="p">.</span><span class="n">stop</span><span class="p">(),</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">stop</span><span class="p">())</span><span class="w"> </span><span class="c"># close connections and shutdown all transports</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">waitFor</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+You can now run this program using <code>nim c -r part1.nim</code>, and you should see the dialing sequence, ending with a ping output.</p>
+<p>In the <a href="../tutorial_2_customproto/">next tutorial</a>, we'll look at how to create our own custom protocol.</p>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "search.highlight"], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.b4d07000.min.js"></script>
+      
+    
+  </body>
+</html>
