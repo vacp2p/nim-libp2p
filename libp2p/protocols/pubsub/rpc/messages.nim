@@ -117,31 +117,35 @@ func shortLog*(m: RPCMsg): auto =
     control: m.control.get(ControlMessage()).shortLog
   )
 
-proc byteSize*(msg: Message): int =
-  var total = 0
-  total += msg.fromPeer.len
-  total += msg.data.len
-  total += msg.seqno.len
-  total += msg.signature.len
-  total += msg.key.len
-  for topicId in msg.topicIds:
-    total += topicId.len
-  return total
+proc len(peerInfo: PeerInfoMsg): int =
+  return peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
-proc byteSize*(msgs: seq[Message]): int =
-  msgs.mapIt(byteSize(it)).foldl(a + b, 0)
+proc len(subOpts: SubOpts): int =
+  return 1 + subOpts.topic.len # 1 byte for the bool
 
-proc byteSize*(ihave: seq[ControlIHave]): int =
-  var total = 0
-  for item in ihave:
-    total += item.topicId.len
-    for msgId in item.messageIds:
-      total += msgId.len
-  return total
+proc len*(msg: Message): int =
+  return msg.fromPeer.len + msg.data.len + msg.seqno.len +
+         msg.signature.len + msg.key.len + msg.topicIds.foldl(a + b.len, 0)
 
-proc byteSize*(iwant: seq[ControlIWant]): int =
-  var total = 0
-  for item in iwant:
-    for msgId in item.messageIds:
-      total += msgId.len
-  return total
+proc len(controlIHave: ControlIHave): int =
+  return controlIHave.topicId.len + controlIHave.messageIds.foldl(a + b.len, 0)
+
+proc len(controlIWant: ControlIWant): int =
+  return controlIWant.messageIds.foldl(a + b.len, 0)
+
+proc len(controlGraft: ControlGraft): int =
+  return controlGraft.topicId.len
+
+proc len(controlPrune: ControlPrune): int =
+  return controlPrune.topicId.len + controlPrune.peers.foldl(a + b.len, 0) + 8 # 8 bytes for uint64
+
+proc len(control: ControlMessage): int =
+  return control.ihave.foldl(a + b.len, 0) + control.iwant.foldl(a + b.len, 0) +
+         control.graft.foldl(a + b.len, 0) + control.prune.foldl(a + b.len, 0) +
+         control.idontwant.foldl(a + b.len, 0)
+
+proc len*(rpc: RPCMsg): int =
+  result = rpc.subscriptions.foldl(a + b.len, 0) + rpc.messages.foldl(a + b.len, 0) +
+           rpc.ping.len + rpc.pong.len
+  rpc.control.withValue(ctrl):
+    result += len(ctrl)
