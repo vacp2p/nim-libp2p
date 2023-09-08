@@ -145,7 +145,7 @@ type
     bandwidthEstimatebps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
     iwantTimeout*: Duration
 
-    uselessAppBytesRateConfOpt*: Opt[tuple[bytes: int, interval: Duration]]
+    overheadRateLimitConfOpt*: Opt[tuple[bytes: int, interval: Duration]]
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]

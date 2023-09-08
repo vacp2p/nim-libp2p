@@ -242,8 +242,8 @@ proc scoringHeartbeat*(g: GossipSub) {.async.} =
 
 proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) =
   let uselessAppBytesNum = msg.data.len
-  peer.uselessAppBytesRateOpt.withValue(uselessAppBytesRate):
-    if not uselessAppBytesRate.tryConsume(uselessAppBytesNum):
+  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+    if not overheadRateLimit.tryConsume(uselessAppBytesNum):
       debug "Peer sent invalid message and it's above rate limit", peer, uselessAppBytesNum
       libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
       # discard g.disconnectPeer(peer)

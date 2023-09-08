@@ -69,7 +69,7 @@ type
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
-    uselessAppBytesRateOpt*: Opt[TokenBucket]
+    overheadRateLimitOpt*: Opt[TokenBucket]
 
   RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
@@ -305,7 +305,7 @@ proc new*(
   onEvent: OnEvent,
   codec: string,
   maxMessageSize: int,
-  uselessAppBytesRateOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T =
+  overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T =
 
   result = T(
     getConn: getConn,
@@ -314,7 +314,7 @@ proc new*(
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
-    uselessAppBytesRateOpt: uselessAppBytesRateOpt
+    overheadRateLimitOpt: overheadRateLimitOpt
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))

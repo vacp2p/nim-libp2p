@@ -80,7 +80,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
       iwantTimeout: 3 * GossipSubHeartbeatInterval,
-      uselessAppBytesRateConfOpt: Opt.none(tuple[bytes: int, interval: Duration])
+      overheadRateLimitConfOpt: Opt.none(tuple[bytes: int, interval: Duration])
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -385,8 +385,8 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
   # In this way we count even ignored fields by protobuf
 
   var rmsg = rpcMsgOpt.valueOr:
-    peer.uselessAppBytesRateOpt.withValue(uselessAppBytesRate):
-      if not uselessAppBytesRate.tryConsume(msgSize):
+    peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+      if not overheadRateLimit.tryConsume(msgSize):
         libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
         debug "Peer sent a msg that couldn't be decoded and it's above rate limit", peer, uselessAppBytesNum = msgSize
         # discard g.disconnectPeer(peer)
@@ -405,8 +405,8 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
   rmsg.control.withValue(control):
     uselessAppBytesNum -= (byteSize(control.ihave) + byteSize(control.iwant))
 
-  peer.uselessAppBytesRateOpt.withValue(uselessAppBytesRate):
-    if not uselessAppBytesRate.tryConsume(uselessAppBytesNum):
+  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+    if not overheadRateLimit.tryConsume(uselessAppBytesNum):
       libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
       debug "Peer sent too much useless application data and it's above rate limit.", peer, msgSize, uselessAppBytesNum, rmsg
       # discard g.disconnectPeer(peer)
@@ -728,6 +728,6 @@ method getOrCreatePeer*(
     protos: seq[string]): PubSubPeer =
 
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
-  g.parameters.uselessAppBytesRateConfOpt.withValue(uselessAppBytesRateConf):
-    peer.uselessAppBytesRateOpt = Opt.some(TokenBucket.new(uselessAppBytesRateConf.bytes, uselessAppBytesRateConf.interval))
+  g.parameters.overheadRateLimitConfOpt.withValue(overheadRateLimitConf):
+    peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(overheadRateLimitConf.bytes, overheadRateLimitConf.interval))
   return peer
