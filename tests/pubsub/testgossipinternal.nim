@@ -734,7 +734,7 @@ suite "GossipSub internal":
 
     var iwantCount = 0
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
      check false
 
     proc handler2(topic: string, data: seq[byte]) {.async.} = discard
@@ -780,7 +780,7 @@ suite "GossipSub internal":
         data: actualMessageData
       )]
     )
-    await gossipSub.rpcHandler(firstPeer, rpcMsg)
+    await gossipSub.rpcHandler(firstPeer, encodeRpcMsg(rpcMsg, false))
 
     check: not gossipSub.outstandingIWANTs.contains(ihaveMessageId.toBytes())
 
@@ -793,7 +793,7 @@ suite "GossipSub internal":
     gossipSub.parameters.iwantTimeout = 10.milliseconds
     await gossipSub.start()
 
-    proc handler(peer: PubSubPeer, msg: RPCMsg) {.async.} = discard
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} = discard
     proc handler2(topic: string, data: seq[byte]) {.async.} = discard
 
     let topic = "foobar"
