@@ -66,7 +66,7 @@ type
     heDontWants*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
     pingBudget*: int
-    maxMessageSize*: int
+    maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
@@ -279,18 +279,17 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
 
     # Check if adding the next message will exceed maxSize
     if float(currentSize + msgSize) * 1.1 > float(maxSize): # Guessing 10% protobuf overhead
-      debug "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
+      trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
       yield encodeRpcMsg(currentRPCMsg, anonymize)
-      currentRPCMsg = RPCMsg()  # reset currentRPCMsg to be an empty RPCMsg object
+      currentRPCMsg = RPCMsg()
       currentSize = 0
 
-    # Add the message to the current RPCMsg
     currentRPCMsg.messages.add(msg)
     currentSize += msgSize
 
   # Check if there is a non-empty currentRPCMsg left to be added
   if currentSize > 0:
-    debug "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
+    trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
     yield encodeRpcMsg(currentRPCMsg, anonymize)
 
 proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
@@ -316,7 +315,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
       asyncSpawn p.sendEncoded(encodedSplitMsg)
   else:
     # If the message size is within limits, send it as is
-    debug "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+    trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
     asyncSpawn p.sendEncoded(encoded)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =

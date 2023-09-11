@@ -118,34 +118,34 @@ func shortLog*(m: RPCMsg): auto =
   )
 
 proc len(peerInfo: PeerInfoMsg): int =
-  return peerInfo.peerId.len + peerInfo.signedPeerRecord.len
+  peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
 proc len(subOpts: SubOpts): int =
-  return 1 + subOpts.topic.len # 1 byte for the bool
+  1 + subOpts.topic.len # 1 byte for the bool
 
 proc len*(msg: Message): int =
-  return msg.fromPeer.len + msg.data.len + msg.seqno.len +
+  msg.fromPeer.len + msg.data.len + msg.seqno.len +
          msg.signature.len + msg.key.len + msg.topicIds.foldl(a + b.len, 0)
 
 proc len(controlIHave: ControlIHave): int =
-  return controlIHave.topicId.len + controlIHave.messageIds.foldl(a + b.len, 0)
+  controlIHave.topicId.len + controlIHave.messageIds.foldl(a + b.len, 0)
 
 proc len(controlIWant: ControlIWant): int =
-  return controlIWant.messageIds.foldl(a + b.len, 0)
+  controlIWant.messageIds.foldl(a + b.len, 0)
 
 proc len(controlGraft: ControlGraft): int =
-  return controlGraft.topicId.len
+  controlGraft.topicId.len
 
 proc len(controlPrune: ControlPrune): int =
-  return controlPrune.topicId.len + controlPrune.peers.foldl(a + b.len, 0) + 8 # 8 bytes for uint64
+  controlPrune.topicId.len + controlPrune.peers.foldl(a + b.len, 0) + 8 # 8 bytes for uint64
 
 proc len(control: ControlMessage): int =
-  return control.ihave.foldl(a + b.len, 0) + control.iwant.foldl(a + b.len, 0) +
-         control.graft.foldl(a + b.len, 0) + control.prune.foldl(a + b.len, 0) +
-         control.idontwant.foldl(a + b.len, 0)
+  control.ihave.foldl(a + b.len, 0) + control.iwant.foldl(a + b.len, 0) +
+  control.graft.foldl(a + b.len, 0) + control.prune.foldl(a + b.len, 0) +
+  control.idontwant.foldl(a + b.len, 0)
 
 proc len*(rpc: RPCMsg): int =
   result = rpc.subscriptions.foldl(a + b.len, 0) + rpc.messages.foldl(a + b.len, 0) +
            rpc.ping.len + rpc.pong.len
   rpc.control.withValue(ctrl):
-    result += len(ctrl)
+    result += ctrl.len
