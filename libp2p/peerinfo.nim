@@ -10,7 +10,7 @@
 {.push raises: [].}
 {.push public.}
 
-import std/[options, sequtils]
+import std/sequtils
 import pkg/[chronos, chronicles, stew/results]
 import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 
@@ -53,15 +53,12 @@ proc update*(p: PeerInfo) {.async.} =
   for mapper in p.addressMappers:
     p.addrs = await mapper(p.addrs)
 
-  let sprRes = SignedPeerRecord.init(
+  p.signedPeerRecord = SignedPeerRecord.init(
     p.privateKey,
     PeerRecord.init(p.peerId, p.addrs)
-  )
-  if sprRes.isOk:
-    p.signedPeerRecord = sprRes.get()
-  else:
-    discard
-    #info "Can't update the signed peer record"
+  ).valueOr():
+    info "Can't update the signed peer record"
+    return
 
 proc addrs*(p: PeerInfo): seq[MultiAddress] =
   p.addrs

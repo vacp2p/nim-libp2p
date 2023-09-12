@@ -20,7 +20,7 @@ import rpc/[messages, message, protobuf],
        ../../protobuf/minprotobuf,
        ../../utility
 
-export peerid, connection
+export peerid, connection, deques
 
 logScope:
   topics = "libp2p pubsubpeer"
@@ -60,7 +60,9 @@ type
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
+    heDontWants*: Deque[HashSet[MessageId]]
     iHaveBudget*: int
+    pingBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
@@ -132,28 +134,26 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
 
-        var rmsg = decodeRpcMsg(data)
-        data = newSeq[byte]() # Release memory
-
-        if rmsg.isErr():
-          notice "failed to decode msg from peer",
+        var rmsg = decodeRpcMsg(data).valueOr:
+          debug "failed to decode msg from peer",
             conn, peer = p, closed = conn.closed,
-            err = rmsg.error()
+            err = error
           break
+        data = newSeq[byte]() # Release memory
 
         trace "decoded msg from peer",
           conn, peer = p, closed = conn.closed,
-          msg = rmsg.get().shortLog
+          msg = rmsg.shortLog
         # trigger hooks
-        p.recvObservers(rmsg.get())
+        p.recvObservers(rmsg)
 
         when defined(libp2p_expensive_metrics):
-          for m in rmsg.get().messages:
+          for m in rmsg.messages:
             for t in m.topicIDs:
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
 
-        await p.handler(p, rmsg.get())
+        await p.handler(p, rmsg)
     finally:
       await conn.close()
   except CancelledError:
@@ -318,3 +318,4 @@ proc new*(
     maxMessageSize: maxMessageSize
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
+  result.heDontWants.addFirst(default(HashSet[MessageId]))

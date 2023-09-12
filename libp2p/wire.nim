@@ -89,7 +89,7 @@ proc connect*(
 
   compilesOr:
     return connect(transportAddress, bufferSize, child,
-      if localAddress.isSome(): initTAddress(localAddress.get()).tryGet() else : TransportAddress(),
+      if localAddress.isSome(): initTAddress(localAddress.expect("just checked")).tryGet() else: TransportAddress(),
       flags)
   do:
     # support for older chronos versions
@@ -152,7 +152,7 @@ proc createStreamServer*[T](ma: MultiAddress,
     raise newException(LPError, exc.msg)
 
 proc createAsyncSocket*(ma: MultiAddress): AsyncFD
-  {.raises: [LPError].} =
+  {.raises: [ValueError, LPError].} =
   ## Create new asynchronous socket using MultiAddress' ``ma`` socket type and
   ## protocol information.
   ##

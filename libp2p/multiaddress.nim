@@ -1080,19 +1080,15 @@ proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
 proc match*(pat: MaPattern, address: MultiAddress): bool =
   ## Match full ``address`` using pattern ``pat`` and return ``true`` if
   ## ``address`` satisfies pattern.
-  let protos = address.protocols()
-  if protos.isErr():
-    return false
-  let res = matchPart(pat, protos.get())
+  let protos = address.protocols().valueOr: return false
+  let res = matchPart(pat, protos)
   res.flag and (len(res.rem) == 0)
 
 proc matchPartial*(pat: MaPattern, address: MultiAddress): bool =
   ## Match prefix part of ``address`` using pattern ``pat`` and return
   ## ``true`` if ``address`` starts with pattern.
-  let protos = address.protocols()
-  if protos.isErr():
-    return false
-  let res = matchPart(pat, protos.get())
+  let protos = address.protocols().valueOr: return false
+  let res = matchPart(pat, protos)
   res.flag
 
 proc `$`*(pat: MaPattern): string =
@@ -1121,12 +1117,8 @@ proc getField*(pb: ProtoBuffer, field: int,
   if not(res):
     ok(false)
   else:
-    let ma = MultiAddress.init(buffer)
-    if ma.isOk():
-      value = ma.get()
-      ok(true)
-    else:
-      err(ProtoError.IncorrectBlob)
+    value = MultiAddress.init(buffer).valueOr: return err(ProtoError.IncorrectBlob)
+    ok(true)
 
 proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
@@ -1142,11 +1134,11 @@ proc getRepeatedField*(pb: ProtoBuffer, field: int,
     ok(false)
   else:
     for item in items:
-      let ma = MultiAddress.init(item)
-      if ma.isOk():
-        value.add(ma.get())
-      else:
-        debug "Not supported MultiAddress in blob", ma = item
+      let ma = MultiAddress.init(item).valueOr:
+        debug "Unsupported MultiAddress in blob", ma = item
+        continue
+
+      value.add(ma)
     if value.len == 0:
       err(ProtoError.IncorrectBlob)
     else:

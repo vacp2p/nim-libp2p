@@ -112,19 +112,12 @@ proc getField*(pb: ProtoBuffer, field: int,
   if not(res):
     ok(false)
   else:
-    let env = Envelope.decode(buffer, domain)
-    if env.isOk():
-      value = env.get()
-      ok(true)
-    else:
-      err(ProtoError.IncorrectBlob)
+    value = Envelope.decode(buffer, domain).valueOr: return err(ProtoError.IncorrectBlob)
+    ok(true)
 
 proc write*(pb: var ProtoBuffer, field: int, env: Envelope): Result[void, CryptoError] =
-  let e = env.encode()
-
-  if e.isErr():
-    return err(e.error)
-  pb.write(field, e.get())
+  let e = ? env.encode()
+  pb.write(field, e)
   ok()
 
 type
@@ -142,7 +135,7 @@ proc init*[T](_: typedesc[SignedPayload[T]],
                                  T.payloadType(),
                                  data.encode(),
                                  T.payloadDomain)
-  
+
   ok(SignedPayload[T](data: data, envelope: envelope))
 
 proc getField*[T](pb: ProtoBuffer, field: int,

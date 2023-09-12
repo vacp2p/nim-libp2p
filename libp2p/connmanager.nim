@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[options, tables, sequtils, sets]
+import std/[tables, sequtils, sets]
 import pkg/[chronos, chronicles, metrics]
 import peerinfo,
        peerstore,

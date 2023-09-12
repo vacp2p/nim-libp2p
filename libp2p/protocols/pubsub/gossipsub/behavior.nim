@@ -49,9 +49,7 @@ proc pruned*(g: GossipSub,
              backoff = none(Duration)) {.raises: [].} =
   if setBackoff:
     let
-      backoffDuration =
-        if isSome(backoff): backoff.get()
-        else: g.parameters.pruneBackoff
+      backoffDuration = backoff.get(g.parameters.pruneBackoff)
       backoffMoment = Moment.fromNow(backoffDuration)
 
     g.backingOff
@@ -191,20 +189,15 @@ proc handleGraft*(g: GossipSub,
 proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRecord])] =
   var routingRecords: seq[(PeerId, Option[PeerRecord])]
   for record in prune.peers:
-    let peerRecord =
-      if record.signedPeerRecord.len == 0:
-        none(PeerRecord)
-      else:
-        let signedRecord = SignedPeerRecord.decode(record.signedPeerRecord)
-        if signedRecord.isErr:
-          trace "peer sent invalid SPR", peer, error=signedRecord.error
-          none(PeerRecord)
+    var peerRecord = none(PeerRecord)
+    if record.signedPeerRecord.len > 0:
+      SignedPeerRecord.decode(record.signedPeerRecord).toOpt().withValue(spr):
+        if record.peerId != spr.data.peerId:
+          trace "peer sent envelope with wrong public key", peer
         else:
-          if record.peerId != signedRecord.get().data.peerId:
-            trace "peer sent envelope with wrong public key", peer
-            none(PeerRecord)
-          else:
-            some(signedRecord.get().data)
+          peerRecord = some(spr.data)
+      else:
+        trace "peer sent invalid SPR", peer
 
     routingRecords.add((record.peerId, peerRecord))
 
@@ -252,28 +245,31 @@ proc handleIHave*(g: GossipSub,
   elif peer.iHaveBudget <= 0:
     trace "ihave: ignoring out of budget peer", peer, score = peer.score
   else:
-    # TODO review deduplicate algorithm
-    # * https://github.com/nim-lang/Nim/blob/5f46474555ee93306cce55342e81130c1da79a42/lib/pure/collections/sequtils.nim#L184
-    # * it's probably not efficient and might give preference to the first dupe
-    let deIhaves = ihaves.deduplicate()
-    for ihave in deIhaves:
+    for ihave in ihaves:
       trace "peer sent ihave",
         peer, topic = ihave.topicId, msgs = ihave.messageIds
-      if ihave.topicId in g.mesh:
-        # also avoid duplicates here!
-        let deIhavesMsgs = ihave.messageIds.deduplicate()
-        for msgId in deIhavesMsgs:
+      if ihave.topicId in g.topics:
+        for msgId in ihave.messageIds:
           if not g.hasSeen(msgId):
-            if peer.iHaveBudget > 0:
+            if peer.iHaveBudget <= 0:
+              break
+            elif msgId notin res.messageIds:
               res.messageIds.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
-            else:
-              break
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIds)
     return res
+
+proc handleIDontWant*(g: GossipSub,
+                      peer: PubSubPeer,
+                      iDontWants: seq[ControlIWant]) =
+  for dontWant in iDontWants:
+    for messageId in dontWant.messageIds:
+      if peer.heDontWants[^1].len > 1000: break
+      if messageId.len > 100: continue
+      peer.heDontWants[^1].incl(messageId)
 
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
@@ -296,12 +292,11 @@ proc handleIWant*(g: GossipSub,
             libp2p_gossipsub_received_iwants.inc(1, labelValues=["skipped"])
             return messages
           continue
-        let msg = g.mcache.get(mid)
-        if msg.isSome:
-          libp2p_gossipsub_received_iwants.inc(1, labelValues=["correct"])
-          messages.add(msg.get())
-        else:
+        let msg = g.mcache.get(mid).valueOr:
           libp2p_gossipsub_received_iwants.inc(1, labelValues=["unknown"])
+          continue
+        libp2p_gossipsub_received_iwants.inc(1, labelValues=["correct"])
+        messages.add(msg)
   return messages
 
 proc commitMetrics(metrics: var MeshMetrics) {.raises: [].} =
@@ -561,8 +556,8 @@ proc replenishFanout*(g: GossipSub, topic: string) {.raises: [].} =
   logScope: topic
   trace "about to replenish fanout"
 
-  let currentMesh = g.mesh.getOrDefault(topic)
   if g.fanout.peers(topic) < g.parameters.dLow:
+    let currentMesh = g.mesh.getOrDefault(topic)
     trace "replenishing fanout", peers = g.fanout.peers(topic)
     for peer in g.gossipsub.getOrDefault(topic):
       if peer in currentMesh: continue
@@ -643,7 +638,11 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
         peer.sentIHaves.addFirst(default(HashSet[MessageId]))
         if peer.sentIHaves.len > g.parameters.historyLength:
           discard peer.sentIHaves.popLast()
+        peer.heDontWants.addFirst(default(HashSet[MessageId]))
+        if peer.heDontWants.len > g.parameters.historyLength:
+          discard peer.heDontWants.popLast()
         peer.iHaveBudget = IHavePeerBudget
+        peer.pingBudget = PingsPeerBudget
 
     var meshMetrics = MeshMetrics()
 

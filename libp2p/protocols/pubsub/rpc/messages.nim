@@ -42,6 +42,7 @@ type
       iwant*: seq[ControlIWant]
       graft*: seq[ControlGraft]
       prune*: seq[ControlPrune]
+      idontwant*: seq[ControlIWant]
 
     ControlIHave* = object
       topicId*: string
@@ -62,6 +63,8 @@ type
       subscriptions*: seq[SubOpts]
       messages*: seq[Message]
       control*: Option[ControlMessage]
+      ping*: seq[byte]
+      pong*: seq[byte]
 
 func withSubs*(
     T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
@@ -108,15 +111,8 @@ func shortLog*(msg: Message): auto =
   )
 
 func shortLog*(m: RPCMsg): auto =
-  if m.control.isSome:
-    (
-      subscriptions: m.subscriptions,
-      messages: mapIt(m.messages, it.shortLog),
-      control: m.control.get().shortLog
-    )
-  else:
-    (
-      subscriptions: m.subscriptions,
-      messages: mapIt(m.messages, it.shortLog),
-      control: ControlMessage().shortLog
-    )
+  (
+    subscriptions: m.subscriptions,
+    messages: mapIt(m.messages, it.shortLog),
+    control: m.control.get(ControlMessage()).shortLog
+  )

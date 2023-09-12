@@ -45,6 +45,7 @@ const
 
 const
   BackoffSlackTime* = 2 # seconds
+  PingsPeerBudget* = 100 # maximum of 6.4kb/heartbeat (6.4kb/s with default 1 second/hb)
   IHavePeerBudget* = 10
   # the max amount of IHave to expose, not by spec, but go as example
   # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572
@@ -140,6 +141,8 @@ type
 
     disconnectBadPeers*: bool
     enablePX*: bool
+
+    bandwidthEstimatebps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]

@@ -170,10 +170,9 @@ proc broadcast*(
       else:
         libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
 
-  if msg.control.isSome():
-    libp2p_pubsub_broadcast_iwant.inc(npeers * msg.control.get().iwant.len.int64)
+  msg.control.withValue(control):
+    libp2p_pubsub_broadcast_iwant.inc(npeers * control.iwant.len.int64)
 
-    let control = msg.control.get()
     for ihave in control.ihave:
       if p.knownTopics.contains(ihave.topicId):
         libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicId])
@@ -244,9 +243,8 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
       else:
         libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
 
-  if rpcMsg.control.isSome():
-    libp2p_pubsub_received_iwant.inc(rpcMsg.control.get().iwant.len.int64)
-    template control: untyped = rpcMsg.control.unsafeGet()
+  rpcMsg.control.withValue(control):
+    libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
     for ihave in control.ihave:
       if p.knownTopics.contains(ihave.topicId):
         libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicId])

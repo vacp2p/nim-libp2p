@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[tables, sets, options]
+import std/[tables, sets]
 import chronos, chronicles, metrics
 import "."/[types]
 import ".."/[pubsubpeer]
@@ -71,20 +71,17 @@ func `/`(a, b: Duration): float64 =
 func byScore*(x,y: PubSubPeer): int = system.cmp(x.score, y.score)
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
-  if peer.address.isNone():
-    0.0
+  let address = peer.address.valueOr: return 0.0
+
+  g.peersInIP.mgetOrPut(address, initHashSet[PeerId]()).incl(peer.peerId)
+  let
+    ipPeers = g.peersInIP.getOrDefault(address).len().float64
+  if ipPeers > g.parameters.ipColocationFactorThreshold:
+    trace "colocationFactor over threshold", peer, address, ipPeers
+    let over = ipPeers - g.parameters.ipColocationFactorThreshold
+    over * over
   else:
-    let
-      address = peer.address.get()
-    g.peersInIP.mgetOrPut(address, initHashSet[PeerId]()).incl(peer.peerId)
-    let
-      ipPeers = g.peersInIP.getOrDefault(address).len().float64
-    if ipPeers > g.parameters.ipColocationFactorThreshold:
-      trace "colocationFactor over threshold", peer, address, ipPeers
-      let over = ipPeers - g.parameters.ipColocationFactorThreshold
-      over * over
-    else:
-      0.0
+    0.0
 
 {.pop.}
 
@@ -104,6 +101,11 @@ proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
   except CatchableError as exc: # Never cancelled
     trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
+proc disconnectBadPeerCheck*(g: GossipSub, peer: PubSubPeer, score: float64) =
+  if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
+     peer.peerId notin g.parameters.directPeers:
+    debug "disconnecting bad score peer", peer, score = peer.score
+    asyncSpawn(g.disconnectPeer(peer))
 
 proc updateScores*(g: GossipSub) = # avoid async
   ## https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#the-score-function
@@ -244,10 +246,7 @@ proc updateScores*(g: GossipSub) = # avoid async
 
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
-    if g.parameters.disconnectBadPeers and stats.score < g.parameters.graylistThreshold and
-        peer.peerId notin g.parameters.directPeers:
-      debug "disconnecting bad score peer", peer, score = peer.score
-      asyncSpawn(g.disconnectPeer(peer))
+    g.disconnectBadPeerCheck(peer, stats.score)
 
     libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
 

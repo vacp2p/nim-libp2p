@@ -455,7 +455,8 @@ proc getBytes*(sig: Signature): seq[byte] =
   ## Return signature ``sig`` in binary form.
   result = sig.data
 
-proc init*[T: PrivateKey|PublicKey](key: var T, data: openArray[byte]): bool =
+template initImpl[T: PrivateKey|PublicKey](
+    key: var T, data: openArray[byte]): bool =
   ## Initialize private key ``key`` from libp2p's protobuf serialized raw
   ## binary form.
   ##
@@ -468,7 +469,7 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openArray[byte]): bool =
     var pb = initProtoBuffer(@data)
     let r1 = pb.getField(1, id)
     let r2 = pb.getField(2, buffer)
-    if not(r1.isOk() and r1.get() and r2.isOk() and r2.get()):
+    if not(r1.get(false) and r2.get(false)):
       false
     else:
       if cast[int8](id) notin SupportedSchemesInt or len(buffer) <= 0:
@@ -516,6 +517,14 @@ proc init*[T: PrivateKey|PublicKey](key: var T, data: openArray[byte]): bool =
               false
           else:
             false
+
+{.push warning[ProveField]:off.}  # https://github.com/nim-lang/Nim/issues/22060
+proc init*(key: var PrivateKey, data: openArray[byte]): bool =
+  initImpl(key, data)
+
+proc init*(key: var PublicKey, data: openArray[byte]): bool =
+  initImpl(key, data)
+{.pop.}
 
 proc init*(sig: var Signature, data: openArray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
@@ -973,9 +982,8 @@ proc decodeProposal*(message: seq[byte], nonce, pubkey: var seq[byte],
   let r4 = pb.getField(4, ciphers)
   let r5 = pb.getField(5, hashes)
 
-  r1.isOk() and r1.get() and r2.isOk() and r2.get() and
-  r3.isOk() and r3.get() and r4.isOk() and r4.get() and
-  r5.isOk() and r5.get()
+  r1.get(false) and r2.get(false) and r3.get(false) and
+  r4.get(false) and r5.get(false)
 
 proc createExchange*(epubkey, signature: openArray[byte]): seq[byte] =
   ## Create SecIO exchange message using ephemeral public key ``epubkey`` and
@@ -995,7 +1003,7 @@ proc decodeExchange*(message: seq[byte],
   var pb = initProtoBuffer(message)
   let r1 = pb.getField(1, pubkey)
   let r2 = pb.getField(2, signature)
-  r1.isOk() and r1.get() and r2.isOk() and r2.get()
+  r1.get(false) and r2.get(false)
 
 ## Serialization/Deserialization helpers
 

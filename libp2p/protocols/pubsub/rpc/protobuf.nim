@@ -87,6 +87,8 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
     ipb.write(3, graft)
   for prune in control.prune:
     ipb.write(4, prune)
+  for idontwant in control.idontwant:
+    ipb.write(5, idontwant)
   if len(ipb.buffer) > 0:
     ipb.finish()
     pb.write(field, ipb)
@@ -210,6 +212,7 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.
     var iwantpbs: seq[seq[byte]]
     var graftpbs: seq[seq[byte]]
     var prunepbs: seq[seq[byte]]
+    var idontwant: seq[seq[byte]]
     if ? cpb.getRepeatedField(1, ihavepbs):
       for item in ihavepbs:
         control.ihave.add(? decodeIHave(initProtoBuffer(item)))
@@ -222,6 +225,9 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.
     if ? cpb.getRepeatedField(4, prunepbs):
       for item in prunepbs:
         control.prune.add(? decodePrune(initProtoBuffer(item)))
+    if ? cpb.getRepeatedField(5, idontwant):
+      for item in idontwant:
+        control.idontwant.add(? decodeIWant(initProtoBuffer(item)))
     trace "decodeControl: message statistics", graft_count = len(control.graft),
                                                prune_count = len(control.prune),
                                                ihave_count = len(control.ihave),
@@ -314,8 +320,14 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
     pb.write(1, item)
   for item in msg.messages:
     pb.write(2, item, anonymize)
-  if msg.control.isSome():
-    pb.write(3, msg.control.get())
+  msg.control.withValue(control):
+    pb.write(3, control)
+  # nim-libp2p extension, using fields which are unlikely to be used
+  # by other extensions
+  if msg.ping.len > 0:
+    pb.write(60, msg.ping)
+  if msg.pong.len > 0:
+    pb.write(61, msg.pong)
   if len(pb.buffer) > 0:
     pb.finish()
   pb.buffer
@@ -323,8 +335,10 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", msg = msg.shortLog()
   var pb = initProtoBuffer(msg, maxSize = uint.high)
-  var rpcMsg = ok(RPCMsg())
-  assign(rpcMsg.get().messages, ? pb.decodeMessages())
-  assign(rpcMsg.get().subscriptions, ? pb.decodeSubscriptions())
-  assign(rpcMsg.get().control, ? pb.decodeControl())
-  rpcMsg
+  var rpcMsg = RPCMsg()
+  assign(rpcMsg.messages, ? pb.decodeMessages())
+  assign(rpcMsg.subscriptions, ? pb.decodeSubscriptions())
+  assign(rpcMsg.control, ? pb.decodeControl())
+  discard ? pb.getField(60, rpcMsg.ping)
+  discard ? pb.getField(61, rpcMsg.pong)
+  ok(rpcMsg)

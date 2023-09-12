@@ -99,9 +99,8 @@ method handles*(
 
   # by default we skip circuit addresses to avoid
   # having to repeat the check in every transport
-  if address.protocols.isOk:
-    return address.protocols
-    .get()
+  let protocols = address.protocols.valueOr: return false
+  return protocols
     .filterIt(
       it == multiCodec("p2p-circuit")
     ).len == 0

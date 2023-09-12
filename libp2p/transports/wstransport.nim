@@ -108,7 +108,7 @@ type
     flags: set[ServerFlags]
     handshakeTimeout: Duration
     factories: seq[ExtFactory]
-    rng: Rng
+    rng: ref HmacDrbgContext
 
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
@@ -284,8 +284,7 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
   except CancelledError as exc:
     raise exc
   except TransportOsError as exc:
-    info "OS Error", exc = exc.msg
-    raise exc
+    debug "OS Error", exc = exc.msg
   except CatchableError as exc:
     info "Unexpected error accepting connection", exc = exc.msg
     raise exc
@@ -328,7 +327,7 @@ proc new*(
   tlsFlags: set[TLSFlags] = {},
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil,
+  rng: ref HmacDrbgContext = nil,
   handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
   ## Creates a secure WebSocket transport
 
@@ -347,7 +346,7 @@ proc new*(
   upgrade: Upgrade,
   flags: set[ServerFlags] = {},
   factories: openArray[ExtFactory] = [],
-  rng: Rng = nil,
+  rng: ref HmacDrbgContext = nil,
   handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
   ## Creates a clear-text WebSocket transport
 
