@@ -167,36 +167,44 @@ suite "GossipSub":
 
   asyncTest "GossipSub directPeers: always forward messages":
     let
-      nodes = generateNodes(2, gossip = true)
+      nodes = generateNodes(3, gossip = true)
 
       # start switches
       nodesFut = await allFinished(
         nodes[0].switch.start(),
         nodes[1].switch.start(),
+        nodes[2].switch.start(),
       )
 
     await GossipSub(nodes[0]).addDirectPeer(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
     await GossipSub(nodes[1]).addDirectPeer(nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs)
+    await GossipSub(nodes[1]).addDirectPeer(nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs)
+    await GossipSub(nodes[2]).addDirectPeer(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
 
     var handlerFut = newFuture[void]()
     proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
       check topic == "foobar"
       handlerFut.complete()
+    proc noop(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
 
-    nodes[0].subscribe("foobar", handler)
-    nodes[1].subscribe("foobar", handler)
+    nodes[0].subscribe("foobar", noop)
+    nodes[1].subscribe("foobar", noop)
+    nodes[2].subscribe("foobar", handler)
 
     tryPublish await nodes[0].publish("foobar", toBytes("hellow")), 1
 
-    await handlerFut
+    await handlerFut.wait(2.seconds)
 
     # peer shouldn't be in our mesh
     check "foobar" notin GossipSub(nodes[0]).mesh
     check "foobar" notin GossipSub(nodes[1]).mesh
+    check "foobar" notin GossipSub(nodes[2]).mesh
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
-      nodes[1].switch.stop()
+      nodes[1].switch.stop(),
+      nodes[2].switch.stop()
     )
 
     await allFuturesThrowing(nodesFut.concat())

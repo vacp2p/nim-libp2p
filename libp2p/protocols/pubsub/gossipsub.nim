@@ -359,6 +359,10 @@ proc validateAndRelay(g: GossipSub,
           break
     toSendPeers.excl(seenPeers)
 
+    # add always direct peers
+    for topic in msg.topicIds:
+      toSendPeers.incl(g.explicit.getOrDefault(topic))
+
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
