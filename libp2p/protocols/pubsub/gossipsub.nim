@@ -614,7 +614,7 @@ method publish*(g: GossipSub,
 proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
   if id notin g.peers:
     trace "Attempting to dial a direct peer", peer = id
-    if g.switch.connected(id):
+    if g.switch.isConnected(id):
       info "We are connected to a direct peer, but GossipSub isn't setup with him!", id
       return
     try:
