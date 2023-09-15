@@ -338,6 +338,9 @@ proc validateAndRelay(g: GossipSub,
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
+      # add direct peers
+      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(t))
+
     # Don't send it to source peer, or peers that
     # sent it during validation
     toSendPeers.excl(peer)
@@ -358,10 +361,6 @@ proc validateAndRelay(g: GossipSub,
           libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
           break
     toSendPeers.excl(seenPeers)
-
-    # add always direct peers
-    for topic in msg.topicIds:
-      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
 
     # In theory, if topics are the same in all messages, we could batch - we'd
