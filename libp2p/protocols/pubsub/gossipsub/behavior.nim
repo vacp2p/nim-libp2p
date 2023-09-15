@@ -106,10 +106,11 @@ proc handleGraft*(g: GossipSub,
     let topic = graft.topicId
     trace "peer grafted topic", peer, topic
 
-    # It is an error to GRAFT on a explicit peer
+    # It is an error to GRAFT on a direct peer
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
-      warn "an explicit peer attempted to graft us, peering agreements should be reciprocal",
+      # we are trusting direct peer not to abuse this
+      warn "a direct peer attempted to graft us, peering agreements should be reciprocal",
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
@@ -352,7 +353,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
             # avoid negative score peers
             it.score >= 0.0 and
             it notin currentMesh[] and
-            # don't pick explicit peers
+            # don't pick direct peers
             it.peerId notin g.parameters.directPeers and
             # and avoid peers we are backing off
             it.peerId notin backingOff:
@@ -392,7 +393,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
             it notin currentMesh[] and
             # avoid negative score peers
             it.score >= 0.0 and
-            # don't pick explicit peers
+            # don't pick direct peers
             it.peerId notin g.parameters.directPeers and
             # and avoid peers we are backing off
             it.peerId notin backingOff:
@@ -494,7 +495,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
               # avoid negative score peers
               it.score >= median.score and
               it notin currentMesh[] and
-              # don't pick explicit peers
+              # don't pick direct peers
               it.peerId notin g.parameters.directPeers and
               # and avoid peers we are backing off
               it.peerId notin backingOff:
