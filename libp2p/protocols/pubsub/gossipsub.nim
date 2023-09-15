@@ -205,8 +205,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   for t in toSeq(g.gossipsub.keys):
     g.gossipsub.removePeer(t, pubSubPeer)
-    # also try to remove from explicit table here
-    g.explicit.removePeer(t, pubSubPeer)
+    # also try to remove from direct peers table here
+    g.subscribedDirectPeers.removePeer(t, pubSubPeer)
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
@@ -245,7 +245,7 @@ proc handleSubscribe*(g: GossipSub,
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
-      discard g.explicit.addPeer(topic, peer)
+      discard g.subscribedDirectPeers.addPeer(topic, peer)
   else:
     trace "peer unsubscribed from topic"
 
@@ -259,7 +259,7 @@ proc handleSubscribe*(g: GossipSub,
 
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
-      g.explicit.removePeer(topic, peer)
+      g.subscribedDirectPeers.removePeer(topic, peer)
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
@@ -361,7 +361,7 @@ proc validateAndRelay(g: GossipSub,
 
     # add always direct peers
     for topic in msg.topicIds:
-      toSendPeers.incl(g.explicit.getOrDefault(topic))
+      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
 
     # In theory, if topics are the same in all messages, we could batch - we'd
@@ -526,7 +526,7 @@ method publish*(g: GossipSub,
   var peers: HashSet[PubSubPeer]
 
   # add always direct peers
-  peers.incl(g.explicit.getOrDefault(topic))
+  peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
@@ -615,7 +615,7 @@ proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.as
   if id notin g.peers:
     trace "Attempting to dial a direct peer", peer = id
     if g.switch.isConnected(id):
-      info "We are connected to a direct peer, but GossipSub isn't setup with him!", id
+      info "We are connected to a direct peer, but it isn't a GossipSub peer!", id
       return
     try:
       await g.switch.connect(id, addrs, forceDial = true)
