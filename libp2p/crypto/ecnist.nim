@@ -994,3 +994,33 @@ proc verify*[T: byte|char](sig: EcSignature, message: openArray[T],
     # Clear context with initial value
     kv.init(addr hc.vtable)
     result = (res == 1)
+
+type ECDHEScheme* = EcCurveKind
+
+proc ephemeral*(
+    scheme: ECDHEScheme,
+    rng: var HmacDrbgContext): EcResult[EcKeyPair] =
+  ## Generate ephemeral keys used to perform ECDHE.
+  var keypair: EcKeyPair
+  if scheme == Secp256r1:
+    keypair = ? EcKeyPair.random(Secp256r1, rng)
+  elif scheme == Secp384r1:
+    keypair = ? EcKeyPair.random(Secp384r1, rng)
+  elif scheme == Secp521r1:
+    keypair = ? EcKeyPair.random(Secp521r1, rng)
+  ok(keypair)
+
+proc ephemeral*(
+    scheme: string, rng: var HmacDrbgContext): EcResult[EcKeyPair] =
+  ## Generate ephemeral keys used to perform ECDHE using string encoding.
+  ##
+  ## Currently supported encoding strings are P-256, P-384, P-521, if encoding
+  ## string is not supported P-521 key will be generated.
+  if scheme == "P-256":
+    ephemeral(Secp256r1, rng)
+  elif scheme == "P-384":
+    ephemeral(Secp384r1, rng)
+  elif scheme == "P-521":
+    ephemeral(Secp521r1, rng)
+  else:
+    ephemeral(Secp521r1, rng)

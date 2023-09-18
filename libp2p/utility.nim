@@ -70,6 +70,10 @@ template safeConvert*[T: SomeInteger, S: Ordinal](value: S): T =
   else:
     {.error: "Source and target types have an incompatible range low..high".}
 
+proc capLen*[T](s: var seq[T], length: Natural) =
+  if s.len > length:
+    s.setLen(length)
+
 template exceptionToAssert*(body: untyped): untyped =
   block:
     var res: type(body)

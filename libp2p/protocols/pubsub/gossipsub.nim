@@ -41,6 +41,8 @@ logScope:
 declareCounter(libp2p_gossipsub_failed_publish, "number of failed publish")
 declareCounter(libp2p_gossipsub_invalid_topic_subscription, "number of invalid topic subscriptions that happened")
 declareCounter(libp2p_gossipsub_duplicate_during_validation, "number of duplicates received during message validation")
+declareCounter(libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant")
+declareCounter(libp2p_gossipsub_saved_bytes, "bytes saved by gossipsub optimizations", labels=["kind"])
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
@@ -75,7 +77,9 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       behaviourPenaltyWeight: -1.0,
       behaviourPenaltyDecay: 0.999,
       disconnectBadPeers: false,
-      enablePX: false
+      enablePX: false,
+      bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
+      iwantTimeout: 3 * GossipSubHeartbeatInterval
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -202,8 +206,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   for t in toSeq(g.gossipsub.keys):
     g.gossipsub.removePeer(t, pubSubPeer)
-    # also try to remove from explicit table here
-    g.explicit.removePeer(t, pubSubPeer)
+    # also try to remove from direct peers table here
+    g.subscribedDirectPeers.removePeer(t, pubSubPeer)
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
@@ -242,7 +246,7 @@ proc handleSubscribe*(g: GossipSub,
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
-      discard g.explicit.addPeer(topic, peer)
+      discard g.subscribedDirectPeers.addPeer(topic, peer)
   else:
     trace "peer unsubscribed from topic"
 
@@ -256,7 +260,7 @@ proc handleSubscribe*(g: GossipSub,
 
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
-      g.explicit.removePeer(topic, peer)
+      g.subscribedDirectPeers.removePeer(topic, peer)
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
@@ -264,6 +268,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage
+  g.handleIDontWant(peer, control.idontwant)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIds.len > 0:
     respControl.iwant.add(iwant)
@@ -306,6 +311,7 @@ proc validateAndRelay(g: GossipSub,
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(msgIdSalted, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
+    libp2p_gossipsub_saved_bytes.inc((msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"])
 
     case validation
     of ValidationResult.Reject:
@@ -333,10 +339,30 @@ proc validateAndRelay(g: GossipSub,
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
+      # add direct peers
+      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(t))
+
     # Don't send it to source peer, or peers that
     # sent it during validation
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
+
+    # IDontWant is only worth it if the message is substantially
+    # bigger than the messageId
+    if msg.data.len > msgId.len * 10:
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
+          idontwant: @[ControlIWant(messageIds: @[msgId])]
+        ))))
+
+    for peer in toSendPeers:
+      for heDontWant in peer.heDontWants:
+        if msgId in heDontWant:
+          seenPeers.incl(peer)
+          libp2p_gossipsub_idontwant_saved_messages.inc
+          libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
+          break
+    toSendPeers.excl(seenPeers)
+
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
@@ -403,6 +429,9 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
+    g.outstandingIWANTs.withValue(msgId, iwantRequest):
+      if iwantRequest.peer.peerId == peer.peerId:
+        g.outstandingIWANTs.del(msgId)
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -514,32 +543,38 @@ method publish*(g: GossipSub,
 
   var peers: HashSet[PubSubPeer]
 
-  if g.parameters.floodPublish:
-    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
-    # but a peer's own messages will always be published to all known peers in the topic.
-    for peer in g.gossipsub.getOrDefault(topic):
-      if peer.score >= g.parameters.publishThreshold:
-        trace "publish: including flood/high score peer", peer
-        peers.incl(peer)
-
   # add always direct peers
-  peers.incl(g.explicit.getOrDefault(topic))
+  peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
 
-  if peers.len < g.parameters.dLow and g.parameters.floodPublish == false:
-    # not subscribed or bad mesh, send to fanout peers
-    # disable for floodPublish, since we already sent to every good peer
-    #
+  if g.parameters.floodPublish:
+    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
+    # but a peer's own messages will always be published to all known peers in the topic, limited
+    # to the amount of peers we can send it to in one heartbeat
+    var maxPeersToFlodOpt: Opt[int64]
+    if g.parameters.bandwidthEstimatebps > 0:
+      let
+        bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000 # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
+        msToTransmit = max(data.len div bandwidth, 1)
+      maxPeersToFlodOpt = Opt.some(max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow))
+
+    for peer in g.gossipsub.getOrDefault(topic):
+      maxPeersToFlodOpt.withValue(maxPeersToFlod):
+        if peers.len >= maxPeersToFlod: break
+      if peer.score >= g.parameters.publishThreshold:
+        trace "publish: including flood/high score peer", peer
+        peers.incl(peer)
+
+  if peers.len < g.parameters.dLow:
+    # not subscribed, or bad mesh, send to fanout peers
     var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-    if fanoutPeers.len == 0:
+    if fanoutPeers.len < g.parameters.dLow:
       g.replenishFanout(topic)
       fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
 
     g.rng.shuffle(fanoutPeers)
-    if fanoutPeers.len + peers.len > g.parameters.d:
-      fanoutPeers.setLen(g.parameters.d - peers.len)
 
     for fanPeer in fanoutPeers:
       peers.incl(fanPeer)
@@ -557,7 +592,6 @@ method publish*(g: GossipSub,
     debug "No peers for topic, skipping publish",  peersOnTopic = topicPeers.len,
                                                    connectedPeers = topicPeers.filterIt(it.connected).len,
                                                    topic
-    # skipping topic as our metrics finds that heavy
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
@@ -593,15 +627,16 @@ method publish*(g: GossipSub,
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
   trace "Published message to peers", peers=peers.len
-
   return peers.len
 
 proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
-  let peer = g.peers.getOrDefault(id)
-  if isNil(peer):
+  if id notin g.peers:
     trace "Attempting to dial a direct peer", peer = id
+    if g.switch.isConnected(id):
+      warn "We are connected to a direct peer, but it isn't a GossipSub peer!", id
+      return
     try:
-      await g.switch.connect(id, addrs)
+      await g.switch.connect(id, addrs, forceDial = true)
       # populate the peer after it's connected
       discard g.getOrCreatePeer(id, g.codecs)
     except CancelledError as exc:

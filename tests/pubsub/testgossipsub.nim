@@ -628,7 +628,6 @@ suite "GossipSub":
       "foobar" in gossip1.gossipsub
       "foobar" notin gossip2.gossipsub
       not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
-      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(),
@@ -636,6 +635,79 @@ suite "GossipSub":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+  # Helper procedures to avoid repetition
+  proc setupNodes(count: int): seq[PubSub] =
+    generateNodes(count, gossip = true)
+
+  proc startNodes(nodes: seq[PubSub]) {.async.} =
+    await allFuturesThrowing(
+      nodes.mapIt(it.switch.start())
+    )
+
+  proc stopNodes(nodes: seq[PubSub]) {.async.} =
+    await allFuturesThrowing(
+      nodes.mapIt(it.switch.stop())
+    )
+
+  proc connectNodes(nodes: seq[PubSub], target: PubSub) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+
+    for node in nodes:
+      node.subscribe("foobar", handler)
+      await node.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+
+  proc baseTestProcedure(nodes: seq[PubSub], gossip1: GossipSub, numPeersFirstMsg: int, numPeersSecondMsg: int) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      check topic == "foobar"
+
+    block setup:
+      for i in 0..<50:
+        if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == 19:
+          break setup
+        await sleepAsync(10.milliseconds)
+      check false
+
+    check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
+    check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
+
+    # Now try with a mesh
+    gossip1.subscribe("foobar", handler)
+    checkExpiring: gossip1.mesh.peers("foobar") > 5
+
+    # use a different length so that the message is not equal to the last
+    check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
+
+  # Actual tests
+  asyncTest "e2e - GossipSub floodPublish limit":
+
+    let
+      nodes = setupNodes(20)
+      gossip1 = GossipSub(nodes[0])
+
+    gossip1.parameters.floodPublish = true
+    gossip1.parameters.heartbeatInterval = milliseconds(700)
+
+    await startNodes(nodes)
+    await connectNodes(nodes[1..^1], nodes[0])
+    await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, 17)
+    await stopNodes(nodes)
+
+  asyncTest "e2e - GossipSub floodPublish limit with bandwidthEstimatebps = 0":
+
+    let
+      nodes = setupNodes(20)
+      gossip1 = GossipSub(nodes[0])
+
+    gossip1.parameters.floodPublish = true
+    gossip1.parameters.heartbeatInterval = milliseconds(700)
+    gossip1.parameters.bandwidthEstimatebps = 0
+
+    await startNodes(nodes)
+    await connectNodes(nodes[1..^1], nodes[0])
+    await baseTestProcedure(nodes, gossip1, nodes.len - 1, nodes.len - 1)
+    await stopNodes(nodes)
 
   asyncTest "e2e - GossipSub with multiple peers":
     var runs = 10
@@ -796,3 +868,63 @@ suite "GossipSub":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "e2e - iDontWant":
+    # 3 nodes: A <=> B <=> C
+    # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
+    # and check that B doesn't relay the message to C.
+    # We also check that B sends IDONTWANT to C, but not A
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let
+      nodes = generateNodes(
+        3,
+        gossip = true,
+        msgIdProvider = dumbMsgIdProvider
+        )
+
+      nodesFut = await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start(),
+        nodes[2].switch.start(),
+      )
+
+    await nodes[0].switch.connect(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
+    await nodes[1].switch.connect(nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs)
+
+    let bFinished = newFuture[void]()
+    proc handlerA(topic: string, data: seq[byte]) {.async, gcsafe.} = discard
+    proc handlerB(topic: string, data: seq[byte]) {.async, gcsafe.} = bFinished.complete()
+    proc handlerC(topic: string, data: seq[byte]) {.async, gcsafe.} = doAssert false
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    nodes[2].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    var gossip2: GossipSub = GossipSub(nodes[1])
+    var gossip3: GossipSub = GossipSub(nodes[2])
+
+    check: gossip3.mesh.peers("foobar") == 1
+
+    gossip3.broadcast(gossip3.mesh["foobar"], RPCMsg(control: some(ControlMessage(
+      idontwant: @[ControlIWant(messageIds: @[newSeq[byte](10)])]
+    ))))
+    checkExpiring: gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
+
+    tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
+
+    await bFinished
+
+    checkExpiring: toSeq(gossip3.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 1)
+    check: toSeq(gossip1.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 0)
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(),
+      nodes[1].switch.stop(),
+      nodes[2].switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
