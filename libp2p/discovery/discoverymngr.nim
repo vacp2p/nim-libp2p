@@ -60,6 +60,10 @@ proc `{}`*[T](pa: PeerAttributes, t: typedesc[T]): Opt[T] =
 proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [KeyError].} =
   pa{T}.valueOr: raise newException(KeyError, "Attritute not found")
 
+proc add*(pa: var PeerAttributes, other: PeerAttributes) =
+  for f in other.attributes:
+    pa.attributes.add(f)
+
 proc match*(pa, candidate: PeerAttributes): bool =
   for f in pa.attributes:
     block oneAttribute:
@@ -124,7 +128,7 @@ proc request*[T](dm: DiscoveryManager, value: T): DiscoveryQuery =
 
 proc advertise*(dm: DiscoveryManager, pa: PeerAttributes) =
   for i in dm.interfaces:
-    i.toAdvertise = pa
+    i.toAdvertise.add(pa)
     if i.advertiseLoop.isNil:
       i.advertisementUpdated = newAsyncEvent()
       i.advertiseLoop = i.advertise()
