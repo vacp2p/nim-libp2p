@@ -400,13 +400,13 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
 
   let usefulMsgBytesNum =
     if g.verifySignature:
-      byteSize(rmsg.messages)
+      len(rmsg.messages)
     else:
       dataAndTopicsIdSize(rmsg.messages)
 
   var uselessAppBytesNum = msgSize - usefulMsgBytesNum
   rmsg.control.withValue(control):
-    uselessAppBytesNum -= (byteSize(control.ihave) + byteSize(control.iwant))
+    uselessAppBytesNum -= (len(control.ihave) + len(control.iwant))
 
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):

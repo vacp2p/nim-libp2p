@@ -26,24 +26,6 @@ import ../helpers
 
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
 
-proc getPubSubPeer(p: TestGossipSub, peerId: PeerId): PubSubPeer =
-  proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, GossipSubCodec)
-
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024)
-  debug "created new pubsub peer", peerId
-
-  p.peers[peerId] = pubSubPeer
-
-  onNewPeer(p, pubSubPeer)
-  pubSubPeer
-
-proc randomPeerId(): PeerId =
-  try:
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-  except CatchableError as exc:
-    raise newException(Defect, exc.msg)
-
 const MsgIdSuccess = "msg id gen success"
 
 suite "GossipSub internal":
