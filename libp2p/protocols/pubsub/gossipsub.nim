@@ -13,13 +13,14 @@
 
 import std/[sets, sequtils]
 import chronos, chronicles, metrics
+import chronos/ratelimit
 import ./pubsub,
        ./floodsub,
        ./pubsubpeer,
        ./peertable,
        ./mcache,
        ./timedcache,
-       ./rpc/[messages, message],
+       ./rpc/[messages, message, protobuf],
        ../protocol,
        ../../stream/connection,
        ../../peerinfo,
@@ -78,7 +79,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       disconnectBadPeers: false,
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
-      iwantTimeout: 3 * GossipSubHeartbeatInterval
+      iwantTimeout: 3 * GossipSubHeartbeatInterval,
+      overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration])
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -160,7 +162,7 @@ method onNewPeer(g: GossipSub, peer: PubSubPeer) =
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
-    g.disconnectBadPeerCheck(peer, stats.score)
+    g.disconnectIfBadScorePeer(peer, stats.score)
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
@@ -316,7 +318,7 @@ proc validateAndRelay(g: GossipSub,
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIds)
+      g.punishInvalidMessage(peer, msg)
       return
     of ValidationResult.Ignore:
       debug "Dropping message after validation, reason: ignore",
@@ -379,9 +381,57 @@ proc validateAndRelay(g: GossipSub,
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
+proc dataAndTopicsIdSize(msgs: seq[Message]): int =
+  msgs.mapIt(it.data.len + it.topicIds.mapIt(it.len).foldl(a + b, 0)).foldl(a + b, 0)
+
+proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.raises:[PeerRateLimitError, CatchableError].} =
+  # In this way we count even ignored fields by protobuf
+
+  var rmsg = rpcMsgOpt.valueOr:
+    peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+      if not overheadRateLimit.tryConsume(msgSize):
+        libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+        debug "Peer sent a msg that couldn't be decoded and it's above rate limit", peer, uselessAppBytesNum = msgSize
+        # discard g.disconnectPeer(peer)
+        # debug "Peer disconnected", peer, uselessAppBytesNum = msgSize
+        # raise newException(PeerRateLimitError, "Peer sent a msg that couldn't be decoded and it's above rate limit")
+
+    raise newException(CatchableError, "Peer msg couldn't be decoded")
+
+  let usefulMsgBytesNum =
+    if g.verifySignature:
+      byteSize(rmsg.messages)
+    else:
+      dataAndTopicsIdSize(rmsg.messages)
+
+  var uselessAppBytesNum = msgSize - usefulMsgBytesNum
+  rmsg.control.withValue(control):
+    uselessAppBytesNum -= (byteSize(control.ihave) + byteSize(control.iwant))
+
+  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+    if not overheadRateLimit.tryConsume(uselessAppBytesNum):
+      libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+      debug "Peer sent too much useless application data and it's above rate limit.", peer, msgSize, uselessAppBytesNum, rmsg
+      # discard g.disconnectPeer(peer)
+      # debug "Peer disconnected", peer, msgSize, uselessAppBytesNum
+      # raise newException(PeerRateLimitError, "Peer sent too much useless application data and it's above rate limit.")
+
 method rpcHandler*(g: GossipSub,
                   peer: PubSubPeer,
-                  rpcMsg: RPCMsg) {.async.} =
+                  data: seq[byte]) {.async.} =
+
+  let msgSize = data.len
+  var rpcMsg = decodeRpcMsg(data).valueOr:
+    debug "failed to decode msg from peer", peer, err = error
+    rateLimit(g, peer, Opt.none(RPCMsg), msgSize)
+    return
+
+  trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  rateLimit(g, peer, Opt.some(rpcMsg), msgSize)
+
+  # trigger hooks
+  peer.recvObservers(rpcMsg)
+
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
     g.send(peer, RPCMsg(pong: rpcMsg.ping))
     peer.pingBudget.dec
@@ -445,14 +495,14 @@ method rpcHandler*(g: GossipSub,
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIds)
+      g.punishInvalidMessage(peer, msg)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg.topicIds)
+      g.punishInvalidMessage(peer, msg)
       continue
 
     # g.anonymize needs no evaluation when receiving messages
@@ -676,3 +726,13 @@ method initPubSub*(g: GossipSub)
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
+
+method getOrCreatePeer*(
+    g: GossipSub,
+    peerId: PeerId,
+    protos: seq[string]): PubSubPeer =
+
+  let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
+  g.parameters.overheadRateLimit.withValue(overheadRateLimit):
+    peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
+  return peer

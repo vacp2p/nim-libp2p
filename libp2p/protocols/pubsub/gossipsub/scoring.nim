@@ -11,9 +11,12 @@
 
 import std/[tables, sets]
 import chronos, chronicles, metrics
+import chronos/ratelimit
 import "."/[types]
 import ".."/[pubsubpeer]
+import ../rpc/messages
 import "../../.."/[peerid, multiaddress, switch, utils/heartbeat]
+import ../pubsub
 
 logScope:
   topics = "libp2p gossipsub"
@@ -27,6 +30,7 @@ declareGauge(libp2p_gossipsub_peers_score_invalidMessageDeliveries, "Detailed go
 declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
+declarePublicCounter(libp2p_gossipsub_peers_rate_limit_disconnections, "The number of peer disconnections by gossipsub because of rate limit", labels = ["agent"])
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
@@ -85,27 +89,18 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
 
 {.pop.}
 
-proc disconnectPeer(g: GossipSub, peer: PubSubPeer) {.async.} =
-  let agent =
-    when defined(libp2p_agents_metrics):
-      if peer.shortAgent.len > 0:
-        peer.shortAgent
-      else:
-        "unknown"
-    else:
-      "unknown"
-  libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [agent])
-
+proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async.} =
   try:
     await g.switch.disconnect(peer.peerId)
   except CatchableError as exc: # Never cancelled
     trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
-proc disconnectBadPeerCheck*(g: GossipSub, peer: PubSubPeer, score: float64) =
+proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
      peer.peerId notin g.parameters.directPeers:
     debug "disconnecting bad score peer", peer, score = peer.score
     asyncSpawn(g.disconnectPeer(peer))
+    libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
 
 proc updateScores*(g: GossipSub) = # avoid async
   ## https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#the-score-function
@@ -175,14 +170,7 @@ proc updateScores*(g: GossipSub) = # avoid async
         score += topicScore * topicParams.topicWeight
 
       # Score metrics
-      let agent =
-        when defined(libp2p_agents_metrics):
-          if peer.shortAgent.len > 0:
-            peer.shortAgent
-          else:
-            "unknown"
-        else:
-          "unknown"
+      let agent = peer.getAgent()
       libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = [agent])
       libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = [agent])
       libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = [agent])
@@ -219,14 +207,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     score += colocationFactor * g.parameters.ipColocationFactorWeight
 
     # Score metrics
-    let agent =
-      when defined(libp2p_agents_metrics):
-        if peer.shortAgent.len > 0:
-          peer.shortAgent
-        else:
-          "unknown"
-      else:
-        "unknown"
+    let agent = peer.getAgent()
     libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
     libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = [agent])
     libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = [agent])
@@ -246,8 +227,7 @@ proc updateScores*(g: GossipSub) = # avoid async
 
     trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
 
-    g.disconnectBadPeerCheck(peer, stats.score)
-
+    g.disconnectIfBadScorePeer(peer, stats.score)
     libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
 
   for peer in evicting:
@@ -260,8 +240,18 @@ proc scoringHeartbeat*(g: GossipSub) {.async.} =
     trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
-proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, topics: seq[string]) =
-  for tt in topics:
+proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) =
+  let uselessAppBytesNum = msg.data.len
+  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+    if not overheadRateLimit.tryConsume(uselessAppBytesNum):
+      debug "Peer sent invalid message and it's above rate limit", peer, uselessAppBytesNum
+      libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+      # discard g.disconnectPeer(peer)
+      # debug "Peer disconnected", peer, uselessAppBytesNum
+      # raise newException(PeerRateLimitError, "Peer sent invalid message and it's above rate limit")
+
+
+  for tt in msg.topicIds:
     let t = tt
     if t notin g.topics:
       continue

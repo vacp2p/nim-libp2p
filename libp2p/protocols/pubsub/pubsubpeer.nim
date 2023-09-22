@@ -12,6 +12,7 @@
 import std/[sequtils, strutils, tables, hashes, options, sets, deques]
 import stew/results
 import chronos, chronicles, nimcrypto/sha2, metrics
+import chronos/ratelimit
 import rpc/[messages, message, protobuf],
        ../../peerid,
        ../../peerinfo,
@@ -32,6 +33,8 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
 type
+  PeerRateLimitError* = object of CatchableError
+
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
@@ -66,8 +69,9 @@ type
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
+    overheadRateLimitOpt*: Opt[TokenBucket]
 
-  RPCHandler* = proc(peer: PubSubPeer, msg: RPCMsg): Future[void]
+  RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
 
 when defined(libp2p_agents_metrics):
@@ -107,7 +111,7 @@ func outbound*(p: PubSubPeer): bool =
   else:
     false
 
-proc recvObservers(p: PubSubPeer, msg: var RPCMsg) =
+proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not(isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
@@ -134,26 +138,19 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
 
-        var rmsg = decodeRpcMsg(data).valueOr:
-          debug "failed to decode msg from peer",
-            conn, peer = p, closed = conn.closed,
-            err = error
-          break
-        data = newSeq[byte]() # Release memory
-
-        trace "decoded msg from peer",
-          conn, peer = p, closed = conn.closed,
-          msg = rmsg.shortLog
-        # trigger hooks
-        p.recvObservers(rmsg)
-
         when defined(libp2p_expensive_metrics):
           for m in rmsg.messages:
             for t in m.topicIDs:
               # metrics
               libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
 
-        await p.handler(p, rmsg)
+        await p.handler(p, data)
+        data = newSeq[byte]() # Release memory
+    except PeerRateLimitError as exc:
+      debug "Peer rate limit exceeded, exiting read while", conn, peer = p, error = exc.msg
+    except CatchableError as exc:
+      debug "Exception occurred in PubSubPeer.handle",
+        conn, peer = p, closed = conn.closed, exc = exc.msg
     finally:
       await conn.close()
   except CancelledError:
@@ -307,7 +304,8 @@ proc new*(
   getConn: GetConn,
   onEvent: OnEvent,
   codec: string,
-  maxMessageSize: int): T =
+  maxMessageSize: int,
+  overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T =
 
   result = T(
     getConn: getConn,
@@ -315,7 +313,18 @@ proc new*(
     codec: codec,
     peerId: peerId,
     connectedFut: newFuture[void](),
-    maxMessageSize: maxMessageSize
+    maxMessageSize: maxMessageSize,
+    overheadRateLimitOpt: overheadRateLimitOpt
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))
+
+proc getAgent*(peer: PubSubPeer): string =
+  return
+    when defined(libp2p_agents_metrics):
+      if peer.shortAgent.len > 0:
+        peer.shortAgent
+      else:
+        "unknown"
+    else:
+      "unknown"

@@ -73,3 +73,15 @@ suite "Message":
     check:
       msgIdResult.isErr
       msgIdResult.error == ValidationResult.Reject
+
+  test "byteSize for Message":
+    var msg = Message(
+      fromPeer: PeerId(data: @[]),  # Empty seq[byte]
+      data: @[1'u8, 2, 3],  # 3 bytes
+      seqno: @[1'u8],  # 1 byte
+      signature: @[],  # Empty seq[byte]
+      key: @[1'u8],  # 1 byte
+      topicIds: @["abc", "defgh"]  # 3 + 5 = 8 bytes
+    )
+
+    check byteSize(msg) == 3 + 1 + 1 + 8  # Total: 13 bytes

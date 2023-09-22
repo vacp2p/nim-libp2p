@@ -116,3 +116,32 @@ func shortLog*(m: RPCMsg): auto =
     messages: mapIt(m.messages, it.shortLog),
     control: m.control.get(ControlMessage()).shortLog
   )
+
+proc byteSize*(msg: Message): int =
+  var total = 0
+  total += msg.fromPeer.len
+  total += msg.data.len
+  total += msg.seqno.len
+  total += msg.signature.len
+  total += msg.key.len
+  for topicId in msg.topicIds:
+    total += topicId.len
+  return total
+
+proc byteSize*(msgs: seq[Message]): int =
+  msgs.mapIt(byteSize(it)).foldl(a + b, 0)
+
+proc byteSize*(ihave: seq[ControlIHave]): int =
+  var total = 0
+  for item in ihave:
+    total += item.topicId.len
+    for msgId in item.messageIds:
+      total += msgId.len
+  return total
+
+proc byteSize*(iwant: seq[ControlIWant]): int =
+  var total = 0
+  for item in iwant:
+    for msgId in item.messageIds:
+      total += msgId.len
+  return total
