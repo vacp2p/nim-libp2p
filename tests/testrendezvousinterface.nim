@@ -29,13 +29,16 @@ proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
 
 type
   MockRendezVous = ref object of RendezVous
-    numAdvertise: int
+    numAdvertiseNs1: int
+    numAdvertiseNs2: int
 
   MockErrorRendezVous = ref object of MockRendezVous
 
 method advertise*(self: MockRendezVous, namespace: string, ttl: Duration) {.async.} =
-  # Every time an advertisement is made, increment the counter
-  self.numAdvertise += 1
+  if namespace == "ns1":
+    self.numAdvertiseNs1 += 1
+  elif namespace == "ns2":
+    self.numAdvertiseNs2 += 1
   # Forward the call to the actual implementation
   await procCall RendezVous(self).advertise(namespace, ttl)
 
@@ -56,13 +59,12 @@ suite "RendezVous Interface":
 
     await client.start()
     dm.add(RendezVousInterface.new(rdv = rdv, tta = tta, ttl = ttl))
-    dm.advertise(RdvNamespace("ns"))
+    dm.advertise(RdvNamespace("ns1"))
+    dm.advertise(RdvNamespace("ns2"))
 
-    # Run for 500ms, which with a 100ms advertise interval, should lead to 5 advertisements
-    await sleepAsync(500.milliseconds)
+    checkExpiring: rdv.numAdvertiseNs1 >= 5
+    checkExpiring: rdv.numAdvertiseNs2 >= 5
     await client.stop()
-
-    check rdv.numAdvertise == 5
 
   asyncTest "Check timeToAdvertise interval":
     await baseTimeToAdvertiseTest(MockRendezVous.new(newRng()))
