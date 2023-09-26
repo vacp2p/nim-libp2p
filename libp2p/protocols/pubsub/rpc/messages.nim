@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import options, sequtils
+import options, sequtils, sugar
 import "../../.."/[
         peerid,
         routing_record,
@@ -18,20 +18,25 @@ import "../../.."/[
 
 export options
 
+proc expectedFields[T](t: typedesc[T], existingFieldNames: seq[string]) {.raises: [CatchableError].} =
+  var fieldNames: seq[string]
+  for name, _ in fieldPairs(T()):
+    fieldNames &= name
+  if fieldNames != existingFieldNames:
+    fieldNames.keepIf(proc(it: string): bool = it notin existingFieldNames)
+    raise newException(CatchableError, $T & " fields changed, please search for and revise all relevant procs. New fields: " & $fieldNames)
+
 type
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     PeerInfoMsg* = object
       peerId*: PeerId
       signedPeerRecord*: seq[byte]
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     SubOpts* = object
       subscribe*: bool
       topic*: string
 
     MessageId* = seq[byte]
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     Message* = object
       fromPeer*: PeerId
       data*: seq[byte]
@@ -40,7 +45,6 @@ type
       signature*: seq[byte]
       key*: seq[byte]
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlMessage* = object
       ihave*: seq[ControlIHave]
       iwant*: seq[ControlIWant]
@@ -48,26 +52,21 @@ type
       prune*: seq[ControlPrune]
       idontwant*: seq[ControlIWant]
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlIHave* = object
       topicId*: string
       messageIds*: seq[MessageId]
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlIWant* = object
       messageIds*: seq[MessageId]
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlGraft* = object
       topicId*: string
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlPrune* = object
       topicId*: string
       peers*: seq[PeerInfoMsg]
       backoff*: uint64
 
-    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     RPCMsg* = object
       subscriptions*: seq[SubOpts]
       messages*: seq[Message]
@@ -126,33 +125,42 @@ func shortLog*(m: RPCMsg): auto =
     control: m.control.get(ControlMessage()).shortLog
   )
 
+static: expectedFields(PeerInfoMsg, @["peerId", "signedPeerRecord"])
 proc len(peerInfo: PeerInfoMsg): int =
   peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
+static: expectedFields(SubOpts, @["subscribe", "topic"])
 proc len(subOpts: SubOpts): int =
   1 + subOpts.topic.len # 1 byte for the bool
 
+static: expectedFields(Message, @["fromPeer", "data", "seqno", "topicIds", "signature", "key"])
 proc len*(msg: Message): int =
   msg.fromPeer.len + msg.data.len + msg.seqno.len +
          msg.signature.len + msg.key.len + msg.topicIds.foldl(a + b.len, 0)
 
+static: expectedFields(ControlIHave, @["topicId", "messageIds"])
 proc len(controlIHave: ControlIHave): int =
   controlIHave.topicId.len + controlIHave.messageIds.foldl(a + b.len, 0)
 
+static: expectedFields(ControlIWant, @["messageIds"])
 proc len(controlIWant: ControlIWant): int =
   controlIWant.messageIds.foldl(a + b.len, 0)
 
+static: expectedFields(ControlGraft, @["topicId"])
 proc len(controlGraft: ControlGraft): int =
   controlGraft.topicId.len
 
+static: expectedFields(ControlPrune, @["topicId", "peers", "backoff"])
 proc len(controlPrune: ControlPrune): int =
   controlPrune.topicId.len + controlPrune.peers.foldl(a + b.len, 0) + 8 # 8 bytes for uint64
 
+static: expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
 proc len(control: ControlMessage): int =
   control.ihave.foldl(a + b.len, 0) + control.iwant.foldl(a + b.len, 0) +
   control.graft.foldl(a + b.len, 0) + control.prune.foldl(a + b.len, 0) +
   control.idontwant.foldl(a + b.len, 0)
 
+static: expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
 proc len*(rpc: RPCMsg): int =
   result = rpc.subscriptions.foldl(a + b.len, 0) + rpc.messages.foldl(a + b.len, 0) +
            rpc.ping.len + rpc.pong.len
