@@ -270,8 +270,9 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
     await conn.close() # This will clean up the send connection
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
-  var currentRPCMsg = RPCMsg(subscriptions: rpcMsg.subscriptions, control: rpcMsg.control,
-                             ping: rpcMsg.ping, pong: rpcMsg.pong)
+  var currentRPCMsg = rpcMsg
+  currentRPCMsg.messages = newSeq[Message]()
+
   var currentSize = len(currentRPCMsg)
 
   for msg in rpcMsg.messages:

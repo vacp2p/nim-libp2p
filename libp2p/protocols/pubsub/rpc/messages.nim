@@ -19,16 +19,19 @@ import "../../.."/[
 export options
 
 type
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     PeerInfoMsg* = object
       peerId*: PeerId
       signedPeerRecord*: seq[byte]
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     SubOpts* = object
       subscribe*: bool
       topic*: string
 
     MessageId* = seq[byte]
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     Message* = object
       fromPeer*: PeerId
       data*: seq[byte]
@@ -37,6 +40,7 @@ type
       signature*: seq[byte]
       key*: seq[byte]
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlMessage* = object
       ihave*: seq[ControlIHave]
       iwant*: seq[ControlIWant]
@@ -44,21 +48,26 @@ type
       prune*: seq[ControlPrune]
       idontwant*: seq[ControlIWant]
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlIHave* = object
       topicId*: string
       messageIds*: seq[MessageId]
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlIWant* = object
       messageIds*: seq[MessageId]
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlGraft* = object
       topicId*: string
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     ControlPrune* = object
       topicId*: string
       peers*: seq[PeerInfoMsg]
       backoff*: uint64
 
+    ## WARNING: After Modifying this type make sure to search for and revise all relevant procs.
     RPCMsg* = object
       subscriptions*: seq[SubOpts]
       messages*: seq[Message]
