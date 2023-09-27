@@ -126,43 +126,52 @@ func shortLog*(m: RPCMsg): auto =
   )
 
 static: expectedFields(PeerInfoMsg, @["peerId", "signedPeerRecord"])
-proc len(peerInfo: PeerInfoMsg): int =
+proc byteSize(peerInfo: PeerInfoMsg): int =
   peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
 static: expectedFields(SubOpts, @["subscribe", "topic"])
-proc len(subOpts: SubOpts): int =
+proc byteSize(subOpts: SubOpts): int =
   1 + subOpts.topic.len # 1 byte for the bool
 
 static: expectedFields(Message, @["fromPeer", "data", "seqno", "topicIds", "signature", "key"])
-proc len*(msg: Message): int =
+proc byteSize*(msg: Message): int =
   msg.fromPeer.len + msg.data.len + msg.seqno.len +
          msg.signature.len + msg.key.len + msg.topicIds.foldl(a + b.len, 0)
 
+proc byteSize*(msgs: seq[Message]): int =
+  msgs.foldl(a + b.byteSize, 0)
+
 static: expectedFields(ControlIHave, @["topicId", "messageIds"])
-proc len(controlIHave: ControlIHave): int =
+proc byteSize(controlIHave: ControlIHave): int =
   controlIHave.topicId.len + controlIHave.messageIds.foldl(a + b.len, 0)
 
+proc byteSize*(ihaves: seq[ControlIHave]): int =
+  ihaves.foldl(a + b.byteSize, 0)
+
 static: expectedFields(ControlIWant, @["messageIds"])
-proc len(controlIWant: ControlIWant): int =
+proc byteSize(controlIWant: ControlIWant): int =
   controlIWant.messageIds.foldl(a + b.len, 0)
 
+proc byteSize*(iwants: seq[ControlIWant]): int =
+  iwants.foldl(a + b.byteSize, 0)
+
 static: expectedFields(ControlGraft, @["topicId"])
-proc len(controlGraft: ControlGraft): int =
+proc byteSize(controlGraft: ControlGraft): int =
   controlGraft.topicId.len
 
 static: expectedFields(ControlPrune, @["topicId", "peers", "backoff"])
-proc len(controlPrune: ControlPrune): int =
-  controlPrune.topicId.len + controlPrune.peers.foldl(a + b.len, 0) + 8 # 8 bytes for uint64
+proc byteSize(controlPrune: ControlPrune): int =
+  controlPrune.topicId.len + controlPrune.peers.foldl(a + b.byteSize, 0) + 8 # 8 bytes for uint64
 
 static: expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
-proc len(control: ControlMessage): int =
-  control.ihave.foldl(a + b.len, 0) + control.iwant.foldl(a + b.len, 0) +
-  control.graft.foldl(a + b.len, 0) + control.prune.foldl(a + b.len, 0) +
-  control.idontwant.foldl(a + b.len, 0)
+proc byteSize(control: ControlMessage): int =
+  control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
+  control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
+  control.idontwant.foldl(a + b.byteSize, 0)
 
 static: expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
-proc len*(rpc: RPCMsg): int =
-  result = rpc.subscriptions.foldl(a + b.len, 0) + rpc.messages.foldl(a + b.len, 0) +
+proc byteSize*(rpc: RPCMsg): int =
+  result = rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) +
            rpc.ping.len + rpc.pong.len
   rpc.control.withValue(ctrl):
-    result += ctrl.len
+    result += ctrl.byteSize

@@ -74,7 +74,7 @@ suite "Message":
       msgIdResult.isErr
       msgIdResult.error == ValidationResult.Reject
 
-  test "len for RPCMsg":
+  test "byteSize for RPCMsg":
     var msg = Message(
       fromPeer: PeerId(data: @['a'.byte, 'b'.byte]),  # 2 bytes
       data: @[1'u8, 2, 3],  # 3 bytes
@@ -124,4 +124,4 @@ suite "Message":
       control: some(control)  # 12 + 3 + 3 + 17 + 3 = 38 bytes
     )
 
-    check len(rpcMsg) == 28 + 38 + 2 + 2 + 38  # Total: 108 bytes
+    check byteSize(rpcMsg) == 28 + 38 + 2 + 2 + 38  # Total: 108 bytes

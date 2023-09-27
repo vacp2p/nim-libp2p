@@ -273,10 +273,10 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
   var currentRPCMsg = rpcMsg
   currentRPCMsg.messages = newSeq[Message]()
 
-  var currentSize = len(currentRPCMsg)
+  var currentSize = byteSize(currentRPCMsg)
 
   for msg in rpcMsg.messages:
-    let msgSize = len(msg)
+    let msgSize = byteSize(msg)
 
     # Check if adding the next message will exceed maxSize
     if float(currentSize + msgSize) * 1.1 > float(maxSize): # Guessing 10% protobuf overhead
