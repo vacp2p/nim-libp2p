@@ -242,7 +242,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
     return
 
   if msg.len > p.maxMessageSize:
-    info "trying to send a too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
+    info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
     return
 
   if p.sendConn == nil:
@@ -269,9 +269,42 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
 
     await conn.close() # This will clean up the send connection
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
-  trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
+  ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
+  ## Each new `RPCMsg` accumulates Messages until reaching the specified `maxSize`. If a single Message
+  ## exceeds the `maxSize` when trying to fit into an empty `RPCMsg`, the latter is skipped as too large to send.
+  ## Every constructed `RPCMsg` is then encoded, optionally anonymized, and yielded as a sequence of bytes.
 
+  var currentRPCMsg = rpcMsg
+  currentRPCMsg.messages = newSeq[Message]()
+
+  var currentSize = byteSize(currentRPCMsg)
+
+  for msg in rpcMsg.messages:
+    let msgSize = byteSize(msg)
+
+    # Check if adding the next message will exceed maxSize
+    if float(currentSize + msgSize) * 1.1 > float(maxSize): # Guessing 10% protobuf overhead
+      if currentRPCMsg.messages.len == 0:
+        trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
+        continue # Skip this message
+
+      trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
+      yield encodeRpcMsg(currentRPCMsg, anonymize)
+      currentRPCMsg = RPCMsg()
+      currentSize = 0
+
+    currentRPCMsg.messages.add(msg)
+    currentSize += msgSize
+
+  # Check if there is a non-empty currentRPCMsg left to be added
+  if currentSize > 0 and currentRPCMsg.messages.len > 0:
+    trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
+    yield encodeRpcMsg(currentRPCMsg, anonymize)
+  else:
+    trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
+
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
   # When sending messages, we take care to re-encode them with the right
   # anonymization flag to ensure that we're not penalized for sending invalid
   # or malicious data on the wire - in particular, re-encoding protects against
@@ -289,7 +322,13 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
     sendMetrics(msg)
     encodeRpcMsg(msg, anonymize)
 
-  asyncSpawn p.sendEncoded(encoded)
+  if encoded.len > p.maxMessageSize and msg.messages.len > 1:
+    for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
+      asyncSpawn p.sendEncoded(encodedSplitMsg)
+  else:
+    # If the message size is within limits, send it as is
+    trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+    asyncSpawn p.sendEncoded(encoded)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():

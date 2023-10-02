@@ -153,7 +153,7 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec
   g.codecs &= GossipSubCodec_10
 
-method onNewPeer(g: GossipSub, peer: PubSubPeer) =
+method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do (stats: var PeerStats):
     # Make sure stats and peer information match, even when reloading peer stats
     # from a previous connection

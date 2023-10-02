@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import options, sequtils
+import options, sequtils, sugar
 import "../../.."/[
         peerid,
         routing_record,
@@ -17,6 +17,14 @@ import "../../.."/[
       ]
 
 export options
+
+proc expectedFields[T](t: typedesc[T], existingFieldNames: seq[string]) {.raises: [CatchableError].} =
+  var fieldNames: seq[string]
+  for name, _ in fieldPairs(T()):
+    fieldNames &= name
+  if fieldNames != existingFieldNames:
+    fieldNames.keepIf(proc(it: string): bool = it notin existingFieldNames)
+    raise newException(CatchableError, $T & " fields changed, please search for and revise all relevant procs. New fields: " & $fieldNames)
 
 type
     PeerInfoMsg* = object
@@ -117,31 +125,53 @@ func shortLog*(m: RPCMsg): auto =
     control: m.control.get(ControlMessage()).shortLog
   )
 
+static: expectedFields(PeerInfoMsg, @["peerId", "signedPeerRecord"])
+proc byteSize(peerInfo: PeerInfoMsg): int =
+  peerInfo.peerId.len + peerInfo.signedPeerRecord.len
+
+static: expectedFields(SubOpts, @["subscribe", "topic"])
+proc byteSize(subOpts: SubOpts): int =
+  1 + subOpts.topic.len # 1 byte for the bool
+
+static: expectedFields(Message, @["fromPeer", "data", "seqno", "topicIds", "signature", "key"])
 proc byteSize*(msg: Message): int =
-  var total = 0
-  total += msg.fromPeer.len
-  total += msg.data.len
-  total += msg.seqno.len
-  total += msg.signature.len
-  total += msg.key.len
-  for topicId in msg.topicIds:
-    total += topicId.len
-  return total
+  msg.fromPeer.len + msg.data.len + msg.seqno.len +
+         msg.signature.len + msg.key.len + msg.topicIds.foldl(a + b.len, 0)
 
 proc byteSize*(msgs: seq[Message]): int =
-  msgs.mapIt(byteSize(it)).foldl(a + b, 0)
+  msgs.foldl(a + b.byteSize, 0)
 
-proc byteSize*(ihave: seq[ControlIHave]): int =
-  var total = 0
-  for item in ihave:
-    total += item.topicId.len
-    for msgId in item.messageIds:
-      total += msgId.len
-  return total
+static: expectedFields(ControlIHave, @["topicId", "messageIds"])
+proc byteSize(controlIHave: ControlIHave): int =
+  controlIHave.topicId.len + controlIHave.messageIds.foldl(a + b.len, 0)
 
-proc byteSize*(iwant: seq[ControlIWant]): int =
-  var total = 0
-  for item in iwant:
-    for msgId in item.messageIds:
-      total += msgId.len
-  return total
+proc byteSize*(ihaves: seq[ControlIHave]): int =
+  ihaves.foldl(a + b.byteSize, 0)
+
+static: expectedFields(ControlIWant, @["messageIds"])
+proc byteSize(controlIWant: ControlIWant): int =
+  controlIWant.messageIds.foldl(a + b.len, 0)
+
+proc byteSize*(iwants: seq[ControlIWant]): int =
+  iwants.foldl(a + b.byteSize, 0)
+
+static: expectedFields(ControlGraft, @["topicId"])
+proc byteSize(controlGraft: ControlGraft): int =
+  controlGraft.topicId.len
+
+static: expectedFields(ControlPrune, @["topicId", "peers", "backoff"])
+proc byteSize(controlPrune: ControlPrune): int =
+  controlPrune.topicId.len + controlPrune.peers.foldl(a + b.byteSize, 0) + 8 # 8 bytes for uint64
+
+static: expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
+proc byteSize(control: ControlMessage): int =
+  control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
+  control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
+  control.idontwant.foldl(a + b.byteSize, 0)
+
+static: expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
+proc byteSize*(rpc: RPCMsg): int =
+  result = rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) +
+           rpc.ping.len + rpc.pong.len
+  rpc.control.withValue(ctrl):
+    result += ctrl.byteSize

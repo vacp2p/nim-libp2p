@@ -1,41 +1,30 @@
-include ../../libp2p/protocols/pubsub/gossipsub
+# Nim-LibP2P
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
 {.used.}
 
-import std/[options, deques]
+import std/[options, deques, sequtils, enumerate, algorithm]
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors
 import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
+import ../../libp2p/protocols/pubsub/[pubsub, gossipsub, mcache, mcache, peertable]
+import ../../libp2p/protocols/pubsub/rpc/[message, messages]
 import ../../libp2p/switch
 import ../../libp2p/muxers/muxer
 import ../../libp2p/protocols/pubsub/rpc/protobuf
+import utils
 
 import ../helpers
 
-type
-  TestGossipSub = ref object of GossipSub
-
 proc noop(data: seq[byte]) {.async, gcsafe.} = discard
-
-proc getPubSubPeer(p: TestGossipSub, peerId: PeerId): PubSubPeer =
-  proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, GossipSubCodec)
-
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024, Opt.some(TokenBucket.new(1024, 500.milliseconds)))
-  debug "created new pubsub peer", peerId
-
-  p.peers[peerId] = pubSubPeer
-
-  onNewPeer(p, pubSubPeer)
-  pubSubPeer
-
-proc randomPeerId(): PeerId =
-  try:
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-  except CatchableError as exc:
-    raise newException(Defect, exc.msg)
 
 const MsgIdSuccess = "msg id gen success"
 
@@ -826,3 +815,130 @@ suite "GossipSub internal":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  proc setupTest(): Future[tuple[gossip0: GossipSub, gossip1: GossipSub, receivedMessages: ref HashSet[seq[byte]]]] {.async.} =
+    let
+      nodes = generateNodes(2, gossip = true, verifySignature = false)
+    discard await allFinished(
+        nodes[0].switch.start(),
+        nodes[1].switch.start()
+      )
+
+    await nodes[1].switch.connect(nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs)
+
+    var receivedMessages = new(HashSet[seq[byte]])
+
+    proc handlerA(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      receivedMessages[].incl(data)
+
+    proc handlerB(topic: string, data: seq[byte]) {.async, gcsafe.} =
+      discard
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip0: GossipSub = GossipSub(nodes[0])
+    var gossip1: GossipSub = GossipSub(nodes[1])
+
+    return (gossip0, gossip1, receivedMessages)
+
+  proc teardownTest(gossip0: GossipSub, gossip1: GossipSub) {.async.} =
+    await allFuturesThrowing(
+      gossip0.switch.stop(),
+      gossip1.switch.stop()
+    )
+
+  proc createMessages(gossip0: GossipSub, gossip1: GossipSub, size1: int, size2: int): tuple[iwantMessageIds: seq[MessageId], sentMessages: HashSet[seq[byte]]] =
+    var iwantMessageIds = newSeq[MessageId]()
+    var sentMessages = initHashSet[seq[byte]]()
+
+    for i, size in enumerate([size1, size2]):
+      let data = newSeqWith[byte](size, i.byte)
+      sentMessages.incl(data)
+
+      let msg = Message.init(gossip1.peerInfo.peerId, data, "foobar", some(uint64(i + 1)))
+      let iwantMessageId = gossip1.msgIdProvider(msg).expect(MsgIdSuccess)
+      iwantMessageIds.add(iwantMessageId)
+      gossip1.mcache.put(iwantMessageId, msg)
+
+      let peer = gossip1.peers[(gossip0.peerInfo.peerId)]
+      peer.sentIHaves[^1].incl(iwantMessageId)
+
+    return (iwantMessageIds, sentMessages)
+
+  asyncTest "e2e - Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":
+    # This test checks if two messages, each below the maxSize, are correctly split when their combined size exceeds maxSize.
+    # Expected: Both messages should be received.
+    let (gossip0, gossip1, receivedMessages) = await setupTest()
+
+    let messageSize = gossip1.maxMessageSize div 2 + 1
+    let (iwantMessageIds, sentMessages) = createMessages(gossip0, gossip1, messageSize, messageSize)
+
+    gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
+      ihave: @[ControlIHave(topicId: "foobar", messageIds: iwantMessageIds)]
+    ))))
+
+    checkExpiring: receivedMessages[] == sentMessages
+    check receivedMessages[].len == 2
+
+    await teardownTest(gossip0, gossip1)
+
+  asyncTest "e2e - Discard IWANT replies when both messages individually exceed maxSize":
+    # This test checks if two messages, each exceeding the maxSize, are discarded and not sent.
+    # Expected: No messages should be received.
+    let (gossip0, gossip1, receivedMessages) = await setupTest()
+
+    let messageSize = gossip1.maxMessageSize + 10
+    let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, messageSize, messageSize)
+
+    gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
+      ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
+    ))))
+
+    await sleepAsync(300.milliseconds)
+    checkExpiring: receivedMessages[].len == 0
+
+    await teardownTest(gossip0, gossip1)
+
+  asyncTest "e2e - Process IWANT replies when both messages are below maxSize":
+    # This test checks if two messages, both below the maxSize, are correctly processed and sent.
+    # Expected: Both messages should be received.
+    let (gossip0, gossip1, receivedMessages) = await setupTest()
+    let size1 = gossip1.maxMessageSize div 2
+    let size2 = gossip1.maxMessageSize div 3
+    let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, size1, size2)
+
+    gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
+      ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
+    ))))
+
+    checkExpiring: receivedMessages[] == sentMessages
+    check receivedMessages[].len == 2
+
+    await teardownTest(gossip0, gossip1)
+
+  asyncTest "e2e - Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
+    # This test checks if, when given two messages where one is below maxSize and the other exceeds it, only the smaller message is processed and sent.
+    # Expected: Only the smaller message should be received.
+    let (gossip0, gossip1, receivedMessages) = await setupTest()
+    let maxSize = gossip1.maxMessageSize
+    let size1 = maxSize div 2
+    let size2 = maxSize + 10
+    let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, size1, size2)
+
+    gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
+      ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
+    ))))
+
+    var smallestSet: HashSet[seq[byte]]
+    let seqs = toSeq(sentMessages)
+    if seqs[0] < seqs[1]:
+      smallestSet.incl(seqs[0])
+    else:
+      smallestSet.incl(seqs[1])
+
+    checkExpiring: receivedMessages[] == smallestSet
+    check receivedMessages[].len == 1
+
+    await teardownTest(gossip0, gossip1)
