@@ -954,13 +954,15 @@ suite "GossipSub":
 
     return (nodes, gossip0,  gossip1)
 
-  proc getCurrentDisconnections(): float64 =
+  proc currentDisconnections(): float64 =
     try:
       libp2p_gossipsub_peers_rate_limit_disconnections.valueByName("libp2p_gossipsub_peers_rate_limit_disconnections_total", @["nim-libp2p"])
     except KeyError:
       0
 
-  asyncTest "e2e - GossipSub should process valid messages":
+  # TODO - Once the rate limit actually disconnects peers, we must update the rate limit tests bellow to check for disconnections
+  asyncTest "e2e - GossipSub should not rate limit decodable messages below the size allowed":
+    let disconnections = currentDisconnections()
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
     gossip0.broadcast(gossip1.mesh["foobar"], RPCMsg(
@@ -968,12 +970,12 @@ suite "GossipSub":
       )
     await sleepAsync(300.millis)
 
-    check getCurrentDisconnections() == 0
+    check currentDisconnections() == disconnections
 
     await stopNodes(nodes)
 
-  asyncTest "e2e - GossipSub should rate limit undecodable messages above what is allowed":
-    let disconnections = getCurrentDisconnections()
+  asyncTest "e2e - GossipSub should rate limit undecodable messages above the size allowed":
+    let disconnections = currentDisconnections()
 
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
@@ -981,12 +983,12 @@ suite "GossipSub":
     await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](30, 1.byte))
     await sleepAsync(300.millis)
 
-    check getCurrentDisconnections() == disconnections + 1
+    check currentDisconnections() == disconnections + 1
 
     await stopNodes(nodes)
 
-  asyncTest "e2e - GossipSub should rate limit messages with excessive useless data":
-    let disconnections = getCurrentDisconnections()
+  asyncTest "e2e - GossipSub should rate limit decodable messages above the size allowed":
+    let disconnections = currentDisconnections()
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
     gossip0.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(prune: @[
@@ -998,6 +1000,6 @@ suite "GossipSub":
     ]))))
     await sleepAsync(300.millis)
 
-    check getCurrentDisconnections() == disconnections + 1
+    check currentDisconnections() == disconnections + 1
 
     await stopNodes(nodes)
