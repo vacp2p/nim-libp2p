@@ -30,7 +30,7 @@ declareGauge(libp2p_gossipsub_peers_score_invalidMessageDeliveries, "Detailed go
 declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
 declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
-declarePublicCounter(libp2p_gossipsub_peers_rate_limit_disconnections, "The number of peer disconnections by gossipsub because of rate limit", labels = ["agent"])
+declarePublicCounter(libp2p_gossipsub_peers_rate_limit_hit, "The number of times peers were above their rate limit", labels = ["agent"])
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
@@ -245,7 +245,7 @@ proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) =
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):
       debug "Peer sent invalid message and it's above rate limit", peer, uselessAppBytesNum
-      libp2p_gossipsub_peers_rate_limit_disconnections.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+      libp2p_gossipsub_peers_rate_limit_hit.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
       # discard g.disconnectPeer(peer)
       # debug "Peer disconnected", peer, uselessAppBytesNum
       # raise newException(PeerRateLimitError, "Peer sent invalid message and it's above rate limit")

@@ -146,6 +146,7 @@ type
     iwantTimeout*: Duration
 
     overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
+    disconnectPeerWhenRateLimiting*: bool
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
