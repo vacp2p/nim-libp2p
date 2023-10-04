@@ -385,7 +385,7 @@ proc validateAndRelay(g: GossipSub,
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topicIds.mapIt(it.len).foldl(a + b, 0)).foldl(a + b, 0)
 
-proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.raises:[PeerRateLimitError, CatchableError].} =
+proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.raises:[PeerRateLimitError, CatchableError], async.} =
   # In this way we count even ignored fields by protobuf
 
   var rmsg = rpcMsgOpt.valueOr:
@@ -394,7 +394,7 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
         libp2p_gossipsub_peers_rate_limit_hit.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
         debug "Peer sent a msg that couldn't be decoded and it's above rate limit.", peer, uselessAppBytesNum = msgSize
         if g.parameters.disconnectPeerWhenRateLimiting:
-          discard g.disconnectPeer(peer)
+          await g.disconnectPeer(peer)
           raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
 
     raise newException(CatchableError, "Peer msg couldn't be decoded")
@@ -414,7 +414,7 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
       libp2p_gossipsub_peers_rate_limit_hit.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
       debug "Peer sent too much useless application data and it's above rate limit.", peer, msgSize, uselessAppBytesNum, rmsg
       if g.parameters.disconnectPeerWhenRateLimiting:
-        discard g.disconnectPeer(peer)
+        await g.disconnectPeer(peer)
         raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
 
 method rpcHandler*(g: GossipSub,
@@ -424,11 +424,11 @@ method rpcHandler*(g: GossipSub,
   let msgSize = data.len
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
-    rateLimit(g, peer, Opt.none(RPCMsg), msgSize)
+    await rateLimit(g, peer, Opt.none(RPCMsg), msgSize)
     return
 
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
-  rateLimit(g, peer, Opt.some(rpcMsg), msgSize)
+  await rateLimit(g, peer, Opt.some(rpcMsg), msgSize)
 
   # trigger hooks
   peer.recvObservers(rpcMsg)
