@@ -956,7 +956,7 @@ suite "GossipSub":
 
   proc currentRateLimitHits(): float64 =
     try:
-      libp2p_gossipsub_peers_rate_limit_hit.valueByName("libp2p_gossipsub_peers_rate_limit_hit_total", @["nim-libp2p"])
+      libp2p_gossipsub_peers_rate_limit_hits.valueByName("libp2p_gossipsub_peers_rate_limit_hits_total", @["nim-libp2p"])
     except KeyError:
       0
 
@@ -972,7 +972,7 @@ suite "GossipSub":
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
 
     # Disconnect peer when rate limiting is enabled
-    gossip1.parameters.disconnectPeerWhenRateLimiting = true
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
     gossip0.broadcast(gossip0.mesh["foobar"], msg)
 
     checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -994,7 +994,7 @@ suite "GossipSub":
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
 
     # Disconnect peer when rate limiting is enabled
-    gossip1.parameters.disconnectPeerWhenRateLimiting = true
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
     await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(msg)
 
     checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
@@ -1019,7 +1019,7 @@ suite "GossipSub":
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
 
     # Disconnect peer when rate limiting is enabled
-    gossip1.parameters.disconnectPeerWhenRateLimiting = true
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
     gossip0.broadcast(gossip0.mesh["foobar"], msg)
 
     checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
