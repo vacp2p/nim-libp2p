@@ -23,7 +23,7 @@ jobs:
 
       - name: Build image
         run: >
-          cd multidim-interop/impl/nim/v1.0 &&
+          cd transport-interop/impl/nim/v1.0 &&
           make commitSha=$GITHUB_SHA image_name=nim-libp2p-head
 
       - name: Create ping-version.json
