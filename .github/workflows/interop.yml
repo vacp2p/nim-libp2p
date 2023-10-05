@@ -23,7 +23,7 @@ jobs:
 
       - name: Build image
         run: >
-          cd multidim-interop/impl/nim/v1.0 &&
+          cd transport-interop/impl/nim/v1.0 &&
           make commitSha=$GITHUB_SHA image_name=nim-libp2p-head
 
       - name: Create ping-version.json
@@ -45,10 +45,10 @@ jobs:
                 ]
             }
           EOF
-          
+
           ) > ${{ github.workspace }}/test_head.json
 
-      - uses: libp2p/test-plans/.github/actions/run-interop-ping-test@master
+      - uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/test_head.json
