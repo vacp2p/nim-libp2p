@@ -81,7 +81,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
       iwantTimeout: 3 * GossipSubHeartbeatInterval,
       overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
-      disconnectPeerWhenRateLimiting: false
+      disconnectPeerAboveRateLimit: false
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -391,9 +391,9 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
   var rmsg = rpcMsgOpt.valueOr:
     peer.overheadRateLimitOpt.withValue(overheadRateLimit):
       if not overheadRateLimit.tryConsume(msgSize):
-        libp2p_gossipsub_peers_rate_limit_hit.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+        libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
         debug "Peer sent a msg that couldn't be decoded and it's above rate limit.", peer, uselessAppBytesNum = msgSize
-        if g.parameters.disconnectPeerWhenRateLimiting:
+        if g.parameters.disconnectPeerAboveRateLimit:
           await g.disconnectPeer(peer)
           raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
 
@@ -411,9 +411,9 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize:
 
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):
-      libp2p_gossipsub_peers_rate_limit_hit.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+      libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
       debug "Peer sent too much useless application data and it's above rate limit.", peer, msgSize, uselessAppBytesNum, rmsg
-      if g.parameters.disconnectPeerWhenRateLimiting:
+      if g.parameters.disconnectPeerAboveRateLimit:
         await g.disconnectPeer(peer)
         raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
 
