@@ -297,6 +297,33 @@ proc dnsVB(vb: var VBuffer): bool =
     if s.find('/') == -1:
       result = true
 
+proc certHashStB(s: string, vb: var VBuffer): bool =
+  ## CertHash address stringToBuffer() implementation.
+  var data = MultiBase.decode(s).valueOr:
+    return false
+  var mh: MultiHash
+  if MultiHash.decode(data, mh).isOk:
+    vb.writeSeq(data)
+    result = true
+
+proc certHashBtS(vb: var VBuffer, s: var string): bool =
+  ## CertHash address bufferToString() implementation.
+  var address = newSeq[byte]()
+  if vb.readSeq(address) > 0:
+    var mh: MultiHash
+    if MultiHash.decode(address, mh).isOk:
+      s = MultiBase.encode("base64", address).valueOr:
+        return false
+      result = true
+
+proc certHashVB(vb: var VBuffer): bool =
+  ## CertHash address validateBuffer() implementation.
+  var address = newSeq[byte]()
+  if vb.readSeq(address) > 0:
+    var mh: MultiHash
+    if MultiHash.decode(address, mh).isOk:
+      result = true
+
 proc mapEq*(codec: string): MaPattern =
   ## ``Equal`` operator for pattern
   result.operator = Eq
@@ -357,6 +384,11 @@ const
     stringToBuffer: dnsStB,
     bufferToString: dnsBtS,
     validateBuffer: dnsVB
+  )
+  TranscoderCertHash* = Transcoder(
+    stringToBuffer: certHashStB,
+    bufferToString: certHashBtS,
+    validateBuffer: certHashVB
   )
   ProtocolsList = [
     MAProtocol(
@@ -458,7 +490,17 @@ const
     ),
     MAProtocol(
       mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0
-    )
+    ),
+    MAProtocol(
+      mcodec: multiCodec("webrtc"), kind: Marker, size: 0
+    ),
+    MAProtocol(
+      mcodec: multiCodec("webrtc-direct"), kind: Marker, size: 0
+    ),
+    MAProtocol(
+      mcodec: multiCodec("certhash"), kind: Length, size: 0,
+      coder: TranscoderCertHash
+    ),
   ]
 
   DNSANY* = mapEq("dns")
@@ -489,6 +531,7 @@ const
   WebSockets_DNS* = mapOr(WS_DNS, WSS_DNS)
   WebSockets_IP* = mapOr(WS_IP, WSS_IP)
   WebSockets* = mapOr(WS, WSS)
+  WebRtcDirect2* = mapAnd(UDP, mapEq("webrtc-direct"), mapEq("certhash"))
   Onion3* = mapEq("onion3")
   TcpOnion3* = mapAnd(TCP, Onion3)
 
@@ -512,7 +555,7 @@ const
     mapAnd(DNS, mapEq("https"))
   )
 
-  WebRTCDirect* = mapOr(
+  WebRTCDirect* {.deprecated.} = mapOr(
     mapAnd(HTTP, mapEq("p2p-webrtc-direct")),
     mapAnd(HTTPS, mapEq("p2p-webrtc-direct"))
   )
