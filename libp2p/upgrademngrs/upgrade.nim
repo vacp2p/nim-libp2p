@@ -35,7 +35,6 @@ type
 
   Upgrade* = ref object of RootObj
     ms*: MultistreamSelect
-    connManager*: ConnManager
     secureManagers*: seq[Secure]
 
 method upgrade*(
