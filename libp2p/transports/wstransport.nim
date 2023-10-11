@@ -171,8 +171,6 @@ method start*(
 
   trace "Listening on", addresses = self.addrs
 
-  self.running = true
-
 method stop*(self: WsTransport) {.async, gcsafe.} =
   ## stop the transport
   ##
