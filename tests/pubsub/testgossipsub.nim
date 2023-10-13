@@ -964,8 +964,11 @@ suite "GossipSub":
     let rateLimitHits = currentRateLimitHits()
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
-    let msg = RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: "Valid data".toBytes)])
-    gossip0.broadcast(gossip0.mesh["foobar"], msg)
+    # Avoid being disconnected by failing signature verification
+    gossip0.verifySignature = false
+    gossip1.verifySignature = false
+
+    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](10))]))
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits
@@ -973,9 +976,10 @@ suite "GossipSub":
 
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
-    gossip0.broadcast(gossip0.mesh["foobar"], msg)
+    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](12))]))
+    await sleepAsync(300.millis)
 
-    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
+    check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
     check currentRateLimitHits() == rateLimitHits
 
     await stopNodes(nodes)
@@ -986,8 +990,7 @@ suite "GossipSub":
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
     # Simulate sending an undecodable message
-    let msg = newSeqWith[byte](30, 1.byte)
-    await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(msg)
+    await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](33, 1.byte))
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits + 1
@@ -995,7 +998,7 @@ suite "GossipSub":
 
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
-    await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(msg)
+    await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](35, 1.byte))
 
     checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
@@ -1008,9 +1011,34 @@ suite "GossipSub":
 
     let msg = RPCMsg(control: some(ControlMessage(prune: @[
         ControlPrune(topicID: "foobar", peers: @[
-            PeerInfoMsg(peerId: PeerId(data: newSeq[byte](30)))
+            PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))
         ], backoff: 123'u64)
     ])))
+    gossip0.broadcast(gossip0.mesh["foobar"], msg)
+    await sleepAsync(300.millis)
+
+    check currentRateLimitHits() == rateLimitHits + 1
+    check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
+
+    # Disconnect peer when rate limiting is enabled
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
+    let msg2 = RPCMsg(control: some(ControlMessage(prune: @[
+        ControlPrune(topicID: "foobar", peers: @[
+            PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))
+        ], backoff: 123'u64)
+    ])))
+    gossip0.broadcast(gossip0.mesh["foobar"], msg2)
+
+    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
+    check currentRateLimitHits() == rateLimitHits + 2
+
+    await stopNodes(nodes)
+
+  asyncTest "e2e - GossipSub should rate limit invalid messages above the size allowed":
+    let rateLimitHits = currentRateLimitHits()
+    let (nodes, gossip0, gossip1) = await initializeGossipTest()
+
+    let msg = RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](40))])
 
     gossip0.broadcast(gossip0.mesh["foobar"], msg)
     await sleepAsync(300.millis)
@@ -1020,7 +1048,7 @@ suite "GossipSub":
 
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
-    gossip0.broadcast(gossip0.mesh["foobar"], msg)
+    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](35))]))
 
     checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
