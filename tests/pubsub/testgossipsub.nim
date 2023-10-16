@@ -1038,9 +1038,18 @@ suite "GossipSub":
     let rateLimitHits = currentRateLimitHits()
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
-    let msg = RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](40))])
+    let topic = "foobar"
+    proc execValidator(topic: string, message: messages.Message): Future[ValidationResult] {.raises: [].} =
+      let res = newFuture[ValidationResult]()
+      res.complete(ValidationResult.Reject)
+      res
 
-    gossip0.broadcast(gossip0.mesh["foobar"], msg)
+    gossip0.addValidator(topic, execValidator)
+    gossip1.addValidator(topic, execValidator)
+
+    let msg = RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](40))])
+
+    gossip0.broadcast(gossip0.mesh[topic], msg)
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits + 1
@@ -1048,7 +1057,7 @@ suite "GossipSub":
 
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
-    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](35))]))
+    gossip0.broadcast(gossip0.mesh[topic], RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](35))]))
 
     checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
