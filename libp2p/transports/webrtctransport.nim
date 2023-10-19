@@ -345,7 +345,7 @@ method start*(
     self.servers &= server
 
     let
-      cert = server.dtls.localCertificate
+      cert = server.dtlsLocalCertificate()
       certHash = MultiHash.digest("sha2-256", cert).get().data.buffer
       encodedCertHash = MultiBase.encode("base64", certHash).get()
     self.addrs[i] = (MultiAddress.init(server.udp.laddr, IPPROTO_UDP).tryGet() & MultiAddress.init(multiCodec("webrtc-direct")).tryGet() & MultiAddress.init(multiCodec("cert-hash"), encodedCertHash).tryGet()).tryGet()

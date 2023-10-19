@@ -1,5 +1,5 @@
 bearssl;https://github.com/status-im/nim-bearssl@#e4157639db180e52727712a47deaefcbbac6ec86
-binary_serialization;https://github.com/status-im/nim-binary-serialization.git@#f9c05ed21e6be17c0d1e16a364a0ab19fe4a64bf
+binary_serialization;https://github.com/status-im/nim-binary-serialization.git@#38a73a70fd43f3835ca01a877353858b19e39d70
 chronicles;https://github.com/status-im/nim-chronicles@#32ac8679680ea699f7dbc046e8e0131cac97d41a
 chronos;https://github.com/status-im/nim-chronos@#ba143e029f35fd9b4cd3d89d007cc834d0d5ba3c
 dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153379ea557c8
@@ -15,6 +15,6 @@ serialization;https://github.com/status-im/nim-serialization@#4bdbc29e54fe540499
 stew;https://github.com/status-im/nim-stew@#3159137d9a3110edb4024145ce0ba778975de40e
 testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014de2b4bfb4dafc34
 unittest2;https://github.com/status-im/nim-unittest2@#2300fa9924a76e6c96bc4ea79d043e3a0f27120c
-webrtc;https://github.com/status-im/nim-webrtc.git@#7dfb18eefdbd2e722cdec6d6a7b255015365d308
+webrtc;https://github.com/status-im/nim-webrtc.git@#0504d863407c1d14bf39478ba2335d299caac6ef
 websock;https://github.com/status-im/nim-websock@#f8ed9b40a5ff27ad02a3c237c4905b0924e3f982
 zlib;https://github.com/status-im/nim-zlib@#a2f44bb7f65571a894227ff6fde9298a104e03a5
