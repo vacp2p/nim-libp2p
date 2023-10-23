@@ -276,6 +276,8 @@ method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
     debug "AsyncStream Error", exc = exc.msg
   except TransportTooManyError as exc:
     debug "Too many files opened", exc = exc.msg
+  except TransportAbortedError as exc:
+    debug "Connection aborted", exc = exc.msg
   except AsyncTimeoutError as exc:
     debug "Timed out", exc = exc.msg
   except TransportUseClosedError as exc:
