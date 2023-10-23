@@ -266,12 +266,19 @@ proc handleIHave*(g: GossipSub,
 
 proc handleIDontWant*(g: GossipSub,
                       peer: PubSubPeer,
-                      iDontWants: seq[ControlIWant]) =
+                      iDontWants: seq[ControlIWant]): ControlIWant {.raises: [].}=
+  var res: ControlIWant
   for dontWant in iDontWants:
     for messageId in dontWant.messageIds:
       if peer.heDontWants[^1].len > 1000: break
       if messageId.len > 100: continue
       peer.heDontWants[^1].incl(messageId)
+      #we can ask for unreceived message, learnt through idontwantmessage
+      if (not g.hasSeen(messageId)) and messageId notin g.outstandingIWANTs:
+        if peer.score < g.parameters.gossipThreshold: continue    #dont request from low score peer
+        g.outstandingIWANTs[messageId] = IWANTRequest(messageId: messageId, peer: peer, timestamp: Moment.now())  
+        res.messageIds.add(messageId)
+  return res
 
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
