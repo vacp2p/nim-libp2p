@@ -77,7 +77,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       behaviourPenaltyDecay: 0.999,
       disconnectBadPeers: false,
       enablePX: false,
-      bandwidthEstimatebps: 100_000_000 # 100 Mbps or 12.5 MBps
+      bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
+      iwantTimeout: 3 * GossipSubHeartbeatInterval
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -204,8 +205,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   for t in toSeq(g.gossipsub.keys):
     g.gossipsub.removePeer(t, pubSubPeer)
-    # also try to remove from explicit table here
-    g.explicit.removePeer(t, pubSubPeer)
+    # also try to remove from direct peers table here
+    g.subscribedDirectPeers.removePeer(t, pubSubPeer)
 
   for t in toSeq(g.fanout.keys):
     g.fanout.removePeer(t, pubSubPeer)
@@ -244,7 +245,7 @@ proc handleSubscribe*(g: GossipSub,
     # subscribe remote peer to the topic
     discard g.gossipsub.addPeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
-      discard g.explicit.addPeer(topic, peer)
+      discard g.subscribedDirectPeers.addPeer(topic, peer)
   else:
     trace "peer unsubscribed from topic"
 
@@ -258,7 +259,7 @@ proc handleSubscribe*(g: GossipSub,
 
     g.fanout.removePeer(topic, peer)
     if peer.peerId in g.parameters.directPeers:
-      g.explicit.removePeer(topic, peer)
+      g.subscribedDirectPeers.removePeer(topic, peer)
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
@@ -337,6 +338,9 @@ proc validateAndRelay(g: GossipSub,
       g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
 
+      # add direct peers
+      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(t))
+
     # Don't send it to source peer, or peers that
     # sent it during validation
     toSendPeers.excl(peer)
@@ -406,6 +410,9 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
+    g.outstandingIWANTs.withValue(msgId, iwantRequest):
+      if iwantRequest.peer.peerId == peer.peerId:
+        g.outstandingIWANTs.del(msgId)
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -518,7 +525,7 @@ method publish*(g: GossipSub,
   var peers: HashSet[PubSubPeer]
 
   # add always direct peers
-  peers.incl(g.explicit.getOrDefault(topic))
+  peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
   if topic in g.topics: # if we're subscribed use the mesh
     peers.incl(g.mesh.getOrDefault(topic))
@@ -604,11 +611,13 @@ method publish*(g: GossipSub,
   return peers.len
 
 proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
-  let peer = g.peers.getOrDefault(id)
-  if isNil(peer):
+  if id notin g.peers:
     trace "Attempting to dial a direct peer", peer = id
+    if g.switch.isConnected(id):
+      warn "We are connected to a direct peer, but it isn't a GossipSub peer!", id
+      return
     try:
-      await g.switch.connect(id, addrs)
+      await g.switch.connect(id, addrs, forceDial = true)
       # populate the peer after it's connected
       discard g.getOrCreatePeer(id, g.codecs)
     except CancelledError as exc:

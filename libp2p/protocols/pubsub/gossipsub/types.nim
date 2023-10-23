@@ -143,6 +143,7 @@ type
     enablePX*: bool
 
     bandwidthEstimatebps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
+    iwantTimeout*: Duration
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
@@ -158,7 +159,7 @@ type
     mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
     fanout*: PeerTable                         # peers that we send messages to when we're not subscribed to the topic
     gossipsub*: PeerTable                      # peers that are subscribed to a topic
-    explicit*: PeerTable                       # directpeers that we keep alive explicitly
+    subscribedDirectPeers*: PeerTable          # directpeers that we keep alive
     backingOff*: BackoffTable                  # peers to backoff from when replenishing the mesh
     lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
     gossip*: Table[string, seq[ControlIHave]]  # pending gossip
@@ -177,6 +178,7 @@ type
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
 
     heartbeatEvents*: seq[AsyncEvent]
+    outstandingIWANTs*: Table[MessageId, IWANTRequest]
 
   MeshMetrics* = object
     # scratch buffers for metrics
@@ -187,3 +189,8 @@ type
     lowPeersTopics*: int64 # npeers < dlow
     healthyPeersTopics*: int64 # npeers >= dlow
     underDoutTopics*: int64
+
+  IWANTRequest* = object
+    messageId*: MessageId
+    peer*: PubSubPeer
+    timestamp*: Moment
