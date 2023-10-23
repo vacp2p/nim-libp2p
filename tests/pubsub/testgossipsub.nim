@@ -952,6 +952,10 @@ suite "GossipSub":
     gossip1.subscribe("foobar", handle)
     await waitSubGraph(nodes, "foobar")
 
+    # Avoid being disconnected by failing signature verification
+    gossip0.verifySignature = false
+    gossip1.verifySignature = false
+
     return (nodes, gossip0,  gossip1)
 
   proc currentRateLimitHits(): float64 =
@@ -963,10 +967,6 @@ suite "GossipSub":
   asyncTest "e2e - GossipSub should not rate limit decodable messages below the size allowed":
     let rateLimitHits = currentRateLimitHits()
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
-
-    # Avoid being disconnected by failing signature verification
-    gossip0.verifySignature = false
-    gossip1.verifySignature = false
 
     gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](10))]))
     await sleepAsync(300.millis)
