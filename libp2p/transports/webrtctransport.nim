@@ -19,6 +19,8 @@ import transport,
        ../errors,
        ../wire,
        ../multicodec,
+       ../multihash,
+       ../multibase,
        ../protobuf/minprotobuf,
        ../connmanager,
        ../muxers/muxer,
@@ -28,7 +30,7 @@ import transport,
        ../protocols/secure/noise,
        ../utility
 
-import webrtc/webrtc, webrtc/datachannel
+import webrtc/webrtc, webrtc/datachannel, webrtc/dtls/dtls
 
 logScope:
   topics = "libp2p webrtctransport"
@@ -345,10 +347,12 @@ method start*(
     self.servers &= server
 
     let
-      cert = server.dtlsLocalCertificate()
+      cert = server.dtls.localCertificate()
       certHash = MultiHash.digest("sha2-256", cert).get().data.buffer
       encodedCertHash = MultiBase.encode("base64", certHash).get()
-    self.addrs[i] = (MultiAddress.init(server.udp.laddr, IPPROTO_UDP).tryGet() & MultiAddress.init(multiCodec("webrtc-direct")).tryGet() & MultiAddress.init(multiCodec("cert-hash"), encodedCertHash).tryGet()).tryGet()
+    self.addrs[i] = MultiAddress.init(server.udp.laddr, IPPROTO_UDP).tryGet() &
+      MultiAddress.init(multiCodec("webrtc-direct")).tryGet() &
+      MultiAddress.init(multiCodec("certhash"), certHash).tryGet()
 
     trace "Listening on", address = self.addrs[i]
 
@@ -377,16 +381,13 @@ proc connHandler(self: WebRtcTransport,
       for f in futs:
         if not f.finished: await f.cancelAndWait() # cancel outstanding join()
 
-      trace "Cleaning up client", addrs = $client.remoteAddress,
-                                  conn
+      trace "Cleaning up client"# TODO ?: , addrs = $client.remoteAddress,
+                                #   conn
 
       self.clients[dir].keepItIf( it != client )
       #TODO
       #await allFuturesThrowing(
       #  conn.close(), client.closeWait())
-
-      trace "Cleaned up client", addrs = $client.remoteAddress,
-                                 conn
 
     except CatchableError as exc:
       let useExc {.used.} = exc
