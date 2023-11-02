@@ -85,15 +85,31 @@ const
     ]
   ]
 
+const CodexTestVectors = [
+  [
+    "poseidon2-alt_bn_128-a2-cdx1",
+    "hello world",
+    # TODO: https://github.com/codex-storage/nim-poseidon2/issues/5#issuecomment-1787447258
+    "8180B406 20 68656C6C6F20776F726C64000000000000000000000000000000000000000000"
+  ]
+]
 
 suite "MultiHash test suite":
+
+  template checkTestVector(vector) =
+    var msg = vector[1]
+    var bmsg = cast[seq[byte]](msg)
+    var mh1 = MultiHash.digest(vector[0], bmsg).get()
+    var mh2 = MultiHash.init(stripSpaces(vector[2])).get()
+    check:
+      hex(mh1) == stripSpaces(vector[2])
+      hex(mh1) == hex(mh2)
+      mh1 == mh2
+
   test "rust-multihash test vectors":
     for item in RustTestVectors:
-      var msg = item[1]
-      var bmsg = cast[seq[byte]](msg)
-      var mh1 = MultiHash.digest(item[0], bmsg).get()
-      var mh2 = MultiHash.init(stripSpaces(item[2])).get()
-      check:
-        hex(mh1) == stripSpaces(item[2])
-        hex(mh1) == hex(mh2)
-        mh1 == mh2
+      checkTestVector(item)
+
+  test "codex test vectors":
+    for item in CodexTestVectors:
+      checkTestVector(item)

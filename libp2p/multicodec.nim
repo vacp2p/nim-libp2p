@@ -176,6 +176,7 @@ const MultiCodecList = [
   ("skein1024-992", 0xB3DC), ("skein1024-1000", 0xB3DD),
   ("skein1024-1008", 0xB3DE), ("skein1024-1016", 0xB3DF),
   ("skein1024-1024", 0xB3E0),
+  ("poseidon2-alt_bn_128-a2-cdx1", 0xCD0001),
   # multiaddrs
   ("ip4", 0x04),
   ("ip6", 0x29),
