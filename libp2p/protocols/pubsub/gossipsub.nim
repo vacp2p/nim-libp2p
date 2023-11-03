@@ -79,7 +79,6 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       disconnectBadPeers: false,
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
-      iwantTimeout: 3 * GossipSubHeartbeatInterval,
       overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
       disconnectPeerAboveRateLimit: false
     )
@@ -461,9 +460,6 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
-    g.outstandingIWANTs.withValue(msgId, iwantRequest):
-      if iwantRequest.peer.peerId == peer.peerId:
-        g.outstandingIWANTs.del(msgId)
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
