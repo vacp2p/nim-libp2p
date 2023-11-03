@@ -1,10 +1,11 @@
-name: CI
+name: CI - Test
 on:
   push:
     branches:
-      - master
-      - unstable
-  pull_request:
+#      - master
+#      - unstable
+      - 'fix/ci-workflow-stability'
+  #pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -12,6 +13,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  delete-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: snnaplab/delete-branch-cache-action@v1
+
   build:
     timeout-minutes: 90
     strategy:
@@ -52,7 +58,7 @@ jobs:
     continue-on-error: ${{ matrix.branch == 'devel' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -65,23 +71,16 @@ jobs:
           nim_branch: ${{ matrix.branch }}
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: '~1.15.5'
+          cache: false
 
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v3
-        with:
-          path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
-
       - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 
@@ -89,4 +88,5 @@ jobs:
         run: |
           nim --version
           nimble --version
-          nimble test
+          NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
+     
