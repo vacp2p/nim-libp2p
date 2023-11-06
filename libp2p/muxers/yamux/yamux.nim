@@ -454,6 +454,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             if header.streamId in m.flushed:
               m.flushed.del(header.streamId)
             if header.streamId mod 2 == m.currentId mod 2:
+              debug "Peer used our reserved stream id, skipping", id=header.streamId, currentId=m.currentId, peerId=m.connection.peerId
               raise newException(YamuxError, "Peer used our reserved stream id")
             let newStream = m.createStream(header.streamId, false)
             if m.channels.len >= m.maxChannCount:
