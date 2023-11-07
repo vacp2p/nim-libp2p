@@ -312,7 +312,7 @@ proc certHashBtS(vb: var VBuffer, s: var string): bool =
   if vb.readSeq(address) > 0:
     var mh: MultiHash
     if MultiHash.decode(address, mh).isOk:
-      s = MultiBase.encode("base64", address).valueOr:
+      s = MultiBase.encode("base64url", address).valueOr:
         return false
       result = true
 
