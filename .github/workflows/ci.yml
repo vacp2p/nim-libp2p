@@ -1,4 +1,4 @@
-name: CI - Test #retest 5
+name: CI - Test
 on:
   push:
     branches:
@@ -79,6 +79,10 @@ jobs:
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+
+      - name: Upgrade Nimble
+        run: |
+          nimble install nimble
 
       - name: Install deps
         run: |
