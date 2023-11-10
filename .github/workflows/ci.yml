@@ -82,7 +82,7 @@ jobs:
 
       - name: Upgrade Nimble
         run: |
-          nimble install nimble -y
+          nimble install nimble@0.14.2 -y
 
       - name: Install deps
         run: |
