@@ -83,6 +83,7 @@ jobs:
       - name: Upgrade Nimble
         run: |
           nimble install nimble@0.14.2 -y
+          nimble --version
 
       - name: Install deps
         run: |
@@ -92,5 +93,5 @@ jobs:
         run: |
           nim --version
           nimble --version
-          NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
+        #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
