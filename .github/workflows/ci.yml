@@ -34,7 +34,7 @@ jobs:
             cpu: amd64
           #- os: windows
             #cpu: i386
-        branch: [version-1-6]
+        branch: [version-1-6-16]
         include:
           - target:
               os: linux
