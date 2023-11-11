@@ -80,10 +80,10 @@ jobs:
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
 
-      - name: Upgrade Nimble
-        run: |
-          nimble install nimble@0.14.2 -y
-          nimble --version
+#      - name: Upgrade Nimble
+#        run: |
+#          nimble install nimble@0.14.2 -y
+#          nimble --version
 
       - name: Install deps
         run: |
@@ -91,6 +91,7 @@ jobs:
 
       - name: Run tests
         run: |
+          nimble install nimble@0.14.2 -y
           nim --version
           nimble --version
         #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
