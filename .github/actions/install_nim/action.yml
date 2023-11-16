@@ -122,5 +122,5 @@ runs:
           QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
           bash build_nim.sh nim csources ${NIMBLE_DIR} NimBinaries
         nimble install nimble -y
-        rm -rf /nim/bin/nimble
-        ln -s $NIMBLE_DIR/bin/nimble /nim/bin/nimble
+        rm -rf nim/bin/nimble
+        ln -s $NIMBLE_DIR/bin/nimble nim/bin/nimble
