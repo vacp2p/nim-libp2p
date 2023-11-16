@@ -414,6 +414,7 @@ method accept*(self: WebRtcTransport): Future[Connection] {.async, gcsafe.} =
     index = self.acceptFuts.find(finished)
 
   self.acceptFuts[index] = self.servers[index].accept()
+  trace "Accept WebRTC Transport"
 
   let transp = await finished
   try:
