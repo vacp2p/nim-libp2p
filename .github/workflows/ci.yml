@@ -82,7 +82,7 @@ jobs:
 
       - name: Install deps
         run: |
-          nimble install_pinned
+          nimble install -y
 
       - name: Run tests
         run: |
