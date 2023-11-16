@@ -172,7 +172,7 @@ method start*(
 
     self.servers &= server
 
-    trace "Listening on", address = ma
+    trace "Listening on", address = self.addrs[i]
 
 method stop*(self: TcpTransport) {.async, gcsafe.} =
   ## stop the transport
