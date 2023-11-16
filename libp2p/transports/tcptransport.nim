@@ -219,7 +219,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
 
   try:
     if self.acceptFuts.len <= 0:
-      self.acceptFuts = self.servers.mapIt(it.accept())
+      self.acceptFuts = self.servers.mapIt(Future[StreamTransport](it.accept()))
 
     if self.acceptFuts.len <= 0:
       return
