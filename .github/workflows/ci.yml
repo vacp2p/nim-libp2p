@@ -88,5 +88,5 @@ jobs:
         run: |
           nim --version
           nimble --version
-        #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
+          NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
