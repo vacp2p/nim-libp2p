@@ -19,7 +19,8 @@ func toException*(e: string): ref LPError =
 # sadly nim needs more love for hygienic templates
 # so here goes the macro, its based on the proc/template version
 # and uses quote do so it's quite readable
-macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
+# TODO https://github.com/nim-lang/Nim/issues/22936
+macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
   let nexclude = exclude.len
   case nexclude
   of 0:
