@@ -88,6 +88,6 @@ jobs:
         run: |
           nim --version
           nimble --version
-          ls -la /home/runner/.nimble/pkgs2
+          find . -name pkgs2
         #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
