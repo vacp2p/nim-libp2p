@@ -89,6 +89,6 @@ jobs:
           nim --version
           nimble --version
           nimble install -y --depsOnly --verbose
-          ls -la .
+          ls -la /home/runner/.nimble
         #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
