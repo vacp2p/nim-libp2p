@@ -22,7 +22,7 @@ logScope:
 const
   YamuxCodec* = "/yamux/1.0.0"
   YamuxVersion = 0.uint8
-  DefaultWindowSize = 256000
+  DefaultWindowSize* = 256000
   MaxChannelCount = 200
 
 when defined(libp2p_yamux_metrics):
@@ -351,7 +351,10 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
     trace "Try to open channel twice"
     return
   channel.opened = true
-  await channel.conn.write(YamuxHeader.data(channel.id, 0, {if channel.isSrc: Syn else: Ack}))
+  await channel.conn.write(YamuxHeader.windowUpdate(
+    channel.id,
+    channel.maxRecvWindow.uint32 - DefaultWindowSize,
+    {if channel.isSrc: Syn else: Ack}))
 
 method getWrapped*(channel: YamuxChannel): Connection = channel.conn
 
@@ -362,6 +365,7 @@ type
     currentId: uint32
     isClosed: bool
     maxChannCount: int
+    windowSize: int
 
 proc lenBySrc(m: Yamux, isSrc: bool): int =
   for v in m.channels.values():
@@ -375,12 +379,12 @@ proc cleanupChann(m: Yamux, channel: YamuxChannel) {.async.} =
   if channel.isReset and channel.recvWindow > 0:
     m.flushed[channel.id] = channel.recvWindow
 
-proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
+proc createStream(m: Yamux, id: uint32, isSrc: bool, windowSize: int): YamuxChannel =
   result = YamuxChannel(
     id: id,
-    maxRecvWindow: DefaultWindowSize,
-    recvWindow: DefaultWindowSize,
-    sendWindow: DefaultWindowSize,
+    maxRecvWindow: windowSize,
+    recvWindow: windowSize,
+    sendWindow: windowSize,
     isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),
@@ -455,7 +459,7 @@ method handle*(m: Yamux) {.async, gcsafe.} =
               m.flushed.del(header.streamId)
             if header.streamId mod 2 == m.currentId mod 2:
               raise newException(YamuxError, "Peer used our reserved stream id")
-            let newStream = m.createStream(header.streamId, false)
+            let newStream = m.createStream(header.streamId, false, m.windowSize)
             if m.channels.len >= m.maxChannCount:
               await newStream.reset()
               continue
@@ -515,15 +519,18 @@ method newStream*(
 
   if m.channels.len > m.maxChannCount - 1:
     raise newException(TooManyChannels, "max allowed channel count exceeded")
-  let stream = m.createStream(m.currentId, true)
+  let stream = m.createStream(m.currentId, true, m.windowSize)
   m.currentId += 2
   if not lazy:
     await stream.open()
   return stream
 
-proc new*(T: type[Yamux], conn: Connection, maxChannCount: int = MaxChannelCount): T =
+proc new*(T: type[Yamux], conn: Connection,
+          maxChannCount: int = MaxChannelCount,
+          windowSize: int = DefaultWindowSize): T =
   T(
     connection: conn,
     currentId: if conn.dir == Out: 1 else: 2,
-    maxChannCount: maxChannCount
+    maxChannCount: maxChannCount,
+    windowSize: if windowSize > DefaultWindowSize: windowSize else: DefaultWindowSize
   )
