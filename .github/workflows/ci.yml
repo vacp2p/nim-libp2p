@@ -70,15 +70,15 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_branch: ${{ matrix.branch }}
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '~1.15.5'
-          cache: false
-
-      - name: Install p2pd
-        run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+#      - name: Setup Go
+#        uses: actions/setup-go@v4
+#        with:
+#          go-version: '~1.15.5'
+#          cache: false
+#
+#      - name: Install p2pd
+#        run: |
+#          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
 
       - name: Install deps
         run: |
@@ -88,5 +88,8 @@ jobs:
         run: |
           nim --version
           nimble --version
-          NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
+          nimble install -y --depsOnly
+          ls -la nimble.lock
+          cat nimble.lock
+        #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
