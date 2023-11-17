@@ -88,7 +88,6 @@ jobs:
         run: |
           nim --version
           nimble --version
-          nimble install -y --depsOnly --verbose
           ls -la /home/runner/.nimble/pkgs2
         #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
