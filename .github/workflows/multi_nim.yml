@@ -75,8 +75,6 @@ jobs:
           nim --version
           nimble --version
           nimble install -y --depsOnly
-          ls -la nimble.lock
-          cat nimble.lock
 #          NIMFLAGS="${NIMFLAGS} --gc:refc" nimble test
 #          if [[ "${{ matrix.branch }}" == "devel" ]]; then
 #            echo -e "\nTesting with '--gc:orc':\n"
