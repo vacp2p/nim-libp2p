@@ -89,8 +89,6 @@ jobs:
           nim --version
           nimble --version
           nimble install -y --depsOnly
-          nimble lock
-          ls -la nimble.lock
-          cat nimble.lock
+          ls -la nimbledeps/pkgs2
         #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
