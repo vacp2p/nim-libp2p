@@ -193,31 +193,17 @@ suite "Hole Punching":
     await privatePeerSwitch2.connect(privatePeerSwitch1.peerInfo.peerId, (await privatePeerRelayAddr1))
     privatePeerSwitch2.connectStub = rcvConnectStub
 
-    checkExpiring:
-      # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
-      # in two connections attemps, instead of one. The server dial is going to fail because it is acting as the
-      # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case, but the client
-      # dial will succeed.
-      privatePeerSwitch1.connManager.connCount(privatePeerSwitch2.peerInfo.peerId) == 1 and
-        not isRelayed(privatePeerSwitch1.connManager.selectMuxer(privatePeerSwitch2.peerInfo.peerId).connection)
+    # wait for hole punching to finish in the background
+    await sleepAsync(600.millis)
 
     await allFuturesThrowing(
       privatePeerSwitch1.stop(), privatePeerSwitch2.stop(), switchRelay.stop(),
       switchAux.stop(), switchAux2.stop(), switchAux3.stop(), switchAux4.stop())
 
   asyncTest "Hole punching when peers addresses are private":
-    proc connectStub(self: SwitchStub,
-                    peerId: PeerId,
-                    addrs: seq[MultiAddress],
-                    forceDial = false,
-                    reuseConnection = true,
-                    upgradeDir = Direction.Out): Future[void] {.async.} =
-      self.connectStub = nil # this stub should be called only once
-      await sleepAsync(100.millis) # avoid simultaneous dialing that causes address in use error
-      await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
-    await holePunchingTest(nil, connectStub, NotReachable)
+    await holePunchingTest(nil, nil, NotReachable)
 
-  asyncTest "Hole punching when there is an error during unilateral direct connection":
+  asyncTest "Hole punching when peers addresses are private and there is an error in the initiator side":
 
     proc connectStub(self: SwitchStub,
                     peerId: PeerId,
