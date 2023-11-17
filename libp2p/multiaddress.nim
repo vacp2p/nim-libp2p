@@ -399,6 +399,9 @@ const
       mcodec: multiCodec("quic"), kind: Marker, size: 0
     ),
     MAProtocol(
+      mcodec: multiCodec("quic-v1"), kind: Marker, size: 0
+    ),
+    MAProtocol(
       mcodec: multiCodec("ip6zone"), kind: Length, size: 0,
       coder: TranscoderIP6Zone
     ),
