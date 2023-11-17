@@ -89,6 +89,7 @@ jobs:
           nim --version
           nimble --version
           nimble install -y --depsOnly
+          nimble lock
           ls -la nimble.lock
           cat nimble.lock
         #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
