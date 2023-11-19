@@ -25,7 +25,7 @@ jobs:
         run: |
           nim --version
           nimble --version
-          nimble install_pinned
+          nimble install
           # nim doc can "fail", but the doc is still generated
           nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 
