@@ -204,13 +204,17 @@ suite "Yamux":
       await streamA.close()
 
     asyncTest "Reduce window size":
-      # For the first roundtrip, the send window size is assumed to be 256k
       mSetup(64000)
-      let readerBlocker = newFuture[void]()
+      let readerBlocker1 = newFuture[void]()
+      let readerBlocker2 = newFuture[void]()
       yamuxb.streamHandler = proc(conn: Connection) {.async.} =
-        await readerBlocker
+        await readerBlocker1
         var buffer: array[256000, byte]
+        # For the first roundtrip, the send window size is assumed to be 256k
         discard await conn.readOnce(addr buffer[0], 256000)
+        await readerBlocker2
+        discard await conn.readOnce(addr buffer[0], 40000)
+
         await conn.close()
 
       let streamA = await yamuxa.newStream()
@@ -218,13 +222,19 @@ suite "Yamux":
 
       await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
 
-      let secondWriter = streamA.write(newSeq[byte](10000))
+      let secondWriter = streamA.write(newSeq[byte](64000))
       await sleepAsync(10.milliseconds)
       check: not secondWriter.finished()
 
-      readerBlocker.complete()
+      readerBlocker1.complete()
       await wait(secondWriter, 1.seconds)
 
+      let thirdWriter = streamA.write(newSeq[byte](10))
+      await sleepAsync(10.milliseconds)
+      check: not thirdWriter.finished()
+
+      readerBlocker2.complete()
+      await wait(thirdWriter, 1.seconds)
       await streamA.close()
 
   suite "Exception testing":
