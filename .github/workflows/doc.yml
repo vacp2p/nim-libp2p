@@ -19,7 +19,7 @@ jobs:
 
       - uses: jiro4989/setup-nim-action@v1
         with:
-          nim-version: '1.6.x'
+          nim-version: 'stable'
 
       - name: Generate doc
         run: |
