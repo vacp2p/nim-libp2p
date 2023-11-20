@@ -186,6 +186,7 @@ proc remoteClosed(channel: YamuxChannel) {.async.} =
 method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
   if not channel.closedLocally:
     channel.closedLocally = true
+    channel.isEof = true
 
     if channel.isReset == false and channel.sendQueue.len == 0:
       await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
@@ -249,6 +250,7 @@ method readOnce*(
     await channel.closedRemotely or channel.receivedData.wait()
     if channel.closedRemotely.done() and channel.recvQueue.len == 0:
       channel.returnedEof = true
+      channel.isEof = true
       return 0
 
   let toRead = min(channel.recvQueue.len, nbytes)
