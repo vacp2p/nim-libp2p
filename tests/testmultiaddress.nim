@@ -60,6 +60,7 @@ const
     "/ip4/127.0.0.1/tcp/1234",
     "/ip4/127.0.0.1/tcp/1234/",
     "/ip4/127.0.0.1/udp/1234/quic",
+    "/ip4/192.168.80.3/udp/33422/quic-v1",
     "/ip4/127.0.0.1/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC",
     "/ip4/127.0.0.1/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234",
     "/ip4/127.0.0.1/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC",
