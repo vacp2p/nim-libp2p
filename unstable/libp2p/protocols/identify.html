@@ -273,7 +273,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">new
       <li><a class="reference" href="#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo"
-    title="new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false): T:type">new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false): T:type</a></li>
+    title="new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false;
+    observedAddrManager = ObservedAddrManager.new()): T:type">new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false;
+    observedAddrManager = ObservedAddrManager.new()): T:type</a></li>
   <li><a class="reference" href="#new%2Ctypedesc%5BIdentifyPush%5D%2CIdentifyPushHandler"
     title="new(T: typedesc[IdentifyPush]; handler: IdentifyPushHandler = nil): T:type">new(T: typedesc[IdentifyPush]; handler: IdentifyPushHandler = nil): T:type</a></li>
 
@@ -526,9 +528,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L171"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L172"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L171" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L172" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -538,15 +540,16 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L200"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L201"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L200" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L201" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="new,typedesc[Identify],PeerInfo" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="identify.html#Identify"><span class="Identifier">Identify</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span> <span class="Identifier">sendSignedPeerRecord</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="identify.html#Identify"><span class="Identifier">Identify</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span>
+         <span class="Identifier">sendSignedPeerRecord</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
+         <span class="Identifier">observedAddrManager</span> <span class="Other">=</span> <a href="../observedaddrmanager.html#ObservedAddrManager"><span class="Identifier">ObservedAddrManager</span></a><span class="Other">.</span><span class="Identifier">new</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -564,9 +567,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Create a IdentifyPush protocol. <tt class="docutils literal"><span class="pre"><span class="Identifier">handler</span></span></tt> will be called every time a peer sends us new <tt class="docutils literal"><span class="pre"><span class="Identifier">PeerInfo</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L193"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L194"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L193" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L194" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -578,9 +581,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Send new <tt class="docutils literal"><span class="pre"><span class="Identifier">peerInfo</span></span></tt>s to a connection
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L229"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L230"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L229" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L230" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -595,9 +598,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L152"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/identify.nim#L153"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L153" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -633,7 +636,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-11-17 09:48:33 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-11-20 10:11:57 UTC</small>
       </div>
     </div>
   </div>
