@@ -351,9 +351,12 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
     trace "Try to open channel twice"
     return
   channel.opened = true
+  let delta =
+    if channel.maxRecvWindow < DefaultWindowSize: 0'u32
+    else: channel.maxRecvWindow.uint32 - DefaultWindowSize
   await channel.conn.write(YamuxHeader.windowUpdate(
     channel.id,
-    channel.maxRecvWindow.uint32 - DefaultWindowSize,
+    delta,
     {if channel.isSrc: Syn else: Ack}))
 
 method getWrapped*(channel: YamuxChannel): Connection = channel.conn
@@ -379,12 +382,12 @@ proc cleanupChann(m: Yamux, channel: YamuxChannel) {.async.} =
   if channel.isReset and channel.recvWindow > 0:
     m.flushed[channel.id] = channel.recvWindow
 
-proc createStream(m: Yamux, id: uint32, isSrc: bool, windowSize: int): YamuxChannel =
+proc createStream(m: Yamux, id: uint32, isSrc: bool, recvWindow: int): YamuxChannel =
   result = YamuxChannel(
     id: id,
-    maxRecvWindow: windowSize,
-    recvWindow: windowSize,
-    sendWindow: windowSize,
+    maxRecvWindow: recvWindow,
+    recvWindow: if recvWindow > DefaultWindowSize: recvWindow else: DefaultWindowSize,
+    sendWindow: DefaultWindowSize,
     isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),
@@ -532,5 +535,5 @@ proc new*(T: type[Yamux], conn: Connection,
     connection: conn,
     currentId: if conn.dir == Out: 1 else: 2,
     maxChannCount: maxChannCount,
-    windowSize: if windowSize > DefaultWindowSize: windowSize else: DefaultWindowSize
+    windowSize: windowSize
   )

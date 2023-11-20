@@ -22,11 +22,12 @@ suite "Yamux":
   teardown:
     checkTrackers()
 
-  template mSetup {.inject.} =
+  template mSetup(ws: int = DefaultWindowSize) {.inject.} =
     #TODO in a template to avoid threadvar
     let
       (conna {.inject.}, connb {.inject.}) = bridgedConnections()
-      (yamuxa {.inject.}, yamuxb {.inject.}) = (Yamux.new(conna), Yamux.new(connb))
+      yamuxa {.inject.} = Yamux.new(conna, windowSize = ws)
+      yamuxb {.inject.} = Yamux.new(connb, windowSize = ws)
       (handlera, handlerb) = (yamuxa.handle(), yamuxb.handle())
 
     defer:
@@ -177,6 +178,53 @@ suite "Yamux":
       for i in 0..3:
         expect(LPStreamEOFError): await wrFut[i]
       writerBlocker.complete()
+      await streamA.close()
+
+    asyncTest "Increase window size":
+      mSetup(512000)
+      let readerBlocker = newFuture[void]()
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        await readerBlocker
+        var buffer: array[260000, byte]
+        discard await conn.readOnce(addr buffer[0], 260000)
+        await conn.close()
+
+      let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
+      await wait(streamA.write(newSeq[byte](512000)), 1.seconds) # shouldn't block
+
+      let secondWriter = streamA.write(newSeq[byte](10000))
+      await sleepAsync(10.milliseconds)
+      check: not secondWriter.finished()
+
+      readerBlocker.complete()
+      await wait(secondWriter, 1.seconds)
+
+      await streamA.close()
+
+    asyncTest "Reduce window size":
+      # For the first roundtrip, the send window size is assumed to be 256k
+      mSetup(64000)
+      let readerBlocker = newFuture[void]()
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        await readerBlocker
+        var buffer: array[256000, byte]
+        discard await conn.readOnce(addr buffer[0], 256000)
+        await conn.close()
+
+      let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
+      await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
+
+      let secondWriter = streamA.write(newSeq[byte](10000))
+      await sleepAsync(10.milliseconds)
+      check: not secondWriter.finished()
+
+      readerBlocker.complete()
+      await wait(secondWriter, 1.seconds)
+
       await streamA.close()
 
   suite "Exception testing":
