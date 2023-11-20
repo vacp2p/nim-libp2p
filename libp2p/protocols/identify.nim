@@ -139,12 +139,13 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
 proc new*(
   T: typedesc[Identify],
   peerInfo: PeerInfo,
-  sendSignedPeerRecord = false
+  sendSignedPeerRecord = false,
+  observedAddrManager = ObservedAddrManager.new(),
   ): T =
   let identify = T(
     peerInfo: peerInfo,
     sendSignedPeerRecord: sendSignedPeerRecord,
-    observedAddrManager: ObservedAddrManager.new(),
+    observedAddrManager: observedAddrManager,
   )
   identify.init()
   identify
