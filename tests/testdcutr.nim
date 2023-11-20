@@ -179,3 +179,19 @@ suite "Dcutr":
         raise newException(CatchableError, "error")
 
     await ductrServerTest(connectProc)
+
+  test "should return valid TCP/IP and TCP/DNS addresses only":
+    let testAddrs = @[MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
+                      MultiAddress.init("/ip4/203.0.113.5/tcp/5678/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N").tryGet(),
+                      MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
+                      MultiAddress.init("/dns4/example.com/tcp/3456/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N").tryGet(),
+                      MultiAddress.init("/ip4/198.51.100.42/udp/7890").tryGet()]
+
+    let expected = @[MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
+                     MultiAddress.init("/ip4/203.0.113.5/tcp/5678").tryGet(),
+                     MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
+                     MultiAddress.init("/dns4/example.com/tcp/3456").tryGet()]
+
+    let result = getHolePunchableAddrs(testAddrs)
+
+    check result == expected
