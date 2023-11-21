@@ -21,6 +21,7 @@ import ../protobuf/minprotobuf,
        ../peerid,
        ../crypto/crypto,
        ../multiaddress,
+       ../multicodec,
        ../protocols/protocol,
        ../utility,
        ../errors,
@@ -187,8 +188,12 @@ proc identify*(self: Identify,
   info.peerId = peer
 
   info.observedAddr.withValue(observed):
-    if not self.observedAddrManager.addObservation(observed):
-      debug "Observed address is not valid", observedAddr = observed
+    # Currently, we use the ObservedAddrManager only to find our dialable external NAT address. Therefore, addresses
+    # like "...\p2p-circuit\p2p\..." and "\p2p\..." are not useful to us.
+    if observed.contains(multiCodec("p2p-circuit")).get(false) or P2PPattern.matchPartial(observed):
+      trace "Not adding address to ObservedAddrManager.", observed
+    elif not self.observedAddrManager.addObservation(observed):
+      trace "Observed address is not valid.", observedAddr = observed
   return info
 
 proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
