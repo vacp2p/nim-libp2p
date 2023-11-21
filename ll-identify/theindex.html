@@ -3143,7 +3143,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="rtransport: new(T: typedesc[RelayTransport]; cl: RelayClient; upgrader: Upgrade): T:type" href="libp2p/protocols/connectivity/relay/rtransport.html#new%2Ctypedesc%5BRelayTransport%5D%2CRelayClient%2CUpgrade">rtransport: new(T: typedesc[RelayTransport]; cl: RelayClient; upgrader: Upgrade): T:type</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false): T:type" href="libp2p/protocols/identify.html#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo">identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false): T:type</a></li>
+          data-doc-search-tag="identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false;
+    observedAddrManager = ObservedAddrManager.new()): T:type" href="libp2p/protocols/identify.html#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo">identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false;
+    observedAddrManager = ObservedAddrManager.new()): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="identify: new(T: typedesc[IdentifyPush]; handler: IdentifyPushHandler = nil): T:type" href="libp2p/protocols/identify.html#new%2Ctypedesc%5BIdentifyPush%5D%2CIdentifyPushHandler">identify: new(T: typedesc[IdentifyPush]; handler: IdentifyPushHandler = nil): T:type</a></li>
           <li><a class="reference external"
@@ -5057,6 +5059,12 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="builders: withNoise(b: SwitchBuilder): SwitchBuilder" href="libp2p/builders.html#withNoise%2CSwitchBuilder">builders: withNoise(b: SwitchBuilder): SwitchBuilder</a></li>
           </ul></dd>
+<dt><a name="withObservedAddrManager" href="#withObservedAddrManager"><span>withObservedAddrManager:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="builders: withObservedAddrManager(b: SwitchBuilder;
+                        observedAddrManager: ObservedAddrManager): SwitchBuilder" href="libp2p/builders.html#withObservedAddrManager%2CSwitchBuilder%2CObservedAddrManager">builders: withObservedAddrManager(b: SwitchBuilder;
+                        observedAddrManager: ObservedAddrManager): SwitchBuilder</a></li>
+          </ul></dd>
 <dt><a name="withPeerStats" href="#withPeerStats"><span>withPeerStats:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="scoring: withPeerStats(g: GossipSub; peerId: PeerId;
@@ -5304,7 +5312,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-11-21 19:51:36 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-11-21 20:21:29 UTC</small>
       </div>
     </div>
   </div>
