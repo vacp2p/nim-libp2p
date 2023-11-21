@@ -322,7 +322,6 @@ proc newStandardSwitch*(
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withPeerStore(capacity=peerStoreCapacity)
     .withMplex(inTimeout, outTimeout)
-    .withYamux()
     .withTcpTransport(transportFlags)
     .withNameResolver(nameResolver)
     .withNoise()

@@ -19,7 +19,7 @@ import ./helpers
 import std/times
 import stew/byteutils
 
-proc createSwitch(r: Relay, useYamux: bool = false): Switch =
+proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
@@ -30,9 +30,11 @@ proc createSwitch(r: Relay, useYamux: bool = false): Switch =
   else:
     builder = builder.withMplex()
 
+  if r != nil:
+    builder = builder.withCircuitRelay(r)
+
   return builder
     .withNoise()
-    .withCircuitRelay(r)
     .build()
 
 suite "Circuit Relay V2":
@@ -158,7 +160,7 @@ suite "Circuit Relay V2":
         dstCl = RelayClient.new()
         src = createSwitch(srcCl, useYamux)
         dst = createSwitch(dstCl, useYamux)
-        rel = newStandardSwitch()
+        rel = createSwitch(nil, useYamux)
 
       asyncTest "Connection succeed":
         proto.handler = proc(conn: Connection, proto: string) {.async.} =
