@@ -389,7 +389,14 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
     closedRemotely: newFuture[void]()
   )
   result.objName = "YamuxStream"
-  result.dir = if isSrc: Direction.Out else: Direction.In
+  result.dir =
+    if isSrc:
+      if m.connection.transportDir == Direction.In:
+        Direction.In
+      else:
+        Direction.Out
+    else:
+      Direction.In
   result.timeoutHandler = proc(): Future[void] {.gcsafe.} =
     trace "Idle timeout expired, resetting YamuxChannel"
     result.reset()
