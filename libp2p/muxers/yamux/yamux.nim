@@ -534,6 +534,6 @@ method newStream*(
 proc new*(T: type[Yamux], conn: Connection, maxChannCount: int = MaxChannelCount): T =
   T(
     connection: conn,
-    currentId: if conn.dir == Out: 1 else: 2,
+    currentId: if conn.transportDir == Out: 1 else: 2,
     maxChannCount: maxChannCount
   )
