@@ -58,7 +58,7 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
     privateKey = PrivateKey.random(ECDSA, rng[]).get()
     peerInfo = PeerInfo.new(privateKey, @[ma])
 
-  proc createMplex(conn: Connection): Muxer =
+  proc createMplex(conn: Connection, direction: Opt[Direction] = Opt.none(Direction)): Muxer =
     result = Mplex.new(conn)
 
   let
