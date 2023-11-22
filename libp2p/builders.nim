@@ -111,7 +111,7 @@ proc withMplex*(
     maxChannCount = 200): SwitchBuilder {.public.} =
   ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
   ## | `Timeout` is the duration after which a inactive connection will be closed
-  proc newMuxer(conn: Connection): Muxer =
+  proc newMuxer(conn: Connection, direction: Opt[Direction] = Opt.none(Direction)): Muxer =
     Mplex.new(
       conn,
       inTimeout,
@@ -123,7 +123,7 @@ proc withMplex*(
   b
 
 proc withYamux*(b: SwitchBuilder): SwitchBuilder =
-  proc newMuxer(conn: Connection): Muxer = Yamux.new(conn)
+  proc newMuxer(conn: Connection, dir: Opt[Direction] = Opt.none(Direction)): Muxer = Yamux.new(conn, dir)
 
   assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))

@@ -75,9 +75,7 @@ proc dialAndUpgrade(
 
       let mux =
         try:
-          let m = await transport.upgrade(dialed, upgradeDir, peerId)
-          m.connection.dir = upgradeDir
-          m
+          await transport.upgrade(dialed, upgradeDir, peerId)
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again

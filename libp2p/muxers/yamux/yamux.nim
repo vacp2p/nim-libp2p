@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import sequtils, std/[tables]
-import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
+import chronos, chronicles, metrics, stew/[endians2, byteutils, objects, results]
 import ../muxer,
        ../../stream/connection
 
@@ -389,14 +389,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
     closedRemotely: newFuture[void]()
   )
   result.objName = "YamuxStream"
-  result.dir =
-    if isSrc:
-      if m.connection.dir == Direction.In:
-        Direction.In
-      else:
-        Direction.Out
-    else:
-      Direction.In
+  result.dir = if isSrc: Direction.Out else: Direction.In
   result.timeoutHandler = proc(): Future[void] {.gcsafe.} =
     trace "Idle timeout expired, resetting YamuxChannel"
     result.reset()
@@ -531,9 +524,14 @@ method newStream*(
     await stream.open()
   return stream
 
-proc new*(T: type[Yamux], conn: Connection, maxChannCount: int = MaxChannelCount): T =
+proc new*(T: type[Yamux], conn: Connection, direction: Opt[Direction] = Opt.none(Direction), maxChannCount: int = MaxChannelCount): T =
+  let dir =
+    block:
+      direction.withValue(d):
+        d
+      else: conn.dir
   T(
     connection: conn,
-    currentId: if conn.dir == Out: 1 else: 2,
+    currentId: if dir == Out: 1 else: 2,
     maxChannCount: maxChannCount
   )

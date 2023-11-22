@@ -10,6 +10,7 @@
 {.push raises: [].}
 
 import chronos, chronicles
+import stew/results
 import ../stream/connection,
        ../errors
 
@@ -32,7 +33,7 @@ type
     connection*: Connection
 
   # user provider proc that returns a constructed Muxer
-  MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [].}
+  MuxerConstructor* = proc(conn: Connection, direction: Opt[Direction] = Opt.none(Direction)): Muxer {.gcsafe, closure, raises: [].}
 
   # this wraps a creator proc that knows how to make muxers
   MuxerProvider* = object

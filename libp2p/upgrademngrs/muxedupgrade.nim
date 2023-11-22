@@ -52,7 +52,7 @@ proc mux*(
   trace "Found a muxer", conn, muxerName
 
   # create new muxer for connection
-  let muxer = self.getMuxerByCodec(muxerName).newMuxer(conn)
+  let muxer = self.getMuxerByCodec(muxerName).newMuxer(conn, Opt.some(direction))
 
   # install stream handler
   muxer.streamHandler = self.streamHandler
