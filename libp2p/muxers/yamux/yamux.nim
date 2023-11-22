@@ -391,7 +391,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
   result.objName = "YamuxStream"
   result.dir =
     if isSrc:
-      if m.connection.transportDir == Direction.In:
+      if m.connection.dir == Direction.In:
         Direction.In
       else:
         Direction.Out
@@ -534,6 +534,6 @@ method newStream*(
 proc new*(T: type[Yamux], conn: Connection, maxChannCount: int = MaxChannelCount): T =
   T(
     connection: conn,
-    currentId: if conn.transportDir == Out: 1 else: 2,
+    currentId: if conn.dir == Out: 1 else: 2,
     maxChannCount: maxChannCount
   )
