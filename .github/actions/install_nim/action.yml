@@ -123,4 +123,5 @@ runs:
           bash build_nim.sh nim csources ${NIMBLE_DIR} NimBinaries
         nimble install nimble -y
         rm -rf nim/bin/nimble
-        ln -s $NIMBLE_DIR/bin/nimble nim/bin/nimble
+        ln -s $NIMBLE_DIR/bin/nimble.exe nim/bin/nimble.exe
+

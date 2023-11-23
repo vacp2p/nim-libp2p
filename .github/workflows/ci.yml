@@ -80,8 +80,6 @@ jobs:
 
       - name: Install deps
         run: |
-          ls -la ${HOME}
-          pwd
           nimble install -y --depsOnly
 
       - name: Run tests
