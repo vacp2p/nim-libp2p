@@ -82,7 +82,7 @@ type
     localPrivateKey: PrivateKey
     localPublicKey: seq[byte]
     noiseKeys: KeyPair
-    commonPrologue: seq[byte]
+    commonPrologue*: seq[byte]
     outgoing: bool
 
   NoiseConnection* = ref object of SecureConn
