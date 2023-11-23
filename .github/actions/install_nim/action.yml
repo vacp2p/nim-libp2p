@@ -124,6 +124,7 @@ runs:
         nimble install nimble -y
         ls -la nim/bin
         ls -la $NIMBLE_DIR/bin
+        cat $NIMBLE_DIR/bin/nimble.cmd
 #        rm -rf nim/bin/nimble.exe
 #        ln -s $NIMBLE_DIR/bin/nimble.exe nim/bin/nimble.exe
 
