@@ -80,13 +80,11 @@ jobs:
 
       - name: Install deps
         run: |
-          export NIMBLE_DIR=$HOME/.nimble
           nimble install -y --depsOnly
 
       - name: Run tests
         run: |
           nim --version
           nimble --version
-          ls -la ${HOME}/.nimble/pkgs2
         #NIMFLAGS="${NIMFLAGS} --mm:refc --verbosity:3" nimble test
      
