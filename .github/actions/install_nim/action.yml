@@ -126,4 +126,5 @@ runs:
         rm -rf nim/bin/nimble.exe
         ln -s $NIMBLE_DIR/bin/nimble.cmd nim/bin/nimble.cmd
         ls -la nim/bin
+        find . -name nimble.exe
 
