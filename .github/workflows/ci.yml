@@ -80,7 +80,7 @@ jobs:
 
       - name: Install deps
         run: |
-          ls -la ${HOME}/.nimble
+          ls -la ${HOME}/nim/bin/nimble
           nimble install -y --depsOnly
 
       - name: Run tests
