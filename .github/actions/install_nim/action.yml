@@ -124,7 +124,6 @@ runs:
         nimble install nimble -y
         ls -la nim/bin
         rm -rf nim/bin/nimble.exe
-        cp $NIMBLE_DIR/bin/nimble.cmd nim/bin/
+        ln -s $NIMBLE_DIR/bin/nimble.cmd nim/bin/nimble.cmd
         ls -la nim/bin
-#        ln -s $NIMBLE_DIR/bin/nimble.exe nim/bin/nimble.exe
 
