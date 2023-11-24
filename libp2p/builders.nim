@@ -122,7 +122,7 @@ proc withMplex*(
   b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
   b
 
-proc withYamux*(b: SwitchBuilder, windowSize: int = DefaultWindowSize): SwitchBuilder =
+proc withYamux*(b: SwitchBuilder, windowSize: int = YamuxDefaultWindowSize): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer = Yamux.new(conn, windowSize)
 
   assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
