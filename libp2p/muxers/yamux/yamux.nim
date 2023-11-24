@@ -22,7 +22,7 @@ logScope:
 const
   YamuxCodec* = "/yamux/1.0.0"
   YamuxVersion = 0.uint8
-  DefaultWindowSize* = 256000
+  YamuxDefaultWindowSize* = 256000
   MaxChannelCount = 200
 
 when defined(libp2p_yamux_metrics):
@@ -352,8 +352,8 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
     return
   channel.opened = true
   let delta =
-    if channel.maxRecvWindow < DefaultWindowSize: 0'u32
-    else: channel.maxRecvWindow.uint32 - DefaultWindowSize
+    if channel.maxRecvWindow < YamuxDefaultWindowSize: 0'u32
+    else: channel.maxRecvWindow.uint32 - YamuxDefaultWindowSize
   await channel.conn.write(YamuxHeader.windowUpdate(
     channel.id,
     delta,
@@ -386,8 +386,8 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool, recvWindow: int): YamuxChan
   result = YamuxChannel(
     id: id,
     maxRecvWindow: recvWindow,
-    recvWindow: if recvWindow > DefaultWindowSize: recvWindow else: DefaultWindowSize,
-    sendWindow: DefaultWindowSize,
+    recvWindow: if recvWindow > YamuxDefaultWindowSize: recvWindow else: YamuxDefaultWindowSize,
+    sendWindow: YamuxDefaultWindowSize,
     isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),
@@ -530,7 +530,7 @@ method newStream*(
 
 proc new*(T: type[Yamux], conn: Connection,
           maxChannCount: int = MaxChannelCount,
-          windowSize: int = DefaultWindowSize): T =
+          windowSize: int = YamuxDefaultWindowSize): T =
   T(
     connection: conn,
     currentId: if conn.dir == Out: 1 else: 2,

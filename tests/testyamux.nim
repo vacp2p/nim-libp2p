@@ -22,7 +22,7 @@ suite "Yamux":
   teardown:
     checkTrackers()
 
-  template mSetup(ws: int = DefaultWindowSize) {.inject.} =
+  template mSetup(ws: int = YamuxDefaultWindowSize) {.inject.} =
     #TODO in a template to avoid threadvar
     let
       (conna {.inject.}, connb {.inject.}) = bridgedConnections()
