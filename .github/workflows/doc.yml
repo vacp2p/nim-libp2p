@@ -19,13 +19,13 @@ jobs:
 
       - uses: jiro4989/setup-nim-action@v1
         with:
-          nim-version: 'stable'
+          nim-version: '1.6.x'
 
       - name: Generate doc
         run: |
           nim --version
           nimble --version
-          nimble install_pinned -y
+          nimble install_pinned
           # nim doc can "fail", but the doc is still generated
           nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 

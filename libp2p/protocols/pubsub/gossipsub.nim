@@ -79,7 +79,6 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       disconnectBadPeers: false,
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
-      iwantTimeout: 3 * GossipSubHeartbeatInterval,
       overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
       disconnectPeerAboveRateLimit: false
     )
@@ -319,7 +318,7 @@ proc validateAndRelay(g: GossipSub,
     of ValidationResult.Reject:
       debug "Dropping message after validation, reason: reject",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg)
+      await g.punishInvalidMessage(peer, msg)
       return
     of ValidationResult.Ignore:
       debug "Dropping message after validation, reason: ignore",
@@ -461,9 +460,6 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
-    g.outstandingIWANTs.withValue(msgId, iwantRequest):
-      if iwantRequest.peer.peerId == peer.peerId:
-        g.outstandingIWANTs.del(msgId)
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -496,14 +492,14 @@ method rpcHandler*(g: GossipSub,
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg)
+      await g.punishInvalidMessage(peer, msg)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
-      g.punishInvalidMessage(peer, msg)
+      await g.punishInvalidMessage(peer, msg)
       continue
 
     # g.anonymize needs no evaluation when receiving messages

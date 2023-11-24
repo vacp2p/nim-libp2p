@@ -25,7 +25,7 @@ import
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
-  connmanager, upgrademngrs/muxedupgrade,
+  connmanager, upgrademngrs/muxedupgrade, observedaddrmanager,
   nameresolving/nameresolver,
   errors, utility
 
@@ -59,6 +59,7 @@ type
     circuitRelay: Relay
     rdv: RendezVous
     services: seq[Service]
+    observedAddrManager: ObservedAddrManager
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -201,6 +202,10 @@ proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
   b.services = services
   b
 
+proc withObservedAddrManager*(b: SwitchBuilder, observedAddrManager: ObservedAddrManager): SwitchBuilder =
+  b.observedAddrManager = observedAddrManager
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [LPError], public.} =
 
@@ -223,8 +228,13 @@ proc build*(b: SwitchBuilder): Switch
       protoVersion = b.protoVersion,
       agentVersion = b.agentVersion)
 
+  let identify =
+    if b.observedAddrManager != nil:
+      Identify.new(peerInfo, b.sendSignedPeerRecord, b.observedAddrManager)
+    else:
+      Identify.new(peerInfo, b.sendSignedPeerRecord)
+
   let
-    identify = Identify.new(peerInfo, b.sendSignedPeerRecord)
     connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms)
