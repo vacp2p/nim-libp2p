@@ -96,7 +96,8 @@ suite "Dcutr":
                              addrs: seq[MultiAddress],
                              forceDial = false,
                              reuseConnection = true,
-                             upgradeDir = Direction.Out): Future[void] {.async.} =
+                             upgradeDir = Direction.Out,
+                             transport = Direction.Out): Future[void] {.async.} =
        await sleepAsync(100.millis)
 
      let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectTimeoutProc)
@@ -115,7 +116,8 @@ suite "Dcutr":
                           addrs: seq[MultiAddress],
                           forceDial = false,
                           reuseConnection = true,
-                          upgradeDir = Direction.Out): Future[void] {.async.} =
+                          upgradeDir = Direction.Out,
+                          transport = Direction.Out): Future[void] {.async.} =
       raise newException(CatchableError, "error")
 
     let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectErrorProc)
@@ -163,7 +165,8 @@ suite "Dcutr":
                      addrs: seq[MultiAddress],
                      forceDial = false,
                      reuseConnection = true,
-                     upgradeDir = Direction.Out): Future[void] {.async.} =
+                     upgradeDir = Direction.Out,
+                     transport = Direction.Out): Future[void] {.async.} =
         await sleepAsync(100.millis)
 
     await ductrServerTest(connectProc)
@@ -175,7 +178,8 @@ suite "Dcutr":
                      addrs: seq[MultiAddress],
                      forceDial = false,
                      reuseConnection = true,
-                     upgradeDir = Direction.Out): Future[void] {.async.} =
+                     upgradeDir = Direction.Out,
+                     transport = Direction.Out): Future[void] {.async.} =
         raise newException(CatchableError, "error")
 
     await ductrServerTest(connectProc)

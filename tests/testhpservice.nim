@@ -210,7 +210,8 @@ suite "Hole Punching":
                     addrs: seq[MultiAddress],
                     forceDial = false,
                     reuseConnection = true,
-                    upgradeDir = Direction.Out): Future[void] {.async.} =
+                    upgradeDir = Direction.Out,
+                    transport = Direction.Out): Future[void] {.async.} =
       self.connectStub = nil # this stub should be called only once
       raise newException(CatchableError, "error")
 
