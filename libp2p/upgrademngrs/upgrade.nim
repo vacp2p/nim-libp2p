@@ -63,4 +63,4 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
-  return await secureProtocol[0].secure(conn, conn.dir == Out, peerId)
+  return await secureProtocol[0].secure(conn, peerId)
