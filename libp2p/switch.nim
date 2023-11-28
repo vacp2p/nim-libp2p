@@ -141,11 +141,10 @@ method connect*(
   addrs: seq[MultiAddress],
   forceDial = false,
   reuseConnection = true,
-  upgradeDir = Direction.Out,
-  transportDir = Direction.Out): Future[void] {.public.} =
+  dir = Direction.Out): Future[void] {.public.} =
   ## Connects to a peer without opening a stream to it
 
-  s.dialer.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir, transportDir)
+  s.dialer.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
 method connect*(
   s: Switch,

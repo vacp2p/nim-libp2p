@@ -24,8 +24,7 @@ type
                            addrs: seq[MultiAddress],
                            forceDial = false,
                            reuseConnection = true,
-                           upgradeDir = Direction.Out,
-                           transport = Direction.Out): Future[void]  {.gcsafe, async.}
+                           dir = Direction.Out): Future[void]  {.gcsafe, async.}
 
 method connect*(
  self: SwitchStub,
@@ -33,12 +32,11 @@ method connect*(
  addrs: seq[MultiAddress],
  forceDial = false,
  reuseConnection = true,
- upgradeDir = Direction.Out,
- transport = Direction.Out) {.async.} =
+ dir = Direction.Out) {.async.} =
   if (self.connectStub != nil):
-    await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, upgradeDir, transport)
+    await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, dir)
   else:
-    await self.switch.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir, transport)
+    await self.switch.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
 proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil): T =
   return SwitchStub(
