@@ -83,13 +83,12 @@ proc dial*(
 method upgrade*(
   self: Transport,
   conn: Connection,
-  direction: Direction,
   peerId: Opt[PeerId]): Future[Muxer] {.base, gcsafe.} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
 
-  self.upgrader.upgrade(conn, direction, peerId)
+  self.upgrader.upgrade(conn, peerId)
 
 method handles*(
   self: Transport,

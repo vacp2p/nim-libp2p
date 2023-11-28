@@ -81,7 +81,7 @@ proc dialAndUpgrade(
           #   dialed.dir = Direction.In
           if dialed.dir != dir:
             dialed.dir = dir
-          await transport.upgrade(dialed, dialed.dir, peerId)
+          await transport.upgrade(dialed, peerId)
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
