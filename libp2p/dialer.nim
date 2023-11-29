@@ -76,9 +76,8 @@ proc dialAndUpgrade(
       let mux =
         try:
           # This is for the very specific case of a simultaneous dial during DCUtR. In this case, both sides will have
-          # an outbound dir at the transport level. Therefore we update the peer acting as the client to have an inbound dir.
-          # if transportDir == Direction.In and dialed.dir == Direction.Out and upgradeDir == Direction.In:
-          #   dialed.dir = Direction.In
+          # an Outbound direction at the transport level. Therefore we update the DCUtR initiator transport direction to Inbound.
+          # The if below is more general and might handle other use cases in the future.
           if dialed.dir != dir:
             dialed.dir = dir
           await transport.upgrade(dialed, peerId)
