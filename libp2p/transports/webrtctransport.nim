@@ -258,9 +258,10 @@ method upgrade*(
   assert noiseHandler.len > 0
 
   let xx = "libp2p-webrtc-noise:".toBytes()
-  let localCert = MultiHash.digest("sha2-256", webRtcConn.connection.conn.conn.localCert).get().data.buffer
+  let localCert = MultiHash.digest("sha2-256", webRtcConn.connection.conn.conn.localCertificate()).get().data.buffer
   let remoteCert = MultiHash.digest("sha2-256", webRtcConn.connection.conn.conn.remoteCertificate()).get().data.buffer
   ((Noise)noiseHandler[0]).commonPrologue = xx & remoteCert & localCert
+  echo "=> ", ((Noise)noiseHandler[0]).commonPrologue
 
   let
     stream = await webRtcConn.getStream(Out) #TODO add channelId: 0
