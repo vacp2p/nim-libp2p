@@ -40,20 +40,18 @@ type
 method upgrade*(
   self: Upgrade,
   conn: Connection,
-  direction: Direction,
   peerId: Opt[PeerId]): Future[Muxer] {.base.} =
   doAssert(false, "Not implemented!")
 
 proc secure*(
   self: Upgrade,
   conn: Connection,
-  direction: Direction,
   peerId: Opt[PeerId]): Future[Connection] {.async, gcsafe.} =
   if self.secureManagers.len <= 0:
     raise newException(UpgradeFailedError, "No secure managers registered!")
 
   let codec =
-    if direction == Out: await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
+    if conn.dir == Out: await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
     else: await MultistreamSelect.handle(conn, self.secureManagers.mapIt(it.codec))
   if codec.len == 0:
     raise newException(UpgradeFailedError, "Unable to negotiate a secure channel!")
@@ -65,4 +63,4 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
-  return await secureProtocol[0].secure(conn, direction == Out, peerId)
+  return await secureProtocol[0].secure(conn, peerId)

@@ -135,10 +135,9 @@ method init*(s: Secure) =
 
 method secure*(s: Secure,
                conn: Connection,
-               initiator: bool,
                peerId: Opt[PeerId]):
                Future[Connection] {.base.} =
-  s.handleConn(conn, initiator, peerId)
+  s.handleConn(conn, conn.dir == Direction.Out, peerId)
 
 method readOnce*(s: SecureConn,
                  pbytes: pointer,
