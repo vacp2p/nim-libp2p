@@ -10,7 +10,7 @@
 set -e
 
 CACHE_DIR="$1" # optional parameter pointing to a CI cache dir.
-LIBP2P_COMMIT="v0.2.1" # tags work too, only used in nim-libp2p CI for now
+LIBP2P_COMMIT="v0.4.0" # tags work too, only used in nim-libp2p CI for now
 [[ -n "$2" ]] && LIBP2P_COMMIT="$2" # allow overriding it on the command line
 SUBREPO_DIR="vendor/go/src/github.com/libp2p/go-libp2p-daemon"
 if [[ ! -e "$SUBREPO_DIR" ]]; then

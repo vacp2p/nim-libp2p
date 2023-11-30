@@ -71,7 +71,7 @@ jobs:
 
       - name: Install p2pd
         run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+          V=1 bash scripts/build_p2pd.sh p2pdCache
 
       - name: Restore deps from cache
         id: deps-cache
