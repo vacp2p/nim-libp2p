@@ -7,6 +7,8 @@ COPY nim-libp2p/.pinned nim-libp2p/libp2p.nimble nim-libp2p/
 
 RUN cd nim-libp2p && nimble install_pinned && nimble install redis -y
 
+COPY ./ nim-libp2p/
+
 RUN --mount=type=cache,target=/root/.cache/nim \
     cd nim-libp2p && nim c --nimcache:root/.cache/nim -d:chronicles_log_level=DEBUG -d:chronicles_default_output_device=stderr --threads:off -d:release -o:hole-punching-tests tests/hole-punching-interop/hole_punching.nim
 
