@@ -1,17 +1,16 @@
 import std/[os, options, strformat]
 import redis
 import chronos, metrics, chronicles
-import libp2p/[builders,
+import ../../libp2p/[builders,
                   switch,
                   observedaddrmanager,
                   services/hpservice,
                   services/autorelayservice,
                   protocols/connectivity/autonat/client as aclient,
                   protocols/connectivity/relay/relay,
-                  protocols/connectivity/autonat/service]
-import libp2p/protocols/connectivity/relay/client as rclient
-import tests/stubs/autonatclientstub
-import libp2p/protocols/ping
+                  protocols/connectivity/autonat/service,
+                  protocols/ping]
+import ../stubs/autonatclientstub
 
 proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   let rng = newRng()
