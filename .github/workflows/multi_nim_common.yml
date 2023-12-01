@@ -18,8 +18,6 @@ jobs:
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
-  matrix-prep:
-
   build:
     needs: delete-cache
     timeout-minutes: 120
