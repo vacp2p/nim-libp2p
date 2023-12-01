@@ -743,6 +743,8 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
       if i > 0: opt.add ","
       opt.add $address
     args.add(opt)
+  args.add("-noise=true")
+  args.add("-quic=false")
   args.add("-listen=" & $api.address)
 
   # We are trying to get absolute daemon path.
