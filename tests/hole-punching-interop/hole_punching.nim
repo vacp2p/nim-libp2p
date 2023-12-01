@@ -1,12 +1,13 @@
 import std/[os, options, strformat]
 import redis
-import chronos, metrics, chronicles
+import chronos, chronicles
 import ../../libp2p/[builders,
                   switch,
                   observedaddrmanager,
                   services/hpservice,
                   services/autorelayservice,
                   protocols/connectivity/autonat/client as aclient,
+                  protocols/connectivity/relay/client as rclient,
                   protocols/connectivity/relay/relay,
                   protocols/connectivity/autonat/service,
                   protocols/ping]
@@ -106,7 +107,7 @@ proc main() {.async.} =
       await allFuturesThrowing(channel.close(), conn.close(), switch.stop(), auxSwitch.stop())
       echo &"""{{"rtt_to_holepunched_peer_millis":{delay.millis}}}"""
       quit(0)
-  except Exception as e:
+  except CatchableError as e:
     error "Unexpected error", msg = e.msg
 
 discard waitFor(main().withTimeout(4.minutes))
