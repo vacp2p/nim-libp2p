@@ -3,7 +3,7 @@ FROM nimlang/nim:1.6.14 as builder
 
 WORKDIR /workspace
 
-COPY nim-libp2p/.pinned nim-libp2p/libp2p.nimble nim-libp2p/
+COPY ./.pinned ./libp2p.nimble nim-libp2p/
 
 RUN cd nim-libp2p && nimble install_pinned && nimble install redis -y
 
