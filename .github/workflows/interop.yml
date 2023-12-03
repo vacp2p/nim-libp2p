@@ -65,4 +65,4 @@ jobs:
         uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
         with:
           test-filter: rust-libp2p-head
-          extra-versions: ${{ github.workspace }}/tests/hole-punching-tests/version.json
+          extra-versions: ${{ github.workspace }}/tests/hole-punching-interop/version.json
