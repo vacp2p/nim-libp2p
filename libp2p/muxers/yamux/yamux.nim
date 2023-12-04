@@ -59,7 +59,7 @@ type
     streamId: uint32
     length: uint32
 
-proc readHeader(conn: LPStream): Future[YamuxHeader] {.async, gcsafe.} =
+proc readHeader(conn: LPStream): Future[YamuxHeader] {.async.} =
   var buffer: array[12, byte]
   await conn.readExactly(addr buffer[0], 12)
 
@@ -183,7 +183,7 @@ proc remoteClosed(channel: YamuxChannel) {.async.} =
     channel.closedRemotely.complete()
     await channel.actuallyClose()
 
-method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
+method closeImpl*(channel: YamuxChannel) {.async.} =
   if not channel.closedLocally:
     channel.closedLocally = true
 
@@ -346,7 +346,7 @@ method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
     libp2p_yamux_recv_queue.observe(channel.sendQueueBytes().int64)
   asyncSpawn channel.trySend()
 
-proc open*(channel: YamuxChannel) {.async, gcsafe.} =
+proc open*(channel: YamuxChannel) {.async.} =
   if channel.opened:
     trace "Try to open channel twice"
     return
@@ -429,7 +429,7 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async.} =
     trace "Exception in yamux stream handler", msg = exc.msg
     await channel.reset()
 
-method handle*(m: Yamux) {.async, gcsafe.} =
+method handle*(m: Yamux) {.async.} =
   trace "Starting yamux handler", pid=m.connection.peerId
   try:
     while not m.connection.atEof:
@@ -511,7 +511,7 @@ method getStreams*(m: Yamux): seq[Connection] =
 method newStream*(
   m: Yamux,
   name: string = "",
-  lazy: bool = false): Future[Connection] {.async, gcsafe.} =
+  lazy: bool = false): Future[Connection] {.async.} =
 
   if m.channels.len > m.maxChannCount - 1:
     raise newException(TooManyChannels, "max allowed channel count exceeded")

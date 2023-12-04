@@ -65,7 +65,7 @@ suite "Hole Punching":
 
     let publicPeerSwitch = createSwitch(RelayClient.new())
 
-    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
         return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
     publicPeerSwitch.peerInfo.addressMappers.add(addressMapper)
     await publicPeerSwitch.peerInfo.update()

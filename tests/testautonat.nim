@@ -39,7 +39,7 @@ proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
 
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
-  autonatProtocol.handler = proc (conn: Connection, proto: string) {.async, gcsafe.} =
+  autonatProtocol.handler = proc (conn: Connection, proto: string) {.async.} =
     discard await conn.readLp(1024)
     await conn.writeLp(AutonatDialResponse(
       status: DialError,

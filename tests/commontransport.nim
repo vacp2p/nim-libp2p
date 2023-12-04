@@ -30,7 +30,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
 
       let transport2 = transpProvider()
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         if conn.observedAddr.isSome():
           check transport1.handles(conn.observedAddr.get())
@@ -58,7 +58,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         await conn.write("Hello!")
         await conn.close()
@@ -85,7 +85,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         var msg = newSeq[byte](6)
         await conn.readExactly(addr msg[0], 6)
@@ -147,7 +147,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(addrs)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         while true:
           let conn = await transport1.accept()
           await conn.write(newSeq[byte](0))
@@ -214,7 +214,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         await conn.close()
 

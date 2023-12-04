@@ -24,7 +24,7 @@ import utils
 
 import ../helpers
 
-proc noop(data: seq[byte]) {.async, gcsafe.} = discard
+proc noop(data: seq[byte]) {.async.} = discard
 
 const MsgIdSuccess = "msg id gen success"
 
@@ -730,10 +730,10 @@ suite "GossipSub internal":
 
     var receivedMessages = new(HashSet[seq[byte]])
 
-    proc handlerA(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handlerA(topic: string, data: seq[byte]) {.async.} =
       receivedMessages[].incl(data)
 
-    proc handlerB(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
       discard
 
     nodes[0].subscribe("foobar", handlerA)

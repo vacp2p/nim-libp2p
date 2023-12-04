@@ -162,7 +162,7 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
 proc addressMapper(
   self: AutonatService,
   peerStore: PeerStore,
-  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
 
   if self.networkReachability != NetworkReachability.Reachable:
     return listenAddrs
@@ -179,7 +179,7 @@ proc addressMapper(
   return addrs
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
-  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
     return await addressMapper(self, switch.peerStore, listenAddrs)
 
   info "Setting up AutonatService"

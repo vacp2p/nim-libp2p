@@ -128,7 +128,7 @@ proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
           await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
           dialed.add(node.peerInfo.peerId)
 
-proc waitSub*(sender, receiver: auto; key: string) {.async, gcsafe.} =
+proc waitSub*(sender, receiver: auto; key: string) {.async.} =
   if sender == receiver:
     return
   let timeout = Moment.now() + 5.seconds
@@ -148,7 +148,7 @@ proc waitSub*(sender, receiver: auto; key: string) {.async, gcsafe.} =
     await sleepAsync(5.milliseconds)
     doAssert Moment.now() < timeout, "waitSub timeout!"
 
-proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async, gcsafe.} =
+proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
   let timeout = Moment.now() + 5.seconds
   while true:
     var

@@ -21,14 +21,14 @@ const
   RelayV2HopCodec* = "/libp2p/circuit/relay/0.2.0/hop"
   RelayV2StopCodec* = "/libp2p/circuit/relay/0.2.0/stop"
 
-proc sendStatus*(conn: Connection, code: StatusV1) {.async, gcsafe.} =
+proc sendStatus*(conn: Connection, code: StatusV1) {.async.} =
   trace "send relay/v1 status", status = $code & "(" & $ord(code) & ")"
   let
     msg = RelayMessage(msgType: Opt.some(RelayType.Status), status: Opt.some(code))
     pb = encode(msg)
   await conn.writeLp(pb.buffer)
 
-proc sendHopStatus*(conn: Connection, code: StatusV2) {.async, gcsafe.} =
+proc sendHopStatus*(conn: Connection, code: StatusV2) {.async.} =
   trace "send hop relay/v2 status", status = $code & "(" & $ord(code) & ")"
   let
     msg = HopMessage(msgType: HopMessageType.Status, status: Opt.some(code))

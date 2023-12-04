@@ -25,7 +25,7 @@ type TestProto = ref object of LPProtocol
 
 proc new(T: typedesc[TestProto]): T =
   # every incoming connections will in be handled in this closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     # Read up to 1024 bytes from this connection, and transform them into
     # a string
     echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
@@ -44,7 +44,7 @@ proc hello(p: TestProto, conn: Connection) {.async.} =
 ## Again, pretty straight-forward, we just send a message on the connection.
 ##
 ## We can now create our main procedure:
-proc main() {.async, gcsafe.} =
+proc main() {.async.} =
   let
     rng = newRng()
     testProto = TestProto.new()

@@ -82,7 +82,7 @@ proc handlesStart(address: MultiAddress): bool {.gcsafe.} =
   return TcpOnion3.match(address)
 
 proc connectToTorServer(
-    transportAddress: TransportAddress): Future[StreamTransport] {.async, gcsafe.} =
+    transportAddress: TransportAddress): Future[StreamTransport] {.async.} =
   let transp = await connect(transportAddress)
   try:
     discard await transp.write(@[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte])
@@ -99,7 +99,7 @@ proc connectToTorServer(
     await transp.closeWait()
     raise err
 
-proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
+proc readServerReply(transp: StreamTransport) {.async.} =
   ## The specification for this code is defined on
   ## [link text](https://www.rfc-editor.org/rfc/rfc1928#section-5)
   ## and [link text](https://www.rfc-editor.org/rfc/rfc1928#section-6).
@@ -121,7 +121,7 @@ proc readServerReply(transp: StreamTransport) {.async, gcsafe.} =
   let atyp = firstFourOctets[3]
   case atyp:
     of Socks5AddressType.IPv4.byte:
-      discard await transp.read(ipV4NumOctets + portNumOctets) 
+      discard await transp.read(ipV4NumOctets + portNumOctets)
     of Socks5AddressType.FQDN.byte:
       let fqdnNumOctets = await transp.read(1)
       discard await transp.read(int(uint8.fromBytes(fqdnNumOctets)) + portNumOctets)
@@ -166,7 +166,7 @@ proc parseDnsTcp(address: MultiAddress):
   (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
 proc dialPeer(
-    transp: StreamTransport, address: MultiAddress) {.async, gcsafe.} =
+    transp: StreamTransport, address: MultiAddress) {.async.} =
   let (atyp, dstAddr, dstPort) =
     if Onion3.match(address):
       parseOnion3(address)
@@ -190,7 +190,7 @@ method dial*(
   self: TorTransport,
   hostname: string,
   address: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async.} =
   ## dial a peer
   ##
   if not handlesDial(address):
@@ -229,14 +229,14 @@ method start*(
   else:
     raise newException(TransportStartError, "Tor Transport couldn't start, no supported addr was provided.")
 
-method accept*(self: TorTransport): Future[Connection] {.async, gcsafe.} =
+method accept*(self: TorTransport): Future[Connection] {.async.} =
   ## accept a new Tor connection
   ##
   let conn = await self.tcpTransport.accept()
   conn.observedAddr = Opt.none(MultiAddress)
   return conn
 
-method stop*(self: TorTransport) {.async, gcsafe.} =
+method stop*(self: TorTransport) {.async.} =
   ## stop the transport
   ##
   await procCall Transport(self).stop() # call base

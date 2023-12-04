@@ -246,7 +246,7 @@ proc readLine*(s: LPStream,
       if len(result) == lim:
         break
 
-proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe, public.} =
+proc readVarint*(conn: LPStream): Future[uint64] {.async, public.} =
   var
     buffer: array[10, byte]
 
@@ -264,7 +264,7 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, gcsafe, public.} =
   if true: # can't end with a raise apparently
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
-proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, gcsafe, public.} =
+proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, public.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await s.readVarint()

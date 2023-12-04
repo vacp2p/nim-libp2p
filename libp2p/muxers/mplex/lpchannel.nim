@@ -73,7 +73,7 @@ func shortLog*(s: LPChannel): auto =
 
 chronicles.formatIt(LPChannel): shortLog(it)
 
-proc open*(s: LPChannel) {.async, gcsafe.} =
+proc open*(s: LPChannel) {.async.} =
   trace "Opening channel", s, conn = s.conn
   if s.conn.isClosed:
     return
@@ -95,7 +95,7 @@ proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
   if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
-proc reset*(s: LPChannel) {.async, gcsafe.} =
+proc reset*(s: LPChannel) {.async.} =
   if s.isClosed:
     trace "Already closed", s
     return
@@ -123,7 +123,7 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
   trace "Channel reset", s
 
-method close*(s: LPChannel) {.async, gcsafe.} =
+method close*(s: LPChannel) {.async.} =
   ## Close channel for writing - a message will be sent to the other peer
   ## informing them that the channel is closed and that we're waiting for
   ## their acknowledgement.

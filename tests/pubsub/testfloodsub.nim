@@ -26,7 +26,7 @@ import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 
 import ../helpers
 
-proc waitSub(sender, receiver: auto; key: string) {.async, gcsafe.} =
+proc waitSub(sender, receiver: auto; key: string) {.async.} =
   # turn things deterministic
   # this is for testing purposes only
   var ceil = 15
@@ -43,7 +43,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub basic publish/subscribe A -> B":
     var completionFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       completionFut.complete(true)
 
@@ -81,7 +81,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub basic publish/subscribe B -> A":
     var completionFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       completionFut.complete(true)
 
@@ -113,7 +113,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub validation should succeed":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete(true)
 
@@ -151,7 +151,7 @@ suite "FloodSub":
     await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub validation should fail":
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check false # if we get here, it should fail
 
     let
@@ -186,7 +186,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub validation one fails and one succeeds":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foo"
       handlerFut.complete(true)
 
@@ -235,7 +235,7 @@ suite "FloodSub":
           counter = new int
         futs[i] = (
           fut,
-          (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
+          (proc(topic: string, data: seq[byte]) {.async.} =
             check topic == "foobar"
             inc counter[]
             if counter[] == runs - 1:
@@ -283,7 +283,7 @@ suite "FloodSub":
           counter = new int
         futs[i] = (
           fut,
-          (proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
+          (proc(topic: string, data: seq[byte]) {.async.} =
             check topic == "foobar"
             inc counter[]
             if counter[] == runs - 1:
@@ -333,7 +333,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check data.len < 50
       inc(messageReceived)
 
@@ -375,7 +375,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub message size validation 2":
     var messageReceived = 0
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       inc(messageReceived)
 
     let

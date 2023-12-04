@@ -131,7 +131,7 @@ proc handle*(
   protos: seq[string],
   matchers = newSeq[Matcher](),
   active: bool = false,
-  ): Future[string] {.async, gcsafe.} =
+  ): Future[string] {.async.} =
   trace "Starting multistream negotiation", conn, handshaked = active
   var handshaked = active
   while not conn.atEof:
@@ -172,10 +172,9 @@ proc handle*(
       trace "no handlers", conn, protocol = ms
       await conn.writeLp(Na)
 
-proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async, gcsafe.} =
+proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async.} =
   trace "Starting multistream handler", conn, handshaked = active
   var
-    handshaked = active
     protos: seq[string]
     matchers: seq[Matcher]
   for h in m.handlers:

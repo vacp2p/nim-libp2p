@@ -37,7 +37,7 @@ proc isRunning*(self: AutoRelayService): bool =
 
 proc addressMapper(
   self: AutoRelayService,
-  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
   return concat(toSeq(self.relayAddresses.values))
 
 proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, switch: Switch) {.async.} =
@@ -58,8 +58,8 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, switch: Switch) 
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
-method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsafe.} =
-  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.gcsafe, async.} =
+method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
+  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
     return await addressMapper(self, listenAddrs)
 
   let hasBeenSetUp = await procCall Service(self).setup(switch)
@@ -83,7 +83,7 @@ proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
   self.backingOff.keepItIf(it != pid)
   self.peerAvailable.fire()
 
-proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
+proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
   while true:
     # Remove relayPeers that failed
     let peers = toSeq(self.relayPeers.keys())
@@ -116,14 +116,14 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
       await self.peerAvailable.wait()
       await sleepAsync(200.millis)
 
-method run*(self: AutoRelayService, switch: Switch) {.async, gcsafe.} =
+method run*(self: AutoRelayService, switch: Switch) {.async.} =
   if self.running:
     trace "Autorelay is already running"
     return
   self.running = true
   self.runner = self.innerRun(switch)
 
-method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async, gcsafe.} =
+method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     self.running = false

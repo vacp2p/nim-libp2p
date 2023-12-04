@@ -20,7 +20,7 @@ proc writeLp(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.
   buf.finish()
   result = s.write(buf.buffer)
 
-proc readLp(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
+proc readLp(s: StreamTransport): Future[seq[byte]] {.async.} =
   ## read length prefixed msg
   var
     size: uint

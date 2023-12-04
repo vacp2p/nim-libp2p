@@ -234,7 +234,7 @@ template sendMetrics(msg: RPCMsg): untyped =
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.raises: [], async.} =
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   if msg.len <= 0:

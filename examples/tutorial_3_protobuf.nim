@@ -108,7 +108,7 @@ type
 
 proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
   var res: MetricProto
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     let
       metrics = await res.metricGetter()
       asProtobuf = metrics.encode()
@@ -126,7 +126,7 @@ proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
   return MetricList.decode(protobuf).tryGet()
 
 ## We can now create our main procedure:
-proc main() {.async, gcsafe.} =
+proc main() {.async.} =
   let rng = newRng()
   proc randomMetricGenerator: Future[MetricList] {.async.} =
     let metricCount = rng[].generate(uint32) mod 16
