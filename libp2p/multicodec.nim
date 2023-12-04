@@ -177,8 +177,9 @@ const MultiCodecList = [
   ("skein1024-1008", 0xB3DE), ("skein1024-1016", 0xB3DF),
   ("skein1024-1024", 0xB3E0),
   # poseidon2
-  ("poseidon2-alt_bn_128-sponge-r2", 0xCD10),  # bn128 rate 2 sponge
-  ("poseidon2-alt_bn_128-mekle-2kb", 0xCD11),  # bn128 2kb compress & merkleize
+  ("poseidon2-alt_bn_128-sponge-r2", 0xCD10),       # bn128 rate 2 sponge
+  ("poseidon2-alt_bn_128-mekle-2kb", 0xCD11),       # bn128 2kb compress & merkleize
+  ("poseidon2-alt_bn_128-keyed-compress", 0xCD12),  # bn128 keyed compress
   # multiaddrs
   ("ip4", 0x04),
   ("ip6", 0x29),
@@ -240,6 +241,8 @@ const MultiCodecList = [
   ("codex-manifest", 0xCD01),
   ("codex-block", 0xCD02),
   ("codex-root", 0xCD03),
+  ("codex-slot-root", 0xCD04),
+  ("codex-proving-root", 0xCD05),
 ]
 
 type
