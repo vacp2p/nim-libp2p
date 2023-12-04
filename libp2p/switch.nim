@@ -141,10 +141,10 @@ method connect*(
   addrs: seq[MultiAddress],
   forceDial = false,
   reuseConnection = true,
-  upgradeDir = Direction.Out): Future[void] {.public.} =
+  dir = Direction.Out): Future[void] {.public.} =
   ## Connects to a peer without opening a stream to it
 
-  s.dialer.connect(peerId, addrs, forceDial, reuseConnection, upgradeDir)
+  s.dialer.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
 method connect*(
   s: Switch,
@@ -213,7 +213,7 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   s.peerInfo.protocols.add(proto.codec)
 
 proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
-  let muxed = await trans.upgrade(conn, Direction.In, Opt.none(PeerId))
+  let muxed = await trans.upgrade(conn, Opt.none(PeerId))
   switch.connManager.storeMuxer(muxed)
   await switch.peerStore.identify(muxed)
   trace "Connection upgrade succeeded"

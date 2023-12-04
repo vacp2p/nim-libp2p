@@ -193,6 +193,7 @@ const MultiCodecList = [
   ("https", 0x01BB),
   ("tls", 0x01C0),
   ("quic", 0x01CC),
+  ("quic-v1", 0x01CD),
   ("ws", 0x01DD),
   ("wss", 0x01DE),
   ("p2p-websocket-star", 0x01DF), # not in multicodec list
