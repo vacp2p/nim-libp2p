@@ -283,10 +283,8 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">secure
-      <li><a class="reference" href="#secure.e%2CSecure%2CConnection%2Cbool%2COpt%5BPeerId%5D"
-    title="secure(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    Connection]">secure(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    Connection]</a></li>
+      <li><a class="reference" href="#secure.e%2CSecure%2CConnection%2COpt%5BPeerId%5D"
+    title="secure(s: Secure; conn: Connection; peerId: Opt[PeerId]): Future[Connection]">secure(s: Secure; conn: Connection; peerId: Opt[PeerId]): Future[Connection]</a></li>
 
   </ul>
 
@@ -498,14 +496,14 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/no-gcsafe/libp2p/protocols/secure/secure.nim#L146"
+href="https://github.com/status-im/nim-libp2p/tree/no-gcsafe/libp2p/protocols/secure/secure.nim#L145"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/secure/secure.nim#L146" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/secure/secure.nim#L145" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="secure.e,Secure,Connection,bool,Opt[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#secure.e%2CSecure%2CConnection%2Cbool%2COpt%5BPeerId%5D"><span class="Identifier">secure</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="secure.html#Secure"><span class="Identifier">Secure</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">initiator</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
+<div id="secure.e,Secure,Connection,Opt[PeerId]" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#secure.e%2CSecure%2CConnection%2COpt%5BPeerId%5D"><span class="Identifier">secure</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="secure.html#Secure"><span class="Identifier">Secure</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
     <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -549,7 +547,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-04 17:05:27 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-04 18:08:27 UTC</small>
       </div>
     </div>
   </div>
