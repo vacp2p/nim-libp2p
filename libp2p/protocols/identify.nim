@@ -78,7 +78,7 @@ chronicles.expandIt(IdentifyInfo):
   signedPeerRecord =
     # The SPR contains the same data as the identify message
     # would be cumbersome to log
-    if iinfo.signedPeerRecord.isSome(): "Some"
+    if it.signedPeerRecord.isSome(): "Some"
     else: "None"
 
 proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool): ProtoBuffer
@@ -134,7 +134,6 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
   if ? pb.getField(6, agentVersion).toOpt():
     iinfo.agentVersion = some(agentVersion)
 
-  debug "decodeMsg: decoded identify", iinfo
   Opt.some(iinfo)
 
 proc new*(
@@ -178,6 +177,7 @@ proc identify*(self: Identify,
     raise newException(IdentityInvalidMsgError, "Empty message received!")
 
   var info = decodeMsg(message).valueOr: raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  debug "identify: decoded message", conn, info
   let
     pubkey = info.pubkey.valueOr: raise newException(IdentityInvalidMsgError, "No pubkey in identify")
     peer = PeerId.init(pubkey).valueOr: raise newException(IdentityInvalidMsgError, $error)
@@ -211,6 +211,7 @@ proc init*(p: IdentifyPush) =
 
       var identInfo = decodeMsg(message).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+      debug "identify push: decoded message", conn, identInfo
 
       identInfo.pubkey.withValue(pubkey):
         let receivedPeerId = PeerId.init(pubkey).tryGet()
