@@ -13,7 +13,7 @@ type
 proc new(T: typedesc[TestProto]): T =
 
   # every incoming connections will be in handled in this closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
     await conn.writeLp("Roger p2p!")
 
@@ -40,7 +40,7 @@ proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
 ##
 # The actual application
 ##
-proc main() {.async, gcsafe.} =
+proc main() {.async.} =
   let
     rng = newRng() # Single random number source for the whole application
     # port 0 will take a random available port

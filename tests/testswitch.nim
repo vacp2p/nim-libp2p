@@ -46,7 +46,7 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
@@ -86,7 +86,7 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string with custom matcher":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
@@ -131,7 +131,7 @@ suite "Switch":
 
   asyncTest "e2e should not leak bufferstreams and connections on channel close":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
@@ -171,7 +171,7 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use connect then dial":
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
@@ -305,7 +305,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
@@ -357,7 +357,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
@@ -409,7 +409,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
@@ -460,7 +460,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
@@ -521,7 +521,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async, gcsafe.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async.} =
       kinds = kinds + {event.kind}
       case step:
       of 0:
@@ -581,7 +581,7 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async.} =
       case event.kind:
       of ConnEventKind.Connected:
         await onConnect
@@ -619,7 +619,7 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId2: PeerId, event: ConnEvent) {.async, gcsafe.} =
+    proc hook(peerId2: PeerId, event: ConnEvent) {.async.} =
       case event.kind:
       of ConnEventKind.Connected:
         if conns == 5:
@@ -662,7 +662,7 @@ suite "Switch":
     let transport = TcpTransport.new(upgrade = Upgrade())
     await transport.start(ma)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport.accept()
       await conn.closeWithEOF()
 
@@ -686,7 +686,7 @@ suite "Switch":
       switch.stop())
 
   asyncTest "e2e calling closeWithEOF on the same stream should not assert":
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       discard await conn.readLp(100)
 
     let testProto = new TestProto
@@ -832,7 +832,7 @@ suite "Switch":
 
   asyncTest "e2e peer store":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
@@ -882,7 +882,7 @@ suite "Switch":
       # this randomly locks the Windows CI job
       skip()
       return
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
@@ -1019,7 +1019,7 @@ suite "Switch":
     await srcTcpSwitch.stop()
 
   asyncTest "mount unstarted protocol":
-    proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+    proc handle(conn: Connection, proto: string) {.async.} =
       check "test123" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("test456")
       await conn.close()

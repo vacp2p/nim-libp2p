@@ -37,24 +37,24 @@ method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
   self.client.onNewConnection = proc(
     conn: Connection,
     duration: uint32 = 0,
-    data: uint64 = 0) {.async, gcsafe, raises: [].} =
+    data: uint64 = 0) {.async.} =
       await self.queue.addLast(RelayConnection.new(conn, duration, data))
       await conn.join()
   self.selfRunning = true
   await procCall Transport(self).start(ma)
   trace "Starting Relay transport"
 
-method stop*(self: RelayTransport) {.async, gcsafe.} =
+method stop*(self: RelayTransport) {.async.} =
   self.running = false
   self.selfRunning = false
   self.client.onNewConnection = nil
   while not self.queue.empty():
     await self.queue.popFirstNoWait().close()
 
-method accept*(self: RelayTransport): Future[Connection] {.async, gcsafe.} =
+method accept*(self: RelayTransport): Future[Connection] {.async.} =
   result = await self.queue.popFirst()
 
-proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async, gcsafe.} =
+proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.} =
   let
     sma = toSeq(ma.items())
     relayAddrs = sma[0..sma.len-4].mapIt(it.tryGet()).foldl(a & b)
@@ -90,7 +90,7 @@ method dial*(
   self: RelayTransport,
   hostname: string,
   ma: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async.} =
   peerId.withValue(pid):
     let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
     result = await self.dial(address)

@@ -89,7 +89,7 @@ suite "WebSocket transport":
     const correctPattern = mapAnd(TCP, mapEq("wss"))
     await transport1.start(ma)
     check correctPattern.match(transport1.addrs[0])
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       while true:
         let conn = await transport1.accept()
         if not isNil(conn):

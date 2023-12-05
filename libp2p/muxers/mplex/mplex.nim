@@ -122,7 +122,7 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
     trace "Exception in mplex stream handler", m, chann, msg = exc.msg
     await chann.reset()
 
-method handle*(m: Mplex) {.async, gcsafe.} =
+method handle*(m: Mplex) {.async.} =
   trace "Starting mplex handler", m
   try:
     while not m.connection.atEof:
@@ -211,7 +211,7 @@ proc new*(M: type Mplex,
 
 method newStream*(m: Mplex,
                   name: string = "",
-                  lazy: bool = false): Future[Connection] {.async, gcsafe.} =
+                  lazy: bool = false): Future[Connection] {.async.} =
   let channel = m.newStreamInternal(timeout = m.inChannTimeout)
 
   if not lazy:
@@ -219,7 +219,7 @@ method newStream*(m: Mplex,
 
   return Connection(channel)
 
-method close*(m: Mplex) {.async, gcsafe.} =
+method close*(m: Mplex) {.async.} =
   if m.isClosed:
     trace "Already closed", m
     return

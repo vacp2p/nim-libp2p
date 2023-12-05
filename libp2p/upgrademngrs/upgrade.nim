@@ -46,7 +46,7 @@ method upgrade*(
 proc secure*(
   self: Upgrade,
   conn: Connection,
-  peerId: Opt[PeerId]): Future[Connection] {.async, gcsafe.} =
+  peerId: Opt[PeerId]): Future[Connection] {.async.} =
   if self.secureManagers.len <= 0:
     raise newException(UpgradeFailedError, "No secure managers registered!")
 

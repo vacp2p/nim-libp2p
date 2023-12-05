@@ -32,7 +32,7 @@ proc getMuxerByCodec(self: MuxedUpgrade, muxerName: string): MuxerProvider =
 
 proc mux*(
   self: MuxedUpgrade,
-  conn: Connection): Future[Muxer] {.async, gcsafe.} =
+  conn: Connection): Future[Muxer] {.async.} =
   ## mux connection
 
   trace "Muxing connection", conn
@@ -96,8 +96,7 @@ proc new*(
     secureManagers: @secureManagers,
     ms: ms)
 
-  upgrader.streamHandler = proc(conn: Connection)
-    {.async, gcsafe, raises: [].} =
+  upgrader.streamHandler = proc(conn: Connection) {.async.} =
     trace "Starting stream handler", conn
     try:
       await upgrader.ms.handle(conn) # handle incoming connection

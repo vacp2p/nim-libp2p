@@ -53,7 +53,7 @@ proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
 ##
 ##
 ## Let's now start to create our main procedure:
-proc main() {.async, gcsafe.} =
+proc main() {.async.} =
   let
     rng = newRng()
     localAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()

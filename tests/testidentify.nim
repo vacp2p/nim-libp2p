@@ -73,7 +73,7 @@ suite "Identify":
 
     asyncTest "default agent version":
       msListen.addHandler(IdentifyCodec, identifyProto1)
-      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
         await msListen.handle(c)
 
@@ -95,7 +95,7 @@ suite "Identify":
       remotePeerInfo.agentVersion = customAgentVersion
       msListen.addHandler(IdentifyCodec, identifyProto1)
 
-      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
         await msListen.handle(c)
 
@@ -136,7 +136,7 @@ suite "Identify":
     asyncTest "can send signed peer record":
       msListen.addHandler(IdentifyCodec, identifyProto1)
       identifyProto1.sendSignedPeerRecord = true
-      proc acceptHandler(): Future[void] {.async, gcsafe.} =
+      proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
         await msListen.handle(c)
 

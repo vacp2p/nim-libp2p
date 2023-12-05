@@ -34,7 +34,7 @@ type
 
 method readOnce*(s: TestSelectStream,
                  pbytes: pointer,
-                 nbytes: int): Future[int] {.async, gcsafe.} =
+                 nbytes: int): Future[int] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -64,9 +64,9 @@ method readOnce*(s: TestSelectStream,
 
       return "\0x3na\n".len()
 
-method write*(s: TestSelectStream, msg: seq[byte]) {.async, gcsafe.} = discard
+method write*(s: TestSelectStream, msg: seq[byte]) {.async.} = discard
 
-method close(s: TestSelectStream) {.async, gcsafe.} =
+method close(s: TestSelectStream) {.async.} =
   s.isClosed = true
   s.isEof = true
 
@@ -113,11 +113,11 @@ method readOnce*(s: TestLsStream,
       copyMem(pbytes, addr buf[0], buf.len())
       return buf.len()
 
-method write*(s: TestLsStream, msg: seq[byte]) {.async, gcsafe.} =
+method write*(s: TestLsStream, msg: seq[byte]) {.async.} =
   if s.step == 4:
     await s.ls(msg)
 
-method close(s: TestLsStream) {.async, gcsafe.} =
+method close(s: TestLsStream) {.async.} =
   s.isClosed = true
   s.isEof = true
 
@@ -137,7 +137,7 @@ type
 method readOnce*(s: TestNaStream,
                  pbytes: pointer,
                  nbytes: int):
-                 Future[int] {.async, gcsafe.} =
+                 Future[int] {.async.} =
   case s.step:
     of 1:
       var buf = newSeq[byte](1)
@@ -167,11 +167,11 @@ method readOnce*(s: TestNaStream,
 
       return "\0x3na\n".len()
 
-method write*(s: TestNaStream, msg: seq[byte]) {.async, gcsafe.} =
+method write*(s: TestNaStream, msg: seq[byte]) {.async.} =
   if s.step == 4:
     await s.na(string.fromBytes(msg))
 
-method close(s: TestNaStream) {.async, gcsafe.} =
+method close(s: TestNaStream) {.async.} =
   s.isClosed = true
   s.isEof = true
 
@@ -197,7 +197,7 @@ suite "Multistream select":
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
                       proto: string):
-                      Future[void] {.async, gcsafe.} =
+                      Future[void] {.async.} =
       check proto == "/test/proto/1.0.0"
       await conn.close()
 
@@ -210,7 +210,7 @@ suite "Multistream select":
 
     var conn: Connection = nil
     let done = newFuture[void]()
-    proc testLsHandler(proto: seq[byte]) {.async, gcsafe.} =
+    proc testLsHandler(proto: seq[byte]) {.async.} =
       var strProto: string = string.fromBytes(proto)
       check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
       await conn.close()
@@ -218,7 +218,7 @@ suite "Multistream select":
     conn = Connection(newTestLsStream(testLsHandler))
 
     proc testHandler(conn: Connection, proto: string): Future[void]
-      {.async, gcsafe.} = discard
+      {.async.} = discard
     var protocol: LPProtocol = new LPProtocol
     protocol.handler = testHandler
     ms.addHandler("/test/proto1/1.0.0", protocol)
@@ -230,7 +230,7 @@ suite "Multistream select":
     let ms = MultistreamSelect.new()
 
     var conn: Connection = nil
-    proc testNaHandler(msg: string): Future[void] {.async, gcsafe.} =
+    proc testNaHandler(msg: string): Future[void] {.async.} =
       check msg == "\x03na\n"
       await conn.close()
     conn = newTestNaStream(testNaHandler)
@@ -238,7 +238,7 @@ suite "Multistream select":
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
                       proto: string):
-                      Future[void] {.async, gcsafe.} = discard
+                      Future[void] {.async.} = discard
     protocol.handler = testHandler
     ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
@@ -250,7 +250,7 @@ suite "Multistream select":
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
                       proto: string):
-                      Future[void] {.async, gcsafe.} =
+                      Future[void] {.async.} =
       check proto == "/test/proto/1.0.0"
       await conn.writeLp("Hello!")
       await conn.close()
@@ -262,7 +262,7 @@ suite "Multistream select":
     let transport1 = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(ma)
 
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+    proc acceptHandler(): Future[void] {.async.} =
       let conn = await transport1.accept()
       await msListen.handle(conn)
       await conn.close()
@@ -293,7 +293,7 @@ suite "Multistream select":
     # Unblock the 5 streams, check that we can open a new one
     proc testHandler(conn: Connection,
                       proto: string):
-                      Future[void] {.async, gcsafe.} =
+                      Future[void] {.async.} =
       await blocker
       await conn.writeLp("Hello!")
       await conn.close()
@@ -315,7 +315,7 @@ suite "Multistream select":
       await msListen.handle(c)
       await c.close()
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       while true:
         let conn = await transport1.accept()
         asyncSpawn acceptedOne(conn)
@@ -362,7 +362,7 @@ suite "Multistream select":
 
     let msListen = MultistreamSelect.new()
     var protocol: LPProtocol = new LPProtocol
-    protocol.handler = proc(conn: Connection, proto: string) {.async, gcsafe.} =
+    protocol.handler = proc(conn: Connection, proto: string) {.async.} =
       # never reached
       discard
 
@@ -379,7 +379,7 @@ suite "Multistream select":
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let listenFut = transport1.start(ma)
 
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+    proc acceptHandler(): Future[void] {.async.} =
       let conn = await transport1.accept()
       try:
         await msListen.handle(conn)
@@ -412,7 +412,7 @@ suite "Multistream select":
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
                       proto: string):
-                      Future[void] {.async, gcsafe.} =
+                      Future[void] {.async.} =
       check proto == "/test/proto/1.0.0"
       await conn.writeLp("Hello!")
       await conn.close()
@@ -424,7 +424,7 @@ suite "Multistream select":
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(ma)
 
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+    proc acceptHandler(): Future[void] {.async.} =
       let conn = await transport1.accept()
       await msListen.handle(conn)
 
@@ -450,7 +450,7 @@ suite "Multistream select":
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(conn: Connection,
                       proto: string):
-                      Future[void] {.async, gcsafe.} =
+                      Future[void] {.async.} =
       await conn.writeLp(&"Hello from {proto}!")
       await conn.close()
 
@@ -462,7 +462,7 @@ suite "Multistream select":
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(ma)
 
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+    proc acceptHandler(): Future[void] {.async.} =
       let conn = await transport1.accept()
       await msListen.handle(conn)
 
