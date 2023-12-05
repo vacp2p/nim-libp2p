@@ -54,7 +54,7 @@ jobs:
           extra-versions: ${{ github.workspace }}/test_head.json
 
   run-hole-punching-interop:
-    name: Run hole-punch interoperability tests
+    name: Run hole-punching interoperability tests
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
