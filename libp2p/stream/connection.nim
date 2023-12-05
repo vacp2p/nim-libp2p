@@ -41,7 +41,7 @@ type
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
-proc timeoutMonitor(s: Connection) {.async, gcsafe.}
+proc timeoutMonitor(s: Connection) {.async.}
 
 func shortLog*(conn: Connection): string =
   try:
@@ -110,7 +110,7 @@ proc pollActivity(s: Connection): Future[bool] {.async.} =
 
   return false
 
-proc timeoutMonitor(s: Connection) {.async, gcsafe.} =
+proc timeoutMonitor(s: Connection) {.async.} =
   ## monitor the channel for inactivity
   ##
   ## if the timeout was hit, it means that

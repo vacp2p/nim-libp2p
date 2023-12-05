@@ -33,7 +33,7 @@ proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
 const DumbCodec = "/dumb/proto/1.0.0"
 type DumbProto = ref object of LPProtocol
 proc new(T: typedesc[DumbProto], nodeNumber: int): T =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
     await conn.close()
   return T.new(codecs = @[DumbCodec], handler = handle)
@@ -49,7 +49,7 @@ proc new(T: typedesc[DumbProto], nodeNumber: int): T =
 ## (rendezvous in this case) as a bootnode. For this example, we'll
 ## create a bootnode, and then every peer will advertise itself on the
 ## bootnode, and use it to find other peers
-proc main() {.async, gcsafe.} =
+proc main() {.async.} =
   let bootNode = createSwitch()
   await bootNode.start()
 

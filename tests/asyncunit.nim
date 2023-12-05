@@ -5,21 +5,21 @@ export unittest2, chronos
 template asyncTeardown*(body: untyped): untyped =
   teardown:
     waitFor((
-      proc() {.async, gcsafe.} =
+      proc() {.async.} =
         body
     )())
 
 template asyncSetup*(body: untyped): untyped =
   setup:
     waitFor((
-      proc() {.async, gcsafe.} =
+      proc() {.async.} =
         body
     )())
 
 template asyncTest*(name: string, body: untyped): untyped =
   test name:
     waitFor((
-      proc() {.async, gcsafe.} =
+      proc() {.async.} =
         body
     )())
 
@@ -31,7 +31,7 @@ template flakyAsyncTest*(name: string, attempts: int, body: untyped): untyped =
       inc attemptNumber
       try:
         waitFor((
-          proc() {.async, gcsafe.} =
+          proc() {.async.} =
             body
         )())
       except Exception as e:

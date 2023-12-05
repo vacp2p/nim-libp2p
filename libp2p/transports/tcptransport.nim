@@ -174,7 +174,7 @@ method start*(
 
     trace "Listening on", address = ma
 
-method stop*(self: TcpTransport) {.async, gcsafe.} =
+method stop*(self: TcpTransport) {.async.} =
   ## stop the transport
   ##
   try:
@@ -210,7 +210,7 @@ method stop*(self: TcpTransport) {.async, gcsafe.} =
   except CatchableError as exc:
     trace "Error shutting down tcp transport", exc = exc.msg
 
-method accept*(self: TcpTransport): Future[Connection] {.async, gcsafe.} =
+method accept*(self: TcpTransport): Future[Connection] {.async.} =
   ## accept a new TCP connection
   ##
 
@@ -260,7 +260,7 @@ method dial*(
   self: TcpTransport,
   hostname: string,
   address: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async.} =
   ## dial a peer
   ##
 

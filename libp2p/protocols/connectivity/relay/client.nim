@@ -189,7 +189,7 @@ proc dialPeerV2*(
   conn.limitData = msgRcvFromRelay.limit.data
   return conn
 
-proc handleStopStreamV2(cl: RelayClient, conn: Connection) {.async, gcsafe.} =
+proc handleStopStreamV2(cl: RelayClient, conn: Connection) {.async.} =
   let msg = StopMessage.decode(await conn.readLp(RelayClientMsgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return
@@ -201,7 +201,7 @@ proc handleStopStreamV2(cl: RelayClient, conn: Connection) {.async, gcsafe.} =
     trace "Unexpected client / relayv2 handshake", msgType=msg.msgType
     await sendStopError(conn, MalformedMessage)
 
-proc handleStop(cl: RelayClient, conn: Connection, msg: RelayMessage) {.async, gcsafe.} =
+proc handleStop(cl: RelayClient, conn: Connection, msg: RelayMessage) {.async.} =
   let src = msg.srcPeer.valueOr:
     await sendStatus(conn, StatusV1.StopSrcMultiaddrInvalid)
     return
@@ -226,7 +226,7 @@ proc handleStop(cl: RelayClient, conn: Connection, msg: RelayMessage) {.async, g
   if cl.onNewConnection != nil: await cl.onNewConnection(conn, 0, 0)
   else: await conn.close()
 
-proc handleStreamV1(cl: RelayClient, conn: Connection) {.async, gcsafe.} =
+proc handleStreamV1(cl: RelayClient, conn: Connection) {.async.} =
   let msg = RelayMessage.decode(await conn.readLp(RelayClientMsgSize)).valueOr:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
@@ -266,7 +266,7 @@ proc new*(T: typedesc[RelayClient], canHop: bool = false,
              maxCircuitPerPeer: maxCircuitPerPeer,
              msgSize: msgSize,
              isCircuitRelayV1: circuitRelayV1)
-  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handleStream(conn: Connection, proto: string) {.async.} =
     try:
       case proto:
       of RelayV1Codec: await cl.handleStreamV1(conn)

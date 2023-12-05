@@ -71,17 +71,17 @@ type
       inUse: bool
 
 
-method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async.} =
   if self.inUse:
     warn "service setup has already been called"
     return false
   self.inUse = true
   return true
 
-method run*(self: Service, switch: Switch) {.base, async, gcsafe.} =
+method run*(self: Service, switch: Switch) {.base, async.} =
   doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async.} =
   if not self.inUse:
     warn "service is already stopped"
     return false
@@ -321,7 +321,7 @@ proc stop*(s: Switch) {.async, public.} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.async, gcsafe, public.} =
+proc start*(s: Switch) {.async, public.} =
   ## Start listening on every transport
 
   if s.started:

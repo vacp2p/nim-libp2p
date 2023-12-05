@@ -87,7 +87,7 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() >= 0.3:
         if not awaiter.finished:
           awaiter.complete()
@@ -131,7 +131,7 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
         if not awaiter.finished:
           autonatClientStub.answer = Reachable
@@ -173,7 +173,7 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
         if not awaiter.finished:
           awaiter.complete()
@@ -213,7 +213,7 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and confidence.get() >= 0.3:
         if not awaiter.finished:
           autonatClientStub.answer = Unknown
@@ -267,7 +267,7 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
         if not awaiter.finished:
           awaiter.complete()
@@ -302,12 +302,12 @@ suite "Autonat Service":
     let awaiter2 = newFuture[void]()
     let awaiter3 = newFuture[void]()
 
-    proc statusAndConfidenceHandler1(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler1(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
         if not awaiter1.finished:
           awaiter1.complete()
 
-    proc statusAndConfidenceHandler2(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler2(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
         if not awaiter2.finished:
           awaiter2.complete()
@@ -345,7 +345,7 @@ suite "Autonat Service":
 
     let awaiter1 = newFuture[void]()
 
-    proc statusAndConfidenceHandler1(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler1(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
         if not awaiter1.finished:
           awaiter1.complete()
@@ -388,7 +388,7 @@ suite "Autonat Service":
 
     var awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and confidence.get() == 1:
         if not awaiter.finished:
           awaiter.complete()
@@ -428,7 +428,7 @@ suite "Autonat Service":
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
 
-    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    proc statusAndConfidenceHandler(networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       fail()
 
     check autonatService.networkReachability == NetworkReachability.Unknown

@@ -29,7 +29,7 @@ logScope:
 
 proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDialableAddrs = 8): T =
 
-  proc handleStream(stream: Connection, proto: string) {.async, gcsafe.} =
+  proc handleStream(stream: Connection, proto: string) {.async.} =
     var peerDialableAddrs: seq[MultiAddress]
     try:
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024))

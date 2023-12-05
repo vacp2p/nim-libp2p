@@ -152,7 +152,7 @@ proc new*(
   identify
 
 method init*(p: Identify) =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     try:
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
@@ -170,7 +170,7 @@ method init*(p: Identify) =
 
 proc identify*(self: Identify,
                conn: Connection,
-               remotePeerId: PeerId): Future[IdentifyInfo] {.async, gcsafe.} =
+               remotePeerId: PeerId): Future[IdentifyInfo] {.async.} =
   trace "initiating identify", conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:
@@ -204,7 +204,7 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.pu
   identifypush
 
 proc init*(p: IdentifyPush) =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     trace "handling identify push", conn
     try:
       var message = await conn.readLp(64*1024)

@@ -41,7 +41,7 @@ type
 {.push raises: [].}
 
 method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
     await conn.writeLp("Hello!")
@@ -140,7 +140,7 @@ suite "Noise":
 
     asyncSpawn transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       var conn: Connection
       try:
         conn = await transport1.accept()
@@ -178,7 +178,7 @@ suite "Noise":
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
       let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       defer:
@@ -221,7 +221,7 @@ suite "Noise":
       transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       listenFut = transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
       let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       defer:

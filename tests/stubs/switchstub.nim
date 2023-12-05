@@ -24,7 +24,7 @@ type
                            addrs: seq[MultiAddress],
                            forceDial = false,
                            reuseConnection = true,
-                           dir = Direction.Out): Future[void]  {.gcsafe, async.}
+                           dir = Direction.Out): Future[void]  {.async.}
 
 method connect*(
  self: SwitchStub,

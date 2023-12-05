@@ -59,7 +59,7 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
+        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
           if peerName notin seen:
             seen[peerName] = 0
           seen[peerName].inc
@@ -93,7 +93,7 @@ suite "GossipSub":
 
   asyncTest "GossipSub invalid topic subscription":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete(true)
 
@@ -155,7 +155,7 @@ suite "GossipSub":
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
     ### await subscribeNodes(nodes)
 
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} = discard
+    proc handler(topic: string, data: seq[byte]) {.async.} = discard
     nodes[1].subscribe("foobar", handler)
 
     await invalidDetected.wait(10.seconds)
@@ -182,10 +182,10 @@ suite "GossipSub":
     await GossipSub(nodes[2]).addDirectPeer(nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs)
 
     var handlerFut = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete()
-    proc noop(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc noop(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
 
     nodes[0].subscribe("foobar", noop)
@@ -226,7 +226,7 @@ suite "GossipSub":
     GossipSub(nodes[1]).parameters.graylistThreshold = 100000
 
     var handlerFut = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete()
 
@@ -272,7 +272,7 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, gcsafe, closure.} =
+        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
           if peerName notin seen:
             seen[peerName] = 0
           seen[peerName].inc
@@ -324,7 +324,7 @@ suite "GossipSub":
 
     # Adding again subscriptions
 
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
 
     for i in 0..<runs:
@@ -368,7 +368,7 @@ suite "GossipSub":
       )
 
     var handlerFut = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async, gcsafe.} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       handlerFut.complete()
 
     await subscribeNodes(nodes)

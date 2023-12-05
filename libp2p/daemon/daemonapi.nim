@@ -553,7 +553,7 @@ proc getSocket(pattern: string,
     closeSocket(sock)
 
 # This is forward declaration needed for newDaemonApi()
-proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async, gcsafe.}
+proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.}
 
 proc copyEnv(): StringTableRef =
   ## This procedure copy all environment variables into StringTable.
@@ -755,7 +755,7 @@ proc newDaemonApi*(flags: set[P2PDaemonFlags] = {},
 
   # Starting daemon process
   # echo "Starting ", cmd, " ", args.join(" ")
-  api.process = 
+  api.process =
     exceptionToAssert:
       startProcess(cmd, "", args, env, {poParentStreams})
   # Waiting until daemon will not be bound to control socket.
@@ -1032,7 +1032,7 @@ proc enterDhtMessage(pb: ProtoBuffer, rt: DHTResponseType): ProtoBuffer
     var value: seq[byte]
     if pbDhtResponse.getRequiredField(3, value).isErr():
       raise newException(DaemonLocalError, "Missing required DHT field `value`!")
-    
+
     return initProtoBuffer(value)
   else:
     raise newException(DaemonLocalError, "Wrong message type!")
