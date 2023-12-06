@@ -148,6 +148,7 @@ build_nim() {
 		# We will still be able to compile older versions by removing the flag,
 		# which will just waste a bit of CPU
 
+    echo "Building with custom buildchain"
 		# Git repos for csources and Nimble
 		if [[ ! -d "$CSOURCES_DIR" ]]; then
 			if git merge-base --is-ancestor $CSOURCES_V2_START_COMMIT $NIM_COMMIT_HASH; then
