@@ -1,14 +1,12 @@
-name: Test Daily
+name: Daily
 on:
   schedule:
     - cron: "30 6 * * *"
   workflow_dispatch:
 
-  push:
-
 jobs:
   call-multi-nim-common:
-    uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@fix/make-matrix-include-customizable
+    uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@unstable
     with:
       nim-branch: "[
           'version-1-6',
