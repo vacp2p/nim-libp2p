@@ -129,6 +129,8 @@ build_nim() {
 	# working directory
 	pushd "$NIM_DIR"
 
+  echo "Running build_nim"
+
 	if grep -q skipIntegrityCheck koch.nim; then
 		# Run Nim buildchain
 		. ci/funs.sh
