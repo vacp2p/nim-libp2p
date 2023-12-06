@@ -132,6 +132,7 @@ build_nim() {
 	if grep -q skipIntegrityCheck koch.nim; then
 		# Run Nim buildchain
 		. ci/funs.sh
+		echo "Building with default buildchain"
 		NIMCORES=1 nimBuildCsourcesIfNeeded $UCPU
 		bin/nim c --noNimblePath --skipUserCfg --skipParentCfg --warnings:off --hints:off koch
 		./koch --skipIntegrityCheck boot -d:release --skipUserCfg --skipParentCfg --warnings:off --hints:off
