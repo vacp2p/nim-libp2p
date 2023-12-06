@@ -17,7 +17,7 @@ jobs:
       platform: "[
           {'os':'linux','cpu':'i386'}
         ]"
-      extra: "[
+      includes: "[
           {
             'target': {
               'os': 'linux'

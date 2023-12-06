@@ -19,7 +19,7 @@ jobs:
           {'os':'macos','cpu':'amd64'},
           {'os':'windows','cpu':'amd64'}
         ]"
-      extra: "[
+      includes: "[
           {
             'target': {
               'os': 'linux'

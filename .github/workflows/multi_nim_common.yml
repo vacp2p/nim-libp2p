@@ -11,8 +11,8 @@ on:
         description: 'Platform'
         required: true
         type: string
-      extra:
-        description: 'Include Extra'
+      includes:
+        description: 'Include Params'
         required: true
         type: string
 
@@ -30,7 +30,7 @@ jobs:
       matrix:
         target: ${{ fromJSON(inputs.platform) }}
         branch: ${{ fromJSON(inputs.nim-branch) }}
-        include: ${{ fromJSON(inputs.extra) }}
+        include: ${{ fromJSON(inputs.includes) }}
 
     defaults:
       run:
