@@ -1,15 +1,49 @@
-name: Daily
+name: Test Daily
 on:
   schedule:
     - cron: "30 6 * * *"
   workflow_dispatch:
 
+  push:
+
 jobs:
   call-multi-nim-common:
     uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@unstable
     with:
-      nim-branch: "['version-1-6','version-2-0']"
-      platform: "[{'os':'linux','cpu':'amd64'},{'os':'macos','cpu':'amd64'},{'os':'windows','cpu':'amd64'}]"
+      nim-branch: "[
+          'version-1-6',
+          'version-2-0'
+        ]"
+      platform: "[
+          {'os':'linux','cpu':'amd64'},
+          {'os':'macos','cpu':'amd64'},
+          {'os':'windows','cpu':'amd64'}
+        ]"
+      extra: "[
+          {
+            'target': {
+              'os': 'linux'
+            },
+            'builder': 'ubuntu-20.04',
+            'shell': 'bash'
+          },
+          {
+            'target': {
+              'os': 'macos'
+            },
+            'builder': 'macos-12',
+            'shell': 'bash'
+          },
+          {
+            'target': {
+              'os': 'windows'
+            },
+            'builder': 'windows-2019',
+            'shell': 'msys2 {0}'
+          }
+        ]"
+
+
 
 
 

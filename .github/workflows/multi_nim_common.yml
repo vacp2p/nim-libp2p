@@ -11,6 +11,10 @@ on:
         description: 'Platform'
         required: true
         type: string
+      extra:
+        description: 'Include Extra'
+        required: true
+        type: string
 
 jobs:
   delete-cache:
@@ -26,19 +30,7 @@ jobs:
       matrix:
         target: ${{ fromJSON(inputs.platform) }}
         branch: ${{ fromJSON(inputs.nim-branch) }}
-        include:
-          - target:
-              os: linux
-            builder: ubuntu-20.04
-            shell: bash
-          - target:
-              os: macos
-            builder: macos-12
-            shell: bash
-          - target:
-              os: windows
-            builder: windows-2019
-            shell: msys2 {0}
+        include: ${{ fromJSON(inputs.extra) }}
 
     defaults:
       run:

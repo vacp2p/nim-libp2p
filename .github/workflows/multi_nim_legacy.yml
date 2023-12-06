@@ -1,14 +1,29 @@
-name: Legacy Platforms
+name: Test Legacy Platforms
 on:
   schedule:
     - cron: "30 6 * * *"
   workflow_dispatch:
 
+  push:
+
 jobs:
   call-multi-nim-common:
     uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@unstable
     with:
-      nim-branch: "['version-1-6','version-2-0']"
-      platform: "[{'os':'linux','cpu':'i386'}]"
-
+      nim-branch: "[
+          'version-1-6',
+          'version-2-0'
+        ]"
+      platform: "[
+          {'os':'linux','cpu':'i386'}
+        ]"
+      extra: "[
+          {
+            'target': {
+              'os': 'linux'
+            },
+            'builder': 'ubuntu-20.04',
+            'shell': 'bash'
+          }
+        ]"
 
