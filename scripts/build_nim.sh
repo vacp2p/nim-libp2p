@@ -61,6 +61,8 @@ nim_needs_rebuilding() {
 	REBUILD=0
 	NO_REBUILD=1
 
+  echo "Nim is being rebuilt..."
+
 	if [[ ! -e "$NIM_DIR" ]]; then
 		# Shallow clone, optimised for the default NIM_COMMIT value.
 		git clone -q --depth=1 https://github.com/status-im/Nim.git "$NIM_DIR"
