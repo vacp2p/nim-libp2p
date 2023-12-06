@@ -8,7 +8,7 @@ on:
 
 jobs:
   call-multi-nim-common:
-    uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@unstable
+    uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@fix/make-matrix-include-customizable
     with:
       nim-branch: "[
           'devel'
