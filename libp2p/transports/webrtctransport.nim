@@ -141,6 +141,7 @@ method write*(s: WebRtcStream, msg2: seq[byte]): Future[void] =
   return retFuture
 
 proc actuallyClose(s: WebRtcStream) {.async.} =
+  debug "stream closed"
   if s.rxState == Closed and s.txState == Closed and s.readData.len == 0:
     #TODO add support to DataChannel
     #await s.dataChannel.close()
@@ -269,7 +270,6 @@ method upgrade*(
       stream,
       initiator = true, # we are always the initiator in webrtc-direct
       peerId = peerId
-      #TODO: add prelude data
     )
 
   # Peer proved its identity, we can close this
@@ -367,10 +367,9 @@ proc connHandler(self: WebRtcTransport,
                  observedAddr: Opt[MultiAddress],
                  dir: Direction): Future[Connection] {.async.} =
 
-  trace "Handling ws connection", address = $observedAddr,
-                                   dir = $dir,
-                                   clients = self.clients[Direction.In].len +
-                                   self.clients[Direction.Out].len
+  trace "Handling webrtc connection", address = $observedAddr, dir = $dir,
+                                      clients = self.clients[Direction.In].len +
+                                      self.clients[Direction.Out].len
 
   let conn: Connection =
     WebRtcConnection.new(
