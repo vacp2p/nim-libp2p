@@ -353,12 +353,9 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
     trace "Try to open channel twice"
     return
   channel.opened = true
-  let delta =
-    if channel.maxRecvWindow < YamuxDefaultWindowSize: 0'u32
-    else: channel.maxRecvWindow.uint32 - YamuxDefaultWindowSize
   await channel.conn.write(YamuxHeader.windowUpdate(
     channel.id,
-    delta,
+    max(channel.maxRecvWindow.uint32 - YamuxDefaultWindowSize, 0'u32),
     {if channel.isSrc: Syn else: Ack}))
 
 method getWrapped*(channel: YamuxChannel): Connection = channel.conn
