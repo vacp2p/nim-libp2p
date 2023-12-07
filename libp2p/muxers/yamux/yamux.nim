@@ -355,7 +355,7 @@ proc open*(channel: YamuxChannel) {.async, gcsafe.} =
   channel.opened = true
   await channel.conn.write(YamuxHeader.windowUpdate(
     channel.id,
-    max(channel.maxRecvWindow.uint32 - YamuxDefaultWindowSize, 0'u32),
+    uint32(max(channel.maxRecvWindow - YamuxDefaultWindowSize, 0)),
     {if channel.isSrc: Syn else: Ack}))
 
 method getWrapped*(channel: YamuxChannel): Connection = channel.conn
