@@ -94,6 +94,21 @@ nim_needs_rebuilding() {
 	fi
 	popd >/dev/null
 
+  if [[ ! -d "$NIMBLE_DIR" ]]; then
+  	mkdir -p "$NIMBLE_DIR"
+  	pushd "$NIMBLE_DIR"
+  	git clone https://github.com/nim-lang/nimble.git .
+  	git checkout $NIMBLE_COMMIT
+  	# we have to delete .git or koch.nim will checkout a branch tip, overriding our target commit
+  	rm -rf .git
+  	popd
+  fi
+  if [[ "$NIMBLE_DIR" != "dist/nimble" ]]; then
+  	mkdir -p dist
+  	rm -rf dist/nimble
+  	ln -s ../"$NIMBLE_DIR" dist/nimble
+  fi
+
 	if [[ -n "$CI_CACHE" && -d "$CI_CACHE" ]]; then
 		cp -a "$CI_CACHE"/* "$NIM_DIR"/bin/ || true # let this one fail with an empty cache dir
 	fi

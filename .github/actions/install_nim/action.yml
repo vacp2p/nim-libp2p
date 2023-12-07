@@ -116,10 +116,11 @@ runs:
       shell: ${{ inputs.shell }}
       run: |
         rm -rf nim
+        export NIMBLE_DIR=dist/nimble
         cp ./scripts/build_nim.sh .
         env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
           QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
-          bash build_nim.sh nim csources dist/my_nimble NONE
+          bash build_nim.sh nim csources ${NIMBLE_DIR} NimBinaries
 #        nimble install nimble -y
 #        ls -la nim/bin
 #        rm -rf nim/bin/nimble.exe
