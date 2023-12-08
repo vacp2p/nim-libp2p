@@ -3096,8 +3096,10 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="muxer: new(T: typedesc[MuxerProvider]; creator: MuxerConstructor; codec: string): T:type" href="libp2p/muxers/muxer.html#new%2Ctypedesc%5BMuxerProvider%5D%2CMuxerConstructor%2Cstring">muxer: new(T: typedesc[MuxerProvider]; creator: MuxerConstructor; codec: string): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
-    windowSize: int = YamuxDefaultWindowSize): T:type" href="libp2p/muxers/yamux/yamux.html#new%2Ctype%5BYamux%5D%2CConnection%2Cint%2Cint">yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
-    windowSize: int = YamuxDefaultWindowSize): T:type</a></li>
+    windowSize: int = YamuxDefaultWindowSize;
+    maxSendQueueSize: int = MaxSendQueueSize): T:type" href="libp2p/muxers/yamux/yamux.html#new%2Ctype%5BYamux%5D%2CConnection%2Cint%2Cint%2Cint">yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
+    windowSize: int = YamuxDefaultWindowSize;
+    maxSendQueueSize: int = MaxSendQueueSize): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="observedaddrmanager: new(T: typedesc[ObservedAddrManager]; maxSize = 10; minCount = 3): T:type" href="libp2p/observedaddrmanager.html#new%2Ctypedesc%5BObservedAddrManager%5D%2Cint%2Cint">observedaddrmanager: new(T: typedesc[ObservedAddrManager]; maxSize = 10; minCount = 3): T:type</a></li>
           <li><a class="reference external"
@@ -5318,7 +5320,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-07 11:31:39 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-08 08:58:03 UTC</small>
       </div>
     </div>
   </div>
