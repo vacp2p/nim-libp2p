@@ -7,8 +7,8 @@ on:
         description: 'Nim branch'
         required: true
         type: string
-      platform:
-        description: 'Platform'
+      cpu:
+        description: 'CPU'
         required: true
         type: string
 
