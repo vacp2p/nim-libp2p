@@ -11,3 +11,4 @@ jobs:
     with:
       nim-branch: "['devel']"
       cpu: "['amd64']"
+      exclude: "['']"

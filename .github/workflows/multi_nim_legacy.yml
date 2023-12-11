@@ -11,5 +11,4 @@ jobs:
     with:
       nim-branch: "['version-1-6','version-2-0', 'devel']"
       cpu: "['i386']"
-      exclude:
-        - os: macos
+      exclude: "[{'os':'macos'}"
