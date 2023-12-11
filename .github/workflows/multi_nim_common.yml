@@ -11,6 +11,10 @@ on:
         description: 'CPU'
         required: true
         type: string
+      exclude:
+        description: 'Exclude matrix configurations'
+        required: false
+        type: string
 
 jobs:
   delete-cache:
