@@ -9,5 +9,6 @@ jobs:
   call-multi-nim-common:
     uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@simplifly-ci-matrix
     with:
-      nim-branch: "['devel']"
+      nim-branch: 'devel'
       cpu: 'amd64'
+      exclude: ''

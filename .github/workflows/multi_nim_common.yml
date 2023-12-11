@@ -34,9 +34,9 @@ jobs:
           - os: windows
             builder: windows-2019
             shell: msys2 {0}
-        branch: ${{ inputs.nim-branch }}
-        cpu: ${{ inputs.cpu }}
-        exclude: ${{ inputs.excludes }}
+        branch: ${{ fromJSON(inputs.nim-branch) }}
+        cpu: ${{ fromJSON(inputs.cpu) }}
+        exclude: ${{ fromJSON(inputs.excludes) }}
 
     defaults:
       run:
