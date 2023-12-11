@@ -1,7 +1,8 @@
-name: Nim Devel
+name: Daily Nim Devel
 on:
   schedule:
     - cron: "30 6 * * *"
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -9,5 +10,4 @@ jobs:
     uses: status-im/nim-libp2p/.github/workflows/multi_nim_common.yml@unstable
     with:
       nim-branch: "['devel']"
-      platform: "[{'os':'linux','cpu':'amd64'},{'os':'macos','cpu':'amd64'},{'os':'windows','cpu':'amd64'}]"
-
+      cpu: "['amd64']"
