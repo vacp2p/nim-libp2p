@@ -16,4 +16,4 @@ unittest2;https://github.com/status-im/nim-unittest2@#2300fa9924a76e6c96bc4ea79d
 websock;https://github.com/status-im/nim-websock@#f8ed9b40a5ff27ad02a3c237c4905b0924e3f982
 zlib;https://github.com/status-im/nim-zlib@#38b72eda9d70067df4a953f56b5ed59630f2a17b
 poseidon2;https://github.com/codex-storage/nim-poseidon2@#9be7b0c134e64e3d57a38520a32af93a55a37c44
-constantine;https://github.com/mratsim/constantine@#5f7ba18f2ed351260015397c9eae079a6decaee1
+constantine;https://github.com/mratsim/constantine@#1f3e6b19040d324c7ba25278772b26d1ec0f381b
