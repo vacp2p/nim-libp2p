@@ -7,7 +7,7 @@ on:
 
 jobs:
   call-multi-nim-common:
-    uses: ./.github/workflows/multi_nim_common.yml
+    uses: ./.github/workflows/daily_common.yml
     with:
       nim-branch: "['version-1-6','version-2-0', 'devel']"
       cpu: "['i386']"
