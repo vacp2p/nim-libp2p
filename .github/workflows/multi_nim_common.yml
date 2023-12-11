@@ -15,6 +15,7 @@ on:
         description: 'Exclude matrix configurations'
         required: false
         type: string
+        default: "[]"
 
 jobs:
   delete-cache:
@@ -40,7 +41,7 @@ jobs:
             shell: msys2 {0}
         branch: ${{ fromJSON(inputs.nim-branch) }}
         cpu: ${{ fromJSON(inputs.cpu) }}
-        exclude: ${{ fromJSON(inputs.excludes) }}
+        exclude: ${{ fromJSON(inputs.exclude) }}
 
     defaults:
       run:
