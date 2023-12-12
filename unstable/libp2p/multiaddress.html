@@ -765,14 +765,14 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple nested-toc-section">init
       <li><a class="reference" href="#init%2Ctypedesc%5BMultiAddress%5D"
     title="init(mtype: typedesc[MultiAddress]): MultiAddress">init(mtype: typedesc[MultiAddress]): MultiAddress</a></li>
+  <li><a class="reference" href="#init%2Ctypedesc%5BMultiAddress%5D%2CIpAddress%2CIpTransportProtocol%2CPort"
+    title="init(mtype: typedesc[MultiAddress]; address: IpAddress;
+     protocol: IpTransportProtocol; port: Port): MultiAddress">init(mtype: typedesc[MultiAddress]; address: IpAddress;
+     protocol: IpTransportProtocol; port: Port): MultiAddress</a></li>
   <li><a class="reference" href="#init%2Ctypedesc%5BMultiAddress%5D%2CTransportAddress"
     title="init(mtype: typedesc[MultiAddress]; address: TransportAddress;
      protocol = IPPROTO_TCP): MaResult[MultiAddress]">init(mtype: typedesc[MultiAddress]; address: TransportAddress;
      protocol = IPPROTO_TCP): MaResult[MultiAddress]</a></li>
-  <li><a class="reference" href="#init%2Ctypedesc%5BMultiAddress%5D%2CValidIpAddress%2CIpTransportProtocol%2CPort"
-    title="init(mtype: typedesc[MultiAddress]; address: ValidIpAddress;
-     protocol: IpTransportProtocol; port: Port): MultiAddress">init(mtype: typedesc[MultiAddress]; address: ValidIpAddress;
-     protocol: IpTransportProtocol; port: Port): MultiAddress</a></li>
   <li><a class="reference" href="#init%2Ctypedesc%5BMultiAddress%5D%2CopenArray%5Bbyte%5D"
     title="init(mtype: typedesc[MultiAddress]; data: openArray[byte]): MaResult[
     MultiAddress]">init(mtype: typedesc[MultiAddress]; data: openArray[byte]): MaResult[
@@ -2204,6 +2204,20 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="init,typedesc[MultiAddress],IpAddress,IpTransportProtocol,Port" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BMultiAddress%5D%2CIpAddress%2CIpTransportProtocol%2CPort"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">mtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <span class="Identifier">IpAddress</span><span class="Other">;</span>
+          <span class="Identifier">protocol</span><span class="Other">:</span> <a href="multiaddress.html#IpTransportProtocol"><span class="Identifier">IpTransportProtocol</span></a><span class="Other">;</span> <span class="Identifier">port</span><span class="Other">:</span> <span class="Identifier">Port</span><span class="Other">)</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    </span><span class="Identifier">public</span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/multiaddress.nim#L961"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L961" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="init,typedesc[MultiAddress],TransportAddress" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BMultiAddress%5D%2CTransportAddress"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">mtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <span class="Identifier">TransportAddress</span><span class="Other">;</span>
           <span class="Identifier">protocol</span> <span class="Other">=</span> <span class="Identifier">IPPROTO_TCP</span><span class="Other">)</span><span class="Other">:</span> <a href="multiaddress.html#MaResult"><span class="Identifier">MaResult</span></a><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span>.}</pre></dt>
@@ -2214,20 +2228,6 @@ Initialize MultiAddress using chronos.TransportAddress (IPv4/IPv6/Unix) and prot
 href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/multiaddress.nim#L983"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L983" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="init,typedesc[MultiAddress],ValidIpAddress,IpTransportProtocol,Port" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BMultiAddress%5D%2CValidIpAddress%2CIpTransportProtocol%2CPort"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">mtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <span class="Identifier">ValidIpAddress</span><span class="Other">;</span>
-          <span class="Identifier">protocol</span><span class="Other">:</span> <a href="multiaddress.html#IpTransportProtocol"><span class="Identifier">IpTransportProtocol</span></a><span class="Other">;</span> <span class="Identifier">port</span><span class="Other">:</span> <span class="Identifier">Port</span><span class="Other">)</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    </span><span class="Identifier">public</span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/multiaddress.nim#L961"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L961" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -2551,7 +2551,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-05 17:46:13 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-12 11:55:04 UTC</small>
       </div>
     </div>
   </div>
