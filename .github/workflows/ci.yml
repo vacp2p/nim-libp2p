@@ -2,9 +2,10 @@ name: CI - Test
 on:
   push:
     branches:
-      - master
-      - unstable
-  pull_request:
+      #      - master
+      #      - unstable
+      - 'test-ci-with-latest-nimble'
+  #pull_request:
   workflow_dispatch:
 
 concurrency:
