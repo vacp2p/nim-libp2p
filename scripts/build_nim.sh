@@ -73,6 +73,8 @@ nim_needs_rebuilding() {
 		# support old Git versions, like the one from Ubuntu-18.04
 		git restore . 2>/dev/null || git reset --hard
 		if ! git checkout -q ${NIM_COMMIT} 2>/dev/null; then
+		  echo "Downloading Nim sources..."
+      echo $(pwd)
 			# Pay the price for a non-default NIM_COMMIT here, by fetching everything.
 			# (This includes upstream branches and tags that might be missing from our fork.)
 			git remote add upstream https://github.com/nim-lang/Nim
