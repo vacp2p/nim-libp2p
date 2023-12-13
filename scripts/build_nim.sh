@@ -96,6 +96,7 @@ nim_needs_rebuilding() {
 
   if [[ ! -d "$NIMBLE_DIR" ]]; then
     echo "Downloading Nimble sources..."
+    echo $(pwd)
   	mkdir -p "$NIMBLE_DIR"
   	pushd "$NIMBLE_DIR"
   	git clone https://github.com/nim-lang/nimble.git .
