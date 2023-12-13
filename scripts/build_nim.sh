@@ -23,7 +23,7 @@ set -e
 NIM_COMMIT_HASH="" # full hash for NIM_COMMIT, retrieved in "nim_needs_rebuilding()"
 
 # script arguments
-[[ $# -ne 4 ]] && { echo "Usage: $0 nim_dir csources_dir nimble_dir ci_cache_dir"; exit 1; }
+[[ $# -ne 4 ]] && { echo "Usage: $0 nim_dir csources_dir ci_cache_dir"; exit 1; }
 NIM_DIR="$1"
 CSOURCES_DIR="$2" # can be relative to NIM_DIR
 NIMBLE_DIR="$3" # can be relative to NIM_DIR
@@ -94,24 +94,26 @@ nim_needs_rebuilding() {
 		# NIM_COMMIT is empty, so assume the commit we need is already checked out
 		NIM_COMMIT_HASH="$(git rev-list -n 1 HEAD)"
 	fi
+
+	if [[ ! -d "$NIMBLE_DIR" ]]; then
+      echo "Downloading Nimble sources..."
+      echo $(pwd)
+    	mkdir -p "$NIMBLE_DIR"
+    	pushd "$NIMBLE_DIR"
+    	git clone https://github.com/nim-lang/nimble.git .
+    	git checkout $NIMBLE_COMMIT
+    	# we have to delete .git or koch.nim will checkout a branch tip, overriding our target commit
+    	rm -rf .git
+    	popd
+    fi
+    if [[ "$NIMBLE_DIR" != "dist/nimble" ]]; then
+    	mkdir -p dist
+    	rm -rf dist/nimble
+    	ln -s ../"$NIMBLE_DIR" dist/nimble
+    fi
+
 	popd >/dev/null
 
-  if [[ ! -d "$NIMBLE_DIR" ]]; then
-    echo "Downloading Nimble sources..."
-    echo $(pwd)
-  	mkdir -p "$NIMBLE_DIR"
-  	pushd "$NIMBLE_DIR"
-  	git clone https://github.com/nim-lang/nimble.git .
-  	git checkout $NIMBLE_COMMIT
-  	# we have to delete .git or koch.nim will checkout a branch tip, overriding our target commit
-  	rm -rf .git
-  	popd
-  fi
-  if [[ "$NIMBLE_DIR" != "dist/nimble" ]]; then
-  	mkdir -p dist
-  	rm -rf dist/nimble
-  	ln -s ../"$NIMBLE_DIR" dist/nimble
-  fi
 
 	if [[ -n "$CI_CACHE" && -d "$CI_CACHE" ]]; then
 		cp -a "$CI_CACHE"/* "$NIM_DIR"/bin/ || true # let this one fail with an empty cache dir
