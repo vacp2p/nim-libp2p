@@ -1,4 +1,4 @@
-name: CI
+name: CI - Test
 on:
   push:
     branches:
@@ -73,15 +73,15 @@ jobs:
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v3
-        with:
-          path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
+#      - name: Restore deps from cache
+#        id: deps-cache
+#        uses: actions/cache@v3
+#        with:
+#          path: nimbledeps
+#          key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+#        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 
