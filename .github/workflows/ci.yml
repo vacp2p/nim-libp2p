@@ -1,12 +1,13 @@
-name: CI - Test
+name: CI
 on:
   push:
     branches:
-      #      - master
-      #      - unstable
-      - 'chore-improve-ci-workflow-stability'
-  #pull_request:
+      - master
+      - unstable
+
+  pull_request:
   workflow_dispatch:
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
