@@ -64,6 +64,7 @@ jobs:
           cpu: ${{ matrix.target.cpu }}
           shell: ${{ matrix.shell }}
           nim_branch: ${{ matrix.branch }}
+          nimble_commit: "3575fd54a890d910ace56678aa74b4237d604175"
 
       - name: Setup Go
         uses: actions/setup-go@v2
