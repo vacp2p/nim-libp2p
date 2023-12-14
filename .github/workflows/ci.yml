@@ -1,10 +1,11 @@
-name: CI
+name: CI - Test
 on:
   push:
     branches:
-      - master
-      - unstable
-  pull_request:
+      #      - master
+      #      - unstable
+      - 'chore-improve-ci-workflow-stability'
+  #pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -26,8 +27,7 @@ jobs:
             cpu: amd64
           - os: windows
             cpu: amd64
-          #- os: windows
-            #cpu: i386
+
         branch: [version-1-6]
         include:
           - target:
@@ -52,7 +52,7 @@ jobs:
     continue-on-error: ${{ matrix.branch == 'devel' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -63,27 +63,21 @@ jobs:
           cpu: ${{ matrix.target.cpu }}
           shell: ${{ matrix.shell }}
           nim_branch: ${{ matrix.branch }}
+          nimble_commit: "3575fd54a890d910ace56678aa74b4237d604175" #v0.14.2
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: '~1.15.5'
+          cache: false
 
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v3
-        with:
-          path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
-
       - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
+          nimble install -y --depsOnly
 
       - name: Run tests
         run: |

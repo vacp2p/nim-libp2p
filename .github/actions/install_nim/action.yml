@@ -12,6 +12,8 @@ inputs:
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"
+  nimble_commit:
+    description: "Nimble commit hash"
 
 runs:
   using: "composite"
@@ -112,20 +114,12 @@ runs:
         echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
         echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
-    - name: Restore Nim from cache
-      id: nim-cache
-      uses: actions/cache@v3
-      with:
-        path: '${{ github.workspace }}/nim'
-        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}
-
     - name: Build Nim and Nimble
       shell: ${{ inputs.shell }}
-      if: ${{ steps.nim-cache.outputs.cache-hit != 'true' }}
       run: |
         # We don't want partial matches of the cache restored
         rm -rf nim
-        curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
+        cp ./scripts/build_nim.sh .
         env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
-          QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
+          QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc NIMBLE_COMMIT=${{ inputs.nimble_commit }} \
           bash build_nim.sh nim csources dist/nimble NimBinaries
