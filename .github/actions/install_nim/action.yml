@@ -12,6 +12,8 @@ inputs:
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"
+  nimble_commit:
+    description: "Nimble commit hash"
 
 runs:
   using: "composite"
@@ -127,5 +129,5 @@ runs:
         rm -rf nim
         cp ./scripts/build_nim.sh .
         env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
-          QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc NIMBLE_COMMIT=3575fd54a890d910ace56678aa74b4237d604175 \
+          QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc NIMBLE_COMMIT=${{ inputs.nimble_commit }} \
           bash build_nim.sh nim csources dist/nimble NimBinaries
