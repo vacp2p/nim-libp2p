@@ -18,8 +18,8 @@ set -e
 
 # After this Nim commit, use csources v2
 : ${CSOURCES_V2_START_COMMIT:=f7c203fb6c89b5cef83c4f326aeb23ef8c4a2c40}
-# Set Nimble commit in environment to have different one.
-: ${NIMBLE_COMMIT:=3575fd54a890d910ace56678aa74b4237d604175} # 0.14.2
+# Set Nimble commit in environment to have non default one.
+# e.g. NIMBLE_COMMIT=3575fd54a890d910ace56678aa74b4237d604175 # 0.14.2
 # NIM_COMMIT could be a (partial) commit hash, a tag, a branch name, etc. Empty by default.
 NIM_COMMIT_HASH="" # full hash for NIM_COMMIT, retrieved in "nim_needs_rebuilding()"
 
