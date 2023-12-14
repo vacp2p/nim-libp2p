@@ -18,12 +18,13 @@ set -e
 
 # After this Nim commit, use csources v2
 : ${CSOURCES_V2_START_COMMIT:=f7c203fb6c89b5cef83c4f326aeb23ef8c4a2c40}
+# Set Nimble commit in environment to have different one.
 : ${NIMBLE_COMMIT:=3575fd54a890d910ace56678aa74b4237d604175} # 0.14.2
 # NIM_COMMIT could be a (partial) commit hash, a tag, a branch name, etc. Empty by default.
 NIM_COMMIT_HASH="" # full hash for NIM_COMMIT, retrieved in "nim_needs_rebuilding()"
 
 # script arguments
-[[ $# -ne 4 ]] && { echo "Usage: $0 nim_dir csources_dir ci_cache_dir"; exit 1; }
+[[ $# -ne 4 ]] && { echo "Usage: $0 nim_dir csources_dir nimble_dir ci_cache_dir"; exit 1; }
 NIM_DIR="$1"
 CSOURCES_DIR="$2" # can be relative to NIM_DIR
 NIMBLE_DIR="$3" # can be relative to NIM_DIR
@@ -61,8 +62,6 @@ nim_needs_rebuilding() {
 	REBUILD=0
 	NO_REBUILD=1
 
-  echo "Nim is being rebuilt..."
-
 	if [[ ! -e "$NIM_DIR" ]]; then
 		# Shallow clone, optimised for the default NIM_COMMIT value.
 		git clone -q --depth=1 https://github.com/status-im/Nim.git "$NIM_DIR"
@@ -74,7 +73,6 @@ nim_needs_rebuilding() {
 		git restore . 2>/dev/null || git reset --hard
 		if ! git checkout -q ${NIM_COMMIT} 2>/dev/null; then
 		  echo "Downloading Nim sources..."
-      echo $(pwd)
 			# Pay the price for a non-default NIM_COMMIT here, by fetching everything.
 			# (This includes upstream branches and tags that might be missing from our fork.)
 			git remote add upstream https://github.com/nim-lang/Nim
@@ -95,25 +93,23 @@ nim_needs_rebuilding() {
 		NIM_COMMIT_HASH="$(git rev-list -n 1 HEAD)"
 	fi
 
-	if [[ ! -d "$NIMBLE_DIR" ]]; then
-      echo "Downloading Nimble sources..."
-      echo $(pwd)
-    	mkdir -p "$NIMBLE_DIR"
-    	pushd "$NIMBLE_DIR"
-    	git clone https://github.com/nim-lang/nimble.git .
-    	git checkout $NIMBLE_COMMIT
-    	# we have to delete .git or koch.nim will checkout a branch tip, overriding our target commit
-    	rm -rf .git
-    	popd
-    fi
-    if [[ "$NIMBLE_DIR" != "dist/nimble" ]]; then
-    	mkdir -p dist
-    	rm -rf dist/nimble
-    	ln -s ../"$NIMBLE_DIR" dist/nimble
-    fi
+	if [[ ! -d "$NIMBLE_DIR" ]] && [[ -n "$NIMBLE_COMMIT" ]]; then
+    echo "Downloading Nimble sources..."
+    mkdir -p "$NIMBLE_DIR"
+    pushd "$NIMBLE_DIR"
+    git clone https://github.com/nim-lang/nimble.git .
+    git checkout $NIMBLE_COMMIT
+    # we have to delete .git or koch.nim will checkout a branch tip, overriding our target commit
+  	rm -rf .git
+    popd
+  fi
+  if [[ "$NIMBLE_DIR" != "dist/nimble" ]]; then
+    mkdir -p dist
+  	rm -rf dist/nimble
+  	ln -s ../"$NIMBLE_DIR" dist/nimble
+  fi
 
 	popd >/dev/null
-
 
 	if [[ -n "$CI_CACHE" && -d "$CI_CACHE" ]]; then
 		cp -a "$CI_CACHE"/* "$NIM_DIR"/bin/ || true # let this one fail with an empty cache dir
@@ -150,142 +146,17 @@ build_nim() {
 	# working directory
 	pushd "$NIM_DIR"
 
-  echo "Running build_nim"
-
-	if grep -q skipIntegrityCheck koch.nim; then
-		# Run Nim buildchain
-		. ci/funs.sh
-		echo "Building with default buildchain"
-		NIMCORES=1 nimBuildCsourcesIfNeeded $UCPU
-		bin/nim c --noNimblePath --skipUserCfg --skipParentCfg --warnings:off --hints:off koch
-		./koch --skipIntegrityCheck boot -d:release --skipUserCfg --skipParentCfg --warnings:off --hints:off
-		if [[ "${QUICK_AND_DIRTY_COMPILER}" == "0" ]]; then
-			# We want tools
-			./koch tools -d:release --skipUserCfg --skipParentCfg --warnings:off --hints:off
-		elif [[ "${QUICK_AND_DIRTY_NIMBLE}" != "0" ]]; then
-			# We just want nimble
-			./koch nimble -d:release --skipUserCfg --skipParentCfg --warnings:off --hints:off
-		fi
-	else
-		# Custom buildchain for older versions
-		# TODO Remove this once the default NIM_COMMIT supports `--skipIntegrityCheck`
-		# We will still be able to compile older versions by removing the flag,
-		# which will just waste a bit of CPU
-
-    echo "Building with custom buildchain"
-		# Git repos for csources and Nimble
-		if [[ ! -d "$CSOURCES_DIR" ]]; then
-			if git merge-base --is-ancestor $CSOURCES_V2_START_COMMIT $NIM_COMMIT_HASH; then
-			  CSOURCES_REPO=$CSOURCES_V2_REPO
-			  CSOURCES_COMMIT=$CSOURCES_V2_COMMIT
-			else
-			  CSOURCES_REPO=$CSOURCES_V1_REPO
-			  CSOURCES_COMMIT=$CSOURCES_V1_COMMIT
-			fi
-
-			mkdir -p "$CSOURCES_DIR"
-			pushd "$CSOURCES_DIR"
-			git clone $CSOURCES_REPO .
-			git checkout $CSOURCES_COMMIT
-			popd
-		fi
-		if [[ "$CSOURCES_DIR" != "csources" ]]; then
-			rm -rf csources
-			ln -s "$CSOURCES_DIR" csources
-		fi
-
-		if [[ ! -d "$NIMBLE_DIR" ]]; then
-			mkdir -p "$NIMBLE_DIR"
-			pushd "$NIMBLE_DIR"
-			git clone https://github.com/nim-lang/nimble.git .
-			git checkout $NIMBLE_COMMIT
-			# we have to delete .git or koch.nim will checkout a branch tip, overriding our target commit
-			rm -rf .git
-			popd
-		fi
-		if [[ "$NIMBLE_DIR" != "dist/nimble" ]]; then
-			mkdir -p dist
-			rm -rf dist/nimble
-			ln -s ../"$NIMBLE_DIR" dist/nimble
-		fi
-
-		# bootstrap the Nim compiler and build the tools
-		rm -f bin/{nim,nim_csources}
-		pushd csources
-		if [[ "$ON_WINDOWS" == "0" ]]; then
-			$MAKE $UCPU clean
-			$MAKE $UCPU LD=$CC
-		else
-			$MAKE myos=windows $UCPU clean
-			$MAKE myos=windows $UCPU CC=gcc LD=gcc
-		fi
-		popd
-		if [[ -e csources/bin ]]; then
-			rm -f bin/nim bin/nim_csources
-			cp -a csources/bin/nim bin/nim
-			cp -a csources/bin/nim bin/nim_csources
-			rm -rf csources/bin
-		else
-			cp -a bin/nim bin/nim_csources
-		fi
-		if [[ "$QUICK_AND_DIRTY_COMPILER" == "0" ]]; then
-			sed \
-				-e 's/koch$/--warnings:off --hints:off koch/' \
-				-e 's/koch boot/koch boot --warnings:off --hints:off/' \
-				-e '/nimBuildCsourcesIfNeeded/d' \
-				build_all.sh > build_all_custom.sh
-			sh build_all_custom.sh
-			rm build_all_custom.sh
-		else
-			# Don't re-build it multiple times until we get identical
-			# binaries, like "build_all.sh" does. Don't build any tools
-			# either. This is all about build speed, not developer comfort.
-			bin/nim_csources \
-				c \
-				--compileOnly \
-				--nimcache:nimcache \
-				-d:release \
-				--skipUserCfg \
-				--skipParentCfg \
-				--warnings:off \
-				--hints:off \
-				compiler/nim.nim
-			bin/nim_csources \
-				jsonscript \
-				--nimcache:nimcache \
-				--skipUserCfg \
-				--skipParentCfg \
-				compiler/nim.nim
-			cp -a compiler/nim bin/nim1
-			# If we stop here, we risk ending up with a buggy compiler:
-			# https://github.com/status-im/nimbus-eth2/pull/2220
-			# https://github.com/status-im/nimbus-eth2/issues/2310
-			bin/nim1 \
-				c \
-				--compileOnly \
-				--nimcache:nimcache \
-				-d:release \
-				--skipUserCfg \
-				--skipParentCfg \
-				--warnings:off \
-				--hints:off \
-				compiler/nim.nim
-			bin/nim1 \
-				jsonscript \
-				--nimcache:nimcache \
-				--skipUserCfg \
-				--skipParentCfg \
-				compiler/nim.nim
-			rm -f bin/nim
-			cp -a compiler/nim bin/nim
-			rm bin/nim1
-
-			# Do we want Nimble in this quick build?
-			if [[ "${QUICK_AND_DIRTY_NIMBLE}" != "0" ]]; then
-				bin/nim c -d:release --noNimblePath --skipUserCfg --skipParentCfg dist/nimble/src/nimble.nim
-				mv dist/nimble/src/nimble bin/
-			fi
-		fi
+	# Run Nim buildchain
+	. ci/funs.sh
+	NIMCORES=1 nimBuildCsourcesIfNeeded $UCPU
+	bin/nim c --noNimblePath --skipUserCfg --skipParentCfg --warnings:off --hints:off koch
+	./koch --skipIntegrityCheck boot -d:release --skipUserCfg --skipParentCfg --warnings:off --hints:off
+	if [[ "${QUICK_AND_DIRTY_COMPILER}" == "0" ]]; then
+		# We want tools
+		./koch tools -d:release --skipUserCfg --skipParentCfg --warnings:off --hints:off
+	elif [[ "${QUICK_AND_DIRTY_NIMBLE}" != "0" ]]; then
+		# We just want nimble
+		./koch nimble -d:release --skipUserCfg --skipParentCfg --warnings:off --hints:off
 	fi
 
 	if [[ "$QUICK_AND_DIRTY_COMPILER" == "0" || "${QUICK_AND_DIRTY_NIMBLE}" != "0" ]]; then
