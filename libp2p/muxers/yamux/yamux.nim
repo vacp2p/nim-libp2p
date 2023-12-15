@@ -177,8 +177,7 @@ proc lengthSendQueue(channel: YamuxChannel): int =
 proc lengthSendQueueWithLimit(channel: YamuxChannel): int =
   # For leniency, limit big messages size to the third of maxSendQueueSize
   # This value is arbitrary, it's not in the specs
-  # It permits to store up to 3 big messages if the peer is stalling in sending its
-  # update window
+  # It permits to store up to 3 big messages if the peer is stalling.
   channel.sendQueue.foldl(a + min(b.data.len - b.sent, channel.maxSendQueueSize div 3), 0)
 
 proc actuallyClose(channel: YamuxChannel) {.async.} =
@@ -392,6 +391,11 @@ proc cleanupChann(m: Yamux, channel: YamuxChannel) {.async.} =
 
 proc createStream(m: Yamux, id: uint32, isSrc: bool,
                   recvWindow: int, maxSendQueueSize: int): YamuxChannel =
+  # As you can see, during initialization, recvWindow can be larger than maxRecvWindow.
+  # This is because the peer we're connected to will always assume
+  # that the initial recvWindow is 256k.
+  # To solve this contradiction, no updateWindow will be sent until recvWindow is less
+  # than maxRecvWindow
   result = YamuxChannel(
     id: id,
     maxRecvWindow: recvWindow,
