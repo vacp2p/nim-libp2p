@@ -7,10 +7,15 @@ on:
         description: 'Nim branch'
         required: true
         type: string
-      platform:
-        description: 'Platform'
+      cpu:
+        description: 'CPU'
         required: true
         type: string
+      exclude:
+        description: 'Exclude matrix configurations'
+        required: false
+        type: string
+        default: "[]"
 
 jobs:
   delete-cache:
@@ -24,28 +29,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(inputs.platform) }}
-        branch: ${{ fromJSON(inputs.nim-branch) }}
-        include:
-          - target:
-              os: linux
-            builder: ubuntu-20.04
+        platform:
+          - os: linux
+            builder: ubuntu-20
             shell: bash
-          - target:
-              os: macos
+          - os: macos
             builder: macos-12
             shell: bash
-          - target:
-              os: windows
+          - os: windows
             builder: windows-2019
             shell: msys2 {0}
+        branch: ${{ fromJSON(inputs.nim-branch) }}
+        cpu: ${{ fromJSON(inputs.cpu) }}
+        exclude: ${{ fromJSON(inputs.exclude) }}
 
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
-    runs-on: ${{ matrix.builder }}
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.branch }})'
+    runs-on: ${{ matrix.platform.builder }}
     continue-on-error: ${{ matrix.branch == 'devel' || matrix.branch == 'version-2-0' }}
     steps:
       - name: Checkout
@@ -54,10 +57,10 @@ jobs:
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: ${{ matrix.target.os }}
-          shell: ${{ matrix.shell }}
+          os: ${{ matrix.platform.os }}
+          shell: ${{ matrix.platform.shell }}
           nim_branch: ${{ matrix.branch }}
-          cpu: ${{ matrix.target.cpu }}
+          cpu: ${{ matrix.cpu }}
 
       - name: Setup Go
         uses: actions/setup-go@v4
