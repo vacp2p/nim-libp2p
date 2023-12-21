@@ -10,8 +10,9 @@
 {.used.}
 
 import sequtils, options, tables, sets, sugar
-import chronos, stew/byteutils
+import chronos, stew/byteutils, chronos/ratelimit
 import chronicles
+import metrics
 import utils, ../../libp2p/[errors,
                             peerid,
                             peerinfo,
@@ -20,6 +21,7 @@ import utils, ../../libp2p/[errors,
                             crypto/crypto,
                             protocols/pubsub/pubsub,
                             protocols/pubsub/gossipsub,
+                            protocols/pubsub/gossipsub/scoring,
                             protocols/pubsub/pubsubpeer,
                             protocols/pubsub/peertable,
                             protocols/pubsub/timedcache,
@@ -928,3 +930,136 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  proc initializeGossipTest(): Future[(seq[PubSub], GossipSub, GossipSub)] {.async.} =
+    let nodes = generateNodes(
+      2,
+      gossip = true,
+      overheadRateLimit = Opt.some((20, 1.millis)))
+
+    discard await allFinished(
+      nodes[0].switch.start(),
+      nodes[1].switch.start(),
+    )
+
+    await subscribeNodes(nodes)
+
+    proc handle(topic: string, data: seq[byte]) {.async, gcsafe.} = discard
+
+    let gossip0 = GossipSub(nodes[0])
+    let gossip1 = GossipSub(nodes[1])
+
+    gossip0.subscribe("foobar", handle)
+    gossip1.subscribe("foobar", handle)
+    await waitSubGraph(nodes, "foobar")
+
+    # Avoid being disconnected by failing signature verification
+    gossip0.verifySignature = false
+    gossip1.verifySignature = false
+
+    return (nodes, gossip0,  gossip1)
+
+  proc currentRateLimitHits(): float64 =
+    try:
+      libp2p_gossipsub_peers_rate_limit_hits.valueByName("libp2p_gossipsub_peers_rate_limit_hits_total", @["nim-libp2p"])
+    except KeyError:
+      0
+
+  asyncTest "e2e - GossipSub should not rate limit decodable messages below the size allowed":
+    let rateLimitHits = currentRateLimitHits()
+    let (nodes, gossip0, gossip1) = await initializeGossipTest()
+
+    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](10))]))
+    await sleepAsync(300.millis)
+
+    check currentRateLimitHits() == rateLimitHits
+    check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
+
+    # Disconnect peer when rate limiting is enabled
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
+    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](12))]))
+    await sleepAsync(300.millis)
+
+    check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
+    check currentRateLimitHits() == rateLimitHits
+
+    await stopNodes(nodes)
+
+  asyncTest "e2e - GossipSub should rate limit undecodable messages above the size allowed":
+    let rateLimitHits = currentRateLimitHits()
+
+    let (nodes, gossip0, gossip1) = await initializeGossipTest()
+
+    # Simulate sending an undecodable message
+    await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](33, 1.byte))
+    await sleepAsync(300.millis)
+
+    check currentRateLimitHits() == rateLimitHits + 1
+    check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
+
+    # Disconnect peer when rate limiting is enabled
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
+    await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](35, 1.byte))
+
+    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
+    check currentRateLimitHits() == rateLimitHits + 2
+
+    await stopNodes(nodes)
+
+  asyncTest "e2e - GossipSub should rate limit decodable messages above the size allowed":
+    let rateLimitHits = currentRateLimitHits()
+    let (nodes, gossip0, gossip1) = await initializeGossipTest()
+
+    let msg = RPCMsg(control: some(ControlMessage(prune: @[
+        ControlPrune(topicID: "foobar", peers: @[
+            PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))
+        ], backoff: 123'u64)
+    ])))
+    gossip0.broadcast(gossip0.mesh["foobar"], msg)
+    await sleepAsync(300.millis)
+
+    check currentRateLimitHits() == rateLimitHits + 1
+    check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
+
+    # Disconnect peer when rate limiting is enabled
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
+    let msg2 = RPCMsg(control: some(ControlMessage(prune: @[
+        ControlPrune(topicID: "foobar", peers: @[
+            PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))
+        ], backoff: 123'u64)
+    ])))
+    gossip0.broadcast(gossip0.mesh["foobar"], msg2)
+
+    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
+    check currentRateLimitHits() == rateLimitHits + 2
+
+    await stopNodes(nodes)
+
+  asyncTest "e2e - GossipSub should rate limit invalid messages above the size allowed":
+    let rateLimitHits = currentRateLimitHits()
+    let (nodes, gossip0, gossip1) = await initializeGossipTest()
+
+    let topic = "foobar"
+    proc execValidator(topic: string, message: messages.Message): Future[ValidationResult] {.raises: [].} =
+      let res = newFuture[ValidationResult]()
+      res.complete(ValidationResult.Reject)
+      res
+
+    gossip0.addValidator(topic, execValidator)
+    gossip1.addValidator(topic, execValidator)
+
+    let msg = RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](40))])
+
+    gossip0.broadcast(gossip0.mesh[topic], msg)
+    await sleepAsync(300.millis)
+
+    check currentRateLimitHits() == rateLimitHits + 1
+    check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
+
+    # Disconnect peer when rate limiting is enabled
+    gossip1.parameters.disconnectPeerAboveRateLimit = true
+    gossip0.broadcast(gossip0.mesh[topic], RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](35))]))
+
+    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
+    check currentRateLimitHits() == rateLimitHits + 2
+
+    await stopNodes(nodes)

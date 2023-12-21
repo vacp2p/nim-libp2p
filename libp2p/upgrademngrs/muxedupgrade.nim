@@ -91,13 +91,11 @@ proc new*(
   T: type MuxedUpgrade,
   muxers: seq[MuxerProvider],
   secureManagers: openArray[Secure] = [],
-  connManager: ConnManager,
   ms: MultistreamSelect): T =
 
   let upgrader = T(
     muxers: muxers,
     secureManagers: @secureManagers,
-    connManager: connManager,
     ms: ms)
 
   upgrader.streamHandler = proc(conn: Connection)

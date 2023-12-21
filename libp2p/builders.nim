@@ -227,7 +227,7 @@ proc build*(b: SwitchBuilder): Switch
     identify = Identify.new(peerInfo, b.sendSignedPeerRecord)
     connManager = ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, connManager, ms)
+    muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms)
 
   let
     transports = block:

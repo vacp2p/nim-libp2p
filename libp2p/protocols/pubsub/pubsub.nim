@@ -17,6 +17,7 @@
 
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics
+import chronos/ratelimit
 import ./errors as pubsub_errors,
        ./pubsubpeer,
        ./rpc/[message, messages, protobuf],
@@ -263,7 +264,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
 
 method rpcHandler*(p: PubSub,
                    peer: PubSubPeer,
-                   rpcMsg: RPCMsg): Future[void] {.base, async.} =
+                   data: seq[byte]): Future[void] {.base, async.} =
   ## Handler that must be overridden by concrete implementation
   raiseAssert "Unimplemented"
 
@@ -278,10 +279,11 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {
   of PubSubPeerEventKind.Disconnected:
     discard
 
-proc getOrCreatePeer*(
+method getOrCreatePeer*(
     p: PubSub,
     peerId: PeerId,
-    protos: seq[string]): PubSubPeer =
+    protos: seq[string]): PubSubPeer {.base, gcsafe.} =
+
   p.peers.withValue(peerId, peer):
     return peer[]
 
@@ -354,9 +356,9 @@ method handleConn*(p: PubSub,
   ##    that we're interested in
   ##
 
-  proc handler(peer: PubSubPeer, msg: RPCMsg): Future[void] =
+  proc handler(peer: PubSubPeer, data: seq[byte]): Future[void] =
     # call pubsub rpc handler
-    p.rpcHandler(peer, msg)
+    p.rpcHandler(peer, data)
 
   let peer = p.getOrCreatePeer(conn.peerId, @[proto])
 

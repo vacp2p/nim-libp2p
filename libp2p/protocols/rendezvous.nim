@@ -469,6 +469,8 @@ proc advertisePeer(rdv: RendezVous,
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
       elif msgRecv.registerResponse.tryGet().status != ResponseStatus.Ok:
         trace "Refuse to register", peer, response = msgRecv.registerResponse
+      else:
+        trace "Successfully registered", peer, response = msgRecv.registerResponse
     except CatchableError as exc:
       trace "exception in the advertise", error = exc.msg
     finally:
@@ -476,9 +478,9 @@ proc advertisePeer(rdv: RendezVous,
   await rdv.sema.acquire()
   discard await advertiseWrap().withTimeout(5.seconds)
 
-proc advertise*(rdv: RendezVous,
+method advertise*(rdv: RendezVous,
                 ns: string,
-                ttl: Duration = MinimumDuration) {.async.} =
+                ttl: Duration = MinimumDuration) {.async, base.} =
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
     raise newException(RendezVousError, "Wrong Signed Peer Record")
   if ns.len notin 1..255:

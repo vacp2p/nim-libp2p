@@ -144,6 +144,9 @@ type
 
     bandwidthEstimatebps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
 
+    overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
+    disconnectPeerAboveRateLimit*: bool
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
 

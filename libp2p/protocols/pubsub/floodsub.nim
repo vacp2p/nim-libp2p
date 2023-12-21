@@ -15,7 +15,7 @@ import ./pubsub,
        ./pubsubpeer,
        ./timedcache,
        ./peertable,
-       ./rpc/[message, messages],
+       ./rpc/[message, messages, protobuf],
        ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
@@ -95,7 +95,16 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
-                   rpcMsg: RPCMsg) {.async.} =
+                   data: seq[byte]) {.async.} =
+
+  var rpcMsg = decodeRpcMsg(data).valueOr:
+    debug "failed to decode msg from peer", peer, err = error
+    raise newException(CatchableError, "")
+
+  trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  # trigger hooks
+  peer.recvObservers(rpcMsg)
+
   for i in 0..<min(f.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
     f.handleSubscribe(peer, sub.topic, sub.subscribe)
