@@ -243,6 +243,7 @@ const MultiCodecList = [
   ("codex-root", 0xCD03),
   ("codex-slot-root", 0xCD04),
   ("codex-proving-root", 0xCD05),
+  ("codex-slot-cell", 0xCD06),
 ]
 
 type
