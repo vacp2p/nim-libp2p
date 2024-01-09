@@ -36,8 +36,8 @@ suite "Yamux":
         yamuxa.close(), yamuxb.close(),
         handlera, handlerb)
 
-  suite "Basic":
-    asyncTest "Simple test":
+  suite "Simple Reading/Writing yamux messages":
+    asyncTest "Roundtrip of small messages":
       mSetup()
 
       yamuxb.streamHandler = proc(conn: Connection) {.async.} =
