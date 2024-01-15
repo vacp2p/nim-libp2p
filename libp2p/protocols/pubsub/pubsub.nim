@@ -138,17 +138,18 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) {.raises: [].} =
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool = false) {.raises: [].} =
   ## Attempt to send `msg` to remote peer
   ##
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
-  peer.send(msg, p.anonymize)
+  peer.send(msg, p.anonymize, isHighPriority)
 
 proc broadcast*(
   p: PubSub,
   sendPeers: auto, # Iteratble[PubSubPeer]
-  msg: RPCMsg) {.raises: [].} =
+  msg: RPCMsg,
+  isHighPriority: bool = false) {.raises: [].} =
   ## Attempt to send `msg` to the given peers
 
   let npeers = sendPeers.len.int64
@@ -195,12 +196,12 @@ proc broadcast*(
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg)
+      p.send(peer, msg, isHighPriority)
   else:
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded)
+      asyncSpawn peer.sendEncoded(encoded, isHighPriority)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
