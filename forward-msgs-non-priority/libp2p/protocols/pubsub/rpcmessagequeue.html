@@ -225,9 +225,14 @@ window.addEventListener("DOMContentLoaded", main2);
     title="addPriorityMessage(aq: RpcMessageQueue; msg: seq[byte]): Future[void]">addPriorityMessage(aq: RpcMessageQueue; msg: seq[byte]): Future[void]</a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">getMessage
-      <li><a class="reference" href="#getMessage%2CRpcMessageQueue"
-    title="getMessage(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]]">getMessage(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]]</a></li>
+  <ul class="simple nested-toc-section">getNonPriorityMessage
+      <li><a class="reference" href="#getNonPriorityMessage%2CRpcMessageQueue"
+    title="getNonPriorityMessage(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]]">getNonPriorityMessage(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]]</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">getPriorityMessage
+      <li><a class="reference" href="#getPriorityMessage%2CRpcMessageQueue"
+    title="getPriorityMessage(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]]">getPriorityMessage(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">new
@@ -307,8 +312,22 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="getMessage,RpcMessageQueue" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getMessage%2CRpcMessageQueue"><span class="Identifier">getMessage</span></a><span class="Other">(</span><span class="Identifier">rpcMessageQueue</span><span class="Other">:</span> <a href="rpcmessagequeue.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span><span class="Other">]</span> {.
+<div id="getNonPriorityMessage,RpcMessageQueue" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#getNonPriorityMessage%2CRpcMessageQueue"><span class="Identifier">getNonPriorityMessage</span></a><span class="Other">(</span><span class="Identifier">rpcMessageQueue</span><span class="Other">:</span> <a href="rpcmessagequeue.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
+    <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                      <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L39"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L39" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="getPriorityMessage,RpcMessageQueue" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#getPriorityMessage%2CRpcMessageQueue"><span class="Identifier">getPriorityMessage</span></a><span class="Other">(</span><span class="Identifier">rpcMessageQueue</span><span class="Other">:</span> <a href="rpcmessagequeue.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span><span class="Other">]</span> {.
     <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
@@ -343,7 +362,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-01-15 17:41:54 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-01-15 22:56:37 UTC</small>
       </div>
     </div>
   </div>
