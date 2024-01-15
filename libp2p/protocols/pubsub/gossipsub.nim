@@ -220,6 +220,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
+  pubSubPeer.stopSendNonPriorityTask()
+
   procCall FloodSub(g).unsubscribePeer(peer)
 
 proc handleSubscribe*(g: GossipSub,
@@ -303,7 +305,10 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     trace "sending control message", msg = shortLog(respControl), peer
     g.send(
       peer,
-      RPCMsg(control: some(respControl), messages: messages))
+      RPCMsg(control: some(respControl)), true)
+    g.send(
+      peer,
+      RPCMsg(messages: messages), false)
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
@@ -370,7 +375,7 @@ proc validateAndRelay(g: GossipSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
+    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue
@@ -441,7 +446,7 @@ method rpcHandler*(g: GossipSub,
   peer.recvObservers(rpcMsg)
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
-    g.send(peer, RPCMsg(pong: rpcMsg.ping))
+    g.send(peer, RPCMsg(pong: rpcMsg.ping), true)
     peer.pingBudget.dec
   for i in 0..<min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
@@ -655,7 +660,7 @@ method publish*(g: GossipSub,
 
   g.mcache.put(msgId, msg)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]))
+  g.broadcast(peers, RPCMsg(messages: @[msg]), true)
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
