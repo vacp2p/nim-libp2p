@@ -29,16 +29,22 @@ proc new*(T: typedesc[RpcMessageQueue]): T =
     nonPriorityQueue: newAsyncQueue[seq[byte]]()
   )
 
-proc getPriorityMessage*(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]] {.async.} =
+proc getPriorityMessage*(rpcMessageQueue: RpcMessageQueue): Opt[seq[byte]] =
   return
     if not rpcMessageQueue.priorityQueue.empty():
-      Opt.some(rpcMessageQueue.priorityQueue.getNoWait())
+      try:
+        Opt.some(rpcMessageQueue.priorityQueue.getNoWait())
+      except AsyncQueueEmptyError:
+        Opt.none(seq[byte])
     else:
       Opt.none(seq[byte])
 
-proc getNonPriorityMessage*(rpcMessageQueue: RpcMessageQueue): Future[Opt[seq[byte]]] {.async.} =
+proc getNonPriorityMessage*(rpcMessageQueue: RpcMessageQueue): Opt[seq[byte]] =
   return
     if not rpcMessageQueue.nonPriorityQueue.empty():
-      Opt.some(rpcMessageQueue.nonPriorityQueue.getNoWait())
+      try:
+        Opt.some(rpcMessageQueue.nonPriorityQueue.getNoWait())
+      except AsyncQueueEmptyError:
+        Opt.none(seq[byte])
     else:
       Opt.none(seq[byte])

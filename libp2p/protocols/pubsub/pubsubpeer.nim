@@ -335,8 +335,8 @@ proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
       return true
   return false
 
-proc getMessage(rpcMessageQueue: RpcMessageQueue, p: PubSubPeer): Future[Opt[seq[byte]]] {.async.} =
-  var m = await rpcMessageQueue.getPriorityMessage()
+proc getMessage(rpcMessageQueue: RpcMessageQueue, p: PubSubPeer): Opt[seq[byte]] =
+  var m = rpcMessageQueue.getPriorityMessage()
   if m.isSome():
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
@@ -344,7 +344,7 @@ proc getMessage(rpcMessageQueue: RpcMessageQueue, p: PubSubPeer): Future[Opt[seq
       libp2p_gossipsub_priority_queue_size.dec(labelValues = [p.getAgent()])
     return m
   else:
-    m = await rpcMessageQueue.getNonPriorityMessage()
+    m = rpcMessageQueue.getNonPriorityMessage()
     if m.isSome():
       when defined(libp2p_expensive_metrics):
         libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
@@ -356,7 +356,7 @@ proc getMessage(rpcMessageQueue: RpcMessageQueue, p: PubSubPeer): Future[Opt[seq
 
 proc processMessages(p: PubSubPeer, queue: RpcMessageQueue) {.async.} =
   while true:
-    let m = await queue.getMessage(p)
+    let m =  queue.getMessage(p)
     m.withValue(msg):
       if p.sendConn == nil:
         # Wait for a send conn to be setup. `connectOnce` will
