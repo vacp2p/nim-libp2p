@@ -89,6 +89,24 @@ template exceptionToAssert*(body: untyped): untyped =
     res
 
 template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped =
+  ## This template provides a convenient way to work with `Option` types in Nim.
+  ## It allows you to execute a block of code (`body`) only when the `Option` is not empty.
+  ##
+  ## `self` is the `Option` instance being checked.
+  ## `value` is the variable name to be used within the `body` for the unwrapped value.
+  ## `body` is a block of code that is executed only if `self` contains a value.
+  ##
+  ## The `value` within `body` is automatically unwrapped from the `Option`, making it
+  ## simpler to work with without needing explicit checks or unwrapping.
+  ##
+  ## Example:
+  ## ```nim
+  ## let myOpt = Opt.some(5)
+  ## myOpt.withValue(value):
+  ##   echo value # Will print 5
+  ## ```
+  ##
+  ## Note: This is a template, and it will be inlined at the call site, offering good performance.
   let temp = (self)
   if temp.isSome:
     let value {.inject.} = temp.get()
