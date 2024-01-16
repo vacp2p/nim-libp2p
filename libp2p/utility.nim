@@ -89,8 +89,9 @@ template exceptionToAssert*(body: untyped): untyped =
     res
 
 template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped =
-  if self.isSome:
-    let value {.inject.} = self.get()
+  let temp = (self)
+  if temp.isSome:
+    let value {.inject.} = temp.get()
     body
 
 macro withValue*[T](self: Opt[T] | Option[T], value, body, body2: untyped): untyped =
