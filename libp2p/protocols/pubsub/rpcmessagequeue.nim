@@ -48,3 +48,7 @@ proc getNonPriorityMessage*(rpcMessageQueue: RpcMessageQueue): Opt[seq[byte]] =
         Opt.none(seq[byte])
     else:
       Opt.none(seq[byte])
+
+proc clear*(rpcMessageQueue: RpcMessageQueue) =
+  rpcMessageQueue.priorityQueue.clear()
+  rpcMessageQueue.nonPriorityQueue.clear()

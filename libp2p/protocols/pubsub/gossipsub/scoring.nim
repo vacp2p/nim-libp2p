@@ -92,6 +92,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
 proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async.} =
   try:
     await g.switch.disconnect(peer.peerId)
+    peer.stopProcessingMessages()
   except CatchableError as exc: # Never cancelled
     trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
 
