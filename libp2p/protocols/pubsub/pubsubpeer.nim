@@ -32,8 +32,8 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
-declareGauge(libp2p_gossipsub_priority_queue_size, "the number of messages in the priority queue", labels = ["id_or_agent"])
-declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id_or_agent"])
+declareGauge(libp2p_gossipsub_priority_queue_size, "the number of messages in the priority queue", labels = ["id"])
+declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id"])
 
 type
   PeerRateLimitError* = object of CatchableError
@@ -258,14 +258,10 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool = false) {
     await p.rpcmessagequeue.addPriorityMessage(msg)
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
-    else:
-      libp2p_gossipsub_priority_queue_size.inc(labelValues = [p.getAgent()])
   else:
     await p.rpcmessagequeue.addNonPriorityMessage(msg)
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
-    else:
-      libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [p.getAgent()])
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
   ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
@@ -340,16 +336,12 @@ proc getMessage(rpcMessageQueue: RpcMessageQueue, p: PubSubPeer): Opt[seq[byte]]
   if m.isSome():
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
-    else:
-      libp2p_gossipsub_priority_queue_size.dec(labelValues = [p.getAgent()])
     return m
   else:
     m = rpcMessageQueue.getNonPriorityMessage()
     if m.isSome():
       when defined(libp2p_expensive_metrics):
         libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
-      else:
-        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [p.getAgent()])
       return m
     else:
       return Opt.none(seq[byte])
