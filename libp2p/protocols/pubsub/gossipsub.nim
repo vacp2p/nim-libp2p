@@ -220,6 +220,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
+  pubSubPeer.stopProcessingMessages()
+
   procCall FloodSub(g).unsubscribePeer(peer)
 
 proc handleSubscribe*(g: GossipSub,
