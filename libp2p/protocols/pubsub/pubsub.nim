@@ -143,7 +143,7 @@ proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool = fals
   ##
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
-  peer.send(msg, p.anonymize, isHighPriority)
+  asyncSpawn peer.send(msg, p.anonymize, isHighPriority)
 
 proc broadcast*(
   p: PubSub,
