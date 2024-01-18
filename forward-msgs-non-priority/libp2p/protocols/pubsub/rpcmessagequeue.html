@@ -207,8 +207,8 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#RpcMessageQueue"
     title="RpcMessageQueue = ref object
-  priorityQueue: AsyncQueue[seq[byte]]
-  nonPriorityQueue: AsyncQueue[seq[byte]]">RpcMessageQueue</a></li>
+  priorityQueue*: AsyncQueue[seq[byte]]
+  nonPriorityQueue*: AsyncQueue[seq[byte]]">RpcMessageQueue</a></li>
 
   </ul>
 </li>
@@ -240,11 +240,6 @@ window.addEventListener("DOMContentLoaded", main2);
     title="getPriorityMessage(rpcMessageQueue: RpcMessageQueue): Opt[seq[byte]]">getPriorityMessage(rpcMessageQueue: RpcMessageQueue): Opt[seq[byte]]</a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">new
-      <li><a class="reference" href="#new%2Ctypedesc%5BRpcMessageQueue%5D"
-    title="new(T: typedesc[RpcMessageQueue]): T:type">new(T: typedesc[RpcMessageQueue]): T:type</a></li>
-
-  </ul>
 
   </ul>
 </li>
@@ -271,8 +266,8 @@ class="link-seesrc" target="_blank">Source</a>
 <dl class="item">
 <div id="RpcMessageQueue" class="tohide">
 <dt><pre><a href="rpcmessagequeue.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
-  <span class="Identifier">priorityQueue</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span>
-  <span class="Identifier">nonPriorityQueue</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span>
+  <span class="Identifier">priorityQueue</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span>
+  <span class="Identifier">nonPriorityQueue</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span>
 </pre></dt>
 <dd>
 
@@ -323,9 +318,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L52"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L48"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L52" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -336,9 +331,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L42"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L38"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L42" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L38" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -349,21 +344,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L32"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L28"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L32" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="new,typedesc[RpcMessageQueue]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BRpcMessageQueue%5D"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="rpcmessagequeue.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority/libp2p/protocols/pubsub/rpcmessagequeue.nim#L26"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L26" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpcmessagequeue.nim#L28" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -377,7 +360,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-01-17 19:08:44 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-01-18 17:47:53 UTC</small>
       </div>
     </div>
   </div>
