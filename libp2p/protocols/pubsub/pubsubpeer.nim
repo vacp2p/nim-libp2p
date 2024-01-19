@@ -33,6 +33,8 @@ when defined(libp2p_expensive_metrics):
 
 declareGauge(libp2p_gossipsub_priority_queue_size, "the number of messages in the priority queue", labels = ["id"])
 declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id"])
+declareCounter(libp2p_gossipsub_priority_queue_messages_processed, "the number of messages processed in the priority queue", labels = ["id"])
+declareCounter(libp2p_gossipsub_non_priority_queue_messages_processed, "the number of messages processed in the non-priority queue", labels = ["id"])
 
 type
   PeerRateLimitError* = object of CatchableError
@@ -272,7 +274,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool = false) {
   if not p.rpcmessagequeue.isProcessing:
     p.rpcmessagequeue.isProcessing = true
     p.rpcmessagequeue.messageAvailableEvent.fire()
-    await sleepAsync(1.nanoseconds) # give a chance to the task processing the queue to run
+    await sleepAsync(0) # give a chance to the task processing the queue to run
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
   ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
@@ -374,9 +376,13 @@ proc processMessages(p: PubSubPeer) {.async.} =
 
     if not p.rpcmessagequeue.priorityQueue.empty():
       let message = await p.rpcmessagequeue.priorityQueue.get()
+      when defined(libp2p_expensive_metrics):
+        libp2p_gossipsub_priority_queue_messages_processed.inc(labelValues = [$p.peerId])
       await sendMsg(message)
     elif not p.rpcmessagequeue.nonPriorityQueue.empty():
       let message = await p.rpcmessagequeue.nonPriorityQueue.get()
+      when defined(libp2p_expensive_metrics):
+        libp2p_gossipsub_non_priority_queue_messages_processed.inc(labelValues = [$p.peerId])
       await sendMsg(message)
 
     p.rpcmessagequeue.isProcessing = false
