@@ -367,9 +367,10 @@ proc processMessages(p: PubSubPeer) {.async.} =
 
       await conn.close() # This will clean up the send connection
   while true:
-    var futs = @[p.rpcmessagequeue.priorityQueue.isNotempty(), p.rpcmessagequeue.nonPriorityQueue.isNotempty()]
+    # We nedd the cast because a seq[InternalRaisesFuture[T, E]] is not considered a subtype of seq[Future[T]]
+    var futs = @[cast[Future[void]](p.rpcmessagequeue.priorityQueue.isNotempty()), cast[Future[void]](p.rpcmessagequeue.nonPriorityQueue.isNotempty())]
     try:
-      discard await anyCompleted(futs)#.wait(self.connectTimeout)
+      discard await anyCompleted(futs)
       trace "waiting for message", p
     finally:
       for fut in futs: fut.cancel()
