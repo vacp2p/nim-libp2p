@@ -367,25 +367,23 @@ proc processMessages(p: PubSubPeer) {.async.} =
 
       await conn.close() # This will clean up the send connection
   while true:
-    # We nedd the cast because a seq[InternalRaisesFuture[T, E]] is not considered a subtype of seq[Future[T]]
-    var futs = @[cast[Future[void]](p.rpcmessagequeue.priorityQueue.isNotempty()), cast[Future[void]](p.rpcmessagequeue.nonPriorityQueue.isNotempty())]
-    try:
-      discard await anyCompleted(futs)
-      trace "waiting for message", p
-    finally:
-      for fut in futs: fut.cancel()
-    trace "message available", p
-    if not p.rpcmessagequeue.priorityQueue.empty():
-      let message = p.rpcmessagequeue.priorityQueue.getNoWait()
-      when defined(libp2p_expensive_metrics):
-        libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
-      trace "message dequeued from priority queue", p, msg = shortLog(message)
-      await sendMsg(message)
-    elif not p.rpcmessagequeue.nonPriorityQueue.empty():
-      let message = p.rpcmessagequeue.nonPriorityQueue.getNoWait()
-      when defined(libp2p_expensive_metrics):
-        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
-      trace "message dequeued from non-priority queue", p, msg = shortLog(message)
+    var getFutures = @[p.rpcmessagequeue.priorityQueue.get(), p.rpcmessagequeue.nonPriorityQueue.get()]
+    while true:
+      let
+        finishedGet = await one(getFutures)
+        index = getFutures.find(finishedGet)
+      if index == 0:
+        getFutures[0] = p.rpcmessagequeue.priorityQueue.get()
+        when defined(libp2p_expensive_metrics):
+          libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
+        trace "message dequeued from priority queue", p
+      else:
+        getFutures[1] = p.rpcmessagequeue.nonPriorityQueue.get()
+        when defined(libp2p_expensive_metrics):
+         libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
+        trace "message dequeued from non-priority queue", p
+
+      let message = await finishedGet
       await sendMsg(message)
 
 proc startProcessingMessages(p: PubSubPeer) =
