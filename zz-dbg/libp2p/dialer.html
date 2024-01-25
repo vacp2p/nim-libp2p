@@ -248,9 +248,9 @@ window.addEventListener("DOMContentLoaded", main2);
     PeerId]</a></li>
   <li><a class="reference" href="#connect.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D"
     title="connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; upgradeDir = Direction.Out): Future[
+        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
     void]">connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; upgradeDir = Direction.Out): Future[
+        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
     void]</a></li>
 
   </ul>
@@ -344,9 +344,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L334"
+href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L338"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L334" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L338" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -361,9 +361,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L331"
+href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L335"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L331" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L335" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -374,24 +374,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 Connects to a peer and retrieve its PeerId
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L225"
+href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L229"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L225" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L229" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="connect.e,Dialer,PeerId,seq[MultiAddress]" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#connect.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D"><span class="Identifier">connect</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="dialer.html#Dialer"><span class="Identifier">Dialer</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span>
-               <span class="Identifier">forceDial</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span> <span class="Identifier">reuseConnection</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span>
-               <span class="Identifier">upgradeDir</span> <span class="Other">=</span> <a href="stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">.</span><span class="Identifier">Out</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+               <span class="Identifier">forceDial</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span> <span class="Identifier">reuseConnection</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span> <span class="Identifier">dir</span> <span class="Other">=</span> <a href="stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">.</span><span class="Identifier">Out</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 connect remote peer without negotiating a protocol 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L212"
+href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L216"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L212" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L216" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -403,9 +402,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 create a protocol stream and establish a connection if one doesn't exist already 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L295"
+href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L299"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L295" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L299" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -416,9 +415,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 create a protocol stream over an existing connection 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L278"
+href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L282"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L278" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L282" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -430,9 +429,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Create a protocol stream in order to check if a connection is possible. Doesn't use the Connection Manager to save it. 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L257"
+href="https://github.com/status-im/nim-libp2p/tree/zz-dbg/libp2p/dialer.nim#L261"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L257" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/dialer.nim#L261" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -451,7 +450,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-21 17:01:43 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-01-25 15:42:35 UTC</small>
       </div>
     </div>
   </div>
