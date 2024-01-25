@@ -387,11 +387,13 @@ proc processMessages(p: PubSubPeer) {.async.} =
       await sendMsg(message)
 
 proc startProcessingMessages(p: PubSubPeer) =
+  debug "starting processing messages", p
   if p.rpcmessagequeue.queueProcessingTask.isNil:
     p.rpcmessagequeue.queueProcessingTask = p.processMessages()
 
 proc stopProcessingMessages*(p: PubSubPeer) =
   if not p.rpcmessagequeue.queueProcessingTask.isNil:
+    debug "stopping processing messages", p
     p.rpcmessagequeue.queueProcessingTask.cancel()
     p.rpcmessagequeue.queueProcessingTask = nil
     p.rpcmessagequeue.priorityQueue.clear()
