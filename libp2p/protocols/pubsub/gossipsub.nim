@@ -305,7 +305,10 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     trace "sending control message", msg = shortLog(respControl), peer
     g.send(
       peer,
-      RPCMsg(control: some(respControl), messages: messages), true)
+      RPCMsg(control: some(respControl)), true)
+    g.send(
+      peer,
+      RPCMsg(messages: messages), false)
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
