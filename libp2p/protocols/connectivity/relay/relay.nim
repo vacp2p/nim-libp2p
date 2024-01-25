@@ -105,7 +105,7 @@ proc isRelayed*(conn: Connection): bool =
     wrappedConn = wrappedConn.getWrapped()
   return false
 
-proc handleReserve(r: Relay, conn: Connection) {.async, gcsafe.} =
+proc handleReserve(r: Relay, conn: Connection) {.async.} =
   if conn.isRelayed():
     trace "reservation attempt over relay connection", pid = conn.peerId
     await sendHopStatus(conn, PermissionDenied)
@@ -128,7 +128,7 @@ proc handleReserve(r: Relay, conn: Connection) {.async, gcsafe.} =
 
 proc handleConnect(r: Relay,
                    connSrc: Connection,
-                   msg: HopMessage) {.async, gcsafe.} =
+                   msg: HopMessage) {.async.} =
   if connSrc.isRelayed():
     trace "connection attempt over relay connection"
     await sendHopStatus(connSrc, PermissionDenied)
@@ -200,7 +200,7 @@ proc handleConnect(r: Relay,
     await rconnDst.close()
   await bridge(rconnSrc, rconnDst)
 
-proc handleHopStreamV2*(r: Relay, conn: Connection) {.async, gcsafe.} =
+proc handleHopStreamV2*(r: Relay, conn: Connection) {.async.} =
   let msg = HopMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return
@@ -214,7 +214,7 @@ proc handleHopStreamV2*(r: Relay, conn: Connection) {.async, gcsafe.} =
 
 # Relay V1
 
-proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsafe.} =
+proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
   r.streamCount.inc()
   defer: r.streamCount.dec()
   if r.streamCount + r.rsvp.len() >= r.maxCircuit:
@@ -293,7 +293,7 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async, gcsaf
   trace "relaying connection", src, dst
   await bridge(connSrc, connDst)
 
-proc handleStreamV1(r: Relay, conn: Connection) {.async, gcsafe.} =
+proc handleStreamV1(r: Relay, conn: Connection) {.async.} =
   let msg = RelayMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
@@ -336,7 +336,7 @@ proc new*(T: typedesc[Relay],
             msgSize: msgSize,
             isCircuitRelayV1: circuitRelayV1)
 
-  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handleStream(conn: Connection, proto: string) {.async.} =
     try:
       case proto:
       of RelayV2HopCodec: await r.handleHopStreamV2(conn)

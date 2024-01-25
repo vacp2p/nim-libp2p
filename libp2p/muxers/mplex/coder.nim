@@ -42,7 +42,7 @@ const MaxMsgSize* = 1 shl 20 # 1mb
 proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
   newException(InvalidMplexMsgType, "invalid message type")
 
-proc readMsg*(conn: Connection): Future[Msg] {.async, gcsafe.} =
+proc readMsg*(conn: Connection): Future[Msg] {.async.} =
   let header = await conn.readVarint()
   trace "read header varint", varint = header, conn
 

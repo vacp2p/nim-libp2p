@@ -94,7 +94,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
 
     switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
 
-    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
+    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Opt[float]) {.async.} =
       if networkReachability == NetworkReachability.NotReachable and not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)
       elif networkReachability == NetworkReachability.Reachable and self.autoRelayService.isRunning():

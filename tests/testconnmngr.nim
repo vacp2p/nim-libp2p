@@ -32,7 +32,7 @@ method newStream*(
   m: TestMuxer,
   name: string = "",
   lazy: bool = false):
-  Future[Connection] {.async, gcsafe.} =
+  Future[Connection] {.async.} =
   result = Connection.new(m.peerId, Direction.Out, Opt.none(MultiAddress))
 
 suite "Connection Manager":

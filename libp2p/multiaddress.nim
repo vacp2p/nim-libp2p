@@ -399,6 +399,9 @@ const
       mcodec: multiCodec("quic"), kind: Marker, size: 0
     ),
     MAProtocol(
+      mcodec: multiCodec("quic-v1"), kind: Marker, size: 0
+    ),
+    MAProtocol(
       mcodec: multiCodec("ip6zone"), kind: Length, size: 0,
       coder: TranscoderIP6Zone
     ),
@@ -955,7 +958,7 @@ proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
   result.data = initVBuffer()
 
-proc init*(mtype: typedesc[MultiAddress], address: ValidIpAddress,
+proc init*(mtype: typedesc[MultiAddress], address: IpAddress,
            protocol: IpTransportProtocol, port: Port): MultiAddress =
   var res: MultiAddress
   res.data = initVBuffer()

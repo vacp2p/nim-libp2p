@@ -29,7 +29,7 @@ logScope:
 
 proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDialableAddrs = 8): T =
 
-  proc handleStream(stream: Connection, proto: string) {.async, gcsafe.} =
+  proc handleStream(stream: Connection, proto: string) {.async.} =
     var peerDialableAddrs: seq[MultiAddress]
     try:
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024))
@@ -56,7 +56,7 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
 
       if peerDialableAddrs.len > maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0..<maxDialableAddrs]
-      var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false, upgradeDir = Direction.In))
+      var futs = peerDialableAddrs.mapIt(switch.connect(stream.peerId, @[it], forceDial = true, reuseConnection = false, dir = Direction.Out))
       try:
         discard await anyCompleted(futs).wait(connectTimeout)
         debug "Dcutr receiver has directly connected to the remote peer."

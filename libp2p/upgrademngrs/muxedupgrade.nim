@@ -32,8 +32,7 @@ proc getMuxerByCodec(self: MuxedUpgrade, muxerName: string): MuxerProvider =
 
 proc mux*(
   self: MuxedUpgrade,
-  conn: Connection,
-  direction: Direction): Future[Muxer] {.async, gcsafe.} =
+  conn: Connection): Future[Muxer] {.async.} =
   ## mux connection
 
   trace "Muxing connection", conn
@@ -42,7 +41,7 @@ proc mux*(
     return
 
   let muxerName =
-    if direction == Out: await self.ms.select(conn, self.muxers.mapIt(it.codec))
+    if conn.dir == Out: await self.ms.select(conn, self.muxers.mapIt(it.codec))
     else: await MultistreamSelect.handle(conn, self.muxers.mapIt(it.codec))
 
   if muxerName.len == 0 or muxerName == "na":
@@ -62,16 +61,15 @@ proc mux*(
 method upgrade*(
   self: MuxedUpgrade,
   conn: Connection,
-  direction: Direction,
   peerId: Opt[PeerId]): Future[Muxer] {.async.} =
-  trace "Upgrading connection", conn, direction
+  trace "Upgrading connection", conn, direction = conn.dir
 
-  let sconn = await self.secure(conn, direction, peerId) # secure the connection
+  let sconn = await self.secure(conn, peerId) # secure the connection
   if isNil(sconn):
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
 
-  let muxer = await self.mux(sconn, direction) # mux it if possible
+  let muxer = await self.mux(sconn) # mux it if possible
   if muxer == nil:
     raise newException(UpgradeFailedError,
       "a muxer is required for outgoing connections")
@@ -84,7 +82,7 @@ method upgrade*(
     raise newException(UpgradeFailedError,
       "Connection closed or missing peer info, stopping upgrade")
 
-  trace "Upgraded connection", conn, sconn, direction
+  trace "Upgraded connection", conn, sconn, direction = conn.dir
   return muxer
 
 proc new*(
@@ -98,8 +96,7 @@ proc new*(
     secureManagers: @secureManagers,
     ms: ms)
 
-  upgrader.streamHandler = proc(conn: Connection)
-    {.async, gcsafe, raises: [].} =
+  upgrader.streamHandler = proc(conn: Connection) {.async.} =
     trace "Starting stream handler", conn
     try:
       await upgrader.ms.handle(conn) # handle incoming connection

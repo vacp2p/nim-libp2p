@@ -41,7 +41,7 @@ type
 {.push raises: [].}
 
 method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
     await conn.writeLp("Hello!")
@@ -100,7 +100,7 @@ suite "Noise":
 
     proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
+      let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       try:
         await sconn.write("Hello!")
       finally:
@@ -115,7 +115,7 @@ suite "Noise":
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
 
-    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
+    let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
     var msg = newSeq[byte](6)
     await sconn.readExactly(addr msg[0], 6)
@@ -140,11 +140,11 @@ suite "Noise":
 
     asyncSpawn transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       var conn: Connection
       try:
         conn = await transport1.accept()
-        discard await serverNoise.secure(conn, false, Opt.none(PeerId))
+        discard await serverNoise.secure(conn, Opt.none(PeerId))
       except CatchableError:
         discard
       finally:
@@ -160,7 +160,7 @@ suite "Noise":
 
     var sconn: Connection = nil
     expect(NoiseDecryptTagError):
-      sconn = await clientNoise.secure(conn, true, Opt.some(conn.peerId))
+      sconn = await clientNoise.secure(conn, Opt.some(conn.peerId))
 
     await conn.close()
     await handlerWait
@@ -178,9 +178,9 @@ suite "Noise":
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
+      let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       defer:
         await sconn.close()
         await conn.close()
@@ -196,7 +196,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
+    let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
     await sconn.write("Hello!")
     await acceptFut
@@ -221,9 +221,9 @@ suite "Noise":
       transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       listenFut = transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
+      let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       defer:
         await sconn.close()
       let msg = await sconn.readLp(1024*1024)
@@ -237,7 +237,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
+    let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
     await sconn.writeLp(hugePayload)
     await readTask

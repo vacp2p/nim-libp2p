@@ -128,7 +128,7 @@ proc removeConnEventHandler*(c: ConnManager,
 
 proc triggerConnEvent*(c: ConnManager,
                        peerId: PeerId,
-                       event: ConnEvent) {.async, gcsafe.} =
+                       event: ConnEvent) {.async.} =
   try:
     trace "About to trigger connection events", peer = peerId
     if c.connEvents[event.kind].len() > 0:
@@ -160,7 +160,7 @@ proc removePeerEventHandler*(c: ConnManager,
 
 proc triggerPeerEvents*(c: ConnManager,
                         peerId: PeerId,
-                        event: PeerEvent) {.async, gcsafe.} =
+                        event: PeerEvent) {.async.} =
 
   trace "About to trigger peer events", peer = peerId
   if c.peerEvents[event.kind].len == 0:
@@ -379,7 +379,7 @@ proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
   cs.trackConnection(mux.connection)
 
 proc getStream*(c: ConnManager,
-                muxer: Muxer): Future[Connection] {.async, gcsafe.} =
+                muxer: Muxer): Future[Connection] {.async.} =
   ## get a muxed stream for the passed muxer
   ##
 
@@ -387,7 +387,7 @@ proc getStream*(c: ConnManager,
     return await muxer.newStream()
 
 proc getStream*(c: ConnManager,
-                peerId: PeerId): Future[Connection] {.async, gcsafe.} =
+                peerId: PeerId): Future[Connection] {.async.} =
   ## get a muxed stream for the passed peer from any connection
   ##
 
@@ -395,7 +395,7 @@ proc getStream*(c: ConnManager,
 
 proc getStream*(c: ConnManager,
                 peerId: PeerId,
-                dir: Direction): Future[Connection] {.async, gcsafe.} =
+                dir: Direction): Future[Connection] {.async.} =
   ## get a muxed stream for the passed peer from a connection with `dir`
   ##
 

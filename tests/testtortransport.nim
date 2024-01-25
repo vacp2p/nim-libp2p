@@ -56,7 +56,7 @@ suite "Tor transport":
       check string.fromBytes(resp) == "server"
       await client.stop()
 
-    proc serverAcceptHandler() {.async, gcsafe.} =
+    proc serverAcceptHandler() {.async.} =
       let conn = await server.accept()
       var resp: array[6, byte]
       await conn.readExactly(addr resp, 6)
@@ -87,7 +87,7 @@ suite "Tor transport":
     proc new(T: typedesc[TestProto]): T =
 
       # every incoming connections will be in handled in this closure
-      proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+      proc handle(conn: Connection, proto: string) {.async.} =
 
         var resp: array[6, byte]
         await conn.readExactly(addr resp, 6)

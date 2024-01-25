@@ -97,7 +97,7 @@ suite "Mplex":
 
   suite "channel half-closed":
     asyncTest "(local close) - should close for write":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -112,7 +112,7 @@ suite "Mplex":
     asyncTest "(local close) - should allow reads until remote closes":
       let
         conn = TestBufferStream.new(
-          proc (data: seq[byte]) {.gcsafe, async.} =
+          proc (data: seq[byte]) {.async.} =
             discard,
         )
         chann = LPChannel.init(1, conn, true)
@@ -139,7 +139,7 @@ suite "Mplex":
     asyncTest "(remote close) - channel should close for reading by remote":
       let
         conn = TestBufferStream.new(
-          proc (data: seq[byte]) {.gcsafe, async.} =
+          proc (data: seq[byte]) {.async.} =
             discard,
         )
         chann = LPChannel.init(1, conn, true)
@@ -162,7 +162,7 @@ suite "Mplex":
       let
         testData = "Hello!".toBytes
         conn = TestBufferStream.new(
-          proc (data: seq[byte]) {.gcsafe, async.} =
+          proc (data: seq[byte]) {.async.} =
             discard
         )
         chann = LPChannel.init(1, conn, true)
@@ -175,7 +175,7 @@ suite "Mplex":
         await conn.close()
 
     asyncTest "should not allow pushing data to channel when remote end closed":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -192,7 +192,7 @@ suite "Mplex":
   suite "channel reset":
 
     asyncTest "channel should fail reading":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -205,7 +205,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete read":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -220,7 +220,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete pushData":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -239,7 +239,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete both read and push":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -254,7 +254,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete both read and pushes":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -279,7 +279,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete both read and push with cancel":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -293,7 +293,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "should complete both read and push after reset":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -311,7 +311,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete ongoing push without reader":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -323,7 +323,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete ongoing read without a push":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -335,7 +335,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should allow all reads and pushes to complete":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -364,7 +364,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "channel should fail writing":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -376,7 +376,7 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "channel should reset on timeout":
-      proc writeHandler(data: seq[byte]) {.async, gcsafe.} = discard
+      proc writeHandler(data: seq[byte]) {.async.} = discard
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(
@@ -392,11 +392,11 @@ suite "Mplex":
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
           let msg = await stream.readLp(1024)
           check string.fromBytes(msg) == "HELLO"
           await stream.close()
@@ -429,11 +429,11 @@ suite "Mplex":
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
           let msg = await stream.readLp(1024)
           check string.fromBytes(msg) == "HELLO"
           await stream.close()
@@ -473,12 +473,12 @@ suite "Mplex":
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         try:
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
           mplexListen.streamHandler = proc(stream: Connection)
-            {.async, gcsafe.} =
+            {.async.} =
             let msg = await stream.readLp(MaxMsgSize)
             check msg == bigseq
             trace "Bigseq check passed!"
@@ -520,11 +520,11 @@ suite "Mplex":
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
           await stream.writeLp("Hello from stream!")
           await stream.close()
 
@@ -557,12 +557,12 @@ suite "Mplex":
       let listenFut = transport1.start(ma)
 
       let done = newFuture[void]()
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         var count = 1
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
           let msg = await stream.readLp(1024)
           check string.fromBytes(msg) == &"stream {count}!"
           count.inc
@@ -601,12 +601,12 @@ suite "Mplex":
       let listenFut = transport1.start(ma)
 
       let done = newFuture[void]()
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         var count = 1
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
           let msg = await stream.readLp(1024)
           check string.fromBytes(msg) == &"stream {count} from dialer!"
           await stream.writeLp(&"stream {count} from listener!")
@@ -646,12 +646,12 @@ suite "Mplex":
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       var listenStreams: seq[Connection]
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
 
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
           listenStreams.add(stream)
           try:
             discard await stream.readLp(1024)
@@ -697,11 +697,11 @@ suite "Mplex":
       var count = 0
       var done = newFuture[void]()
       var listenStreams: seq[Connection]
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
           listenStreams.add(stream)
           count.inc()
           if count == 10:
@@ -761,11 +761,11 @@ suite "Mplex":
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[Connection]
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
             listenStreams.add(stream)
             await stream.join()
 
@@ -805,11 +805,11 @@ suite "Mplex":
 
       var mplexListen: Mplex
       var listenStreams: seq[Connection]
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
             listenStreams.add(stream)
             await stream.join()
 
@@ -851,11 +851,11 @@ suite "Mplex":
 
       var mplexHandle: Future[void]
       var listenStreams: seq[Connection]
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
             listenStreams.add(stream)
             await stream.join()
 
@@ -896,11 +896,11 @@ suite "Mplex":
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[Connection]
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
             listenStreams.add(stream)
             await stream.join()
 
@@ -943,11 +943,11 @@ suite "Mplex":
 
       var listenConn: Connection
       var listenStreams: seq[Connection]
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         listenConn = await transport1.accept()
         let mplexListen = Mplex.new(listenConn)
         mplexListen.streamHandler = proc(stream: Connection)
-          {.async, gcsafe.} =
+          {.async.} =
             listenStreams.add(stream)
             await stream.join()
 
@@ -992,11 +992,11 @@ suite "Mplex":
 
         var complete = newFuture[void]()
         const MsgSize = 1024
-        proc acceptHandler() {.async, gcsafe.} =
+        proc acceptHandler() {.async.} =
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
           mplexListen.streamHandler = proc(stream: Connection)
-            {.async, gcsafe.} =
+            {.async.} =
             try:
               let msg = await stream.readLp(MsgSize)
               check msg.len == MsgSize
@@ -1064,11 +1064,11 @@ suite "Mplex":
 
         var complete = newFuture[void]()
         const MsgSize = 512
-        proc acceptHandler() {.async, gcsafe.} =
+        proc acceptHandler() {.async.} =
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
           mplexListen.streamHandler = proc(stream: Connection)
-            {.async, gcsafe.} =
+            {.async.} =
             let msg = await stream.readLp(MsgSize)
             check msg.len == MsgSize
             await stream.close()

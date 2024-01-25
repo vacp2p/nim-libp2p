@@ -47,6 +47,7 @@ proc new*(
   limitDuration: uint32,
   limitData: uint64): T =
   let rc = T(conn: conn, limitDuration: limitDuration, limitData: limitData)
+  rc.dir = conn.dir
   rc.initStream()
   if limitDuration > 0:
     proc checkDurationConnection() {.async.} =

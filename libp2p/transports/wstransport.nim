@@ -173,7 +173,7 @@ method start*(
 
   self.running = true
 
-method stop*(self: WsTransport) {.async, gcsafe.} =
+method stop*(self: WsTransport) {.async.} =
   ## stop the transport
   ##
 
@@ -237,7 +237,7 @@ proc connHandler(self: WsTransport,
   asyncSpawn onClose()
   return conn
 
-method accept*(self: WsTransport): Future[Connection] {.async, gcsafe.} =
+method accept*(self: WsTransport): Future[Connection] {.async.} =
   ## accept a new WS connection
   ##
 
@@ -295,7 +295,7 @@ method dial*(
   self: WsTransport,
   hostname: string,
   address: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async, gcsafe.} =
+  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async.} =
   ## dial a peer
   ##
 

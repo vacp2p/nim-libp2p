@@ -19,7 +19,7 @@ type
 
 method init(p: PlainText) {.gcsafe.} =
   proc handle(conn: Connection, proto: string)
-    {.async, gcsafe.} = discard
+    {.async.} = discard
     ## plain text doesn't do anything
 
   p.codec = PlainTextCodec

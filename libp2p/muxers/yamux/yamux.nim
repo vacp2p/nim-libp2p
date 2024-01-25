@@ -22,7 +22,8 @@ logScope:
 const
   YamuxCodec* = "/yamux/1.0.0"
   YamuxVersion = 0.uint8
-  DefaultWindowSize = 256000
+  YamuxDefaultWindowSize* = 256000
+  MaxSendQueueSize = 256000
   MaxChannelCount = 200
 
 when defined(libp2p_yamux_metrics):
@@ -59,7 +60,7 @@ type
     streamId: uint32
     length: uint32
 
-proc readHeader(conn: LPStream): Future[YamuxHeader] {.async, gcsafe.} =
+proc readHeader(conn: LPStream): Future[YamuxHeader] {.async.} =
   var buffer: array[12, byte]
   await conn.readExactly(addr buffer[0], 12)
 
@@ -143,6 +144,7 @@ type
     recvWindow: int
     sendWindow: int
     maxRecvWindow: int
+    maxSendQueueSize: int
     conn: Connection
     isSrc: bool
     opened: bool
@@ -169,9 +171,14 @@ proc `$`(channel: YamuxChannel): string =
   if s.len > 0:
     result &= " {" & s.foldl(if a != "": a & ", " & b else: b, "") & "}"
 
-proc sendQueueBytes(channel: YamuxChannel, limit: bool = false): int =
-  for (elem, sent, _) in channel.sendQueue:
-    result.inc(min(elem.len - sent, if limit: channel.maxRecvWindow div 3 else: elem.len - sent))
+proc lengthSendQueue(channel: YamuxChannel): int =
+  channel.sendQueue.foldl(a + b.data.len - b.sent, 0)
+
+proc lengthSendQueueWithLimit(channel: YamuxChannel): int =
+  # For leniency, limit big messages size to the third of maxSendQueueSize
+  # This value is arbitrary, it's not in the specs
+  # It permits to store up to 3 big messages if the peer is stalling.
+  channel.sendQueue.foldl(a + min(b.data.len - b.sent, channel.maxSendQueueSize div 3), 0)
 
 proc actuallyClose(channel: YamuxChannel) {.async.} =
   if channel.closedLocally and channel.sendQueue.len == 0 and
@@ -183,9 +190,10 @@ proc remoteClosed(channel: YamuxChannel) {.async.} =
     channel.closedRemotely.complete()
     await channel.actuallyClose()
 
-method closeImpl*(channel: YamuxChannel) {.async, gcsafe.} =
+method closeImpl*(channel: YamuxChannel) {.async.} =
   if not channel.closedLocally:
     channel.closedLocally = true
+    channel.isEof = true
 
     if channel.isReset == false and channel.sendQueue.len == 0:
       await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
@@ -249,6 +257,7 @@ method readOnce*(
     await channel.closedRemotely or channel.receivedData.wait()
     if channel.closedRemotely.done() and channel.recvQueue.len == 0:
       channel.returnedEof = true
+      channel.isEof = true
       return 0
 
   let toRead = min(channel.recvQueue.len, nbytes)
@@ -282,9 +291,9 @@ proc trySend(channel: YamuxChannel) {.async.} =
     channel.sendQueue.keepItIf(not (it.fut.cancelled() and it.sent == 0))
     if channel.sendWindow == 0:
       trace "send window empty"
-      if channel.sendQueueBytes(true) > channel.maxRecvWindow:
-        debug "channel send queue too big, resetting", maxSendWindow=channel.maxRecvWindow,
-          currentQueueSize = channel.sendQueueBytes(true)
+      if channel.lengthSendQueueWithLimit() > channel.maxSendQueueSize:
+        debug "channel send queue too big, resetting", maxSendQueueSize=channel.maxSendQueueSize,
+          currentQueueSize = channel.lengthSendQueueWithLimit()
         try:
           await channel.reset(true)
         except CatchableError as exc:
@@ -292,7 +301,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
       break
 
     let
-      bytesAvailable = channel.sendQueueBytes()
+      bytesAvailable = channel.lengthSendQueue()
       toSend = min(channel.sendWindow, bytesAvailable)
     var
       sendBuffer = newSeqUninitialized[byte](toSend + 12)
@@ -343,15 +352,18 @@ method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
     return result
   channel.sendQueue.add((msg, 0, result))
   when defined(libp2p_yamux_metrics):
-    libp2p_yamux_recv_queue.observe(channel.sendQueueBytes().int64)
+    libp2p_yamux_recv_queue.observe(channel.lengthSendQueue().int64)
   asyncSpawn channel.trySend()
 
-proc open*(channel: YamuxChannel) {.async, gcsafe.} =
+proc open*(channel: YamuxChannel) {.async.} =
   if channel.opened:
     trace "Try to open channel twice"
     return
   channel.opened = true
-  await channel.conn.write(YamuxHeader.data(channel.id, 0, {if channel.isSrc: Syn else: Ack}))
+  await channel.conn.write(YamuxHeader.windowUpdate(
+    channel.id,
+    uint32(max(channel.maxRecvWindow - YamuxDefaultWindowSize, 0)),
+    {if channel.isSrc: Syn else: Ack}))
 
 method getWrapped*(channel: YamuxChannel): Connection = channel.conn
 
@@ -362,6 +374,8 @@ type
     currentId: uint32
     isClosed: bool
     maxChannCount: int
+    windowSize: int
+    maxSendQueueSize: int
 
 proc lenBySrc(m: Yamux, isSrc: bool): int =
   for v in m.channels.values():
@@ -375,12 +389,19 @@ proc cleanupChann(m: Yamux, channel: YamuxChannel) {.async.} =
   if channel.isReset and channel.recvWindow > 0:
     m.flushed[channel.id] = channel.recvWindow
 
-proc createStream(m: Yamux, id: uint32, isSrc: bool): YamuxChannel =
+proc createStream(m: Yamux, id: uint32, isSrc: bool,
+                  recvWindow: int, maxSendQueueSize: int): YamuxChannel =
+  # As you can see, during initialization, recvWindow can be larger than maxRecvWindow.
+  # This is because the peer we're connected to will always assume
+  # that the initial recvWindow is 256k.
+  # To solve this contradiction, no updateWindow will be sent until recvWindow is less
+  # than maxRecvWindow
   result = YamuxChannel(
     id: id,
-    maxRecvWindow: DefaultWindowSize,
-    recvWindow: DefaultWindowSize,
-    sendWindow: DefaultWindowSize,
+    maxRecvWindow: recvWindow,
+    recvWindow: if recvWindow > YamuxDefaultWindowSize: recvWindow else: YamuxDefaultWindowSize,
+    sendWindow: YamuxDefaultWindowSize,
+    maxSendQueueSize: maxSendQueueSize,
     isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),
@@ -429,7 +450,7 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async.} =
     trace "Exception in yamux stream handler", msg = exc.msg
     await channel.reset()
 
-method handle*(m: Yamux) {.async, gcsafe.} =
+method handle*(m: Yamux) {.async.} =
   trace "Starting yamux handler", pid=m.connection.peerId
   try:
     while not m.connection.atEof:
@@ -454,8 +475,9 @@ method handle*(m: Yamux) {.async, gcsafe.} =
             if header.streamId in m.flushed:
               m.flushed.del(header.streamId)
             if header.streamId mod 2 == m.currentId mod 2:
+              debug "Peer used our reserved stream id, skipping", id=header.streamId, currentId=m.currentId, peerId=m.connection.peerId
               raise newException(YamuxError, "Peer used our reserved stream id")
-            let newStream = m.createStream(header.streamId, false)
+            let newStream = m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
             if m.channels.len >= m.maxChannCount:
               await newStream.reset()
               continue
@@ -511,19 +533,24 @@ method getStreams*(m: Yamux): seq[Connection] =
 method newStream*(
   m: Yamux,
   name: string = "",
-  lazy: bool = false): Future[Connection] {.async, gcsafe.} =
+  lazy: bool = false): Future[Connection] {.async.} =
 
   if m.channels.len > m.maxChannCount - 1:
     raise newException(TooManyChannels, "max allowed channel count exceeded")
-  let stream = m.createStream(m.currentId, true)
+  let stream = m.createStream(m.currentId, true, m.windowSize, m.maxSendQueueSize)
   m.currentId += 2
   if not lazy:
     await stream.open()
   return stream
 
-proc new*(T: type[Yamux], conn: Connection, maxChannCount: int = MaxChannelCount): T =
+proc new*(T: type[Yamux], conn: Connection,
+          maxChannCount: int = MaxChannelCount,
+          windowSize: int = YamuxDefaultWindowSize,
+          maxSendQueueSize: int = MaxSendQueueSize): T =
   T(
     connection: conn,
     currentId: if conn.dir == Out: 1 else: 2,
-    maxChannCount: maxChannCount
+    maxChannCount: maxChannCount,
+    windowSize: windowSize,
+    maxSendQueueSize: maxSendQueueSize
   )

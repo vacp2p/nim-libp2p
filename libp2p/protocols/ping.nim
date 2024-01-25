@@ -51,7 +51,7 @@ proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContex
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     try:
       trace "handling ping", conn
       var buf: array[PingSize, byte]
@@ -71,7 +71,7 @@ method init*(p: Ping) =
 proc ping*(
   p: Ping,
   conn: Connection,
-  ): Future[Duration] {.async, gcsafe, public.} =
+  ): Future[Duration] {.async, public.} =
   ## Sends ping to `conn`, returns the delay
 
   trace "initiating ping", conn

@@ -21,6 +21,7 @@ import ../protobuf/minprotobuf,
        ../peerid,
        ../crypto/crypto,
        ../multiaddress,
+       ../multicodec,
        ../protocols/protocol,
        ../utility,
        ../errors,
@@ -77,7 +78,7 @@ chronicles.expandIt(IdentifyInfo):
   signedPeerRecord =
     # The SPR contains the same data as the identify message
     # would be cumbersome to log
-    if iinfo.signedPeerRecord.isSome(): "Some"
+    if it.signedPeerRecord.isSome(): "Some"
     else: "None"
 
 proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool): ProtoBuffer
@@ -133,24 +134,24 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
   if ? pb.getField(6, agentVersion).toOpt():
     iinfo.agentVersion = some(agentVersion)
 
-  debug "decodeMsg: decoded identify", iinfo
   Opt.some(iinfo)
 
 proc new*(
   T: typedesc[Identify],
   peerInfo: PeerInfo,
-  sendSignedPeerRecord = false
+  sendSignedPeerRecord = false,
+  observedAddrManager = ObservedAddrManager.new(),
   ): T =
   let identify = T(
     peerInfo: peerInfo,
     sendSignedPeerRecord: sendSignedPeerRecord,
-    observedAddrManager: ObservedAddrManager.new(),
+    observedAddrManager: observedAddrManager,
   )
   identify.init()
   identify
 
 method init*(p: Identify) =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     try:
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
@@ -168,7 +169,7 @@ method init*(p: Identify) =
 
 proc identify*(self: Identify,
                conn: Connection,
-               remotePeerId: PeerId): Future[IdentifyInfo] {.async, gcsafe.} =
+               remotePeerId: PeerId): Future[IdentifyInfo] {.async.} =
   trace "initiating identify", conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:
@@ -176,6 +177,7 @@ proc identify*(self: Identify,
     raise newException(IdentityInvalidMsgError, "Empty message received!")
 
   var info = decodeMsg(message).valueOr: raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  debug "identify: decoded message", conn, info
   let
     pubkey = info.pubkey.valueOr: raise newException(IdentityInvalidMsgError, "No pubkey in identify")
     peer = PeerId.init(pubkey).valueOr: raise newException(IdentityInvalidMsgError, $error)
@@ -186,8 +188,12 @@ proc identify*(self: Identify,
   info.peerId = peer
 
   info.observedAddr.withValue(observed):
-    if not self.observedAddrManager.addObservation(observed):
-      debug "Observed address is not valid", observedAddr = observed
+    # Currently, we use the ObservedAddrManager only to find our dialable external NAT address. Therefore, addresses
+    # like "...\p2p-circuit\p2p\..." and "\p2p\..." are not useful to us.
+    if observed.contains(multiCodec("p2p-circuit")).get(false) or P2PPattern.matchPartial(observed):
+      trace "Not adding address to ObservedAddrManager.", observed
+    elif not self.observedAddrManager.addObservation(observed):
+      trace "Observed address is not valid.", observedAddr = observed
   return info
 
 proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
@@ -198,13 +204,14 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.pu
   identifypush
 
 proc init*(p: IdentifyPush) =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     trace "handling identify push", conn
     try:
       var message = await conn.readLp(64*1024)
 
       var identInfo = decodeMsg(message).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+      debug "identify push: decoded message", conn, identInfo
 
       identInfo.pubkey.withValue(pubkey):
         let receivedPeerId = PeerId.init(pubkey).tryGet()

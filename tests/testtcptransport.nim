@@ -30,7 +30,7 @@ suite "TCP transport":
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport.accept()
       await conn.write("Hello!")
       await conn.close()
@@ -52,7 +52,7 @@ suite "TCP transport":
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       var msg = newSeq[byte](6)
       let conn = await transport.accept()
       await conn.readExactly(addr msg[0], 6)
@@ -73,7 +73,7 @@ suite "TCP transport":
     let address = initTAddress("0.0.0.0:0")
     let handlerWait = newFuture[void]()
     proc serveClient(server: StreamServer,
-                      transp: StreamTransport) {.async, gcsafe.} =
+                      transp: StreamTransport) {.async.} =
       var wstream = newAsyncStreamWriter(transp)
       await wstream.write("Hello!")
       await wstream.finish()
@@ -106,7 +106,7 @@ suite "TCP transport":
     let address = initTAddress("0.0.0.0:0")
     let handlerWait = newFuture[void]()
     proc serveClient(server: StreamServer,
-                      transp: StreamTransport) {.async, gcsafe.} =
+                      transp: StreamTransport) {.async.} =
       var rstream = newAsyncStreamReader(transp)
       let msg = await rstream.read(6)
       check string.fromBytes(msg) == "Hello!"
@@ -179,7 +179,7 @@ suite "TCP transport":
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade(), connectionsTimeout=1.milliseconds)
     asyncSpawn transport.start(ma)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport.accept()
       await conn.join()
 
