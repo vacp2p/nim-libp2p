@@ -264,11 +264,11 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool = false) {
     return
 
   if isHighPriority:
-    p.rpcmessagequeue.priorityQueue.putNoWait(msg)
+    await p.rpcmessagequeue.priorityQueue.put(msg)
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
   else:
-    p.rpcmessagequeue.nonPriorityQueue.putNoWait(msg)
+    await p.rpcmessagequeue.nonPriorityQueue.put(msg)
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
   trace "message queued", p, msg = shortLog(msg)
