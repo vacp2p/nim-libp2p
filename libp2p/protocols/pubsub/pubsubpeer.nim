@@ -58,7 +58,6 @@ type
   RpcMessageQueue* = ref object
     priorityQueue: AsyncQueue[seq[byte]]
     nonPriorityQueue: AsyncQueue[seq[byte]]
-    messageAvailableEvent: AsyncEvent
     queueProcessingTask: Future[void]
     isProcessing: bool  # Flag to indicate if processing is underway
 
@@ -405,7 +404,6 @@ proc new(T: typedesc[RpcMessageQueue]): T =
   return T(
     priorityQueue: newAsyncQueue[seq[byte]](),
     nonPriorityQueue: newAsyncQueue[seq[byte]](),
-    messageAvailableEvent: newAsyncEvent(),
   )
 
 proc new*(
