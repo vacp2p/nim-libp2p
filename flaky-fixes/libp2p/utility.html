@@ -330,9 +330,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/flaky-fixes/libp2p/utility.nim#L96"
+href="https://github.com/status-im/nim-libp2p/tree/flaky-fixes/libp2p/utility.nim#L115"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/utility.nim#L96" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/utility.nim#L115" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -395,9 +395,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/flaky-fixes/libp2p/utility.nim#L111"
+href="https://github.com/status-im/nim-libp2p/tree/flaky-fixes/libp2p/utility.nim#L130"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/utility.nim#L111" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/utility.nim#L130" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -407,9 +407,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/flaky-fixes/libp2p/utility.nim#L105"
+href="https://github.com/status-im/nim-libp2p/tree/flaky-fixes/libp2p/utility.nim#L124"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/utility.nim#L105" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/utility.nim#L124" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -417,6 +417,15 @@ class="link-seesrc" target="_blank">Source</a>
 <dt><pre><span class="Keyword">template</span> <a href="#withValue.t%2C%2Cuntyped%2Cuntyped"><span class="Identifier">withValue</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Operator">|</span> <span class="Identifier">Option</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">,</span> <span class="Identifier">body</span><span class="Other">:</span> <span class="Identifier">untyped</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">untyped</span></pre></dt>
 <dd>
 
+<p>This template provides a convenient way to work with <tt class="docutils literal"><span class="pre"><span class="Identifier">Option</span></span></tt> types in Nim. It allows you to execute a block of code (<tt class="docutils literal"><span class="pre"><span class="Identifier">body</span></span></tt>) only when the <tt class="docutils literal"><span class="pre"><span class="Identifier">Option</span></span></tt> is not empty.</p>
+<p><tt class="docutils literal"><span class="pre"><span class="Identifier">self</span></span></tt> is the <tt class="docutils literal"><span class="pre"><span class="Identifier">Option</span></span></tt> instance being checked. <tt class="docutils literal"><span class="pre"><span class="Identifier">value</span></span></tt> is the variable name to be used within the <tt class="docutils literal"><span class="pre"><span class="Identifier">body</span></span></tt> for the unwrapped value. <tt class="docutils literal"><span class="pre"><span class="Identifier">body</span></span></tt> is a block of code that is executed only if <tt class="docutils literal"><span class="pre"><span class="Identifier">self</span></span></tt> contains a value.</p>
+<p>The <tt class="docutils literal"><span class="pre"><span class="Identifier">value</span></span></tt> within <tt class="docutils literal"><span class="pre"><span class="Identifier">body</span></span></tt> is automatically unwrapped from the <tt class="docutils literal"><span class="pre"><span class="Identifier">Option</span></span></tt>, making it simpler to work with without needing explicit checks or unwrapping.</p>
+<p>Example:</p>
+<p><pre class="listing"><span class="Keyword">let</span> <span class="Identifier">myOpt</span> <span class="Operator">=</span> <span class="Identifier">Opt</span><span class="Operator">.</span><span class="Identifier">some</span><span class="Punctuation">(</span><span class="DecNumber">5</span><span class="Punctuation">)</span>
+<span class="Identifier">myOpt</span><span class="Operator">.</span><span class="Identifier">withValue</span><span class="Punctuation">(</span><span class="Identifier">value</span><span class="Punctuation">)</span><span class="Punctuation">:</span>
+  <span class="Identifier">echo</span> <span class="Identifier">value</span> <span class="Comment"># Will print 5</span>
+</pre></p>
+<p>Note: This is a template, and it will be inlined at the call site, offering good performance.</p>
 
 &nbsp;&nbsp;<a
 href="https://github.com/status-im/nim-libp2p/tree/flaky-fixes/libp2p/utility.nim#L91"
@@ -435,7 +444,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-01-25 18:40:53 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-01-26 15:04:16 UTC</small>
       </div>
     </div>
   </div>
