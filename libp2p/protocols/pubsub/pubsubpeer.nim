@@ -138,12 +138,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
 
-        when defined(libp2p_expensive_metrics):
-          for m in rmsg.messages:
-            for t in m.topicIDs:
-              # metrics
-              libp2p_pubsub_received_messages.inc(labelValues = [$p.peerId, t])
-
         await p.handler(p, data)
         data = newSeq[byte]() # Release memory
     except PeerRateLimitError as exc:
