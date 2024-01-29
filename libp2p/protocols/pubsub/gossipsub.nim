@@ -426,6 +426,11 @@ method rpcHandler*(g: GossipSub,
     await rateLimit(g, peer, Opt.none(RPCMsg), msgSize)
     return
 
+  when defined(libp2p_expensive_metrics):
+    for m in rpcMsg.messages:
+      for t in m.topicIDs:
+        libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, t])
+
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   await rateLimit(g, peer, Opt.some(rpcMsg), msgSize)
 
