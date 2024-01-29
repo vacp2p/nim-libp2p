@@ -28,7 +28,6 @@ logScope:
 
 when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_sent_messages, "number of messages sent", labels = ["id", "topic"])
-  declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
   declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
@@ -224,7 +223,7 @@ proc hasSendConn*(p: PubSubPeer): bool =
 template sendMetrics(msg: RPCMsg): untyped =
   when defined(libp2p_expensive_metrics):
     for x in msg.messages:
-      for t in x.topicIDs:
+      for t in x.topicIds:
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 

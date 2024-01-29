@@ -46,6 +46,9 @@ declareCounter(libp2p_gossipsub_saved_bytes, "bytes saved by gossipsub optimizat
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
 
+when defined(libp2p_expensive_metrics):
+  declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
+
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
       explicit: true,
@@ -428,7 +431,7 @@ method rpcHandler*(g: GossipSub,
 
   when defined(libp2p_expensive_metrics):
     for m in rpcMsg.messages:
-      for t in m.topicIDs:
+      for t in m.topicIds:
         libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, t])
 
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
