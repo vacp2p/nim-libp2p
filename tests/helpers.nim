@@ -122,7 +122,8 @@ proc checkExpiringInternal(cond: proc(): bool {.raises: [], gcsafe.} ): Future[b
       await sleepAsync(1.millis)
 
 template checkExpiring*(code: untyped): untyped =
-  check await checkExpiringInternal(proc(): bool = code)
+  let result = await checkExpiringInternal(proc(): bool = code)
+  assert result, "[TIMEOUT] Test failed due to the check timeout. Consider adjusting it."
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:
