@@ -16,3 +16,4 @@ tests/pubsub/testgossipsub
 examples/*.md
 nimble.develop
 nimble.paths
+go-libp2p-daemon/
