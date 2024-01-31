@@ -417,7 +417,7 @@ proc stopSendNonPriorityTask*(p: PubSubPeer) =
       libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
       libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
 
-proc new(T: typedesc[RpcMessageQueue], maxDurationInNonPriorityQueue = 500.milliseconds): T =
+proc new(T: typedesc[RpcMessageQueue], maxDurationInNonPriorityQueue = 1.seconds): T =
   return T(
     sendPriorityQueue: initDeque[Future[void]](),
     nonPriorityQueue: newAsyncQueue[Ttlmessage](),
