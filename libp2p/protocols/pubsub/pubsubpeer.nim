@@ -34,6 +34,9 @@ when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_gossipsub_priority_queue_size, "the number of messages in the priority queue", labels = ["id"])
   declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id"])
 
+  declareCounter(libp2p_gossipsub_non_priority_msgs_dropped, "the number of dropped messages in the non-priority queue", labels = ["id"])
+
+
 type
   PeerRateLimitError* = object of CatchableError
 
@@ -393,6 +396,8 @@ proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
      when defined(libp2p_expensive_metrics):
        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
      if Moment.now() - ttlMsg.ttl >= p.rpcmessagequeue.maxDurationInNonPriorityQueue:
+       when defined(libp2p_expensive_metrics):
+        libp2p_gossipsub_non_priority_msgs_dropped.inc(labelValues = [$p.peerId])
        continue
      await p.sendMsg(ttlMsg.msg)
 
