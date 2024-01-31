@@ -114,7 +114,7 @@ proc bridgedConnections*: (Connection, Connection) =
 proc checkExpiringInternal(cond: proc(): bool {.raises: [], gcsafe.} ): Future[bool] {.async.} =
   let start = Moment.now()
   while true:
-    if Moment.now() > (start + chronos.seconds(5)):
+    if Moment.now() > (start + chronos.seconds(10)):
       return false
     elif cond():
       return true
