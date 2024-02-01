@@ -244,19 +244,19 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#PubSubPeerEventKind"
     title="PubSubPeerEventKind {.pure.} = enum
   Connected, Disconnected">PubSubPeerEventKind</a></li>
+  <li><a class="reference" href="#QueuedMessage"
+    title="QueuedMessage = object
+  msg*: seq[byte]
+  addedAt*: Moment">QueuedMessage</a></li>
   <li><a class="reference" href="#RPCHandler"
     title="RPCHandler = proc (peer: PubSubPeer; data: seq[byte]): Future[void] {.gcsafe,
     raises: [].}">RPCHandler</a></li>
   <li><a class="reference" href="#RpcMessageQueue"
     title="RpcMessageQueue = ref object
   sendPriorityQueue: Deque[Future[void]]
-  nonPriorityQueue: AsyncQueue[Ttlmessage]
+  nonPriorityQueue: AsyncQueue[QueuedMessage]
   sendNonPriorityTask: Future[void]
   maxDurationInNonPriorityQueue: Duration">RpcMessageQueue</a></li>
-  <li><a class="reference" href="#Ttlmessage"
-    title="Ttlmessage = object
-  msg*: seq[byte]
-  timestamp*: Moment">Ttlmessage</a></li>
 
   </ul>
 </li>
@@ -514,6 +514,21 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="QueuedMessage" class="tohide">
+<dt><pre><a href="pubsubpeer.html#QueuedMessage"><span class="Identifier">QueuedMessage</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">msg</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
+  <span class="Identifier">addedAt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Moment</span>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/drop-old-relayed-msgs/libp2p/protocols/pubsub/pubsubpeer.nim#L59"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="RPCHandler" class="tohide">
 <dt><pre><a href="pubsubpeer.html#RPCHandler"><span class="Identifier">RPCHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
     <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
@@ -530,7 +545,7 @@ class="link-seesrc" target="_blank">Source</a>
 <div id="RpcMessageQueue" class="tohide">
 <dt><pre><a href="pubsubpeer.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">sendPriorityQueue</span><span class="Other">:</span> <span class="Identifier">Deque</span><span class="Other">[</span><span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span><span class="Other">]</span>
-  <span class="Identifier">nonPriorityQueue</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><a href="pubsubpeer.html#Ttlmessage"><span class="Identifier">Ttlmessage</span></a><span class="Other">]</span>
+  <span class="Identifier">nonPriorityQueue</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><a href="pubsubpeer.html#QueuedMessage"><span class="Identifier">QueuedMessage</span></a><span class="Other">]</span>
   <span class="Identifier">sendNonPriorityTask</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span>
   <span class="Identifier">maxDurationInNonPriorityQueue</span><span class="Other">:</span> <span class="Identifier">Duration</span>
 </pre></dt>
@@ -541,21 +556,6 @@ class="link-seesrc" target="_blank">Source</a>
 href="https://github.com/status-im/nim-libp2p/tree/drop-old-relayed-msgs/libp2p/protocols/pubsub/pubsubpeer.nim#L63"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L63" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="Ttlmessage" class="tohide">
-<dt><pre><a href="pubsubpeer.html#Ttlmessage"><span class="Identifier">Ttlmessage</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">msg</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
-  <span class="Identifier">timestamp</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Moment</span>
-</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/drop-old-relayed-msgs/libp2p/protocols/pubsub/pubsubpeer.nim#L59"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -798,7 +798,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-01 12:10:40 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-01 16:48:41 UTC</small>
       </div>
     </div>
   </div>
