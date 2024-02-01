@@ -7,17 +7,17 @@ description   = "LibP2P implementation"
 license       = "MIT"
 skipDirs      = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
-requires "nim >= 1.2.0",
-         "nimcrypto >= 0.4.1",
+requires "nim >= 1.6.0",
+         "nimcrypto >= 0.4.1 & < 1.0.0",
          "dnsclient >= 0.3.0 & < 0.4.0",
-         "bearssl >= 0.1.4",
-         "chronicles >= 0.10.2",
-         "chronos >= 3.0.6",
-         "metrics",
-         "secp256k1",
-         "stew#head",
-         "websock",
-         "unittest2 >= 0.0.5 & < 0.1.0"
+         "bearssl >= 0.1.4 & < 1.0.0",
+         "chronicles >= 0.10.2 & < 1.0.0",
+         "chronos >= 3.0.6 & < 4.0.0",
+         "metrics#6142e433fc8ea9b73379770a788017ac528d46ff",
+         "secp256k1 >= 0.3.2 & < 1.0.0",
+         "stew#2c2544aec13536304438be045bfdd22452741466",
+         "websock#3696e3f3a5b938e478e473a6089bf8de386d2f04",
+         "unittest2 >= 0.2.1 & < 1.0.0"
 
 import hashes
 proc runTest(filename: string, verify: bool = true, sign: bool = true,
