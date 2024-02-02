@@ -46,7 +46,7 @@ logScope:
 const
   KnownLibP2PTopics* {.strdefine.} = ""
   KnownLibP2PTopicsSeq* = KnownLibP2PTopics.toLowerAscii().split(",")
-  defaultPubsubMaxMessageSize* = 1024 * 1024 # Default maximum message size in bytes
+  DefaultPubsubMaxMessageSize* = 1024 * 1024 # Default maximum message size in bytes
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
@@ -554,7 +554,7 @@ proc init*[PubParams: object | bool](
   sign: bool = true,
   msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
   subscriptionValidator: SubscriptionValidator = nil,
-  maxMessageSize: int = defaultPubsubMaxMessageSize,
+  maxMessageSize: int = DefaultPubsubMaxMessageSize,
   rng: ref HmacDrbgContext = newRng(),
   parameters: PubParams = false): P
   {.raises: [InitializationError], public.} =
