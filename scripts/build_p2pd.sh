@@ -89,6 +89,7 @@ build_target() {
 		mkdir "$CACHE_DIR"
 		cp -a "$TARGET_DIR"/* "$CACHE_DIR"/
 	fi
+	echo "Binary built successfully."
 }
 
 if target_needs_rebuilding; then

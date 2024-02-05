@@ -1,6 +1,9 @@
 # Table of Contents
 - [Introduction](#introduction)
+- [Prerequisites](#prerequisites)
 - [Installation](#installation)
+  - [Script (Recommended)](#script-recommended)
+  - [Manual](#manual)
 - [Usage](#usage)
   - [Example](#example)
   - [Getting Started](#getting-started)
@@ -9,7 +12,29 @@
 This is a libp2p-backed daemon wrapping the functionalities of go-libp2p for use in Nim. <br>
 For more information about the go daemon, check out [this repository](https://github.com/libp2p/go-libp2p-daemon).
 
+# Prerequisites
+Go with version `1.15.15`.
+> You will *likely* be able to build `go-libp2p-daemon` with different Go versions, but **they haven't been tested**.
+
 # Installation
+Follow one of the methods below:
+
+## Script (Recommended)
+Run the build script while having the `go` command pointing to the correct Go version.
+We recommend using `1.15.15`, as previously stated.
+```sh
+./scripts/build_p2pd.sh
+```
+If everything goes correctly, the binary (`p2pd`) should be built and placed in the correct directory.
+If you find any issues, please head into our discord and ask for our asistance.
+
+After successfully building the binary, remember to add it to your path so it can be found. You can do that by running:
+```sh
+export PATH="$PATH:$HOME/go/bin"
+```
+> **Tip:** To make this change permanent, add the command above to your `.bashrc` file.
+
+## Manual
 ```sh
 # clone and install dependencies
 git clone https://github.com/status-im/nim-libp2p
