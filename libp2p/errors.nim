@@ -45,8 +45,8 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
             debug "A future has failed, enable trace logging for details", error=exc.name
             trace "Exception details", msg=exc.msg
 
-proc allFuturesThrowing*[F: FutureBase](args: varargs[F]): Future[void] =
-  var futs: seq[F]
+proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
+  var futs: seq[Future[T]]
   for fut in args:
     futs &= fut
   proc call() {.async.} =

@@ -19,8 +19,7 @@ import rpc/[messages, message, protobuf],
        ../../stream/connection,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
-       ../../utility,
-        ../../utils/future
+       ../../utility
 
 export peerid, connection, deques
 
