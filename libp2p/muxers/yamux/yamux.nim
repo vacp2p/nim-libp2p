@@ -370,7 +370,7 @@ method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
     return result
   channel.sendQueue.add((msg, 0, result))
   when defined(libp2p_yamux_metrics):
-    libp2p_yamux_recv_queue.observe(channel.lengthSendQueue().int64)
+    libp2p_yamux_send_queue.observe(channel.lengthSendQueue().int64)
   asyncSpawn channel.trySend()
 
 proc open(channel: YamuxChannel) {.async.} =
