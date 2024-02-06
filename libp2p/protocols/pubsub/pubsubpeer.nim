@@ -53,8 +53,11 @@ type
   OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
 
   RpcMessageQueue* = ref object
+    # Tracks async tasks for sending high-priority peer-published messages.
     sendPriorityQueue: Deque[Future[void]]
+    # Queue for lower-priority messages, like "IWANT" replies and relay messages.
     nonPriorityQueue: AsyncQueue[seq[byte]]
+    # Task for processing non-priority message queue.
     sendNonPriorityTask: Future[void]
 
   PubSubPeer* = ref object of RootObj
@@ -372,6 +375,7 @@ proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
      while p.rpcmessagequeue.sendPriorityQueue.len > 0:
        await p.rpcmessagequeue.sendPriorityQueue[0]
        p.clearSendPriorityQueue()
+     # we send non-priority messages only if there are no pending priority messages
      let msg = await p.rpcmessagequeue.nonPriorityQueue.popFirst()
      when defined(libp2p_expensive_metrics):
        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])

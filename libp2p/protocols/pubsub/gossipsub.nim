@@ -306,6 +306,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     g.send(
       peer,
       RPCMsg(control: some(respControl)), true)
+    # iwant replies have lower priority
     g.send(
       peer,
       RPCMsg(messages: messages), false)
