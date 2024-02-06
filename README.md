@@ -51,7 +51,7 @@ nimble install libp2p
 You'll find the nim-libp2p documentation [here](https://status-im.github.io/nim-libp2p/docs/).
 
 ### Testing
-Remember you'll need to build the `go-libp2p-daemon` binary to run the `nim-libp2p` tests. They're required for the interop tests.
+Remember you'll need to build the `go-libp2p-daemon` binary to run the `nim-libp2p` tests.
 To do so, please follow the installation instructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
 
 ## Modules

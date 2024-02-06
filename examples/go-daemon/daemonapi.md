@@ -11,7 +11,7 @@
 # Introduction
 This is a libp2p-backed daemon wrapping the functionalities of go-libp2p for use in Nim. <br>
 For more information about the go daemon, check out [this repository](https://github.com/libp2p/go-libp2p-daemon).
-> **Required only** for running the interop tests.
+> **Required only** for running the tests.
 
 # Prerequisites
 Go with version `1.15.15`.
