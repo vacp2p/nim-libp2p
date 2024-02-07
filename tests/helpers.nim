@@ -1,6 +1,7 @@
 {.push raises: [].}
 
 import chronos
+import macros
 import algorithm
 
 import ../libp2p/transports/tcptransport
@@ -110,20 +111,65 @@ proc bridgedConnections*: (Connection, Connection) =
     await connA.pushData(data)
   return (connA, connB)
 
-
-proc checkExpiringInternal(cond: proc(): bool {.raises: [], gcsafe.} ): Future[bool] {.async.} =
-  let start = Moment.now()
-  while true:
-    if Moment.now() > (start + chronos.seconds(10)):
-      return false
-    elif cond():
-      return true
+macro checkExpiring*(code: untyped, timeout: Duration = 10.seconds): untyped =
+  ## Periodically checks a given condition until it is true or a timeout occurs.
+  ##
+  ## `code`: untyped - A condition expression that should eventually evaluate to true.
+  ## `timeout`: Duration = 10.seconds - The maximum duration to wait for the condition to be true.
+  ##
+  ## Examples:
+  ##   ```nim
+  ##   # Example 1: Using default timeout
+  ##   asyncTest "checkExpiring should pass if the condition is true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkExpiring: a == b
+  ##
+  ##   # Example 2: Using default timeout, but with a different way to call
+  ##   asyncTest "checkExpiring should pass if the condition is true, custom timeout":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkExpiring(a == b)
+  ##
+  ##   # Example 3: Multiple conditions
+  ##   asyncTest "checkExpiring should pass if the conditions are true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkExpiring:
+  ##         a == b
+  ##         a == 2
+  ##         b == 1
+  ##   ```
+# Helper proc to recursively build a combined boolean expression
+  proc buildAndExpr(n: NimNode): NimNode =
+    if n.kind == nnkStmtList and n.len > 0:
+      var combinedExpr = n[0]  # Start with the first expression
+      for i in 1..<n.len:
+        # Combine the current expression with the next using 'and'
+        combinedExpr = newCall("and", combinedExpr, n[i])
+      return combinedExpr
     else:
-      await sleepAsync(1.millis)
+      return n
 
-template checkExpiring*(code: untyped): untyped =
-  let result = await checkExpiringInternal(proc(): bool = code)
-  assert result, "[TIMEOUT] Test failed due to the check timeout. Consider adjusting it."
+  # Build the combined expression
+  let combinedBoolExpr = buildAndExpr(code)
+
+  result = newStmtList()
+  result.add quote do:
+    proc checkExpiringInternal(): Future[void] {.gensym, async.} =
+      let start = Moment.now()
+      while true:
+        if Moment.now() > (start + `timeout`):
+          checkpoint("[TIMEOUT] Timeout was reached and the conditions were not true. Check if the code is working as " &
+           "expected or consider increasing the timeout param.")
+          check `code`
+          return
+        else:
+         if `combinedBoolExpr`:
+           return
+         else:
+           await sleepAsync(1.millis)
+    await checkExpiringInternal()
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:

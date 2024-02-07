@@ -311,8 +311,8 @@ suite "GossipSub":
     let gossip2 = GossipSub(nodes[1])
 
     checkExpiring:
-      "foobar" in gossip2.topics and
-      "foobar" in gossip1.gossipsub and
+      "foobar" in gossip2.topics
+      "foobar" in gossip1.gossipsub
       gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await allFuturesThrowing(
@@ -455,8 +455,8 @@ suite "GossipSub":
 
     let gsNode = GossipSub(nodes[1])
     checkExpiring:
-      gsNode.mesh.getOrDefault("foobar").len == 0 and
-      GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0 and
+      gsNode.mesh.getOrDefault("foobar").len == 0
+      GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
       (
         GossipSub(nodes[0]).gossipsub.getOrDefault("foobar").len == 1 or
         GossipSub(nodes[0]).fanout.getOrDefault("foobar").len == 1
@@ -578,10 +578,10 @@ suite "GossipSub":
 
     nodes[1].addValidator("foobar", slowValidator)
 
-    checkExpiring(
-      gossip1.mesh.getOrDefault("foobar").len == 2 and
-      gossip2.mesh.getOrDefault("foobar").len == 2 and
-      gossip3.mesh.getOrDefault("foobar").len == 2)
+    checkExpiring:
+      gossip1.mesh.getOrDefault("foobar").len == 2
+      gossip2.mesh.getOrDefault("foobar").len == 2
+      gossip3.mesh.getOrDefault("foobar").len == 2
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 2
 
     await bFinished
