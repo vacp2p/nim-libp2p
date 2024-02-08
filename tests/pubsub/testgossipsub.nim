@@ -310,7 +310,7 @@ suite "GossipSub":
     let gossip1 = GossipSub(nodes[0])
     let gossip2 = GossipSub(nodes[1])
 
-    checkExpiring:
+    checkUntilTimeout:
       "foobar" in gossip2.topics
       "foobar" in gossip1.gossipsub
       gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
@@ -454,7 +454,7 @@ suite "GossipSub":
     nodes[1].subscribe("foobar", handler)
 
     let gsNode = GossipSub(nodes[1])
-    checkExpiring:
+    checkUntilTimeout:
       gsNode.mesh.getOrDefault("foobar").len == 0
       GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
       (
@@ -572,13 +572,13 @@ suite "GossipSub":
       gossip1.seen = TimedCache[MessageId].init()
       gossip3.seen = TimedCache[MessageId].init()
       let msgId = toSeq(gossip2.validationSeen.keys)[0]
-      checkExpiring(try: gossip2.validationSeen[msgId].len > 0 except: false)
+      checkUntilTimeout(try: gossip2.validationSeen[msgId].len > 0 except: false)
       result = ValidationResult.Accept
       bFinished.complete()
 
     nodes[1].addValidator("foobar", slowValidator)
 
-    checkExpiring:
+    checkUntilTimeout:
       gossip1.mesh.getOrDefault("foobar").len == 2
       gossip2.mesh.getOrDefault("foobar").len == 2
       gossip3.mesh.getOrDefault("foobar").len == 2
@@ -676,7 +676,7 @@ suite "GossipSub":
 
     # Now try with a mesh
     gossip1.subscribe("foobar", handler)
-    checkExpiring: gossip1.mesh.peers("foobar") > 5
+    checkUntilTimeout: gossip1.mesh.peers("foobar") > 5
 
     # use a different length so that the message is not equal to the last
     check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
@@ -913,13 +913,13 @@ suite "GossipSub":
     gossip3.broadcast(gossip3.mesh["foobar"], RPCMsg(control: some(ControlMessage(
       idontwant: @[ControlIWant(messageIds: @[newSeq[byte](10)])]
     ))))
-    checkExpiring: gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
+    checkUntilTimeout: gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
 
     tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
 
     await bFinished
 
-    checkExpiring: toSeq(gossip3.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 1)
+    checkUntilTimeout: toSeq(gossip3.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 1)
     check: toSeq(gossip1.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 0)
 
     await allFuturesThrowing(
@@ -1000,7 +1000,7 @@ suite "GossipSub":
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](35, 1.byte))
 
-    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
+    checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
 
     await stopNodes(nodes)
@@ -1029,7 +1029,7 @@ suite "GossipSub":
     ])))
     gossip0.broadcast(gossip0.mesh["foobar"], msg2)
 
-    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
+    checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
 
     await stopNodes(nodes)
@@ -1059,7 +1059,7 @@ suite "GossipSub":
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     gossip0.broadcast(gossip0.mesh[topic], RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](35))]))
 
-    checkExpiring gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
+    checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
 
     await stopNodes(nodes)

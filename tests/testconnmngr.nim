@@ -215,7 +215,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-    checkExpiring: waitedConn3.cancelled()
+    checkUntilTimeout: waitedConn3.cancelled()
 
     await allFuturesThrowing(
       allFutures(muxs.mapIt( it.close() )))
@@ -231,7 +231,7 @@ suite "Connection Manager":
 
     await muxer.close()
 
-    checkExpiring: muxer notin connMngr
+    checkUntilTimeout: muxer notin connMngr
 
     await connMngr.close()
 
@@ -254,7 +254,7 @@ suite "Connection Manager":
     check peerId in connMngr
     await connMngr.dropPeer(peerId)
 
-    checkExpiring: peerId notin connMngr
+    checkUntilTimeout: peerId notin connMngr
     check isNil(connMngr.selectMuxer(peerId, Direction.In))
     check isNil(connMngr.selectMuxer(peerId, Direction.Out))
 

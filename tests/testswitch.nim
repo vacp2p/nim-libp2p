@@ -283,12 +283,12 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
 
-    checkExpiring:
+    checkUntilTimeout:
       startCounts ==
         @[
           switch1.connManager.inSema.count, switch1.connManager.outSema.count,
@@ -336,7 +336,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -388,7 +388,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -439,7 +439,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -490,7 +490,7 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
-    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -554,8 +554,8 @@ suite "Switch":
 
     check not switch2.isConnected(switch1.peerInfo.peerId)
     check not switch3.isConnected(switch1.peerInfo.peerId)
-    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
-    checkExpiring: not switch1.isConnected(switch3.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch3.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -711,7 +711,7 @@ suite "Switch":
 
     await allFuturesThrowing(readers)
     await switch2.stop() #Otherwise this leaks
-    checkExpiring: not switch1.isConnected(switch2.peerInfo.peerId)
+    checkUntilTimeout: not switch1.isConnected(switch2.peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)

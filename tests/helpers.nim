@@ -111,7 +111,7 @@ proc bridgedConnections*: (Connection, Connection) =
     await connA.pushData(data)
   return (connA, connB)
 
-macro checkExpiringTimeout*(timeout: Duration, code: untyped): untyped =
+macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
   ## Periodically checks a given condition until it is true or a timeout occurs.
   ##
   ## `code`: untyped - A condition expression that should eventually evaluate to true.
@@ -120,17 +120,17 @@ macro checkExpiringTimeout*(timeout: Duration, code: untyped): untyped =
   ## Examples:
   ##   ```nim
   ##   # Example 1:
-  ##   asyncTest "checkExpiringTimeout should pass if the condition is true":
+  ##   asyncTest "checkUntilCustomTimeout should pass if the condition is true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkExpiringTimeout(2.seconds):
+  ##     checkUntilCustomTimeout(2.seconds):
   ##       a == b
   ##
   ##   # Example 2: Multiple conditions
-  ##   asyncTest "checkExpiringTimeout should pass if the conditions are true":
+  ##   asyncTest "checkUntilCustomTimeout should pass if the conditions are true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkExpiringTimeout(5.seconds)::
+  ##     checkUntilCustomTimeout(5.seconds)::
   ##       a == b
   ##       a == 2
   ##       b == 1
@@ -165,29 +165,29 @@ macro checkExpiringTimeout*(timeout: Duration, code: untyped): untyped =
            await sleepAsync(1.millis)
     await checkExpiringInternal()
 
-macro checkExpiring*(code: untyped): untyped =
-  ## Same as `checkExpiringTimeout` but with a default timeout of 10 seconds.
+macro checkUntilTimeout*(code: untyped): untyped =
+  ## Same as `checkUntilCustomTimeout` but with a default timeout of 10 seconds.
   ##
   ## Examples:
   ##   ```nim
   ##   # Example 1:
-  ##   asyncTest "checkExpiring should pass if the condition is true":
+  ##   asyncTest "checkUntilTimeout should pass if the condition is true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkExpiring:
+  ##     checkUntilTimeout:
   ##       a == b
   ##
   ##   # Example 2: Multiple conditions
-  ##   asyncTest "checkExpiring should pass if the conditions are true":
+  ##   asyncTest "checkUntilTimeout should pass if the conditions are true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkExpiring:
+  ##     checkUntilTimeout:
   ##       a == b
   ##       a == 2
   ##       b == 1
   ##   ```
   result = quote do:
-    checkExpiringTimeout(10.seconds, `code`)
+    checkUntilCustomTimeout(10.seconds, `code`)
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:

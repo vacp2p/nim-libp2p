@@ -13,30 +13,30 @@ import ./helpers
 
 suite "Helpers":
 
-  asyncTest "checkExpiring should pass if the condition is true":
+  asyncTest "checkUntilTimeout should pass if the condition is true":
     let a = 2
     let b = 2
-    checkExpiring:
+    checkUntilTimeout:
       a == b
 
-  asyncTest "checkExpiring should pass if the conditions are true":
+  asyncTest "checkUntilTimeout should pass if the conditions are true":
     let a = 2
     let b = 2
-    checkExpiring:
+    checkUntilTimeout:
       a == b
       a == 2
       b == 2
 
-  asyncTest "checkExpiringTimeout should pass when the condition is true":
+  asyncTest "checkUntilCustomTimeout should pass when the condition is true":
     let a = 2
     let b = 2
-    checkExpiringTimeout(2.seconds):
+    checkUntilCustomTimeout(2.seconds):
       a == b
 
-  asyncTest "checkExpiringTimeout should pass when the conditions are true":
+  asyncTest "checkUntilCustomTimeout should pass when the conditions are true":
     let a = 2
     let b = 2
-    checkExpiringTimeout(5.seconds):
+    checkUntilCustomTimeout(5.seconds):
       a == b
       a == 2
       b == 2

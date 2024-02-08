@@ -361,7 +361,7 @@ suite "FloodSub":
     check (await smallNode[0].publish("foo", smallMessage1)) > 0
     check (await bigNode[0].publish("foo", smallMessage2)) > 0
 
-    checkExpiring: messageReceived == 2
+    checkUntilTimeout: messageReceived == 2
 
     check (await smallNode[0].publish("foo", bigMessage)) > 0
     check (await bigNode[0].publish("foo", bigMessage)) > 0
@@ -396,7 +396,7 @@ suite "FloodSub":
 
     check (await bigNode1[0].publish("foo", bigMessage)) > 0
 
-    checkExpiring: messageReceived == 1
+    checkUntilTimeout: messageReceived == 1
 
     await allFuturesThrowing(
       bigNode1[0].switch.stop(),
