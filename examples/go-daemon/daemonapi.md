@@ -2,8 +2,7 @@
 - [Introduction](#introduction)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
-  - [Script (Recommended)](#script-recommended)
-  - [Manual](#manual)
+  - [Script](#script)
 - [Usage](#usage)
   - [Example](#example)
   - [Getting Started](#getting-started)
@@ -20,7 +19,7 @@ Go with version `1.15.15`.
 # Installation
 Follow one of the methods below:
 
-## Script (Recommended)
+## Script
 Run the build script while having the `go` command pointing to the correct Go version.
 We recommend using `1.15.15`, as previously stated.
 ```sh
@@ -34,26 +33,6 @@ After successfully building the binary, remember to add it to your path so it ca
 export PATH="$PATH:$HOME/go/bin"
 ```
 > **Tip:** To make this change permanent, add the command above to your `.bashrc` file.
-
-## Manual
-```sh
-# clone and install dependencies
-git clone https://github.com/status-im/nim-libp2p
-cd nim-libp2p
-nimble install
-
-# perform unit tests
-nimble test
-
-# update the git submodule to install the go daemon 
-git submodule update --init --recursive
-go version
-git clone https://github.com/libp2p/go-libp2p-daemon
-cd go-libp2p-daemon
-git checkout v0.0.1
-go install ./...
-cd ..
-```
 
 # Usage 
 
