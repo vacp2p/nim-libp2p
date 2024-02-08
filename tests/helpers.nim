@@ -129,7 +129,7 @@ macro checkExpiring*(code: untyped, timeout: Duration = 10.seconds): untyped =
   ##   asyncTest "checkExpiring should pass if the condition is true, custom timeout":
   ##     let a = 2
   ##     let b = 2
-  ##     checkExpiring(a == b)
+  ##     checkExpiring(a == b, 2.seconds)
   ##
   ##   # Example 3: Multiple conditions
   ##   asyncTest "checkExpiring should pass if the conditions are true":
