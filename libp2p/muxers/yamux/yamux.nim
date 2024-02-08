@@ -29,9 +29,9 @@ const
 when defined(libp2p_yamux_metrics):
   declareGauge(libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"])
   declareHistogram libp2p_yamux_send_queue, "message send queue length (in byte)",
-    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 1600.0, 6400.0, 25600.0, 256000.0]
+    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
   declareHistogram libp2p_yamux_recv_queue, "message recv queue length (in byte)",
-    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 1600.0, 6400.0, 25600.0, 256000.0]
+    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
 
 type
   YamuxError* = object of CatchableError
@@ -370,7 +370,7 @@ method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
     return result
   channel.sendQueue.add((msg, 0, result))
   when defined(libp2p_yamux_metrics):
-    libp2p_yamux_recv_queue.observe(channel.lengthSendQueue().int64)
+    libp2p_yamux_send_queue.observe(channel.lengthSendQueue().int64)
   asyncSpawn channel.trySend()
 
 proc open(channel: YamuxChannel) {.async.} =
