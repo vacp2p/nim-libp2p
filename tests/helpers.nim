@@ -111,36 +111,31 @@ proc bridgedConnections*: (Connection, Connection) =
     await connA.pushData(data)
   return (connA, connB)
 
-macro checkExpiring*(code: untyped, timeout: Duration = 10.seconds): untyped =
+macro checkExpiringTimeout*(timeout: Duration, code: untyped): untyped =
   ## Periodically checks a given condition until it is true or a timeout occurs.
   ##
   ## `code`: untyped - A condition expression that should eventually evaluate to true.
-  ## `timeout`: Duration = 10.seconds - The maximum duration to wait for the condition to be true.
+  ## `timeout`: Duration - The maximum duration to wait for the condition to be true.
   ##
   ## Examples:
   ##   ```nim
-  ##   # Example 1: Using default timeout
-  ##   asyncTest "checkExpiring should pass if the condition is true":
+  ##   # Example 1:
+  ##   asyncTest "checkExpiringTimeout should pass if the condition is true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkExpiring: a == b
+  ##     checkExpiringTimeout(2.seconds):
+  ##       a == b
   ##
-  ##   # Example 2: Using default timeout, but with a different way to call
-  ##   asyncTest "checkExpiring should pass if the condition is true, custom timeout":
+  ##   # Example 2: Multiple conditions
+  ##   asyncTest "checkExpiringTimeout should pass if the conditions are true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkExpiring(a == b, 2.seconds)
-  ##
-  ##   # Example 3: Multiple conditions
-  ##   asyncTest "checkExpiring should pass if the conditions are true":
-  ##     let a = 2
-  ##     let b = 2
-  ##     checkExpiring:
-  ##         a == b
-  ##         a == 2
-  ##         b == 1
+  ##     checkExpiringTimeout(5.seconds)::
+  ##       a == b
+  ##       a == 2
+  ##       b == 1
   ##   ```
-# Helper proc to recursively build a combined boolean expression
+  # Helper proc to recursively build a combined boolean expression
   proc buildAndExpr(n: NimNode): NimNode =
     if n.kind == nnkStmtList and n.len > 0:
       var combinedExpr = n[0]  # Start with the first expression
@@ -154,8 +149,7 @@ macro checkExpiring*(code: untyped, timeout: Duration = 10.seconds): untyped =
   # Build the combined expression
   let combinedBoolExpr = buildAndExpr(code)
 
-  result = newStmtList()
-  result.add quote do:
+  result = quote do:
     proc checkExpiringInternal(): Future[void] {.gensym, async.} =
       let start = Moment.now()
       while true:
@@ -170,6 +164,30 @@ macro checkExpiring*(code: untyped, timeout: Duration = 10.seconds): untyped =
          else:
            await sleepAsync(1.millis)
     await checkExpiringInternal()
+
+macro checkExpiring*(code: untyped): untyped =
+  ## Same as `checkExpiringTimeout` but with a default timeout of 10 seconds.
+  ##
+  ## Examples:
+  ##   ```nim
+  ##   # Example 1:
+  ##   asyncTest "checkExpiring should pass if the condition is true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkExpiring:
+  ##       a == b
+  ##
+  ##   # Example 2: Multiple conditions
+  ##   asyncTest "checkExpiring should pass if the conditions are true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkExpiring:
+  ##       a == b
+  ##       a == 2
+  ##       b == 1
+  ##   ```
+  result = quote do:
+    checkExpiringTimeout(10.seconds, `code`)
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:

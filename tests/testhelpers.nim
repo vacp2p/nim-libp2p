@@ -16,17 +16,27 @@ suite "Helpers":
   asyncTest "checkExpiring should pass if the condition is true":
     let a = 2
     let b = 2
-    checkExpiring: a == b
-
-  asyncTest "checkExpiring should pass if the condition is true, custom timeout":
-    let a = 2
-    let b = 2
-    checkExpiring(a == b, 2.seconds)
+    checkExpiring:
+      a == b
 
   asyncTest "checkExpiring should pass if the conditions are true":
     let a = 2
     let b = 2
     checkExpiring:
-        a == b
-        a == 2
-        b == 2
+      a == b
+      a == 2
+      b == 2
+
+  asyncTest "checkExpiringTimeout should pass when the condition is true":
+    let a = 2
+    let b = 2
+    checkExpiringTimeout(2.seconds):
+      a == b
+
+  asyncTest "checkExpiringTimeout should pass when the conditions are true":
+    let a = 2
+    let b = 2
+    checkExpiringTimeout(5.seconds):
+      a == b
+      a == 2
+      b == 2
