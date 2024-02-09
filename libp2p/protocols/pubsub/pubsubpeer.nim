@@ -287,9 +287,11 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool = false) {
     return
 
   if isHighPriority:
-    p.rpcmessagequeue.sendPriorityQueue.addLast(p.sendMsg(msg))
-    when defined(libp2p_expensive_metrics):
-      libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
+    let f = p.sendMsg(msg)
+    if not f.finished:
+      p.rpcmessagequeue.sendPriorityQueue.addLast(f)
+      when defined(libp2p_expensive_metrics):
+        libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
   else:
     await p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
     when defined(libp2p_expensive_metrics):
