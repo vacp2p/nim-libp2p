@@ -372,11 +372,11 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
 
 proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
   while true:
+     # we send non-priority messages only if there are no pending priority messages
+     let msg = await p.rpcmessagequeue.nonPriorityQueue.popFirst()
      while p.rpcmessagequeue.sendPriorityQueue.len > 0:
        await p.rpcmessagequeue.sendPriorityQueue[0]
        p.clearSendPriorityQueue()
-     # we send non-priority messages only if there are no pending priority messages
-     let msg = await p.rpcmessagequeue.nonPriorityQueue.popFirst()
      when defined(libp2p_expensive_metrics):
        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
      await p.sendMsg(msg)
