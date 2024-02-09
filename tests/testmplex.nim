@@ -829,7 +829,7 @@ suite "Mplex":
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
 
       await mplexListen.close()
       await allFuturesThrowing(
@@ -876,7 +876,7 @@ suite "Mplex":
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
 
       mplexHandle.cancel()
       await allFuturesThrowing(
@@ -920,7 +920,7 @@ suite "Mplex":
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
 
       await conn.close()
       await allFuturesThrowing(
@@ -967,7 +967,7 @@ suite "Mplex":
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkExpiring: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
 
       await listenConn.closeWithEOF()
       await allFuturesThrowing(

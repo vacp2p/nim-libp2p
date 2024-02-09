@@ -62,8 +62,8 @@ suite "RendezVous Interface":
     dm.advertise(RdvNamespace("ns1"))
     dm.advertise(RdvNamespace("ns2"))
 
-    checkExpiring: rdv.numAdvertiseNs1 >= 5
-    checkExpiring: rdv.numAdvertiseNs2 >= 5
+    checkUntilTimeout: rdv.numAdvertiseNs1 >= 5
+    checkUntilTimeout: rdv.numAdvertiseNs2 >= 5
     await client.stop()
 
   asyncTest "Check timeToAdvertise interval":

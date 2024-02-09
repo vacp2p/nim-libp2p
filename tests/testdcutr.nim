@@ -64,7 +64,7 @@ suite "Dcutr":
       await DcutrClient.new().startSync(behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
       .wait(300.millis)
 
-    checkExpiring:
+    checkUntilTimeout:
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
 
@@ -83,7 +83,7 @@ suite "Dcutr":
 
     body
 
-    checkExpiring:
+    checkUntilTimeout:
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
 
@@ -150,7 +150,7 @@ suite "Dcutr":
       await DcutrClient.new().startSync(behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs)
       .wait(300.millis)
 
-    checkExpiring:
+    checkUntilTimeout:
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 1
 

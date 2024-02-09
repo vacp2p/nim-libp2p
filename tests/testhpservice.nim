@@ -89,8 +89,8 @@ suite "Hole Punching":
 
     await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
 
-    checkExpiring:
-      privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1 and
+    checkUntilTimeout:
+      privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1
       not isRelayed(privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection)
 
     await allFuturesThrowing(
@@ -127,8 +127,8 @@ suite "Hole Punching":
 
     await publicPeerSwitch.connect(privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr))
 
-    checkExpiring:
-      privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1 and
+    checkUntilTimeout:
+      privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1
       not isRelayed(privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection)
 
     await allFuturesThrowing(

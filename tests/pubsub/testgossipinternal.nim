@@ -781,7 +781,7 @@ suite "GossipSub internal":
       ihave: @[ControlIHave(topicId: "foobar", messageIds: iwantMessageIds)]
     ))))
 
-    checkExpiring: receivedMessages[] == sentMessages
+    checkUntilTimeout: receivedMessages[] == sentMessages
     check receivedMessages[].len == 2
 
     await teardownTest(gossip0, gossip1)
@@ -799,7 +799,7 @@ suite "GossipSub internal":
     ))))
 
     await sleepAsync(300.milliseconds)
-    checkExpiring: receivedMessages[].len == 0
+    checkUntilTimeout: receivedMessages[].len == 0
 
     await teardownTest(gossip0, gossip1)
 
@@ -815,7 +815,7 @@ suite "GossipSub internal":
       ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
     ))))
 
-    checkExpiring: receivedMessages[] == sentMessages
+    checkUntilTimeout: receivedMessages[] == sentMessages
     check receivedMessages[].len == 2
 
     await teardownTest(gossip0, gossip1)
@@ -840,7 +840,7 @@ suite "GossipSub internal":
     else:
       smallestSet.incl(seqs[1])
 
-    checkExpiring: receivedMessages[] == smallestSet
+    checkUntilTimeout: receivedMessages[] == smallestSet
     check receivedMessages[].len == 1
 
     await teardownTest(gossip0, gossip1)

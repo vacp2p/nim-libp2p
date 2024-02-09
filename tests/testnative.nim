@@ -57,4 +57,5 @@ import testtcptransport,
        testautorelay,
        testdcutr,
        testhpservice,
-       testutility
+       testutility,
+       testhelpers
