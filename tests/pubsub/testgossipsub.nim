@@ -509,12 +509,12 @@ suite "GossipSub":
     var gossip1: GossipSub = GossipSub(nodes[0])
     var gossip2: GossipSub = GossipSub(nodes[1])
 
-    checkExpiring:
-      "foobar" in gossip1.gossipsub and
-      "foobar" in gossip2.gossipsub and
-      gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId) and
-      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId) and
-      gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId) and
+    check:
+      "foobar" in gossip1.gossipsub
+      "foobar" in gossip2.gossipsub
+      gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
       not gossip2.fanout.hasPeerId("foobar", gossip1.peerInfo.peerId)
 
     await allFuturesThrowing(
