@@ -281,12 +281,28 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
 
-  if
-    respControl.prune.len > 0 or
-    respControl.iwant.len > 0 or
-    messages.len > 0:
-    # iwant and prunes from here, also messages
+  let
+    isPruneNotEmpty = respControl.prune.len > 0
+    isIWantNotEmpty = respControl.iwant.len > 0
 
+  if isPruneNotEmpty or isIWantNotEmpty:
+
+    if isIWantNotEmpty:
+      libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+
+    if isPruneNotEmpty:
+      for prune in respControl.prune:
+        if g.knownTopics.contains(prune.topicId):
+          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
+        else:
+          libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+
+    trace "sending control message", msg = shortLog(respControl), peer
+    g.send(
+      peer,
+      RPCMsg(control: some(respControl)), true)
+
+  if messages.len > 0:
     for smsg in messages:
       for topic in smsg.topicIds:
         if g.knownTopics.contains(topic):
@@ -294,19 +310,8 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         else:
           libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
 
-    libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
-
-    for prune in respControl.prune:
-      if g.knownTopics.contains(prune.topicId):
-        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
-      else:
-        libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
-
-    trace "sending control message", msg = shortLog(respControl), peer
-    g.send(
-      peer,
-      RPCMsg(control: some(respControl)), true)
     # iwant replies have lower priority
+    trace "sending iwant reply messages", peer
     g.send(
       peer,
       RPCMsg(messages: messages), false)
