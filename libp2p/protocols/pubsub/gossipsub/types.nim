@@ -147,6 +147,10 @@ type
     overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
     disconnectPeerAboveRateLimit*: bool
 
+    # The maximum duration a message can stay in the non-priority queue. If it exceeds this duration, it will be discarded
+    # as soon as it is dequeued, instead of being sent to the remote peer. The default value is none, i.e., no maximum duration.
+    maxDurationInNonPriorityQueue*: Opt[Duration]
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
 
