@@ -302,7 +302,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">broadcast
       <li><a class="reference" href="#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool"
-    title="broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool = false)">broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool = false)</a></li>
+    title="broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)">broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">handleData
@@ -336,7 +336,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">send
       <li><a class="reference" href="#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool"
-    title="send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool = false)">send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool = false)</a></li>
+    title="send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)">send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">sendSubs
@@ -817,8 +817,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="broadcast,PubSub,auto,RPCMsg,bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool"><span class="Identifier">broadcast</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">sendPeers</span><span class="Other">:</span> <span class="Identifier">auto</span><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span>
-               <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool"><span class="Identifier">broadcast</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">sendPeers</span><span class="Other">:</span> <span class="Identifier">auto</span><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span> <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">)</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Attempt to send <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> to the given peers
@@ -877,7 +877,7 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="send,PubSub,PubSubPeer,RPCMsg,bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool"><span class="Identifier">send</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span> <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool"><span class="Identifier">send</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span> <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">)</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1159,7 +1159,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-13 12:56:53 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-13 15:11:52 UTC</small>
       </div>
     </div>
   </div>
