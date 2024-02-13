@@ -281,7 +281,7 @@ proc sendMsg(p: PubSubPeer, msg: seq[byte]) {.async.} =
 
     await conn.close() # This will clean up the send connection
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool = false) {.async.} =
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool) {.async.} =
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   if msg.len <= 0:
@@ -340,7 +340,7 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
   else:
     trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool = false) {.async.} =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.async.} =
   # When sending messages, we take care to re-encode them with the right
   # anonymization flag to ensure that we're not penalized for sending invalid
   # or malicious data on the wire - in particular, re-encoding protects against

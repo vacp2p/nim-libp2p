@@ -138,7 +138,7 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool = false) {.raises: [].} =
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool) {.raises: [].} =
   ## Attempt to send `msg` to remote peer
   ##
 
@@ -149,7 +149,7 @@ proc broadcast*(
   p: PubSub,
   sendPeers: auto, # Iteratble[PubSubPeer]
   msg: RPCMsg,
-  isHighPriority: bool = false) {.raises: [].} =
+  isHighPriority: bool) {.raises: [].} =
   ## Attempt to send `msg` to the given peers
 
   let npeers = sendPeers.len.int64
@@ -208,7 +208,7 @@ proc sendSubs*(p: PubSub,
                topics: openArray[string],
                subscribe: bool) =
   ## send subscriptions to remote peer
-  p.send(peer, RPCMsg.withSubs(topics, subscribe), true)
+  p.send(peer, RPCMsg.withSubs(topics, subscribe), isHighPriority = true)
 
   for topic in topics:
     if subscribe:

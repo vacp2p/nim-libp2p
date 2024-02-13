@@ -912,7 +912,7 @@ suite "GossipSub":
 
     gossip3.broadcast(gossip3.mesh["foobar"], RPCMsg(control: some(ControlMessage(
       idontwant: @[ControlIWant(messageIds: @[newSeq[byte](10)])]
-    ))))
+    ))), isHighPriority = true)
     checkUntilTimeout: gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
 
     tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
@@ -968,7 +968,10 @@ suite "GossipSub":
     let rateLimitHits = currentRateLimitHits()
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
-    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](10))]))
+    gossip0.broadcast(
+      gossip0.mesh["foobar"],
+      RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](10))]),
+      isHighPriority = true)
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits
@@ -976,7 +979,10 @@ suite "GossipSub":
 
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
-    gossip0.broadcast(gossip0.mesh["foobar"], RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](12))]))
+    gossip0.broadcast(
+      gossip0.mesh["foobar"],
+      RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](12))]),
+      isHighPriority = true)
     await sleepAsync(300.millis)
 
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -990,7 +996,7 @@ suite "GossipSub":
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
     # Simulate sending an undecodable message
-    await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](33, 1.byte))
+    await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](33, 1.byte), isHighPriority = true)
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits + 1
@@ -998,7 +1004,7 @@ suite "GossipSub":
 
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
-    await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](35, 1.byte))
+    await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(newSeqWith[byte](35, 1.byte), isHighPriority = true)
 
     checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
@@ -1014,7 +1020,7 @@ suite "GossipSub":
             PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))
         ], backoff: 123'u64)
     ])))
-    gossip0.broadcast(gossip0.mesh["foobar"], msg)
+    gossip0.broadcast(gossip0.mesh["foobar"], msg, isHighPriority = true)
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits + 1
@@ -1027,7 +1033,7 @@ suite "GossipSub":
             PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))
         ], backoff: 123'u64)
     ])))
-    gossip0.broadcast(gossip0.mesh["foobar"], msg2)
+    gossip0.broadcast(gossip0.mesh["foobar"], msg2, isHighPriority = true)
 
     checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
@@ -1049,7 +1055,7 @@ suite "GossipSub":
 
     let msg = RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](40))])
 
-    gossip0.broadcast(gossip0.mesh[topic], msg)
+    gossip0.broadcast(gossip0.mesh[topic], msg, isHighPriority = true)
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits + 1
@@ -1057,7 +1063,10 @@ suite "GossipSub":
 
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
-    gossip0.broadcast(gossip0.mesh[topic], RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](35))]))
+    gossip0.broadcast(
+      gossip0.mesh[topic],
+      RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](35))]),
+      isHighPriority = true)
 
     checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2
