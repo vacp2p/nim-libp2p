@@ -208,7 +208,7 @@ proc sendSubs*(p: PubSub,
                topics: openArray[string],
                subscribe: bool) =
   ## send subscriptions to remote peer
-  p.send(peer, RPCMsg.withSubs(topics, subscribe))
+  p.send(peer, RPCMsg.withSubs(topics, subscribe), true)
 
   for topic in topics:
     if subscribe:
