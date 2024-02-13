@@ -237,7 +237,7 @@ window.addEventListener("DOMContentLoaded", main2);
   appScore*: float64
   behaviourPenalty*: float64
   overheadRateLimitOpt*: Opt[TokenBucket]
-  rpcmessagequeue: RpcMessageQueue">PubSubPeer</a></li>
+  rpcmessagequeue*: RpcMessageQueue">PubSubPeer</a></li>
   <li><a class="reference" href="#PubSubPeerEvent"
     title="PubSubPeerEvent = object
   kind*: PubSubPeerEventKind">PubSubPeerEvent</a></li>
@@ -256,7 +256,7 @@ window.addEventListener("DOMContentLoaded", main2);
   sendPriorityQueue: Deque[Future[void]]
   nonPriorityQueue: AsyncQueue[QueuedMessage]
   sendNonPriorityTask: Future[void]
-  maxDurationInNonPriorityQueue: Duration">RpcMessageQueue</a></li>
+  maxDurationInNonPriorityQueue*: Opt[Duration]">RpcMessageQueue</a></li>
 
   </ul>
 </li>
@@ -312,9 +312,11 @@ window.addEventListener("DOMContentLoaded", main2);
       <li><a class="reference" href="#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2COpt%5BTokenBucket%5D"
     title="new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type">new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket);
+    maxDurationInNonPriorityQueue = Opt.none(Duration)): T:type">new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type</a></li>
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket);
+    maxDurationInNonPriorityQueue = Opt.none(Duration)): T:type</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">outbound
@@ -475,7 +477,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">appScore</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">float64</span>
   <span class="Identifier">behaviourPenalty</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">float64</span>
   <span class="Identifier">overheadRateLimitOpt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">TokenBucket</span><span class="Other">]</span>
-  <span class="Identifier">rpcmessagequeue</span><span class="Other">:</span> <a href="pubsubpeer.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a>
+  <span class="Identifier">rpcmessagequeue</span><span class="Operator">*</span><span class="Other">:</span> <a href="pubsubpeer.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a>
 </pre></dt>
 <dd>
 
@@ -547,7 +549,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">sendPriorityQueue</span><span class="Other">:</span> <span class="Identifier">Deque</span><span class="Other">[</span><span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">nonPriorityQueue</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><a href="pubsubpeer.html#QueuedMessage"><span class="Identifier">QueuedMessage</span></a><span class="Other">]</span>
   <span class="Identifier">sendNonPriorityTask</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span>
-  <span class="Identifier">maxDurationInNonPriorityQueue</span><span class="Other">:</span> <span class="Identifier">Duration</span>
+  <span class="Identifier">maxDurationInNonPriorityQueue</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">Duration</span><span class="Other">]</span>
 </pre></dt>
 <dd>
 
@@ -676,15 +678,16 @@ class="link-seesrc" target="_blank">Source</a>
 <div id="new,typedesc[PubSubPeer],PeerId,GetConn,OnEvent,string,int,Opt[TokenBucket]" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2COpt%5BTokenBucket%5D"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">getConn</span><span class="Other">:</span> <a href="pubsubpeer.html#GetConn"><span class="Identifier">GetConn</span></a><span class="Other">;</span>
          <span class="Identifier">onEvent</span><span class="Other">:</span> <a href="pubsubpeer.html#OnEvent"><span class="Identifier">OnEvent</span></a><span class="Other">;</span> <span class="Identifier">codec</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">maxMessageSize</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
-         <span class="Identifier">overheadRateLimitOpt</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">TokenBucket</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">TokenBucket</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
+         <span class="Identifier">overheadRateLimitOpt</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">TokenBucket</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">TokenBucket</span><span class="Other">)</span><span class="Other">;</span>
+         <span class="Identifier">maxDurationInNonPriorityQueue</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">Duration</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/drop-old-relayed-msgs/libp2p/protocols/pubsub/pubsubpeer.nim#L420"
+href="https://github.com/status-im/nim-libp2p/tree/drop-old-relayed-msgs/libp2p/protocols/pubsub/pubsubpeer.nim#L421"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L420" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L421" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -760,9 +763,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/drop-old-relayed-msgs/libp2p/protocols/pubsub/pubsubpeer.nim#L402"
+href="https://github.com/status-im/nim-libp2p/tree/drop-old-relayed-msgs/libp2p/protocols/pubsub/pubsubpeer.nim#L403"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L402" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L403" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -798,7 +801,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-09 11:04:53 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-13 12:18:35 UTC</small>
       </div>
     </div>
   </div>

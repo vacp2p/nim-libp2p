@@ -3163,9 +3163,11 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2COpt%5BTokenBucket%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket);
+    maxDurationInNonPriorityQueue = Opt.none(Duration)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2COpt%5BTokenBucket%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type</a></li>
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket);
+    maxDurationInNonPriorityQueue = Opt.none(Duration)): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type</a></li>
           <li><a class="reference external"
@@ -5326,7 +5328,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-09 11:04:54 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-13 12:18:35 UTC</small>
       </div>
     </div>
   </div>
