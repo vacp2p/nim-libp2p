@@ -559,9 +559,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L369"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L386"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L369" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L386" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -659,9 +659,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L413"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L430"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L413" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L430" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -696,11 +696,19 @@ class="link-seesrc" target="_blank">Source</a>
             <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
+<p>Asynchronously sends an <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt> to a specified <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSubPeer</span></span></tt> with an option for anonymization.</p>
+<p>Parameters:</p>
+<ul class="simple"><li><tt class="docutils literal"><span class="pre"><span class="Identifier">p</span></span></tt>: The <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSubPeer</span></span></tt> instance to which the message is to be sent.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt>: The <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt> instance representing the message to be sent.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">anonymize</span></span></tt>: A boolean flag indicating whether the message should be sent with anonymization.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">isHighPriority</span></span></tt>: A boolean flag indicating whether the message should be treated as high priority.</li>
+</ul>
+<p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L343"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L351"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L343" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L351" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -710,6 +718,13 @@ class="link-seesrc" target="_blank">Source</a>
             <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
+<p>Asynchronously sends an encoded message to a specified <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSubPeer</span></span></tt>.</p>
+<p>Parameters:</p>
+<ul class="simple"><li><tt class="docutils literal"><span class="pre"><span class="Identifier">p</span></span></tt>: The <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSubPeer</span></span></tt> instance to which the message is to be sent.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt>: The message to be sent, encoded as a sequence of bytes (<tt class="docutils literal"><span class="pre"><span class="Identifier">seq</span><span class="Punctuation">[</span><span class="Identifier">byte</span><span class="Punctuation">]</span></span></tt>).</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">isHighPriority</span></span></tt>: A boolean indicating whether the message should be treated as high priority.</li>
+</ul>
+<p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
 href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L284"
@@ -737,9 +752,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L396"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsubpeer.nim#L413"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L396" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L413" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -775,7 +790,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-13 16:06:19 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-14 12:01:59 UTC</small>
       </div>
     </div>
   </div>

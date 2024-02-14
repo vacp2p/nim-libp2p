@@ -810,9 +810,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L603"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L618"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L603" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L618" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -821,11 +821,19 @@ class="link-seesrc" target="_blank">Source</a>
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-Attempt to send <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> to the given peers
+<p>This procedure attempts to send a <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> (of type <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt>) to a specified group of peers in the PubSub network.</p>
+<p>Parameters:</p>
+<ul class="simple"><li><tt class="docutils literal"><span class="pre"><span class="Identifier">p</span></span></tt>: The <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSub</span></span></tt> instance.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">sendPeers</span></span></tt>: An iterable of <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSubPeer</span></span></tt> instances representing the peers to whom the message should be sent.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt>: The <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt> instance that contains the message to be broadcast.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">isHighPriority</span></span></tt>: A boolean indicating whether the message should be treated as high priority.</li>
+</ul>
+<p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
+
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L148"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L155"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -836,9 +844,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L311"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L326"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L311" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L326" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -857,9 +865,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L548"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L563"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L548" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L563" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -870,9 +878,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L605"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L620"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L605" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L620" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -881,7 +889,15 @@ class="link-seesrc" target="_blank">Source</a>
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-Attempt to send <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> to remote peer 
+<p>This procedure attempts to send a <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> (of type <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt>) to the specified remote peer in the PubSub network.</p>
+<p>Parameters:</p>
+<ul class="simple"><li><tt class="docutils literal"><span class="pre"><span class="Identifier">p</span></span></tt>: The <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSub</span></span></tt> instance.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">peer</span></span></tt>: An instance of <tt class="docutils literal"><span class="pre"><span class="Identifier">PubSubPeer</span></span></tt> representing the peer to whom the message should be sent.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt>: The <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt> instance that contains the message to be sent.</li>
+<li><tt class="docutils literal"><span class="pre"><span class="Identifier">isHighPriority</span></span></tt>: A boolean indicating whether the message should be treated as high priority.</li>
+</ul>
+<p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
+
 &nbsp;&nbsp;<a
 href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L141"
 class="link-seesrc" target="_blank">Source</a>
@@ -896,9 +912,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 send subscriptions to remote peer
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L206"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L221"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L206" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L221" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -914,9 +930,9 @@ class="link-seesrc" target="_blank">Source</a>
 </dl>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L449"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L464"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L449" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L464" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -927,9 +943,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe from a <tt class="docutils literal"><span class="pre">topic</span></tt> string 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L418"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L433"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L418" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L433" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -940,9 +956,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe from a list of <tt class="docutils literal"><span class="pre">topic</span></tt> handlers
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L433"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L448"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L433" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L448" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -953,9 +969,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe every <tt class="docutils literal"><span class="pre"><span class="Identifier">handler</span></span></tt> from <tt class="docutils literal"><span class="pre"><span class="Identifier">topic</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L438"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L453"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L438" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L453" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -965,9 +981,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L225"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L240"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L225" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L240" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -983,9 +999,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Add a validator to a <tt class="docutils literal"><span class="pre"><span class="Identifier">topic</span></span></tt>. Each new message received in this will be sent to <tt class="docutils literal"><span class="pre"><span class="Identifier">hook</span></span></tt>. <tt class="docutils literal"><span class="pre"><span class="Identifier">hook</span></span></tt> can return either <tt class="docutils literal"><span class="pre"><span class="Identifier">Accept</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">Ignore</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">Reject</span></span></tt> (which can descore the peer)
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L498"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L513"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L498" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L513" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -996,9 +1012,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L283"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L298"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L283" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L298" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1016,9 +1032,9 @@ class="link-seesrc" target="_blank">Source</a>
 </ol>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L348"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L363"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L348" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L363" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1029,9 +1045,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 perform pubsub initialization
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L491"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L506"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L491" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L506" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1042,9 +1058,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L274"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L289"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L274" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L289" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1055,9 +1071,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L401"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L416"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L401" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L416" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1071,9 +1087,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>The return value is the number of neighbours that we attempted to send the message to, excluding self. Note that this is an optimistic number of attempts - the number of peers that actually receive the message might be lower.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L479"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L494"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L479" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L494" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1084,9 +1100,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L508"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L523"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L508" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L523" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1098,9 +1114,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Handler that must be overridden by concrete implementation
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L268"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L283"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L268" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L283" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1111,9 +1127,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 subscribe to remote peer to receive/send pubsub messages 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L377"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L392"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L377" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L392" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1138,9 +1154,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L517"
+href="https://github.com/status-im/nim-libp2p/tree/forward-msgs-non-priority-v2/libp2p/protocols/pubsub/pubsub.nim#L532"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L517" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L532" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1159,7 +1175,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-13 16:06:20 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-14 12:01:59 UTC</small>
       </div>
     </div>
   </div>
