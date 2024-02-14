@@ -282,6 +282,14 @@ proc sendMsg(p: PubSubPeer, msg: seq[byte]) {.async.} =
     await conn.close() # This will clean up the send connection
 
 proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool) {.async.} =
+  ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
+  ## - `msg`: The message to be sent, encoded as a sequence of bytes (`seq[byte]`).
+  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
+  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
+  ## priority messages have been sent.
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   if msg.len <= 0:
@@ -341,6 +349,15 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
     trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
 proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.async.} =
+  ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
+  ## - `msg`: The `RPCMsg` instance representing the message to be sent.
+  ## - `anonymize`: A boolean flag indicating whether the message should be sent with anonymization.
+  ## - `isHighPriority`: A boolean flag indicating whether the message should be treated as high priority.
+  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
+  ## priority messages have been sent.
   # When sending messages, we take care to re-encode them with the right
   # anonymization flag to ensure that we're not penalized for sending invalid
   # or malicious data on the wire - in particular, re-encoding protects against

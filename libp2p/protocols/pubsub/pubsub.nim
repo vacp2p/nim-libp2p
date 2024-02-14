@@ -139,8 +139,15 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
 proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool) {.raises: [].} =
-  ## Attempt to send `msg` to remote peer
+  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
   ##
+  ## Parameters:
+  ## - `p`: The `PubSub` instance.
+  ## - `peer`: An instance of `PubSubPeer` representing the peer to whom the message should be sent.
+  ## - `msg`: The `RPCMsg` instance that contains the message to be sent.
+  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
+  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
+  ## priority messages have been sent.
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
   asyncSpawn peer.send(msg, p.anonymize, isHighPriority)
@@ -150,7 +157,15 @@ proc broadcast*(
   sendPeers: auto, # Iteratble[PubSubPeer]
   msg: RPCMsg,
   isHighPriority: bool) {.raises: [].} =
-  ## Attempt to send `msg` to the given peers
+  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSub` instance.
+  ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
+  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
+  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
+  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
+  ## priority messages have been sent.
 
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
