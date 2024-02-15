@@ -122,8 +122,8 @@ type
     sendQueue: seq[(seq[byte], Future[void])]
     sendLoop: Future[void]
     readData: seq[byte]
-    txState: WebRtcState
-    rxState: WebRtcState
+    txState: WebRtcState # Transmission
+    rxState: WebRtcState # Reception
 
 proc new(
     _: type WebRtcStream,
@@ -176,7 +176,7 @@ method write*(s: WebRtcStream, msg2: seq[byte]): Future[void] =
   return retFuture
 
 proc actuallyClose(s: WebRtcStream) {.async.} =
-  debug "stream closed"
+  debug "stream closed", rxState=s.rxState, txState=s.txState
   if s.rxState == Closed and s.txState == Closed and s.readData.len == 0:
     #TODO add support to DataChannel
     #await s.dataChannel.close()
@@ -186,7 +186,9 @@ method readOnce*(s: WebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.a
   if s.rxState == Closed:
     raise newLPStreamEOFError()
 
-  while s.readData.len == 0:
+  while s.readData.len == 0 or nbytes == 0:
+    # Check if there's no data left in readData or if nbytes is equal to 0
+    # in order to  read an eventual Fin or FinAck
     if s.rxState == Closed:
       await s.actuallyClose()
       return 0
@@ -195,6 +197,8 @@ method readOnce*(s: WebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.a
       #TODO handle exceptions
       message = await s.rawStream.readLp(MaxMessageSize)
       decoded = WebRtcMessage.decode(message).tryGet()
+
+    s.readData = s.readData.concat(decoded.data)
 
     decoded.flag.withValue(flag):
       case flag:
@@ -205,9 +209,9 @@ method readOnce*(s: WebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.a
       of FinAck:
         s.txState = Closed
         await s.actuallyClose()
+        if nbytes == 0:
+          return 0
       else: discard
-
-    s.readData = decoded.data
 
   result = min(nbytes, s.readData.len)
   copyMem(pbytes, addr s.readData[0], result)
@@ -216,7 +220,8 @@ method readOnce*(s: WebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.a
 method closeImpl*(s: WebRtcStream) {.async.} =
   s.send(WebRtcMessage(flag: Opt.some(Fin)))
   s.txState = Closing
-  await s.join() #TODO ??
+  while s.txState != Closed:
+    discard await s.readOnce(nil, 0)
 
 # -- Connection --
 type WebRtcConnection = ref object of Connection
@@ -236,13 +241,15 @@ proc new(
   co
 
 proc getStream*(conn: WebRtcConnection,
-                direction: Direction): Future[WebRtcStream] {.async.} =
+                direction: Direction,
+                noiseHandshake: bool = false): Future[WebRtcStream] {.async.} =
   var datachannel =
     case direction:
       of Direction.In:
         await conn.connection.accept()
       of Direction.Out:
-        await conn.connection.openStream(0) #TODO don't hardcode stream id (should be in nim-webrtc)
+        #TODO don't hardcode stream id (should be in nim-webrtc)
+        await conn.connection.openStream(noiseHandshake)
   return WebRtcStream.new(datachannel, conn.observedAddr, conn.peerId)
 
 # -- Muxer --
@@ -278,7 +285,10 @@ method close*(m: WebRtcMuxer) {.async, gcsafe.} =
   await m.webRtcConn.close()
 
 # -- Upgrader --
-type WebRtcUpgrade = ref object of Upgrade
+type
+  WebRtcStreamHandler = proc(conn: Connection): Future[void] {.gcsafe, raises: [].}
+  WebRtcUpgrade = ref object of Upgrade
+    streamHandler: WebRtcStreamHandler
 
 method upgrade*(
     self: WebRtcUpgrade,
@@ -287,7 +297,7 @@ method upgrade*(
     peerId: Opt[PeerId]): Future[Muxer] {.async.} =
 
   let webRtcConn = WebRtcConnection(conn)
-  result = WebRtcMuxer(webRtcConn: webRtcConn)
+  result = WebRtcMuxer(connection: conn, webRtcConn: webRtcConn)
 
   # Noise handshake
   let noiseHandler = self.secureManagers.filterIt(it of Noise)
@@ -300,7 +310,7 @@ method upgrade*(
   echo "=> ", ((Noise)noiseHandler[0]).commonPrologue
 
   let
-    stream = await webRtcConn.getStream(Out) #TODO add channelId: 0
+    stream = await webRtcConn.getStream(Out, true) #TODO add channelId: 0
     secureStream = await noiseHandler[0].handshake(
       stream,
       initiator = true, # we are always the initiator in webrtc-direct
@@ -310,6 +320,9 @@ method upgrade*(
   # Peer proved its identity, we can close this
   await secureStream.close()
   await stream.close()
+
+  result.streamHandler = self.streamHandler
+  result.handler = result.handle()
 
 # -- Transport --
 type
@@ -354,9 +367,24 @@ proc new*(
   upgrade: Upgrade,
   connectionsTimeout = 10.minutes): T {.public.} =
 
+  let upgrader = WebRtcUpgrade(ms: upgrade.ms, secureManagers: upgrade.secureManagers)
+  upgrader.streamHandler = proc(conn: Connection)
+    {.async, gcsafe, raises: [].} =
+    # TODO: replace echo by trace and find why it fails compiling
+    echo "Starting stream handler"#, conn
+    try:
+      await upgrader.ms.handle(conn) # handle incoming connection
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      echo "exception in stream handler", exc.msg#, conn, msg = exc.msg
+    finally:
+      await conn.closeWithEOF()
+    echo "Stream handler done"#, conn
+
   let
     transport = T(
-      upgrader: WebRtcUpgrade(secureManagers: upgrade.secureManagers),
+      upgrader: upgrader,
       connectionsTimeout: connectionsTimeout)
 
   return transport
