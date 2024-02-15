@@ -20,6 +20,7 @@
 - [Background](#background)
 - [Install](#install)
 - [Getting Started](#getting-started)
+  - [Go-libp2p-daemon](#go-libp2p-daemon)
 - [Modules](#modules)
 - [Users](#users)
 - [Stability](#stability)
@@ -40,6 +41,8 @@ Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p'
 ## Install
 **Prerequisite**
 - [Nim](https://nim-lang.org/install.html)
+> The currently supported Nim version is 1.6.18.
+
 ```
 nimble install libp2p
 ```
@@ -47,11 +50,11 @@ nimble install libp2p
 ## Getting Started
 You'll find the nim-libp2p documentation [here](https://status-im.github.io/nim-libp2p/docs/).
 
-**Go Daemon:**
-Please find the installation and usage intructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
+### Testing
+Remember you'll need to build the `go-libp2p-daemon` binary to run the `nim-libp2p` tests.
+To do so, please follow the installation instructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
 
 ## Modules
-
 List of packages modules implemented in nim-libp2p:
 
 | Name                                                       | Description                                                                                                      |
