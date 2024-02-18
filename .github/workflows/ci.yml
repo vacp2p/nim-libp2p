@@ -83,7 +83,7 @@ jobs:
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
+          nimble install_pinned -y
 
       - name: Run tests
         run: |
