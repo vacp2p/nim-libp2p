@@ -40,9 +40,7 @@ proc runTest(filename: string, verify: bool = true, sign: bool = true,
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
-  exec excstr & " -r " & " tests/" & filename
-  if (NimMajor, NimMinor) > (1, 6):
-    exec excstr & " --mm:refc -r " & " tests/" & filename
+  exec excstr & " --mm:refc -r " & " tests/" & filename
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false, extraFlags = "") =
