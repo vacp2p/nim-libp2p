@@ -378,7 +378,7 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
   else:
     trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.async.} =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.raises: [].} =
   ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
   ##
   ## Parameters:
@@ -407,11 +407,11 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.
 
   if encoded.len > p.maxMessageSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
-      await p.sendEncoded(encodedSplitMsg, isHighPriority)
+      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority)
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    await p.sendEncoded(encoded, isHighPriority)
+    asyncSpawn p.sendEncoded(encoded, isHighPriority)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
