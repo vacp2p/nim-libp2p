@@ -530,14 +530,14 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   # Send changes to peers after table updates to avoid stale state
   if grafts.len > 0:
     let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
-    g.broadcast(grafts, graft, isHighPriority = true)
+    g.broadcast(grafts, graft)
   if prunes.len > 0:
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(
         topicID: topic,
         peers: g.peerExchangeList(topic),
         backoff: g.parameters.pruneBackoff.seconds.uint64)])))
-    g.broadcast(prunes, prune, isHighPriority = true)
+    g.broadcast(prunes, prune)
 
 proc dropFanoutPeers*(g: GossipSub) {.raises: [].} =
   # drop peers that we haven't published to in
@@ -669,7 +669,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
             topicID: t,
             peers: g.peerExchangeList(t),
             backoff: g.parameters.pruneBackoff.seconds.uint64)])))
-        g.broadcast(prunes, prune, isHighPriority = true)
+        g.broadcast(prunes, prune)
 
       # pass by ptr in order to both signal we want to update metrics
       # and as well update the struct for each topic during this iteration
@@ -691,7 +691,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
           libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicId])
         else:
           libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
-      g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
+      g.send(peer, RPCMsg(control: some(control)))
 
     g.mcache.shift() # shift the cache
 

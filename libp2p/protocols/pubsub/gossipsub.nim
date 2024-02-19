@@ -220,8 +220,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
-  pubSubPeer.stopSendNonPriorityTask()
-
   procCall FloodSub(g).unsubscribePeer(peer)
 
 proc handleSubscribe*(g: GossipSub,
@@ -281,28 +279,12 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
 
-  let
-    isPruneNotEmpty = respControl.prune.len > 0
-    isIWantNotEmpty = respControl.iwant.len > 0
+  if
+    respControl.prune.len > 0 or
+    respControl.iwant.len > 0 or
+    messages.len > 0:
+    # iwant and prunes from here, also messages
 
-  if isPruneNotEmpty or isIWantNotEmpty:
-
-    if isIWantNotEmpty:
-      libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
-
-    if isPruneNotEmpty:
-      for prune in respControl.prune:
-        if g.knownTopics.contains(prune.topicId):
-          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
-        else:
-          libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
-
-    trace "sending control message", msg = shortLog(respControl), peer
-    g.send(
-      peer,
-      RPCMsg(control: some(respControl)), isHighPriority = true)
-
-  if messages.len > 0:
     for smsg in messages:
       for topic in smsg.topicIds:
         if g.knownTopics.contains(topic):
@@ -310,11 +292,18 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         else:
           libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
 
-    # iwant replies have lower priority
-    trace "sending iwant reply messages", peer
+    libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+
+    for prune in respControl.prune:
+      if g.knownTopics.contains(prune.topicId):
+        libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
+      else:
+        libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+
+    trace "sending control message", msg = shortLog(respControl), peer
     g.send(
       peer,
-      RPCMsg(messages: messages), isHighPriority = false)
+      RPCMsg(control: some(respControl), messages: messages))
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
@@ -367,7 +356,7 @@ proc validateAndRelay(g: GossipSub,
     if msg.data.len > msgId.len * 10:
       g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
           idontwant: @[ControlIWant(messageIds: @[msgId])]
-        ))), isHighPriority = true)
+        ))))
 
     for peer in toSendPeers:
       for heDontWant in peer.heDontWants:
@@ -381,7 +370,7 @@ proc validateAndRelay(g: GossipSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue
@@ -452,7 +441,7 @@ method rpcHandler*(g: GossipSub,
   peer.recvObservers(rpcMsg)
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
-    g.send(peer, RPCMsg(pong: rpcMsg.ping), isHighPriority = true)
+    g.send(peer, RPCMsg(pong: rpcMsg.ping))
     peer.pingBudget.dec
   for i in 0..<min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
@@ -562,7 +551,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
             topicID: topic,
             peers: g.peerExchangeList(topic),
             backoff: g.parameters.unsubscribeBackoff.seconds.uint64)])))
-    g.broadcast(mpeers, msg, isHighPriority = true)
+    g.broadcast(mpeers, msg)
 
     for peer in mpeers:
       g.pruned(peer, topic, backoff = some(g.parameters.unsubscribeBackoff))
@@ -666,7 +655,7 @@ method publish*(g: GossipSub,
 
   g.mcache.put(msgId, msg)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  g.broadcast(peers, RPCMsg(messages: @[msg]))
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])

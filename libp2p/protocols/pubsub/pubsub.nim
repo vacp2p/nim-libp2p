@@ -138,34 +138,18 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg) {.raises: [].} =
+  ## Attempt to send `msg` to remote peer
   ##
-  ## Parameters:
-  ## - `p`: The `PubSub` instance.
-  ## - `peer`: An instance of `PubSubPeer` representing the peer to whom the message should be sent.
-  ## - `msg`: The `RPCMsg` instance that contains the message to be sent.
-  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
-  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
-  ## priority messages have been sent.
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
-  asyncSpawn peer.send(msg, p.anonymize, isHighPriority)
+  peer.send(msg, p.anonymize)
 
 proc broadcast*(
   p: PubSub,
   sendPeers: auto, # Iteratble[PubSubPeer]
-  msg: RPCMsg,
-  isHighPriority: bool) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
-  ##
-  ## Parameters:
-  ## - `p`: The `PubSub` instance.
-  ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
-  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
-  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
-  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
-  ## priority messages have been sent.
+  msg: RPCMsg) {.raises: [].} =
+  ## Attempt to send `msg` to the given peers
 
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
@@ -211,19 +195,19 @@ proc broadcast*(
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg, isHighPriority)
+      p.send(peer, msg)
   else:
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded, isHighPriority)
+      asyncSpawn peer.sendEncoded(encoded)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
                topics: openArray[string],
                subscribe: bool) =
   ## send subscriptions to remote peer
-  p.send(peer, RPCMsg.withSubs(topics, subscribe), isHighPriority = true)
+  p.send(peer, RPCMsg.withSubs(topics, subscribe))
 
   for topic in topics:
     if subscribe:

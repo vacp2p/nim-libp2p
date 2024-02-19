@@ -779,7 +779,7 @@ suite "GossipSub internal":
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
       ihave: @[ControlIHave(topicId: "foobar", messageIds: iwantMessageIds)]
-    ))), isHighPriority = false)
+    ))))
 
     checkUntilTimeout: receivedMessages[] == sentMessages
     check receivedMessages[].len == 2
@@ -796,7 +796,7 @@ suite "GossipSub internal":
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
       ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
-    ))), isHighPriority = false)
+    ))))
 
     await sleepAsync(300.milliseconds)
     checkUntilTimeout: receivedMessages[].len == 0
@@ -813,7 +813,7 @@ suite "GossipSub internal":
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
       ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
-    ))), isHighPriority = false)
+    ))))
 
     checkUntilTimeout: receivedMessages[] == sentMessages
     check receivedMessages[].len == 2
@@ -831,7 +831,7 @@ suite "GossipSub internal":
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
       ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
-    ))), isHighPriority = false)
+    ))))
 
     var smallestSet: HashSet[seq[byte]]
     let seqs = toSeq(sentMessages)

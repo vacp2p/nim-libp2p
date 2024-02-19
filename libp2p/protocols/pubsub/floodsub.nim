@@ -157,7 +157,7 @@ method rpcHandler*(f: FloodSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    f.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    f.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
     trace "Forwared message to peers", peers = toSendPeers.len
 
   f.updateMetrics(rpcMsg)
@@ -219,7 +219,7 @@ method publish*(f: FloodSub,
     return 0
 
   # Try to send to all peers that are known to be interested
-  f.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  f.broadcast(peers, RPCMsg(messages: @[msg]))
 
   when defined(libp2p_expensive_metrics):
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
