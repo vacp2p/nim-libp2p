@@ -415,7 +415,8 @@ proc stopSendNonPriorityTask*(p: PubSubPeer) =
     debug "stopping sendNonPriorityTask", p
     p.rpcmessagequeue.sendNonPriorityTask.cancel()
     p.rpcmessagequeue.sendNonPriorityTask = nil
-    p.rpcmessagequeue.sendPriorityQueue.clear()
+    for f in p.rpcmessagequeue.sendPriorityQueue:
+      f.cancel()
     p.rpcmessagequeue.nonPriorityQueue.clear()
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
