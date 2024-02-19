@@ -381,7 +381,7 @@ proc validateAndRelay(g: GossipSub,
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false, validMsgId = msgId)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
     for topic in msg.topicIds:
       if topic notin g.topics: continue
@@ -496,6 +496,9 @@ method rpcHandler*(g: GossipSub,
         g.rewardDelivered(peer, msg.topicIds, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
+
+      if msg.data.len > msgId.len * 10:     #Dont relay to the peers from which we already received (We just do it for large messages)
+        peer.heDontWants[^1].incl(msgId)
 
       # onto the next message
       continue
