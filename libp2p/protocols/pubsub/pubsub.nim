@@ -150,7 +150,7 @@ proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool) {.rai
   ## priority messages have been sent.
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
-  asyncSpawn peer.send(msg, p.anonymize, isHighPriority)
+  peer.send(msg, p.anonymize, isHighPriority)
 
 proc broadcast*(
   p: PubSub,
