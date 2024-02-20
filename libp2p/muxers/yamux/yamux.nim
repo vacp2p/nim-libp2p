@@ -396,6 +396,8 @@ type
     maxChannCount: int
     windowSize: int
     maxSendQueueSize: int
+    inTimeout: Duration
+    outTimeout: Duration
 
 proc lenBySrc(m: Yamux, isSrc: bool): int =
   for v in m.channels.values():
@@ -428,7 +430,12 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool,
     closedRemotely: newFuture[void]()
   )
   result.objName = "YamuxStream"
-  result.dir = if isSrc: Direction.Out else: Direction.In
+  if isSrc:
+    result.dir = Direction.Out
+    result.timeout = m.outTimeout
+  else:
+    result.dir = Direction.In
+    result.timeout = m.inTimeout
   result.timeoutHandler = proc(): Future[void] {.gcsafe.} =
     trace "Idle timeout expired, resetting YamuxChannel"
     result.reset()
@@ -567,11 +574,15 @@ method newStream*(
 proc new*(T: type[Yamux], conn: Connection,
           maxChannCount: int = MaxChannelCount,
           windowSize: int = YamuxDefaultWindowSize,
-          maxSendQueueSize: int = MaxSendQueueSize): T =
+          maxSendQueueSize: int = MaxSendQueueSize,
+          inTimeout: Duration = 5.minutes,
+          outTimeout: Duration = 5.minutes): T =
   T(
     connection: conn,
     currentId: if conn.dir == Out: 1 else: 2,
     maxChannCount: maxChannCount,
     windowSize: windowSize,
-    maxSendQueueSize: maxSendQueueSize
+    maxSendQueueSize: maxSendQueueSize,
+    inTimeout: inTimeout,
+    outTimeout: outTimeout
   )
