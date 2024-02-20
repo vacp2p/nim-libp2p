@@ -251,7 +251,15 @@ template sendMetrics(msg: RPCMsg): untyped =
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
 proc clearSendPriorityQueue(p: PubSubPeer) =
-  while p.rpcmessagequeue.sendPriorityQueue.len > 0 and p.rpcmessagequeue.sendPriorityQueue[0].finished:
+  while p.rpcmessagequeue.sendPriorityQueue.len > 0:
+    # We can arrive here from sendNonPriorityTask in a state where the last future is finished, but the first isn't.
+    # Checking the first and the last is a workaround for that, but it needs investigation.
+    if p.rpcmessagequeue.sendPriorityQueue[0].finished:
+      discard p.rpcmessagequeue.sendPriorityQueue.popFirst()
+    elif p.rpcmessagequeue.sendPriorityQueue[^1].finished:
+      discard p.rpcmessagequeue.sendPriorityQueue.popLast()
+    else:
+      break
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
     discard p.rpcmessagequeue.sendPriorityQueue.popFirst()
