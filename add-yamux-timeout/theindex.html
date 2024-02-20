@@ -3097,9 +3097,11 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
     windowSize: int = YamuxDefaultWindowSize;
-    maxSendQueueSize: int = MaxSendQueueSize): T:type" href="libp2p/muxers/yamux/yamux.html#new%2Ctype%5BYamux%5D%2CConnection%2Cint%2Cint%2Cint">yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
+    maxSendQueueSize: int = MaxSendQueueSize; inTimeout: Duration = 5.minutes;
+    outTimeout: Duration = 5.minutes): T:type" href="libp2p/muxers/yamux/yamux.html#new%2Ctype%5BYamux%5D%2CConnection%2Cint%2Cint%2Cint%2CDuration%2CDuration">yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
     windowSize: int = YamuxDefaultWindowSize;
-    maxSendQueueSize: int = MaxSendQueueSize): T:type</a></li>
+    maxSendQueueSize: int = MaxSendQueueSize; inTimeout: Duration = 5.minutes;
+    outTimeout: Duration = 5.minutes): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="observedaddrmanager: new(T: typedesc[ObservedAddrManager]; maxSize = 10; minCount = 3): T:type" href="libp2p/observedaddrmanager.html#new%2Ctypedesc%5BObservedAddrManager%5D%2Cint%2Cint">observedaddrmanager: new(T: typedesc[ObservedAddrManager]; maxSize = 10; minCount = 3): T:type</a></li>
           <li><a class="reference external"
@@ -5306,7 +5308,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-20 15:58:43 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-20 15:59:45 UTC</small>
       </div>
     </div>
   </div>
