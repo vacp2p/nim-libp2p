@@ -262,7 +262,6 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       break
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
-    discard p.rpcmessagequeue.sendPriorityQueue.popFirst()
 
 proc sendMsg(p: PubSubPeer, msg: seq[byte]) {.async.} =
   if p.sendConn == nil:
