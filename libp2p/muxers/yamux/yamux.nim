@@ -418,7 +418,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool,
   # that the initial recvWindow is 256k.
   # To solve this contradiction, no updateWindow will be sent until recvWindow is less
   # than maxRecvWindow
-  result = YamuxChannel(
+  var stream = YamuxChannel(
     id: id,
     maxRecvWindow: recvWindow,
     recvWindow: if recvWindow > YamuxDefaultWindowSize: recvWindow else: YamuxDefaultWindowSize,
@@ -429,27 +429,28 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool,
     receivedData: newAsyncEvent(),
     closedRemotely: newFuture[void]()
   )
-  result.objName = "YamuxStream"
+  stream.objName = "YamuxStream"
   if isSrc:
-    result.dir = Direction.Out
-    result.timeout = m.outTimeout
+    stream.dir = Direction.Out
+    stream.timeout = m.outTimeout
   else:
-    result.dir = Direction.In
-    result.timeout = m.inTimeout
-  result.timeoutHandler = proc(): Future[void] {.gcsafe.} =
+    stream.dir = Direction.In
+    stream.timeout = m.inTimeout
+  stream.timeoutHandler = proc(): Future[void] {.gcsafe.} =
     trace "Idle timeout expired, resetting YamuxChannel"
-    result.reset()
-  result.initStream()
-  result.peerId = m.connection.peerId
-  result.observedAddr = m.connection.observedAddr
-  result.transportDir = m.connection.transportDir
+    stream.reset(true)
+  stream.initStream()
+  stream.peerId = m.connection.peerId
+  stream.observedAddr = m.connection.observedAddr
+  stream.transportDir = m.connection.transportDir
   when defined(libp2p_agents_metrics):
-    result.shortAgent = m.connection.shortAgent
-  m.channels[id] = result
-  asyncSpawn m.cleanupChannel(result)
+    stream.shortAgent = m.connection.shortAgent
+  m.channels[id] = stream
+  asyncSpawn m.cleanupChannel(stream)
   trace "created channel", id, pid=m.connection.peerId
   when defined(libp2p_yamux_metrics):
-    libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $result.peerId])
+    libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $stream.peerId])
+  return stream
 
 method close*(m: Yamux) {.async.} =
   if m.isClosed == true:
