@@ -22,12 +22,14 @@ suite "Yamux":
   teardown:
     checkTrackers()
 
-  template mSetup(ws: int = YamuxDefaultWindowSize) {.inject.} =
+  template mSetup(ws: int = YamuxDefaultWindowSize,
+                  inTo: Duration = 5.minutes,
+                  outTo: Duration = 5.minutes) {.inject.} =
     #TODO in a template to avoid threadvar
     let
       (conna {.inject.}, connb {.inject.}) = bridgedConnections()
-      yamuxa {.inject.} = Yamux.new(conna, windowSize = ws)
-      yamuxb {.inject.} = Yamux.new(connb, windowSize = ws)
+      yamuxa {.inject.} = Yamux.new(conna, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
+      yamuxb {.inject.} = Yamux.new(connb, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
       (handlera, handlerb) = (yamuxa.handle(), yamuxb.handle())
 
     defer:
@@ -237,6 +239,53 @@ suite "Yamux":
       await wait(thirdWriter, 1.seconds)
       await streamA.close()
 
+  suite "Timeout testing":
+    asyncTest "Check if InTimeout close both streams correctly":
+      mSetup(inTo = 1.seconds)
+      let blocker = newFuture[void]()
+      let connBlocker = newFuture[void]()
+
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        check (await conn.readLp(100)) == fromHex("1234")
+        await conn.writeLp(fromHex("5678"))
+        await blocker
+        check conn.isClosed
+        connBlocker.complete()
+
+      let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+      await streamA.writeLp(fromHex("1234"))
+      check (await streamA.readLp(100)) == fromHex("5678")
+      # wait for the timeout to happens, the sleep duration is set to 4 seconds
+      # as the timeout could be a bit long to trigger
+      await sleepAsync(4.seconds)
+      blocker.complete()
+      check streamA.isClosed
+      await connBlocker
+
+    asyncTest "Check if OutTimeout close both streams correctly":
+      mSetup(outTo = 1.seconds)
+      let blocker = newFuture[void]()
+      let connBlocker = newFuture[void]()
+
+      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+        check (await conn.readLp(100)) == fromHex("1234")
+        await conn.writeLp(fromHex("5678"))
+        await blocker
+        check conn.isClosed
+        connBlocker.complete()
+
+      let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+      await streamA.writeLp(fromHex("1234"))
+      check (await streamA.readLp(100)) == fromHex("5678")
+      # wait for the timeout to happens, the sleep duration is set to 4 seconds
+      # as the timeout could be a bit long to trigger
+      await sleepAsync(4.seconds)
+      blocker.complete()
+      check streamA.isClosed
+      await connBlocker
+
   suite "Exception testing":
     asyncTest "Local & Remote close":
       mSetup()
@@ -267,7 +316,7 @@ suite "Yamux":
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
-      
+
       await yamuxa.close()
       expect LPStreamClosedError: await streamA.writeLp(fromHex("1234"))
       expect LPStreamClosedError: discard await streamA.readLp(100)
