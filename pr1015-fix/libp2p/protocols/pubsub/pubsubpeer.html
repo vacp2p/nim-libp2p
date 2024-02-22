@@ -243,7 +243,7 @@ window.addEventListener("DOMContentLoaded", main2);
   kind*: PubSubPeerEventKind">PubSubPeerEvent</a></li>
   <li><a class="reference" href="#PubSubPeerEventKind"
     title="PubSubPeerEventKind {.pure.} = enum
-  Connected, Disconnected">PubSubPeerEventKind</a></li>
+  Connected, Disconnected, PermanentlyDisconnected">PubSubPeerEventKind</a></li>
   <li><a class="reference" href="#RPCHandler"
     title="RPCHandler = proc (peer: PubSubPeer; data: seq[byte]): Future[void] {.gcsafe,
     raises: [].}">RPCHandler</a></li>
@@ -389,9 +389,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L52"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L53"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L52" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -401,9 +401,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L51"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L52"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L51" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L52" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -413,9 +413,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L53"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L54"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L54" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -472,9 +472,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L63"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L64"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L63" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L64" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -486,15 +486,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L48"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L49"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L49" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="PubSubPeerEventKind" class="tohide">
 <dt><pre><a href="pubsubpeer.html#PubSubPeerEventKind"><span class="Identifier">PubSubPeerEventKind</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">Connected</span><span class="Other">,</span> <span class="Identifier">Disconnected</span></pre></dt>
+  <span class="Identifier">Connected</span><span class="Other">,</span> <span class="Identifier">Disconnected</span><span class="Other">,</span> <span class="Identifier">PermanentlyDisconnected</span></pre></dt>
 <dd>
 
 
@@ -512,9 +512,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L86"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L87"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L86" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -528,9 +528,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L55"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L56"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L55" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L56" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -545,9 +545,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L111"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L116"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L111" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L116" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -557,9 +557,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L393"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L407"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L393" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L407" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -569,9 +569,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L237"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L251"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L237" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L251" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -581,9 +581,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L119"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L124"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L119" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L124" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -593,9 +593,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L98"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L103"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L103" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -606,9 +606,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L150"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L168"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L150" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L168" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -618,9 +618,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L108"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L113"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L108" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L113" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -630,9 +630,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L123"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L128"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -642,9 +642,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L243"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L257"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L243" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L257" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -657,9 +657,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L439"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L440"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L439" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L440" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -669,9 +669,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L126"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L131"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L131" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -682,9 +682,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L136"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L141"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L136" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -703,9 +703,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L358"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L372"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L358" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L372" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -724,9 +724,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L291"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L305"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L291" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L305" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -736,9 +736,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L114"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L119"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L114" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L119" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -749,9 +749,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L420"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L155"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L420" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -766,9 +766,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L117"
+href="https://github.com/status-im/nim-libp2p/tree/pr1015-fix/libp2p/protocols/pubsub/pubsubpeer.nim#L122"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L117" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L122" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -787,7 +787,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-20 18:16:31 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-22 11:25:42 UTC</small>
       </div>
     </div>
   </div>
