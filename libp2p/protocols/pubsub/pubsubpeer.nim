@@ -31,6 +31,7 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
+when defined(pubsubpeer_queue_metrics):
   declareGauge(libp2p_gossipsub_priority_queue_size, "the number of messages in the priority queue", labels = ["id"])
   declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id"])
 
@@ -262,7 +263,7 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       p.rpcmessagequeue.sendPriorityQueue[^1].finished:
     discard p.rpcmessagequeue.sendPriorityQueue.popLast()
 
-  when defined(libp2p_expensive_metrics):
+  when defined(pubsubpeer_queue_metrics):
     libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId])
 
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
@@ -331,12 +332,12 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     let f = p.sendMsg(msg)
     if not f.finished:
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
-      when defined(libp2p_expensive_metrics):
+      when defined(pubsubpeer_queue_metrics):
         libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
     f
   else:
     let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
-    when defined(libp2p_expensive_metrics):
+    when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
     f
 
@@ -428,7 +429,7 @@ proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
        # to be finished already (since sends are processed in order).
        if p.rpcmessagequeue.sendPriorityQueue.len > 0:
         await p.rpcmessagequeue.sendPriorityQueue[^1]
-     when defined(libp2p_expensive_metrics):
+     when defined(pubsubpeer_queue_metrics):
        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
      await p.sendMsg(msg)
 
@@ -444,7 +445,7 @@ proc stopSendNonPriorityTask*(p: PubSubPeer) =
     p.rpcmessagequeue.sendNonPriorityTask = nil
     p.rpcmessagequeue.sendPriorityQueue.clear()
     p.rpcmessagequeue.nonPriorityQueue.clear()
-    when defined(libp2p_expensive_metrics):
+    when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
       libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
 
