@@ -180,13 +180,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
         await p.handler(p, data)
         data = newSeq[byte]() # Release memory
-    except PeerRateLimitError as exc:
-      debug "Peer rate limit exceeded, exiting read while", conn, peer = p, error = exc.msg
-    except CatchableError as exc:
-      debug "Exception occurred in PubSubPeer.handle",
-        conn, peer = p, closed = conn.closed, exc = exc.msg
     finally:
       await conn.close()
+  except PeerRateLimitError as exc:
+    debug "Peer rate limit exceeded, exiting read while", conn, peer = p, error = exc.msg
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
