@@ -119,23 +119,46 @@ proc ip6VB(vb: var VBuffer): bool =
   if vb.readArray(a.address_v6) == 16:
     result = true
 
-proc ip6zoneStB(s: string, vb: var VBuffer): bool =
-  ## IPv6 stringToBuffer() implementation.
+template pathStringToBuffer(s: string, vb: var VBuffer): bool =
   if len(s) > 0:
     vb.writeSeq(s)
-    result = true
+    true
+  else:
+    false
+
+template pathBufferToString(vb: var VBuffer, s: var string): bool =
+  s = ""
+  if (vb.readSeq(s) > 0) and (len(s) > 0):
+    true
+  else:
+    false
+
+template pathBufferToStringNoSlash(vb: var VBuffer, s: var string): bool =
+  s = ""
+  if (vb.readSeq(s) > 0) and (len(s) > 0) and (s.find('/') == -1):
+    true
+  else:
+    false
+
+template pathValidateBuffer(vb: var VBuffer): bool =
+  var s = ""
+  pathBufferToString(vb, s)
+
+template pathValidateBufferNoSlash(vb: var VBuffer): bool =
+  var s = ""
+  pathBufferToStringNoSlash(vb, s)
+
+proc ip6zoneStB(s: string, vb: var VBuffer): bool =
+  ## IPv6 stringToBuffer() implementation.
+  pathStringToBuffer(s, vb)
 
 proc ip6zoneBtS(vb: var VBuffer, s: var string): bool =
   ## IPv6 bufferToString() implementation.
-  if vb.readSeq(s) > 0:
-    result = true
+  pathBufferToStringNoSlash(vb, s)
 
 proc ip6zoneVB(vb: var VBuffer): bool =
   ## IPv6 validateBuffer() implementation.
-  var s = ""
-  if vb.readSeq(s) > 0:
-    if s.find('/') == -1:
-      result = true
+  pathValidateBufferNoSlash(vb)
 
 proc portStB(s: string, vb: var VBuffer): bool =
   ## Port number stringToBuffer() implementation.
@@ -154,7 +177,8 @@ proc portBtS(vb: var VBuffer, s: var string): bool =
   ## Port number bufferToString() implementation.
   var port: array[2, byte]
   if vb.readArray(port) == 2:
-    var nport = (safeConvert[uint16](port[0]) shl 8) or safeConvert[uint16](port[1])
+    let nport =
+      (safeConvert[uint16](port[0]) shl 8) or safeConvert[uint16](port[1])
     s = $nport
     result = true
 
@@ -214,7 +238,8 @@ proc onionBtS(vb: var VBuffer, s: var string): bool =
   ## ONION address bufferToString() implementation.
   var buf: array[12, byte]
   if vb.readArray(buf) == 12:
-    var nport = (safeConvert[uint16](buf[10]) shl 8) or safeConvert[uint16](buf[11])
+    let nport =
+      (safeConvert[uint16](buf[10]) shl 8) or safeConvert[uint16](buf[11])
     s = Base32Lower.encode(buf.toOpenArray(0, 9))
     s.add(":")
     s.add($nport)
@@ -248,7 +273,8 @@ proc onion3BtS(vb: var VBuffer, s: var string): bool =
   ## ONION address bufferToString() implementation.
   var buf: array[37, byte]
   if vb.readArray(buf) == 37:
-    var nport = (safeConvert[uint16](buf[35]) shl 8) or safeConvert[uint16](buf[36])
+    var nport =
+      (safeConvert[uint16](buf[35]) shl 8) or safeConvert[uint16](buf[36])
     s = Base32Lower.encode(buf.toOpenArray(0, 34))
     s.add(":")
     s.add($nport)
@@ -262,40 +288,27 @@ proc onion3VB(vb: var VBuffer): bool =
 
 proc unixStB(s: string, vb: var VBuffer): bool =
   ## Unix socket name stringToBuffer() implementation.
-  if len(s) > 0:
-    vb.writeSeq(s)
-    result = true
+  pathStringToBuffer(s, vb)
 
 proc unixBtS(vb: var VBuffer, s: var string): bool =
   ## Unix socket name bufferToString() implementation.
-  s = ""
-  if vb.readSeq(s) > 0:
-    result = true
+  pathBufferToString(vb, s)
 
 proc unixVB(vb: var VBuffer): bool =
   ## Unix socket name validateBuffer() implementation.
-  var s = ""
-  if vb.readSeq(s) > 0:
-    result = true
+  pathValidateBuffer(vb)
 
 proc dnsStB(s: string, vb: var VBuffer): bool =
   ## DNS name stringToBuffer() implementation.
-  if len(s) > 0:
-    vb.writeSeq(s)
-    result = true
+  pathStringToBuffer(s, vb)
 
 proc dnsBtS(vb: var VBuffer, s: var string): bool =
   ## DNS name bufferToString() implementation.
-  s = ""
-  if vb.readSeq(s) > 0:
-    result = true
+  pathBufferToStringNoSlash(vb, s)
 
 proc dnsVB(vb: var VBuffer): bool =
   ## DNS name validateBuffer() implementation.
-  var s = ""
-  if vb.readSeq(s) > 0:
-    if s.find('/') == -1:
-      result = true
+  pathValidateBufferNoSlash(vb)
 
 proc mapEq*(codec: string): MaPattern =
   ## ``Equal`` operator for pattern
@@ -660,7 +673,8 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
     inc(offset)
   ok(res)
 
-proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddress] =
+proc getParts[U, V](ma: MultiAddress,
+                    slice: HSlice[U, V]): MaResult[MultiAddress] =
   when slice.a is BackwardsIndex or slice.b is BackwardsIndex:
     let maLength = ? len(ma)
   template normalizeIndex(index): int =
@@ -674,7 +688,8 @@ proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddres
     ? res.append(? ma[i])
   ok(res)
 
-proc `[]`*(ma: MultiAddress, i: int | BackwardsIndex): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress,
+           i: int | BackwardsIndex): MaResult[MultiAddress] {.inline.} =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
   when i is BackwardsIndex:
     let maLength = ? len(ma)
@@ -769,7 +784,7 @@ proc toString*(value: MultiAddress): MaResult[string] =
       if not proto.coder.bufferToString(vb.data, part):
         return err("multiaddress: Decoding protocol error")
       parts.add($(proto.mcodec))
-      if proto.kind == Path and part[0] == '/':
+      if len(part) > 0 and (proto.kind == Path) and (part[0] == '/'):
         parts.add(part[1..^1])
       else:
         parts.add(part)
@@ -1120,16 +1135,20 @@ proc getField*(pb: ProtoBuffer, field: int,
   if not(res):
     ok(false)
   else:
-    value = MultiAddress.init(buffer).valueOr: return err(ProtoError.IncorrectBlob)
+    value = MultiAddress.init(buffer).valueOr:
+      return err(ProtoError.IncorrectBlob)
     ok(true)
 
 proc getRepeatedField*(pb: ProtoBuffer, field: int,
                        value: var seq[MultiAddress]): ProtoResult[bool] {.
      inline.} =
-  ## Read repeated field from protobuf message. ``field`` is field number. If the message is malformed, an error is returned.
-  ## If field is not present in message, then ``ok(false)`` is returned and value is empty. If field is present,
-  ## but no items could be parsed, then ``err(ProtoError.IncorrectBlob)`` is returned and value is empty.
-  ## If field is present and some item could be parsed, then ``true`` is returned and value contains the parsed values.
+  ## Read repeated field from protobuf message. ``field`` is field number.
+  ## If the message is malformed, an error is returned. If field is not present
+  ## in message, then ``ok(false)`` is returned and value is empty. If field is
+  ## present, but no items could be parsed, then
+  ## ``err(ProtoError.IncorrectBlob)`` is returned and value is empty.
+  ## If field is present and some item could be parsed, then ``true`` is
+  ## returned and value contains the parsed values.
   var items: seq[seq[byte]]
   value.setLen(0)
   let res = ? pb.getRepeatedField(field, items)
