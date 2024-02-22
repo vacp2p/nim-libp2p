@@ -42,7 +42,7 @@ when defined(libp2p_network_protocols_metrics):
 ## EOF marker
 
 const
-  MaxWrites = 1024 ##\
+  MaxWrites = 10024 ##\
     ## Maximum number of in-flight writes - after this, we disconnect the peer
 
   LPChannelTrackerName* = "LPChannel"
