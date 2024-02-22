@@ -42,8 +42,9 @@ type
     onSend*: proc(peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
 
   PubSubPeerEventKind* {.pure.} = enum
-    Connected
-    Disconnected
+    Connected # Stream opened
+    Disconnected # Stream closed
+    PermanentlyDisconnected # Error when trying to open stream
 
   PubSubPeerEvent* = object
     kind*: PubSubPeerEventKind
@@ -94,6 +95,10 @@ when defined(libp2p_agents_metrics):
       #TODO the sendConn is setup before identify,
       #so we have to read the parents short agent..
       p.sendConn.getWrapped().shortAgent
+
+proc emitEvent(p: PubSubPeer, event: PubSubPeerEventKind) =
+  if p.onEvent != nil:
+    p.onEvent(p, PubSubPeerEvent(kind: event))
 
 proc getAgent*(peer: PubSubPeer): string =
   return
@@ -146,6 +151,19 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
     for obs in p.observers[]:
       if not(isNil(obs)): # TODO: should never be nil, but...
         obs.onSend(p, msg)
+
+proc stopSendNonPriorityTask*(p: PubSubPeer) =
+  if not p.rpcmessagequeue.sendNonPriorityTask.isNil:
+    debug "stopping sendNonPriorityTask", p
+    p.rpcmessagequeue.sendNonPriorityTask.cancel()
+    p.rpcmessagequeue.sendNonPriorityTask = nil
+    for f in p.rpcmessagequeue.sendPriorityQueue:
+      f.cancel()
+    p.rpcmessagequeue.sendPriorityQueue.clear()
+    p.rpcmessagequeue.nonPriorityQueue.clear()
+    when defined(libp2p_expensive_metrics):
+      libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+      libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   debug "starting pubsub read loop",
@@ -201,8 +219,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     p.sendConn = newConn
     p.address = if p.sendConn.observedAddr.isSome: some(p.sendConn.observedAddr.get) else: none(MultiAddress)
 
-    if p.onEvent != nil:
-      p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Connected))
+    p.emitEvent(PubSubPeerEventKind.Connected)
 
     await handle(p, newConn)
   finally:
@@ -215,8 +232,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
       p.connectedFut.complete()
 
     try:
-      if p.onEvent != nil:
-        p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+      p.emitEvent(PubSubPeerEventKind.Disconnected)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -224,15 +240,16 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     # don't cleanup p.address else we leak some gossip stat table
 
-proc connectImpl(p: PubSubPeer) {.async.} =
+proc connectImpl(peer: PubSubPeer) {.async.} =
   try:
     # Keep trying to establish a connection while it's possible to do so - the
     # send connection might get disconnected due to a timeout or an unrelated
     # issue so we try to get a new on
     while true:
-      await connectOnce(p)
+      await connectOnce(peer)
   except CatchableError as exc: # never cancelled
-    debug "Could not establish send connection", msg = exc.msg
+    debug "Could not establish send connection", peer, msg = exc.msg
+    peer.emitEvent(PubSubPeerEventKind.PermanentlyDisconnected)
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
@@ -416,19 +433,6 @@ proc startSendNonPriorityTask(p: PubSubPeer) =
   debug "starting sendNonPriorityTask", p
   if p.rpcmessagequeue.sendNonPriorityTask.isNil:
     p.rpcmessagequeue.sendNonPriorityTask = p.sendNonPriorityTask()
-
-proc stopSendNonPriorityTask*(p: PubSubPeer) =
-  if not p.rpcmessagequeue.sendNonPriorityTask.isNil:
-    debug "stopping sendNonPriorityTask", p
-    p.rpcmessagequeue.sendNonPriorityTask.cancel()
-    p.rpcmessagequeue.sendNonPriorityTask = nil
-    for f in p.rpcmessagequeue.sendPriorityQueue:
-      f.cancel()
-    p.rpcmessagequeue.sendPriorityQueue.clear()
-    p.rpcmessagequeue.nonPriorityQueue.clear()
-    when defined(libp2p_expensive_metrics):
-      libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
-      libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
 
 proc new(T: typedesc[RpcMessageQueue]): T =
   return T(

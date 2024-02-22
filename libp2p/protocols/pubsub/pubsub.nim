@@ -294,6 +294,8 @@ method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {
       p.sendSubs(peer, toSeq(p.topics.keys), true)
   of PubSubPeerEventKind.Disconnected:
     discard
+  of PubSubPeerEventKind.PermanentlyDisconnected:
+    discard
 
 method getOrCreatePeer*(
     p: PubSub,

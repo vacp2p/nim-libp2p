@@ -183,6 +183,8 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
       peers.excl(peer)
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
+  of PubSubPeerEventKind.PermanentlyDisconnected:
+    p.unsubscribePeer(peer.peerId)
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
