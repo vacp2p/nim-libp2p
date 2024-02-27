@@ -215,6 +215,8 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="rtransport: accept(self: RelayTransport): Future[Connection]" href="libp2p/protocols/connectivity/relay/rtransport.html#accept.e%2CRelayTransport">rtransport: accept(self: RelayTransport): Future[Connection]</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="tcptransport: accept(self: TcpTransport): Future[Connection]" href="libp2p/transports/tcptransport.html#accept.e%2CTcpTransport">tcptransport: accept(self: TcpTransport): Future[Connection]</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="transport: accept(self: Transport): Future[Connection]" href="libp2p/transports/transport.html#accept.e%2CTransport">transport: accept(self: Transport): Future[Connection]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: accept(self: WsTransport): Future[Connection]" href="libp2p/transports/wstransport.html#accept.e%2CWsTransport">wstransport: accept(self: WsTransport): Future[Connection]</a></li>
@@ -662,6 +664,8 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="close" href="#close"><span>close:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="connmanager: close(c: ConnManager): Future[void]" href="libp2p/connmanager.html#close%2CConnManager">connmanager: close(c: ConnManager): Future[void]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="mplex: close(m: Mplex): Future[void]" href="libp2p/muxers/mplex/mplex.html#close.e%2CMplex">mplex: close(m: Mplex): Future[void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="muxer: close(m: Muxer): Future[void]" href="libp2p/muxers/muxer.html#close.e%2CMuxer">muxer: close(m: Muxer): Future[void]</a></li>
           <li><a class="reference external"
@@ -1163,6 +1167,10 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="transport: dial(self: Transport; hostname: string; address: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/transport.html#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">transport: dial(self: Transport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="wstransport: dial(self: WsTransport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/wstransport.html#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">wstransport: dial(self: WsTransport; hostname: string; address: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
           </ul></dd>
 <dt><a name="Dialer" href="#Dialer"><span>Dialer:</span></a></dt><dd><ul class="simple">
@@ -1695,6 +1703,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="nameresolver: getHostname(ma: MultiAddress): string" href="libp2p/nameresolving/nameresolver.html#getHostname%2CMultiAddress">nameresolver: getHostname(ma: MultiAddress): string</a></li>
           </ul></dd>
+<dt><a name="getIncomingSlot" href="#getIncomingSlot"><span>getIncomingSlot:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="connmanager: getIncomingSlot(c: ConnManager): Future[ConnectionSlot]" href="libp2p/connmanager.html#getIncomingSlot%2CConnManager">connmanager: getIncomingSlot(c: ConnManager): Future[ConnectionSlot]</a></li>
+          </ul></dd>
 <dt><a name="getLen" href="#getLen"><span>getLen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="minprotobuf: getLen(pb: ProtoBuffer): int" href="libp2p/protobuf/minprotobuf.html#getLen.t%2CProtoBuffer">minprotobuf: getLen(pb: ProtoBuffer): int</a></li>
@@ -1803,6 +1815,8 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="getStream" href="#getStream"><span>getStream:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
+          data-doc-search-tag="connmanager: getStream(c: ConnManager; muxer: Muxer): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CMuxer">connmanager: getStream(c: ConnManager; muxer: Muxer): Future[Connection]</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="connmanager: getStream(c: ConnManager; peerId: PeerId): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CPeerId">connmanager: getStream(c: ConnManager; peerId: PeerId): Future[Connection]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="connmanager: getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CPeerId%2CDirection">connmanager: getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]</a></li>
@@ -3297,6 +3311,8 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="newStream" href="#newStream"><span>newStream:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
+          data-doc-search-tag="mplex: newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]" href="libp2p/muxers/mplex/mplex.html#newStream.e%2CMplex%2Cstring%2Cbool">mplex: newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="muxer: newStream(m: Muxer; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]" href="libp2p/muxers/muxer.html#newStream.e%2CMuxer%2Cstring%2Cbool">muxer: newStream(m: Muxer; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="yamux: newStream(m: Yamux; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]" href="libp2p/muxers/yamux/yamux.html#newStream.e%2CYamux%2Cstring%2Cbool">yamux: newStream(m: Yamux; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]</a></li>
@@ -4513,10 +4529,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="messages: StopMessageType" href="libp2p/protocols/connectivity/relay/messages.html#StopMessageType">messages: StopMessageType</a></li>
           </ul></dd>
-<dt><a name="storeMuxer" href="#storeMuxer"><span>storeMuxer:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="connmanager: storeMuxer(c: ConnManager; muxer: Muxer)" href="libp2p/connmanager.html#storeMuxer%2CConnManager%2CMuxer">connmanager: storeMuxer(c: ConnManager; muxer: Muxer)</a></li>
-          </ul></dd>
 <dt><a name="StreamHandler" href="#StreamHandler"><span>StreamHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="muxer: StreamHandler" href="libp2p/muxers/muxer.html#StreamHandler">muxer: StreamHandler</a></li>
@@ -5308,7 +5320,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-27 09:57:17 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-27 12:28:39 UTC</small>
       </div>
     </div>
   </div>
