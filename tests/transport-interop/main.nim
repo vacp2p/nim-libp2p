@@ -71,8 +71,12 @@ proc main {.async.} =
     discard redisClient.rPush("listenerAddr", $switch.peerInfo.fullAddrs.tryGet()[0])
     await sleepAsync(100.hours) # will get cancelled
   else:
+    let listenerAddr =
+      try: redisClient.bLPop(@["listenerAddr"], testTimeout.seconds.int)[1]
+      except Exception as e:
+        raise newException(CatchableError, e.msg)
     let
-      remoteAddr = MultiAddress.init(redisClient.bLPop(@["listenerAddr"], testTimeout.seconds.int)[1]).tryGet()
+      remoteAddr = MultiAddress.init(listenerAddr).tryGet()
       dialingStart = Moment.now()
       remotePeerId = await switch.connect(remoteAddr)
       stream = await switch.dial(remotePeerId, PingCodec)
