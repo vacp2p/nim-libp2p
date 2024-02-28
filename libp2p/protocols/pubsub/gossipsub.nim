@@ -368,8 +368,18 @@ proc validateAndRelay(g: GossipSub,
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
-    info "forwarded message to peers", num_peers = toSendPeers.len, msg_id = shortLog(msgId),
-                                       sender_peer_id = peer.peerId
+
+    if toSendPeers.len > 0:
+      info "forwarded message to peers", msg_id = shortLog(msgId),
+                                         sender_peer_id = peer.peerId,
+                                         pubsub_topics = msg.topicIds,
+                                         num_peers = toSendPeers.len,
+                                         rxs_peer_id = toSeq(toSendPeers.mapIt(shortLog(it.peerId)))
+    else:
+      info "no peers to forward message", msg_id = shortLog(msgId),
+                                          sender_peer_id = peer.peerId,
+                                          pubsub_topics = msg.topicIds
+
     for topic in msg.topicIds:
       if topic notin g.topics: continue
 
