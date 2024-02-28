@@ -368,7 +368,8 @@ proc validateAndRelay(g: GossipSub,
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
-    trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
+    info "forwarded message to peers", num_peers = toSendPeers.len, msg_id = shortLog(msgId),
+                                       sender_peer_id = peer.peerId
     for topic in msg.topicIds:
       if topic notin g.topics: continue
 
@@ -377,7 +378,7 @@ proc validateAndRelay(g: GossipSub,
       else:
         libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
 
-      await handleData(g, topic, msg.data)
+      await handleData(g, topic, msg.data, msgId)
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
@@ -460,6 +461,8 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
+
+    info "received msg", msg_id = shortLog(msgId), sender_peer_id = peer.peerId
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -558,7 +561,20 @@ method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte]): Future[int] {.async.} =
   # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
+  let
+    msg =
+      if g.anonymize:
+        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+      else:
+        inc g.msgSeqno
+        Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
+    msg_id = g.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
+
+  discard await procCall PubSub(g).publish(topic, data, msg_id)
 
   logScope:
     topic
@@ -622,21 +638,7 @@ method publish*(g: GossipSub,
                                                    topic
     libp2p_gossipsub_failed_publish.inc()
     return 0
-
-  let
-    msg =
-      if g.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
-      else:
-        inc g.msgSeqno
-        Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msgId = g.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish",
-        error = error
-      libp2p_gossipsub_failed_publish.inc()
-      return 0
-
-  logScope: msgId = shortLog(msgId)
+  logScope: msg_id = shortLog(msg_id)
 
   trace "Created new message", msg = shortLog(msg), peers = peers.len
 
@@ -646,6 +648,8 @@ method publish*(g: GossipSub,
     return 0
 
   g.mcache.put(msgId, msg)
+
+  info "publish message to peers", num_peers = peers.len
 
   g.broadcast(peers, RPCMsg(messages: @[msg]))
 
