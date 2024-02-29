@@ -22,10 +22,10 @@ when not defined(macosx):
     asyncTest "simple heartbeat":
       var i = 0
       proc t() {.async.} =
-        heartbeat "shouldn't see this", 30.milliseconds:
+        heartbeat "shouldn't see this", 50.milliseconds:
           i.inc()
       let hb = t()
-      await sleepAsync(300.milliseconds)
+      await sleepAsync(500.milliseconds)
       await hb.cancelAndWait()
       check:
         i in 9..11
