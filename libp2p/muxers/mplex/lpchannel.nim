@@ -118,7 +118,7 @@ proc reset*(s: LPChannel) {.async.} =
         await s.conn.close()
         trace "Can't send reset message", s, conn = s.conn, msg = exc.msg
 
-    await resetMessage()
+    asyncSpawn resetMessage()
 
   await s.closeImpl() # noraises, nocancels
   if not s.closing.finished:
