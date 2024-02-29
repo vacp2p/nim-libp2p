@@ -247,7 +247,7 @@ proc toString*(msg: ProtoMessage, dump = true): string =
         else: "[REMOTE]"
       local & direction & remote
   let seqid = block:
-    msg.seqID.wihValue(seqid): "seqID = " & $seqid & " "
+    msg.seqID.withValue(seqid): "seqID = " & $seqid & " "
     else: ""
   let mtype = block:
     msg.mtype.withValue(typ): "type = " & $typ & " "
