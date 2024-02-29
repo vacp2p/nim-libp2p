@@ -374,7 +374,7 @@ proc validateAndRelay(g: GossipSub,
                                          sender_peer_id = peer.peerId,
                                          pubsub_topics = msg.topicIds,
                                          num_peers = toSendPeers.len,
-                                         rxs_peer_id = toSeq(toSendPeers.mapIt(shortLog(it.peerId)))
+                                         target_peer_ids = toSeq(toSendPeers.mapIt(shortLog(it.peerId)))
     else:
       info "no peers to forward message", msg_id = shortLog(msgId),
                                           sender_peer_id = peer.peerId,
@@ -659,7 +659,8 @@ method publish*(g: GossipSub,
 
   g.mcache.put(msgId, msg)
 
-  info "publish message to peers", num_peers = peers.len
+  info "publish message to peers", num_peers = peers.len,
+                                   target_peer_ids = toSeq(peers.mapIt(shortLog(it.peerId)))
 
   g.broadcast(peers, RPCMsg(messages: @[msg]))
 
