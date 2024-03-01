@@ -45,28 +45,6 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
             debug "A future has failed, enable trace logging for details", error=exc.name
             trace "Exception details", msg=exc.msg
 
-proc allFuturesThrowing*[F: FutureBase](args: varargs[F]): Future[void] =
-  var futs: seq[F]
-  for fut in args:
-    futs &= fut
-  proc call() {.async.} =
-    var first: ref CatchableError = nil
-    futs = await allFinished(futs)
-    for fut in futs:
-      if fut.failed:
-        let err = fut.readError()
-        if err of Defect:
-          raise err
-        else:
-          if err of CancelledError:
-            raise err
-          if isNil(first):
-            first = err
-    if not isNil(first):
-      raise first
-
-  return call()
-
 template tryAndWarn*(message: static[string]; body: untyped): untyped =
   try:
     body

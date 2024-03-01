@@ -160,7 +160,9 @@ method initStream*(s: LPStream) {.base.} =
   inc getStreamTracker(s.objName).opened
   trace "Stream created", s, objName = s.objName, dir = $s.dir
 
-proc join*(s: LPStream): Future[void] {.public.} =
+proc join*(
+    s: LPStream
+): Future[void] {.async: (raises: [CancelledError], raw: true), public.} =
   ## Wait for the stream to be closed
   s.closeEvent.wait()
 

@@ -90,24 +90,35 @@ proc connHandler*(self: TcpTransport,
       timeout = self.connectionsTimeout
     ))
 
-  proc onClose() {.async.} =
+  proc onClose() {.async: (raises: []).} =
     try:
-      let futs = @[client.join(), conn.join()]
-      await futs[0] or futs[1]
-      for f in futs:
-        if not f.finished: await f.cancelAndWait() # cancel outstanding join()
+      block:
+        let
+          fut1 = client.join()
+          fut2 = conn.join()
+        await fut1 or fut2  # one join() completes, cancel outstanding join()
+        if not fut1.finished: await fut1.cancelAndWait()
+        if not fut2.finished: await fut2.cancelAndWait()
 
       trace "Cleaning up client", addrs = $client.remoteAddress,
                                   conn
 
       self.clients[dir].keepItIf( it != client )
-      await allFuturesThrowing(
-        conn.close(), client.closeWait())
+
+      block:
+        let
+          fut1 = conn.close()
+          fut2 = client.closeWait()
+        await allFutures(fut1, fut2)
+        if fut1.failed:
+          let err = fut1.error()
+          debug "Error cleaning up client", errMsg = err.msg, conn
+        static: doAssert typeof(fut2).E is void  # Cannot fail
 
       trace "Cleaned up client", addrs = $client.remoteAddress,
                                  conn
 
-    except CatchableError as exc:
+    except CancelledError as exc:
       let useExc {.used.} = exc
       debug "Error cleaning up client", errMsg = exc.msg, conn
 
