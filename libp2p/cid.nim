@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -260,12 +260,6 @@ proc repr*(cid: Cid): string =
 proc write*(vb: var VBuffer, cid: Cid) {.inline.} =
   ## Write CID value ``cid`` to buffer ``vb``.
   vb.writeArray(cid.data.buffer)
-
-proc encode*(mbtype: typedesc[MultiBase], encoding: string,
-             cid: Cid): string {.inline.} =
-  ## Get MultiBase encoded representation of ``cid`` using encoding
-  ## ``encoding``.
-  result = MultiBase.encode(encoding, cid.data.buffer).tryGet()
 
 proc hash*(cid: Cid): Hash {.inline.} =
   hash(cid.data.buffer)
