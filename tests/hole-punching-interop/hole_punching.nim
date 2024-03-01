@@ -12,7 +12,7 @@ import ../../libp2p/[builders,
                   protocols/connectivity/autonat/service,
                   protocols/ping]
 import ../stubs/autonatclientstub
-import ../helpers
+import ../errorhelpers
 
 proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   let rng = newRng()
@@ -48,7 +48,7 @@ proc main() {.async.} =
       isListener = getEnv("MODE") == "listen"
       switch = createSwitch(relayClient, hpservice)
       auxSwitch = createSwitch()
-      redisClient = open("redis", 6379.Port)
+      redisClient = open("localhost", 6379.Port)
 
     debug "Connected to redis"
 
