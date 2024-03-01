@@ -91,21 +91,33 @@ proc handleConn(s: Secure,
   # we require this information in for example gossipsub
   sconn.transportDir = if initiator: Direction.Out else: Direction.In
 
-  proc cleanup() {.async.} =
+  proc cleanup() {.async: (raises: []).} =
     try:
-      let futs = [conn.join(), sconn.join()]
-      await futs[0] or futs[1]
-      for f in futs:
-        if not f.finished: await f.cancelAndWait() # cancel outstanding join()
+      block:
+        let
+          fut1 = conn.join()
+          fut2 = sconn.join()
+        await fut1 or fut2  # one join() completes, cancel outstanding join()
+        if not fut1.finished: await fut1.cancelAndWait()
+        if not fut2.finished: await fut2.cancelAndWait()
+      block:
+        let
+          fut1 = sconn.close()
+          fut2 = conn.close()
+        await allFutures(fut1, fut2)
+        if fut1.failed:
+          let err = fut1.error()
+          if not (err of CancelledError):
+            debug "error cleaning up secure connection", err = err.msg, sconn
+        if fut2.failed:
+          let err = fut2.error()
+          if not (err of CancelledError):
+            debug "error cleaning up secure connection", err = err.msg, sconn
 
-      await allFuturesThrowing(
-        sconn.close(), conn.close())
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
       discard
-    except CatchableError as exc:
-      debug "error cleaning up secure connection", err = exc.msg, sconn
 
   if not isNil(sconn):
     # All the errors are handled inside `cleanup()` procedure.

@@ -14,8 +14,8 @@ import ../libp2p/protocols/secure/secure
 import ../libp2p/switch
 import ../libp2p/nameresolving/[nameresolver, mockresolver]
 
-import ./asyncunit
-export asyncunit, mockresolver
+import "."/[asyncunit, errorhelpers]
+export asyncunit, errorhelpers, mockresolver
 
 const
   StreamTransportTrackerName = "stream.transport"
