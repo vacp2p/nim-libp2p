@@ -12,6 +12,7 @@ import ../../libp2p/[builders,
                   protocols/connectivity/autonat/service,
                   protocols/ping]
 import ../stubs/autonatclientstub
+import ../helpers
 
 proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   let rng = newRng()
