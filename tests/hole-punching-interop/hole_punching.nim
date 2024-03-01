@@ -48,7 +48,7 @@ proc main() {.async.} =
       isListener = getEnv("MODE") == "listen"
       switch = createSwitch(relayClient, hpservice)
       auxSwitch = createSwitch()
-      redisClient = open("localhost", 6379.Port)
+      redisClient = open("redis", 6379.Port)
 
     debug "Connected to redis"
 
