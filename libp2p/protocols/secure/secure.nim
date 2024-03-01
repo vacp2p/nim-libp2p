@@ -108,11 +108,11 @@ proc handleConn(s: Secure,
         if fut1.failed:
           let err = fut1.error()
           if not (err of CancelledError):
-            debug "error cleaning up secure connection", err = exc.msg, sconn
+            debug "error cleaning up secure connection", err = err.msg, sconn
         if fut2.failed:
           let err = fut2.error()
           if not (err of CancelledError):
-            debug "error cleaning up secure connection", err = exc.msg, sconn
+            debug "error cleaning up secure connection", err = err.msg, sconn
 
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
