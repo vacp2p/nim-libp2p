@@ -513,16 +513,20 @@ method handle*(m: Yamux) {.async.} =
             await newStream.open()
             asyncSpawn m.handleStream(newStream)
         elif header.streamId notin m.channels:
-          if header.streamId notin m.flushed:
-            raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
-          elif header.msgType == Data:
-            # Flush the data
-            m.flushed[header.streamId].dec(int(header.length))
-            if m.flushed[header.streamId] < 0:
-              raise newException(YamuxError, "Peer exhausted the recvWindow after reset")
-            if header.length > 0:
-              var buffer = newSeqUninitialized[byte](header.length)
-              await m.connection.readExactly(addr buffer[0], int(header.length))
+          # Flush the data
+          m.flushed.withValue(header.streamId, flushed):
+            if header.msgType == Data:
+              flushed[].dec(int(header.length))
+              if flushed[] < 0:
+                raise newException(YamuxError,
+                  "Peer exhausted the recvWindow after reset")
+          do:
+            raise newException(YamuxError,
+              "Unknown stream ID: " & $header.streamId)
+          if header.length > 0:
+            var buffer = newSeqUninitialized[byte](header.length)
+            await m.connection.readExactly(
+              addr buffer[0], int(header.length))
           continue
 
         let channel = m.channels[header.streamId]
