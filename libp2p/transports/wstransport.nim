@@ -63,13 +63,17 @@ template mapExceptions(body: untyped) =
   try:
     body
   except AsyncStreamIncompleteError:
-    raise newLPStreamEOFError()
+    raise newLPStreamIncompleteError()
+  except AsyncStreamLimitError:
+    raise newLPStreamLimitError()
   except AsyncStreamUseClosedError:
     raise newLPStreamEOFError()
   except WSClosedError:
     raise newLPStreamEOFError()
-  except AsyncStreamLimitError:
-    raise newLPStreamLimitError()
+  except WebSocketError:
+    raise newLPStreamEOFError()
+  except CatchableError:
+    raise newLPStreamEOFError()
 
 method readOnce*(
   s: WsStream,
