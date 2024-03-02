@@ -50,12 +50,7 @@ type
 
   LPStreamError* = object of LPError
   LPStreamIncompleteError* = object of LPStreamError
-  LPStreamIncorrectDefect* = object of Defect
   LPStreamLimitError* = object of LPStreamError
-  LPStreamReadError* = object of LPStreamError
-    par*: ref CatchableError
-  LPStreamWriteError* = object of LPStreamError
-    par*: ref CatchableError
   LPStreamEOFError* = object of LPStreamError
 
 #        X        |           Read            |         Write
@@ -101,29 +96,11 @@ proc getStreamTracker(name: string): StreamTracker {.gcsafe.} =
   if isNil(result):
     result = setupStreamTracker(name)
 
-proc newLPStreamReadError*(p: ref CatchableError): ref LPStreamReadError =
-  var w = newException(LPStreamReadError, "Read stream failed")
-  w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
-  w.par = p
-  result = w
-
-proc newLPStreamReadError*(msg: string): ref LPStreamReadError =
-  newException(LPStreamReadError, msg)
-
-proc newLPStreamWriteError*(p: ref CatchableError): ref LPStreamWriteError =
-  var w = newException(LPStreamWriteError, "Write stream failed")
-  w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
-  w.par = p
-  result = w
-
 proc newLPStreamIncompleteError*(): ref LPStreamIncompleteError =
   result = newException(LPStreamIncompleteError, "Incomplete data received")
 
 proc newLPStreamLimitError*(): ref LPStreamLimitError =
   result = newException(LPStreamLimitError, "Buffer limit reached")
-
-proc newLPStreamIncorrectDefect*(m: string): ref LPStreamIncorrectDefect =
-  result = newException(LPStreamIncorrectDefect, m)
 
 proc newLPStreamEOFError*(): ref LPStreamEOFError =
   result = newException(LPStreamEOFError, "Stream EOF!")
