@@ -525,7 +525,12 @@ method handle*(m: Yamux) {.async.} =
               await m.connection.readExactly(addr buffer[0], int(header.length))
           continue
 
-        let channel = m.channels[header.streamId]
+        let channel =
+          try:
+            m.channels[header.streamId]
+          except KeyError:
+            raise newException(YamuxError,
+              "Stream was cleaned up before handling data: " & $header.streamId)
 
         if header.msgType == WindowUpdate:
           channel.sendWindow += int(header.length)
