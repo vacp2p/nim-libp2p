@@ -218,7 +218,7 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
   channel.recvQueue = @[]
   channel.sendWindow = 0
   if not channel.closedLocally:
-    if isLocal:
+    if isLocal and not channel.isSending:
       try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
       except LPStreamEOFError as exc: discard
       except LPStreamClosedError as exc: discard
