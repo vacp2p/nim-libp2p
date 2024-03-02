@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -18,8 +18,7 @@ import ./helpers
 
 suite "BufferStream":
   teardown:
-    # echo getTracker(BufferStreamTrackerName).dump()
-    check getTracker(BufferStreamTrackerName).isLeaked() == false
+    checkTrackers()
 
   asyncTest "push data to buffer":
     let buff = BufferStream.new()
