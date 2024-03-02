@@ -74,7 +74,7 @@ method closeImpl*(s: Connection): Future[void] =
   trace "Closing connection", s
 
   if not isNil(s.timerTaskFut) and not s.timerTaskFut.finished:
-    s.timerTaskFut.cancel()
+    s.timerTaskFut.cancelSoon()
     s.timerTaskFut = nil
 
   trace "Closed connection", s

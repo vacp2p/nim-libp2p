@@ -54,15 +54,15 @@ proc newTooManyChannels(): ref TooManyChannels =
   newException(TooManyChannels, "max allowed channel count exceeded")
 
 proc newInvalidChannelIdError(): ref InvalidChannelIdError =
-  newException(InvalidChannelIdError, "max allowed channel count exceeded")
+  newException(InvalidChannelIdError, "Channel id already taken")
 
-proc cleanupChann(m: Mplex, chann: LPChannel) {.async, inline.} =
+proc cleanupChann(m: Mplex, chann: LPChannel) {.async.} =
   ## remove the local channel from the internal tables
   ##
   try:
     await chann.join()
     m.channels[chann.initiator].del(chann.id)
-    trace "cleaned up channel", m, chann
+    debug "cleaned up channel", m, chann
 
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
@@ -99,7 +99,7 @@ proc newStreamInternal*(m: Mplex,
   when defined(libp2p_agents_metrics):
     result.shortAgent = m.connection.shortAgent
 
-  trace "Creating new channel", m, channel = result, id, initiator, name
+  debug "Creating new channel", m, channel = result, id, initiator, name
 
   m.channels[initiator][id] = result
 
@@ -116,17 +116,17 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async.} =
   ##
   try:
     await m.streamHandler(chann)
-    trace "finished handling stream", m, chann
+    debug "finished handling stream", m, chann
     doAssert(chann.closed, "connection not closed by handler!")
   except CatchableError as exc:
-    trace "Exception in mplex stream handler", m, chann, msg = exc.msg
+    debug "Exception in mplex stream handler", m, chann, msg = exc.msg
     await chann.reset()
 
 method handle*(m: Mplex) {.async.} =
-  trace "Starting mplex handler", m
+  debug "Starting mplex handler", m
   try:
     while not m.connection.atEof:
-      trace "waiting for data", m
+      debug "waiting for data", m
       let
         (id, msgType, data) = await m.connection.readMsg()
         initiator = bool(ord(msgType) and 1)
@@ -137,13 +137,13 @@ method handle*(m: Mplex) {.async.} =
         msgType = msgType
         size = data.len
 
-      trace "read message from connection", m, data = data.shortLog
+      debug "read message from connection", m, data = data.shortLog
 
       var channel =
         if MessageType(msgType) != MessageType.New:
           let tmp = m.channels[initiator].getOrDefault(id, nil)
           if tmp == nil:
-            trace "Channel not found, skipping", m
+            debug "Channel not found, skipping", m
             continue
 
           tmp
@@ -156,11 +156,11 @@ method handle*(m: Mplex) {.async.} =
           let name = string.fromBytes(data)
           m.newStreamInternal(false, id, name, timeout = m.outChannTimeout)
 
-      trace "Processing channel message", m, channel, data = data.shortLog
+      debug "Processing channel message", m, channel, data = data.shortLog
 
       case msgType:
         of MessageType.New:
-          trace "created channel", m, channel
+          debug "created channel", m, channel
 
           if not isNil(m.streamHandler):
             # Launch handler task
@@ -173,13 +173,13 @@ method handle*(m: Mplex) {.async.} =
                  allowed = MaxMsgSize, channel
             raise newLPStreamLimitError()
 
-          trace "pushing data to channel", m, channel, len = data.len
+          debug "pushing data to channel", m, channel, len = data.len
           try:
             await channel.pushData(data)
-            trace "pushed data to channel", m, channel, len = data.len
+            debug "pushed data to channel", m, channel, len = data.len
           except LPStreamClosedError as exc:
             # Channel is being closed, but `cleanupChann` was not yet triggered.
-            trace "pushing data to channel failed", m, channel, len = data.len,
+            debug "pushing data to channel failed", m, channel, len = data.len,
               msg = exc.msg
             discard  # Ignore message, same as if `cleanupChann` had completed.
 
@@ -191,12 +191,12 @@ method handle*(m: Mplex) {.async.} =
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
-    trace "Stream EOF", m, msg = exc.msg
+    debug "Stream EOF", m, msg = exc.msg
   except CatchableError as exc:
     debug "Unexpected exception in mplex read loop", m, msg = exc.msg
   finally:
     await m.close()
-  trace "Stopped mplex handler", m
+  debug "Stopped mplex handler", m
 
 proc new*(M: type Mplex,
            conn: Connection,
@@ -221,11 +221,11 @@ method newStream*(m: Mplex,
 
 method close*(m: Mplex) {.async.} =
   if m.isClosed:
-    trace "Already closed", m
+    debug "Already closed", m
     return
   m.isClosed = true
 
-  trace "Closing mplex", m
+  debug "Closing mplex", m
 
   var channs = toSeq(m.channels[false].values) & toSeq(m.channels[true].values)
 
@@ -245,7 +245,7 @@ method close*(m: Mplex) {.async.} =
   m.channels[false].clear()
   m.channels[true].clear()
 
-  trace "Closed mplex", m
+  debug "Closed mplex", m
 
 method getStreams*(m: Mplex): seq[Connection] =
   for c in m.channels[false].values: result.add(c)

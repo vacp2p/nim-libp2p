@@ -74,7 +74,7 @@ func shortLog*(s: LPChannel): auto =
 chronicles.formatIt(LPChannel): shortLog(it)
 
 proc open*(s: LPChannel) {.async.} =
-  trace "Opening channel", s, conn = s.conn
+  debug "Opening channel", s, conn = s.conn
   if s.conn.isClosed:
     return
   try:
@@ -95,44 +95,44 @@ proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
   if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
-proc reset*(s: LPChannel) {.async.} =
+proc reset*(s: LPChannel) {.deprecated, async.} =
   if s.isClosed:
-    trace "Already closed", s
+    debug "Already closed", s
     return
 
   s.isClosed = true
   s.closedLocal = true
   s.localReset = not s.remoteReset
 
-  trace "Resetting channel", s, len = s.len
+  debug "Resetting channel", s, len = s.len
 
   if s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
     proc resetMessage() {.async.} =
       try:
-        trace "sending reset message", s, conn = s.conn
+        debug "sending reset message", s, conn = s.conn
         await s.conn.writeMsg(s.id, s.resetCode) # write reset
       except CatchableError as exc:
         # No cancellations
         await s.conn.close()
-        trace "Can't send reset message", s, conn = s.conn, msg = exc.msg
+        debug "Can't send reset message", s, conn = s.conn, msg = exc.msg
 
     asyncSpawn resetMessage()
 
   await s.closeImpl() # noraises, nocancels
 
-  trace "Channel reset", s
+  debug "Channel reset", s
 
 method close*(s: LPChannel) {.async.} =
   ## Close channel for writing - a message will be sent to the other peer
   ## informing them that the channel is closed and that we're waiting for
   ## their acknowledgement.
   if s.closedLocal:
-    trace "Already closed", s
+    debug "Already closed", s
     return
   s.closedLocal = true
 
-  trace "Closing channel", s, conn = s.conn, len = s.len
+  debug "Closing channel", s, conn = s.conn, len = s.len
 
   if s.isOpen and not s.conn.isClosed:
     try:
@@ -144,18 +144,18 @@ method close*(s: LPChannel) {.async.} =
       # It's harmless that close message cannot be sent - the connection is
       # likely down already
       await s.conn.close()
-      trace "Cannot send close message", s, id = s.id, msg = exc.msg
+      debug "Cannot send close message", s, id = s.id, msg = exc.msg
 
   await s.closeUnderlying() # maybe already eofed
 
-  trace "Closed channel", s, len = s.len
+  debug "Closed channel", s, len = s.len
 
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = LPChannelTrackerName
 
   s.timeoutHandler = proc(): Future[void] {.gcsafe.} =
-    trace "Idle timeout expired, resetting LPChannel", s
+    debug "Idle timeout expired, resetting LPChannel", s
     s.reset()
 
   procCall BufferStream(s).initStream()
@@ -182,7 +182,7 @@ method readOnce*(s: LPChannel,
       if s.protocol.len > 0:
         libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.protocol, "in"])
 
-    trace "readOnce", s, bytes
+    debug "readOnce", s, bytes
     if bytes == 0:
       await s.closeUnderlying()
     return bytes
@@ -217,9 +217,13 @@ proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     return
 
   if not s.isOpen:
+    debug "Opening channel for writing", s
     await s.open()
+    debug "Opened channel", s
 
+  debug "Writing msg (prep)", s, msg = msg.len
   await s.conn.writeMsg(s.id, s.msgCode, msg)
+  debug "Wrote msg (prep)", s, msg = msg.len
 
 proc completeWrite(
     s: LPChannel, fut: Future[void], msgLen: int): Future[void] {.async.} =
@@ -231,7 +235,9 @@ proc completeWrite(
       libp2p_mplex_qtime.time:
         await fut
     else:
+      debug "Waiting for complete", s, msg = msgLen
       await fut
+      debug "Completed", s, msg = msgLen
 
     when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
@@ -248,7 +254,7 @@ proc completeWrite(
   except LPStreamEOFError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception in lpchannel write handler", s, msg = exc.msg
+    debug "exception in lpchannel write handler", s, msg = exc.msg
     await s.reset()
     await s.conn.close()
     raise newLPStreamConnDownError(exc)
@@ -267,6 +273,7 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] =
       # Fast path: Avoid a copy of msg being kept in the closure created by
       # `{.async.}` as this drives up memory usage - the conditions are laid out
       # in prepareWrite
+      debug "Writing fast path", s, msg = msg.len
       s.conn.writeMsg(s.id, s.msgCode, msg)
     else:
       prepareWrite(s, msg)
@@ -300,6 +307,6 @@ proc init*(
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     chann.name = if chann.name.len > 0: chann.name else: $chann.oid
 
-  trace "Created new lpchannel", s = chann, id, initiator
+  debug "Created new lpchannel", s = chann, id, initiator
 
   return chann

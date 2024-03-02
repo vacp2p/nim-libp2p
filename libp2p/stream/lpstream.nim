@@ -158,7 +158,7 @@ method initStream*(s: LPStream) {.base.} =
 
   libp2p_open_streams.inc(labelValues = [s.objName, $s.dir])
   inc getStreamTracker(s.objName).opened
-  trace "Stream created", s, objName = s.objName, dir = $s.dir
+  debug "Stream created", s, objName = s.objName, dir = $s.dir
 
 proc join*(s: LPStream): Future[void] {.public.} =
   ## Wait for the stream to be closed
@@ -206,7 +206,7 @@ proc readExactly*(s: LPStream,
 
   if read == 0:
     doAssert s.atEof()
-    trace "couldn't read all bytes, stream EOF", s, nbytes, read
+    debug "couldn't read all bytes, stream EOF", s, nbytes, read
     # Re-readOnce to raise a more specific error than EOF
     # Raise EOF if it doesn't raise anything(shouldn't happen)
     discard await s.readOnce(addr pbuffer[read], nbytes - read)
@@ -214,7 +214,7 @@ proc readExactly*(s: LPStream,
     raise newLPStreamEOFError()
 
   if read < nbytes:
-    trace "couldn't read all bytes, incomplete data", s, nbytes, read
+    debug "couldn't read all bytes, incomplete data", s, nbytes, read
     raise newLPStreamIncompleteError()
 
 proc readLine*(s: LPStream,
@@ -300,17 +300,17 @@ proc write*(s: LPStream, msg: string): Future[void] {.public.} =
 
 method closeImpl*(s: LPStream): Future[void] {.async, base.} =
   ## Implementation of close - called only once
-  trace "Closing stream", s, objName = s.objName, dir = $s.dir
+  debug "Closing stream", s, objName = s.objName, dir = $s.dir
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
   inc getStreamTracker(s.objName).closed
   s.closeEvent.fire()
-  trace "Closed stream", s, objName = s.objName, dir = $s.dir
+  debug "Closed stream", s, objName = s.objName, dir = $s.dir
 
 method close*(s: LPStream): Future[void] {.base, async, public.} = # {.raises [Defect].}
   ## close the stream - this may block, but will not raise exceptions
   ##
   if s.isClosed:
-    trace "Already closed", s
+    debug "Already closed", s
     return
 
   s.isClosed = true # Set flag before performing virtual close
@@ -332,9 +332,9 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async, public.} =
   ## ongoing (which may be the case during cancellations)!
   ##
 
-  trace "Closing with EOF", s
+  debug "Closing with EOF", s
   if s.closedWithEOF:
-    trace "Already closed"
+    debug "Already closed"
     return
 
   # prevent any further calls to avoid triggering
@@ -350,7 +350,7 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async, public.} =
     if (await readOnce(s, addr buf[0], buf.len)) != 0:
       debug "Unexpected bytes while waiting for EOF", s
   except LPStreamEOFError:
-    trace "Expected EOF came", s
+    debug "Expected EOF came", s
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

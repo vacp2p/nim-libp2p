@@ -153,10 +153,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   try:
     try:
       while not conn.atEof:
-        trace "waiting for data", conn, peer = p, closed = conn.closed
+        debug "waiting for data", conn, peer = p, closed = conn.closed
 
         var data = await conn.readLp(p.maxMessageSize)
-        trace "read data from peer",
+        debug "read data from peer",
           conn, peer = p, closed = conn.closed,
           data = data.shortLog
 
@@ -172,9 +172,9 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
-    trace "Unexpected cancellation in PubSubPeer.handle"
+    debug "Unexpected cancellation in PubSubPeer.handle"
   except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.handle",
+    debug "Exception occurred in PubSubPeer.handle",
       conn, peer = p, closed = conn.closed, exc = exc.msg
   finally:
     debug "exiting pubsub read loop",
@@ -192,7 +192,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     # remote peer - if we had multiple channels up and one goes down, all
     # stop working so we make an effort to only keep a single channel alive
 
-    trace "Get new send connection", p, newConn
+    debug "Get new send connection", p, newConn
 
     # Careful to race conditions here.
     # Topic subscription relies on either connectedFut
@@ -207,7 +207,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     await handle(p, newConn)
   finally:
     if p.sendConn != nil:
-      trace "Removing send connection", p, conn = p.sendConn
+      debug "Removing send connection", p, conn = p.sendConn
       await p.sendConn.close()
       p.sendConn = nil
 
@@ -254,7 +254,19 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
   while p.rpcmessagequeue.sendPriorityQueue.len > 0 and p.rpcmessagequeue.sendPriorityQueue[0].finished:
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
-    discard p.rpcmessagequeue.sendPriorityQueue.popFirst()
+    let f = p.rpcmessagequeue.sendPriorityQueue.popFirst()
+    debug "Finished", p, f = repr(cast[pointer](f))
+
+  if p.rpcmessagequeue.sendPriorityQueue.len > 0 and p.rpcmessagequeue.sendPriorityQueue[^1].finished:
+    for f in p.rpcmessagequeue.sendPriorityQueue:
+      if f.failed():
+        debug "Broken failed", p, f = repr(cast[pointer](f)), err= f.error().msg
+      elif f.completed:
+        debug "Broken completed", p, f = repr(cast[pointer](f))
+      else:
+        debug "Broken pending", p, f = repr(cast[pointer](f))
+
+    quit 1
 
 proc sendMsg(p: PubSubPeer, msg: seq[byte]) {.async.} =
   if p.sendConn == nil:
@@ -267,15 +279,15 @@ proc sendMsg(p: PubSubPeer, msg: seq[byte]) {.async.} =
     debug "No send connection", p, msg = shortLog(msg)
     return
 
-  trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
+  debug "sending encoded msgs to peer", conn, encoded = shortLog(msg)
 
   try:
     await conn.writeLp(msg)
-    trace "sent pubsub message to remote", conn
+    debug "sent pubsub message to remote", conn
   except CatchableError as exc: # never cancelled
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, msg = exc.msg
+    debug "Unable to send to remote", conn, msg = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
 
@@ -304,6 +316,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool) {.async.}
     p.clearSendPriorityQueue()
     let f = p.sendMsg(msg)
     if not f.finished:
+      debug "Unfinished", p, msg = msg.len, f = repr(cast[pointer](f))
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
       when defined(libp2p_expensive_metrics):
         libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
@@ -311,7 +324,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool) {.async.}
     await p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
-  trace "message queued", p, msg = shortLog(msg)
+  debug "message queued", p, msg = shortLog(msg)
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
   ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
@@ -330,10 +343,10 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
     # Check if adding the next message will exceed maxSize
     if float(currentSize + msgSize) * 1.1 > float(maxSize): # Guessing 10% protobuf overhead
       if currentRPCMsg.messages.len == 0:
-        trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
+        debug "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
         continue # Skip this message
 
-      trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
+      debug "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
       yield encodeRpcMsg(currentRPCMsg, anonymize)
       currentRPCMsg = RPCMsg()
       currentSize = 0
@@ -343,10 +356,10 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
 
   # Check if there is a non-empty currentRPCMsg left to be added
   if currentSize > 0 and currentRPCMsg.messages.len > 0:
-    trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
+    debug "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
     yield encodeRpcMsg(currentRPCMsg, anonymize)
   else:
-    trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
+    debug "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
 proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.async.} =
   ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
@@ -380,7 +393,7 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.
       await p.sendEncoded(encodedSplitMsg, isHighPriority)
   else:
     # If the message size is within limits, send it as is
-    trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+    debug "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
     await p.sendEncoded(encoded, isHighPriority)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
