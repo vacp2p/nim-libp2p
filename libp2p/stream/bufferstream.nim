@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -34,10 +34,10 @@ type
 
 func shortLog*(s: BufferStream): auto =
   try:
-    if s.isNil: "BufferStream(nil)"
+    if s == nil: "BufferStream(nil)"
     else: &"{shortLog(s.peerId)}:{s.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
 chronicles.formatIt(BufferStream): shortLog(it)
 
@@ -55,14 +55,16 @@ method initStream*(s: BufferStream) =
   trace "BufferStream created", s
 
 proc new*(
-  T: typedesc[BufferStream],
-  timeout: Duration = DefaultConnectionTimeout): T =
-
+    T: typedesc[BufferStream],
+    timeout: Duration = DefaultConnectionTimeout): T =
   let bufferStream = T(timeout: timeout)
   bufferStream.initStream()
   bufferStream
 
-method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
+method pushData*(
+    s: BufferStream,
+    data: seq[byte]
+) {.base, async: (raises: [CancelledError, LPStreamError]).} =
   ## Write bytes to internal read buffer, use this to fill up the
   ## buffer with data.
   ##
@@ -70,7 +72,7 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   ##
 
   doAssert(not s.pushing,
-    &"Only one concurrent push allowed for stream {s.shortLog()}")
+    "Only one concurrent push allowed for stream " & s.shortLog())
 
   if s.isClosed or s.pushedEof:
     raise newLPStreamClosedError()
@@ -87,12 +89,14 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   finally:
     s.pushing = false
 
-method pushEof*(s: BufferStream) {.base, async.} =
+method pushEof*(
+    s: BufferStream
+) {.base, async: (raises: [CancelledError, LPStreamError]).} =
   if s.pushedEof:
     return
 
   doAssert(not s.pushing,
-    &"Only one concurrent push allowed for stream {s.shortLog()}")
+    "Only one concurrent push allowed for stream " & s.shortLog())
 
   s.pushedEof = true
 
@@ -108,13 +112,14 @@ method pushEof*(s: BufferStream) {.base, async.} =
 method atEof*(s: BufferStream): bool =
   s.isEof and s.readBuf.len == 0
 
-method readOnce*(s: BufferStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: BufferStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
   doAssert(not s.reading,
-    &"Only one concurrent read allowed for stream {s.shortLog()}")
+    "Only one concurrent read allowed for stream " & s.shortLog())
 
   if s.returnedEof:
     raise newLPStreamEOFError()
@@ -134,13 +139,6 @@ method readOnce*(s: BufferStream,
       except CancelledError as exc:
         # Not very efficient, but shouldn't happen often
         s.readBuf.assign(@(p.toOpenArray(0, rbytes - 1)) & @(s.readBuf.data))
-        raise exc
-      except CatchableError as exc:
-        # When an exception happens here, the Bufferstream is effectively
-        # broken and no more reads will be valid - for now, return EOF if it's
-        # called again, though this is not completely true - EOF represents an
-        # "orderly" shutdown and that's not what happened here..
-        s.returnedEof = true
         raise exc
       finally:
         s.reading = false
@@ -173,7 +171,8 @@ method readOnce*(s: BufferStream,
 
   return rbytes
 
-method closeImpl*(s: BufferStream): Future[void] =
+method closeImpl*(
+    s: BufferStream): Future[void] {.async: (raises: [], raw: true).} =
   ## close the stream and clear the buffer
   trace "Closing BufferStream", s, len = s.len
 
@@ -209,8 +208,8 @@ method closeImpl*(s: BufferStream): Future[void] =
         if not s.readQueue.empty():
           discard s.readQueue.popFirstNoWait()
   except AsyncQueueFullError, AsyncQueueEmptyError:
-    raise newException(Defect, getCurrentExceptionMsg())
+    raiseAssert(getCurrentExceptionMsg())
 
   trace "Closed BufferStream", s
 
-  procCall Connection(s).closeImpl() # noraises, nocancels
+  procCall Connection(s).closeImpl()

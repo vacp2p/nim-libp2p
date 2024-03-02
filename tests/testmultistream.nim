@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -32,43 +32,57 @@ type
   TestSelectStream = ref object of Connection
     step*: int
 
-method readOnce*(s: TestSelectStream,
-                 pbytes: pointer,
-                 nbytes: int): Future[int] {.async.} =
+method readOnce*(
+    s: TestSelectStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+  let fut = newFuture[int]()
   case s.step:
-    of 1:
-      var buf = newSeq[byte](1)
-      buf[0] = 19
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 2
-      return buf.len
-    of 2:
-      var buf = "/multistream/1.0.0\n"
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 3
-      return buf.len
-    of 3:
-      var buf = newSeq[byte](1)
-      buf[0] = 18
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 4
-      return buf.len
-    of 4:
-      var buf = "/test/proto/1.0.0\n"
-      copyMem(pbytes, addr buf[0], buf.len())
-      return buf.len
-    else:
-      copyMem(pbytes,
-              cstring("\0x3na\n"),
-              "\0x3na\n".len())
+  of 1:
+    var buf = newSeq[byte](1)
+    buf[0] = 19
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 2
+    fut.complete(buf.len)
+  of 2:
+    var buf = "/multistream/1.0.0\n"
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 3
+    fut.complete(buf.len)
+  of 3:
+    var buf = newSeq[byte](1)
+    buf[0] = 18
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 4
+    fut.complete(buf.len)
+  of 4:
+    var buf = "/test/proto/1.0.0\n"
+    copyMem(pbytes, addr buf[0], buf.len())
+    fut.complete(buf.len)
+  else:
+    copyMem(pbytes,
+            cstring("\0x3na\n"),
+            "\0x3na\n".len())
 
-      return "\0x3na\n".len()
+    fut.complete("\0x3na\n".len())
+  fut
 
-method write*(s: TestSelectStream, msg: seq[byte]) {.async.} = discard
+method write*(
+    s: TestSelectStream,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
 
-method close(s: TestSelectStream) {.async.} =
+method close(s: TestSelectStream) {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
 
 proc newTestSelectStream(): TestSelectStream =
   new result
@@ -76,50 +90,64 @@ proc newTestSelectStream(): TestSelectStream =
 
 ## Mock stream for handles `ls` test
 type
-  LsHandler = proc(procs: seq[byte]): Future[void] {.gcsafe, raises: [].}
+  LsHandler = proc(procs: seq[byte]): Future[void]
+    .Raising([CancelledError, LPStreamError]) {.gcsafe, raises: [].}
 
   TestLsStream = ref object of Connection
     step*: int
     ls*: LsHandler
 
-method readOnce*(s: TestLsStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: TestLsStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+  let fut = newFuture[int]()
   case s.step:
-    of 1:
-      var buf = newSeq[byte](1)
-      buf[0] = 19
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 2
-      return buf.len()
-    of 2:
-      var buf = "/multistream/1.0.0\n"
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 3
-      return buf.len()
-    of 3:
-      var buf = newSeq[byte](1)
-      buf[0] = 3
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 4
-      return buf.len()
-    of 4:
-      var buf = "ls\n"
-      copyMem(pbytes, addr buf[0], buf.len())
-      return buf.len()
-    else:
-      var buf = "na\n"
-      copyMem(pbytes, addr buf[0], buf.len())
-      return buf.len()
+  of 1:
+    var buf = newSeq[byte](1)
+    buf[0] = 19
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 2
+    fut.complete(buf.len())
+  of 2:
+    var buf = "/multistream/1.0.0\n"
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 3
+    fut.complete(buf.len())
+  of 3:
+    var buf = newSeq[byte](1)
+    buf[0] = 3
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 4
+    fut.complete(buf.len())
+  of 4:
+    var buf = "ls\n"
+    copyMem(pbytes, addr buf[0], buf.len())
+    fut.complete(buf.len())
+  else:
+    var buf = "na\n"
+    copyMem(pbytes, addr buf[0], buf.len())
+    fut.complete(buf.len())
+  fut
 
-method write*(s: TestLsStream, msg: seq[byte]) {.async.} =
+method write*(
+    s: TestLsStream,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
-    await s.ls(msg)
+    return s.ls(msg)
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
 
-method close(s: TestLsStream) {.async.} =
+method close(s: TestLsStream): Future[void] {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
 
 proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
   new result
@@ -128,52 +156,66 @@ proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
 
 ## Mock stream for handles `na` test
 type
-  NaHandler = proc(procs: string): Future[void] {.gcsafe, raises: [].}
+  NaHandler = proc(procs: string): Future[void]
+    .Raising([CancelledError, LPStreamError]) {.gcsafe, raises: [].}
 
   TestNaStream = ref object of Connection
     step*: int
     na*: NaHandler
 
-method readOnce*(s: TestNaStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: TestNaStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+  let fut = newFuture[int]()
   case s.step:
-    of 1:
-      var buf = newSeq[byte](1)
-      buf[0] = 19
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 2
-      return buf.len()
-    of 2:
-      var buf = "/multistream/1.0.0\n"
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 3
-      return buf.len()
-    of 3:
-      var buf = newSeq[byte](1)
-      buf[0] = 18
-      copyMem(pbytes, addr buf[0], buf.len())
-      s.step = 4
-      return buf.len()
-    of 4:
-      var buf = "/test/proto/1.0.0\n"
-      copyMem(pbytes, addr buf[0], buf.len())
-      return buf.len()
-    else:
-      copyMem(pbytes,
-              cstring("\0x3na\n"),
-              "\0x3na\n".len())
+  of 1:
+    var buf = newSeq[byte](1)
+    buf[0] = 19
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 2
+    fut.complete(buf.len())
+  of 2:
+    var buf = "/multistream/1.0.0\n"
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 3
+    fut.complete(buf.len())
+  of 3:
+    var buf = newSeq[byte](1)
+    buf[0] = 18
+    copyMem(pbytes, addr buf[0], buf.len())
+    s.step = 4
+    fut.complete(buf.len())
+  of 4:
+    var buf = "/test/proto/1.0.0\n"
+    copyMem(pbytes, addr buf[0], buf.len())
+    fut.complete(buf.len())
+  else:
+    copyMem(pbytes,
+            cstring("\0x3na\n"),
+            "\0x3na\n".len())
 
-      return "\0x3na\n".len()
+    fut.complete("\0x3na\n".len())
+  fut
 
-method write*(s: TestNaStream, msg: seq[byte]) {.async.} =
+method write*(
+    s: TestNaStream,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
-    await s.na(string.fromBytes(msg))
+    return s.na(string.fromBytes(msg))
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
 
-method close(s: TestNaStream) {.async.} =
+method close(s: TestNaStream): Future[void] {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
   new result
@@ -210,7 +252,8 @@ suite "Multistream select":
 
     var conn: Connection = nil
     let done = newFuture[void]()
-    proc testLsHandler(proto: seq[byte]) {.async.} =
+    proc testLsHandler(
+        proto: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
       var strProto: string = string.fromBytes(proto)
       check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
       await conn.close()
@@ -230,7 +273,9 @@ suite "Multistream select":
     let ms = MultistreamSelect.new()
 
     var conn: Connection = nil
-    proc testNaHandler(msg: string): Future[void] {.async.} =
+    proc testNaHandler(
+        msg: string
+    ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
       check msg == "\x03na\n"
       await conn.close()
     conn = newTestNaStream(testNaHandler)

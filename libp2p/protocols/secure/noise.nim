@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -89,7 +89,7 @@ type
     readCs: CipherState
     writeCs: CipherState
 
-  NoiseError* = object of LPError
+  NoiseError* = object of LPStreamError
   NoiseHandshakeError* = object of NoiseError
   NoiseDecryptTagError* = object of NoiseError
   NoiseOversizedPayloadError* = object of NoiseError
@@ -99,10 +99,10 @@ type
 
 func shortLog*(conn: NoiseConnection): auto =
   try:
-    if conn.isNil: "NoiseConnection(nil)"
+    if conn == nil: "NoiseConnection(nil)"
     else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
 chronicles.formatIt(NoiseConnection): shortLog(it)
 
@@ -112,7 +112,7 @@ proc genKeyPair(rng: var HmacDrbgContext): KeyPair =
 
 proc hashProtocol(name: string): MDigest[256] =
   # If protocol_name is less than or equal to HASHLEN bytes in length,
-  # sets h equal to protocol_name with zero bytes appended to make HASHLEN bytes.
+  # sets h to protocol_name with zero bytes appended to make HASHLEN bytes.
   # Otherwise sets h = HASH(protocol_name).
 
   if name.len <= 32:
@@ -301,7 +301,9 @@ template read_s: untyped =
 
   msg.consume(rsLen)
 
-proc readFrame(sconn: Connection): Future[seq[byte]] {.async.} =
+proc readFrame(
+    sconn: Connection
+): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   var besize {.noinit.}: array[2, byte]
   await sconn.readExactly(addr besize[0], besize.len)
   let size = uint16.fromBytesBE(besize).int
@@ -426,7 +428,9 @@ proc handshakeXXInbound(
   finally:
     burnMem(hs)
 
-method readMessage*(sconn: NoiseConnection): Future[seq[byte]] {.async.} =
+method readMessage*(
+    sconn: NoiseConnection
+): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   while true: # Discard 0-length payloads
     let frame = await sconn.stream.readFrame()
     sconn.activity = true
@@ -458,7 +462,11 @@ proc encryptFrame(
 
   cipherFrame[2 + src.len()..<cipherFrame.len] = tag
 
-method write*(sconn: NoiseConnection, message: seq[byte]): Future[void] =
+method write*(
+    sconn: NoiseConnection,
+    message: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   # Fast path: `{.async.}` would introduce a copy of `message`
   const FramingSize = 2 + sizeof(ChaChaPolyTag)
 
@@ -586,7 +594,7 @@ method handshake*(p: Noise, conn: Connection, initiator: bool, peerId: Opt[PeerI
 
   return secure
 
-method closeImpl*(s: NoiseConnection) {.async.} =
+method closeImpl*(s: NoiseConnection) {.async: (raises: []).} =
   await procCall SecureConn(s).closeImpl()
 
   burnMem(s.readCs)
@@ -597,15 +605,14 @@ method init*(p: Noise) {.gcsafe.} =
   p.codec = NoiseCodec
 
 proc new*(
-  T: typedesc[Noise],
-  rng: ref HmacDrbgContext,
-  privateKey: PrivateKey,
-  outgoing: bool = true,
-  commonPrologue: seq[byte] = @[]): T =
-
+    T: typedesc[Noise],
+    rng: ref HmacDrbgContext,
+    privateKey: PrivateKey,
+    outgoing: bool = true,
+    commonPrologue: seq[byte] = @[]): T =
   let pkBytes = privateKey.getPublicKey()
-  .expect("Expected valid Private Key")
-  .getBytes().expect("Couldn't get public Key bytes")
+    .expect("Expected valid Private Key")
+    .getBytes().expect("Couldn't get public Key bytes")
 
   var noise = Noise(
     rng: rng,

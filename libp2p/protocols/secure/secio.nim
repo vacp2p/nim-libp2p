@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -73,14 +73,14 @@ type
     writerCoder: SecureCipher
     readerCoder: SecureCipher
 
-  SecioError* = object of LPError
+  SecioError* = object of LPStreamError
 
 func shortLog*(conn: SecioConn): auto =
   try:
-    if conn.isNil: "SecioConn(nil)"
+    if conn == nil: "SecioConn(nil)"
     else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
 chronicles.formatIt(SecioConn): shortLog(it)
 
@@ -190,7 +190,9 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   data.setLen(mark)
   result = true
 
-proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
+proc readRawMessage(
+    conn: Connection
+): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   while true: # Discard 0-length payloads
     var lengthBuf: array[4, byte]
     await conn.readExactly(addr lengthBuf[0], lengthBuf.len)
@@ -211,7 +213,9 @@ proc readRawMessage(conn: Connection): Future[seq[byte]] {.async.} =
 
     trace "Discarding 0-length payload", conn
 
-method readMessage*(sconn: SecioConn): Future[seq[byte]] {.async.} =
+method readMessage*(
+    sconn: SecioConn
+): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Read message from channel secure connection ``sconn``.
   when chronicles.enabledLogLevel == LogLevel.TRACE:
     logScope:
@@ -223,7 +227,9 @@ method readMessage*(sconn: SecioConn): Future[seq[byte]] {.async.} =
     trace "Message MAC verification failed", buf = buf.shortLog
     raise (ref SecioError)(msg: "message failed MAC verification")
 
-method write*(sconn: SecioConn, message: seq[byte]) {.async.} =
+method write*(
+    sconn: SecioConn,
+    message: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Write message ``message`` to secure connection ``sconn``.
   if message.len == 0:
     return
@@ -432,13 +438,13 @@ method init(s: Secio) {.gcsafe.} =
   s.codec = SecioCodec
 
 proc new*(
-  T: typedesc[Secio],
-  rng: ref HmacDrbgContext,
-  localPrivateKey: PrivateKey): T =
+    T: typedesc[Secio],
+    rng: ref HmacDrbgContext,
+    localPrivateKey: PrivateKey): T =
   let secio = Secio(
     rng: rng,
     localPrivateKey: localPrivateKey,
-    localPublicKey: localPrivateKey.getPublicKey().expect("Invalid private key"),
+    localPublicKey: localPrivateKey.getPublicKey().expect("Invalid private key")
   )
   secio.init()
   secio

@@ -1,27 +1,29 @@
-import chronos
+import
+  std/sequtils,
+  chronos
 
-proc allFuturesThrowing*[F: FutureBase](args: varargs[F]): Future[void] =
+proc allFuturesThrowing*(args: varargs[FutureBase]): Future[void] =
   # This proc is only meant for use in tests / not suitable for general use.
   # - Swallowing errors arbitrarily instead of aggregating them is bad design
   # - It raises `CatchableError` instead of the union of the `futs` errors,
   #   inflating the caller's `raises` list unnecessarily. `macro` could fix it
-  var futs: seq[F]
-  for fut in args:
-    futs &= fut
-  proc call() {.async.} =
-    var first: ref CatchableError = nil
-    futs = await allFinished(futs)
+  let futs = @args
+  (proc() {.async: (raises: [CatchableError]).} =
+    await allFutures(futs)
+    var firstErr: ref CatchableError
     for fut in futs:
       if fut.failed:
-        let err = fut.readError()
-        if err of Defect:
+        let err = fut.error()
+        if err of CancelledError:
           raise err
-        else:
-          if err of CancelledError:
-            raise err
-          if isNil(first):
-            first = err
-    if not isNil(first):
-      raise first
+        if firstErr == nil:
+          firstErr = err
+    if firstErr != nil:
+      raise firstErr)()
 
-  return call()
+proc allFuturesThrowing*[T](futs: varargs[Future[T]]): Future[void] =
+  allFuturesThrowing(futs.mapIt(FutureBase(it)))
+
+proc allFuturesThrowing*[T, E](
+    futs: varargs[InternalRaisesFuture[T, E]]): Future[void] =
+  allFuturesThrowing(futs.mapIt(FutureBase(it)))

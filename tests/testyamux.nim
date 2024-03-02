@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -17,6 +17,9 @@ import
     muxers/yamux/yamux
   ],
   ./helpers
+
+proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
+  newFuture[void]()
 
 suite "Yamux":
   teardown:
@@ -42,10 +45,14 @@ suite "Yamux":
     asyncTest "Roundtrip of small messages":
       mSetup()
 
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
-        check (await conn.readLp(100)) == fromHex("1234")
-        await conn.writeLp(fromHex("5678"))
-        await conn.close()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+        try:
+          check (await conn.readLp(100)) == fromHex("1234")
+          await conn.writeLp(fromHex("5678"))
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -57,15 +64,19 @@ suite "Yamux":
     asyncTest "Continuing read after close":
       mSetup()
       let
-        readerBlocker = newFuture[void]()
-        handlerBlocker = newFuture[void]()
+        readerBlocker = newBlockerFut()
+        handlerBlocker = newBlockerFut()
       var numberOfRead = 0
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await readerBlocker
-        var buffer: array[25600, byte]
-        while (await conn.readOnce(addr buffer[0], 25600)) > 0:
-          numberOfRead.inc()
-        await conn.close()
+        try:
+          var buffer: array[25600, byte]
+          while (await conn.readOnce(addr buffer[0], 25600)) > 0:
+            numberOfRead.inc()
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
         handlerBlocker.complete()
 
       let streamA = await yamuxa.newStream()
@@ -80,12 +91,16 @@ suite "Yamux":
   suite "Window exhaustion":
     asyncTest "Basic exhaustion blocking":
       mSetup()
-      let readerBlocker = newFuture[void]()
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+      let readerBlocker = newBlockerFut()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await readerBlocker
-        var buffer: array[160000, byte]
-        discard await conn.readOnce(addr buffer[0], 160000)
-        await conn.close()
+        try:
+          var buffer: array[160000, byte]
+          discard await conn.readOnce(addr buffer[0], 160000)
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -103,12 +118,16 @@ suite "Yamux":
 
     asyncTest "Exhaustion doesn't block other channels":
       mSetup()
-      let readerBlocker = newFuture[void]()
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+      let readerBlocker = newBlockerFut()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await readerBlocker
-        var buffer: array[160000, byte]
-        discard await conn.readOnce(addr buffer[0], 160000)
-        await conn.close()
+        try:
+          var buffer: array[160000, byte]
+          discard await conn.readOnce(addr buffer[0], 160000)
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -120,10 +139,14 @@ suite "Yamux":
 
       # Now that the secondWriter is stuck, create a second stream
       # and exchange some data
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
-        check (await conn.readLp(100)) == fromHex("1234")
-        await conn.writeLp(fromHex("5678"))
-        await conn.close()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+        try:
+          check (await conn.readLp(100)) == fromHex("1234")
+          await conn.writeLp(fromHex("5678"))
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamB = await yamuxa.newStream()
       await streamB.writeLp(fromHex("1234"))
@@ -138,15 +161,19 @@ suite "Yamux":
     asyncTest "Can set custom window size":
       mSetup()
 
-      let writerBlocker = newFuture[void]()
+      let writerBlocker = newBlockerFut()
       var numberOfRead = 0
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         YamuxChannel(conn).setMaxRecvWindow(20)
-        var buffer: array[256000, byte]
-        while (await conn.readOnce(addr buffer[0], 256000)) > 0:
-          numberOfRead.inc()
-        writerBlocker.complete()
-        await conn.close()
+        try:
+          var buffer: array[256000, byte]
+          while (await conn.readOnce(addr buffer[0], 256000)) > 0:
+            numberOfRead.inc()
+          writerBlocker.complete()
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -163,12 +190,16 @@ suite "Yamux":
 
     asyncTest "Saturate until reset":
       mSetup()
-      let writerBlocker = newFuture[void]()
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+      let writerBlocker = newBlockerFut()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await writerBlocker
-        var buffer: array[256, byte]
-        check: (await conn.readOnce(addr buffer[0], 256)) == 0
-        await conn.close()
+        try:
+          var buffer: array[256, byte]
+          check: (await conn.readOnce(addr buffer[0], 256)) == 0
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -184,12 +215,16 @@ suite "Yamux":
 
     asyncTest "Increase window size":
       mSetup(512000)
-      let readerBlocker = newFuture[void]()
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+      let readerBlocker = newBlockerFut()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await readerBlocker
-        var buffer: array[260000, byte]
-        discard await conn.readOnce(addr buffer[0], 260000)
-        await conn.close()
+        try:
+          var buffer: array[260000, byte]
+          discard await conn.readOnce(addr buffer[0], 260000)
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -207,17 +242,20 @@ suite "Yamux":
 
     asyncTest "Reduce window size":
       mSetup(64000)
-      let readerBlocker1 = newFuture[void]()
-      let readerBlocker2 = newFuture[void]()
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
-        await readerBlocker1
-        var buffer: array[256000, byte]
-        # For the first roundtrip, the send window size is assumed to be 256k
-        discard await conn.readOnce(addr buffer[0], 256000)
-        await readerBlocker2
-        discard await conn.readOnce(addr buffer[0], 40000)
-
-        await conn.close()
+      let readerBlocker1 = newBlockerFut()
+      let readerBlocker2 = newBlockerFut()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+        try:
+          await readerBlocker1
+          var buffer: array[256000, byte]
+          # For the first roundtrip, the send window size is assumed to be 256k
+          discard await conn.readOnce(addr buffer[0], 256000)
+          await readerBlocker2
+          discard await conn.readOnce(addr buffer[0], 40000)
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -242,15 +280,18 @@ suite "Yamux":
   suite "Timeout testing":
     asyncTest "Check if InTimeout close both streams correctly":
       mSetup(inTo = 1.seconds)
-      let blocker = newFuture[void]()
-      let connBlocker = newFuture[void]()
+      let blocker = newBlockerFut()
+      let connBlocker = newBlockerFut()
 
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
-        check (await conn.readLp(100)) == fromHex("1234")
-        await conn.writeLp(fromHex("5678"))
-        await blocker
-        check conn.isClosed
-        connBlocker.complete()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+        try:
+          check (await conn.readLp(100)) == fromHex("1234")
+          await conn.writeLp(fromHex("5678"))
+          await blocker
+          check conn.isClosed
+          connBlocker.complete()
+        except CancelledError, LPStreamError:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -265,15 +306,18 @@ suite "Yamux":
 
     asyncTest "Check if OutTimeout close both streams correctly":
       mSetup(outTo = 1.seconds)
-      let blocker = newFuture[void]()
-      let connBlocker = newFuture[void]()
+      let blocker = newBlockerFut()
+      let connBlocker = newBlockerFut()
 
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
-        check (await conn.readLp(100)) == fromHex("1234")
-        await conn.writeLp(fromHex("5678"))
-        await blocker
-        check conn.isClosed
-        connBlocker.complete()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+        try:
+          check (await conn.readLp(100)) == fromHex("1234")
+          await conn.writeLp(fromHex("5678"))
+          await blocker
+          check conn.isClosed
+          connBlocker.complete()
+        except CancelledError, LPStreamError:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -290,11 +334,18 @@ suite "Yamux":
     asyncTest "Local & Remote close":
       mSetup()
 
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
-        check (await conn.readLp(100)) == fromHex("1234")
-        await conn.close()
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+        try:
+          check (await conn.readLp(100)) == fromHex("1234")
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
         expect LPStreamClosedError: await conn.writeLp(fromHex("102030"))
-        check (await conn.readLp(100)) == fromHex("5678")
+        try:
+          check (await conn.readLp(100)) == fromHex("5678")
+        except CancelledError, LPStreamError:
+          return
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -306,13 +357,17 @@ suite "Yamux":
 
     asyncTest "Local & Remote reset":
       mSetup()
-      let blocker = newFuture[void]()
+      let blocker = newBlockerFut()
 
-      yamuxb.streamHandler = proc(conn: Connection) {.async.} =
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await blocker
-        expect LPStreamResetError: discard await conn.readLp(100)
-        expect LPStreamResetError: await conn.writeLp(fromHex("1234"))
-        await conn.close()
+        try:
+          expect LPStreamResetError: discard await conn.readLp(100)
+          expect LPStreamResetError: await conn.writeLp(fromHex("1234"))
+        except CancelledError, LPStreamError:
+          return
+        finally:
+          await conn.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]

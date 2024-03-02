@@ -35,25 +35,19 @@ const
     ChronosStreamTrackerName
   ]
 
-iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
-  for name in trackerNames:
-    let t = getTracker(name)
-    if not isNil(t): yield t
-  for name in extras:
-    let t = getTracker(name)
-    if not isNil(t): yield t
-
 template checkTracker*(name: string) =
-  var tracker = getTracker(name)
-  if tracker.isLeaked():
-    checkpoint tracker.dump()
+  if isCounterLeaked(name):
+    let
+      tracker = getTrackerCounter(name)
+      trackerDescription =
+        "Opened " & name & ": " & $tracker.opened & "\n" &
+        "Closed " & name & ": " & $tracker.closed
+    checkpoint trackerDescription
     fail()
 
 template checkTrackers*() =
-  for tracker in testTrackers():
-    if tracker.isLeaked():
-      checkpoint tracker.dump()
-      fail()
+  for name in trackerNames:
+    checkTracker(name)
   # Also test the GC is not fooling with us
   when defined(nimHasWarnBareExcept):
     {.push warning[BareExcept]:off.}
@@ -82,11 +76,16 @@ template rng*(): ref HmacDrbgContext =
   getRng()
 
 type
-  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe, raises: [].}
+  WriteHandler* = proc(data: seq[byte]): Future[void]
+    .Raising([CancelledError, LPStreamError]) {.gcsafe, raises: [].}
   TestBufferStream* = ref object of BufferStream
     writeHandler*: WriteHandler
 
-method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
+method write*(
+    s: TestBufferStream,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   s.writeHandler(msg)
 
 method getWrapped*(s: TestBufferStream): Connection = nil
@@ -104,11 +103,15 @@ proc bridgedConnections*: (Connection, Connection) =
   connB.dir = Direction.In
   connA.initStream()
   connB.initStream()
-  connA.writeHandler = proc(data: seq[byte]) {.async.} =
-    await connB.pushData(data)
+  connA.writeHandler =
+    proc(data: seq[byte]) {.async: (raises: [
+        CancelledError, LPStreamError], raw: true).} =
+      connB.pushData(data)
 
-  connB.writeHandler = proc(data: seq[byte]) {.async.} =
-    await connA.pushData(data)
+  connB.writeHandler =
+    proc(data: seq[byte]) {.async: (raises: [
+        CancelledError, LPStreamError], raw: true).} =
+      connA.pushData(data)
   return (connA, connB)
 
 macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
