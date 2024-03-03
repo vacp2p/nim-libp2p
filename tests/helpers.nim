@@ -35,25 +35,19 @@ const
     ChronosStreamTrackerName
   ]
 
-iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
-  for name in trackerNames:
-    let t = getTracker(name)
-    if not isNil(t): yield t
-  for name in extras:
-    let t = getTracker(name)
-    if not isNil(t): yield t
-
 template checkTracker*(name: string) =
-  var tracker = getTracker(name)
-  if tracker.isLeaked():
-    checkpoint tracker.dump()
+  if isCounterLeaked(name):
+    let
+      tracker = getTrackerCounter(name)
+      trackerDescription =
+        "Opened " & name & ": " & $tracker.opened & "\n" &
+        "Closed " & name & ": " & $tracker.closed
+    checkpoint trackerDescription
     fail()
 
 template checkTrackers*() =
-  for tracker in testTrackers():
-    if tracker.isLeaked():
-      checkpoint tracker.dump()
-      fail()
+  for name in trackerNames:
+    checkTracker(name)
   # Also test the GC is not fooling with us
   when defined(nimHasWarnBareExcept):
     {.push warning[BareExcept]:off.}

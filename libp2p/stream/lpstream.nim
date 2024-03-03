@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -72,30 +72,6 @@ type
     opened*: uint64
     closed*: uint64
 
-proc setupStreamTracker*(name: string): StreamTracker =
-  let tracker = new StreamTracker
-
-  proc dumpTracking(): string {.gcsafe.} =
-    return "Opened " & tracker.id & ": " & $tracker.opened & "\n" &
-            "Closed " & tracker.id & ": " & $tracker.closed
-
-  proc leakTransport(): bool {.gcsafe.} =
-    return (tracker.opened != tracker.closed)
-
-  tracker.id = name
-  tracker.opened = 0
-  tracker.closed = 0
-  tracker.dump = dumpTracking
-  tracker.isLeaked = leakTransport
-  addTracker(name, tracker)
-
-  return tracker
-
-proc getStreamTracker(name: string): StreamTracker {.gcsafe.} =
-  result = cast[StreamTracker](getTracker(name))
-  if isNil(result):
-    result = setupStreamTracker(name)
-
 proc newLPStreamIncompleteError*(): ref LPStreamIncompleteError =
   result = newException(LPStreamIncompleteError, "Incomplete data received")
 
@@ -134,7 +110,7 @@ method initStream*(s: LPStream) {.base.} =
   s.oid = genOid()
 
   libp2p_open_streams.inc(labelValues = [s.objName, $s.dir])
-  inc getStreamTracker(s.objName).opened
+  trackCounter(s.objName)
   trace "Stream created", s, objName = s.objName, dir = $s.dir
 
 proc join*(
@@ -281,7 +257,7 @@ method closeImpl*(s: LPStream): Future[void] {.async, base.} =
   ## Implementation of close - called only once
   trace "Closing stream", s, objName = s.objName, dir = $s.dir
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
-  inc getStreamTracker(s.objName).closed
+  untrackCounter(s.objName)
   s.closeEvent.fire()
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
 
