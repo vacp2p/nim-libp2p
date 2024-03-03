@@ -73,7 +73,7 @@ type
     writerCoder: SecureCipher
     readerCoder: SecureCipher
 
-  SecioError* = object of LPError
+  SecioError* = object of LPStreamError
 
 func shortLog*(conn: SecioConn): auto =
   try:

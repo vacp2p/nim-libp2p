@@ -89,7 +89,7 @@ type
     readCs: CipherState
     writeCs: CipherState
 
-  NoiseError* = object of LPError
+  NoiseError* = object of LPStreamError
   NoiseHandshakeError* = object of NoiseError
   NoiseDecryptTagError* = object of NoiseError
   NoiseOversizedPayloadError* = object of NoiseError
