@@ -538,7 +538,7 @@ method handle*(m: Yamux) {.async.} =
           if header.length > 0:
             var buffer = newSeqUninitialized[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
-            trace "Msg Rcv", msg=string.fromBytes(buffer)
+            trace "Msg Rcv", msg=shortLog(buffer)
             await channel.gotDataFromRemote(buffer)
 
         if MsgFlags.Fin in header.flags:
