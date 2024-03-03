@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -42,35 +42,7 @@ type
     acceptFuts: seq[Future[StreamTransport]]
     connectionsTimeout: Duration
 
-  TcpTransportTracker* = ref object of TrackerBase
-    opened*: uint64
-    closed*: uint64
-
   TcpTransportError* = object of transport.TransportError
-
-proc setupTcpTransportTracker(): TcpTransportTracker {.gcsafe, raises: [].}
-
-proc getTcpTransportTracker(): TcpTransportTracker {.gcsafe.} =
-  result = cast[TcpTransportTracker](getTracker(TcpTransportTrackerName))
-  if isNil(result):
-    result = setupTcpTransportTracker()
-
-proc dumpTracking(): string {.gcsafe.} =
-  var tracker = getTcpTransportTracker()
-  result = "Opened tcp transports: " & $tracker.opened & "\n" &
-           "Closed tcp transports: " & $tracker.closed
-
-proc leakTransport(): bool {.gcsafe.} =
-  var tracker = getTcpTransportTracker()
-  result = (tracker.opened != tracker.closed)
-
-proc setupTcpTransportTracker(): TcpTransportTracker =
-  result = new TcpTransportTracker
-  result.opened = 0
-  result.closed = 0
-  result.dump = dumpTracking
-  result.isLeaked = leakTransport
-  addTracker(TcpTransportTrackerName, result)
 
 proc connHandler*(self: TcpTransport,
                   client: StreamTransport,
@@ -163,7 +135,7 @@ method start*(
 
   await procCall Transport(self).start(addrs)
   trace "Starting TCP transport"
-  inc getTcpTransportTracker().opened
+  trackCounter(TcpTransportTrackerName)
 
   for i, ma in addrs:
     if not self.handles(ma):
@@ -217,7 +189,7 @@ method stop*(self: TcpTransport) {.async.} =
     self.servers = @[]
 
     trace "Transport stopped"
-    inc getTcpTransportTracker().closed
+    untrackCounter(TcpTransportTrackerName)
   except CatchableError as exc:
     trace "Error shutting down tcp transport", exc = exc.msg
 
