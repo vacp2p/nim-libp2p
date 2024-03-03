@@ -347,11 +347,6 @@ window.addEventListener("DOMContentLoaded", main2);
     title="readVarint(conn: LPStream): Future[uint64]">readVarint(conn: LPStream): Future[uint64]</a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">setupStreamTracker
-      <li><a class="reference" href="#setupStreamTracker%2Cstring"
-    title="setupStreamTracker(name: string): StreamTracker">setupStreamTracker(name: string): StreamTracker</a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">shortLog
       <li><a class="reference" href="#shortLog%2CLPStream"
     title="shortLog(s: LPStream): auto">shortLog(s: LPStream): auto</a></li>
@@ -704,9 +699,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>In particular, it must not be used when there is another concurrent read ongoing (which may be the case during cancellations)! </p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L325"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L301"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L325" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L301" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -718,9 +713,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L165"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L141"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L165" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -731,9 +726,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L134"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L110"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L134" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L110" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -744,79 +739,14 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L140"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L116"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L140" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L116" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="newLPStreamEOFError" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamEOFError"><span class="Identifier">newLPStreamEOFError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamEOFError"><span class="Identifier">LPStreamEOFError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L128"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamIncompleteError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamIncompleteError"><span class="Identifier">newLPStreamIncompleteError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamIncompleteError"><span class="Identifier">LPStreamIncompleteError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L119"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L119" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamIncorrectDefect,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamIncorrectDefect%2Cstring"><span class="Identifier">newLPStreamIncorrectDefect</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamIncorrectDefect"><span class="Identifier">LPStreamIncorrectDefect</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L125"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L125" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamLimitError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamLimitError"><span class="Identifier">newLPStreamLimitError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamLimitError"><span class="Identifier">LPStreamLimitError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L122"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L122" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamReadError,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamReadError%2Cstring"><span class="Identifier">newLPStreamReadError</span></a><span class="Other">(</span><span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamReadError"><span class="Identifier">LPStreamReadError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L110"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L110" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamReadError,ref.CatchableError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamReadError%2Cref.CatchableError"><span class="Identifier">newLPStreamReadError</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">CatchableError</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamReadError"><span class="Identifier">LPStreamReadError</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -827,6 +757,71 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="newLPStreamIncompleteError" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamIncompleteError"><span class="Identifier">newLPStreamIncompleteError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamIncompleteError"><span class="Identifier">LPStreamIncompleteError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L95"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L95" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="newLPStreamIncorrectDefect,string" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamIncorrectDefect%2Cstring"><span class="Identifier">newLPStreamIncorrectDefect</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamIncorrectDefect"><span class="Identifier">LPStreamIncorrectDefect</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L101"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L101" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="newLPStreamLimitError" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamLimitError"><span class="Identifier">newLPStreamLimitError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamLimitError"><span class="Identifier">LPStreamLimitError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L98"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="newLPStreamReadError,string" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamReadError%2Cstring"><span class="Identifier">newLPStreamReadError</span></a><span class="Other">(</span><span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamReadError"><span class="Identifier">LPStreamReadError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L86"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L86" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="newLPStreamReadError,ref.CatchableError" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamReadError%2Cref.CatchableError"><span class="Identifier">newLPStreamReadError</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">CatchableError</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamReadError"><span class="Identifier">LPStreamReadError</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L80"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="newLPStreamRemoteClosedError" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamRemoteClosedError"><span class="Identifier">newLPStreamRemoteClosedError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamRemoteClosedError"><span class="Identifier">LPStreamRemoteClosedError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
     <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
@@ -834,9 +829,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L137"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L113"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L137" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L113" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -847,9 +842,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L131"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L107"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L131" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L107" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -860,9 +855,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L113"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L89"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L113" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L89" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -874,9 +869,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Waits for <tt class="docutils literal"><span class="pre"><span class="Identifier">nbytes</span></span></tt> to be available, then read them and return them
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L188"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L164"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L188" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L164" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -888,9 +883,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Reads up to <tt class="docutils literal"><span class="pre"><span class="Identifier">limit</span></span></tt> bytes are read, or a <tt class="docutils literal"><span class="pre"><span class="Identifier">sep</span></span></tt> is found
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L225"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L201"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L225" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L201" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -902,9 +897,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 read length prefixed msg, with the length encoded as a varint
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L269"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L245"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L269" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L245" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -916,22 +911,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L251"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L227"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L251" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="setupStreamTracker,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#setupStreamTracker%2Cstring"><span class="Identifier">setupStreamTracker</span></a><span class="Other">(</span><span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="lpstream.html#StreamTracker"><span class="Identifier">StreamTracker</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L80"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L227" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -941,9 +923,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L147"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L123"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L147" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -954,9 +936,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L300"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L276"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L300" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L276" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -967,9 +949,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Write <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> with a varint-encoded length prefix
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L289"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L265"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L289" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L265" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -980,9 +962,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L297"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L273"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L297" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L273" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -997,9 +979,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L172"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L148"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L172" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1011,9 +993,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 close the stream - this may block, but will not raise exceptions 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L311"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L287"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L311" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L287" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1023,9 +1005,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L169"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L145"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L169" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L145" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1037,9 +1019,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Implementation of close - called only once
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L303"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L279"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L303" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L279" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1049,9 +1031,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L152"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L128"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1063,9 +1045,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Reads whatever is available in the stream, up to <tt class="docutils literal"><span class="pre"><span class="Identifier">nbytes</span></span></tt>. Will block if nothing is available
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L179"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L155"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L179" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1076,9 +1058,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L285"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L261"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L285" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L261" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1093,9 +1075,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L150"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/stream/lpstream.nim#L126"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L150" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1114,7 +1096,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-01 17:08:19 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-03 17:14:57 UTC</small>
       </div>
     </div>
   </div>
