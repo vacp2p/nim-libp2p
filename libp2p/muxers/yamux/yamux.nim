@@ -199,8 +199,9 @@ method closeImpl*(channel: YamuxChannel) {.async.} =
     channel.closedLocally = true
     channel.isEof = true
 
-    if channel.isReset == false and channel.sendQueue.len == 0:
-      await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
+    if not channel.isReset and channel.sendQueue.len == 0:
+      try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
+      except CancelledError, LPStreamError: discard
     await channel.actuallyClose()
 
 proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
