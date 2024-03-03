@@ -264,7 +264,7 @@ proc writeLp*(
   buf[0..<vbytes.len] = vbytes.toOpenArray()
   buf[vbytes.len..<buf.len] = msg
   s.write(buf)
-  
+
 proc writeLp*(
     s: LPStream,
     msg: string
