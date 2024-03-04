@@ -302,7 +302,7 @@ proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
 
     trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
-    if not f.finished:
+    if not f.completed():
       sendMsgContinue(conn, f)
     else:
       f
