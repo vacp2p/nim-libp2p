@@ -235,7 +235,10 @@ proc completeWrite(
 
     when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
-        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.protocol, "out"])
+        # This crashes on Nim 2.0.2 with `--mm:orc` during `nimble test`
+        # https://github.com/status-im/nim-metrics/issues/79
+        libp2p_protocols_bytes.inc(
+          msgLen.int64, labelValues = [s.protocol, "out"])
 
     s.activity = true
   except CancelledError as exc:
