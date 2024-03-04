@@ -251,26 +251,24 @@ template sendMetrics(msg: RPCMsg): untyped =
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
 proc clearSendPriorityQueue(p: PubSubPeer) =
-  while p.rpcmessagequeue.sendPriorityQueue.len > 0 and p.rpcmessagequeue.sendPriorityQueue[0].finished:
-    when defined(libp2p_expensive_metrics):
-      libp2p_gossipsub_priority_queue_size.dec(labelValues = [$p.peerId])
+  if p.rpcmessagequeue.sendPriorityQueue.len == 0:
+    return # fast path
+
+  while p.rpcmessagequeue.sendPriorityQueue.len > 0 and
+      p.rpcmessagequeue.sendPriorityQueue[0].finished:
     discard p.rpcmessagequeue.sendPriorityQueue.popFirst()
 
-proc sendMsg(p: PubSubPeer, msg: seq[byte]) {.async.} =
-  if p.sendConn == nil:
-    # Wait for a send conn to be setup. `connectOnce` will
-    # complete this even if the sendConn setup failed
-    await p.connectedFut
+  while p.rpcmessagequeue.sendPriorityQueue.len > 0 and
+      p.rpcmessagequeue.sendPriorityQueue[^1].finished:
+    discard p.rpcmessagequeue.sendPriorityQueue.popLast()
 
-  var conn = p.sendConn
-  if conn == nil or conn.closed():
-    debug "No send connection", p, msg = shortLog(msg)
-    return
+  when defined(libp2p_expensive_metrics):
+    libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId])
 
-  trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
-
+proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
+  # Continuation for a pending `sendMsg` future from below
   try:
-    await conn.writeLp(msg)
+    await msgFut
     trace "sent pubsub message to remote", conn
   except CatchableError as exc: # never cancelled
     # Because we detach the send call from the currently executing task using
@@ -281,7 +279,37 @@ proc sendMsg(p: PubSubPeer, msg: seq[byte]) {.async.} =
 
     await conn.close() # This will clean up the send connection
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool) {.async.} =
+proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
+  # Slow path of `sendMsg` where msg is held in memory while send connection is
+  # being set up
+  if p.sendConn == nil:
+    # Wait for a send conn to be setup. `connectOnce` will
+    # complete this even if the sendConn setup failed
+    await p.connectedFut
+
+  var conn = p.sendConn
+  if conn == nil or conn.closed():
+    debug "No send connection", p, msg = shortLog(msg)
+    return
+
+  trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+  await sendMsgContinue(conn, conn.writeLp(msg))
+
+proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
+  if p.sendConn != nil and not p.sendConn.closed():
+    # Fast path that avoids copying msg (which happens for {.async.})
+    let conn = p.sendConn
+
+    trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+    let f = conn.writeLp(msg)
+    if not f.finished:
+      sendMsgContinue(conn, f)
+    else:
+      f
+  else:
+    sendMsgSlow(p, msg)
+
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[void] =
   ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
   ##
   ## Parameters:
@@ -307,11 +335,12 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool) {.async.}
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
       when defined(libp2p_expensive_metrics):
         libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
+    f
   else:
-    await p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
+    let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
     when defined(libp2p_expensive_metrics):
       libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
-  trace "message queued", p, msg = shortLog(msg)
+    f
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
   ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
