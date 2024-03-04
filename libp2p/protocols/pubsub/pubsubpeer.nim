@@ -424,9 +424,10 @@ proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
      let msg = await p.rpcmessagequeue.nonPriorityQueue.popFirst()
      while p.rpcmessagequeue.sendPriorityQueue.len > 0:
        p.clearSendPriorityQueue()
-       # this minimizes the number of times we have to wait for something (each wait = performance cost)
-       # we will never wait for a finished future and by waiting for the last one, all that come before it are guaranteed
-       # to be finished already (since sends are processed in order).
+       # waiting for the last future minimizes the number of times we have to
+       # wait for something (each wait = performance cost) -
+       # clearSendPriorityQueue ensures we're not waiting for an already-finished
+       # future
        if p.rpcmessagequeue.sendPriorityQueue.len > 0:
         await p.rpcmessagequeue.sendPriorityQueue[^1]
      when defined(pubsubpeer_queue_metrics):
@@ -441,10 +442,11 @@ proc startSendNonPriorityTask(p: PubSubPeer) =
 proc stopSendNonPriorityTask*(p: PubSubPeer) =
   if not p.rpcmessagequeue.sendNonPriorityTask.isNil:
     debug "stopping sendNonPriorityTask", p
-    p.rpcmessagequeue.sendNonPriorityTask.cancel()
+    p.rpcmessagequeue.sendNonPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonPriorityTask = nil
     p.rpcmessagequeue.sendPriorityQueue.clear()
     p.rpcmessagequeue.nonPriorityQueue.clear()
+
     when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
       libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
