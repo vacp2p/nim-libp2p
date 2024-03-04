@@ -264,7 +264,9 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
     discard p.rpcmessagequeue.sendPriorityQueue.popLast()
 
   when defined(pubsubpeer_queue_metrics):
-    libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId])
+    libp2p_gossipsub_priority_queue_size.set(
+      value = p.rpcmessagequeue.sendPriorityQueue.len.int64,
+      labelValues = [$p.peerId])
 
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
   # Continuation for a pending `sendMsg` future from below
