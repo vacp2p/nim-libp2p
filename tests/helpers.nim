@@ -76,8 +76,10 @@ template rng*(): ref HmacDrbgContext =
   getRng()
 
 type
-  WriteHandler* = proc(data: seq[byte]): Future[void]
-    .Raising([CancelledError, LPStreamError]) {.gcsafe, raises: [].}
+  WriteHandler* = proc(
+      data: seq[byte]
+  ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).}
+
   TestBufferStream* = ref object of BufferStream
     writeHandler*: WriteHandler
 

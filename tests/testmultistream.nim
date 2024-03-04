@@ -90,8 +90,9 @@ proc newTestSelectStream(): TestSelectStream =
 
 ## Mock stream for handles `ls` test
 type
-  LsHandler = proc(procs: seq[byte]): Future[void]
-    .Raising([CancelledError, LPStreamError]) {.gcsafe, raises: [].}
+  LsHandler = proc(
+      procs: seq[byte]
+  ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).}
 
   TestLsStream = ref object of Connection
     step*: int
@@ -156,8 +157,9 @@ proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
 
 ## Mock stream for handles `na` test
 type
-  NaHandler = proc(procs: string): Future[void]
-    .Raising([CancelledError, LPStreamError]) {.gcsafe, raises: [].}
+  NaHandler = proc(
+      procs: string
+  ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).}
 
   TestNaStream = ref object of Connection
     step*: int

@@ -27,7 +27,7 @@ const
   DefaultConnectionTimeout* = 5.minutes
 
 type
-  TimeoutHandler* = proc(): Future[void].Raising([]) {.gcsafe, raises: [].}
+  TimeoutHandler* = proc(): Future[void] {.async: (raises: []).}
 
   Connection* = ref object of LPStream
     activity*: bool  # reset every time data is sent or received
