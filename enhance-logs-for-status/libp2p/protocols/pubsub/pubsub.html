@@ -239,6 +239,9 @@ window.addEventListener("DOMContentLoaded", main2);
     title="libp2p_pubsub_received_subscriptions = IgnoredCollector">libp2p_pubsub_received_subscriptions</a></li>
   <li><a class="reference" href="#libp2p_pubsub_received_unsubscriptions"
     title="libp2p_pubsub_received_unsubscriptions = IgnoredCollector">libp2p_pubsub_received_unsubscriptions</a></li>
+  <li><a class="reference" href="#MsgHashProvider"
+    title="MsgHashProvider {.public.} = proc (topic: string; messageData: seq[byte]): Result[
+    string, string] {.noSideEffect, raises: [], gcsafe.}">MsgHashProvider</a></li>
   <li><a class="reference" href="#MsgIdProvider"
     title="MsgIdProvider {.public.} = proc (m: Message): Result[MessageId, ValidationResult] {.
     noSideEffect, raises: [], gcsafe.}">MsgIdProvider</a></li>
@@ -267,13 +270,14 @@ window.addEventListener("DOMContentLoaded", main2);
                        ## 
                        ##  defaults to 1mB
   rng*: ref HmacDrbgContext
-  knownTopics*: HashSet[string]">PubSub</a></li>
+  knownTopics*: HashSet[string]
+  msgHashProvider*: MsgHashProvider">PubSub</a></li>
   <li><a class="reference" href="#SubscriptionValidator"
     title="SubscriptionValidator {.public.} = proc (topic: string): bool {.raises: [],
     gcsafe.}">SubscriptionValidator</a></li>
   <li><a class="reference" href="#TopicHandler"
-    title="TopicHandler {.public.} = proc (topic: string; data: seq[byte]; msgId: seq[byte]): Future[
-    void] {.gcsafe, raises: [].}">TopicHandler</a></li>
+    title="TopicHandler {.public.} = proc (topic: string; data: seq[byte]): Future[void] {.
+    gcsafe, raises: [].}">TopicHandler</a></li>
   <li><a class="reference" href="#TopicPair"
     title="TopicPair = tuple[topic: string, handler: TopicHandler]">TopicPair</a></li>
   <li><a class="reference" href="#ValidatorHandler"
@@ -307,13 +311,11 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">handleData
       <li><a class="reference" href="#handleData%2CPubSub%2Cstring%2Cseq%5Bbyte%5D"
-    title="handleData(p: PubSub; topic: string; data: seq[byte]; msgId = newSeq()): Future[
-    void]">handleData(p: PubSub; topic: string; data: seq[byte]; msgId = newSeq()): Future[
-    void]</a></li>
+    title="handleData(p: PubSub; topic: string; data: seq[byte]): Future[void]">handleData(p: PubSub; topic: string; data: seq[byte]): Future[void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">init
-      <li><a class="reference" href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams"
+      <li><a class="reference" href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams%2CMsgHashProvider"
     title="init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
                                triggerSelf: bool = false;
                                anonymize: bool = false;
@@ -321,14 +323,16 @@ window.addEventListener("DOMContentLoaded", main2);
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false): P:type">init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
+                               parameters: PubParams = false;
+                               msgHashProvider: MsgHashProvider = nil): P:type">init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
                                triggerSelf: bool = false;
                                anonymize: bool = false;
                                verifySignature: bool = true; sign: bool = true;
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false): P:type</a></li>
+                               parameters: PubParams = false;
+                               msgHashProvider: MsgHashProvider = nil): P:type</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">removeObserver
@@ -405,8 +409,8 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">publish
-      <li><a class="reference" href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D"
-    title="publish(p: PubSub; topic: string; data: seq[byte]; msgId: seq[byte]): Future[int]">publish(p: PubSub; topic: string; data: seq[byte]; msgId: seq[byte]): Future[int]</a></li>
+      <li><a class="reference" href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D"
+    title="publish(p: PubSub; topic: string; data: seq[byte]): Future[int]">publish(p: PubSub; topic: string; data: seq[byte]): Future[int]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">removeValidator
@@ -670,6 +674,19 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="MsgHashProvider" class="tohide">
+<dt><pre><a href="pubsub.html#MsgHashProvider"><span class="Identifier">MsgHashProvider</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">messageData</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span>
+    <span class="Identifier">string</span><span class="Other">,</span> <span class="Identifier">string</span><span class="Other">]</span> {.<span class="Identifier">noSideEffect</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span></span>.}</pre></dt>
+<dd>
+
+Computes the message hash based on its topic and message data, and then returns it in hex format
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L103"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L103" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="MsgIdProvider" class="tohide">
 <dt><pre><a href="pubsub.html#MsgIdProvider"><span class="Identifier">MsgIdProvider</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="rpc/messages.html#Message"><span class="Identifier">Message</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><a href="rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">,</span> <a href="errors.html#ValidationResult"><span class="Identifier">ValidationResult</span></a><span class="Other">]</span> {.
     <span class="Identifier">noSideEffect</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span></span>.}</pre></dt>
@@ -709,14 +726,15 @@ class="link-seesrc" target="_blank">Source</a>
                        <span class="Comment">##  defaults to 1mB</span>
   <span class="Identifier">rng</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span>
   <span class="Identifier">knownTopics</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">HashSet</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
+  <span class="Identifier">msgHashProvider</span><span class="Operator">*</span><span class="Other">:</span> <a href="pubsub.html#MsgHashProvider"><span class="Identifier">MsgHashProvider</span></a>
 </pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L103"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L109"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L103" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L109" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -734,8 +752,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="TopicHandler" class="tohide">
-<dt><pre><a href="pubsub.html#TopicHandler"><span class="Identifier">TopicHandler</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">msgId</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><a href="pubsub.html#TopicHandler"><span class="Identifier">TopicHandler</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -812,9 +830,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L603"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L612"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L603" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L612" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -824,27 +842,27 @@ class="link-seesrc" target="_blank">Source</a>
 
 Attempt to send <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> to the given peers
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L148"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L155"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="handleData,PubSub,string,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#handleData%2CPubSub%2Cstring%2Cseq%5Bbyte%5D"><span class="Identifier">handleData</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">msgId</span> <span class="Other">=</span> <span class="Identifier">newSeq</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#handleData%2CPubSub%2Cstring%2Cseq%5Bbyte%5D"><span class="Identifier">handleData</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L310"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L317"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L310" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L317" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="init,typedesc[PubSub],Switch,bool,bool,bool,bool,MsgIdProvider,SubscriptionValidator,int,ref.HmacDrbgContext,PubParams" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">PubParams</span><span class="Other">:</span> <span class="Keyword">object</span> <span class="Operator">|</span> <span class="Identifier">bool</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">P</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">switch</span><span class="Other">:</span> <a href="../../transports/transport.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">;</span>
+<div id="init,typedesc[PubSub],Switch,bool,bool,bool,bool,MsgIdProvider,SubscriptionValidator,int,ref.HmacDrbgContext,PubParams,MsgHashProvider" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams%2CMsgHashProvider"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">PubParams</span><span class="Other">:</span> <span class="Keyword">object</span> <span class="Operator">|</span> <span class="Identifier">bool</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">P</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">switch</span><span class="Other">:</span> <a href="../../transports/transport.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">;</span>
                                     <span class="Identifier">triggerSelf</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
                                     <span class="Identifier">anonymize</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
                                     <span class="Identifier">verifySignature</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span>
@@ -852,15 +870,16 @@ class="link-seesrc" target="_blank">Source</a>
     <span class="Identifier">subscriptionValidator</span><span class="Other">:</span> <a href="pubsub.html#SubscriptionValidator"><span class="Identifier">SubscriptionValidator</span></a> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">;</span>
                                     <span class="Identifier">maxMessageSize</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="DecNumber">1024</span> <span class="Operator">*</span> <span class="DecNumber">1024</span><span class="Other">;</span>
                                     <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span> <span class="Other">=</span> <span class="Identifier">newRng</span><span class="Other">(</span><span class="Other">)</span><span class="Other">;</span>
-                                    <span class="Identifier">parameters</span><span class="Other">:</span> <span class="Identifier">PubParams</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">P:type</span> {.
+                                    <span class="Identifier">parameters</span><span class="Other">:</span> <span class="Identifier">PubParams</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
+                                    <span class="Identifier">msgHashProvider</span><span class="Other">:</span> <a href="pubsub.html#MsgHashProvider"><span class="Identifier">MsgHashProvider</span></a> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">P:type</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><a href="pubsub.html#InitializationError"><span class="Identifier">InitializationError</span></a><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L548"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L554"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L548" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L554" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -871,9 +890,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L605"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L614"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L605" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L614" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -884,9 +903,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Attempt to send <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> to remote peer 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L141"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L148"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -897,9 +916,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 send subscriptions to remote peer
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L205"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L212"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L205" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L212" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -915,9 +934,9 @@ class="link-seesrc" target="_blank">Source</a>
 </dl>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L448"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L455"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L448" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L455" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -928,9 +947,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe from a <tt class="docutils literal"><span class="pre">topic</span></tt> string 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L417"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L424"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L417" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L424" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -941,9 +960,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe from a list of <tt class="docutils literal"><span class="pre">topic</span></tt> handlers
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L432"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L439"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L432" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L439" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -954,9 +973,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe every <tt class="docutils literal"><span class="pre"><span class="Identifier">handler</span></span></tt> from <tt class="docutils literal"><span class="pre"><span class="Identifier">topic</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L437"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L444"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L437" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L444" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -966,9 +985,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L224"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L231"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L224" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L231" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -984,9 +1003,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Add a validator to a <tt class="docutils literal"><span class="pre"><span class="Identifier">topic</span></span></tt>. Each new message received in this will be sent to <tt class="docutils literal"><span class="pre"><span class="Identifier">hook</span></span></tt>. <tt class="docutils literal"><span class="pre"><span class="Identifier">hook</span></span></tt> can return either <tt class="docutils literal"><span class="pre"><span class="Identifier">Accept</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">Ignore</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">Reject</span></span></tt> (which can descore the peer)
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L498"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L504"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L498" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L504" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -997,9 +1016,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L282"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L289"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L282" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L289" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1017,9 +1036,9 @@ class="link-seesrc" target="_blank">Source</a>
 </ol>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L347"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L354"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L347" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L354" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1030,9 +1049,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 perform pubsub initialization
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L491"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L497"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L491" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L497" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1043,9 +1062,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L273"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L280"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L273" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L280" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1056,25 +1075,25 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L400"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L407"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L400" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L407" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="publish.e,PubSub,string,seq[byte],seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D"><span class="Identifier">publish</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">msgId</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">int</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-           <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="publish.e,PubSub,string,seq[byte]" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D"><span class="Identifier">publish</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
+    <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>publish to a <tt class="docutils literal"><span class="pre">topic</span></tt></p>
 <p>The return value is the number of neighbours that we attempted to send the message to, excluding self. Note that this is an optimistic number of attempts - the number of peers that actually receive the message might be lower.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L479"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L485"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L479" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L485" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1085,9 +1104,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L508"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L514"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L508" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L514" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1099,9 +1118,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Handler that must be overridden by concrete implementation
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L267"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L274"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L267" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L274" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1112,9 +1131,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 subscribe to remote peer to receive/send pubsub messages 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L376"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L383"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L376" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L383" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1125,9 +1144,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 handle peer disconnects 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L132"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L139"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L132" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L139" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1139,9 +1158,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L517"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-status/libp2p/protocols/pubsub/pubsub.nim#L523"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L517" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L523" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1160,7 +1179,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-29 08:31:17 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-04 09:41:51 UTC</small>
       </div>
     </div>
   </div>
