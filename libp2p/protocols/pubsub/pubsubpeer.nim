@@ -322,13 +322,11 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
 
   if msg.len <= 0:
     debug "empty message, skipping", p, msg = shortLog(msg)
-    return
-
-  if msg.len > p.maxMessageSize:
+    Future[void].completed()
+  elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
-    return
-
-  if isHighPriority:
+    Future[void].completed()
+  elif isHighPriority:
     p.clearSendPriorityQueue()
     let f = p.sendMsg(msg)
     if not f.finished:
