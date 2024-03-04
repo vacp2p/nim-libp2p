@@ -23,8 +23,8 @@ type
   MuxerError* = object of LPError
   TooManyChannels* = object of MuxerError
 
-  StreamHandler* = proc(conn: Connection): Future[void] {.async: raises: [].}
-  MuxerHandler* = proc(muxer: Muxer): Future[void] {.async: raises: [].}
+  StreamHandler* = proc(conn: Connection): Future[void] {.async: (raises: []).}
+  MuxerHandler* = proc(muxer: Muxer): Future[void] {.async: (raises: []).}
 
   Muxer* = ref object of RootObj
     streamHandler*: StreamHandler
