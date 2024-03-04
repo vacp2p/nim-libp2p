@@ -183,20 +183,8 @@ method init*(f: FloodSub) =
 method publish*(f: FloodSub,
                 topic: string,
                 data: seq[byte]): Future[int] {.async.} =
-  let
-    msg =
-      if f.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
-      else:
-        inc f.msgSeqno
-        Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
-    msgId = f.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish",
-        error = error
-      return 0
-
   # base returns always 0
-  discard await procCall PubSub(f).publish(topic, data, msgId)
+  discard await procCall PubSub(f).publish(topic, data)
 
   trace "Publishing message on topic", data = data.shortLog, topic
 
@@ -209,6 +197,18 @@ method publish*(f: FloodSub,
   if peers.len == 0:
     debug "No peers for topic, skipping publish", topic
     return 0
+
+  let
+    msg =
+      if f.anonymize:
+        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+      else:
+        inc f.msgSeqno
+        Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
+    msgId = f.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      return 0
 
   trace "Created new message",
     msg = shortLog(msg), peers = peers.len, topic, msgId

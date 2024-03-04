@@ -391,7 +391,7 @@ proc validateAndRelay(g: GossipSub,
       else:
         libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
 
-      await handleData(g, topic, msg.data, msgId)
+      await handleData(g, topic, msg.data)
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
@@ -584,25 +584,7 @@ method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte]): Future[int] {.async.} =
   # base returns always 0
-  let
-    msg =
-      if g.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
-      else:
-        inc g.msgSeqno
-        Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msg_id = g.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish",
-        error = error
-      libp2p_gossipsub_failed_publish.inc()
-      return 0
-    msg_hash = g.msgHashProvider(topic, data).valueOr:
-      trace "Error generating message hash, skipping publish",
-        error = error
-      libp2p_gossipsub_failed_publish.inc()
-      return 0
-
-  discard await procCall PubSub(g).publish(topic, data, msg_id)
+  discard await procCall PubSub(g).publish(topic, data)
 
   logScope:
     topic
@@ -666,6 +648,25 @@ method publish*(g: GossipSub,
                                                    topic
     libp2p_gossipsub_failed_publish.inc()
     return 0
+
+  let
+    msg =
+      if g.anonymize:
+        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+      else:
+        inc g.msgSeqno
+        Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
+    msg_id = g.msgIdProvider(msg).valueOr:
+      trace "Error generating message id, skipping publish",
+        error = error
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
+    msg_hash = g.msgHashProvider(topic, data).valueOr:
+      trace "Error generating message hash, skipping publish",
+        error = error
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
+
   logScope:
     msg_id = shortLog(msg_id)
     msg_hash = msg_hash

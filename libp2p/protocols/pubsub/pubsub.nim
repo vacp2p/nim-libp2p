@@ -84,7 +84,7 @@ type
   InitializationError* = object of LPError
 
   TopicHandler* {.public.} = proc(topic: string,
-                       data: seq[byte], msgId: seq[byte]): Future[void] {.gcsafe, raises: [].}
+                                  data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
   ValidatorHandler* {.public.} = proc(topic: string,
                            message: Message): Future[ValidationResult] {.gcsafe, raises: [].}
@@ -314,7 +314,7 @@ method getOrCreatePeer*(
 
   return pubSubPeer
 
-proc handleData*(p: PubSub, topic: string, data: seq[byte], msgId = newSeq[byte]()): Future[void] =
+proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
   # Start work on all data handlers without copying data into closure like
   # happens on {.async.} transformation
   p.topics.withValue(topic, handlers) do:
@@ -322,7 +322,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte], msgId = newSeq[byte]
 
     for handler in handlers[]:
       if handler != nil: # allow nil handlers
-        let fut = handler(topic, data, msgId)
+        let fut = handler(topic, data)
         if not fut.completed(): # Fast path for successful sync handlers
           futs.add(fut)
 
@@ -482,8 +482,7 @@ proc subscribe*(p: PubSub,
 
 method publish*(p: PubSub,
                 topic: string,
-                data: seq[byte],
-                msgId: seq[byte]): Future[int] {.base, async, public.} =
+                data: seq[byte]): Future[int] {.base, async, public.} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
@@ -491,7 +490,7 @@ method publish*(p: PubSub,
   ## attempts - the number of peers that actually receive the message might
   ## be lower.
   if p.triggerSelf:
-    await handleData(p, topic, data, msgId)
+    await handleData(p, topic, data)
 
   return 0
 
