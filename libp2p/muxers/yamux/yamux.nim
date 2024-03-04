@@ -34,7 +34,7 @@ when defined(libp2p_yamux_metrics):
     buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
 
 type
-  YamuxError* = object of CatchableError
+  YamuxError* = object of MuxerError
 
   MsgType = enum
     Data = 0x0
