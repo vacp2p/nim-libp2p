@@ -305,6 +305,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
                       msgId, msgIdSalted: MessageId,
+                      msg_hash: string,
                       peer: PubSubPeer) {.async.} =
   try:
     let validation = await g.validate(msg)
@@ -370,13 +371,15 @@ proc validateAndRelay(g: GossipSub,
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]))
 
     if toSendPeers.len > 0:
-      info "forwarded message to peers", msg_id = shortLog(msgId),
+      info "forwarded message to peers", msg_hash = msg_hash,
+                                         msg_id = shortLog(msgId),
                                          sender_peer_id = peer.peerId,
                                          pubsub_topics = msg.topicIds,
                                          num_peers = toSendPeers.len,
                                          target_peer_ids = toSeq(toSendPeers.mapIt(shortLog(it.peerId)))
     else:
-      info "no peers to forward message", msg_id = shortLog(msgId),
+      info "no peers to forward message", msg_hash = msg_hash,
+                                          msg_id = shortLog(msgId),
                                           sender_peer_id = peer.peerId,
                                           pubsub_topics = msg.topicIds
 
@@ -472,7 +475,17 @@ method rpcHandler*(g: GossipSub,
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
 
-    info "received msg", msg_id = shortLog(msgId), sender_peer_id = peer.peerId
+    if msg.topicIds.len == 0:
+      debug "Dropping message due to message without topics", msg_id = msgId
+      continue
+
+    let msg_hash = g.msgHashProvider(msg.topicIds[0], msg.data).valueOr:
+      debug "Dropping message due to failed message hash generation", msg_id = msgId
+      continue
+
+    info "received msg", msg_hash = msg_hash,
+                         msg_id = shortLog(msgId),
+                         sender_peer_id = peer.peerId
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -522,7 +535,7 @@ method rpcHandler*(g: GossipSub,
     # (eg, pop everything you put in it)
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
-    asyncSpawn g.validateAndRelay(msg, msgId, msgIdSalted, peer)
+    asyncSpawn g.validateAndRelay(msg, msgId, msgIdSalted, msg_hash, peer)
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
@@ -580,6 +593,11 @@ method publish*(g: GossipSub,
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
     msg_id = g.msgIdProvider(msg).valueOr:
       trace "Error generating message id, skipping publish",
+        error = error
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
+    msg_hash = g.msgHashProvider(topic, data).valueOr:
+      trace "Error generating message hash, skipping publish",
         error = error
       libp2p_gossipsub_failed_publish.inc()
       return 0
@@ -648,7 +666,9 @@ method publish*(g: GossipSub,
                                                    topic
     libp2p_gossipsub_failed_publish.inc()
     return 0
-  logScope: msg_id = shortLog(msg_id)
+  logScope:
+    msg_id = shortLog(msg_id)
+    msg_hash = msg_hash
 
   trace "Created new message", msg = shortLog(msg), peers = peers.len
 
