@@ -215,6 +215,10 @@ window.addEventListener("DOMContentLoaded", main2);
   connectionsTimeout: Duration">TcpTransport</a></li>
   <li><a class="reference" href="#TcpTransportError"
     title="TcpTransportError = object of transport.TransportError">TcpTransportError</a></li>
+  <li><a class="reference" href="#TcpTransportTracker"
+    title="TcpTransportTracker = ref object of TrackerBase
+  opened*: uint64
+  closed*: uint64">TcpTransportTracker</a></li>
 
   </ul>
 </li>
@@ -229,7 +233,14 @@ window.addEventListener("DOMContentLoaded", main2);
 <li>
   <a class="reference reference-toplevel" href="#12" id="62">Procs</a>
   <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">new
+      <ul class="simple nested-toc-section">connHandler
+      <li><a class="reference" href="#connHandler%2CTcpTransport%2CStreamTransport%2COpt%5BMultiAddress%5D%2CDirection"
+    title="connHandler(self: TcpTransport; client: StreamTransport;
+            observedAddr: Opt[MultiAddress]; dir: Direction): Future[Connection]">connHandler(self: TcpTransport; client: StreamTransport;
+            observedAddr: Opt[MultiAddress]; dir: Direction): Future[Connection]</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">new
       <li><a class="reference" href="#new%2Ctypedesc%5BTcpTransport%5D%2Cset%5BServerFlags%5D%2CUpgrade"
     title="new(T: typedesc[TcpTransport]; flags: set[ServerFlags] = {}; upgrade: Upgrade;
     connectionsTimeout = 10.minutes): T:type">new(T: typedesc[TcpTransport]; flags: set[ServerFlags] = {}; upgrade: Upgrade;
@@ -319,6 +330,21 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L49"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L49" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="TcpTransportTracker" class="tohide">
+<dt><pre><a href="tcptransport.html#TcpTransportTracker"><span class="Identifier">TcpTransportTracker</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">TrackerBase</span>
+  <span class="Identifier">opened</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint64</span>
+  <span class="Identifier">closed</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint64</span>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
 href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L45"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L45" class="link-seesrc" target="_blank" >Edit</a>
@@ -347,6 +373,21 @@ class="link-seesrc" target="_blank">Source</a>
 <div class="section" id="12">
 <h1><a class="toc-backref" href="#12">Procs</a></h1>
 <dl class="item">
+<div id="connHandler,TcpTransport,StreamTransport,Opt[MultiAddress],Direction" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#connHandler%2CTcpTransport%2CStreamTransport%2COpt%5BMultiAddress%5D%2CDirection"><span class="Identifier">connHandler</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="tcptransport.html#TcpTransport"><span class="Identifier">TcpTransport</span></a><span class="Other">;</span> <span class="Identifier">client</span><span class="Other">:</span> <span class="Identifier">StreamTransport</span><span class="Other">;</span>
+                 <span class="Identifier">observedAddr</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">dir</span><span class="Other">:</span> <a href="../stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
+    <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                  <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L78"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L78" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="new,typedesc[TcpTransport],set[ServerFlags],Upgrade" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BTcpTransport%5D%2Cset%5BServerFlags%5D%2CUpgrade"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="tcptransport.html#TcpTransport"><span class="Identifier">TcpTransport</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">flags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">ServerFlags</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">;</span>
          <span class="Identifier">upgrade</span><span class="Other">:</span> <a href="../connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a><span class="Other">;</span> <span class="Identifier">connectionsTimeout</span> <span class="Other">=</span> <span class="DecNumber">10</span><span class="Other">.</span><span class="Identifier">minutes</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.<span class="Identifier">public</span><span class="Other">,</span>
@@ -355,9 +396,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L105"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L119"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L105" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L119" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -375,9 +416,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 dial a peer 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L249"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L263"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L249" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L263" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -388,9 +429,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L268"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L282"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L268" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L282" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -402,9 +443,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 listen on the transport 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L131"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L145"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L131" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L145" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -415,9 +456,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 stop the transport 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L163"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/transports/tcptransport.nim#L177"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L163" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/tcptransport.nim#L177" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -436,7 +477,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-05 14:46:27 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-05 14:56:36 UTC</small>
       </div>
     </div>
   </div>

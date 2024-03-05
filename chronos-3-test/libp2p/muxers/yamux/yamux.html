@@ -231,12 +231,12 @@ window.addEventListener("DOMContentLoaded", main2);
   recvQueue: seq[byte]
   isReset: bool
   remoteReset: bool
-  closedRemotely: Future[void].Raising([])
+  closedRemotely: Future[void]
   closedLocally: bool
   receivedData: AsyncEvent
   returnedEof: bool">YamuxChannel</a></li>
   <li><a class="reference" href="#YamuxError"
-    title="YamuxError = object of MuxerError">YamuxError</a></li>
+    title="YamuxError = object of CatchableError">YamuxError</a></li>
 
   </ul>
 </li>
@@ -277,12 +277,12 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">close
       <li><a class="reference" href="#close.e%2CYamux"
-    title="close(m: Yamux)">close(m: Yamux)</a></li>
+    title="close(m: Yamux): Future[void]">close(m: Yamux): Future[void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">closeImpl
       <li><a class="reference" href="#closeImpl.e%2CYamuxChannel"
-    title="closeImpl(channel: YamuxChannel)">closeImpl(channel: YamuxChannel)</a></li>
+    title="closeImpl(channel: YamuxChannel): Future[void]">closeImpl(channel: YamuxChannel): Future[void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getStreams
@@ -293,6 +293,11 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple nested-toc-section">getWrapped
       <li><a class="reference" href="#getWrapped.e%2CYamuxChannel"
     title="getWrapped(channel: YamuxChannel): Connection">getWrapped(channel: YamuxChannel): Connection</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">handle
+      <li><a class="reference" href="#handle.e%2CYamux"
+    title="handle(m: Yamux): Future[void]">handle(m: Yamux): Future[void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">newStream
@@ -356,9 +361,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L421"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L391"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L421" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L391" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -377,7 +382,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">recvQueue</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">isReset</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">remoteReset</span><span class="Other">:</span> <span class="Identifier">bool</span>
-  <span class="Identifier">closedRemotely</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span><span class="Other">.</span><span class="Identifier">Raising</span><span class="Other">(</span><span class="Other">[</span><span class="Other">]</span><span class="Other">)</span>
+  <span class="Identifier">closedRemotely</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span>
   <span class="Identifier">closedLocally</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">receivedData</span><span class="Other">:</span> <span class="Identifier">AsyncEvent</span>
   <span class="Identifier">returnedEof</span><span class="Other">:</span> <span class="Identifier">bool</span>
@@ -386,21 +391,21 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L150"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L142"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L150" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L142" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="YamuxError" class="tohide">
-<dt><pre><a href="yamux.html#YamuxError"><span class="Identifier">YamuxError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../muxer.html#MuxerError"><span class="Identifier">MuxerError</span></a></pre></dt>
+<dt><pre><a href="yamux.html#YamuxError"><span class="Identifier">YamuxError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">CatchableError</span></pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L40"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L37"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L40" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L37" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -448,9 +453,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L633"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L575"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L633" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L575" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -461,9 +466,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L310"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L293"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L310" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L293" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -473,27 +478,29 @@ class="link-seesrc" target="_blank">Source</a>
 <h1><a class="toc-backref" href="#14">Methods</a></h1>
 <dl class="item">
 <div id="close.e,Yamux" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CYamux"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="yamux.html#Yamux"><span class="Identifier">Yamux</span></a><span class="Other">)</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CYamux"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="yamux.html#Yamux"><span class="Identifier">Yamux</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L493"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L455"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L493" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L455" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="closeImpl.e,YamuxChannel" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CYamuxChannel"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">channel</span><span class="Other">:</span> <a href="yamux.html#YamuxChannel"><span class="Identifier">YamuxChannel</span></a><span class="Other">)</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CYamuxChannel"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">channel</span><span class="Other">:</span> <a href="yamux.html#YamuxChannel"><span class="Identifier">YamuxChannel</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L205"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L197"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L205" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L197" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -503,9 +510,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L616"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L559"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L616" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L559" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -515,50 +522,64 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L418"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L388"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L418" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L388" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="handle.e,Yamux" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#handle.e%2CYamux"><span class="Identifier">handle</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="yamux.html#Yamux"><span class="Identifier">Yamux</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L481"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L481" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="newStream.e,Yamux,string,bool" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#newStream.e%2CYamux%2Cstring%2Cbool"><span class="Identifier">newStream</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="yamux.html#Yamux"><span class="Identifier">Yamux</span></a><span class="Other">;</span> <span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">;</span> <span class="Identifier">lazy</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <span class="Identifier">LPStreamError</span><span class="Other">,</span> <span class="Identifier">MuxerError</span><span class="Other">]</span></span><span class="Other">)</span><span class="Other">,</span>
-                  <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">TimeEffect</span><span class="Other">]</span></span>.}</pre></dt>
+    <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                  <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L619"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L565"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L619" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L565" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="readOnce.e,YamuxChannel,pointer,int" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CYamuxChannel%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">channel</span><span class="Other">:</span> <a href="yamux.html#YamuxChannel"><span class="Identifier">YamuxChannel</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
-    <span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <span class="Identifier">LPStreamError</span><span class="Other">]</span></span><span class="Other">)</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Read from a yamux channel
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L261"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L254"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L261" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L254" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="write.e,YamuxChannel,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CYamuxChannel%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">channel</span><span class="Other">:</span> <a href="yamux.html#YamuxChannel"><span class="Identifier">YamuxChannel</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <span class="Identifier">LPStreamError</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">raw</span><span class="Other">:</span> <span class="Identifier">true</span><span class="Other">)</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CYamuxChannel%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">channel</span><span class="Other">:</span> <a href="yamux.html#YamuxChannel"><span class="Identifier">YamuxChannel</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Write to yamux channel 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L382"
+href="https://github.com/status-im/nim-libp2p/tree/chronos-3-test/libp2p/muxers/yamux/yamux.nim#L358"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L382" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L358" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -577,7 +598,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-05 14:46:27 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-05 14:56:36 UTC</small>
       </div>
     </div>
   </div>
