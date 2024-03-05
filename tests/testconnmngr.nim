@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -29,11 +29,12 @@ type
     peerId: PeerId
 
 method newStream*(
-  m: TestMuxer,
-  name: string = "",
-  lazy: bool = false):
-  Future[Connection] {.async.} =
-  result = Connection.new(m.peerId, Direction.Out, Opt.none(MultiAddress))
+    m: TestMuxer,
+    name: string = "",
+    lazy: bool = false
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPStreamError, MuxerError]).} =
+  Connection.new(m.peerId, Direction.Out, Opt.none(MultiAddress))
 
 suite "Connection Manager":
   teardown:

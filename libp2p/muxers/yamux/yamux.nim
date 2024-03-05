@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -27,11 +27,14 @@ const
   MaxChannelCount = 200
 
 when defined(libp2p_yamux_metrics):
-  declareGauge(libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"])
-  declareHistogram libp2p_yamux_send_queue, "message send queue length (in byte)",
-    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
-  declareHistogram libp2p_yamux_recv_queue, "message recv queue length (in byte)",
-    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
+  declareGauge libp2p_yamux_channels,
+    "yamux channels", labels = ["initiator", "peer"]
+  declareHistogram libp2p_yamux_send_queue,
+    "message send queue length (in byte)", buckets = [
+      0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
+  declareHistogram libp2p_yamux_recv_queue,
+    "message recv queue length (in byte)", buckets = [
+      0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
 
 type
   YamuxError* = object of MuxerError
@@ -60,7 +63,10 @@ type
     streamId: uint32
     length: uint32
 
-proc readHeader(conn: LPStream): Future[YamuxHeader] {.async.} =
+proc readHeader(
+    conn: LPStream
+): Future[YamuxHeader] {.async: (raises: [
+    CancelledError, LPStreamError, MuxerError]).} =
   var buffer: array[12, byte]
   await conn.readExactly(addr buffer[0], 12)
 
@@ -74,10 +80,10 @@ proc readHeader(conn: LPStream): Future[YamuxHeader] {.async.} =
   return result
 
 proc `$`(header: YamuxHeader): string =
-  result = "{" & $header.msgType & ", "
-  result &= "{" & header.flags.foldl(if a != "": a & ", " & $b else: $b, "") & "}, "
-  result &= "streamId: " & $header.streamId & ", "
-  result &= "length: " & $header.length & "}"
+  "{" & $header.msgType & ", " &
+  "{" & header.flags.foldl(if a != "": a & ", " & $b else: $b, "") & "}, " &
+  "streamId: " & $header.streamId & ", " &
+  "length: " & $header.length & "}"
 
 proc encode(header: YamuxHeader): array[12, byte] =
   result[0] = header.version
@@ -86,10 +92,14 @@ proc encode(header: YamuxHeader): array[12, byte] =
   result[4..7] = toBytesBE(header.streamId)
   result[8..11] = toBytesBE(header.length)
 
-proc write(conn: LPStream, header: YamuxHeader): Future[void] {.gcsafe.} =
+proc write(
+    conn: LPStream,
+    header: YamuxHeader
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   trace "write directly on stream", h = $header
   var buffer = header.encode()
-  return conn.write(@buffer)
+  conn.write(@buffer)
 
 proc ping(T: type[YamuxHeader], flag: MsgFlags, pingData: uint32): T =
   T(
@@ -107,11 +117,10 @@ proc goAway(T: type[YamuxHeader], status: GoAwayStatus): T =
   )
 
 proc data(
-  T: type[YamuxHeader],
-  streamId: uint32,
-  length: uint32 = 0,
-  flags: set[MsgFlags] = {},
-  ): T =
+    T: type[YamuxHeader],
+    streamId: uint32,
+    length: uint32 = 0,
+    flags: set[MsgFlags] = {}): T =
   T(
     version: YamuxVersion,
     msgType: MsgType.Data,
@@ -121,11 +130,10 @@ proc data(
   )
 
 proc windowUpdate(
-  T: type[YamuxHeader],
-  streamId: uint32,
-  delta: uint32,
-  flags: set[MsgFlags] = {},
-  ): T =
+    T: type[YamuxHeader],
+    streamId: uint32,
+    delta: uint32,
+    flags: set[MsgFlags] = {}): T =
   T(
     version: YamuxVersion,
     msgType: MsgType.WindowUpdate,
@@ -138,7 +146,7 @@ type
   ToSend = tuple
     data: seq[byte]
     sent: int
-    fut: Future[void]
+    fut: Future[void].Raising([CancelledError, LPStreamError])
   YamuxChannel* = ref object of Connection
     id: uint32
     recvWindow: int
@@ -153,7 +161,7 @@ type
     recvQueue: seq[byte]
     isReset: bool
     remoteReset: bool
-    closedRemotely: Future[void]
+    closedRemotely: Future[void].Raising([])
     closedLocally: bool
     receivedData: AsyncEvent
     returnedEof: bool
@@ -162,7 +170,7 @@ proc `$`(channel: YamuxChannel): string =
   result = if channel.conn.dir == Out: "=> " else: "<= "
   result &= $channel.id
   var s: seq[string] = @[]
-  if channel.closedRemotely.done():
+  if channel.closedRemotely.completed():
     s.add("ClosedRemotely")
   if channel.closedLocally:
     s.add("ClosedLocally")
@@ -184,17 +192,17 @@ proc lengthSendQueueWithLimit(channel: YamuxChannel): int =
   # 3 big messages if the peer is stalling.
   channel.sendQueue.foldl(a + min(b.data.len - b.sent, channel.maxSendQueueSize div 3), 0)
 
-proc actuallyClose(channel: YamuxChannel) {.async.} =
+proc actuallyClose(channel: YamuxChannel) {.async: (raises: []).} =
   if channel.closedLocally and channel.sendQueue.len == 0 and
-     channel.closedRemotely.done():
+     channel.closedRemotely.completed():
     await procCall Connection(channel).closeImpl()
 
-proc remoteClosed(channel: YamuxChannel) {.async.} =
-  if not channel.closedRemotely.done():
+proc remoteClosed(channel: YamuxChannel) {.async: (raises: []).} =
+  if not channel.closedRemotely.completed():
     channel.closedRemotely.complete()
     await channel.actuallyClose()
 
-method closeImpl*(channel: YamuxChannel) {.async.} =
+method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedLocally:
     channel.closedLocally = true
     channel.isEof = true
@@ -204,7 +212,8 @@ method closeImpl*(channel: YamuxChannel) {.async.} =
       except CancelledError, LPStreamError: discard
     await channel.actuallyClose()
 
-proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
+proc reset(
+    channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).} =
   # If we reset locally, we want to flush up to a maximum of recvWindow
   # bytes. It's because the peer we're connected to can send us data before
   # it receives the reset.
@@ -221,17 +230,18 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async.} =
   if not channel.closedLocally:
     if isLocal and not channel.isSending:
       try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
-      except LPStreamEOFError as exc: discard
-      except LPStreamClosedError as exc: discard
+      except CancelledError, LPStreamError: discard
     await channel.close()
-  if not channel.closedRemotely.done():
+  if not channel.closedRemotely.completed():
     await channel.remoteClosed()
   channel.receivedData.fire()
   if not isLocal:
     # If the reset is remote, there's no reason to flush anything.
     channel.recvWindow = 0
 
-proc updateRecvWindow(channel: YamuxChannel) {.async.} =
+proc updateRecvWindow(
+    channel: YamuxChannel
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Send to the peer a window update when the recvWindow is empty enough
   ##
   # In order to avoid spamming a window update everytime a byte is read,
@@ -249,14 +259,15 @@ proc updateRecvWindow(channel: YamuxChannel) {.async.} =
   trace "increasing the recvWindow", delta
 
 method readOnce*(
-  channel: YamuxChannel,
-  pbytes: pointer,
-  nbytes: int):
-  Future[int] {.async.} =
+    channel: YamuxChannel,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Read from a yamux channel
 
   if channel.isReset:
-    raise if channel.remoteReset:
+    raise
+      if channel.remoteReset:
         newLPStreamResetError()
       elif channel.closedLocally:
         newLPStreamClosedError()
@@ -269,7 +280,7 @@ method readOnce*(
     try:  # https://github.com/status-im/nim-chronos/issues/516
       discard await race(channel.closedRemotely, channel.receivedData.wait())
     except ValueError: raiseAssert("Futures list is not empty")
-    if channel.closedRemotely.done() and channel.recvQueue.len == 0:
+    if channel.closedRemotely.completed() and channel.recvQueue.len == 0:
       channel.returnedEof = true
       channel.isEof = true
       return 0
@@ -277,7 +288,8 @@ method readOnce*(
   let toRead = min(channel.recvQueue.len, nbytes)
 
   var p = cast[ptr UncheckedArray[byte]](pbytes)
-  toOpenArray(p, 0, nbytes - 1)[0..<toRead] = channel.recvQueue.toOpenArray(0, toRead - 1)
+  toOpenArray(p, 0, nbytes - 1)[0..<toRead] =
+    channel.recvQueue.toOpenArray(0, toRead - 1)
   channel.recvQueue = channel.recvQueue[toRead..^1]
 
   # We made some room in the recv buffer let the peer know
@@ -285,7 +297,9 @@ method readOnce*(
   channel.activity = true
   return toRead
 
-proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
+proc gotDataFromRemote(
+    channel: YamuxChannel,
+    b: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
   channel.recvWindow -= b.len
   channel.recvQueue = channel.recvQueue.concat(b)
   channel.receivedData.fire()
@@ -296,7 +310,9 @@ proc gotDataFromRemote(channel: YamuxChannel, b: seq[byte]) {.async.} =
 proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
-proc trySend(channel: YamuxChannel) {.async.} =
+proc trySend(
+    channel: YamuxChannel
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   if channel.isSending:
     return
   channel.isSending = true
@@ -307,12 +323,10 @@ proc trySend(channel: YamuxChannel) {.async.} =
     if channel.sendWindow == 0:
       trace "trying to send while the sendWindow is empty"
       if channel.lengthSendQueueWithLimit() > channel.maxSendQueueSize:
-        trace "channel send queue too big, resetting", maxSendQueueSize=channel.maxSendQueueSize,
+        trace "channel send queue too big, resetting",
+          maxSendQueueSize = channel.maxSendQueueSize,
           currentQueueSize = channel.lengthSendQueueWithLimit()
-        try:
-          await channel.reset(true)
-        except CatchableError as exc:
-          warn "failed to reset", msg=exc.msg
+        await channel.reset(isLocal = true)
       break
 
     let
@@ -329,7 +343,7 @@ proc trySend(channel: YamuxChannel) {.async.} =
 
     sendBuffer[0..<12] = header.encode()
 
-    var futures: seq[Future[void]]
+    var futures: seq[Future[void].Raising([CancelledError, LPStreamError])]
     while inBuffer < toSend:
       # concatenate the different message we try to send into one buffer
       let (data, sent, fut) = channel.sendQueue[0]
@@ -346,8 +360,15 @@ proc trySend(channel: YamuxChannel) {.async.} =
 
     trace "try to send the buffer", h = $header
     channel.sendWindow.dec(toSend)
-    try: await channel.conn.write(sendBuffer)
-    except CatchableError as exc:
+    try:
+      await channel.conn.write(sendBuffer)
+    except CancelledError:
+      trace "cancelled sending the buffer"
+      for fut in futures.items():
+        fut.cancelSoon()
+      await channel.reset()
+      break
+    except LPStreamError as exc:
       trace "failed to send the buffer"
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures.items():
@@ -358,7 +379,11 @@ proc trySend(channel: YamuxChannel) {.async.} =
       fut.complete()
     channel.activity = true
 
-method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
+method write*(
+    channel: YamuxChannel,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   ## Write to yamux channel
   ##
   result = newFuture[void]("Yamux Send")
@@ -376,7 +401,9 @@ method write*(channel: YamuxChannel, msg: seq[byte]): Future[void] =
     libp2p_yamux_send_queue.observe(channel.lengthSendQueue().int64)
   asyncSpawn channel.trySend()
 
-proc open(channel: YamuxChannel) {.async.} =
+proc open(
+    channel: YamuxChannel
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Open a yamux channel by sending a window update with Syn or Ack flag
   ##
   if channel.opened:
@@ -406,21 +433,28 @@ proc lenBySrc(m: Yamux, isSrc: bool): int =
   for v in m.channels.values():
     if v.isSrc == isSrc: result += 1
 
-proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async.} =
-  await channel.join()
+proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
+  try:
+    await channel.join()
+  except CancelledError:
+    discard
   m.channels.del(channel.id)
   when defined(libp2p_yamux_metrics):
-    libp2p_yamux_channels.set(m.lenBySrc(channel.isSrc).int64, [$channel.isSrc, $channel.peerId])
+    libp2p_yamux_channels.set(
+      m.lenBySrc(channel.isSrc).int64, [$channel.isSrc, $channel.peerId])
   if channel.isReset and channel.recvWindow > 0:
     m.flushed[channel.id] = channel.recvWindow
 
-proc createStream(m: Yamux, id: uint32, isSrc: bool,
-                  recvWindow: int, maxSendQueueSize: int): YamuxChannel =
-  # As you can see, during initialization, recvWindow can be larger than maxRecvWindow.
+proc createStream(
+    m: Yamux, id: uint32, isSrc: bool,
+    recvWindow: int, maxSendQueueSize: int): YamuxChannel =
+  # During initialization, recvWindow can be larger than maxRecvWindow.
   # This is because the peer we're connected to will always assume
   # that the initial recvWindow is 256k.
-  # To solve this contradiction, no updateWindow will be sent until recvWindow is less
-  # than maxRecvWindow
+  # To solve this contradiction, no updateWindow will be sent until
+  # recvWindow is less than maxRecvWindow
+  proc newClosedRemotelyFut(): Future[void] {.async: (raises: [], raw: true).} =
+    newFuture[void]()
   var stream = YamuxChannel(
     id: id,
     maxRecvWindow: recvWindow,
@@ -430,7 +464,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool,
     isSrc: isSrc,
     conn: m.connection,
     receivedData: newAsyncEvent(),
-    closedRemotely: newFuture[void]()
+    closedRemotely: newClosedRemotelyFut()
   )
   stream.objName = "YamuxStream"
   if isSrc:
@@ -439,9 +473,10 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool,
   else:
     stream.dir = Direction.In
     stream.timeout = m.inTimeout
-  stream.timeoutHandler = proc(): Future[void] {.gcsafe.} =
-    trace "Idle timeout expired, resetting YamuxChannel"
-    stream.reset(true)
+  stream.timeoutHandler =
+    proc(): Future[void] {.async: (raises: [], raw: true).} =
+      trace "Idle timeout expired, resetting YamuxChannel"
+      stream.reset(isLocal = true)
   stream.initStream()
   stream.peerId = m.connection.peerId
   stream.observedAddr = m.connection.observedAddr
@@ -455,7 +490,7 @@ proc createStream(m: Yamux, id: uint32, isSrc: bool,
     libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $stream.peerId])
   return stream
 
-method close*(m: Yamux) {.async.} =
+method close*(m: Yamux) {.async: (raises: []).} =
   if m.isClosed == true:
     trace "Already closed"
     return
@@ -464,24 +499,21 @@ method close*(m: Yamux) {.async.} =
   trace "Closing yamux"
   let channels = toSeq(m.channels.values())
   for channel in channels:
-    await channel.reset(true)
+    await channel.reset(isLocal = true)
   try: await m.connection.write(YamuxHeader.goAway(NormalTermination))
-  except CatchableError as exc: trace "failed to send goAway", msg=exc.msg
+  except CancelledError as exc: trace "cancelled sending goAway", msg = exc.msg
+  except LPStreamError as exc: trace "failed to send goAway", msg = exc.msg
   await m.connection.close()
   trace "Closed yamux"
 
-proc handleStream(m: Yamux, channel: YamuxChannel) {.async.} =
+proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   ## Call the muxer stream handler for this channel
   ##
-  try:
-    await m.streamHandler(channel)
-    trace "finished handling stream"
-    doAssert(channel.isClosed, "connection not closed by handler!")
-  except CatchableError as exc:
-    trace "Exception in yamux stream handler", msg = exc.msg
-    await channel.reset()
+  await m.streamHandler(channel)
+  trace "finished handling stream"
+  doAssert(channel.isClosed, "connection not closed by handler!")
 
-method handle*(m: Yamux) {.async.} =
+method handle*(m: Yamux) {.async: (raises: []).} =
   trace "Starting yamux handler", pid=m.connection.peerId
   try:
     while not m.connection.atEof:
@@ -559,11 +591,24 @@ method handle*(m: Yamux) {.async.} =
         if MsgFlags.Rst in header.flags:
           trace "remote reset channel"
           await channel.reset()
+  except CancelledError as exc:
+    debug "Unexpected cancellation in yamux handler", msg = exc.msg
   except LPStreamEOFError as exc:
     trace "Stream EOF", msg = exc.msg
+  except LPStreamError as exc:
+    debug "Unexpected stream exception in yamux read loop", msg = exc.msg
   except YamuxError as exc:
     trace "Closing yamux connection", error=exc.msg
-    await m.connection.write(YamuxHeader.goAway(ProtocolError))
+    try:
+      await m.connection.write(YamuxHeader.goAway(ProtocolError))
+    except CancelledError, LPStreamError:
+      discard
+  except MuxerError as exc:
+    debug "Unexpected muxer exception in yamux read loop", msg = exc.msg
+    try:
+      await m.connection.write(YamuxHeader.goAway(ProtocolError))
+    except CancelledError, LPStreamError:
+      discard
   finally:
     await m.close()
   trace "Stopped yamux handler"
@@ -572,10 +617,11 @@ method getStreams*(m: Yamux): seq[Connection] =
   for c in m.channels.values: result.add(c)
 
 method newStream*(
-  m: Yamux,
-  name: string = "",
-  lazy: bool = false): Future[Connection] {.async.} =
-
+    m: Yamux,
+    name: string = "",
+    lazy: bool = false
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPStreamError, MuxerError]).} =
   if m.channels.len > m.maxChannCount - 1:
     raise newException(TooManyChannels, "max allowed channel count exceeded")
   let stream = m.createStream(m.currentId, true, m.windowSize, m.maxSendQueueSize)
@@ -584,12 +630,13 @@ method newStream*(
     await stream.open()
   return stream
 
-proc new*(T: type[Yamux], conn: Connection,
-          maxChannCount: int = MaxChannelCount,
-          windowSize: int = YamuxDefaultWindowSize,
-          maxSendQueueSize: int = MaxSendQueueSize,
-          inTimeout: Duration = 5.minutes,
-          outTimeout: Duration = 5.minutes): T =
+proc new*(
+    T: type[Yamux], conn: Connection,
+    maxChannCount: int = MaxChannelCount,
+    windowSize: int = YamuxDefaultWindowSize,
+    maxSendQueueSize: int = MaxSendQueueSize,
+    inTimeout: Duration = 5.minutes,
+    outTimeout: Duration = 5.minutes): T =
   T(
     connection: conn,
     currentId: if conn.dir == Out: 1 else: 2,

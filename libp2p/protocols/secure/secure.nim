@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -37,18 +37,19 @@ type
 
 func shortLog*(conn: SecureConn): auto =
   try:
-    if conn.isNil: "SecureConn(nil)"
+    if conn == nil: "SecureConn(nil)"
     else: &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
 chronicles.formatIt(SecureConn): shortLog(it)
 
-proc new*(T: type SecureConn,
-           conn: Connection,
-           peerId: PeerId,
-           observedAddr: Opt[MultiAddress],
-           timeout: Duration = DefaultConnectionTimeout): T =
+proc new*(
+    T: type SecureConn,
+    conn: Connection,
+    peerId: PeerId,
+    observedAddr: Opt[MultiAddress],
+    timeout: Duration = DefaultConnectionTimeout): T =
   result = T(stream: conn,
              peerId: peerId,
              observedAddr: observedAddr,
@@ -63,15 +64,18 @@ method initStream*(s: SecureConn) =
 
   procCall Connection(s).initStream()
 
-method closeImpl*(s: SecureConn) {.async.} =
+method closeImpl*(s: SecureConn) {.async: (raises: []).} =
   trace "Closing secure conn", s, dir = s.dir
-  if not(isNil(s.stream)):
+  if s.stream != nil:
     await s.stream.close()
 
   await procCall Connection(s).closeImpl()
 
-method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
-  doAssert(false, "Not implemented!")
+method readMessage*(
+    c: SecureConn
+): Future[seq[byte]] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true), base.} =
+  raiseAssert("Not implemented!")
 
 method getWrapped*(s: SecureConn): Connection = s.stream
 
@@ -79,12 +83,12 @@ method handshake*(s: Secure,
                   conn: Connection,
                   initiator: bool,
                   peerId: Opt[PeerId]): Future[SecureConn] {.async, base.} =
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 proc handleConn(s: Secure,
-                 conn: Connection,
-                 initiator: bool,
-                 peerId: Opt[PeerId]): Future[Connection] {.async.} =
+                conn: Connection,
+                initiator: bool,
+                peerId: Opt[PeerId]): Future[Connection] {.async.} =
   var sconn = await s.handshake(conn, initiator, peerId)
   # mark connection bottom level transport direction
   # this is the safest place to do this
@@ -122,7 +126,7 @@ proc handleConn(s: Secure,
       # do not need to propagate CancelledError.
       discard
 
-  if not isNil(sconn):
+  if sconn != nil:
     # All the errors are handled inside `cleanup()` procedure.
     asyncSpawn cleanup()
 
@@ -154,10 +158,11 @@ method secure*(s: Secure,
                Future[Connection] {.base.} =
   s.handleConn(conn, conn.dir == Direction.Out, peerId)
 
-method readOnce*(s: SecureConn,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: SecureConn,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
 
   if s.isEof:
@@ -174,7 +179,7 @@ method readOnce*(s: SecureConn,
       raise err
     except CancelledError as exc:
       raise exc
-    except CatchableError as err:
+    except LPStreamError as err:
       debug "Error while reading message from secure connection, closing.",
         error = err.name,
         message = err.msg,

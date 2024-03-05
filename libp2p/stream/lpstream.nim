@@ -23,8 +23,8 @@ import ../varint,
 
 export errors
 
-declareGauge(libp2p_open_streams,
-  "open stream instances", labels = ["type", "dir"])
+declareGauge libp2p_open_streams,
+  "open stream instances", labels = ["type", "dir"]
 
 export oids
 
@@ -98,8 +98,9 @@ proc newLPStreamConnDownError*(
     parentException)
 
 func shortLog*(s: LPStream): auto =
-  if s.isNil: "LPStream(nil)"
+  if s == nil: "LPStream(nil)"
   else: $s.oid
+
 chronicles.formatIt(LPStream): shortLog(it)
 
 method initStream*(s: LPStream) {.base.} =
@@ -126,19 +127,21 @@ method atEof*(s: LPStream): bool {.base, public.} =
   s.isEof
 
 method readOnce*(
-  s: LPStream,
-  pbytes: pointer,
-  nbytes: int):
-  Future[int] {.base, async, public.} =
+    s: LPStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.base, async: (raises: [
+    CancelledError, LPStreamError], raw: true), public.} =
   ## Reads whatever is available in the stream,
   ## up to `nbytes`. Will block if nothing is
   ## available
-  doAssert(false, "not implemented!")
+  raiseAssert("Not implemented!")
 
-proc readExactly*(s: LPStream,
-                  pbytes: pointer,
-                  nbytes: int):
-                  Future[void] {.async, public.} =
+proc readExactly*(
+    s: LPStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## Waits for `nbytes` to be available, then read
   ## them and return them
   if s.atEof:
@@ -172,10 +175,11 @@ proc readExactly*(s: LPStream,
     trace "couldn't read all bytes, incomplete data", s, nbytes, read
     raise newLPStreamIncompleteError()
 
-proc readLine*(s: LPStream,
-               limit = 0,
-               sep = "\r\n"): Future[string]
-               {.async, public.} =
+proc readLine*(
+    s: LPStream,
+    limit = 0,
+    sep = "\r\n"
+): Future[string] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## Reads up to `limit` bytes are read, or a `sep` is found
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
@@ -201,7 +205,9 @@ proc readLine*(s: LPStream,
       if len(result) == lim:
         break
 
-proc readVarint*(conn: LPStream): Future[uint64] {.async, public.} =
+proc readVarint*(
+    conn: LPStream
+): Future[uint64] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   var
     buffer: array[10, byte]
 
@@ -219,7 +225,11 @@ proc readVarint*(conn: LPStream): Future[uint64] {.async, public.} =
   if true: # can't end with a raise apparently
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
-proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, public.} =
+proc readLp*(
+    s: LPStream,
+    maxSize: int
+): Future[seq[byte]] {.async: (raises: [
+    CancelledError, LPStreamError]), public.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await s.readVarint()
@@ -233,13 +243,21 @@ proc readLp*(s: LPStream, maxSize: int): Future[seq[byte]] {.async, public.} =
 
   var res = newSeqUninitialized[byte](length)
   await s.readExactly(addr res[0], res.len)
-  return res
+  res
 
-method write*(s: LPStream, msg: seq[byte]): Future[void] {.base, public.} =
+method write*(
+    s: LPStream,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true), base, public.} =
   # Write `msg` to stream, waiting for the write to be finished
-  doAssert(false, "not implemented!")
+  raiseAssert("Not implemented!")
 
-proc writeLp*(s: LPStream, msg: openArray[byte]): Future[void] {.public.} =
+proc writeLp*(
+    s: LPStream,
+    msg: openArray[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true), public.} =
   ## Write `msg` with a varint-encoded length prefix
   let vbytes = PB.toBytes(msg.len().uint64)
   var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
@@ -247,35 +265,53 @@ proc writeLp*(s: LPStream, msg: openArray[byte]): Future[void] {.public.} =
   buf[vbytes.len..<buf.len] = msg
   s.write(buf)
 
-proc writeLp*(s: LPStream, msg: string): Future[void] {.public.} =
+proc writeLp*(
+    s: LPStream,
+    msg: string
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true), public.} =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
 
-proc write*(s: LPStream, msg: string): Future[void] {.public.} =
+proc write*(
+    s: LPStream,
+    msg: string
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true), public.} =
   s.write(msg.toBytes())
 
-method closeImpl*(s: LPStream): Future[void] {.async, base.} =
+method closeImpl*(
+    s: LPStream
+): Future[void] {.async: (raises: [], raw: true), base.} =
   ## Implementation of close - called only once
   trace "Closing stream", s, objName = s.objName, dir = $s.dir
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
   untrackCounter(s.objName)
   s.closeEvent.fire()
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
 
-method close*(s: LPStream): Future[void] {.base, async, public.} = # {.raises [Defect].}
+method close*(
+    s: LPStream
+): Future[void] {.async: (raises: [], raw: true), base, public.} =
   ## close the stream - this may block, but will not raise exceptions
   ##
   if s.isClosed:
     trace "Already closed", s
-    return
+    let fut = newFuture[void]()
+    fut.complete()
+    return fut
 
   s.isClosed = true # Set flag before performing virtual close
 
-  # An separate implementation method is used so that even when derived types
+  # A separate implementation method is used so that even when derived types
   # override `closeImpl`, it is called only once - anyone overriding `close`
   # itself must implement this - once-only check as well, with their own field
-  await closeImpl(s)
+  closeImpl(s)
 
-proc closeWithEOF*(s: LPStream): Future[void] {.async, public.} =
+proc closeWithEOF*(
+    s: LPStream): Future[void] {.async: (raises: []), public.} =
   ## Close the stream and wait for EOF - use this with half-closed streams where
   ## an EOF is expected to arrive from the other end.
   ##
@@ -304,9 +340,9 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async, public.} =
     var buf: array[8, byte]
     if (await readOnce(s, addr buf[0], buf.len)) != 0:
       debug "Unexpected bytes while waiting for EOF", s
+  except CancelledError:
+    discard
   except LPStreamEOFError:
     trace "Expected EOF came", s
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     debug "Unexpected error while waiting for EOF", s, msg = exc.msg

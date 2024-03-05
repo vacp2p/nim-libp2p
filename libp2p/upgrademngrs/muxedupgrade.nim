@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -31,8 +31,8 @@ proc getMuxerByCodec(self: MuxedUpgrade, muxerName: string): MuxerProvider =
       return m
 
 proc mux*(
-  self: MuxedUpgrade,
-  conn: Connection): Future[Muxer] {.async.} =
+    self: MuxedUpgrade,
+    conn: Connection): Future[Muxer] {.async.} =
   ## mux connection
 
   trace "Muxing connection", conn
@@ -59,13 +59,13 @@ proc mux*(
   return muxer
 
 method upgrade*(
-  self: MuxedUpgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Muxer] {.async.} =
+    self: MuxedUpgrade,
+    conn: Connection,
+    peerId: Opt[PeerId]): Future[Muxer] {.async.} =
   trace "Upgrading connection", conn, direction = conn.dir
 
   let sconn = await self.secure(conn, peerId) # secure the connection
-  if isNil(sconn):
+  if sconn == nil:
     raise newException(UpgradeFailedError,
       "unable to secure connection, stopping upgrade")
 
@@ -86,22 +86,21 @@ method upgrade*(
   return muxer
 
 proc new*(
-  T: type MuxedUpgrade,
-  muxers: seq[MuxerProvider],
-  secureManagers: openArray[Secure] = [],
-  ms: MultistreamSelect): T =
-
+    T: type MuxedUpgrade,
+    muxers: seq[MuxerProvider],
+    secureManagers: openArray[Secure] = [],
+    ms: MultistreamSelect): T =
   let upgrader = T(
     muxers: muxers,
     secureManagers: @secureManagers,
     ms: ms)
 
-  upgrader.streamHandler = proc(conn: Connection) {.async.} =
+  upgrader.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
     trace "Starting stream handler", conn
     try:
       await upgrader.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
-      raise exc
+      return
     except CatchableError as exc:
       trace "exception in stream handler", conn, msg = exc.msg
     finally:

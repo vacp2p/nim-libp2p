@@ -76,11 +76,18 @@ template rng*(): ref HmacDrbgContext =
   getRng()
 
 type
-  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe, raises: [].}
+  WriteHandler* = proc(
+      data: seq[byte]
+  ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).}
+
   TestBufferStream* = ref object of BufferStream
     writeHandler*: WriteHandler
 
-method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
+method write*(
+    s: TestBufferStream,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   s.writeHandler(msg)
 
 method getWrapped*(s: TestBufferStream): Connection = nil
@@ -98,11 +105,15 @@ proc bridgedConnections*: (Connection, Connection) =
   connB.dir = Direction.In
   connA.initStream()
   connB.initStream()
-  connA.writeHandler = proc(data: seq[byte]) {.async.} =
-    await connB.pushData(data)
+  connA.writeHandler =
+    proc(data: seq[byte]) {.async: (raises: [
+        CancelledError, LPStreamError], raw: true).} =
+      connB.pushData(data)
 
-  connB.writeHandler = proc(data: seq[byte]) {.async.} =
-    await connA.pushData(data)
+  connB.writeHandler =
+    proc(data: seq[byte]) {.async: (raises: [
+        CancelledError, LPStreamError], raw: true).} =
+      connA.pushData(data)
   return (connA, connB)
 
 macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =

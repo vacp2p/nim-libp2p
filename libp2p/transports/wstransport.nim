@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -44,11 +44,12 @@ method initStream*(s: WsStream) =
 
   procCall Connection(s).initStream()
 
-proc new*(T: type WsStream,
-           session: WSSession,
-           dir: Direction,
-           observedAddr: Opt[MultiAddress],
-           timeout = 10.minutes): T =
+proc new*(
+    T: type WsStream,
+    session: WSSession,
+    dir: Direction,
+    observedAddr: Opt[MultiAddress],
+    timeout = 10.minutes): T =
 
   let stream = T(
     session: session,
@@ -76,9 +77,10 @@ template mapExceptions(body: untyped) =
     raise newLPStreamEOFError()
 
 method readOnce*(
-  s: WsStream,
-  pbytes: pointer,
-  nbytes: int): Future[int] {.async.} =
+    s: WsStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   let res = mapExceptions(await s.session.recv(pbytes, nbytes))
 
   if res == 0 and s.session.readyState == ReadyState.Closed:
@@ -87,13 +89,17 @@ method readOnce*(
   return res
 
 method write*(
-  s: WsStream,
-  msg: seq[byte]): Future[void] {.async.} =
+    s: WsStream,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   mapExceptions(await s.session.send(msg, Opcode.Binary))
   s.activity = true # reset activity flag
 
-method closeImpl*(s: WsStream): Future[void] {.async.} =
-  await s.session.close()
+method closeImpl*(s: WsStream): Future[void] {.async: (raises: []).} =
+  try:
+    await s.session.close()
+  except CatchableError:
+    discard
   await procCall Connection(s).closeImpl()
 
 method getWrapped*(s: WsStream): Connection = nil
@@ -140,7 +146,7 @@ method start*(
       if WSS.match(ma):
         if self.secure: true
         else:
-          warn "Trying to listen on a WSS address without setting the certificate!"
+          warn "Trying to listen on a WSS address without setting certificate!"
           false
       else: false
 
