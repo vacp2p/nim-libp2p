@@ -31,6 +31,10 @@ when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_skipped_received_messages, "number of received skipped messages", labels = ["id"])
   declareCounter(libp2p_pubsub_skipped_sent_messages, "number of sent skipped messages", labels = ["id"])
 
+when defined(pubsubpeer_queue_metrics):
+  declareGauge(libp2p_gossipsub_priority_queue_size, "the number of messages in the priority queue", labels = ["id"])
+  declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id"])
+
 type
   PeerRateLimitError* = object of CatchableError
 
@@ -48,6 +52,14 @@ type
   GetConn* = proc(): Future[Connection] {.gcsafe, raises: [].}
   DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [].} # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
+
+  RpcMessageQueue* = ref object
+    # Tracks async tasks for sending high-priority peer-published messages.
+    sendPriorityQueue: Deque[Future[void]]
+    # Queue for lower-priority messages, like "IWANT" replies and relay messages.
+    nonPriorityQueue: AsyncQueue[seq[byte]]
+    # Task for processing non-priority message queue.
+    sendNonPriorityTask: Future[void]
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn                   # callback to establish a new send connection
@@ -70,6 +82,8 @@ type
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
 
+    rpcmessagequeue: RpcMessageQueue
+
   RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
 
@@ -81,6 +95,16 @@ when defined(libp2p_agents_metrics):
       #TODO the sendConn is setup before identify,
       #so we have to read the parents short agent..
       p.sendConn.getWrapped().shortAgent
+
+proc getAgent*(peer: PubSubPeer): string =
+  return
+    when defined(libp2p_agents_metrics):
+      if peer.shortAgent.len > 0:
+        peer.shortAgent
+      else:
+        "unknown"
+    else:
+      "unknown"
 
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash
@@ -227,17 +251,40 @@ template sendMetrics(msg: RPCMsg): untyped =
         # metrics
         libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.async.} =
-  doAssert(not isNil(p), "pubsubpeer nil!")
+proc clearSendPriorityQueue(p: PubSubPeer) =
+  if p.rpcmessagequeue.sendPriorityQueue.len == 0:
+    return # fast path
 
-  if msg.len <= 0:
-    debug "empty message, skipping", p, msg = shortLog(msg)
-    return
+  while p.rpcmessagequeue.sendPriorityQueue.len > 0 and
+      p.rpcmessagequeue.sendPriorityQueue[0].finished:
+    discard p.rpcmessagequeue.sendPriorityQueue.popFirst()
 
-  if msg.len > p.maxMessageSize:
-    info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
-    return
+  while p.rpcmessagequeue.sendPriorityQueue.len > 0 and
+      p.rpcmessagequeue.sendPriorityQueue[^1].finished:
+    discard p.rpcmessagequeue.sendPriorityQueue.popLast()
 
+  when defined(pubsubpeer_queue_metrics):
+    libp2p_gossipsub_priority_queue_size.set(
+      value = p.rpcmessagequeue.sendPriorityQueue.len.int64,
+      labelValues = [$p.peerId])
+
+proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
+  # Continuation for a pending `sendMsg` future from below
+  try:
+    await msgFut
+    trace "sent pubsub message to remote", conn
+  except CatchableError as exc: # never cancelled
+    # Because we detach the send call from the currently executing task using
+    # asyncSpawn, no exceptions may leak out of it
+    trace "Unable to send to remote", conn, msg = exc.msg
+    # Next time sendConn is used, it will be have its close flag set and thus
+    # will be recycled
+
+    await conn.close() # This will clean up the send connection
+
+proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
+  # Slow path of `sendMsg` where msg is held in memory while send connection is
+  # being set up
   if p.sendConn == nil:
     # Wait for a send conn to be setup. `connectOnce` will
     # complete this even if the sendConn setup failed
@@ -248,19 +295,53 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte]) {.async.} =
     debug "No send connection", p, msg = shortLog(msg)
     return
 
-  trace "sending encoded msgs to peer", conn, encoded = shortLog(msg)
+  trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+  await sendMsgContinue(conn, conn.writeLp(msg))
 
-  try:
-    await conn.writeLp(msg)
-    trace "sent pubsub message to remote", conn
-  except CatchableError as exc: # never cancelled
-    # Because we detach the send call from the currently executing task using
-    # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, msg = exc.msg
-    # Next time sendConn is used, it will be have its close flag set and thus
-    # will be recycled
+proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
+  if p.sendConn != nil and not p.sendConn.closed():
+    # Fast path that avoids copying msg (which happens for {.async.})
+    let conn = p.sendConn
 
-    await conn.close() # This will clean up the send connection
+    trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+    let f = conn.writeLp(msg)
+    if not f.completed():
+      sendMsgContinue(conn, f)
+    else:
+      f
+  else:
+    sendMsgSlow(p, msg)
+
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[void] =
+  ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
+  ## - `msg`: The message to be sent, encoded as a sequence of bytes (`seq[byte]`).
+  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
+  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
+  ## priority messages have been sent.
+  doAssert(not isNil(p), "pubsubpeer nil!")
+
+  if msg.len <= 0:
+    debug "empty message, skipping", p, msg = shortLog(msg)
+    Future[void].completed()
+  elif msg.len > p.maxMessageSize:
+    info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
+    Future[void].completed()
+  elif isHighPriority:
+    p.clearSendPriorityQueue()
+    let f = p.sendMsg(msg)
+    if not f.finished:
+      p.rpcmessagequeue.sendPriorityQueue.addLast(f)
+      when defined(pubsubpeer_queue_metrics):
+        libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
+    f
+  else:
+    let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
+    f
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
   ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
@@ -297,7 +378,16 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
   else:
     trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.raises: [].} =
+  ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
+  ## - `msg`: The `RPCMsg` instance representing the message to be sent.
+  ## - `anonymize`: A boolean flag indicating whether the message should be sent with anonymization.
+  ## - `isHighPriority`: A boolean flag indicating whether the message should be treated as high priority.
+  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
+  ## priority messages have been sent.
   # When sending messages, we take care to re-encode them with the right
   # anonymization flag to ensure that we're not penalized for sending invalid
   # or malicious data on the wire - in particular, re-encoding protects against
@@ -317,11 +407,11 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool) {.raises: [].} =
 
   if encoded.len > p.maxMessageSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
-      asyncSpawn p.sendEncoded(encodedSplitMsg)
+      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority)
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    asyncSpawn p.sendEncoded(encoded)
+    asyncSpawn p.sendEncoded(encoded, isHighPriority)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -329,6 +419,45 @@ proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
       sentIHave.excl(msgId)
       return true
   return false
+
+proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
+  while true:
+     # we send non-priority messages only if there are no pending priority messages
+     let msg = await p.rpcmessagequeue.nonPriorityQueue.popFirst()
+     while p.rpcmessagequeue.sendPriorityQueue.len > 0:
+       p.clearSendPriorityQueue()
+       # waiting for the last future minimizes the number of times we have to
+       # wait for something (each wait = performance cost) -
+       # clearSendPriorityQueue ensures we're not waiting for an already-finished
+       # future
+       if p.rpcmessagequeue.sendPriorityQueue.len > 0:
+        await p.rpcmessagequeue.sendPriorityQueue[^1]
+     when defined(pubsubpeer_queue_metrics):
+       libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
+     await p.sendMsg(msg)
+
+proc startSendNonPriorityTask(p: PubSubPeer) =
+  debug "starting sendNonPriorityTask", p
+  if p.rpcmessagequeue.sendNonPriorityTask.isNil:
+    p.rpcmessagequeue.sendNonPriorityTask = p.sendNonPriorityTask()
+
+proc stopSendNonPriorityTask*(p: PubSubPeer) =
+  if not p.rpcmessagequeue.sendNonPriorityTask.isNil:
+    debug "stopping sendNonPriorityTask", p
+    p.rpcmessagequeue.sendNonPriorityTask.cancelSoon()
+    p.rpcmessagequeue.sendNonPriorityTask = nil
+    p.rpcmessagequeue.sendPriorityQueue.clear()
+    p.rpcmessagequeue.nonPriorityQueue.clear()
+
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+      libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+
+proc new(T: typedesc[RpcMessageQueue]): T =
+  return T(
+    sendPriorityQueue: initDeque[Future[void]](),
+    nonPriorityQueue: newAsyncQueue[seq[byte]](),
+  )
 
 proc new*(
   T: typedesc[PubSubPeer],
@@ -346,17 +475,9 @@ proc new*(
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
-    overheadRateLimitOpt: overheadRateLimitOpt
+    overheadRateLimitOpt: overheadRateLimitOpt,
+    rpcmessagequeue: RpcMessageQueue.new(),
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))
-
-proc getAgent*(peer: PubSubPeer): string =
-  return
-    when defined(libp2p_agents_metrics):
-      if peer.shortAgent.len > 0:
-        peer.shortAgent
-      else:
-        "unknown"
-    else:
-      "unknown"
+  result.startSendNonPriorityTask()
