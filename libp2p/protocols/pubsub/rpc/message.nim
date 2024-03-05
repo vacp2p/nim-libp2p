@@ -63,7 +63,7 @@ proc init*(
     seqno: Option[uint64],
     sign: bool = true): Message
     {.gcsafe, raises: [LPError].} =
-  var msg = Message(data: data, topicIDs: @[topic])
+  var msg = Message(data: data, topicId: topic)
 
   # order matters, we want to include seqno in the signature
   seqno.withValue(seqn):
@@ -87,7 +87,7 @@ proc init*(
     topic: string,
     seqno: Option[uint64]): Message
     {.gcsafe, raises: [LPError].} =
-  var msg = Message(data: data, topicIDs: @[topic])
+  var msg = Message(data: data, topicId: topic)
   msg.fromPeer = peerId
 
   seqno.withValue(seqn):

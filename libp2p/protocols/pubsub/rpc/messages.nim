@@ -37,13 +37,13 @@ type
 
     MessageId* = seq[byte]
 
-    Message* = object
-      fromPeer*: PeerId
-      data*: seq[byte]
-      seqno*: seq[byte]
-      topicIds*: seq[string]
-      signature*: seq[byte]
-      key*: seq[byte]
+  Message* = object
+    fromPeer*: PeerId
+    data*: seq[byte]
+    seqno*: seq[byte]
+    topicId*: string
+    signature*: seq[byte]
+    key*: seq[byte]
 
     ControlMessage* = object
       ihave*: seq[ControlIHave]
@@ -113,7 +113,7 @@ func shortLog*(msg: Message): auto =
     fromPeer: msg.fromPeer.shortLog,
     data: msg.data.shortLog,
     seqno: msg.seqno.shortLog,
-    topicIds: $msg.topicIds,
+    topicId: $msg.topicId,
     signature: msg.signature.shortLog,
     key: msg.key.shortLog
   )
@@ -133,10 +133,10 @@ static: expectedFields(SubOpts, @["subscribe", "topic"])
 proc byteSize(subOpts: SubOpts): int =
   1 + subOpts.topic.len # 1 byte for the bool
 
-static: expectedFields(Message, @["fromPeer", "data", "seqno", "topicIds", "signature", "key"])
+static: expectedFields(Message, @["fromPeer", "data", "seqno", "topicId", "signature", "key"])
 proc byteSize*(msg: Message): int =
-  msg.fromPeer.len + msg.data.len + msg.seqno.len +
-         msg.signature.len + msg.key.len + msg.topicIds.foldl(a + b.len, 0)
+  msg.fromPeer.len + msg.data.len + msg.seqno.len + msg.signature.len + msg.key.len +
+    msg.topicId.len
 
 proc byteSize*(msgs: seq[Message]): int =
   msgs.foldl(a + b.byteSize, 0)

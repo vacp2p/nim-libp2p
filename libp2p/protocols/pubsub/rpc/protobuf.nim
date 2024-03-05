@@ -110,8 +110,7 @@ proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   pb.write(2, msg.data)
   if len(msg.seqno) > 0 and not anonymize:
     pb.write(3, msg.seqno)
-  for topic in msg.topicIds:
-    pb.write(4, topic)
+  pb.write(4, msg.topicId)
   if len(msg.signature) > 0 and not anonymize:
     pb.write(5, msg.signature)
   if len(msg.key) > 0 and not anonymize:
@@ -286,10 +285,10 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
     trace "decodeMessage: read seqno", seqno = msg.seqno
   else:
     trace "decodeMessage: seqno is missing"
-  if ? pb.getRepeatedField(4, msg.topicIds):
-    trace "decodeMessage: read topics", topic_ids = msg.topicIds
+  if ?pb.getRepeatedField(4, msg.topicId):
+    trace "decodeMessage: read topic", topic_id = msg.topicId
   else:
-    trace "decodeMessage: topics are missing"
+    trace "decodeMessage: topic is missing"
   if ? pb.getField(5, msg.signature):
     trace "decodeMessage: read signature", signature = msg.signature.shortLog()
   else:

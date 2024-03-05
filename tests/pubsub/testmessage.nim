@@ -75,14 +75,17 @@ suite "Message":
       msgIdResult.error == ValidationResult.Reject
 
   test "byteSize for RPCMsg":
-    var msg = Message(
-      fromPeer: PeerId(data: @['a'.byte, 'b'.byte]),  # 2 bytes
-      data: @[1'u8, 2, 3],  # 3 bytes
-      seqno: @[4'u8, 5],  # 2 bytes
-      signature: @['c'.byte, 'd'.byte],  # 2 bytes
-      key: @[6'u8, 7],  # 2 bytes
-      topicIds: @["abc", "defgh"]  # 3 + 5 = 8 bytes
-    )
+    var
+      msg =
+        Message(
+          fromPeer: PeerId(data: @['a'.byte, 'b'.byte]), # 2 bytes
+          data: @[1'u8, 2, 3], # 3 bytes
+          seqno: @[4'u8, 5], # 2 bytes
+          signature: @['c'.byte, 'd'.byte], # 2 bytes
+          key: @[6'u8, 7], # 2 bytes
+          topicId: "abc" # 3 bytes
+          ,
+        )
 
     var peerInfo = PeerInfoMsg(
       peerId: PeerId(data: @['e'.byte]),  # 1 byte
@@ -124,4 +127,4 @@ suite "Message":
       control: some(control)  # 12 + 3 + 3 + 17 + 3 = 38 bytes
     )
 
-    check byteSize(rpcMsg) == 28 + 38 + 2 + 2 + 38  # Total: 108 bytes
+    check byteSize(rpcMsg) == 28 + 38 + 2 + 2 + 38 # Total: 108 bytes

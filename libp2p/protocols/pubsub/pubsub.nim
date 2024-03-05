@@ -181,11 +181,11 @@ proc broadcast*(
         libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = ["generic"])
 
   for smsg in msg.messages:
-    for topic in smsg.topicIds:
-      if p.knownTopics.contains(topic):
-        libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
-      else:
-        libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
+    let topic = smsg.topicId
+    if p.knownTopics.contains(topic):
+      libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
+    else:
+      libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
 
   msg.control.withValue(control):
     libp2p_pubsub_broadcast_iwant.inc(npeers * control.iwant.len.int64)
@@ -252,13 +252,11 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
         libp2p_pubsub_received_unsubscriptions.inc(labelValues = ["generic"])
 
   for i in 0..<rpcMsg.messages.len():
-    template smsg: untyped = rpcMsg.messages[i]
-    for j in 0..<smsg.topicIds.len():
-      template topic: untyped = smsg.topicIds[j]
-      if p.knownTopics.contains(topic):
-        libp2p_pubsub_received_messages.inc(labelValues = [topic])
-      else:
-        libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
+    let topic = rpcMsg.messages[i].topicId
+    if p.knownTopics.contains(topic):
+      libp2p_pubsub_received_messages.inc(labelValues = [topic])
+    else:
+      libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
 
   rpcMsg.control.withValue(control):
     libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
@@ -532,13 +530,13 @@ method removeValidator*(p: PubSub,
 method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
-  for topic in message.topicIds:
-    trace "looking for validators on topic", topicId = topic,
-                                             registered = toSeq(p.validators.keys)
-    if topic in p.validators:
-      trace "running validators for topic", topicId = topic
-      for validator in p.validators[topic]:
-        pending.add(validator(topic, message))
+  let topic = message.topicId
+  trace "looking for validators on topic",
+    topicId = topic, registered = toSeq(p.validators.keys)
+  if topic in p.validators:
+    trace "running validators for topic", topicId = topic
+    for validator in p.validators[topic]:
+      pending.add(validator(topic, message))
 
   result = ValidationResult.Accept
   let futs = await allFinished(pending)
