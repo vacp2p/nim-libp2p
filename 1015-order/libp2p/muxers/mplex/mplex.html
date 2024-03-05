@@ -246,7 +246,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">close
       <li><a class="reference" href="#close.e%2CMplex"
-    title="close(m: Mplex): Future[void]">close(m: Mplex): Future[void]</a></li>
+    title="close(m: Mplex): InternalRaisesFuture[void, void]">close(m: Mplex): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getStreams
@@ -256,7 +256,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">newStream
       <li><a class="reference" href="#newStream.e%2CMplex%2Cstring%2Cbool"
-    title="newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]">newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]</a></li>
+    title="newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]">newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]</a></li>
 
   </ul>
 
@@ -358,9 +360,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L201"
+href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L199"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L201" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L199" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -382,16 +384,15 @@ class="link-seesrc" target="_blank">Source</a>
 <h1><a class="toc-backref" href="#14">Methods</a></h1>
 <dl class="item">
 <div id="close.e,Mplex" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CMplex"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="lpchannel.html#Mplex"><span class="Identifier">Mplex</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CMplex"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="lpchannel.html#Mplex"><span class="Identifier">Mplex</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L222"
+href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L224"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L222" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L224" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -401,23 +402,24 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L250"
+href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L252"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L250" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L252" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="newStream.e,Mplex,string,bool" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#newStream.e%2CMplex%2Cstring%2Cbool"><span class="Identifier">newStream</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="lpchannel.html#Mplex"><span class="Identifier">Mplex</span></a><span class="Other">;</span> <span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">;</span> <span class="Identifier">lazy</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                  <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#newStream.e%2CMplex%2Cstring%2Cbool"><span class="Identifier">newStream</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="lpchannel.html#Mplex"><span class="Identifier">Mplex</span></a><span class="Other">;</span> <span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">;</span> <span class="Identifier">lazy</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">,</span> <a href="../muxer.html#MuxerError"><span class="Identifier">MuxerError</span></a><span class="Other">)</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L214"
+href="https://github.com/status-im/nim-libp2p/tree/1015-order/libp2p/muxers/mplex/mplex.nim#L215"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L214" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/mplex.nim#L215" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -453,7 +455,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-04 20:40:39 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-05 07:08:51 UTC</small>
       </div>
     </div>
   </div>
