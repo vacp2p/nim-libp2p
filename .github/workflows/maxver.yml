@@ -1,0 +1,14 @@
+name: Daily (maxver)
+on:
+  # schedule:
+  #   - cron: "0 6 * * *"
+  push:
+    branches:
+      - maxver-minver
+
+jobs:
+  call-multi-nim-common:
+    uses: ./.github/workflows/daily_common.yml
+    with:
+      nim-branch: "['version-1-6', 'devel']"
+      cpu: "['i386']"
