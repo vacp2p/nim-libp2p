@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -28,7 +28,8 @@ when defined(libp2p_mplex_metrics):
   declareHistogram libp2p_mplex_qtime, "message queuing time"
 
 when defined(libp2p_network_protocols_metrics):
-  declareCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
+  declareCounter libp2p_protocols_bytes,
+    "total sent or received bytes", ["protocol", "direction"]
 
 ## Channel half-closed states
 ##
@@ -64,16 +65,16 @@ type
 
 func shortLog*(s: LPChannel): auto =
   try:
-    if s.isNil: "LPChannel(nil)"
+    if s == nil: "LPChannel(nil)"
     elif s.name != $s.oid and s.name.len > 0:
       &"{shortLog(s.conn.peerId)}:{s.oid}:{s.name}"
     else: &"{shortLog(s.conn.peerId)}:{s.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
 chronicles.formatIt(LPChannel): shortLog(it)
 
-proc open*(s: LPChannel) {.async.} =
+proc open*(s: LPChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Opening channel", s, conn = s.conn
   if s.conn.isClosed:
     return
@@ -82,20 +83,20 @@ proc open*(s: LPChannel) {.async.} =
     s.isOpen = true
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     await s.conn.close()
     raise exc
 
 method closed*(s: LPChannel): bool =
   s.closedLocal
 
-proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
+proc closeUnderlying(s: LPChannel): Future[void] {.async: (raises: []).} =
   ## Channels may be closed for reading and writing in any order - we'll close
   ## the underlying bufferstream when both directions are closed
   if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
-proc reset*(s: LPChannel) {.async.} =
+proc reset*(s: LPChannel) {.async: (raises: []).} =
   if s.isClosed:
     trace "Already closed", s
     return
@@ -108,22 +109,21 @@ proc reset*(s: LPChannel) {.async.} =
 
   if s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
-    proc resetMessage() {.async.} =
+    proc resetMessage() {.async: (raises: []).} =
       try:
         trace "sending reset message", s, conn = s.conn
-        await s.conn.writeMsg(s.id, s.resetCode) # write reset
-      except CatchableError as exc:
-        # No cancellations
-        await s.conn.close()
+        await noCancel s.conn.writeMsg(s.id, s.resetCode) # write reset
+      except LPStreamError as exc:
         trace "Can't send reset message", s, conn = s.conn, msg = exc.msg
+        await s.conn.close()
 
     asyncSpawn resetMessage()
 
-  await s.closeImpl() # noraises, nocancels
+  await s.closeImpl()
 
   trace "Channel reset", s
 
-method close*(s: LPChannel) {.async.} =
+method close*(s: LPChannel) {.async: (raises: []).} =
   ## Close channel for writing - a message will be sent to the other peer
   ## informing them that the channel is closed and that we're waiting for
   ## their acknowledgement.
@@ -137,10 +137,9 @@ method close*(s: LPChannel) {.async.} =
   if s.isOpen and not s.conn.isClosed:
     try:
       await s.conn.writeMsg(s.id, s.closeCode) # write close
-    except CancelledError as exc:
+    except CancelledError:
       await s.conn.close()
-      raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       # It's harmless that close message cannot be sent - the connection is
       # likely down already
       await s.conn.close()
@@ -154,16 +153,17 @@ method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = LPChannelTrackerName
 
-  s.timeoutHandler = proc(): Future[void] {.gcsafe.} =
+  s.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
     trace "Idle timeout expired, resetting LPChannel", s
     s.reset()
 
   procCall BufferStream(s).initStream()
 
-method readOnce*(s: LPChannel,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: LPChannel,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Mplex relies on reading being done regularly from every channel, or all
   ## channels are blocked - in particular, this means that reading from one
   ## channel must not be done from within a callback / read handler of another
@@ -186,15 +186,19 @@ method readOnce*(s: LPChannel,
     if bytes == 0:
       await s.closeUnderlying()
     return bytes
-  except CatchableError as exc:
-    # readOnce in BufferStream generally raises on EOF or cancellation - for
-    # the former, resetting is harmless, for the latter it's necessary because
-    # data has been lost in s.readBuf and there's no way to gracefully recover /
-    # use the channel any more
+  except CancelledError as exc:
+    await s.reset()
+    raise exc
+  except LPStreamError as exc:
+    # Resetting is necessary because data has been lost in s.readBuf and
+    # there's no way to gracefully recover / use the channel any more
     await s.reset()
     raise newLPStreamConnDownError(exc)
 
-proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+proc prepareWrite(
+    s: LPChannel,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
   if s.remoteReset:
@@ -222,7 +226,10 @@ proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   await s.conn.writeMsg(s.id, s.msgCode, msg)
 
 proc completeWrite(
-    s: LPChannel, fut: Future[void], msgLen: int): Future[void] {.async.} =
+    s: LPChannel,
+    fut: Future[void].Raising([CancelledError, LPStreamError]),
+    msgLen: int
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   try:
     s.writes += 1
 
@@ -235,7 +242,10 @@ proc completeWrite(
 
     when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
-        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.protocol, "out"])
+        # This crashes on Nim 2.0.2 with `--mm:orc` during `nimble test`
+        # https://github.com/status-im/nim-metrics/issues/79
+        libp2p_protocols_bytes.inc(
+          msgLen.int64, labelValues = [s.protocol, "out"])
 
     s.activity = true
   except CancelledError as exc:
@@ -247,7 +257,7 @@ proc completeWrite(
     raise exc
   except LPStreamEOFError as exc:
     raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     trace "exception in lpchannel write handler", s, msg = exc.msg
     await s.reset()
     await s.conn.close()
@@ -255,7 +265,11 @@ proc completeWrite(
   finally:
     s.writes -= 1
 
-method write*(s: LPChannel, msg: seq[byte]): Future[void] =
+method write*(
+    s: LPChannel,
+    msg: seq[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   ## Write to mplex channel - there may be up to MaxWrite concurrent writes
   ## pending after which the peer is disconnected
 
@@ -276,13 +290,12 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] =
 method getWrapped*(s: LPChannel): Connection = s.conn
 
 proc init*(
-  L: type LPChannel,
-  id: uint64,
-  conn: Connection,
-  initiator: bool,
-  name: string = "",
-  timeout: Duration = DefaultChanTimeout): LPChannel =
-
+    L: type LPChannel,
+    id: uint64,
+    conn: Connection,
+    initiator: bool,
+    name: string = "",
+    timeout: Duration = DefaultChanTimeout): LPChannel =
   let chann = L(
     id: id,
     name: name,
