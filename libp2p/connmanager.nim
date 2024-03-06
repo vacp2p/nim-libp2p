@@ -311,12 +311,14 @@ proc storeMuxer*(c: ConnManager,
 
       raise newTooManyConnectionsError()
 
-  assert muxer notin c.muxed.getOrDefault(peerId)
-
-  let
-    newPeer = peerId notin c.muxed
-  assert newPeer or c.muxed[peerId].len > 0
-  c.muxed.mgetOrPut(peerId, newSeq[Muxer]()).add(muxer)
+  var newPeer = false
+  c.muxed.withValue(peerId, muxers):
+    doAssert muxers[].len > 0
+    doAssert muxer notin muxers[]
+    muxers[].add(muxer)
+  do:
+    c.muxed[peerId] = @[muxer]
+    newPeer = true
   libp2p_peers.set(c.muxed.len.int64)
 
   asyncSpawn c.triggerConnEvent(
