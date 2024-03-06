@@ -292,7 +292,9 @@ proc new*(T: typedesc[RelayClient], canHop: bool = false,
              maxCircuitPerPeer: maxCircuitPerPeer,
              msgSize: msgSize,
              isCircuitRelayV1: circuitRelayV1)
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(
+      conn: Connection,
+      proto: string) {.async: (raises: [CancelledError]).} =
     try:
       case proto:
       of RelayV1Codec: await cl.handleStreamV1(conn)

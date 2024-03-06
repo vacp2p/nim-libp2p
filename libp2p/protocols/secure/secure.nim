@@ -88,10 +88,12 @@ method handshake*(
     CancelledError, LPStreamError], raw: true), base.} =
   raiseAssert("Not implemented!")
 
-proc handleConn(s: Secure,
-                conn: Connection,
-                initiator: bool,
-                peerId: Opt[PeerId]): Future[Connection] {.async.} =
+proc handleConn(
+    s: Secure,
+    conn: Connection,
+    initiator: bool,
+    peerId: Opt[PeerId]
+): Future[Connection] {.async: (raises: [CancelledError, LPStreamError]).} =
   var sconn = await s.handshake(conn, initiator, peerId)
   # mark connection bottom level transport direction
   # this is the safest place to do this
@@ -115,14 +117,8 @@ proc handleConn(s: Secure,
           fut1 = sconn.close()
           fut2 = conn.close()
         await allFutures(fut1, fut2)
-        if fut1.failed:
-          let err = fut1.error()
-          if not (err of CancelledError):
-            debug "error cleaning up secure connection", err = err.msg, sconn
-        if fut2.failed:
-          let err = fut2.error()
-          if not (err of CancelledError):
-            debug "error cleaning up secure connection", err = err.msg, sconn
+        static: doAssert typeof(fut1).E is void  # Cannot fail
+        static: doAssert typeof(fut2).E is void  # Cannot fail
 
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
@@ -133,12 +129,14 @@ proc handleConn(s: Secure,
     # All the errors are handled inside `cleanup()` procedure.
     asyncSpawn cleanup()
 
-  return sconn
+  sconn
 
 method init*(s: Secure) =
   procCall LPProtocol(s).init()
 
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(
+      conn: Connection,
+      proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling connection upgrade", proto, conn
     try:
       # We don't need the result but we
@@ -149,16 +147,18 @@ method init*(s: Secure) =
       warn "securing connection canceled", conn
       await conn.close()
       raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       warn "securing connection failed", err = exc.msg, conn
       await conn.close()
 
   s.handler = handle
 
-method secure*(s: Secure,
-               conn: Connection,
-               peerId: Opt[PeerId]):
-               Future[Connection] {.base.} =
+method secure*(
+    s: Secure,
+    conn: Connection,
+    peerId: Opt[PeerId]
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true), base.} =
   s.handleConn(conn, conn.dir == Direction.Out, peerId)
 
 method readOnce*(

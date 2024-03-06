@@ -36,10 +36,8 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of PingError
 
-  PingHandler* {.public.} = proc (
-    peer: PeerId):
-    Future[void]
-    {.gcsafe, raises: [].}
+  PingHandler* {.public.} =
+    proc (peer: PeerId): Future[void] {.async: (raises: []).}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
@@ -51,7 +49,9 @@ proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContex
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(
+      conn: Connection,
+      proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling ping", conn
       var buf: array[PingSize, byte]
@@ -62,7 +62,7 @@ method init*(p: Ping) =
         await p.pingHandler(conn.peerId)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       trace "exception in ping handler", exc = exc.msg, conn
 
   p.handler = handle

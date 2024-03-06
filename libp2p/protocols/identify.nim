@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -151,14 +151,16 @@ proc new*(
   identify
 
 method init*(p: Identify) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(
+      conn: Connection,
+      proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
       await conn.writeLp(pb.buffer)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       trace "exception in identify handler", exc = exc.msg, conn
     finally:
       trace "exiting identify handler", conn
@@ -207,7 +209,9 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.pu
   identifypush
 
 proc init*(p: IdentifyPush) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(
+      conn: Connection,
+      proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling identify push", conn
     try:
       var message = await conn.readLp(64*1024)
