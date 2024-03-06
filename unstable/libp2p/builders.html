@@ -247,19 +247,19 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple nested-toc-section">newStandardSwitch
       <li><a class="reference" href="#newStandardSwitch%2CopenArray%5BSecureProtocol%5D%2Cset%5BServerFlags%5D%2CDuration%2CDuration%2Cint%2Cint%2CNameResolver%2Cint"
     title="newStandardSwitch(privKey = none(PrivateKey); addrs: MultiAddress |
-    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).tryGet();
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise];
-                  transportFlags: set[ServerFlags] = {}; rng = newRng();
-                  inTimeout: Duration = 5.minutes;
+    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).expect(
+    &quot;valid address&quot;); secureManagers: openArray[SecureProtocol] = [
+    SecureProtocol.Noise]; transportFlags: set[ServerFlags] = {};
+                  rng = newRng(); inTimeout: Duration = 5.minutes;
                   outTimeout: Duration = 5.minutes;
                   maxConnections = MaxConnections; maxIn = -1; maxOut = -1;
                   maxConnsPerPeer = MaxConnectionsPerPeer;
                   nameResolver: NameResolver = nil;
                   sendSignedPeerRecord = false; peerStoreCapacity = 1000): Switch">newStandardSwitch(privKey = none(PrivateKey); addrs: MultiAddress |
-    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).tryGet();
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise];
-                  transportFlags: set[ServerFlags] = {}; rng = newRng();
-                  inTimeout: Duration = 5.minutes;
+    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).expect(
+    &quot;valid address&quot;); secureManagers: openArray[SecureProtocol] = [
+    SecureProtocol.Noise]; transportFlags: set[ServerFlags] = {};
+                  rng = newRng(); inTimeout: Duration = 5.minutes;
                   outTimeout: Duration = 5.minutes;
                   maxConnections = MaxConnections; maxIn = -1; maxOut = -1;
                   maxConnsPerPeer = MaxConnectionsPerPeer;
@@ -489,10 +489,10 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="newStandardSwitch,openArray[SecureProtocol],set[ServerFlags],Duration,Duration,int,int,NameResolver,int" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#newStandardSwitch%2CopenArray%5BSecureProtocol%5D%2Cset%5BServerFlags%5D%2CDuration%2CDuration%2Cint%2Cint%2CNameResolver%2Cint"><span class="Identifier">newStandardSwitch</span></a><span class="Other">(</span><span class="Identifier">privKey</span> <span class="Other">=</span> <span class="Identifier">none</span><span class="Other">(</span><a href="crypto/crypto.html#PrivateKey"><span class="Identifier">PrivateKey</span></a><span class="Other">)</span><span class="Other">;</span> <span class="Identifier">addrs</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a> <span class="Operator">|</span>
-    <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">init</span><span class="Other">(</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">,</span> <span class="StringLit">&quot;/ip4/127.0.0.1/tcp/0&quot;</span><span class="Other">)</span><span class="Other">.</span><span class="Identifier">tryGet</span><span class="Other">(</span><span class="Other">)</span><span class="Other">;</span>
-    <span class="Identifier">secureManagers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><a href="muxers/mplex/mplex.html#SecureProtocol"><span class="Identifier">SecureProtocol</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">[</span><a href="muxers/mplex/mplex.html#SecureProtocol"><span class="Identifier">SecureProtocol</span></a><span class="Other">.</span><span class="Identifier">Noise</span><span class="Other">]</span><span class="Other">;</span>
-                       <span class="Identifier">transportFlags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">ServerFlags</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">;</span> <span class="Identifier">rng</span> <span class="Other">=</span> <span class="Identifier">newRng</span><span class="Other">(</span><span class="Other">)</span><span class="Other">;</span>
-                       <span class="Identifier">inTimeout</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="DecNumber">5</span><span class="Other">.</span><span class="Identifier">minutes</span><span class="Other">;</span>
+    <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">init</span><span class="Other">(</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">,</span> <span class="StringLit">&quot;/ip4/127.0.0.1/tcp/0&quot;</span><span class="Other">)</span><span class="Other">.</span><span class="Identifier">expect</span><span class="Other">(</span>
+    <span class="StringLit">&quot;valid address&quot;</span><span class="Other">)</span><span class="Other">;</span> <span class="Identifier">secureManagers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><a href="muxers/mplex/mplex.html#SecureProtocol"><span class="Identifier">SecureProtocol</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">[</span>
+    <a href="muxers/mplex/mplex.html#SecureProtocol"><span class="Identifier">SecureProtocol</span></a><span class="Other">.</span><span class="Identifier">Noise</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">transportFlags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">ServerFlags</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">;</span>
+                       <span class="Identifier">rng</span> <span class="Other">=</span> <span class="Identifier">newRng</span><span class="Other">(</span><span class="Other">)</span><span class="Other">;</span> <span class="Identifier">inTimeout</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="DecNumber">5</span><span class="Other">.</span><span class="Identifier">minutes</span><span class="Other">;</span>
                        <span class="Identifier">outTimeout</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="DecNumber">5</span><span class="Other">.</span><span class="Identifier">minutes</span><span class="Other">;</span>
                        <span class="Identifier">maxConnections</span> <span class="Other">=</span> <span class="Identifier">MaxConnections</span><span class="Other">;</span> <span class="Identifier">maxIn</span> <span class="Other">=</span> <span class="DecNumber">-1</span><span class="Other">;</span> <span class="Identifier">maxOut</span> <span class="Other">=</span> <span class="DecNumber">-1</span><span class="Other">;</span>
                        <span class="Identifier">maxConnsPerPeer</span> <span class="Other">=</span> <span class="Identifier">MaxConnectionsPerPeer</span><span class="Other">;</span>
@@ -801,7 +801,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-05 15:07:08 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-06 05:49:35 UTC</small>
       </div>
     </div>
   </div>

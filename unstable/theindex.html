@@ -3260,19 +3260,19 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="newStandardSwitch" href="#newStandardSwitch"><span>newStandardSwitch:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="builders: newStandardSwitch(privKey = none(PrivateKey); addrs: MultiAddress |
-    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).tryGet();
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise];
-                  transportFlags: set[ServerFlags] = {}; rng = newRng();
-                  inTimeout: Duration = 5.minutes;
+    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).expect(
+    &quot;valid address&quot;); secureManagers: openArray[SecureProtocol] = [
+    SecureProtocol.Noise]; transportFlags: set[ServerFlags] = {};
+                  rng = newRng(); inTimeout: Duration = 5.minutes;
                   outTimeout: Duration = 5.minutes;
                   maxConnections = MaxConnections; maxIn = -1; maxOut = -1;
                   maxConnsPerPeer = MaxConnectionsPerPeer;
                   nameResolver: NameResolver = nil;
                   sendSignedPeerRecord = false; peerStoreCapacity = 1000): Switch" href="libp2p/builders.html#newStandardSwitch%2CopenArray%5BSecureProtocol%5D%2Cset%5BServerFlags%5D%2CDuration%2CDuration%2Cint%2Cint%2CNameResolver%2Cint">builders: newStandardSwitch(privKey = none(PrivateKey); addrs: MultiAddress |
-    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).tryGet();
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise];
-                  transportFlags: set[ServerFlags] = {}; rng = newRng();
-                  inTimeout: Duration = 5.minutes;
+    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).expect(
+    &quot;valid address&quot;); secureManagers: openArray[SecureProtocol] = [
+    SecureProtocol.Noise]; transportFlags: set[ServerFlags] = {};
+                  rng = newRng(); inTimeout: Duration = 5.minutes;
                   outTimeout: Duration = 5.minutes;
                   maxConnections = MaxConnections; maxIn = -1; maxOut = -1;
                   maxConnsPerPeer = MaxConnectionsPerPeer;
@@ -5348,7 +5348,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-05 15:07:10 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-06 05:49:36 UTC</small>
       </div>
     </div>
   </div>
