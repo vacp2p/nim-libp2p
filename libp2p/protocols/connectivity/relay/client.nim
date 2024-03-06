@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -30,9 +30,13 @@ type
   ReservationError* = object of RelayClientError
   RelayV1DialError* = object of RelayClientError
   RelayV2DialError* = object of RelayClientError
-  RelayClientAddConn* = proc(conn: Connection,
-                        duration: uint32,
-                        data: uint64): Future[void] {.gcsafe, raises: [].}
+
+  RelayClientAddConn* = proc(
+      conn: Connection,
+      duration: uint32,
+      data: uint64
+  ): Future[void] {.async: (raises: []).}
+
   RelayClient* = ref object of Relay
     onNewConnection*: RelayClientAddConn
     canHop: bool
@@ -44,12 +48,19 @@ type
     limitDuration*: uint32    # seconds
     limitData*: uint64        # bytes
 
-proc sendStopError(conn: Connection, code: StatusV2) {.async.} =
+proc sendStopError(
+    conn: Connection,
+    code: StatusV2
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
   let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
-  await conn.writeLp(encode(msg).buffer)
+  conn.writeLp(encode(msg).buffer)
 
-proc handleRelayedConnect(cl: RelayClient, conn: Connection, msg: StopMessage) {.async.} =
+proc handleRelayedConnect(
+    cl: RelayClient,
+    conn: Connection,
+    msg: StopMessage) {.async: (raises: [CancelledError, LPStreamError]).} =
   let
     # TODO: check the go version to see in which way this could fail
     # it's unclear in the spec
@@ -72,12 +83,16 @@ proc handleRelayedConnect(cl: RelayClient, conn: Connection, msg: StopMessage) {
   await conn.writeLp(pb.buffer)
   # This sound redundant but the callback could, in theory, be set to nil during
   # conn.writeLp so it's safer to double check
-  if cl.onNewConnection != nil: await cl.onNewConnection(conn, limitDuration, limitData)
-  else: await conn.close()
+  if cl.onNewConnection != nil:
+    await cl.onNewConnection(conn, limitDuration, limitData)
+  else:
+    await conn.close()
 
-proc reserve*(cl: RelayClient,
-              peerId: PeerId,
-              addrs: seq[MultiAddress] = @[]): Future[Rsvp] {.async.} =
+proc reserve*(
+    cl: RelayClient,
+    peerId: PeerId,
+    addrs: seq[MultiAddress] = @[]
+): Future[Rsvp] {.async: (raises: [CancelledError, LPError]).} =
   let conn = await cl.switch.dial(peerId, addrs, RelayV2HopCodec)
   defer: await conn.close()
   let
@@ -87,9 +102,10 @@ proc reserve*(cl: RelayClient,
       HopMessage.decode(await conn.readLp(RelayClientMsgSize)).tryGet()
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
-      trace "error writing or reading reservation message", exc=exc.msg
-      raise newException(ReservationError, exc.msg)
+    except LPError, ResultError[void]:
+      let msg = getCurrentExceptionMsg()
+      trace "error writing or reading reservation message", exc = msg
+      raise newException(ReservationError, msg)
 
   if msg.msgType != HopMessageType.Status:
     raise newException(ReservationError, "Unexpected relay response type")
@@ -118,11 +134,14 @@ proc dialPeerV1*(
     cl: RelayClient,
     conn: Connection,
     dstPeerId: PeerId,
-    dstAddrs: seq[MultiAddress]): Future[Connection] {.async.} =
+    dstAddrs: seq[MultiAddress]
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPStreamError, RelayV1DialError]).} =
   var
     msg = RelayMessage(
       msgType: Opt.some(RelayType.Hop),
-      srcPeer: Opt.some(RelayPeer(peerId: cl.switch.peerInfo.peerId, addrs: cl.switch.peerInfo.addrs)),
+      srcPeer: Opt.some(RelayPeer(
+        peerId: cl.switch.peerInfo.peerId, addrs: cl.switch.peerInfo.addrs)),
       dstPeer: Opt.some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)))
     pb = encode(msg)
 
@@ -132,7 +151,7 @@ proc dialPeerV1*(
     await conn.writeLp(pb.buffer)
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     trace "error writing hop request", exc=exc.msg
     raise exc
 
@@ -140,31 +159,35 @@ proc dialPeerV1*(
     RelayMessage.decode(await conn.readLp(RelayClientMsgSize))
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     trace "error reading stop response", exc=exc.msg
     await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise exc
 
   try:
     let msgRcvFromRelay = msgRcvFromRelayOpt.valueOr:
-      raise newException(RelayV1DialError, "Hop can't open destination stream")
+      raise newException(RelayV1DialError,
+        "Hop can't open destination stream")
     if msgRcvFromRelay.msgType.tryGet() != RelayType.Status:
-      raise newException(RelayV1DialError, "Hop can't open destination stream: wrong message type")
+      raise newException(RelayV1DialError,
+        "Hop can't open destination stream: wrong message type")
     if msgRcvFromRelay.status.tryGet() != StatusV1.Success:
-      raise newException(RelayV1DialError, "Hop can't open destination stream: status failed")
+      raise newException(RelayV1DialError,
+        "Hop can't open destination stream: status failed")
   except RelayV1DialError as exc:
     await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise exc
-  except ValueError as exc:
+  except ResultError[void] as exc:
     await sendStatus(conn, StatusV1.HopCantOpenDstStream)
     raise newException(RelayV1DialError, exc.msg)
-  result = conn
+  conn
 
 proc dialPeerV2*(
     cl: RelayClient,
     conn: RelayConnection,
     dstPeerId: PeerId,
-    dstAddrs: seq[MultiAddress]): Future[Connection] {.async.} =
+    dstAddrs: seq[MultiAddress]
+): Future[Connection] {.async: (raises: [CancelledError, RelayV2DialError]).} =
   let
     p = Peer(peerId: dstPeerId, addrs: dstAddrs)
     pb = encode(HopMessage(msgType: HopMessageType.Connect, peer: Opt.some(p)))
@@ -176,8 +199,11 @@ proc dialPeerV2*(
     HopMessage.decode(await conn.readLp(RelayClientMsgSize)).tryGet()
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
-    trace "error reading stop response", exc=exc.msg
+  except LPStreamError as exc:
+    trace "error reading stop response", exc = exc.msg
+    raise newException(RelayV2DialError, exc.msg)
+  except ResultError[void] as exc:
+    trace "error reading stop response", exc = exc.msg
     raise newException(RelayV2DialError, exc.msg)
 
   if msgRcvFromRelay.msgType != HopMessageType.Status:
@@ -187,7 +213,7 @@ proc dialPeerV2*(
     raise newException(RelayV2DialError, "Relay stop failure")
   conn.limitDuration = msgRcvFromRelay.limit.duration
   conn.limitData = msgRcvFromRelay.limit.data
-  return conn
+  conn
 
 proc handleStopStreamV2(cl: RelayClient, conn: Connection) {.async.} =
   let msg = StopMessage.decode(await conn.readLp(RelayClientMsgSize)).valueOr:

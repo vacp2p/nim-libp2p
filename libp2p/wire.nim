@@ -71,40 +71,46 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
     err("MultiAddress must be wire address (tcp, udp or unix): " & $ma)
 
 proc connect*(
-  ma: MultiAddress,
-  bufferSize = DefaultStreamBufferSize,
-  child: StreamTransport = nil,
-  flags = default(set[SocketFlags]),
-  localAddress: Opt[MultiAddress] = Opt.none(MultiAddress)): Future[StreamTransport]
-  {.raises: [LPError, MaInvalidAddress].} =
+    ma: MultiAddress,
+    bufferSize = DefaultStreamBufferSize,
+    child: StreamTransport = nil,
+    flags = default(set[SocketFlags]),
+    localAddress: Opt[MultiAddress] = Opt.none(MultiAddress)
+): Future[StreamTransport] {.async: (raises: [CancelledError, LPError]).} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
   ##
-
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
   let transportAddress = initTAddress(ma).tryGet()
 
-  compilesOr:
-    return connect(transportAddress, bufferSize, child,
-      if localAddress.isSome(): initTAddress(localAddress.expect("just checked")).tryGet() else: TransportAddress(),
-      flags)
-  do:
-    # support for older chronos versions
-    return connect(transportAddress, bufferSize, child)
+  try:
+    compilesOr:
+      return await connect(transportAddress, bufferSize, child,
+        if localAddress.isSome():
+          initTAddress(localAddress.expect("just checked"))
+            .tryGet()
+        else:
+          TransportAddress(),
+        flags)
+    do:
+      # support for older chronos versions
+      return await connect(transportAddress, bufferSize, child)
+  except TransportError as exc:
+    raise newException(LPError, "Connect failed", exc)
 
-proc createStreamServer*[T](ma: MultiAddress,
-                            cbproc: StreamCallback,
-                            flags: set[ServerFlags] = {},
-                            udata: ref T,
-                            sock: AsyncFD = asyncInvalidSocket,
-                            backlog: int = 100,
-                            bufferSize: int = DefaultStreamBufferSize,
-                            child: StreamServer = nil,
-                            init: TransportInitCallback = nil): StreamServer
-                            {.raises: [LPError, MaInvalidAddress].} =
+proc createStreamServer*[T](
+    ma: MultiAddress,
+    cbproc: StreamCallback2,
+    flags: set[ServerFlags] = {},
+    udata: ref T,
+    sock: AsyncFD = asyncInvalidSocket,
+    backlog: int = 100,
+    bufferSize: int = DefaultStreamBufferSize,
+    child: StreamServer = nil,
+    init: TransportInitCallback = nil): StreamServer {.raises: [LPError].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
@@ -120,21 +126,20 @@ proc createStreamServer*[T](ma: MultiAddress,
       bufferSize,
       child,
       init)
-  except CatchableError as exc:
+  except TransportError as exc:
     raise newException(LPError, exc.msg)
 
-proc createStreamServer*[T](ma: MultiAddress,
-                            flags: set[ServerFlags] = {},
-                            udata: ref T,
-                            sock: AsyncFD = asyncInvalidSocket,
-                            backlog: int = 100,
-                            bufferSize: int = DefaultStreamBufferSize,
-                            child: StreamServer = nil,
-                            init: TransportInitCallback = nil): StreamServer
-                            {.raises: [LPError, MaInvalidAddress].} =
+proc createStreamServer*[T](
+    ma: MultiAddress,
+    flags: set[ServerFlags] = {},
+    udata: ref T,
+    sock: AsyncFD = asyncInvalidSocket,
+    backlog: int = 100,
+    bufferSize: int = DefaultStreamBufferSize,
+    child: StreamServer = nil,
+    init: TransportInitCallback = nil): StreamServer {.raises: [LPError].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   ##
-
   if not(RTRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
@@ -148,11 +153,10 @@ proc createStreamServer*[T](ma: MultiAddress,
       bufferSize,
       child,
       init)
-  except CatchableError as exc:
+  except TransportError as exc:
     raise newException(LPError, exc.msg)
 
-proc createAsyncSocket*(ma: MultiAddress): AsyncFD
-  {.raises: [ValueError, LPError].} =
+proc createAsyncSocket*(ma: MultiAddress): AsyncFD {.raises: [LPError].} =
   ## Create new asynchronous socket using MultiAddress' ``ma`` socket type and
   ## protocol information.
   ##
@@ -179,10 +183,7 @@ proc createAsyncSocket*(ma: MultiAddress): AsyncFD
   else:
     return asyncInvalidSocket
 
-  try:
-    createAsyncSocket(address.getDomain(), socktype, protocol)
-  except CatchableError as exc:
-    raise newException(LPError, exc.msg)
+  createAsyncSocket(address.getDomain(), socktype, protocol)
 
 proc bindAsyncSocket*(sock: AsyncFD, ma: MultiAddress): bool
   {.raises: [LPError].} =

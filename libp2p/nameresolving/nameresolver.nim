@@ -14,7 +14,7 @@ import
   chronos,
   chronicles,
   stew/endians2
-import ".."/[multiaddress, multicodec]
+import ".."/[errors, multiaddress, multicodec]
 
 logScope:
   topics = "libp2p nameresolver"
@@ -23,22 +23,23 @@ type
   NameResolver* = ref object of RootObj
 
 method resolveTxt*(
-  self: NameResolver,
-  address: string): Future[seq[string]] {.async, base.} =
+    self: NameResolver,
+    address: string
+): Future[seq[string]] {.async: (raises: [CancelledError], raw: true), base.} =
   ## Get TXT record
   ##
-
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 method resolveIp*(
-  self: NameResolver,
-  address: string,
-  port: Port,
-  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async, base.} =
+    self: NameResolver,
+    address: string,
+    port: Port,
+    domain: Domain = Domain.AF_UNSPEC
+): Future[seq[TransportAddress]] {.async: (raises: [
+    CancelledError], raw: true), base.} =
   ## Resolve the specified address
   ##
-
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 proc getHostname*(ma: MultiAddress): string =
   let
@@ -48,17 +49,18 @@ proc getHostname*(ma: MultiAddress): string =
   else: ""
 
 proc resolveOneAddress(
-  self: NameResolver,
-  ma: MultiAddress,
-  domain: Domain = Domain.AF_UNSPEC,
-  prefix = ""): Future[seq[MultiAddress]]
-  {.async.} =
+    self: NameResolver,
+    ma: MultiAddress,
+    domain: Domain = Domain.AF_UNSPEC,
+    prefix = ""
+): Future[seq[MultiAddress]] {.async: (raises: [CancelledError, LPError]).} =
   #Resolve a single address
   var pbuf: array[2, byte]
 
   var dnsval = getHostname(ma)
 
-  if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
+  if ma[1].tryGet()
+      .protoArgument(pbuf).tryGet() == 0:
     raise newException(MaError, "Incorrect port number")
   let
     port = Port(fromBytesBE(uint16, pbuf))
@@ -66,17 +68,18 @@ proc resolveOneAddress(
 
   return collect(newSeqOfCap(4)):
     for address in resolvedAddresses:
-      var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
+      var createdAddress = MultiAddress.init(address)
+        .tryGet()[0].tryGet()
       for part in ma:
         if DNS.match(part.tryGet()): continue
         createdAddress &= part.tryGet()
       createdAddress
 
 proc resolveDnsAddr*(
-  self: NameResolver,
-  ma: MultiAddress,
-  depth: int = 0): Future[seq[MultiAddress]] {.async.} =
-
+    self: NameResolver,
+    ma: MultiAddress,
+    depth: int = 0
+): Future[seq[MultiAddress]] {.async: (raises: [CancelledError, LPError]).} =
   if not DNSADDR.matchPartial(ma):
     return @[ma]
 
@@ -96,7 +99,8 @@ proc resolveDnsAddr*(
     if not entry.startsWith("dnsaddr="): continue
     let entryValue = MultiAddress.init(entry[8..^1]).tryGet()
 
-    if entryValue.contains(multiCodec("p2p")).tryGet() and ma.contains(multiCodec("p2p")).tryGet():
+    if entryValue.contains(multiCodec("p2p")).tryGet() and
+        ma.contains(multiCodec("p2p")).tryGet():
       if entryValue[multiCodec("p2p")] != ma[multiCodec("p2p")]:
         continue
 
@@ -111,14 +115,16 @@ proc resolveDnsAddr*(
 
 
 proc resolveMAddress*(
-  self: NameResolver,
-  address: MultiAddress): Future[seq[MultiAddress]] {.async.} =
+    self: NameResolver,
+    address: MultiAddress
+): Future[seq[MultiAddress]] {.async: (raises: [CancelledError, LPError]).} =
   var res = initOrderedSet[MultiAddress]()
 
   if not DNS.matchPartial(address):
     res.incl(address)
   else:
-    let code = address[0].tryGet().protoCode().tryGet()
+    let code = address[0].tryGet()
+      .protoCode().tryGet()
     let seq = case code:
       of multiCodec("dns"):
         await self.resolveOneAddress(address)

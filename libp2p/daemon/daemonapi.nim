@@ -149,11 +149,13 @@ type
     signature*: Signature
     key*: PublicKey
 
-  P2PStreamCallback* = proc(api: DaemonAPI,
-                            stream: P2PStream): Future[void] {.gcsafe, raises: [CatchableError].}
-  P2PPubSubCallback* = proc(api: DaemonAPI,
-                            ticket: PubsubTicket,
-                            message: PubSubMessage): Future[bool] {.gcsafe, raises: [CatchableError].}
+  P2PStreamCallback* = proc(
+      api: DaemonAPI,
+      stream: P2PStream): Future[void] {.async: (raises: []).}
+  P2PPubSubCallback* = proc(
+      api: DaemonAPI,
+      ticket: PubsubTicket,
+      message: PubSubMessage): Future[bool] {.async: (raises: []).}
 
   DaemonError* = object of LPError
   DaemonRemoteError* = object of DaemonError
@@ -477,7 +479,9 @@ proc getErrorMessage(pb: ProtoBuffer): string {.inline, raises: [DaemonLocalErro
     if initProtoBuffer(error).getRequiredField(1, result).isErr():
       raise newException(DaemonLocalError, "Error message is missing!")
 
-proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
+proc recvMessage(
+    conn: StreamTransport
+): Future[seq[byte]] {.async: (raises: [CancelledError, TransportError]).} =
   var
     size: uint
     length: int
@@ -500,14 +504,18 @@ proc recvMessage(conn: StreamTransport): Future[seq[byte]] {.async.} =
 
   result = buffer
 
-proc newConnection*(api: DaemonAPI): Future[StreamTransport]
-  {.raises: [LPError].} =
-  result = connect(api.address)
+proc newConnection*(
+    api: DaemonAPI
+): Future[StreamTransport] {.async: (raises: [
+    CancelledError, LPError], raw: true).} =
+  connect(api.address)
 
-proc closeConnection*(api: DaemonAPI, transp: StreamTransport): Future[void] =
-  result = transp.closeWait()
+proc closeConnection*(
+    api: DaemonAPI,
+    transp: StreamTransport): Future[void] {.async: (raises: []).} =
+  transp.closeWait()
 
-proc socketExists(address: MultiAddress): Future[bool] {.async.} =
+proc socketExists(address: MultiAddress): Future[bool] {.async: (raises: []).} =
   try:
     var transp = await connect(address)
     await transp.closeWait()
@@ -524,31 +532,44 @@ else:
   proc getProcessId(): int =
     result = int(posix.getpid())
 
-proc getSocket(pattern: string,
-               count: ptr int): Future[MultiAddress] {.async.} =
+proc getSocket(
+    pattern: string,
+    count: ptr int): Future[MultiAddress] {.async: (raises: [LPError]).} =
   var sockname = ""
   var pid = $getProcessId()
-  sockname = pattern % [pid, $(count[])]
+  try:
+    sockname = pattern % [pid, $(count[])]
+  except ValueError as exc:
+    raiseAssert("Pattern `" & pattern & "` is invalid: " & $exc.msg)
   let tmpma = MultiAddress.init(sockname).tryGet()
 
   if UNIX.match(tmpma):
     while true:
       count[] = count[] + 1
-      sockname = pattern % [pid, $(count[])]
+      try:
+        sockname = pattern % [pid, $(count[])]
+      except ValueError as exc:
+        raiseAssert("Pattern `" & pattern & "` is invalid: " & $exc.msg)
       var ma = MultiAddress.init(sockname).tryGet()
       let res = await socketExists(ma)
       if not res:
         result = ma
         break
   elif TCP.match(tmpma):
-    sockname = pattern % [pid, "0"]
+    try:
+      sockname = pattern % [pid, "0"]
+    except ValueError as exc:
+      raiseAssert("Pattern `" & pattern & "` is invalid: " & $exc.msg)
     var ma = MultiAddress.init(sockname).tryGet()
     var sock = createAsyncSocket(ma)
     if sock.bindAsyncSocket(ma):
       # Socket was successfully bound, then its free to use
       count[] = count[] + 1
       var ta = sock.getLocalAddress()
-      sockname = pattern % [pid, $ta.port]
+      try:
+        sockname = pattern % [pid, $ta.port]
+      except ValueError as exc:
+        raiseAssert("Pattern `" & pattern & "` is invalid: " & $exc.msg)
       result = MultiAddress.init(sockname).tryGet()
     closeSocket(sock)
 
@@ -822,13 +843,25 @@ template withMessage(m, body: untyped): untyped =
   else:
     body
 
-proc transactMessage(transp: StreamTransport,
-                     pb: ProtoBuffer): Future[ProtoBuffer] {.async.} =
+proc transactMessage(
+    transp: StreamTransport,
+    pb: ProtoBuffer
+): Future[ProtoBuffer] {.async: (raises: [CancelledError, LPError]).} =
   let length = pb.getLen()
-  let res = await transp.write(pb.getPtr(), length)
+  let res =
+    try:
+      await transp.write(pb.getPtr(), length)
+    except TransportError as exc:
+      raise newException(DaemonLocalError,
+        "Could not send message to daemon!", exc)
   if res != length:
-    raise newException(DaemonLocalError, "Could not send message to daemon!")
-  var message = await transp.recvMessage()
+    raise newException(DaemonLocalError, "Sent incomplete message to daemon!")
+  var message =
+    try:
+      await transp.recvMessage()
+    except TransportError as exc:
+      raise newException(DaemonLocalError,
+        "Could not receive message from daemon!", exc)
   if len(message) == 0:
     raise newException(DaemonLocalError, "Incorrect or empty message received!")
   result = initProtoBuffer(message)
@@ -878,16 +911,18 @@ proc disconnect*(api: DaemonAPI, peer: PeerId) {.async.} =
   finally:
     await api.closeConnection(transp)
 
-proc openStream*(api: DaemonAPI, peer: PeerId,
-                 protocols: seq[string],
-                 timeout = 0): Future[P2PStream] {.async.} =
+proc openStream*(
+    api: DaemonAPI, peer: PeerId,
+    protocols: seq[string],
+    timeout = 0
+): Future[P2PStream] {.async: (raises: [CancelledError, LPError]).} =
   ## Open new stream to peer ``peer`` using one of the protocols in
   ## ``protocols``. Returns ``StreamTransport`` for the stream.
   var transp = await api.newConnection()
   var stream = new P2PStream
   try:
-    var pb = await transp.transactMessage(requestStreamOpen(peer, protocols,
-                                                            timeout))
+    var pb = await transp.transactMessage(
+      requestStreamOpen(peer, protocols, timeout))
     pb.withMessage() do:
       var res: seq[byte]
       if pb.getRequiredField(ResponseType.STREAMINFO.int, res).isOk():
@@ -902,51 +937,66 @@ proc openStream*(api: DaemonAPI, peer: PeerId,
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  except CatchableError as exc:
+  except ResultError[ProtoError] as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(LPError, "Failed to parse message", exc)
 
-proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
+proc streamHandler(
+    server: StreamServer,
+    transp: StreamTransport) {.async: (raises: []).} =
   var api = getUserData[DaemonAPI](server)
-  var message = await transp.recvMessage()
-  var pb = initProtoBuffer(message)
-  var stream = new P2PStream
-  var raddress = newSeq[byte]()
-  stream.protocol = ""
-  pb.getRequiredField(1, stream.peer).tryGet()
-  pb.getRequiredField(2, raddress).tryGet()
-  stream.raddress = MultiAddress.init(raddress).tryGet()
-  pb.getRequiredField(3, stream.protocol).tryGet()
-  stream.flags.incl(Inbound)
-  stream.transp = transp
-  if len(stream.protocol) > 0:
-    var handler = api.handlers.getOrDefault(stream.protocol)
-    if not isNil(handler):
-      asyncSpawn handler(api, stream)
-
-proc addHandler*(api: DaemonAPI, protocols: seq[string],
-                 handler: P2PStreamCallback) {.async, raises: [LPError].} =
-  ## Add stream handler ``handler`` for set of protocols ``protocols``.
-  var transp = await api.newConnection()
-  let maddress = await getSocket(api.pattern, addr api.ucounter)
-  var server = createStreamServer(maddress, streamHandler, udata = api)
   try:
-    for item in protocols:
-      api.handlers[item] = handler
-    server.start()
-    var pb = await transp.transactMessage(requestStreamHandler(maddress,
-                                                               protocols))
-    pb.withMessage() do:
-      api.servers.add(P2PServer(server: server, address: maddress))
-  except CatchableError as exc:
-    for item in protocols:
-      api.handlers.del(item)
-    server.stop()
-    server.close()
-    await server.join()
-    raise exc
-  finally:
+    var message = await transp.recvMessage()
+    var pb = initProtoBuffer(message)
+    var stream = new P2PStream
+    var raddress = newSeq[byte]()
+    stream.protocol = ""
+    pb.getRequiredField(1, stream.peer).tryGet()
+    pb.getRequiredField(2, raddress).tryGet()
+    stream.raddress = MultiAddress.init(raddress).tryGet()
+    pb.getRequiredField(3, stream.protocol).tryGet()
+    stream.flags.incl(Inbound)
+    stream.transp = transp
+    if len(stream.protocol) > 0:
+      var handler = api.handlers.getOrDefault(stream.protocol)
+      if not isNil(handler):
+        asyncSpawn handler(api, stream)
+  except CancelledError, LPError, ResultError[ProtoError], TransportError:
     await api.closeConnection(transp)
+
+proc addHandler*(
+    api: DaemonAPI,
+    protocols: seq[string],
+    handler: P2PStreamCallback) {.async: (raises: [CancelledError, LPError]).} =
+  ## Add stream handler ``handler`` for set of protocols ``protocols``.
+  let transp = await api.newConnection()
+  defer: await api.closeConnection(transp)
+
+  var added = false
+  for item in protocols:
+    api.handlers[item] = handler
+  defer:
+    if not added:
+      for item in protocols:
+        api.handlers.del(item)
+
+  let
+    maddress = await getSocket(api.pattern, addr api.ucounter)
+    server = createStreamServer(maddress, streamHandler, udata = api)
+  defer:
+    if not added:
+      try:
+        server.stop()
+      except TransportOsError:
+        discard
+      server.close()
+      await noCancel server.join()
+
+  var pb = await transp.transactMessage(
+    requestStreamHandler(maddress, protocols))
+  pb.withMessage() do:
+    api.servers.add(P2PServer(server: server, address: maddress))
+  added = true
 
 proc listPeers*(api: DaemonAPI): Future[seq[PeerInfo]] {.async.} =
   ## Get list of remote peers to which we are currently connected.

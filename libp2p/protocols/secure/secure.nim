@@ -79,10 +79,13 @@ method readMessage*(
 
 method getWrapped*(s: SecureConn): Connection = s.stream
 
-method handshake*(s: Secure,
-                  conn: Connection,
-                  initiator: bool,
-                  peerId: Opt[PeerId]): Future[SecureConn] {.async, base.} =
+method handshake*(
+    s: Secure,
+    conn: Connection,
+    initiator: bool,
+    peerId: Opt[PeerId]
+): Future[SecureConn] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true), base.} =
   raiseAssert("Not implemented!")
 
 proc handleConn(s: Secure,

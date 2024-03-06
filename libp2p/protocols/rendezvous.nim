@@ -327,26 +327,29 @@ proc sendRegisterResponseError(conn: Connection,
         registerResponse: Opt.some(RegisterResponse(status: status, text: Opt.some(text)))))
   await conn.writeLp(msg.buffer)
 
-proc sendDiscoverResponse(conn: Connection,
-                          s: seq[Register],
-                          cookie: Cookie) {.async.} =
+proc sendDiscoverResponse(
+    conn: Connection,
+    s: seq[Register],
+    cookie: Cookie
+) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   let msg = encode(Message(
-        msgType: MessageType.DiscoverResponse,
-        discoverResponse: Opt.some(DiscoverResponse(
-            status: Ok,
-            registrations: s,
-            cookie: Opt.some(cookie.encode().buffer)
-          ))
-        ))
-  await conn.writeLp(msg.buffer)
+    msgType: MessageType.DiscoverResponse,
+    discoverResponse: Opt.some(DiscoverResponse(
+      status: Ok,
+      registrations: s,
+      cookie: Opt.some(cookie.encode().buffer)))))
+  conn.writeLp(msg.buffer)
 
-proc sendDiscoverResponseError(conn: Connection,
-                               status: ResponseStatus,
-                               text: string = "") {.async.} =
+proc sendDiscoverResponseError(
+    conn: Connection,
+    status: ResponseStatus,
+    text: string = ""
+) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   let msg = encode(Message(
-        msgType: MessageType.DiscoverResponse,
-        discoverResponse: Opt.some(DiscoverResponse(status: status, text: Opt.some(text)))))
-  await conn.writeLp(msg.buffer)
+    msgType: MessageType.DiscoverResponse,
+    discoverResponse: Opt.some(DiscoverResponse(
+      status: status, text: Opt.some(text)))))
+  conn.writeLp(msg.buffer)
 
 proc countRegister(rdv: RendezVous, peerId: PeerId): int =
   let n = Moment.now()
@@ -407,24 +410,26 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   except KeyError:
     return
 
-proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
+proc discover(
+    rdv: RendezVous,
+    conn: Connection,
+    d: Discover
+) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
   libp2p_rendezvous_discover.inc()
   if d.ns.len notin 0..255:
-    await conn.sendDiscoverResponseError(InvalidNamespace)
-    return
+    return conn.sendDiscoverResponseError(InvalidNamespace)
   var limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
   var
     cookie =
       if d.cookie.isSome():
         try:
           Cookie.decode(d.cookie.tryGet()).tryGet()
-        except CatchableError:
-          await conn.sendDiscoverResponseError(InvalidCookie)
-          return
+        except ResultError[void]:
+          return conn.sendDiscoverResponseError(InvalidCookie)
       else: Cookie(offset: rdv.registered.low().uint64 - 1)
-  if cookie.ns != d.ns or
-      cookie.offset notin rdv.registered.low().uint64..rdv.registered.high().uint64:
+  if cookie.ns != d.ns or cookie.offset notin
+      rdv.registered.low().uint64..rdv.registered.high().uint64:
     cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
   let
     nsSalted = d.ns & rdv.salt
@@ -433,12 +438,10 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
         try:
           rdv.namespaces[nsSalted]
         except KeyError:
-          await conn.sendDiscoverResponseError(InvalidNamespace)
-          return
+          return conn.sendDiscoverResponseError(InvalidNamespace)
       else: toSeq(cookie.offset.int..rdv.registered.high())
   if namespaces.len() == 0:
-    await conn.sendDiscoverResponse(@[], Cookie())
-    return
+    return conn.sendDiscoverResponse(@[], Cookie())
   var offset = namespaces[^1]
   let n = Moment.now()
   var s = collect(newSeq()):
@@ -452,12 +455,12 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
         reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
         reg.data
   rdv.rng.shuffle(s)
-  await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
+  conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
 
 proc advertisePeer(rdv: RendezVous,
                    peer: PeerId,
                    msg: seq[byte]) {.async.} =
-  proc advertiseWrap() {.async.} =
+  proc advertiseWrap() {.async: (raises: []).} =
     try:
       let conn = await rdv.switch.dial(peer, RendezVousCodec)
       defer: await conn.close()
@@ -470,9 +473,10 @@ proc advertisePeer(rdv: RendezVous,
       elif msgRecv.registerResponse.tryGet().status != ResponseStatus.Ok:
         trace "Refuse to register", peer, response = msgRecv.registerResponse
       else:
-        trace "Successfully registered", peer, response = msgRecv.registerResponse
-    except CatchableError as exc:
-      trace "exception in the advertise", error = exc.msg
+        trace "Successfully registered",
+          peer, response = msgRecv.registerResponse
+    except CancelledError, LPError, ResultError[void]:
+      trace "exception in the advertise", error = getCurrentExceptionMsg()
     finally:
       rdv.sema.release()
   await rdv.sema.acquire()
@@ -625,8 +629,9 @@ proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch.addPeerEventHandler(handlePeer, Joined)
   rdv.switch.addPeerEventHandler(handlePeer, Left)
 
-proc new*(T: typedesc[RendezVous],
-          rng: ref HmacDrbgContext = newRng()): T =
+proc new*(
+    T: typedesc[RendezVous],
+    rng: ref HmacDrbgContext = newRng()): T =
   let rdv = T(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
@@ -651,8 +656,8 @@ proc new*(T: typedesc[RendezVous],
           trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
-      trace "exception in rendezvous handler", error = exc.msg
+    except LPStreamError, RegistrationError, ResultError[void]:
+      trace "exception in rendezvous handler", error = getCurrentExceptionMsg()
     finally:
       await conn.close()
 

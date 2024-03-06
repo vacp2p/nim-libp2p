@@ -128,7 +128,6 @@ proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
   ## returns true if the peer has one or more
   ## associated connections
   ##
-
   peerId in s.connManager
 
 proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe, public.} =
@@ -136,62 +135,68 @@ proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe, public.} =
   s.connManager.dropPeer(peerId)
 
 method connect*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  forceDial = false,
-  reuseConnection = true,
-  dir = Direction.Out): Future[void] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out
+): Future[void] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Connects to a peer without opening a stream to it
-
   s.dialer.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
 method connect*(
-  s: Switch,
-  address: MultiAddress,
-  allowUnknownPeerId = false): Future[PeerId] =
+    s: Switch,
+    address: MultiAddress,
+    allowUnknownPeerId = false
+): Future[PeerId] {.async: (raises: [CancelledError, LPError], raw: true).} =
   ## Connects to a peer and retrieve its PeerId
   ##
   ## If the P2P part is missing from the MA and `allowUnknownPeerId` is set
   ## to true, this will discover the PeerId while connecting. This exposes
   ## you to MiTM attacks, so it shouldn't be used without care!
-
   s.dialer.connect(address, allowUnknownPeerId)
 
 method dial*(
-  s: Switch,
-  peerId: PeerId,
-  protos: seq[string]): Future[Connection] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    protos: seq[string]
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Open a stream to a connected peer with the specified `protos`
-
   s.dialer.dial(peerId, protos)
 
-proc dial*(s: Switch,
-           peerId: PeerId,
-           proto: string): Future[Connection] {.public.} =
+proc dial*(
+    s: Switch,
+    peerId: PeerId,
+    proto: string
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Open a stream to a connected peer with the specified `proto`
-
   dial(s, peerId, @[proto])
 
 method dial*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  protos: seq[string],
-  forceDial = false): Future[Connection] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Connected to a peer and open a stream
   ## with the specified `protos`
-
   s.dialer.dial(peerId, addrs, protos, forceDial)
 
 proc dial*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  proto: string): Future[Connection] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    proto: string
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Connected to a peer and open a stream
   ## with the specified `proto`
-
   dial(s, peerId, addrs, @[proto])
 
 proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)

@@ -21,47 +21,49 @@ type
   Dial* = ref object of RootObj
 
 method connect*(
-  self: Dial,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  forceDial = false,
-  reuseConnection = true,
-  dir = Direction.Out) {.async, base.} =
+    self: Dial,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out
+) {.async: (raises: [CancelledError, LPError], raw: true), base.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
-
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 method connect*(
   self: Dial,
   address: MultiAddress,
-  allowUnknownPeerId = false): Future[PeerId] {.async, base.} =
+  allowUnknownPeerId = false
+): Future[PeerId] {.async: (raises: [
+    CancelledError, LPError], raw: true), base.} =
   ## Connects to a peer and retrieve its PeerId
-
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 method dial*(
-  self: Dial,
-  peerId: PeerId,
-  protos: seq[string],
-  ): Future[Connection] {.async, base.} =
+    self: Dial,
+    peerId: PeerId,
+    protos: seq[string]
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), base.} =
   ## create a protocol stream over an
   ## existing connection
   ##
-
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 method dial*(
-  self: Dial,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  protos: seq[string],
-  forceDial = false): Future[Connection] {.async, base.} =
+    self: Dial,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), base.} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
-
   doAssert(false, "Not implemented!")
 
 method addTransport*(

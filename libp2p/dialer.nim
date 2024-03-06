@@ -49,12 +49,12 @@ type
     nameResolver: NameResolver
 
 proc dialAndUpgrade(
-  self: Dialer,
-  peerId: Opt[PeerId],
-  hostname: string,
-  address: MultiAddress,
-  dir = Direction.Out):
-  Future[Muxer] {.async.} =
+    self: Dialer,
+    peerId: Opt[PeerId],
+    hostname: string,
+    address: MultiAddress,
+    dir = Direction.Out
+): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
 
   for transport in self.transports: # for each transport
     if transport.handles(address):   # check if it can dial it
@@ -101,10 +101,11 @@ proc dialAndUpgrade(
   return nil
 
 proc expandDnsAddr(
-  self: Dialer,
-  peerId: Opt[PeerId],
-  address: MultiAddress): Future[seq[(MultiAddress, Opt[PeerId])]] {.async.} =
-
+    self: Dialer,
+    peerId: Opt[PeerId],
+    address: MultiAddress
+): Future[seq[(MultiAddress, Opt[PeerId])]] {.async: (raises: [
+    CancelledError, LPError]).} =
   if not DNSADDR.matchPartial(address): return @[(address, peerId)]
   if isNil(self.nameResolver):
     info "Can't resolve DNSADDR without NameResolver", ma=address
@@ -113,7 +114,8 @@ proc expandDnsAddr(
   let
     toResolve =
       if peerId.isSome:
-        address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
+        address & MultiAddress.init(multiCodec("p2p"), peerId.get())
+          .tryGet()
       else:
         address
     resolved = await self.nameResolver.resolveDnsAddr(toResolve)
@@ -124,17 +126,17 @@ proc expandDnsAddr(
       let
         peerIdBytes = lastPart.protoArgument().tryGet()
         addrPeerId = PeerId.init(peerIdBytes).tryGet()
-      result.add((resolvedAddress[0..^2].tryGet(), Opt.some(addrPeerId)))
+      result.add((
+        resolvedAddress[0..^2].tryGet(), Opt.some(addrPeerId)))
     else:
       result.add((resolvedAddress, peerId))
 
 proc dialAndUpgrade(
-  self: Dialer,
-  peerId: Opt[PeerId],
-  addrs: seq[MultiAddress],
-  dir = Direction.Out):
-  Future[Muxer] {.async.} =
-
+    self: Dialer,
+    peerId: Opt[PeerId],
+    addrs: seq[MultiAddress],
+    dir = Direction.Out
+): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   debug "Dialing peer", peerId = peerId.get(default(PeerId))
 
   for rawAddress in addrs:
@@ -163,15 +165,15 @@ proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   return Opt.some(muxer)
 
 proc internalConnect(
-  self: Dialer,
-  peerId: Opt[PeerId],
-  addrs: seq[MultiAddress],
-  forceDial: bool,
-  reuseConnection = true,
-  dir = Direction.Out):
-  Future[Muxer] {.async.} =
+    self: Dialer,
+    peerId: Opt[PeerId],
+    addrs: seq[MultiAddress],
+    forceDial: bool,
+    reuseConnection = true,
+    dir = Direction.Out
+): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   if Opt.some(self.localPeerId) == peerId:
-    raise newException(CatchableError, "can't dial self!")
+    raise newException(DialFailedError, "can't dial self!")
 
   # Ensure there's only one in-flight attempt per peer
   let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())
@@ -187,7 +189,10 @@ proc internalConnect(
     let muxed =
       try:
         await self.dialAndUpgrade(peerId, addrs, dir)
-      except CatchableError as exc:
+      except CancelledError as exc:
+        slot.release()
+        raise exc
+      except LPError as exc:
         slot.release()
         raise exc
     slot.trackMuxer(muxed)
@@ -197,7 +202,11 @@ proc internalConnect(
     try:
       self.connManager.storeMuxer(muxed)
       await self.peerStore.identify(muxed)
-    except CatchableError as exc:
+    except CancelledError as exc:
+      trace "Failed to finish outgoung upgrade", err=exc.msg
+      await muxed.close()
+      raise exc
+    except LPError as exc:
       trace "Failed to finish outgoung upgrade", err=exc.msg
       await muxed.close()
       raise exc
@@ -205,28 +214,32 @@ proc internalConnect(
     return muxed
   finally:
     if lock.locked():
-      lock.release()
+      try:
+        lock.release()
+      except AsyncLockError as exc:
+        raiseAssert("Releasing an acquired lock should work: " & $exc.msg)
 
 method connect*(
-  self: Dialer,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  forceDial = false,
-  reuseConnection = true,
-  dir = Direction.Out) {.async.} =
+    self: Dialer,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out) {.async: (raises: [CancelledError, LPError]).} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
-
   if self.connManager.connCount(peerId) > 0 and reuseConnection:
     return
 
-  discard await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection, dir)
+  discard await self.internalConnect(
+    Opt.some(peerId), addrs, forceDial, reuseConnection, dir)
 
 method connect*(
   self: Dialer,
   address: MultiAddress,
-  allowUnknownPeerId = false): Future[PeerId] {.async.} =
+  allowUnknownPeerId = false
+): Future[PeerId] {.async: (raises: [CancelledError, LPError]).} =
   ## Connects to a peer and retrieve its PeerId
 
   parseFullAddress(address).toOpt().withValue(fullAddress):
@@ -236,17 +249,19 @@ method connect*(
       false)).connection.peerId
 
   if allowUnknownPeerId == false:
-    raise newException(DialFailedError, "Address without PeerID and unknown peer id disabled!")
+    raise newException(DialFailedError,
+      "Address without PeerID and unknown peer id disabled!")
 
-  return (await self.internalConnect(
+  (await self.internalConnect(
     Opt.none(PeerId),
     @[address],
     false)).connection.peerId
 
 proc negotiateStream(
-  self: Dialer,
-  conn: Connection,
-  protos: seq[string]): Future[Connection] {.async.} =
+    self: Dialer,
+    conn: Connection,
+    protos: seq[string]
+): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
   trace "Negotiating stream", conn, protos
   let selected = await MultistreamSelect.select(conn, protos)
   if not protos.contains(selected):
@@ -277,9 +292,10 @@ method tryDial*(
     raise newException(DialFailedError, exc.msg)
 
 method dial*(
-  self: Dialer,
-  peerId: PeerId,
-  protos: seq[string]): Future[Connection] {.async.} =
+    self: Dialer,
+    peerId: PeerId,
+    protos: seq[string]
+): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
   ## create a protocol stream over an
   ## existing connection
   ##
@@ -292,11 +308,12 @@ method dial*(
   return await self.negotiateStream(stream, protos)
 
 method dial*(
-  self: Dialer,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  protos: seq[string],
-  forceDial = false): Future[Connection] {.async.} =
+    self: Dialer,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false
+): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
@@ -305,7 +322,7 @@ method dial*(
     conn: Muxer
     stream: Connection
 
-  proc cleanup() {.async.} =
+  proc cleanup() {.async: (raises: []).} =
     if not(isNil(stream)):
       await stream.closeWithEOF()
 
@@ -327,7 +344,7 @@ method dial*(
     trace "Dial canceled", conn
     await cleanup()
     raise exc
-  except CatchableError as exc:
+  except LPError as exc:
     debug "Error dialing", conn, err = exc.msg
     await cleanup()
     raise exc

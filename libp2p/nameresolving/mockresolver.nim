@@ -26,21 +26,36 @@ type MockResolver* = ref object of NameResolver
   ipResponses*: Table[(string, bool), seq[string]]
 
 method resolveIp*(
-  self: MockResolver,
-  address: string,
-  port: Port,
-  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
+    self: MockResolver,
+    address: string,
+    port: Port,
+    domain: Domain = Domain.AF_UNSPEC
+): Future[seq[TransportAddress]] {.async: (raises: [
+    CancelledError], raw: true).} =
+  var res: seq[TransportAddress]
   if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
     for resp in self.ipResponses.getOrDefault((address, false)):
-      result.add(initTAddress(resp, port))
+      try:
+        res.add(initTAddress(resp, port))
+      except TransportAddressError:
+        raiseAssert("ipResponses should only contain valid IP addresses")
 
   if domain == Domain.AF_INET6 or domain == Domain.AF_UNSPEC:
     for resp in self.ipResponses.getOrDefault((address, true)):
-      result.add(initTAddress(resp, port))
+      try:
+        res.add(initTAddress(resp, port))
+      except TransportAddressError:
+        raiseAssert("ipResponses should only contain valid IP addresses")
+  let fut = newFuture[seq[TransportAddress]]()
+  fut.complete(res)
+  fut
 
 method resolveTxt*(
-  self: MockResolver,
-  address: string): Future[seq[string]] {.async.} =
-  return self.txtResponses.getOrDefault(address)
+    self: MockResolver,
+    address: string
+): Future[seq[string]] {.async: (raises: [CancelledError], raw: true).} =
+  let fut = newFuture[seq[string]]()
+  fut.complete(self.txtResponses.getOrDefault(address))
+  fut
 
 proc new*(T: typedesc[MockResolver]): T = T()

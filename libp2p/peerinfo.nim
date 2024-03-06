@@ -85,20 +85,16 @@ proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)]
   parseFullAddress(? MultiAddress.init(ma))
 
 proc new*(
-  p: typedesc[PeerInfo],
-  key: PrivateKey,
-  listenAddrs: openArray[MultiAddress] = [],
-  protocols: openArray[string] = [],
-  protoVersion: string = "",
-  agentVersion: string = "",
-  addressMappers = newSeq[AddressMapper](),
-  ): PeerInfo
-  {.raises: [LPError].} =
-
-  let pubkey = try:
-      key.getPublicKey().tryGet()
-    except CatchableError:
-      raise newException(PeerInfoError, "invalid private key")
+    p: typedesc[PeerInfo],
+    key: PrivateKey,
+    listenAddrs: openArray[MultiAddress] = [],
+    protocols: openArray[string] = [],
+    protoVersion: string = "",
+    agentVersion: string = "",
+    addressMappers = newSeq[AddressMapper]()
+): PeerInfo {.raises: [LPError].} =
+  let pubkey = key.getPublicKey().valueOr:
+    raise newException(PeerInfoError, "invalid private key")
 
   let peerId = PeerId.init(key).tryGet()
 

@@ -83,11 +83,11 @@ proc getDnsResponse(
     await sock.closeWait()
 
 method resolveIp*(
-  self: DnsResolver,
-  address: string,
-  port: Port,
-  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
-
+    self: DnsResolver,
+    address: string,
+    port: Port,
+    domain: Domain = Domain.AF_UNSPEC
+): Future[seq[TransportAddress]] {.async: (raises: [CancelledError]).} =
   trace "Resolving IP using DNS", address, servers = self.nameServers.mapIt($it), domain
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
@@ -132,14 +132,21 @@ method resolveIp*(
       continue
 
     trace "Got IPs from DNS server", resolvedAddresses, server = $server
-    return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
+    var res = newSeqOfCap[TransportAddress](resolvedAddresses.len)
+    for address in resolvedAddresses:
+      try:
+        res.add(initTAddress(address, port))
+      except TransportAddressError as e:
+        debug "Failed to parse IP from DNS server", error=e.msg
+    return res
 
   debug "Failed to resolve address, returning empty set"
   return @[]
 
 method resolveTxt*(
-  self: DnsResolver,
-  address: string): Future[seq[string]] {.async.} =
+    self: DnsResolver,
+    address: string
+): Future[seq[string]] {.async: (raises: [CancelledError]).} =
 
   trace "Resolving TXT using DNS", address, servers = self.nameServers.mapIt($it)
   for _ in 0 ..< self.nameServers.len:

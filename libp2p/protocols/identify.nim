@@ -167,9 +167,12 @@ method init*(p: Identify) =
   p.handler = handle
   p.codec = IdentifyCodec
 
-proc identify*(self: Identify,
-               conn: Connection,
-               remotePeerId: PeerId): Future[IdentifyInfo] {.async.} =
+proc identify*(
+    self: Identify,
+    conn: Connection,
+    remotePeerId: PeerId
+): Future[IdentifyInfo] {.async: (raises: [
+    CancelledError, IdentifyError, LPStreamError]).} =
   trace "initiating identify", conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:

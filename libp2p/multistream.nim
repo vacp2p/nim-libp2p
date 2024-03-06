@@ -50,10 +50,12 @@ template validateSuffix(str: string): untyped =
     else:
       raise newException(MultiStreamError, "MultistreamSelect failed, malformed message")
 
-proc select*(_: MultistreamSelect | type MultistreamSelect,
-             conn: Connection,
-             proto: seq[string]):
-             Future[string] {.async.} =
+proc select*(
+    _: MultistreamSelect | type MultistreamSelect,
+    conn: Connection,
+    proto: seq[string]
+): Future[string] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError]).} =
   trace "initiating handshake", conn, codec = Codec
   ## select a remote protocol
   await conn.writeLp(Codec & "\n") # write handshake
@@ -98,15 +100,22 @@ proc select*(_: MultistreamSelect | type MultistreamSelect,
       # No alternatives, fail
       return ""
 
-proc select*(_: MultistreamSelect | type MultistreamSelect,
-             conn: Connection,
-             proto: string): Future[bool] {.async.} =
+proc select*(
+    _: MultistreamSelect | type MultistreamSelect,
+    conn: Connection,
+    proto: string
+): Future[bool] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError]).} =
   if proto.len > 0:
-    return (await MultistreamSelect.select(conn, @[proto])) == proto
+    (await MultistreamSelect.select(conn, @[proto])) == proto
   else:
-    return (await MultistreamSelect.select(conn, @[])) == Codec
+    (await MultistreamSelect.select(conn, @[])) == Codec
 
-proc select*(m: MultistreamSelect, conn: Connection): Future[bool] =
+proc select*(
+    m: MultistreamSelect,
+    conn: Connection
+): Future[bool] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError], raw: true).} =
   m.select(conn, "")
 
 proc list*(m: MultistreamSelect,

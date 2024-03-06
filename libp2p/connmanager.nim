@@ -280,9 +280,7 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
     trace "connection not found", peerId
   return mux
 
-proc storeMuxer*(c: ConnManager,
-                 muxer: Muxer)
-                 {.raises: [CatchableError].} =
+proc storeMuxer*(c: ConnManager, muxer: Muxer) {.raises: [LPError].} =
   ## store the connection and muxer
   ##
 
@@ -311,14 +309,12 @@ proc storeMuxer*(c: ConnManager,
 
       raise newTooManyConnectionsError()
 
-  var newPeer = false
-  c.muxed.withValue(peerId, muxers):
-    doAssert muxers[].len > 0
-    doAssert muxer notin muxers[]
-    muxers[].add(muxer)
-  do:
-    c.muxed[peerId] = @[muxer]
-    newPeer = true
+  assert muxer notin c.muxed.getOrDefault(peerId)
+
+  let
+    newPeer = peerId notin c.muxed
+  assert newPeer or c.muxed[peerId].len > 0
+  c.muxed.mgetOrPut(peerId, newSeq[Muxer]()).add(muxer)
   libp2p_peers.set(c.muxed.len.int64)
 
   asyncSpawn c.triggerConnEvent(
@@ -380,28 +376,34 @@ proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
     return
   cs.trackConnection(mux.connection)
 
-proc getStream*(c: ConnManager,
-                muxer: Muxer): Future[Connection] {.async.} =
+proc getStream*(
+    c: ConnManager,
+    muxer: Muxer
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPStreamError, MuxerError]).} =
   ## get a muxed stream for the passed muxer
   ##
-
   if not(isNil(muxer)):
     return await muxer.newStream()
 
-proc getStream*(c: ConnManager,
-                peerId: PeerId): Future[Connection] {.async.} =
+proc getStream*(
+    c: ConnManager,
+    peerId: PeerId
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPStreamError, MuxerError], raw: true).} =
   ## get a muxed stream for the passed peer from any connection
   ##
+  c.getStream(c.selectMuxer(peerId))
 
-  return await c.getStream(c.selectMuxer(peerId))
-
-proc getStream*(c: ConnManager,
-                peerId: PeerId,
-                dir: Direction): Future[Connection] {.async.} =
+proc getStream*(
+    c: ConnManager,
+    peerId: PeerId,
+    dir: Direction
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPStreamError, MuxerError], raw: true).} =
   ## get a muxed stream for the passed peer from a connection with `dir`
   ##
-
-  return await c.getStream(c.selectMuxer(peerId, dir))
+  c.getStream(c.selectMuxer(peerId, dir))
 
 
 proc dropPeer*(c: ConnManager, peerId: PeerId) {.async.} =
@@ -435,4 +437,3 @@ proc close*(c: ConnManager) {.async.} =
       await closeMuxer(mux)
 
   trace "Closed ConnManager"
-
