@@ -315,7 +315,11 @@ proc readFrame(
   await sconn.readExactly(addr buffer[0], buffer.len)
   return buffer
 
-proc writeFrame(sconn: Connection, buf: openArray[byte]): Future[void] =
+proc writeFrame(
+    sconn: Connection,
+    buf: openArray[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   doAssert buf.len <= uint16.high.int
   var
     lesize = buf.len.uint16
@@ -326,13 +330,24 @@ proc writeFrame(sconn: Connection, buf: openArray[byte]): Future[void] =
   outbuf &= buf
   sconn.write(outbuf)
 
-proc receiveHSMessage(sconn: Connection): Future[seq[byte]] = readFrame(sconn)
-proc sendHSMessage(sconn: Connection, buf: openArray[byte]): Future[void] =
+proc receiveHSMessage(
+    sconn: Connection
+): Future[seq[byte]] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
+  readFrame(sconn)
+
+proc sendHSMessage(
+    sconn: Connection,
+    buf: openArray[byte]
+): Future[void] {.async: (raises: [
+    CancelledError, LPStreamError], raw: true).} =
   writeFrame(sconn, buf)
 
 proc handshakeXXOutbound(
     p: Noise, conn: Connection,
-    p2pSecret: seq[byte]): Future[HandshakeResult] {.async.} =
+    p2pSecret: seq[byte]
+): Future[HandshakeResult] {.async: (raises: [
+    CancelledError, LPStreamError]).} =
   const initiator = true
   var
     hs = HandshakeState.init()
@@ -380,7 +395,9 @@ proc handshakeXXOutbound(
 
 proc handshakeXXInbound(
     p: Noise, conn: Connection,
-    p2pSecret: seq[byte]): Future[HandshakeResult] {.async.} =
+    p2pSecret: seq[byte]
+): Future[HandshakeResult] {.async: (raises: [
+    CancelledError, LPStreamError]).} =
   const initiator = false
 
   var
@@ -509,21 +526,28 @@ method write*(
   # sequencing issues
   sconn.stream.write(cipherFrames)
 
-method handshake*(p: Noise, conn: Connection, initiator: bool, peerId: Opt[PeerId]): Future[SecureConn] {.async.} =
+method handshake*(
+    p: Noise,
+    conn: Connection,
+    initiator: bool,
+    peerId: Opt[PeerId]
+): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Starting Noise handshake", conn, initiator
 
   let timeout = conn.timeout
   conn.timeout = HandshakeTimeout
 
   # https://github.com/libp2p/specs/tree/master/noise#libp2p-data-in-handshake-messages
-  let
-    signedPayload = p.localPrivateKey.sign(
-      PayloadString & p.noiseKeys.publicKey.getBytes).tryGet()
+  let signedPayload = p.localPrivateKey.sign(
+    PayloadString & p.noiseKeys.publicKey.getBytes)
+  if signedPayload.isErr():
+    raise newException(NoiseHandshakeError,
+      "Failed to sign public key: " & $signedPayload.error())
 
   var
     libp2pProof = initProtoBuffer()
   libp2pProof.write(1, p.localPublicKey)
-  libp2pProof.write(2, signedPayload.getBytes())
+  libp2pProof.write(2, signedPayload.get().getBytes())
   # data field also there but not used!
   libp2pProof.finish()
 

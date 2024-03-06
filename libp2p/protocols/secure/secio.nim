@@ -259,13 +259,13 @@ method write*(
     await sconn.stream.write(msg)
     sconn.activity = true
 
-proc newSecioConn(conn: Connection,
-                  hash: string,
-                  cipher: string,
-                  secrets: Secret,
-                  order: int,
-                  remotePubKey: PublicKey): SecioConn
-                  {.raises: [LPError].} =
+proc newSecioConn(
+    conn: Connection,
+    hash: string,
+    cipher: string,
+    secrets: Secret,
+    order: int,
+    remotePubKey: PublicKey): SecioConn =
   ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
@@ -288,13 +288,20 @@ proc newSecioConn(conn: Connection,
   result.readerCoder.init(cipher, secrets.keyOpenArray(i1),
                           secrets.ivOpenArray(i1))
 
-proc transactMessage(conn: Connection,
-                     msg: seq[byte]): Future[seq[byte]] {.async.} =
+proc transactMessage(
+    conn: Connection,
+    msg: seq[byte]
+): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Sending message", message = msg.shortLog, length = len(msg)
   await conn.write(msg)
-  return await conn.readRawMessage()
+  await conn.readRawMessage()
 
-method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerId]): Future[SecureConn] {.async.} =
+method handshake*(
+    s: Secio,
+    conn: Connection,
+    initiator: bool,
+    peerId: Opt[PeerId]
+): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
   var
     localNonce: array[SecioNonceSize, byte]
     remoteNonce: seq[byte]
@@ -307,25 +314,29 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
     remoteExchanges: string
     remoteCiphers: string
     remoteHashes: string
-    remotePeerId: PeerId
-    localPeerId: PeerId
-    localBytesPubkey = s.localPublicKey.getBytes().tryGet()
+    localBytesPubkey = s.localPublicKey.getBytes()
+  if localBytesPubkey.isErr():
+    raise (ref SecioError)(
+      msg: "Failed to get local public key bytes: " & $localBytesPubkey.error())
 
   hmacDrbgGenerate(s.rng[], localNonce)
 
   var request = createProposal(localNonce,
-                               localBytesPubkey,
+                               localBytesPubkey.get(),
                                SecioExchanges,
                                SecioCiphers,
                                SecioHashes)
 
-  localPeerId = PeerId.init(s.localPublicKey).tryGet()
+  let localPeerId = PeerId.init(s.localPublicKey)
+  if localPeerId.isErr():
+    raise (ref SecioError)(
+      msg: "Failed to initialize local peer ID: " & $localPeerId.error())
 
   trace "Local proposal", schemes = SecioExchanges,
                           ciphers = SecioCiphers,
                           hashes = SecioHashes,
-                          pubkey = localBytesPubkey.shortLog,
-                          peer = localPeerId
+                          pubkey = localBytesPubkey.get().shortLog,
+                          peer = localPeerId.get()
 
   var answer = await transactMessage(conn, request)
 
@@ -343,39 +354,54 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
           pubkey = remoteBytesPubkey.shortLog
     raise (ref SecioError)(msg: "Remote public key incorrect or corrupted")
 
-  remotePeerId = PeerId.init(remotePubkey).tryGet()
+  let remotePeerId = PeerId.init(remotePubkey)
+  if remotePeerId.isErr():
+    raise (ref SecioError)(
+      msg: "Failed to initialize remote peer ID: " & $remotePeerId.error())
 
   peerId.withValue(targetPid):
     if not targetPid.validate():
       raise newException(SecioError, "Failed to validate expected peerId.")
 
-    if remotePeerId != targetPid:
+    if remotePeerId.get() != targetPid:
       raise newException(SecioError, "Peer ids don't match!")
-  conn.peerId = remotePeerId
-  let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
-                       remoteNonce).tryGet()
+  conn.peerId = remotePeerId.get()
+  let order = getOrder(
+    remoteBytesPubkey, localNonce, localBytesPubkey.get(), remoteNonce)
+  if order.isErr():
+    raise (ref SecioError)(msg: "Failed to get order: " & $order.error())
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
                            hashes = remoteHashes,
-                           pubkey = remoteBytesPubkey.shortLog, order = order,
-                           peer = remotePeerId
+                           pubkey = remoteBytesPubkey.shortLog,
+                           order = order.get(),
+                           peer = remotePeerId.get()
 
-  let scheme = selectBest(order, SecioExchanges, remoteExchanges)
-  let cipher = selectBest(order, SecioCiphers, remoteCiphers)
-  let hash = selectBest(order, SecioHashes, remoteHashes)
+  let scheme = selectBest(order.get(), SecioExchanges, remoteExchanges)
+  let cipher = selectBest(order.get(), SecioCiphers, remoteCiphers)
+  let hash = selectBest(order.get(), SecioHashes, remoteHashes)
   if len(scheme) == 0 or len(cipher) == 0 or len(hash) == 0:
-    trace "No algorithms in common", peer = remotePeerId
+    trace "No algorithms in common", peer = remotePeerId.get()
     raise (ref SecioError)(msg: "No algorithms in common")
 
   trace "Encryption scheme selected", scheme = scheme, cipher = cipher,
                                       hash = hash
 
-  var ekeypair = ephemeral(scheme, s.rng[]).tryGet()
+  let ekeypair = ephemeral(scheme, s.rng[])
+  if ekeypair.isErr():
+    raise (ref SecioError)(
+      msg: "Failed to create ephemeral keypair: " & $ekeypair.error())
   # We need EC public key in raw binary form
-  var epubkey = ekeypair.pubkey.getRawBytes().tryGet()
-  var localCorpus = request[4..^1] & answer & epubkey
-  var signature = s.localPrivateKey.sign(localCorpus).tryGet()
+  let epubkey = ekeypair.get().pubkey.getRawBytes()
+  if epubkey.isErr():
+    raise (ref SecioError)(
+      msg: "Failed to get ephemeral key bytes: " & $epubkey.error())
+  var localCorpus = request[4..^1] & answer & epubkey.get()
+  let signature = s.localPrivateKey.sign(localCorpus)
+  if signature.isErr():
+    raise (ref SecioError)(
+      msg: "Failed to sign local corpus: " & $signature.error())
 
-  var localExchange = createExchange(epubkey, signature.getBytes())
+  var localExchange = createExchange(epubkey.get(), signature.get().getBytes())
   var remoteExchange = await transactMessage(conn, localExchange)
   if len(remoteExchange) == 0:
     trace "Corpus exchange failed", conn
@@ -404,7 +430,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
           pubkey = toHex(remoteEBytesPubkey)
     raise (ref SecioError)(msg: "Remote ephemeral public key incorrect or corrupted")
 
-  var secret = getSecret(remoteEPubkey, ekeypair.seckey)
+  var secret = getSecret(remoteEPubkey, ekeypair.get().seckey)
   if len(secret) == 0:
     trace "Shared secret could not be created"
     raise (ref SecioError)(msg: "Shared secret could not be created")
@@ -421,7 +447,8 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
 
   # Perform Nonce exchange over encrypted channel.
 
-  var secioConn = newSecioConn(conn, hash, cipher, keys, order, remotePubkey)
+  var secioConn = newSecioConn(
+    conn, hash, cipher, keys, order.get(), remotePubkey)
   result = secioConn
   await secioConn.write(remoteNonce)
   var res = await secioConn.readMessage()

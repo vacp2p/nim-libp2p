@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -19,14 +19,13 @@ const
 
 type
   LPProtoHandler* = proc (
-    conn: Connection,
-    proto: string):
-    Future[void]
-    {.gcsafe, raises: [].}
+      conn: Connection,
+      proto: string
+  ): Future[void] {.async: (raises: [CancelledError]).}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
-    handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
+    handler*: LPProtoHandler ## gets invoked by the protocol negotiator
     started*: bool
     maxIncomingStreams: Opt[int]
 
@@ -50,10 +49,10 @@ func `codec=`*(p: LPProtocol, codec: string) =
   p.codecs.insert(codec, 0)
 
 proc new*(
-  T: type LPProtocol,
-  codecs: seq[string],
-  handler: LPProtoHandler,
-  maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
+    T: type LPProtocol,
+    codecs: seq[string],
+    handler: LPProtoHandler,
+    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
   T(
     codecs: codecs,
     handler: handler,
