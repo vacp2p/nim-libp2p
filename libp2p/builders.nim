@@ -291,23 +291,24 @@ proc build*(b: SwitchBuilder): Switch
   return switch
 
 proc newStandardSwitch*(
-  privKey = none(PrivateKey),
-  addrs: MultiAddress | seq[MultiAddress] = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-  secureManagers: openArray[SecureProtocol] = [
+    privKey = none(PrivateKey),
+    addrs: MultiAddress | seq[MultiAddress] =
+      MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
+    secureManagers: openArray[SecureProtocol] = [
       SecureProtocol.Noise,
     ],
-  transportFlags: set[ServerFlags] = {},
-  rng = newRng(),
-  inTimeout: Duration = 5.minutes,
-  outTimeout: Duration = 5.minutes,
-  maxConnections = MaxConnections,
-  maxIn = -1,
-  maxOut = -1,
-  maxConnsPerPeer = MaxConnectionsPerPeer,
-  nameResolver: NameResolver = nil,
-  sendSignedPeerRecord = false,
-  peerStoreCapacity = 1000): Switch
-  {.raises: [LPError], public.} =
+    transportFlags: set[ServerFlags] = {},
+    rng = newRng(),
+    inTimeout: Duration = 5.minutes,
+    outTimeout: Duration = 5.minutes,
+    maxConnections = MaxConnections,
+    maxIn = -1,
+    maxOut = -1,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
+    nameResolver: NameResolver = nil,
+    sendSignedPeerRecord = false,
+    peerStoreCapacity = 1000
+): Switch {.raises: [LPError], public.} =
   ## Helper for common switch configurations.
   {.push warning[Deprecated]:off.}
   if SecureProtocol.Secio in secureManagers:
