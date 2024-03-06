@@ -285,6 +285,7 @@ method close*(m: WebRtcMuxer) {.async, gcsafe.} =
   await m.webRtcConn.close()
 
 # -- Upgrader --
+
 type
   WebRtcStreamHandler = proc(conn: Connection): Future[void] {.gcsafe, raises: [].}
   WebRtcUpgrade = ref object of Upgrade
