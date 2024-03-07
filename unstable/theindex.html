@@ -547,7 +547,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="bridge" href="#bridge"><span>bridge:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: bridge(connSrc: Connection; connDst: Connection): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#bridge%2CConnection%2CConnection">utils: bridge(connSrc: Connection; connDst: Connection): Future[void]</a></li>
+          data-doc-search-tag="utils: bridge(connSrc: Connection; connDst: Connection): InternalRaisesFuture[void,
+    (CancelledError,)]" href="libp2p/protocols/connectivity/relay/utils.html#bridge%2CConnection%2CConnection">utils: bridge(connSrc: Connection; connDst: Connection): InternalRaisesFuture[void,
+    (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="broadcast" href="#broadcast"><span>broadcast:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4291,15 +4293,21 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="sendHopStatus" href="#sendHopStatus"><span>sendHopStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: sendHopStatus(conn: Connection; code: StatusV2): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#sendHopStatus%2CConnection%2CStatusV2">utils: sendHopStatus(conn: Connection; code: StatusV2): Future[void]</a></li>
+          data-doc-search-tag="utils: sendHopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/utils.html#sendHopStatus%2CConnection%2CStatusV2">utils: sendHopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="sendStatus" href="#sendStatus"><span>sendStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: sendStatus(conn: Connection; code: StatusV1): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#sendStatus%2CConnection%2CStatusV1">utils: sendStatus(conn: Connection; code: StatusV1): Future[void]</a></li>
+          data-doc-search-tag="utils: sendStatus(conn: Connection; code: StatusV1): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/utils.html#sendStatus%2CConnection%2CStatusV1">utils: sendStatus(conn: Connection; code: StatusV1): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="sendStopStatus" href="#sendStopStatus"><span>sendStopStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: sendStopStatus(conn: Connection; code: StatusV2): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#sendStopStatus%2CConnection%2CStatusV2">utils: sendStopStatus(conn: Connection; code: StatusV2): Future[void]</a></li>
+          data-doc-search-tag="utils: sendStopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/utils.html#sendStopStatus%2CConnection%2CStatusV2">utils: sendStopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="sendSubs" href="#sendSubs"><span>sendSubs:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5348,7 +5356,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-06 06:04:48 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-07 09:46:52 UTC</small>
       </div>
     </div>
   </div>
