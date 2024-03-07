@@ -27,15 +27,15 @@ proc expectedFields[T](t: typedesc[T], existingFieldNames: seq[string]) {.raises
     raise newException(CatchableError, $T & " fields changed, please search for and revise all relevant procs. New fields: " & $fieldNames)
 
 type
-    PeerInfoMsg* = object
-      peerId*: PeerId
-      signedPeerRecord*: seq[byte]
+  PeerInfoMsg* = object
+    peerId*: PeerId
+    signedPeerRecord*: seq[byte]
 
-    SubOpts* = object
-      subscribe*: bool
-      topic*: string
+  SubOpts* = object
+    subscribe*: bool
+    topic*: string
 
-    MessageId* = seq[byte]
+  MessageId* = seq[byte]
 
   Message* = object
     fromPeer*: PeerId
@@ -45,34 +45,34 @@ type
     signature*: seq[byte]
     key*: seq[byte]
 
-    ControlMessage* = object
-      ihave*: seq[ControlIHave]
-      iwant*: seq[ControlIWant]
-      graft*: seq[ControlGraft]
-      prune*: seq[ControlPrune]
-      idontwant*: seq[ControlIWant]
+  ControlMessage* = object
+    ihave*: seq[ControlIHave]
+    iwant*: seq[ControlIWant]
+    graft*: seq[ControlGraft]
+    prune*: seq[ControlPrune]
+    idontwant*: seq[ControlIWant]
 
-    ControlIHave* = object
-      topicId*: string
-      messageIds*: seq[MessageId]
+  ControlIHave* = object
+    topicId*: string
+    messageIds*: seq[MessageId]
 
-    ControlIWant* = object
-      messageIds*: seq[MessageId]
+  ControlIWant* = object
+    messageIds*: seq[MessageId]
 
-    ControlGraft* = object
-      topicId*: string
+  ControlGraft* = object
+    topicId*: string
 
-    ControlPrune* = object
-      topicId*: string
-      peers*: seq[PeerInfoMsg]
-      backoff*: uint64
+  ControlPrune* = object
+    topicId*: string
+    peers*: seq[PeerInfoMsg]
+    backoff*: uint64
 
-    RPCMsg* = object
-      subscriptions*: seq[SubOpts]
-      messages*: seq[Message]
-      control*: Option[ControlMessage]
-      ping*: seq[byte]
-      pong*: seq[byte]
+  RPCMsg* = object
+    subscriptions*: seq[SubOpts]
+    messages*: seq[Message]
+    control*: Option[ControlMessage]
+    ping*: seq[byte]
+    pong*: seq[byte]
 
 func withSubs*(
     T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
