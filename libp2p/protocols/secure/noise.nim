@@ -142,7 +142,7 @@ proc encrypt(
 
   inc state.n
   if state.n > NonceMax:
-    raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
+    raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
 
 proc encryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
   {.raises: [NoiseNonceMaxError].} =
@@ -168,10 +168,11 @@ proc decryptWithAd(state: var CipherState, ad, data: openArray[byte]): seq[byte]
   trace "decryptWithAd", tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
   if tagIn != tagOut:
     debug "decryptWithAd failed", data = shortLog(data)
-    raise newException(NoiseDecryptTagError, "decryptWithAd failed tag authentication.")
+    raise (ref NoiseDecryptTagError)(msg:
+      "decryptWithAd failed tag authentication.")
   inc state.n
   if state.n > NonceMax:
-    raise newException(NoiseNonceMaxError, "Noise max nonce value reached")
+    raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
 
 # Symmetricstate
 
@@ -274,7 +275,7 @@ template read_e: untyped =
   trace "noise read e", size = msg.len
 
   if msg.len < Curve25519Key.len:
-    raise newException(NoiseHandshakeError, "Noise E, expected more data")
+    raise (ref NoiseHandshakeError)(msg: "Noise E, expected more data")
 
   # Sets re (which must be empty) to the next DHLEN bytes from the message.
   # Calls MixHash(re.public_key).
@@ -291,11 +292,11 @@ template read_s: untyped =
     rsLen =
       if hs.ss.cs.hasKey:
         if msg.len < Curve25519Key.len + ChaChaPolyTag.len:
-          raise newException(NoiseHandshakeError, "Noise S, expected more data")
+          raise (ref NoiseHandshakeError)(msg: "Noise S, expected more data")
         Curve25519Key.len + ChaChaPolyTag.len
       else:
         if msg.len < Curve25519Key.len:
-          raise newException(NoiseHandshakeError, "Noise S, expected more data")
+          raise (ref NoiseHandshakeError)(msg: "Noise S, expected more data")
         Curve25519Key.len
   hs.rs[0..Curve25519Key.high] =
     hs.ss.decryptAndHash(msg.toOpenArray(0, rsLen - 1))
@@ -545,7 +546,7 @@ method handshake*(
   let signedPayload = p.localPrivateKey.sign(
     PayloadString & p.noiseKeys.publicKey.getBytes)
   if signedPayload.isErr():
-    raise newException(NoiseHandshakeError,
+    raise (ref NoiseHandshakeError)(msg:
       "Failed to sign public key: " & $signedPayload.error())
 
   var
@@ -570,37 +571,37 @@ method handshake*(
       remoteSigBytes: seq[byte]
 
     if not remoteProof.getField(1, remotePubKeyBytes).valueOr(false):
-      raise newException(NoiseHandshakeError,
+      raise (ref NoiseHandshakeError)(msg:
         "Failed to deserialize remote public key bytes. (initiator: " &
         $initiator & ")")
     if not remoteProof.getField(2, remoteSigBytes).valueOr(false):
-      raise newException(NoiseHandshakeError,
+      raise (ref NoiseHandshakeError)(msg:
         "Failed to deserialize remote signature bytes. (initiator: " &
         $initiator & ")")
 
     if not remotePubKey.init(remotePubKeyBytes):
-      raise newException(NoiseHandshakeError,
+      raise (ref NoiseHandshakeError)(msg:
         "Failed to decode remote public key. (initiator: " & $initiator & ")")
     if not remoteSig.init(remoteSigBytes):
-      raise newException(NoiseHandshakeError,
+      raise (ref NoiseHandshakeError)(msg:
         "Failed to decode remote signature. (initiator: " & $initiator & ")")
 
     let verifyPayload = PayloadString & handshakeRes.rs.getBytes
     if not remoteSig.verify(verifyPayload, remotePubKey):
-      raise newException(NoiseHandshakeError,
+      raise (ref NoiseHandshakeError)(msg:
         "Noise handshake signature verify failed.")
     else:
       trace "Remote signature verified", conn
 
     let pid = PeerId.init(remotePubKey).valueOr:
-      raise newException(NoiseHandshakeError,
+      raise (ref NoiseHandshakeError)(msg:
         "Invalid remote peer id: " & $error)
 
     trace "Remote peer id", pid = $pid
 
     peerId.withValue(targetPid):
       if not targetPid.validate():
-        raise newException(NoiseHandshakeError,
+        raise (ref NoiseHandshakeError)(msg:
           "Failed to validate expected peerId.")
 
       if pid != targetPid:
@@ -611,7 +612,7 @@ method handshake*(
           initiator, dealt_peer = conn,
           dealt_key = $failedKey, received_peer = $pid,
           received_key = $remotePubKey
-        raise newException(NoiseHandshakeError,
+        raise (ref NoiseHandshakeError)(msg:
           "Noise handshake, peer id don't match! " & $pid & " != " & $targetPid)
     conn.peerId = pid
 

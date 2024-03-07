@@ -202,7 +202,7 @@ proc readRawMessage(
 
     if length > SecioMaxMessageSize: # Verify length before casting!
       trace "Received size of message exceed limits", conn, length = length
-      raise newException(SecioError, "Message exceeds maximum length")
+      raise (ref SecioError)(msg: "Message exceeds maximum length")
 
     if length > 0:
       var buf = newSeq[byte](int(length))
@@ -225,7 +225,7 @@ method readMessage*(
     buf
   else:
     trace "Message MAC verification failed", buf = buf.shortLog
-    raise newException(SecioError, "message failed MAC verification")
+    raise (ref SecioError)(msg: "message failed MAC verification")
 
 method write*(
     sconn: SecioConn,
@@ -304,12 +304,12 @@ method handshake*(
 ): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
   let localBytesPubkey = s.localPublicKey.getBytes()
   if localBytesPubkey.isErr():
-    raise newException(SecioError,
+    raise (ref SecioError)(msg:
       "Failed to get local public key bytes: " & $localBytesPubkey.error())
 
   let localPeerId = PeerId.init(s.localPublicKey)
   if localPeerId.isErr():
-    raise newException(SecioError,
+    raise (ref SecioError)(msg:
       "Failed to initialize local peer ID: " & $localPeerId.error())
 
   var localNonce: array[SecioNonceSize, byte]
@@ -328,7 +328,7 @@ method handshake*(
   let answer = await transactMessage(conn, request)
   if len(answer) == 0:
     trace "Proposal exchange failed", conn
-    raise newException(SecioError, "Proposal exchange failed")
+    raise (ref SecioError)(msg: "Proposal exchange failed")
 
   var
     remoteNonce: seq[byte]
@@ -340,30 +340,30 @@ method handshake*(
       answer, remoteNonce, remoteBytesPubkey, remoteExchanges,
       remoteCiphers, remoteHashes):
     trace "Remote proposal decoding failed", conn
-    raise newException(SecioError, "Remote proposal decoding failed")
+    raise (ref SecioError)(msg: "Remote proposal decoding failed")
 
   var remotePubkey: PublicKey
   if not remotePubkey.init(remoteBytesPubkey):
     trace "Remote public key incorrect or corrupted",
           pubkey = remoteBytesPubkey.shortLog
-    raise newException(SecioError, "Remote public key incorrect or corrupted")
+    raise (ref SecioError)(msg: "Remote public key incorrect or corrupted")
 
   let remotePeerId = PeerId.init(remotePubkey)
   if remotePeerId.isErr():
-    raise newException(SecioError,
+    raise (ref SecioError)(msg:
       "Failed to initialize remote peer ID: " & $remotePeerId.error())
 
   peerId.withValue(targetPid):
     if not targetPid.validate():
-      raise newException(SecioError, "Failed to validate expected peerId.")
+      raise (ref SecioError)(msg: "Failed to validate expected peerId.")
 
     if remotePeerId.get() != targetPid:
-      raise newException(SecioError, "Peer ids don't match!")
+      raise (ref SecioError)(msg: "Peer ids don't match!")
   conn.peerId = remotePeerId.get()
   let order = getOrder(
     remoteBytesPubkey, localNonce, localBytesPubkey.get(), remoteNonce)
   if order.isErr():
-    raise newException(SecioError, "Failed to get order: " & $order.error())
+    raise (ref SecioError)(msg: "Failed to get order: " & $order.error())
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
                            hashes = remoteHashes,
                            pubkey = remoteBytesPubkey.shortLog,
@@ -376,25 +376,25 @@ method handshake*(
     hash = selectBest(order.get(), SecioHashes, remoteHashes)
   if len(scheme) == 0 or len(cipher) == 0 or len(hash) == 0:
     trace "No algorithms in common", peer = remotePeerId.get()
-    raise newException(SecioError, "No algorithms in common")
+    raise (ref SecioError)(msg: "No algorithms in common")
 
   trace "Encryption scheme selected", scheme = scheme, cipher = cipher,
                                       hash = hash
 
   let ekeypair = ephemeral(scheme, s.rng[])
   if ekeypair.isErr():
-    raise newException(SecioError,
+    raise (ref SecioError)(msg:
       "Failed to create ephemeral keypair: " & $ekeypair.error())
   # We need EC public key in raw binary form
   let epubkey = ekeypair.get().pubkey.getRawBytes()
   if epubkey.isErr():
-    raise newException(SecioError,
+    raise (ref SecioError)(msg:
       "Failed to get ephemeral key bytes: " & $epubkey.error())
   let
     localCorpus = request[4..^1] & answer & epubkey.get()
     signature = s.localPrivateKey.sign(localCorpus)
   if signature.isErr():
-    raise newException(SecioError,
+    raise (ref SecioError)(msg:
       "Failed to sign local corpus: " & $signature.error())
 
   let
@@ -402,20 +402,20 @@ method handshake*(
     remoteExchange = await transactMessage(conn, localExchange)
   if len(remoteExchange) == 0:
     trace "Corpus exchange failed", conn
-    raise newException(SecioError, "Corpus exchange failed")
+    raise (ref SecioError)(msg: "Corpus exchange failed")
 
   var
     remoteEBytesPubkey: seq[byte]
     remoteEBytesSig: seq[byte]
   if not decodeExchange(remoteExchange, remoteEBytesPubkey, remoteEBytesSig):
     trace "Remote exchange decoding failed", conn
-    raise newException(SecioError, "Remote exchange decoding failed")
+    raise (ref SecioError)(msg: "Remote exchange decoding failed")
 
   var remoteESignature: Signature
   if not remoteESignature.init(remoteEBytesSig):
     trace "Remote signature incorrect or corrupted",
           signature = remoteEBytesSig.shortLog
-    raise newException(SecioError, "Remote signature incorrect or corrupted")
+    raise (ref SecioError)(msg: "Remote signature incorrect or corrupted")
 
   let remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
   if not remoteESignature.verify(remoteCorpus, remotePubkey):
@@ -423,7 +423,7 @@ method handshake*(
                                            signature = $remoteESignature,
                                            pubkey = $remotePubkey,
                                            corpus = $remoteCorpus
-    raise newException(SecioError, "Signature verification failed")
+    raise (ref SecioError)(msg: "Signature verification failed")
 
   trace "Signature verified", scheme = remotePubkey.scheme
 
@@ -431,13 +431,13 @@ method handshake*(
   if not remoteEPubkey.initRaw(remoteEBytesPubkey):
     trace "Remote ephemeral public key incorrect or corrupted",
           pubkey = toHex(remoteEBytesPubkey)
-    raise newException(SecioError,
+    raise (ref SecioError)(msg:
       "Remote ephemeral public key incorrect or corrupted")
 
   let secret = getSecret(remoteEPubkey, ekeypair.get().seckey)
   if len(secret) == 0:
     trace "Shared secret could not be created"
-    raise newException(SecioError, "Shared secret could not be created")
+    raise (ref SecioError)(msg: "Shared secret could not be created")
 
   trace "Shared secret calculated", secret = secret.shortLog
 
@@ -461,7 +461,7 @@ method handshake*(
   if res != @localNonce:
     trace "Nonce verification failed", receivedNonce = res.shortLog,
                                        localNonce = localNonce.shortLog
-    raise newException(SecioError, "Nonce verification failed")
+    raise (ref SecioError)(msg: "Nonce verification failed")
   else:
     trace "Secure handshake succeeded"
     secioConn
