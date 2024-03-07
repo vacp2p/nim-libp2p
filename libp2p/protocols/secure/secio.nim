@@ -107,11 +107,11 @@ proc update(mac: var SecureMac, data: openArray[byte]) =
 proc sizeDigest(mac: SecureMac): int {.inline.} =
   case mac.kind
   of SecureMacType.Sha256:
-    result = int(mac.ctxsha256.sizeDigest())
+    int(mac.ctxsha256.sizeDigest())
   of SecureMacType.Sha512:
-    result = int(mac.ctxsha512.sizeDigest())
+    int(mac.ctxsha512.sizeDigest())
   of SecureMacType.Sha1:
-    result = int(mac.ctxsha1.sizeDigest())
+    int(mac.ctxsha1.sizeDigest())
 
 proc finish(mac: var SecureMac, data: var openArray[byte]) =
   case mac.kind
@@ -188,7 +188,7 @@ proc macCheckAndDecode(sconn: SecioConn, data: var seq[byte]): bool =
   sconn.readerCoder.decrypt(data.toOpenArray(0, mark - 1),
                             data.toOpenArray(0, mark - 1))
   data.setLen(mark)
-  result = true
+  true
 
 proc readRawMessage(
     conn: Connection
@@ -222,7 +222,7 @@ method readMessage*(
       stream_oid = $sconn.stream.oid
   var buf = await sconn.stream.readRawMessage()
   if sconn.macCheckAndDecode(buf):
-    result = buf
+    buf
   else:
     trace "Message MAC verification failed", buf = buf.shortLog
     raise (ref SecioError)(msg: "message failed MAC verification")
@@ -239,15 +239,16 @@ method write*(
     offset = 0
   while left > 0:
     let
-      chunkSize = if left > SecioMaxMessageSize - 64: SecioMaxMessageSize - 64 else: left
+      chunkSize = min(left, SecioMaxMessageSize - 64)
       macsize = sconn.writerMac.sizeDigest()
       length = chunkSize + macsize
 
     var msg = newSeq[byte](chunkSize + 4 + macsize)
     msg[0..<4] = uint32(length).toBytesBE()
 
-    sconn.writerCoder.encrypt(message.toOpenArray(offset, offset + chunkSize - 1),
-                              msg.toOpenArray(4, 4 + chunkSize - 1))
+    sconn.writerCoder.encrypt(
+      message.toOpenArray(offset, offset + chunkSize - 1),
+      msg.toOpenArray(4, 4 + chunkSize - 1))
     left = left - chunkSize
     offset = offset + chunkSize
     let mo = 4 + chunkSize
@@ -259,17 +260,16 @@ method write*(
     await sconn.stream.write(msg)
     sconn.activity = true
 
-proc newSecioConn(conn: Connection,
-                  hash: string,
-                  cipher: string,
-                  secrets: Secret,
-                  order: int,
-                  remotePubKey: PublicKey): SecioConn
-                  {.raises: [LPError].} =
+proc newSecioConn(
+    conn: Connection,
+    hash: string,
+    cipher: string,
+    secrets: Secret,
+    order: int,
+    remotePubKey: PublicKey): SecioConn =
   ## Create new secure stream/lpstream, using specified hash algorithm ``hash``,
   ## cipher algorithm ``cipher``, stretched keys ``secrets`` and order
   ## ``order``.
-
   result = SecioConn.new(conn, conn.peerId, conn.observedAddr)
 
   let i0 = if order < 0: 1 else: 0
@@ -288,108 +288,136 @@ proc newSecioConn(conn: Connection,
   result.readerCoder.init(cipher, secrets.keyOpenArray(i1),
                           secrets.ivOpenArray(i1))
 
-proc transactMessage(conn: Connection,
-                     msg: seq[byte]): Future[seq[byte]] {.async.} =
+proc transactMessage(
+    conn: Connection,
+    msg: seq[byte]
+): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Sending message", message = msg.shortLog, length = len(msg)
   await conn.write(msg)
-  return await conn.readRawMessage()
+  await conn.readRawMessage()
 
-method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerId]): Future[SecureConn] {.async.} =
-  var
-    localNonce: array[SecioNonceSize, byte]
-    remoteNonce: seq[byte]
-    remoteBytesPubkey: seq[byte]
-    remoteEBytesPubkey: seq[byte]
-    remoteEBytesSig: seq[byte]
-    remotePubkey: PublicKey
-    remoteEPubkey: ecnist.EcPublicKey
-    remoteESignature: Signature
-    remoteExchanges: string
-    remoteCiphers: string
-    remoteHashes: string
-    remotePeerId: PeerId
-    localPeerId: PeerId
-    localBytesPubkey = s.localPublicKey.getBytes().tryGet()
+method handshake*(
+    s: Secio,
+    conn: Connection,
+    initiator: bool,
+    peerId: Opt[PeerId]
+): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
+  let localBytesPubkey = s.localPublicKey.getBytes()
+  if localBytesPubkey.isErr():
+    raise (ref SecioError)(msg:
+      "Failed to get local public key bytes: " & $localBytesPubkey.error())
 
+  let localPeerId = PeerId.init(s.localPublicKey)
+  if localPeerId.isErr():
+    raise (ref SecioError)(msg:
+      "Failed to initialize local peer ID: " & $localPeerId.error())
+
+  var localNonce: array[SecioNonceSize, byte]
   hmacDrbgGenerate(s.rng[], localNonce)
 
-  var request = createProposal(localNonce,
-                               localBytesPubkey,
-                               SecioExchanges,
-                               SecioCiphers,
-                               SecioHashes)
-
-  localPeerId = PeerId.init(s.localPublicKey).tryGet()
+  let request = createProposal(
+    localNonce, localBytesPubkey.get(),
+    SecioExchanges, SecioCiphers, SecioHashes)
 
   trace "Local proposal", schemes = SecioExchanges,
                           ciphers = SecioCiphers,
                           hashes = SecioHashes,
-                          pubkey = localBytesPubkey.shortLog,
-                          peer = localPeerId
+                          pubkey = localBytesPubkey.get().shortLog,
+                          peer = localPeerId.get()
 
-  var answer = await transactMessage(conn, request)
-
+  let answer = await transactMessage(conn, request)
   if len(answer) == 0:
     trace "Proposal exchange failed", conn
     raise (ref SecioError)(msg: "Proposal exchange failed")
 
-  if not decodeProposal(answer, remoteNonce, remoteBytesPubkey, remoteExchanges,
-                        remoteCiphers, remoteHashes):
+  var
+    remoteNonce: seq[byte]
+    remoteBytesPubkey: seq[byte]
+    remoteExchanges: string
+    remoteCiphers: string
+    remoteHashes: string
+  if not decodeProposal(
+      answer, remoteNonce, remoteBytesPubkey, remoteExchanges,
+      remoteCiphers, remoteHashes):
     trace "Remote proposal decoding failed", conn
     raise (ref SecioError)(msg: "Remote proposal decoding failed")
 
+  var remotePubkey: PublicKey
   if not remotePubkey.init(remoteBytesPubkey):
     trace "Remote public key incorrect or corrupted",
           pubkey = remoteBytesPubkey.shortLog
     raise (ref SecioError)(msg: "Remote public key incorrect or corrupted")
 
-  remotePeerId = PeerId.init(remotePubkey).tryGet()
+  let remotePeerId = PeerId.init(remotePubkey)
+  if remotePeerId.isErr():
+    raise (ref SecioError)(msg:
+      "Failed to initialize remote peer ID: " & $remotePeerId.error())
 
   peerId.withValue(targetPid):
     if not targetPid.validate():
-      raise newException(SecioError, "Failed to validate expected peerId.")
+      raise (ref SecioError)(msg: "Failed to validate expected peerId.")
 
-    if remotePeerId != targetPid:
-      raise newException(SecioError, "Peer ids don't match!")
-  conn.peerId = remotePeerId
-  let order = getOrder(remoteBytesPubkey, localNonce, localBytesPubkey,
-                       remoteNonce).tryGet()
+    if remotePeerId.get() != targetPid:
+      raise (ref SecioError)(msg: "Peer ids don't match!")
+  conn.peerId = remotePeerId.get()
+  let order = getOrder(
+    remoteBytesPubkey, localNonce, localBytesPubkey.get(), remoteNonce)
+  if order.isErr():
+    raise (ref SecioError)(msg: "Failed to get order: " & $order.error())
   trace "Remote proposal", schemes = remoteExchanges, ciphers = remoteCiphers,
                            hashes = remoteHashes,
-                           pubkey = remoteBytesPubkey.shortLog, order = order,
-                           peer = remotePeerId
+                           pubkey = remoteBytesPubkey.shortLog,
+                           order = order.get(),
+                           peer = remotePeerId.get()
 
-  let scheme = selectBest(order, SecioExchanges, remoteExchanges)
-  let cipher = selectBest(order, SecioCiphers, remoteCiphers)
-  let hash = selectBest(order, SecioHashes, remoteHashes)
+  let
+    scheme = selectBest(order.get(), SecioExchanges, remoteExchanges)
+    cipher = selectBest(order.get(), SecioCiphers, remoteCiphers)
+    hash = selectBest(order.get(), SecioHashes, remoteHashes)
   if len(scheme) == 0 or len(cipher) == 0 or len(hash) == 0:
-    trace "No algorithms in common", peer = remotePeerId
+    trace "No algorithms in common", peer = remotePeerId.get()
     raise (ref SecioError)(msg: "No algorithms in common")
 
   trace "Encryption scheme selected", scheme = scheme, cipher = cipher,
                                       hash = hash
 
-  var ekeypair = ephemeral(scheme, s.rng[]).tryGet()
+  let ekeypair = ephemeral(scheme, s.rng[])
+  if ekeypair.isErr():
+    raise (ref SecioError)(msg:
+      "Failed to create ephemeral keypair: " & $ekeypair.error())
   # We need EC public key in raw binary form
-  var epubkey = ekeypair.pubkey.getRawBytes().tryGet()
-  var localCorpus = request[4..^1] & answer & epubkey
-  var signature = s.localPrivateKey.sign(localCorpus).tryGet()
+  let epubkey = ekeypair.get().pubkey.getRawBytes()
+  if epubkey.isErr():
+    raise (ref SecioError)(msg:
+      "Failed to get ephemeral key bytes: " & $epubkey.error())
+  let
+    localCorpus = request[4..^1] & answer & epubkey.get()
+    signature = s.localPrivateKey.sign(localCorpus)
+  if signature.isErr():
+    raise (ref SecioError)(msg:
+      "Failed to sign local corpus: " & $signature.error())
 
-  var localExchange = createExchange(epubkey, signature.getBytes())
-  var remoteExchange = await transactMessage(conn, localExchange)
+  let
+    localExchange = createExchange(epubkey.get(), signature.get().getBytes())
+    remoteExchange = await transactMessage(conn, localExchange)
   if len(remoteExchange) == 0:
     trace "Corpus exchange failed", conn
     raise (ref SecioError)(msg: "Corpus exchange failed")
 
+  var
+    remoteEBytesPubkey: seq[byte]
+    remoteEBytesSig: seq[byte]
   if not decodeExchange(remoteExchange, remoteEBytesPubkey, remoteEBytesSig):
     trace "Remote exchange decoding failed", conn
     raise (ref SecioError)(msg: "Remote exchange decoding failed")
 
+  var remoteESignature: Signature
   if not remoteESignature.init(remoteEBytesSig):
-    trace "Remote signature incorrect or corrupted", signature = remoteEBytesSig.shortLog
+    trace "Remote signature incorrect or corrupted",
+          signature = remoteEBytesSig.shortLog
     raise (ref SecioError)(msg: "Remote signature incorrect or corrupted")
 
-  var remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
+  let remoteCorpus = answer & request[4..^1] & remoteEBytesPubkey
   if not remoteESignature.verify(remoteCorpus, remotePubkey):
     trace "Signature verification failed", scheme = $remotePubkey.scheme,
                                            signature = $remoteESignature,
@@ -399,30 +427,34 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
 
   trace "Signature verified", scheme = remotePubkey.scheme
 
+  var remoteEPubkey: ecnist.EcPublicKey
   if not remoteEPubkey.initRaw(remoteEBytesPubkey):
     trace "Remote ephemeral public key incorrect or corrupted",
           pubkey = toHex(remoteEBytesPubkey)
-    raise (ref SecioError)(msg: "Remote ephemeral public key incorrect or corrupted")
+    raise (ref SecioError)(msg:
+      "Remote ephemeral public key incorrect or corrupted")
 
-  var secret = getSecret(remoteEPubkey, ekeypair.seckey)
+  let secret = getSecret(remoteEPubkey, ekeypair.get().seckey)
   if len(secret) == 0:
     trace "Shared secret could not be created"
     raise (ref SecioError)(msg: "Shared secret could not be created")
 
   trace "Shared secret calculated", secret = secret.shortLog
 
-  var keys = stretchKeys(cipher, hash, secret)
+  let keys = stretchKeys(cipher, hash, secret)
 
   trace "Authenticated encryption parameters",
-        iv0 = toHex(keys.ivOpenArray(0)), key0 = keys.keyOpenArray(0).shortLog,
+        iv0 = toHex(keys.ivOpenArray(0)),
+        key0 = keys.keyOpenArray(0).shortLog,
         mac0 = keys.macOpenArray(0).shortLog,
-        iv1 = keys.ivOpenArray(1).shortLog, key1 = keys.keyOpenArray(1).shortLog,
+        iv1 = keys.ivOpenArray(1).shortLog,
+        key1 = keys.keyOpenArray(1).shortLog,
         mac1 = keys.macOpenArray(1).shortLog
 
   # Perform Nonce exchange over encrypted channel.
 
-  var secioConn = newSecioConn(conn, hash, cipher, keys, order, remotePubkey)
-  result = secioConn
+  let secioConn = newSecioConn(
+    conn, hash, cipher, keys, order.get(), remotePubkey)
   await secioConn.write(remoteNonce)
   var res = await secioConn.readMessage()
 
@@ -432,6 +464,7 @@ method handshake*(s: Secio, conn: Connection, initiator: bool, peerId: Opt[PeerI
     raise (ref SecioError)(msg: "Nonce verification failed")
   else:
     trace "Secure handshake succeeded"
+    secioConn
 
 method init(s: Secio) {.gcsafe.} =
   procCall Secure(s).init()
