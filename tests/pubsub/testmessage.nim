@@ -83,7 +83,7 @@ suite "Message":
           seqno: @[4'u8, 5], # 2 bytes
           signature: @['c'.byte, 'd'.byte], # 2 bytes
           key: @[6'u8, 7], # 2 bytes
-          topicId: "abc" # 3 bytes
+          topicId: "abcde" # 5 bytes
           ,
         )
 
@@ -121,10 +121,10 @@ suite "Message":
 
     var rpcMsg = RPCMsg(
       subscriptions: @[SubOpts(subscribe: true, topic: "a".repeat(12)), SubOpts(subscribe: false, topic: "b".repeat(14))],  # 1 + 12 + 1 + 14 = 28 bytes
-      messages: @[msg, msg],  # 19 * 2 = 38 bytes
+      messages: @[msg, msg],  # 16 * 2 = 32 bytes
       ping: @[1'u8, 2],  # 2 bytes
       pong: @[3'u8, 4],  # 2 bytes
       control: some(control)  # 12 + 3 + 3 + 17 + 3 = 38 bytes
     )
 
-    check byteSize(rpcMsg) == 28 + 38 + 2 + 2 + 38 # Total: 108 bytes
+    check byteSize(rpcMsg) == 28 + 32 + 2 + 2 + 38 # Total: 102 bytes

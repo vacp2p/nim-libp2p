@@ -251,8 +251,9 @@ proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) {.async
         raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
 
   let topic = msg.topicId
+  # TODO: REVIEW
   if topic notin g.topics:
-    continue
+    return
 
   # update stats
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
@@ -262,20 +263,28 @@ proc addCapped*[T](stat: var T, diff, cap: T) =
   stat += min(diff, cap - stat)
 
 proc rewardDelivered*(
-    g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool, delay = ZeroDuration) =
-  for topic in topics:
-    if topic notin g.topics:
+    g: GossipSub,
+    peer: PubSubPeer,
+    topics: openArray[string],
+    first: bool,
+    delay = ZeroDuration,
+) =
+  for tt in topics:
+    let t = tt
+    if t notin g.topics:
       continue
 
-    let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
-                                            # if in mesh add more delivery score
+    let tt = t
+
+    let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
+      # if in mesh add more delivery score
 
     if delay > topicParams.meshMessageDeliveriesWindow:
       # Too old
       continue
 
     g.withPeerStats(peer.peerId) do (stats: var PeerStats):
-      stats.topicInfos.withValue(topic, tstats):
+      stats.topicInfos.withValue(tt, tstats):
         if first:
           tstats[].firstMessageDeliveries.addCapped(
             1, topicParams.firstMessageDeliveriesCap)
@@ -283,5 +292,5 @@ proc rewardDelivered*(
         if tstats[].inMesh:
           tstats[].meshMessageDeliveries.addCapped(
             1, topicParams.meshMessageDeliveriesCap)
-      do: # make sure we don't loose this information
-        stats.topicInfos[topic] = TopicInfo(meshMessageDeliveries: 1)
+      do: # make sure we don't lose this information
+        stats.topicInfos[tt] = TopicInfo(meshMessageDeliveries: 1)

@@ -285,7 +285,7 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
     trace "decodeMessage: read seqno", seqno = msg.seqno
   else:
     trace "decodeMessage: seqno is missing"
-  if ?pb.getRepeatedField(4, msg.topicId):
+  if ?pb.getField(4, msg.topicId):
     trace "decodeMessage: read topic", topic_id = msg.topicId
   else:
     trace "decodeMessage: topic is missing"

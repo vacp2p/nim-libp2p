@@ -47,7 +47,6 @@ func window*(c: MCache, topic: string): HashSet[MessageId] =
     for entry in c.history[i]:
       if entry.topicId == topic:
         result.incl(entry.mid)
-        break
 
 func shift*(c: var MCache) =
   for entry in c.history.pop():

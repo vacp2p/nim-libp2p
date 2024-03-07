@@ -349,7 +349,7 @@ proc validateAndRelay(g: GossipSub,
 
     var toSendPeers = HashSet[PubSubPeer]()
     if topic notin g.topics:
-      continue
+      return
 
     g.floodsub.withValue(topic, peers): toSendPeers.incl(peers[])
     g.mesh.withValue(topic, peers): toSendPeers.incl(peers[])
@@ -383,9 +383,6 @@ proc validateAndRelay(g: GossipSub,
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
-    let topic = msg.topicId
-    if topic notin g.topics: 
-      continue
 
     if g.knownTopics.contains(topic):
       libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
@@ -479,7 +476,7 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
-      let topic = msg.topicId
+      topic = msg.topicId
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
