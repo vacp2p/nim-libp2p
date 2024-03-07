@@ -212,7 +212,8 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#PingError"
     title="PingError = object of LPError">PingError</a></li>
   <li><a class="reference" href="#PingHandler"
-    title="PingHandler {.public.} = proc (peer: PeerId): Future[void] {.gcsafe, raises: [].}">PingHandler</a></li>
+    title="PingHandler {.public.} = proc (peer: PeerId): Future[void] {.
+    async: (raises: []).}">PingHandler</a></li>
   <li><a class="reference" href="#WrongPingAckError"
     title="WrongPingAckError = object of PingError">WrongPingAckError</a></li>
 
@@ -291,9 +292,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-x/libp2p/protocols/ping.nim#L44"
+href="https://github.com/status-im/nim-libp2p/tree/ex-x/libp2p/protocols/ping.nim#L42"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L44" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L42" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -310,7 +311,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="PingHandler" class="tohide">
-<dt><pre><a href="ping.html#PingHandler"><span class="Identifier">PingHandler</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><a href="ping.html#PingHandler"><span class="Identifier">PingHandler</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <span class="Identifier">PeerId</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
@@ -362,9 +364,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-x/libp2p/protocols/ping.nim#L48"
+href="https://github.com/status-im/nim-libp2p/tree/ex-x/libp2p/protocols/ping.nim#L46"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L46" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -393,9 +395,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-x/libp2p/protocols/ping.nim#L53"
+href="https://github.com/status-im/nim-libp2p/tree/ex-x/libp2p/protocols/ping.nim#L51"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L51" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -414,7 +416,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-06 12:42:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-07 09:51:54 UTC</small>
       </div>
     </div>
   </div>
