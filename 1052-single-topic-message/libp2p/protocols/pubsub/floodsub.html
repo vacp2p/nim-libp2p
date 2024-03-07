@@ -265,6 +265,11 @@ window.addEventListener("DOMContentLoaded", main2);
     title="publish(f: FloodSub; topic: string; data: seq[byte]): Future[int]">publish(f: FloodSub; topic: string; data: seq[byte]): Future[int]</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">rpcHandler
+      <li><a class="reference" href="#rpcHandler.e%2CFloodSub%2CPubSubPeer%2Cseq%5Bbyte%5D"
+    title="rpcHandler(f: FloodSub; peer: PubSubPeer; data: seq[byte]): Future[void]">rpcHandler(f: FloodSub; peer: PubSubPeer; data: seq[byte]): Future[void]</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">unsubscribePeer
       <li><a class="reference" href="#unsubscribePeer.e%2CFloodSub%2CPeerId"
     title="unsubscribePeer(f: FloodSub; peer: PeerId)">unsubscribePeer(f: FloodSub; peer: PeerId)</a></li>
@@ -426,6 +431,20 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="rpcHandler.e,FloodSub,PubSubPeer,seq[byte]" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#rpcHandler.e%2CFloodSub%2CPubSubPeer%2Cseq%5Bbyte%5D"><span class="Identifier">rpcHandler</span></a><span class="Other">(</span><span class="Identifier">f</span><span class="Other">:</span> <a href="floodsub.html#FloodSub"><span class="Identifier">FloodSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/1052-single-topic-message/libp2p/protocols/pubsub/floodsub.nim#L98"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/floodsub.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="unsubscribePeer.e,FloodSub,PeerId" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#unsubscribePeer.e%2CFloodSub%2CPeerId"><span class="Identifier">unsubscribePeer</span></a><span class="Other">(</span><span class="Identifier">f</span><span class="Other">:</span> <a href="floodsub.html#FloodSub"><span class="Identifier">FloodSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">WriteIOEffect</span><span class="Other">,</span> <span class="Identifier">TimeEffect</span><span class="Other">]</span></span>.}</pre></dt>
@@ -449,7 +468,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-07 14:10:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-07 14:41:35 UTC</small>
       </div>
     </div>
   </div>

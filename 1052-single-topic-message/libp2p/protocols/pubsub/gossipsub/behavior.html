@@ -225,6 +225,13 @@ window.addEventListener("DOMContentLoaded", main2);
     title="handleBackingOff(t: var BackoffTable; topic: string)">handleBackingOff(t: var BackoffTable; topic: string)</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">handleGraft
+      <li><a class="reference" href="#handleGraft%2CGossipSub%2CPubSubPeer%2Cseq%5BControlGraft%5D"
+    title="handleGraft(g: GossipSub; peer: PubSubPeer; grafts: seq[ControlGraft]): seq[
+    ControlPrune]">handleGraft(g: GossipSub; peer: PubSubPeer; grafts: seq[ControlGraft]): seq[
+    ControlPrune]</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">handleIDontWant
       <li><a class="reference" href="#handleIDontWant%2CGossipSub%2CPubSubPeer%2Cseq%5BControlIWant%5D"
     title="handleIDontWant(g: GossipSub; peer: PubSubPeer; iDontWants: seq[ControlIWant])">handleIDontWant(g: GossipSub; peer: PubSubPeer; iDontWants: seq[ControlIWant])</a></li>
@@ -240,6 +247,11 @@ window.addEventListener("DOMContentLoaded", main2);
     title="handleIWant(g: GossipSub; peer: PubSubPeer; iwants: seq[ControlIWant]): seq[
     Message]">handleIWant(g: GossipSub; peer: PubSubPeer; iwants: seq[ControlIWant]): seq[
     Message]</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">handlePrune
+      <li><a class="reference" href="#handlePrune%2CGossipSub%2CPubSubPeer%2Cseq%5BControlPrune%5D"
+    title="handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])">handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">heartbeat
@@ -306,7 +318,7 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="getGossipPeers,GossipSub" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getGossipPeers%2CGossipSub"><span class="Identifier">getGossipPeers</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">,</span> <span class="Identifier">ControlMessage</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#getGossipPeers%2CGossipSub"><span class="Identifier">getGossipPeers</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">,</span> <a href="../rpc/messages.html#ControlMessage"><span class="Identifier">ControlMessage</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -344,9 +356,22 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="handleGraft,GossipSub,PubSubPeer,seq[ControlGraft]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#handleGraft%2CGossipSub%2CPubSubPeer%2Cseq%5BControlGraft%5D"><span class="Identifier">handleGraft</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">grafts</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../rpc/messages.html#ControlGraft"><span class="Identifier">ControlGraft</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span>
+    <a href="../rpc/messages.html#ControlPrune"><span class="Identifier">ControlPrune</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">WriteIOEffect</span><span class="Other">,</span> <span class="Identifier">TimeEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/1052-single-topic-message/libp2p/protocols/pubsub/gossipsub/behavior.nim#L101"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/behavior.nim#L101" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="handleIDontWant,GossipSub,PubSubPeer,seq[ControlIWant]" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#handleIDontWant%2CGossipSub%2CPubSubPeer%2Cseq%5BControlIWant%5D"><span class="Identifier">handleIDontWant</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span>
-                     <span class="Identifier">iDontWants</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">ControlIWant</span><span class="Other">]</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+                     <span class="Identifier">iDontWants</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../rpc/messages.html#ControlIWant"><span class="Identifier">ControlIWant</span></a><span class="Other">]</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -358,7 +383,7 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="handleIHave,GossipSub,PubSubPeer,seq[ControlIHave]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#handleIHave%2CGossipSub%2CPubSubPeer%2Cseq%5BControlIHave%5D"><span class="Identifier">handleIHave</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">ihaves</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">ControlIHave</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">ControlIWant</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#handleIHave%2CGossipSub%2CPubSubPeer%2Cseq%5BControlIHave%5D"><span class="Identifier">handleIHave</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">ihaves</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../rpc/messages.html#ControlIHave"><span class="Identifier">ControlIHave</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="../rpc/messages.html#ControlIWant"><span class="Identifier">ControlIWant</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -371,8 +396,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="handleIWant,GossipSub,PubSubPeer,seq[ControlIWant]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#handleIWant%2CGossipSub%2CPubSubPeer%2Cseq%5BControlIWant%5D"><span class="Identifier">handleIWant</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">iwants</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">ControlIWant</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span>
-    <span class="Identifier">Message</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#handleIWant%2CGossipSub%2CPubSubPeer%2Cseq%5BControlIWant%5D"><span class="Identifier">handleIWant</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">iwants</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../rpc/messages.html#ControlIWant"><span class="Identifier">ControlIWant</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span>
+    <a href="../rpc/messages.html#Message"><span class="Identifier">Message</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -380,6 +405,19 @@ class="link-seesrc" target="_blank">Source</a>
 href="https://github.com/status-im/nim-libp2p/tree/1052-single-topic-message/libp2p/protocols/pubsub/gossipsub/behavior.nim#L275"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/behavior.nim#L275" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="handlePrune,GossipSub,PubSubPeer,seq[ControlPrune]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#handlePrune%2CGossipSub%2CPubSubPeer%2Cseq%5BControlPrune%5D"><span class="Identifier">handlePrune</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">prunes</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../rpc/messages.html#ControlPrune"><span class="Identifier">ControlPrune</span></a><span class="Other">]</span><span class="Other">)</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/1052-single-topic-message/libp2p/protocols/pubsub/gossipsub/behavior.nim#L208"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/behavior.nim#L208" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -458,7 +496,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-07 14:10:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-07 14:41:35 UTC</small>
       </div>
     </div>
   </div>
