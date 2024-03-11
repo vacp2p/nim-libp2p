@@ -113,7 +113,7 @@ func shortLog*(msg: Message): auto =
     fromPeer: msg.fromPeer.shortLog,
     data: msg.data.shortLog,
     seqno: msg.seqno.shortLog,
-    topicId: $msg.topicId,
+    topicId: msg.topicId,
     signature: msg.signature.shortLog,
     key: msg.key.shortLog
   )
