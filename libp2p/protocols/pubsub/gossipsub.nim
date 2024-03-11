@@ -345,7 +345,7 @@ proc validateAndRelay(g: GossipSub,
     g.mcache.put(msgId, msg)
 
     let topic = msg.topic
-    g.rewardDelivered(peer, [topic], true)
+    g.rewardDelivered(peer, topic, true)
 
     var toSendPeers = HashSet[PubSubPeer]()
     if topic notin g.topics:
@@ -491,7 +491,7 @@ method rpcHandler*(g: GossipSub,
 
       if not alreadyReceived:
         let delay = Moment.now() - g.firstSeen(msgId)
-        g.rewardDelivered(peer, [topic], false, delay)
+        g.rewardDelivered(peer, topic, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
 
