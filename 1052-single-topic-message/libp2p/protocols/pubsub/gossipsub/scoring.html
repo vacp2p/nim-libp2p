@@ -244,10 +244,10 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">rewardDelivered
-      <li><a class="reference" href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2CopenArray%5Bstring%5D%2Cbool"
-    title="rewardDelivered(g: GossipSub; peer: PubSubPeer; topics: openArray[string];
-                first: bool; delay = ZeroDuration)">rewardDelivered(g: GossipSub; peer: PubSubPeer; topics: openArray[string];
-                first: bool; delay = ZeroDuration)</a></li>
+      <li><a class="reference" href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2Cstring%2Cbool"
+    title="rewardDelivered(g: GossipSub; peer: PubSubPeer; topic: string; first: bool;
+                delay = ZeroDuration)">rewardDelivered(g: GossipSub; peer: PubSubPeer; topic: string; first: bool;
+                delay = ZeroDuration)</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">scoringHeartbeat
@@ -383,10 +383,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="rewardDelivered,GossipSub,PubSubPeer,openArray[string],bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2CopenArray%5Bstring%5D%2Cbool"><span class="Identifier">rewardDelivered</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">topics</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">;</span>
-                     <span class="Identifier">first</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span> <span class="Identifier">delay</span> <span class="Other">=</span> <span class="Identifier">ZeroDuration</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="rewardDelivered,GossipSub,PubSubPeer,string,bool" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2Cstring%2Cbool"><span class="Identifier">rewardDelivered</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">first</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span>
+                     <span class="Identifier">delay</span> <span class="Other">=</span> <span class="Identifier">ZeroDuration</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -447,7 +446,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-07 14:41:35 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-11 15:03:17 UTC</small>
       </div>
     </div>
   </div>
