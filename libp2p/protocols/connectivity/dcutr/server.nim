@@ -65,14 +65,14 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
     except CancelledError as err:
       raise err
     except AllFuturesFailedError as err:
-      debug "Dcutr receiver could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = err.msg
-      raise newException(DcutrError, "Dcutr receiver could not connect to the remote peer, all connect attempts failed", err)
+      debug "Dcutr receiver could not connect to the remote peer, " &
+        "all connect attempts failed", peerDialableAddrs, msg = err.msg
     except AsyncTimeoutError as err:
-      debug "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = err.msg
-      raise newException(DcutrError, "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", err)
+      debug "Dcutr receiver could not connect to the remote peer, " &
+        "all connect attempts timed out", peerDialableAddrs, msg = err.msg
     except CatchableError as err:
-      warn "Unexpected error when Dcutr receiver tried to connect to the remote peer", msg = err.msg
-      raise newException(DcutrError, "Unexpected error when Dcutr receiver tried to connect to the remote peer", err)
+      warn "Unexpected error when Dcutr receiver tried to connect " &
+        "to the remote peer", msg = err.msg
 
   let self = T()
   self.handler = handleStream
