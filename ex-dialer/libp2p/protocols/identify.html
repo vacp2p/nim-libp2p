@@ -214,14 +214,14 @@ window.addEventListener("DOMContentLoaded", main2);
     title="IdentifyError = object of LPError">IdentifyError</a></li>
   <li><a class="reference" href="#IdentifyInfo"
     title="IdentifyInfo {.public.} = object
-  pubkey*: Option[PublicKey]
+  pubkey*: Opt[PublicKey]
   peerId*: PeerId
   addrs*: seq[MultiAddress]
-  observedAddr*: Option[MultiAddress]
-  protoVersion*: Option[string]
-  agentVersion*: Option[string]
+  observedAddr*: Opt[MultiAddress]
+  protoVersion*: Opt[string]
+  agentVersion*: Opt[string]
   protos*: seq[string]
-  signedPeerRecord*: Option[Envelope]">IdentifyInfo</a></li>
+  signedPeerRecord*: Opt[Envelope]">IdentifyInfo</a></li>
   <li><a class="reference" href="#IdentifyNoPubKeyError"
     title="IdentifyNoPubKeyError = object of IdentifyError">IdentifyNoPubKeyError</a></li>
   <li><a class="reference" href="#IdentifyPush"
@@ -229,7 +229,7 @@ window.addEventListener("DOMContentLoaded", main2);
   identifyHandler: IdentifyPushHandler">IdentifyPush</a></li>
   <li><a class="reference" href="#IdentifyPushHandler"
     title="IdentifyPushHandler = proc (peer: PeerId; newInfo: IdentifyInfo): Future[void] {.
-    gcsafe, raises: [], public().}">IdentifyPushHandler</a></li>
+    async: (raises: [CancelledError]), public.}">IdentifyPushHandler</a></li>
   <li><a class="reference" href="#IdentityInvalidMsgError"
     title="IdentityInvalidMsgError = object of IdentifyError">IdentityInvalidMsgError</a></li>
   <li><a class="reference" href="#IdentityNoMatchError"
@@ -261,9 +261,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">identify
       <li><a class="reference" href="#identify%2CIdentify%2CConnection%2CPeerId"
-    title="identify(self: Identify; conn: Connection; remotePeerId: PeerId): Future[
-    IdentifyInfo]">identify(self: Identify; conn: Connection; remotePeerId: PeerId): Future[
-    IdentifyInfo]</a></li>
+    title="identify(self: Identify; conn: Connection; remotePeerId: PeerId): InternalRaisesFuture[
+    IdentifyInfo, (CancelledError, IdentifyError, LPStreamError)]">identify(self: Identify; conn: Connection; remotePeerId: PeerId): InternalRaisesFuture[
+    IdentifyInfo, (CancelledError, IdentifyError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">init
@@ -282,7 +282,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">push
       <li><a class="reference" href="#push%2CIdentifyPush%2CPeerInfo%2CConnection"
-    title="push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): Future[void]">push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): Future[void]</a></li>
+    title="push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]">push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]</a></li>
 
   </ul>
 
@@ -367,14 +369,14 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="IdentifyInfo" class="tohide">
 <dt><pre><a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">pubkey</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><a href="../crypto/crypto.html#PublicKey"><span class="Identifier">PublicKey</span></a><span class="Other">]</span>
+  <span class="Identifier">pubkey</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../crypto/crypto.html#PublicKey"><span class="Identifier">PublicKey</span></a><span class="Other">]</span>
   <span class="Identifier">peerId</span><span class="Operator">*</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">addrs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
-  <span class="Identifier">observedAddr</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
-  <span class="Identifier">protoVersion</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
-  <span class="Identifier">agentVersion</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
+  <span class="Identifier">observedAddr</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
+  <span class="Identifier">protoVersion</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
+  <span class="Identifier">agentVersion</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
   <span class="Identifier">protos</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
-  <span class="Identifier">signedPeerRecord</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><a href="../signed_envelope.html#Envelope"><span class="Identifier">Envelope</span></a><span class="Other">]</span>
+  <span class="Identifier">signedPeerRecord</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../signed_envelope.html#Envelope"><span class="Identifier">Envelope</span></a><span class="Other">]</span>
 </pre></dt>
 <dd>
 
@@ -406,15 +408,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L68"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L67"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L67" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="IdentifyPushHandler" class="tohide">
-<dt><pre><a href="identify.html#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">newInfo</span><span class="Other">:</span> <a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span>.}</pre></dt>
+<dt><pre><a href="identify.html#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <span class="Identifier">PeerId</span><span class="Other">;</span> <span class="Identifier">newInfo</span><span class="Other">:</span> <span class="Identifier">IdentifyInfo</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">CancelledError</span><span class="Other">]</span></span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">public</span>.}</pre></dt>
 <dd>
 
 
@@ -514,23 +516,24 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L113"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L114"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L113" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L114" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="identify,Identify,Connection,PeerId" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#identify%2CIdentify%2CConnection%2CPeerId"><span class="Identifier">identify</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="identify.html#Identify"><span class="Identifier">Identify</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">remotePeerId</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#identify%2CIdentify%2CConnection%2CPeerId"><span class="Identifier">identify</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="identify.html#Identify"><span class="Identifier">Identify</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">remotePeerId</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="identify.html#IdentifyError"><span class="Identifier">IdentifyError</span></a><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L172"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L174"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L172" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L174" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -540,9 +543,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L206"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L216"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L206" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L216" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -554,9 +557,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L139"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L140"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L139" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L140" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -567,23 +570,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 Create a IdentifyPush protocol. <tt class="docutils literal"><span class="pre"><span class="Identifier">handler</span></span></tt> will be called every time a peer sends us new <tt class="docutils literal"><span class="pre"><span class="Identifier">PeerInfo</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L199"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L207"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L199" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L207" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="push,IdentifyPush,PeerInfo,Connection" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#push%2CIdentifyPush%2CPeerInfo%2CConnection"><span class="Identifier">push</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="identify.html#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#push%2CIdentifyPush%2CPeerInfo%2CConnection"><span class="Identifier">push</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="identify.html#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Send new <tt class="docutils literal"><span class="pre"><span class="Identifier">peerInfo</span></span></tt>s to a connection
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L236"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L250"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L236" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L250" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -615,9 +618,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L71"
+href="https://github.com/status-im/nim-libp2p/tree/ex-dialer/libp2p/protocols/identify.nim#L70"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L71" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L70" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -636,7 +639,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-11 23:33:55 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-11 23:54:54 UTC</small>
       </div>
     </div>
   </div>

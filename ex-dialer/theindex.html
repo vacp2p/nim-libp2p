@@ -2133,9 +2133,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="identify" href="#identify"><span>identify:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): Future[
-    IdentifyInfo]" href="libp2p/protocols/identify.html#identify%2CIdentify%2CConnection%2CPeerId">identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): Future[
-    IdentifyInfo]</a></li>
+          data-doc-search-tag="identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): InternalRaisesFuture[
+    IdentifyInfo, (CancelledError, IdentifyError, LPStreamError)]" href="libp2p/protocols/identify.html#identify%2CIdentify%2CConnection%2CPeerId">identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): InternalRaisesFuture[
+    IdentifyInfo, (CancelledError, IdentifyError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="IdentifyCodec" href="#IdentifyCodec"><span>IdentifyCodec:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3705,7 +3705,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="push" href="#push"><span>push:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): Future[void]" href="libp2p/protocols/identify.html#push%2CIdentifyPush%2CPeerInfo%2CConnection">identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): Future[void]</a></li>
+          data-doc-search-tag="identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]" href="libp2p/protocols/identify.html#push%2CIdentifyPush%2CPeerInfo%2CConnection">identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="pushData" href="#pushData"><span>pushData:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5376,7 +5378,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-11 23:33:59 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-11 23:54:58 UTC</small>
       </div>
     </div>
   </div>
