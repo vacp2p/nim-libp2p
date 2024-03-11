@@ -41,7 +41,7 @@ type
     fromPeer*: PeerId
     data*: seq[byte]
     seqno*: seq[byte]
-    topicId*: string
+    topic*: string
     signature*: seq[byte]
     key*: seq[byte]
 
@@ -53,17 +53,17 @@ type
     idontwant*: seq[ControlIWant]
 
   ControlIHave* = object
-    topicId*: string
+    topic*: string
     messageIds*: seq[MessageId]
 
   ControlIWant* = object
     messageIds*: seq[MessageId]
 
   ControlGraft* = object
-    topicId*: string
+    topic*: string
 
   ControlPrune* = object
-    topicId*: string
+    topic*: string
     peers*: seq[PeerInfoMsg]
     backoff*: uint64
 
@@ -81,7 +81,7 @@ func withSubs*(
 
 func shortLog*(s: ControlIHave): auto =
   (
-    topicId: s.topicId.shortLog,
+    topic: s.topic.shortLog,
     messageIds: mapIt(s.messageIds, it.shortLog)
   )
 
@@ -92,12 +92,12 @@ func shortLog*(s: ControlIWant): auto =
 
 func shortLog*(s: ControlGraft): auto =
   (
-    topicId: s.topicId.shortLog
+    topic: s.topic.shortLog
   )
 
 func shortLog*(s: ControlPrune): auto =
   (
-    topicId: s.topicId.shortLog
+    topic: s.topic.shortLog
   )
 
 func shortLog*(c: ControlMessage): auto =
@@ -113,7 +113,7 @@ func shortLog*(msg: Message): auto =
     fromPeer: msg.fromPeer.shortLog,
     data: msg.data.shortLog,
     seqno: msg.seqno.shortLog,
-    topicId: msg.topicId,
+    topic: msg.topic,
     signature: msg.signature.shortLog,
     key: msg.key.shortLog
   )
@@ -133,17 +133,17 @@ static: expectedFields(SubOpts, @["subscribe", "topic"])
 proc byteSize(subOpts: SubOpts): int =
   1 + subOpts.topic.len # 1 byte for the bool
 
-static: expectedFields(Message, @["fromPeer", "data", "seqno", "topicId", "signature", "key"])
+static: expectedFields(Message, @["fromPeer", "data", "seqno", "topic", "signature", "key"])
 proc byteSize*(msg: Message): int =
   msg.fromPeer.len + msg.data.len + msg.seqno.len + msg.signature.len + msg.key.len +
-    msg.topicId.len
+    msg.topic.len
 
 proc byteSize*(msgs: seq[Message]): int =
   msgs.foldl(a + b.byteSize, 0)
 
-static: expectedFields(ControlIHave, @["topicId", "messageIds"])
+static: expectedFields(ControlIHave, @["topic", "messageIds"])
 proc byteSize(controlIHave: ControlIHave): int =
-  controlIHave.topicId.len + controlIHave.messageIds.foldl(a + b.len, 0)
+  controlIHave.topic.len + controlIHave.messageIds.foldl(a + b.len, 0)
 
 proc byteSize*(ihaves: seq[ControlIHave]): int =
   ihaves.foldl(a + b.byteSize, 0)
@@ -155,13 +155,13 @@ proc byteSize(controlIWant: ControlIWant): int =
 proc byteSize*(iwants: seq[ControlIWant]): int =
   iwants.foldl(a + b.byteSize, 0)
 
-static: expectedFields(ControlGraft, @["topicId"])
+static: expectedFields(ControlGraft, @["topic"])
 proc byteSize(controlGraft: ControlGraft): int =
-  controlGraft.topicId.len
+  controlGraft.topic.len
 
-static: expectedFields(ControlPrune, @["topicId", "peers", "backoff"])
+static: expectedFields(ControlPrune, @["topic", "peers", "backoff"])
 proc byteSize(controlPrune: ControlPrune): int =
-  controlPrune.topicId.len + controlPrune.peers.foldl(a + b.byteSize, 0) + 8 # 8 bytes for uint64
+  controlPrune.topic.len + controlPrune.peers.foldl(a + b.byteSize, 0) + 8 # 8 bytes for uint64
 
 static: expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
 proc byteSize(control: ControlMessage): int =

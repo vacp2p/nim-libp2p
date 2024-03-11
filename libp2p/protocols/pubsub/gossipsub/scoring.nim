@@ -250,7 +250,7 @@ proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) {.async
         await g.disconnectPeer(peer)
         raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
 
-  let topic = msg.topicId
+  let topic = msg.topic
   # TODO: REVIEW
   if topic notin g.topics:
     return

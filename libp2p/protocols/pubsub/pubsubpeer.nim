@@ -248,7 +248,7 @@ template sendMetrics(msg: RPCMsg): untyped =
   when defined(libp2p_expensive_metrics):
     for x in msg.messages:
       # metrics
-      libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, x.topicId])
+      libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, x.topic])
 
 proc clearSendPriorityQueue(p: PubSubPeer) =
   if p.rpcmessagequeue.sendPriorityQueue.len == 0:

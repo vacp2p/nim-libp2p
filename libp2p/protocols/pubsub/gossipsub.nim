@@ -292,8 +292,8 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     if isPruneNotEmpty:
       for prune in respControl.prune:
-        if g.knownTopics.contains(prune.topicId):
-          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
+        if g.knownTopics.contains(prune.topic):
+          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topic])
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
@@ -304,7 +304,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   if messages.len > 0:
     for smsg in messages:
-      let topic = smsg.topicId
+      let topic = smsg.topic
       if g.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
       else:
@@ -344,7 +344,7 @@ proc validateAndRelay(g: GossipSub,
     # store in cache only after validation
     g.mcache.put(msgId, msg)
 
-    let topic = msg.topicId
+    let topic = msg.topic
     g.rewardDelivered(peer, [topic], true)
 
     var toSendPeers = HashSet[PubSubPeer]()
@@ -394,7 +394,7 @@ proc validateAndRelay(g: GossipSub,
     info "validateAndRelay failed", msg=exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
-  msgs.mapIt(it.data.len + it.topicId.len).foldl(a + b, 0)
+  msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
 
 proc rateLimit*(g: GossipSub, peer: PubSubPeer, rpcMsgOpt: Opt[RPCMsg], msgSize: int) {.async.} =
   # In this way we count even ignored fields by protobuf
@@ -440,7 +440,7 @@ method rpcHandler*(g: GossipSub,
 
   when defined(libp2p_expensive_metrics):
     for m in rpcMsg.messages:
-      libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topicId])
+      libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   await rateLimit(g, peer, Opt.some(rpcMsg), msgSize)
@@ -476,7 +476,7 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
-      topic = msg.topicId
+      topic = msg.topic
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -557,7 +557,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # in the topic
     let msg = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
-            topicID: topic,
+            topic: topic,
             peers: g.peerExchangeList(topic),
             backoff: g.parameters.unsubscribeBackoff.seconds.uint64)])))
     g.broadcast(mpeers, msg, isHighPriority = true)

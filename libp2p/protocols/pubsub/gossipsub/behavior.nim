@@ -103,7 +103,7 @@ proc handleGraft*(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] = # {.raises: [Defect].} TODO chronicles exception on windows
   var prunes: seq[ControlPrune]
   for graft in grafts:
-    let topic = graft.topicId
+    let topic = graft.topic
     trace "peer grafted topic", peer, topic
 
     # It is an error to GRAFT on a direct peer
@@ -114,7 +114,7 @@ proc handleGraft*(g: GossipSub,
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
-        topicID: topic,
+        topic: topic,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
 
@@ -140,7 +140,7 @@ proc handleGraft*(g: GossipSub,
       debug "a backingOff peer attempted to graft us", peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(ControlPrune(
-        topicID: topic,
+        topic: topic,
         peers: @[], # omitting heavy computation here as the remote did something illegal
         backoff: g.parameters.pruneBackoff.seconds.uint64))
 
@@ -174,7 +174,7 @@ proc handleGraft*(g: GossipSub,
         trace "pruning grafting peer, mesh full",
           peer, topic, score = peer.score, mesh = g.mesh.peers(topic)
         prunes.add(ControlPrune(
-          topicID: topic,
+          topic: topic,
           peers: g.peerExchangeList(topic),
           backoff: g.parameters.pruneBackoff.seconds.uint64))
 
@@ -207,7 +207,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.raises: [].} =
   for prune in prunes:
-    let topic = prune.topicId
+    let topic = prune.topic
 
     trace "peer pruned topic", peer, topic
 
@@ -248,8 +248,8 @@ proc handleIHave*(g: GossipSub,
   else:
     for ihave in ihaves:
       trace "peer sent ihave",
-        peer, topic = ihave.topicId, msgs = ihave.messageIds
-      if ihave.topicId in g.topics:
+        peer, topic = ihave.topic, msgs = ihave.messageIds
+      if ihave.topic in g.topics:
         for msgId in ihave.messageIds:
           if not g.hasSeen(msgId):
             if peer.iHaveBudget <= 0:
@@ -529,12 +529,12 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
 
   # Send changes to peers after table updates to avoid stale state
   if grafts.len > 0:
-    let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
+    let graft = RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topic: topic)])))
     g.broadcast(grafts, graft, isHighPriority = true)
   if prunes.len > 0:
     let prune = RPCMsg(control: some(ControlMessage(
       prune: @[ControlPrune(
-        topicID: topic,
+        topic: topic,
         peers: g.peerExchangeList(topic),
         backoff: g.parameters.pruneBackoff.seconds.uint64)])))
     g.broadcast(prunes, prune, isHighPriority = true)
@@ -579,7 +579,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
   trace "getting gossip peers (iHave)", ntopics=topics.len
   for topic in topics:
     if topic notin g.gossipsub:
-      trace "topic not in gossip array, skipping", topicID = topic
+      trace "topic not in gossip array, skipping", topic = topic
       continue
 
     let mids = g.mcache.window(topic)
@@ -601,7 +601,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       midsSeq.setLen(IHaveMaxLength)
 
     let
-      ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
+      ihave = ControlIHave(topic: topic, messageIDs: midsSeq)
       mesh = g.mesh.getOrDefault(topic)
       fanout = g.fanout.getOrDefault(topic)
       gossipPeers = mesh + fanout
@@ -666,7 +666,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
       if prunes.len > 0:
         let prune = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
-            topicID: t,
+            topic: t,
             peers: g.peerExchangeList(t),
             backoff: g.parameters.pruneBackoff.seconds.uint64)])))
         g.broadcast(prunes, prune, isHighPriority = true)
@@ -687,8 +687,8 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
     for peer, control in peers:
       # only ihave from here
       for ihave in control.ihave:
-        if g.knownTopics.contains(ihave.topicId):
-          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicId])
+        if g.knownTopics.contains(ihave.topic):
+          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topic])
         else:
           libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
       g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)

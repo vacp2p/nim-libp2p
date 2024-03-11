@@ -29,7 +29,7 @@ when defined(libp2p_protobuf_metrics):
 
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
-  ipb.write(1, graft.topicId)
+  ipb.write(1, graft.topic)
   ipb.finish()
   pb.write(field, ipb)
 
@@ -45,7 +45,7 @@ proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
 
 proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   var ipb = initProtoBuffer()
-  ipb.write(1, prune.topicId)
+  ipb.write(1, prune.topic)
   for peer in prune.peers:
     ipb.write(2, peer)
   ipb.write(3, prune.backoff)
@@ -57,7 +57,7 @@ proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
 
 proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   var ipb = initProtoBuffer()
-  ipb.write(1, ihave.topicId)
+  ipb.write(1, ihave.topic)
   for mid in ihave.messageIds:
     ipb.write(2, mid)
   ipb.finish()
@@ -110,7 +110,7 @@ proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   pb.write(2, msg.data)
   if len(msg.seqno) > 0 and not anonymize:
     pb.write(3, msg.seqno)
-  pb.write(4, msg.topicId)
+  pb.write(4, msg.topic)
   if len(msg.signature) > 0 and not anonymize:
     pb.write(5, msg.signature)
   if len(msg.key) > 0 and not anonymize:
@@ -132,10 +132,10 @@ proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.
 
   trace "decodeGraft: decoding message"
   var control = ControlGraft()
-  if ? pb.getField(1, control.topicId):
-    trace "decodeGraft: read topicId", topic_id = control.topicId
+  if ? pb.getField(1, control.topic):
+    trace "decodeGraft: read topic", topic = control.topic
   else:
-    trace "decodeGraft: topicId is missing"
+    trace "decodeGraft: topic is missing"
   ok(control)
 
 proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] {.
@@ -159,10 +159,10 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
 
   trace "decodePrune: decoding message"
   var control = ControlPrune()
-  if ? pb.getField(1, control.topicId):
-    trace "decodePrune: read topicId", topic_id = control.topicId
+  if ? pb.getField(1, control.topic):
+    trace "decodePrune: read topic", topic = control.topic
   else:
-    trace "decodePrune: topicId is missing"
+    trace "decodePrune: topic is missing"
   var bpeers: seq[seq[byte]]
   if ? pb.getRepeatedField(2, bpeers):
     for bpeer in bpeers:
@@ -178,10 +178,10 @@ proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
 
   trace "decodeIHave: decoding message"
   var control = ControlIHave()
-  if ? pb.getField(1, control.topicId):
-    trace "decodeIHave: read topicId", topic_id = control.topicId
+  if ? pb.getField(1, control.topic):
+    trace "decodeIHave: read topic", topic = control.topic
   else:
-    trace "decodeIHave: topicId is missing"
+    trace "decodeIHave: topic is missing"
   if ? pb.getRepeatedField(2, control.messageIds):
     trace "decodeIHave: read messageIDs", message_ids = control.messageIds
   else:
@@ -285,8 +285,8 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
     trace "decodeMessage: read seqno", seqno = msg.seqno
   else:
     trace "decodeMessage: seqno is missing"
-  if ?pb.getField(4, msg.topicId):
-    trace "decodeMessage: read topic", topic_id = msg.topicId
+  if ?pb.getField(4, msg.topic):
+    trace "decodeMessage: read topic", topic = msg.topic
   else:
     trace "decodeMessage: topic is missing"
   if ? pb.getField(5, msg.signature):

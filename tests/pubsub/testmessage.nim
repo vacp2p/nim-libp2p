@@ -83,7 +83,7 @@ suite "Message":
           seqno: @[4'u8, 5], # 2 bytes
           signature: @['c'.byte, 'd'.byte], # 2 bytes
           key: @[6'u8, 7], # 2 bytes
-          topicId: "abcde" # 5 bytes
+          topic: "abcde" # 5 bytes
           ,
         )
 
@@ -93,7 +93,7 @@ suite "Message":
     )
 
     var controlIHave = ControlIHave(
-      topicId: "ijk",  # 3 bytes
+      topic: "ijk",  # 3 bytes
       messageIds: @[ @['l'.byte], @['m'.byte, 'n'.byte] ]  # 1 + 2 = 3 bytes
     )
 
@@ -102,11 +102,11 @@ suite "Message":
     )
 
     var controlGraft = ControlGraft(
-      topicId: "rst"  # 3 bytes
+      topic: "rst"  # 3 bytes
     )
 
     var controlPrune = ControlPrune(
-      topicId: "uvw",  # 3 bytes
+      topic: "uvw",  # 3 bytes
       peers: @[peerInfo, peerInfo],  # (1 + 2) * 2 = 6 bytes
       backoff: 12345678  # 8 bytes for uint64
     )

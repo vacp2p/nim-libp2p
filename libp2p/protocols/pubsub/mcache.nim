@@ -17,7 +17,7 @@ export sets, tables, messages, options
 type
   CacheEntry* = object
     mid*: MessageId
-    topicId*: string
+    topic*: string
 
   MCache* = object of RootObj
     msgs*: Table[MessageId, Message]
@@ -37,7 +37,7 @@ func contains*(c: MCache, mid: MessageId): bool =
 func put*(c: var MCache, msgId: MessageId, msg: Message) =
   if not c.msgs.hasKeyOrPut(msgId, msg):
     # Only add cache entry if the message was not already in the cache
-    c.history[0].add(CacheEntry(mid: msgId, topicId: msg.topicId))
+    c.history[0].add(CacheEntry(mid: msgId, topic: msg.topic))
 
 func window*(c: MCache, topic: string): HashSet[MessageId] =
   let
@@ -45,7 +45,7 @@ func window*(c: MCache, topic: string): HashSet[MessageId] =
 
   for i in 0..<len:
     for entry in c.history[i]:
-      if entry.topicId == topic:
+      if entry.topic == topic:
         result.incl(entry.mid)
 
 func shift*(c: var MCache) =

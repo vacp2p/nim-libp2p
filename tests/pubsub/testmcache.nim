@@ -29,20 +29,20 @@ suite "MCache":
     for i in 0..<3:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "foo")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "foo")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     for i in 0..<5:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "bar")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "bar")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     var mids = mCache.window("foo")
     check mids.len == 3
 
     var id = toSeq(mids)[0]
-    check mCache.get(id).get().topicId == "foo"
+    check mCache.get(id).get().topic == "foo"
 
   test "shift - shift 1 window at a time":
     var mCache = MCache.init(1, 5)
@@ -50,7 +50,7 @@ suite "MCache":
     for i in 0..<3:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "foo")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "foo")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()
@@ -59,7 +59,7 @@ suite "MCache":
     for i in 0..<3:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "bar")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "bar")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()
@@ -68,7 +68,7 @@ suite "MCache":
     for i in 0..<3:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "baz")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "baz")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()
@@ -80,19 +80,19 @@ suite "MCache":
     for i in 0..<3:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "foo")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "foo")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     for i in 0..<3:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "bar")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "bar")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     for i in 0..<3:
       var
         msg =
-          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topicId: "baz")
+          Message(fromPeer: randomPeerId(), seqno: "12345".toBytes(), topic: "baz")
       mCache.put(defaultMsgIdProvider(msg).expect(MsgIdGenSuccess), msg)
 
     mCache.shift()

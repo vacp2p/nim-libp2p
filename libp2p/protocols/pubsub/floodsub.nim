@@ -148,7 +148,7 @@ method rpcHandler*(f: FloodSub,
       discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
-    let topic = msg.topicId
+    let topic = msg.topic
     if topic notin f.topics:
       continue
     f.floodsub.withValue(topic, peers):

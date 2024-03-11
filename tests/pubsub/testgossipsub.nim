@@ -970,7 +970,7 @@ suite "GossipSub":
 
     gossip0.broadcast(
       gossip0.mesh["foobar"],
-      RPCMsg(messages: @[Message(topicId: "foobar", data: newSeq[byte](10))]),
+      RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](10))]),
       isHighPriority = true,
     )
     await sleepAsync(300.millis)
@@ -982,7 +982,7 @@ suite "GossipSub":
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     gossip0.broadcast(
       gossip0.mesh["foobar"],
-      RPCMsg(messages: @[Message(topicId: "foobar", data: newSeq[byte](12))]),
+      RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](12))]),
       isHighPriority = true,
     )
     await sleepAsync(300.millis)
@@ -1018,7 +1018,7 @@ suite "GossipSub":
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
     let msg = RPCMsg(control: some(ControlMessage(prune: @[
-        ControlPrune(topicID: "foobar", peers: @[
+        ControlPrune(topic: "foobar", peers: @[
             PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))
         ], backoff: 123'u64)
     ])))
@@ -1031,7 +1031,7 @@ suite "GossipSub":
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     let msg2 = RPCMsg(control: some(ControlMessage(prune: @[
-        ControlPrune(topicID: "foobar", peers: @[
+        ControlPrune(topic: "foobar", peers: @[
             PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))
         ], backoff: 123'u64)
     ])))
@@ -1055,7 +1055,7 @@ suite "GossipSub":
     gossip0.addValidator(topic, execValidator)
     gossip1.addValidator(topic, execValidator)
 
-    let msg = RPCMsg(messages: @[Message(topicId: topic, data: newSeq[byte](40))])
+    let msg = RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](40))])
 
     gossip0.broadcast(gossip0.mesh[topic], msg, isHighPriority = true)
     await sleepAsync(300.millis)
@@ -1067,7 +1067,7 @@ suite "GossipSub":
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     gossip0.broadcast(
       gossip0.mesh[topic],
-      RPCMsg(messages: @[Message(topicId: topic, data: newSeq[byte](35))]),
+      RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](35))]),
       isHighPriority = true,
     )
 
