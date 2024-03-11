@@ -223,6 +223,11 @@ proc upgradeMonitor(
   finally:
     upgrades.release()
 
+proc accept_cleanup(upgrades: AsyncSemaphore, connection: Connection) {.async.} =
+  upgrades.release() # always release the slot
+  if not isNil(connection):
+    await connection.close()
+
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
   ##
@@ -263,11 +268,12 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       trace "releasing semaphore on cancellation"
       upgrades.release() # always release the slot
       return
+    except TransportUseClosedError:
+      await accept_cleanup(upgrades, conn)
+      return
     except CatchableError as exc:
       error "Exception in accept loop, exiting", exc = exc.msg
-      upgrades.release() # always release the slot
-      if not isNil(conn):
-        await conn.close()
+      await accept_cleanup(upgrades, conn)
       return
 
 proc stop*(s: Switch) {.async, public.} =
