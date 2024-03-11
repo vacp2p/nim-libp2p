@@ -134,7 +134,8 @@ proc handleConn(
 method init*(s: Secure) =
   procCall LPProtocol(s).init()
 
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(
+      conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling connection upgrade", proto, conn
     try:
       # We don't need the result but we

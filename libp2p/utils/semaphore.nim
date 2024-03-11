@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -32,19 +32,19 @@ proc tryAcquire*(s: AsyncSemaphore): bool =
   ## Attempts to acquire a resource, if successful
   ## returns true, otherwise false
   ##
-
   if s.count > 0 and s.queue.len == 0:
     s.count.dec
     trace "Acquired slot", available = s.count, queue = s.queue.len
     return true
 
-proc acquire*(s: AsyncSemaphore): Future[void] =
+proc acquire*(
+    s: AsyncSemaphore
+): Future[void] {.async: (raises: [CancelledError], raw: true).} =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
   ## the returned future will not complete until
   ## the resource count goes above 0.
   ##
-
   let fut = newFuture[void]("AsyncSemaphore.acquire")
   if s.tryAcquire():
     fut.complete()
@@ -75,7 +75,6 @@ proc release*(s: AsyncSemaphore) =
   ## and completing it and incrementing the
   ## internal resource count
   ##
-
   doAssert(s.count <= s.size)
 
   if s.count < s.size:

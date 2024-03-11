@@ -140,7 +140,8 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
 
 proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 15.seconds): T =
   let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(
+      conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       let msg = AutonatMsg.decode(await conn.readLp(1024)).valueOr:
         raise newException(AutonatError, "Received malformed message")

@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -164,9 +164,13 @@ suite "Identify":
       switch1 = newStandardSwitch(sendSignedPeerRecord=true)
       switch2 = newStandardSwitch(sendSignedPeerRecord=true)
 
-      proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
+      proc updateStore1(
+          peerId: PeerId,
+          info: IdentifyInfo) {.async: (raises: [CancelledError]).} =
         switch1.peerStore.updatePeerInfo(info)
-      proc updateStore2(peerId: PeerId, info: IdentifyInfo) {.async.} =
+      proc updateStore2(
+          peerId: PeerId,
+          info: IdentifyInfo) {.async: (raises: [CancelledError]).} =
         switch2.peerStore.updatePeerInfo(info)
 
       identifyPush1 = IdentifyPush.new(updateStore1)

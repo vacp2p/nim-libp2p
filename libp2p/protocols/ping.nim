@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -36,44 +36,45 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of PingError
 
-  PingHandler* {.public.} = proc (
-    peer: PeerId):
-    Future[void]
-    {.gcsafe, raises: [].}
+  PingHandler* {.public.} =
+    proc (peer: PeerId): Future[void] {.async: (raises: [CancelledError]).}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
     rng: ref HmacDrbgContext
 
-proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()): T {.public.} =
+proc new*(
+    T: typedesc[Ping],
+    handler: PingHandler = nil,
+    rng: ref HmacDrbgContext = newRng()): T {.public.} =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(
+      conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling ping", conn
       var buf: array[PingSize, byte]
       await conn.readExactly(addr buf[0], PingSize)
       trace "echoing ping", conn
       await conn.write(@buf)
-      if not isNil(p.pingHandler):
+      if p.pingHandler != nil:
         await p.pingHandler(conn.peerId)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       trace "exception in ping handler", exc = exc.msg, conn
 
   p.handler = handle
   p.codec = PingCodec
 
 proc ping*(
-  p: Ping,
-  conn: Connection,
-  ): Future[Duration] {.async, public.} =
+    p: Ping,
+    conn: Connection
+): Future[Duration] {.async: (raises: [CancelledError, LPError]), public.} =
   ## Sends ping to `conn`, returns the delay
-
   trace "initiating ping", conn
 
   var

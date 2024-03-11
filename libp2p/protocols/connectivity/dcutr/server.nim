@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -19,7 +19,6 @@ import ../../protocol,
        ../../../switch,
        ../../../utils/future
 
-export DcutrError
 export chronicles
 
 type Dcutr* = ref object of LPProtocol
@@ -29,7 +28,8 @@ logScope:
 
 proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDialableAddrs = 8): T =
 
-  proc handleStream(stream: Connection, proto: string) {.async.} =
+  proc handleStream(
+      stream: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     var peerDialableAddrs: seq[MultiAddress]
     try:
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024))
@@ -65,14 +65,14 @@ proc new*(T: typedesc[Dcutr], switch: Switch, connectTimeout = 15.seconds, maxDi
     except CancelledError as err:
       raise err
     except AllFuturesFailedError as err:
-      debug "Dcutr receiver could not connect to the remote peer, all connect attempts failed", peerDialableAddrs, msg = err.msg
-      raise newException(DcutrError, "Dcutr receiver could not connect to the remote peer, all connect attempts failed", err)
+      debug "Dcutr receiver could not connect to the remote peer, " &
+        "all connect attempts failed", peerDialableAddrs, msg = err.msg
     except AsyncTimeoutError as err:
-      debug "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", peerDialableAddrs, msg = err.msg
-      raise newException(DcutrError, "Dcutr receiver could not connect to the remote peer, all connect attempts timed out", err)
+      debug "Dcutr receiver could not connect to the remote peer, " &
+        "all connect attempts timed out", peerDialableAddrs, msg = err.msg
     except CatchableError as err:
-      warn "Unexpected error when Dcutr receiver tried to connect to the remote peer", msg = err.msg
-      raise newException(DcutrError, "Unexpected error when Dcutr receiver tried to connect to the remote peer", err)
+      warn "Unexpected error when Dcutr receiver tried to connect " &
+        "to the remote peer", msg = err.msg
 
   let self = T()
   self.handler = handleStream

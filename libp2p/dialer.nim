@@ -163,15 +163,15 @@ proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   return Opt.some(muxer)
 
 proc internalConnect(
-  self: Dialer,
-  peerId: Opt[PeerId],
-  addrs: seq[MultiAddress],
-  forceDial: bool,
-  reuseConnection = true,
-  dir = Direction.Out):
+    self: Dialer,
+    peerId: Opt[PeerId],
+    addrs: seq[MultiAddress],
+    forceDial: bool,
+    reuseConnection = true,
+    dir = Direction.Out):
   Future[Muxer] {.async.} =
   if Opt.some(self.localPeerId) == peerId:
-    raise newException(CatchableError, "can't dial self!")
+    raise newException(DialFailedError, "can't dial self!")
 
   # Ensure there's only one in-flight attempt per peer
   let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())

@@ -42,7 +42,8 @@ suite "Ping":
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())
 
-    proc handlePing(peer: PeerId) {.async, closure.} =
+    proc handlePing(
+        peer: PeerId) {.async: (raises: [CancelledError]), closure.} =
       inc pingReceivedCount
     pingProto1 = Ping.new()
     pingProto2 = Ping.new(handlePing)

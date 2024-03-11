@@ -360,7 +360,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
 
 method handleConn*(p: PubSub,
                    conn: Connection,
-                   proto: string) {.base, async.} =
+                   proto: string) {.base, async: (raises: [CancelledError]).} =
   ## handle incoming connections
   ##
   ## this proc will:

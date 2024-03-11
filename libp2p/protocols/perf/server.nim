@@ -27,7 +27,8 @@ type Perf* = ref object of LPProtocol
 
 proc new*(T: typedesc[Perf]): T {.public.} =
   var p = T()
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(
+      conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     var bytesRead = 0
     try:
       trace "Received benchmark performance check", conn
