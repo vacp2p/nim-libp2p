@@ -93,20 +93,20 @@ suite "Message":
     )
 
     var controlIHave = ControlIHave(
-      topic: "ijk",  # 3 bytes
-      messageIds: @[ @['l'.byte], @['m'.byte, 'n'.byte] ]  # 1 + 2 = 3 bytes
+      topicID: "ijk",  # 3 bytes
+      messageIDs: @[ @['l'.byte], @['m'.byte, 'n'.byte] ]  # 1 + 2 = 3 bytes
     )
 
     var controlIWant = ControlIWant(
-      messageIds: @[ @['o'.byte, 'p'.byte], @['q'.byte] ]  # 2 + 1 = 3 bytes
+      messageIDs: @[ @['o'.byte, 'p'.byte], @['q'.byte] ]  # 2 + 1 = 3 bytes
     )
 
     var controlGraft = ControlGraft(
-      topic: "rst"  # 3 bytes
+      topicID: "rst"  # 3 bytes
     )
 
     var controlPrune = ControlPrune(
-      topic: "uvw",  # 3 bytes
+      topicID: "uvw",  # 3 bytes
       peers: @[peerInfo, peerInfo],  # (1 + 2) * 2 = 6 bytes
       backoff: 12345678  # 8 bytes for uint64
     )

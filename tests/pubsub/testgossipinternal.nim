@@ -544,7 +544,7 @@ suite "GossipSub internal":
       gossipSub.backingOff
         .mgetOrPut(topic, initTable[PeerId, Moment]())
         .add(peerId, Moment.now() + 1.hours)
-      let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topic: topic)])
+      let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
       # there must be a control prune due to violation of backoff
       check prunes.len != 0
 
@@ -582,7 +582,7 @@ suite "GossipSub internal":
       let peerId = conns[i].peerId
       let peer = gossipSub.getPubSubPeer(peerId)
       gossipSub.handlePrune(peer, @[ControlPrune(
-        topic: topic,
+        topicID: topic,
         peers: @[],
         backoff: gossipSub.parameters.pruneBackoff.seconds.uint64
       )])
@@ -676,12 +676,12 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       let msg = ControlIHave(
-        topic: topic,
+        topicID: topic,
         messageIDs: @[id, id, id]
       )
       peer.iHaveBudget = 0
       let iwants = gossipSub.handleIHave(peer, @[msg])
-      check: iwants.messageIds.len == 0
+      check: iwants.messageIDs.len == 0
 
     block:
       # given duplicate ihave should generate only one iwant
@@ -692,11 +692,11 @@ suite "GossipSub internal":
       let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       let msg = ControlIHave(
-        topic: topic,
+        topicID: topic,
         messageIDs: @[id, id, id]
       )
       let iwants = gossipSub.handleIHave(peer, @[msg])
-      check: iwants.messageIds.len == 1
+      check: iwants.messageIDs.len == 1
 
     block:
       # given duplicate iwant should generate only one message
@@ -779,7 +779,7 @@ suite "GossipSub internal":
     let (iwantMessageIds, sentMessages) = createMessages(gossip0, gossip1, messageSize, messageSize)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topic: "foobar", messageIds: iwantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: iwantMessageIds)]
     ))), isHighPriority = false)
 
     checkUntilTimeout: receivedMessages[] == sentMessages
@@ -796,7 +796,7 @@ suite "GossipSub internal":
     let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, messageSize, messageSize)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topic: "foobar", messageIds: bigIWantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
     ))), isHighPriority = false)
 
     await sleepAsync(300.milliseconds)
@@ -813,7 +813,7 @@ suite "GossipSub internal":
     let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, size1, size2)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topic: "foobar", messageIds: bigIWantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
     ))), isHighPriority = false)
 
     checkUntilTimeout: receivedMessages[] == sentMessages
@@ -831,7 +831,7 @@ suite "GossipSub internal":
     let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, size1, size2)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topic: "foobar", messageIds: bigIWantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
     ))), isHighPriority = false)
 
     var smallestSet: HashSet[seq[byte]]

@@ -29,7 +29,7 @@ when defined(libp2p_protobuf_metrics):
 
 proc write*(pb: var ProtoBuffer, field: int, graft: ControlGraft) =
   var ipb = initProtoBuffer()
-  ipb.write(1, graft.topic)
+  ipb.write(1, graft.topicID)
   ipb.finish()
   pb.write(field, ipb)
 
@@ -45,7 +45,7 @@ proc write*(pb: var ProtoBuffer, field: int, infoMsg: PeerInfoMsg) =
 
 proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
   var ipb = initProtoBuffer()
-  ipb.write(1, prune.topic)
+  ipb.write(1, prune.topicID)
   for peer in prune.peers:
     ipb.write(2, peer)
   ipb.write(3, prune.backoff)
@@ -57,8 +57,8 @@ proc write*(pb: var ProtoBuffer, field: int, prune: ControlPrune) =
 
 proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
   var ipb = initProtoBuffer()
-  ipb.write(1, ihave.topic)
-  for mid in ihave.messageIds:
+  ipb.write(1, ihave.topicID)
+  for mid in ihave.messageIDs:
     ipb.write(2, mid)
   ipb.finish()
   pb.write(field, ipb)
@@ -68,7 +68,7 @@ proc write*(pb: var ProtoBuffer, field: int, ihave: ControlIHave) =
 
 proc write*(pb: var ProtoBuffer, field: int, iwant: ControlIWant) =
   var ipb = initProtoBuffer()
-  for mid in iwant.messageIds:
+  for mid in iwant.messageIDs:
     ipb.write(1, mid)
   if len(ipb.buffer) > 0:
     ipb.finish()
@@ -132,10 +132,10 @@ proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.
 
   trace "decodeGraft: decoding message"
   var control = ControlGraft()
-  if ? pb.getField(1, control.topic):
-    trace "decodeGraft: read topic", topic = control.topic
+  if ? pb.getField(1, control.topicID):
+    trace "decodeGraft: read topicID", topicID = control.topicID
   else:
-    trace "decodeGraft: topic is missing"
+    trace "decodeGraft: topicID is missing"
   ok(control)
 
 proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] {.
@@ -159,10 +159,10 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.
 
   trace "decodePrune: decoding message"
   var control = ControlPrune()
-  if ? pb.getField(1, control.topic):
-    trace "decodePrune: read topic", topic = control.topic
+  if ? pb.getField(1, control.topicID):
+    trace "decodePrune: read topicID", topic = control.topicID
   else:
-    trace "decodePrune: topic is missing"
+    trace "decodePrune: topicID is missing"
   var bpeers: seq[seq[byte]]
   if ? pb.getRepeatedField(2, bpeers):
     for bpeer in bpeers:
@@ -178,12 +178,12 @@ proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.
 
   trace "decodeIHave: decoding message"
   var control = ControlIHave()
-  if ? pb.getField(1, control.topic):
-    trace "decodeIHave: read topic", topic = control.topic
+  if ? pb.getField(1, control.topicID):
+    trace "decodeIHave: read topicID", topic = control.topicID
   else:
-    trace "decodeIHave: topic is missing"
-  if ? pb.getRepeatedField(2, control.messageIds):
-    trace "decodeIHave: read messageIDs", message_ids = control.messageIds
+    trace "decodeIHave: topicID is missing"
+  if ? pb.getRepeatedField(2, control.messageIDs):
+    trace "decodeIHave: read messageIDs", message_ids = control.messageIDs
   else:
     trace "decodeIHave: no messageIDs"
   ok(control)
@@ -194,8 +194,8 @@ proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] {.inline.} =
 
   trace "decodeIWant: decoding message"
   var control = ControlIWant()
-  if ? pb.getRepeatedField(1, control.messageIds):
-    trace "decodeIWant: read messageIDs", message_ids = control.messageIds
+  if ? pb.getRepeatedField(1, control.messageIDs):
+    trace "decodeIWant: read messageIDs", message_ids = control.messageIDs
   else:
     trace "decodeIWant: no messageIDs"
   ok(control)

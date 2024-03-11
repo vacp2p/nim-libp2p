@@ -911,7 +911,7 @@ suite "GossipSub":
     check: gossip3.mesh.peers("foobar") == 1
 
     gossip3.broadcast(gossip3.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      idontwant: @[ControlIWant(messageIds: @[newSeq[byte](10)])]
+      idontwant: @[ControlIWant(messageIDs: @[newSeq[byte](10)])]
     ))), isHighPriority = true)
     checkUntilTimeout: gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
 
@@ -1018,7 +1018,7 @@ suite "GossipSub":
     let (nodes, gossip0, gossip1) = await initializeGossipTest()
 
     let msg = RPCMsg(control: some(ControlMessage(prune: @[
-        ControlPrune(topic: "foobar", peers: @[
+        ControlPrune(topicID: "foobar", peers: @[
             PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))
         ], backoff: 123'u64)
     ])))
@@ -1031,7 +1031,7 @@ suite "GossipSub":
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     let msg2 = RPCMsg(control: some(ControlMessage(prune: @[
-        ControlPrune(topic: "foobar", peers: @[
+        ControlPrune(topicID: "foobar", peers: @[
             PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))
         ], backoff: 123'u64)
     ])))
