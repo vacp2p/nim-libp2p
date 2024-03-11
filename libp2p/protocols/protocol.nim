@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -19,14 +19,16 @@ const
 
 type
   LPProtoHandler* = proc (
-    conn: Connection,
-    proto: string):
-    Future[void]
-    {.gcsafe, raises: [].}
+      conn: Connection,
+      proto: string): Future[void] {.async.}
+
+  LPProtoHandler2* = proc (
+      conn: Connection,
+      proto: string): Future[void] {.async: (raises: [CancelledError]).}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
-    handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
+    handlerImpl: LPProtoHandler  ## invoked by the protocol negotiator
     started*: bool
     maxIncomingStreams: Opt[int]
 
@@ -41,7 +43,7 @@ proc `maxIncomingStreams=`*(p: LPProtocol, val: int) =
   p.maxIncomingStreams = Opt.some(val)
 
 func codec*(p: LPProtocol): string =
-  assert(p.codecs.len > 0, "Codecs sequence was empty!")
+  doAssert(p.codecs.len > 0, "Codecs sequence was empty!")
   p.codecs[0]
 
 func `codec=`*(p: LPProtocol, codec: string) =
@@ -49,15 +51,39 @@ func `codec=`*(p: LPProtocol, codec: string) =
   # if we use this abstraction
   p.codecs.insert(codec, 0)
 
+template `handler`*(p: LPProtocol): LPProtoHandler =
+  p.handlerImpl
+
+template `handler`*(
+    p: LPProtocol, conn: Connection, proto: string): Future[void] =
+  p.handlerImpl(conn, proto)
+
+func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
+  p.handlerImpl = handler
+
+func `handler=`*(p: LPProtocol, handler: LPProtoHandler2) =
+  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
+    await handler(conn, proto)
+  p.handlerImpl = wrap
+
 proc new*(
-  T: type LPProtocol,
-  codecs: seq[string],
-  handler: LPProtoHandler,
-  maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
+    T: type LPProtocol,
+    codecs: seq[string],
+    handler: LPProtoHandler,
+    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
   T(
     codecs: codecs,
-    handler: handler,
+    handlerImpl: handler,
     maxIncomingStreams:
       when maxIncomingStreams is int: Opt.some(maxIncomingStreams)
       else: maxIncomingStreams
   )
+
+proc new*(
+    T: type LPProtocol,
+    codecs: seq[string],
+    handler: LPProtoHandler2,
+    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
+  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
+    await handler(conn, proto)
+  T.new(codec, wrap, maxIncomingStreams)

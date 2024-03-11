@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -230,7 +230,7 @@ proc addHandler*(m: MultistreamSelect,
 
 proc addHandler*(m: MultistreamSelect,
                  codec: string,
-                 handler: LPProtoHandler,
+                 handler: LPProtoHandler|LPProtoHandler2,
                  matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
   trace "registering proto handler", proto = codec

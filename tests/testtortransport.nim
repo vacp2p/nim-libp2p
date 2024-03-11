@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -88,7 +88,6 @@ suite "Tor transport":
 
       # every incoming connections will be in handled in this closure
       proc handle(conn: Connection, proto: string) {.async.} =
-
         var resp: array[6, byte]
         await conn.readExactly(addr resp, 6)
         check string.fromBytes(resp) == "client"
@@ -97,7 +96,7 @@ suite "Tor transport":
         # We must close the connections ourselves when we're done with it
         await conn.close()
 
-      return T(codecs: @[TestCodec], handler: handle)
+      return T.new(codecs = @[TestCodec], handler = handle)
 
     let rng = newRng()
 
