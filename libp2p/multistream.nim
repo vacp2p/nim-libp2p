@@ -277,7 +277,6 @@ proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
         pending.add handlers[i].protocol.stop()
       else:
         static: doAssert typeof(fut).E is (CancelledError,)
-        doAssert fut.cancelled
     await noCancel allFutures(pending)
     raise exc
 
