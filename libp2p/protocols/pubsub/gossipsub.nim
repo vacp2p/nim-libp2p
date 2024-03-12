@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -701,30 +701,40 @@ proc maintainDirectPeers(g: GossipSub) {.async.} =
     for id, addrs in g.parameters.directPeers:
       await g.addDirectPeer(id, addrs)
 
-method start*(g: GossipSub) {.async.} =
+method start*(
+    g: GossipSub
+): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
+
   trace "gossipsub start"
 
   if not g.heartbeatFut.isNil:
     warn "Starting gossipsub twice"
-    return
+    return fut
 
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
   g.started = true
+  fut
 
-method stop*(g: GossipSub) {.async.} =
+method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
+
   trace "gossipsub stop"
   g.started = false
   if g.heartbeatFut.isNil:
     warn "Stopping gossipsub without starting it"
-    return
+    return fut
 
   # stop heartbeat interval
   g.directPeersLoop.cancel()
   g.scoringHeartbeatFut.cancel()
   g.heartbeatFut.cancel()
   g.heartbeatFut = nil
+  fut
 
 method initPubSub*(g: GossipSub)
   {.raises: [InitializationError].} =

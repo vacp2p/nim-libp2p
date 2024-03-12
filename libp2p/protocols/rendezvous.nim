@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -678,17 +678,25 @@ proc deletesRegister(rdv: RendezVous) {.async.} =
     libp2p_rendezvous_registered.set(int64(total))
     libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
 
-method start*(rdv: RendezVous) {.async.} =
+method start*(
+    rdv: RendezVous
+): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
   if not rdv.registerDeletionLoop.isNil:
     warn "Starting rendezvous twice"
-    return
+    return fut
   rdv.registerDeletionLoop = rdv.deletesRegister()
   rdv.started = true
+  fut
 
-method stop*(rdv: RendezVous) {.async.} =
+method stop*(rdv: RendezVous): Future[void] {.async: (raises: [], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
   if rdv.registerDeletionLoop.isNil:
     warn "Stopping rendezvous without starting it"
-    return
+    return fut
   rdv.started = false
   rdv.registerDeletionLoop.cancel()
   rdv.registerDeletionLoop = nil
+  fut
