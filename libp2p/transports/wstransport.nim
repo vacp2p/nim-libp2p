@@ -50,7 +50,6 @@ proc new*(
     dir: Direction,
     observedAddr: Opt[MultiAddress],
     timeout = 10.minutes): T =
-
   let stream = T(
     session: session,
     timeout: timeout,
@@ -58,7 +57,7 @@ proc new*(
     observedAddr: observedAddr)
 
   stream.initStream()
-  return stream
+  stream
 
 template mapExceptions(body: untyped) =
   try:
@@ -121,11 +120,11 @@ type
     rng: ref HmacDrbgContext
 
 proc secure*(self: WsTransport): bool =
-  not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
+  self.tlsPrivateKey != nil and self.tlsCertificate != nil
 
 method start*(
-  self: WsTransport,
-  addrs: seq[MultiAddress]) {.async.} =
+    self: WsTransport,
+    addrs: seq[MultiAddress]) {.async.} =
   ## listen on the transport
   ##
 
@@ -139,7 +138,6 @@ method start*(
   self.wsserver = WSServer.new(
     factories = self.factories,
     rng = self.rng)
-
 
   for i, ma in addrs:
     let isWss =
@@ -302,23 +300,31 @@ method accept*(self: WsTransport): Future[Connection] {.async.} =
     raise exc
 
 method dial*(
-  self: WsTransport,
-  hostname: string,
-  address: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async.} =
+    self: WsTransport,
+    hostname: string,
+    address: MultiAddress,
+    peerId: Opt[PeerId] = Opt.none(PeerId)
+): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
   ## dial a peer
   ##
-
   trace "Dialing remote peer", address = $address
 
   let
     secure = WSS.match(address)
-    transp = await WebSocket.connect(
-      address.initTAddress().tryGet(),
-      "",
-      secure = secure,
-      hostName = hostname,
-      flags = self.tlsFlags)
+    transp =
+      try:
+        await WebSocket.connect(
+          address.initTAddress().tryGet(),
+          "",
+          secure = secure,
+          hostName = hostname,
+          flags = self.tlsFlags)
+      except CancelledError as exc:
+        raise exc
+      except LPError as exc:
+        raise exc
+      except CatchableError as exc:
+        raise (ref LPError)(msg: "WebSocket.connect failed", parent: exc)
 
   try:
     return await self.connHandler(transp, secure, Direction.Out)

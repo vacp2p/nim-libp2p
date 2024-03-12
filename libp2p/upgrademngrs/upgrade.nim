@@ -38,9 +38,9 @@ type
     secureManagers*: seq[Secure]
 
 method upgrade*(
-  self: Upgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Muxer] {.base.} =
+    self: Upgrade,
+    conn: Connection,
+    peerId: Opt[PeerId]): Future[Muxer] {.base.} =
   doAssert(false, "Not implemented!")
 
 proc secure*(
