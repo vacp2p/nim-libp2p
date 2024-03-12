@@ -288,7 +288,8 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
   if ?pb.getField(4, msg.topic):
     trace "decodeMessage: read topic", topic = msg.topic
   else:
-    trace "decodeMessage: topic is missing"
+    trace "decodeMessage: topic is required"
+    return err(ProtoError.RequiredFieldMissing)
   if ? pb.getField(5, msg.signature):
     trace "decodeMessage: read signature", signature = msg.signature.shortLog()
   else:
