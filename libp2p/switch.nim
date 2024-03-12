@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -136,68 +136,75 @@ proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe, public.} =
   s.connManager.dropPeer(peerId)
 
 method connect*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  forceDial = false,
-  reuseConnection = true,
-  dir = Direction.Out): Future[void] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out
+): Future[void] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Connects to a peer without opening a stream to it
-
   s.dialer.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
 method connect*(
   s: Switch,
   address: MultiAddress,
-  allowUnknownPeerId = false): Future[PeerId] =
+  allowUnknownPeerId = false
+): Future[PeerId] {.async: (raises: [CancelledError, LPError], raw: true).} =
   ## Connects to a peer and retrieve its PeerId
   ##
   ## If the P2P part is missing from the MA and `allowUnknownPeerId` is set
   ## to true, this will discover the PeerId while connecting. This exposes
   ## you to MiTM attacks, so it shouldn't be used without care!
-
   s.dialer.connect(address, allowUnknownPeerId)
 
 method dial*(
   s: Switch,
   peerId: PeerId,
-  protos: seq[string]): Future[Connection] {.public.} =
+  protos: seq[string]
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Open a stream to a connected peer with the specified `protos`
-
   s.dialer.dial(peerId, protos)
 
-proc dial*(s: Switch,
-           peerId: PeerId,
-           proto: string): Future[Connection] {.public.} =
+proc dial*(
+    s: Switch,
+    peerId: PeerId,
+    proto: string
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Open a stream to a connected peer with the specified `proto`
-
   dial(s, peerId, @[proto])
 
 method dial*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  protos: seq[string],
-  forceDial = false): Future[Connection] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Connected to a peer and open a stream
   ## with the specified `protos`
-
   s.dialer.dial(peerId, addrs, protos, forceDial)
 
 proc dial*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  proto: string): Future[Connection] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    proto: string
+): Future[Connection] {.async: (raises: [
+    CancelledError, LPError], raw: true), public.} =
   ## Connected to a peer and open a stream
   ## with the specified `proto`
-
   dial(s, peerId, addrs, @[proto])
 
-proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
-  {.gcsafe, raises: [LPError], public.} =
+proc mount*[T: LPProtocol](
+    s: Switch,
+    proto: T,
+    matcher: Matcher = nil) {.gcsafe, raises: [LPError], public.} =
   ## mount a protocol to the switch
-
   if isNil(proto.handler):
     raise newException(LPError,
       "Protocol has to define a handle method or proc")
@@ -237,7 +244,6 @@ proc upgradeMonitor(
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
   ##
-
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
   while transport.running:
     var conn: Connection
@@ -323,7 +329,6 @@ proc stop*(s: Switch) {.async, public.} =
 
 proc start*(s: Switch) {.async, public.} =
   ## Start listening on every transport
-
   if s.started:
     warn "Switch has already been started"
     return
@@ -365,15 +370,15 @@ proc start*(s: Switch) {.async, public.} =
 
   debug "Started libp2p node", peer = s.peerInfo
 
-proc newSwitch*(peerInfo: PeerInfo,
-                transports: seq[Transport],
-                secureManagers: openArray[Secure] = [],
-                connManager: ConnManager,
-                ms: MultistreamSelect,
-                peerStore: PeerStore,
-                nameResolver: NameResolver = nil,
-                services = newSeq[Service]()): Switch
-                {.raises: [LPError].} =
+proc newSwitch*(
+    peerInfo: PeerInfo,
+    transports: seq[Transport],
+    secureManagers: openArray[Secure] = [],
+    connManager: ConnManager,
+    ms: MultistreamSelect,
+    peerStore: PeerStore,
+    nameResolver: NameResolver = nil,
+    services = newSeq[Service]()): Switch {.raises: [LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 

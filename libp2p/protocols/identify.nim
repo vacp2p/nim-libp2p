@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -45,14 +45,14 @@ type
   IdentifyNoPubKeyError* = object of IdentifyError
 
   IdentifyInfo* {.public.} = object
-    pubkey*: Option[PublicKey]
+    pubkey*: Opt[PublicKey]
     peerId*: PeerId
     addrs*: seq[MultiAddress]
-    observedAddr*: Option[MultiAddress]
-    protoVersion*: Option[string]
-    agentVersion*: Option[string]
+    observedAddr*: Opt[MultiAddress]
+    protoVersion*: Opt[string]
+    agentVersion*: Opt[string]
     protos*: seq[string]
-    signedPeerRecord*: Option[Envelope]
+    signedPeerRecord*: Opt[Envelope]
 
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
@@ -60,10 +60,9 @@ type
     observedAddrManager*: ObservedAddrManager
 
   IdentifyPushHandler* = proc (
-    peer: PeerId,
-    newInfo: IdentifyInfo):
-    Future[void]
-    {.gcsafe, raises: [], public.}
+      peer: PeerId,
+      newInfo: IdentifyInfo
+  ): Future[void] {.async: (raises: [CancelledError]), public.}
 
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
@@ -81,8 +80,10 @@ chronicles.expandIt(IdentifyInfo):
     if it.signedPeerRecord.isSome(): "Some"
     else: "None"
 
-proc encodeMsg(peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool): ProtoBuffer
-  {.raises: [].} =
+proc encodeMsg(
+    peerInfo: PeerInfo,
+    observedAddr: Opt[MultiAddress],
+    sendSpr: bool): ProtoBuffer =
   result = initProtoBuffer()
 
   let pkey = peerInfo.publicKey
@@ -121,27 +122,26 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
 
   var pb = initProtoBuffer(buf)
   if ? pb.getField(1, pubkey).toOpt():
-    iinfo.pubkey = some(pubkey)
+    iinfo.pubkey = Opt.some(pubkey)
     if ? pb.getField(8, signedPeerRecord).toOpt() and
-      pubkey == signedPeerRecord.envelope.publicKey:
-      iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
+        pubkey == signedPeerRecord.envelope.publicKey:
+      iinfo.signedPeerRecord = Opt.some(signedPeerRecord.envelope)
   discard ? pb.getRepeatedField(2, iinfo.addrs).toOpt()
   discard ? pb.getRepeatedField(3, iinfo.protos).toOpt()
   if ? pb.getField(4, oaddr).toOpt():
-    iinfo.observedAddr = some(oaddr)
+    iinfo.observedAddr = Opt.some(oaddr)
   if ? pb.getField(5, protoVersion).toOpt():
-    iinfo.protoVersion = some(protoVersion)
+    iinfo.protoVersion = Opt.some(protoVersion)
   if ? pb.getField(6, agentVersion).toOpt():
-    iinfo.agentVersion = some(agentVersion)
+    iinfo.agentVersion = Opt.some(agentVersion)
 
   Opt.some(iinfo)
 
 proc new*(
-  T: typedesc[Identify],
-  peerInfo: PeerInfo,
-  sendSignedPeerRecord = false,
-  observedAddrManager = ObservedAddrManager.new(),
-  ): T =
+    T: typedesc[Identify],
+    peerInfo: PeerInfo,
+    sendSignedPeerRecord = false,
+    observedAddrManager = ObservedAddrManager.new()): T =
   let identify = T(
     peerInfo: peerInfo,
     sendSignedPeerRecord: sendSignedPeerRecord,
@@ -158,7 +158,7 @@ method init*(p: Identify) =
       await conn.writeLp(pb.buffer)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       trace "exception in identify handler", exc = exc.msg, conn
     finally:
       trace "exiting identify handler", conn
@@ -167,36 +167,46 @@ method init*(p: Identify) =
   p.handler = handle
   p.codec = IdentifyCodec
 
-proc identify*(self: Identify,
-               conn: Connection,
-               remotePeerId: PeerId): Future[IdentifyInfo] {.async.} =
+proc identify*(
+    self: Identify,
+    conn: Connection,
+    remotePeerId: PeerId
+): Future[IdentifyInfo] {.async: (raises: [
+    CancelledError, IdentifyError, LPStreamError]).} =
   trace "initiating identify", conn
   var message = await conn.readLp(64*1024)
   if len(message) == 0:
     trace "identify: Empty message received!", conn
-    raise newException(IdentityInvalidMsgError, "Empty message received!")
+    raise (ref IdentityInvalidMsgError)(msg: "Empty message received!")
 
-  var info = decodeMsg(message).valueOr: raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+  var info = decodeMsg(message).valueOr:
+    raise (ref IdentityInvalidMsgError)(msg: "Incorrect message received!")
   debug "identify: decoded message", conn, info
   let
-    pubkey = info.pubkey.valueOr: raise newException(IdentityInvalidMsgError, "No pubkey in identify")
-    peer = PeerId.init(pubkey).valueOr: raise newException(IdentityInvalidMsgError, $error)
+    pubkey = info.pubkey.valueOr:
+      raise (ref IdentityInvalidMsgError)(msg: "No pubkey in identify")
+    peer = PeerId.init(pubkey).valueOr:
+      raise (ref IdentityInvalidMsgError)(msg: $error)
 
   if peer != remotePeerId:
     trace "Peer ids don't match", remote = peer, local = remotePeerId
-    raise newException(IdentityNoMatchError, "Peer ids don't match")
+    raise (ref IdentityNoMatchError)(msg: "Peer ids don't match")
   info.peerId = peer
 
   info.observedAddr.withValue(observed):
-    # Currently, we use the ObservedAddrManager only to find our dialable external NAT address. Therefore, addresses
+    # Currently, we use the ObservedAddrManager only to find our
+    # dialable external NAT address. Therefore, addresses
     # like "...\p2p-circuit\p2p\..." and "\p2p\..." are not useful to us.
-    if observed.contains(multiCodec("p2p-circuit")).get(false) or P2PPattern.matchPartial(observed):
+    if observed.contains(multiCodec("p2p-circuit")).get(false) or
+        P2PPattern.matchPartial(observed):
       trace "Not adding address to ObservedAddrManager.", observed
     elif not self.observedAddrManager.addObservation(observed):
       trace "Observed address is not valid.", observedAddr = observed
   return info
 
-proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
+proc new*(
+    T: typedesc[IdentifyPush],
+    handler: IdentifyPushHandler = nil): T {.public.} =
   ## Create a IdentifyPush protocol. `handler` will be called every time
   ## a peer sends us new `PeerInfo`
   let identifypush = T(identifyHandler: handler)
@@ -210,21 +220,21 @@ proc init*(p: IdentifyPush) =
       var message = await conn.readLp(64*1024)
 
       var identInfo = decodeMsg(message).valueOr:
-        raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+        raise (ref IdentityInvalidMsgError)(msg: "Incorrect message received!")
       debug "identify push: decoded message", conn, identInfo
 
       identInfo.pubkey.withValue(pubkey):
         let receivedPeerId = PeerId.init(pubkey).tryGet()
         if receivedPeerId != conn.peerId:
-          raise newException(IdentityNoMatchError, "Peer ids don't match")
+          raise (ref IdentityNoMatchError)(msg: "Peer ids don't match")
         identInfo.peerId = receivedPeerId
 
       trace "triggering peer event", peerInfo = conn.peerId
-      if not isNil(p.identifyHandler):
+      if p.identifyHandler != nil:
         await p.identifyHandler(conn.peerId, identInfo)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except LPError as exc:
       info "exception in identify push handler", exc = exc.msg, conn
     finally:
       trace "exiting identify push handler", conn
@@ -233,7 +243,11 @@ proc init*(p: IdentifyPush) =
   p.handler = handle
   p.codec = IdentifyPushCodec
 
-proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async, public.} =
+proc push*(
+    p: IdentifyPush,
+    peerInfo: PeerInfo,
+    conn: Connection
+) {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## Send new `peerInfo`s to a connection
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)

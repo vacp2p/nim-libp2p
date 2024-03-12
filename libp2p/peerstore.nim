@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -76,7 +76,10 @@ type
     capacity*: int
     toClean*: seq[PeerId]
 
-proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.public.} =
+proc new*(
+    T: type PeerStore,
+    identify: Identify,
+    capacity = 1000): PeerStore {.public.} =
   T(
     identify: identify,
     capacity: capacity
@@ -86,26 +89,21 @@ proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.p
 # Generic Peer Book API #
 #########################
 
-proc `[]`*[T](peerBook: PeerBook[T],
-             peerId: PeerId): T {.public.} =
+proc `[]`*[T](peerBook: PeerBook[T], peerId: PeerId): T {.public.} =
   ## Get all known metadata of a provided peer, or default(T) if missing
   peerBook.book.getOrDefault(peerId)
 
-proc `[]=`*[T](peerBook: PeerBook[T],
-             peerId: PeerId,
-             entry: T) {.public.} =
+proc `[]=`*[T](peerBook: PeerBook[T], peerId: PeerId, entry: T) {.public.} =
   ## Set metadata for a given peerId.
-
   peerBook.book[peerId] = entry
 
   # Notify clients
   for handler in peerBook.changeHandlers:
     handler(peerId)
 
-proc del*[T](peerBook: PeerBook[T],
-                peerId: PeerId): bool {.public.} =
-  ## Delete the provided peer from the book. Returns whether the peer was in the book
-
+proc del*[T](peerBook: PeerBook[T], peerId: PeerId): bool {.public.} =
+  ## Delete the provided peer from the book.
+  ## Returns whether the peer was in the book
   if peerId notin peerBook.book:
     return false
   else:
@@ -118,7 +116,8 @@ proc del*[T](peerBook: PeerBook[T],
 proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool {.public.} =
   peerId in peerBook.book
 
-proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) {.public.} =
+proc addHandler*[T](
+    peerBook: PeerBook[T], handler: PeerBookChangeHandler) {.public.} =
   ## Adds a callback that will be called everytime the book changes
   peerBook.changeHandlers.add(handler)
 
@@ -145,16 +144,12 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T {.public.} =
     p.books[name] = result
   return result
 
-proc del*(peerStore: PeerStore,
-             peerId: PeerId) {.public.} =
+proc del*(peerStore: PeerStore, peerId: PeerId) {.public.} =
   ## Delete the provided peer from every book.
   for _, book in peerStore.books:
     book.deletor(peerId)
 
-proc updatePeerInfo*(
-  peerStore: PeerStore,
-  info: IdentifyInfo) =
-
+proc updatePeerInfo*(peerStore: PeerStore, info: IdentifyInfo) =
   if info.addrs.len > 0:
     peerStore[AddressBook][info.peerId] = info.addrs
 
@@ -177,10 +172,7 @@ proc updatePeerInfo*(
   if cleanupPos >= 0:
     peerStore.toClean.delete(cleanupPos)
 
-proc cleanup*(
-  peerStore: PeerStore,
-  peerId: PeerId) =
-
+proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
   if peerStore.capacity == 0:
     peerStore.del(peerId)
     return
@@ -194,9 +186,8 @@ proc cleanup*(
     peerStore.toClean.delete(0)
 
 proc identify*(
-  peerStore: PeerStore,
-  muxer: Muxer) {.async.} =
-
+    peerStore: PeerStore,
+    muxer: Muxer) {.async: (raises: [CancelledError, LPError]).} =
   # new stream for identify
   var stream = await muxer.newStream()
   if stream == nil:
@@ -209,7 +200,8 @@ proc identify*(
       when defined(libp2p_agents_metrics):
         var
           knownAgent = "unknown"
-          shortAgent = info.agentVersion.get("").split("/")[0].safeToLowerAscii().get("")
+          shortAgent = info.agentVersion.get("").split("/")[0]
+            .safeToLowerAscii().get("")
         if KnownLibP2PAgentsSeq.contains(shortAgent):
           knownAgent = shortAgent
         muxer.connection.setShortAgent(knownAgent)

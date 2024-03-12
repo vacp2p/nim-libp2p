@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -19,26 +19,32 @@ type
     switch*: Switch
     connectStub*: connectStubType
 
-  connectStubType* = proc (self: SwitchStub,
-                           peerId: PeerId,
-                           addrs: seq[MultiAddress],
-                           forceDial = false,
-                           reuseConnection = true,
-                           dir = Direction.Out): Future[void]  {.async.}
+  connectStubType* = proc (
+      self: SwitchStub,
+      peerId: PeerId,
+      addrs: seq[MultiAddress],
+      forceDial = false,
+      reuseConnection = true,
+      dir = Direction.Out
+  ): Future[void] {.async: (raises: [CancelledError, LPError]).}
 
 method connect*(
- self: SwitchStub,
- peerId: PeerId,
- addrs: seq[MultiAddress],
- forceDial = false,
- reuseConnection = true,
- dir = Direction.Out) {.async.} =
+    self: SwitchStub,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out
+) {.async: (raises: [CancelledError, LPError], raw: true).} =
   if (self.connectStub != nil):
-    await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, dir)
+    self.connectStub(self, peerId, addrs, forceDial, reuseConnection, dir)
   else:
-    await self.switch.connect(peerId, addrs, forceDial, reuseConnection, dir)
+    self.switch.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
-proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil): T =
+proc new*(
+    T: typedesc[SwitchStub],
+    switch: Switch,
+    connectStub: connectStubType = nil): T =
   return SwitchStub(
     switch: switch,
     peerInfo: switch.peerInfo,
