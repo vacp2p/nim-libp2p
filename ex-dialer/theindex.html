@@ -217,7 +217,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="tcptransport: accept(self: TcpTransport): Future[Connection]" href="libp2p/transports/tcptransport.html#accept.e%2CTcpTransport">tcptransport: accept(self: TcpTransport): Future[Connection]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="transport: accept(self: Transport): Future[Connection]" href="libp2p/transports/transport.html#accept.e%2CTransport">transport: accept(self: Transport): Future[Connection]</a></li>
+          data-doc-search-tag="transport: accept(self: Transport): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]" href="libp2p/transports/transport.html#accept.e%2CTransport">transport: accept(self: Transport): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: accept(self: WsTransport): Future[Connection]" href="libp2p/transports/wstransport.html#accept.e%2CWsTransport">wstransport: accept(self: WsTransport): Future[Connection]</a></li>
           </ul></dd>
@@ -1178,16 +1180,22 @@ window.addEventListener('DOMContentLoaded', main);
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="transport: dial(self: Transport; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/transport.html#dial%2CTransport%2CMultiAddress%2COpt%5BPeerId%5D">transport: dial(self: Transport; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]" href="libp2p/transports/transport.html#dial%2CTransport%2CMultiAddress%2COpt%5BPeerId%5D">transport: dial(self: Transport; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="transport: dial(self: Transport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/transport.html#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">transport: dial(self: Transport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]" href="libp2p/transports/transport.html#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">transport: dial(self: Transport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: dial(self: WsTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/wstransport.html#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">wstransport: dial(self: WsTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]" href="libp2p/transports/wstransport.html#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">wstransport: dial(self: WsTransport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (CancelledError, LPError)]</a></li>
           </ul></dd>
 <dt><a name="Dialer" href="#Dialer"><span>Dialer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3327,10 +3335,6 @@ window.addEventListener('DOMContentLoaded', main);
           ms: MultistreamSelect; peerStore: PeerStore;
           nameResolver: NameResolver = nil; services = newSeq()): Switch</a></li>
           </ul></dd>
-<dt><a name="newTransportClosedError" href="#newTransportClosedError"><span>newTransportClosedError:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="transport: newTransportClosedError(parent: ref Exception = nil): ref LPError" href="libp2p/transports/transport.html#newTransportClosedError%2Cref.Exception">transport: newTransportClosedError(parent: ref Exception = nil): ref LPError</a></li>
-          </ul></dd>
 <dt><a name="Noise" href="#Noise"><span>Noise:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="noise: Noise" href="libp2p/protocols/secure/noise.html#Noise">noise: Noise</a></li>
@@ -4529,7 +4533,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="tcptransport: start(self: TcpTransport; addrs: seq[MultiAddress]): Future[void]" href="libp2p/transports/tcptransport.html#start.e%2CTcpTransport%2Cseq%5BMultiAddress%5D">tcptransport: start(self: TcpTransport; addrs: seq[MultiAddress]): Future[void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="transport: start(self: Transport; addrs: seq[MultiAddress]): Future[void]" href="libp2p/transports/transport.html#start.e%2CTransport%2Cseq%5BMultiAddress%5D">transport: start(self: Transport; addrs: seq[MultiAddress]): Future[void]</a></li>
+          data-doc-search-tag="transport: start(self: Transport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (CancelledError, LPError)]" href="libp2p/transports/transport.html#start.e%2CTransport%2Cseq%5BMultiAddress%5D">transport: start(self: Transport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (CancelledError, LPError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: start(self: WsTransport; addrs: seq[MultiAddress]): Future[void]" href="libp2p/transports/wstransport.html#start.e%2CWsTransport%2Cseq%5BMultiAddress%5D">wstransport: start(self: WsTransport; addrs: seq[MultiAddress]): Future[void]</a></li>
           </ul></dd>
@@ -4565,7 +4571,7 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="tcptransport: stop(self: TcpTransport): Future[void]" href="libp2p/transports/tcptransport.html#stop.e%2CTcpTransport">tcptransport: stop(self: TcpTransport): Future[void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="transport: stop(self: Transport): Future[void]" href="libp2p/transports/transport.html#stop.e%2CTransport">transport: stop(self: Transport): Future[void]</a></li>
+          data-doc-search-tag="transport: stop(self: Transport): InternalRaisesFuture[void, void]" href="libp2p/transports/transport.html#stop.e%2CTransport">transport: stop(self: Transport): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: stop(self: WsTransport): Future[void]" href="libp2p/transports/wstransport.html#stop.e%2CWsTransport">wstransport: stop(self: WsTransport): Future[void]</a></li>
           </ul></dd>
@@ -5388,7 +5394,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 20:29:42 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 20:43:40 UTC</small>
       </div>
     </div>
   </div>
