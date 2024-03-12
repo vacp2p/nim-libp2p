@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -24,8 +24,10 @@ import ../stream/connection,
 
 export connmanager, connection, identify, secure, multistream
 
-declarePublicCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
-declarePublicCounter(libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades")
+declarePublicCounter(libp2p_failed_upgrades_incoming,
+  "incoming connections failed upgrades")
+declarePublicCounter(libp2p_failed_upgrades_outgoing,
+  "outgoing connections failed upgrades")
 
 logScope:
   topics = "libp2p upgrade"
@@ -38,23 +40,28 @@ type
     secureManagers*: seq[Secure]
 
 method upgrade*(
-  self: Upgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Muxer] {.base.} =
-  doAssert(false, "Not implemented!")
+    self: Upgrade,
+    conn: Connection,
+    peerId: Opt[PeerId]
+): Future[Muxer] {.async: (raises: [
+    CancelledError, LPError], raw: true), base.} =
+  raiseAssert("Not implemented!")
 
 proc secure*(
-  self: Upgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Connection] {.async.} =
+    self: Upgrade,
+    conn: Connection,
+    peerId: Opt[PeerId]
+): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
   if self.secureManagers.len <= 0:
-    raise newException(UpgradeFailedError, "No secure managers registered!")
+    raise (ref UpgradeFailedError)(msg: "No secure managers registered!")
 
   let codec =
-    if conn.dir == Out: await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
-    else: await MultistreamSelect.handle(conn, self.secureManagers.mapIt(it.codec))
+    if conn.dir == Out:
+      await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
+    else:
+      await MultistreamSelect.handle(conn, self.secureManagers.mapIt(it.codec))
   if codec.len == 0:
-    raise newException(UpgradeFailedError, "Unable to negotiate a secure channel!")
+    raise (ref UpgradeFailedError)(msg: "Unable to negotiate a secure channel!")
 
   trace "Securing connection", conn, codec
   let secureProtocol = self.secureManagers.filterIt(it.codec == codec)
@@ -63,4 +70,4 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
-  return await secureProtocol[0].secure(conn, peerId)
+  await secureProtocol[0].secure(conn, peerId)

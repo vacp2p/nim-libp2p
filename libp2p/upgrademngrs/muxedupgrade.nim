@@ -25,53 +25,61 @@ type
     muxers*: seq[MuxerProvider]
     streamHandler*: StreamHandler
 
-proc getMuxerByCodec(self: MuxedUpgrade, muxerName: string): MuxerProvider =
+func getMuxerByCodec(
+    self: MuxedUpgrade, muxerName: string): Opt[MuxerProvider] =
+  if muxerName.len == 0 or muxerName == "na":
+    return Opt.none(MuxerProvider)
   for m in self.muxers:
     if muxerName == m.codec:
-      return m
+      return Opt.some(m)
+  Opt.none(MuxerProvider)
 
-proc mux*(
+proc mux(
     self: MuxedUpgrade,
-    conn: Connection): Future[Muxer] {.async.} =
+    conn: Connection
+): Future[Opt[Muxer]] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError]).} =
   ## mux connection
-
   trace "Muxing connection", conn
   if self.muxers.len == 0:
     warn "no muxers registered, skipping upgrade flow", conn
-    return
+    return Opt.none(Muxer)
 
-  let muxerName =
-    if conn.dir == Out: await self.ms.select(conn, self.muxers.mapIt(it.codec))
-    else: await MultistreamSelect.handle(conn, self.muxers.mapIt(it.codec))
-
-  if muxerName.len == 0 or muxerName == "na":
-    debug "no muxer available, early exit", conn
-    return
+  let
+    muxerName =
+      case conn.dir
+      of Direction.Out:
+        await self.ms.select(conn, self.muxers.mapIt(it.codec))
+      of Direction.In:
+        await MultistreamSelect.handle(conn, self.muxers.mapIt(it.codec))
+    muxerProvider = self.getMuxerByCodec(muxerName).valueOr:
+      debug "no muxer available, early exit", conn, muxerName
+      return Opt.none(Muxer)
 
   trace "Found a muxer", conn, muxerName
 
   # create new muxer for connection
-  let muxer = self.getMuxerByCodec(muxerName).newMuxer(conn)
+  let muxer = muxerProvider.newMuxer(conn)
 
   # install stream handler
   muxer.streamHandler = self.streamHandler
   muxer.handler = muxer.handle()
-  return muxer
+  Opt.some(muxer)
 
 method upgrade*(
     self: MuxedUpgrade,
     conn: Connection,
-    peerId: Opt[PeerId]): Future[Muxer] {.async.} =
+    peerId: Opt[PeerId]
+): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   trace "Upgrading connection", conn, direction = conn.dir
 
-  let sconn = await self.secure(conn, peerId) # secure the connection
+  let sconn = await self.secure(conn, peerId)  # secure the connection
   if sconn == nil:
-    raise newException(UpgradeFailedError,
+    raise (ref UpgradeFailedError)(msg:
       "unable to secure connection, stopping upgrade")
 
-  let muxer = await self.mux(sconn) # mux it if possible
-  if muxer == nil:
-    raise newException(UpgradeFailedError,
+  let muxer = (await self.mux(sconn)).valueOr:  # mux it if possible
+    raise (ref UpgradeFailedError)(msg:
       "a muxer is required for outgoing connections")
 
   when defined(libp2p_agents_metrics):
@@ -79,11 +87,11 @@ method upgrade*(
 
   if sconn.closed():
     await sconn.close()
-    raise newException(UpgradeFailedError,
+    raise (ref UpgradeFailedError)(msg:
       "Connection closed or missing peer info, stopping upgrade")
 
   trace "Upgraded connection", conn, sconn, direction = conn.dir
-  return muxer
+  muxer
 
 proc new*(
     T: type MuxedUpgrade,
@@ -101,8 +109,6 @@ proc new*(
       await upgrader.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
       return
-    except CatchableError as exc:
-      trace "exception in stream handler", conn, msg = exc.msg
     finally:
       await conn.closeWithEOF()
     trace "Stream handler done", conn
