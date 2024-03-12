@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -31,8 +31,19 @@ type
     maxIncomingStreams: Opt[int]
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
-method start*(p: LPProtocol) {.async, base.} = p.started = true
-method stop*(p: LPProtocol) {.async, base.} = p.started = false
+
+method start*(
+    p: LPProtocol) {.async: (raises: [CancelledError], raw: true), base.} =
+  let fut = newFuture[void]()
+  fut.complete()
+  p.started = true
+  fut
+
+method stop*(p: LPProtocol) {.async: (raises: [], raw: true), base.} =
+  let fut = newFuture[void]()
+  fut.complete()
+  p.started = false
+  fut
 
 proc maxIncomingStreams*(p: LPProtocol): int =
   p.maxIncomingStreams.get(DefaultMaxIncomingStreams)

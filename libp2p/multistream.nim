@@ -260,8 +260,33 @@ proc addHandler*(m: MultistreamSelect,
                                protocol: protocol,
                                match: matcher))
 
-proc start*(m: MultistreamSelect) {.async: (raises: []).} =
-  await noCancel allFutures(m.handlers.mapIt(it.protocol.start()))
+proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
+  let
+    handlers = m.handlers
+    futs = handlers.mapIt(it.protocol.start())
+  try:
+    await allFutures(futs)
+    for fut in futs:
+      await fut
+  except CancelledError as exc:
+    var pending: seq[Future[void].Raising([])]
+    for i, fut in futs:
+      if not fut.finished:
+        pending.add noCancel fut.cancelAndWait()
+      elif fut.completed:
+        pending.add handlers[i].protocol.stop()
+      else:
+        static: doAssert typeof(fut).E is (CancelledError,)
+        doAssert fut.cancelled
+    await noCancel allFutures(pending)
+    raise exc
+
 
 proc stop*(m: MultistreamSelect) {.async: (raises: []).} =
-  await noCancel allFutures(m.handlers.mapIt(it.protocol.stop()))
+  # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([CancelledError])`
+  var futs = newSeqOfCap[Future[void].Raising([])](m.handlers.len)
+  for it in m.handlers:
+    futs.add it.protocol.stop()
+  await noCancel allFutures(futs)
+  for fut in futs:
+    await fut
