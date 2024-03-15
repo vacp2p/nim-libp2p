@@ -269,13 +269,10 @@ proc rewardDelivered*(
     first: bool,
     delay = ZeroDuration,
 ) =
-  let t = topic
-  if t notin g.topics:
+  if topic notin g.topics:
     return
 
-  let topic = t
-
-  let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
+  let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
     # if in mesh add more delivery score
 
   if delay > topicParams.meshMessageDeliveriesWindow:
