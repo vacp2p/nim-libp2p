@@ -263,7 +263,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">closeImpl
       <li><a class="reference" href="#closeImpl.e%2CWsStream"
-    title="closeImpl(s: WsStream): Future[void]">closeImpl(s: WsStream): Future[void]</a></li>
+    title="closeImpl(s: WsStream): InternalRaisesFuture[void, void]">closeImpl(s: WsStream): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">dial
@@ -290,7 +290,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">readOnce
       <li><a class="reference" href="#readOnce.e%2CWsStream%2Cpointer%2Cint"
-    title="readOnce(s: WsStream; pbytes: pointer; nbytes: int): Future[int]">readOnce(s: WsStream; pbytes: pointer; nbytes: int): Future[int]</a></li>
+    title="readOnce(s: WsStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]">readOnce(s: WsStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">start
@@ -305,7 +307,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">write
       <li><a class="reference" href="#write.e%2CWsStream%2Cseq%5Bbyte%5D"
-    title="write(s: WsStream; msg: seq[byte]): Future[void]">write(s: WsStream; msg: seq[byte]): Future[void]</a></li>
+    title="write(s: WsStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">write(s: WsStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
 
@@ -356,9 +360,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L102"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L108"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L102" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L108" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -390,9 +394,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Creates a clear-text WebSocket transport
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L350"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L356"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L350" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L356" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -406,9 +410,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Creates a secure WebSocket transport
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L328"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L334"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L328" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L334" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -418,9 +422,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L117"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L123"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L117" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -436,22 +440,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 accept a new WS connection 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L244"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L250"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L244" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L250" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="closeImpl.e,WsStream" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CWsStream"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">WsStream</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CWsStream"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">WsStream</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L95"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L98"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L95" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -464,9 +469,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 dial a peer 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L302"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L308"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L302" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L308" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -476,9 +481,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L99"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L105"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L99" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L105" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -489,9 +494,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L323"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L329"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L323" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L329" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -508,16 +513,16 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="readOnce.e,WsStream,pointer,int" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CWsStream%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">WsStream</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CWsStream%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">WsStream</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">int</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L81"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L83"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L81" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -529,9 +534,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 listen on the transport 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L122"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L128"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L122" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -542,22 +547,24 @@ class="link-seesrc" target="_blank">Source</a>
 
 stop the transport 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L180"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L186"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L180" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L186" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="write.e,WsStream,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CWsStream%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">WsStream</span><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CWsStream%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">WsStream</span><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L91"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/transports/wstransport.nim#L94"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L91" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L94" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -576,7 +583,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-04 09:50:11 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 22:52:09 UTC</small>
       </div>
     </div>
   </div>

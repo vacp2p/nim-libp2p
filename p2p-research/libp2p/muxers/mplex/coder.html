@@ -233,18 +233,22 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">readMsg
       <li><a class="reference" href="#readMsg%2CConnection"
-    title="readMsg(conn: Connection): Future[Msg]">readMsg(conn: Connection): Future[Msg]</a></li>
+    title="readMsg(conn: Connection): InternalRaisesFuture[Msg,
+    (CancelledError, LPStreamError, MuxerError)]">readMsg(conn: Connection): InternalRaisesFuture[Msg,
+    (CancelledError, LPStreamError, MuxerError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">writeMsg
       <li><a class="reference" href="#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cseq%5Bbyte%5D"
     title="writeMsg(conn: Connection; id: uint64; msgType: MessageType;
-         data: seq[byte] = @[]): Future[void]">writeMsg(conn: Connection; id: uint64; msgType: MessageType;
-         data: seq[byte] = @[]): Future[void]</a></li>
+         data: seq[byte] = @[]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">writeMsg(conn: Connection; id: uint64; msgType: MessageType;
+         data: seq[byte] = @[]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
   <li><a class="reference" href="#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cstring"
-    title="writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): Future[
-    void]">writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): Future[
-    void]</a></li>
+    title="writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]">writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]</a></li>
 
   </ul>
 
@@ -343,41 +347,45 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="readMsg,Connection" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#readMsg%2CConnection"><span class="Identifier">readMsg</span></a><span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><a href="coder.html#Msg"><span class="Identifier">Msg</span></a><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#readMsg%2CConnection"><span class="Identifier">readMsg</span></a><span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><a href="coder.html#Msg"><span class="Identifier">Msg</span></a><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">,</span> <a href="../muxer.html#MuxerError"><span class="Identifier">MuxerError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/muxers/mplex/coder.nim#L45"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/muxers/mplex/coder.nim#L47"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/coder.nim#L45" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/coder.nim#L47" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="writeMsg,Connection,uint64,MessageType,seq[byte]" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cseq%5Bbyte%5D"><span class="Identifier">writeMsg</span></a><span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">id</span><span class="Other">:</span> <span class="Identifier">uint64</span><span class="Other">;</span> <span class="Identifier">msgType</span><span class="Other">:</span> <a href="coder.html#MessageType"><span class="Identifier">MessageType</span></a><span class="Other">;</span>
-              <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span class="Other">=</span> <span class="Operator">@</span><span class="Other">[</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+              <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span class="Other">=</span> <span class="Operator">@</span><span class="Other">[</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/muxers/mplex/coder.nim#L58"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/muxers/mplex/coder.nim#L66"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/coder.nim#L58" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/coder.nim#L66" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="writeMsg,Connection,uint64,MessageType,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cstring"><span class="Identifier">writeMsg</span></a><span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">id</span><span class="Other">:</span> <span class="Identifier">uint64</span><span class="Other">;</span> <span class="Identifier">msgType</span><span class="Other">:</span> <a href="coder.html#MessageType"><span class="Identifier">MessageType</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cstring"><span class="Identifier">writeMsg</span></a><span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">id</span><span class="Other">:</span> <span class="Identifier">uint64</span><span class="Other">;</span> <span class="Identifier">msgType</span><span class="Other">:</span> <a href="coder.html#MessageType"><span class="Identifier">MessageType</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/muxers/mplex/coder.nim#L87"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/muxers/mplex/coder.nim#L98"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/coder.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/mplex/coder.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -391,7 +399,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-04 09:50:09 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 22:52:07 UTC</small>
       </div>
     </div>
   </div>

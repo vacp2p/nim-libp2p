@@ -254,7 +254,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">closeImpl
       <li><a class="reference" href="#closeImpl.e%2CChronosStream"
-    title="closeImpl(s: ChronosStream): Future[void]">closeImpl(s: ChronosStream): Future[void]</a></li>
+    title="closeImpl(s: ChronosStream): InternalRaisesFuture[void, void]">closeImpl(s: ChronosStream): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getWrapped
@@ -269,12 +269,16 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">readOnce
       <li><a class="reference" href="#readOnce.e%2CChronosStream%2Cpointer%2Cint"
-    title="readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): Future[int]">readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): Future[int]</a></li>
+    title="readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]">readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">write
       <li><a class="reference" href="#write.e%2CChronosStream%2Cseq%5Bbyte%5D"
-    title="write(s: ChronosStream; msg: seq[byte]): Future[void]">write(s: ChronosStream; msg: seq[byte]): Future[void]</a></li>
+    title="write(s: ChronosStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">write(s: ChronosStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
 
@@ -359,9 +363,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L59"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L63"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L63" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -371,9 +375,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L40"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L44"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L40" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L44" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -388,9 +392,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L145"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L161"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L145" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -400,22 +404,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L142"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L158"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L142" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L158" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="closeImpl.e,ChronosStream" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CChronosStream"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="chronosstream.html#ChronosStream"><span class="Identifier">ChronosStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CChronosStream"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="chronosstream.html#ChronosStream"><span class="Identifier">ChronosStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L148"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L165"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L165" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -425,9 +430,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L168"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L179"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L168" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L179" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -437,36 +442,38 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L49"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L53"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L49" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="readOnce.e,ChronosStream,pointer,int" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CChronosStream%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="chronosstream.html#ChronosStream"><span class="Identifier">ChronosStream</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CChronosStream%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="chronosstream.html#ChronosStream"><span class="Identifier">ChronosStream</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">int</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L97"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L106"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L97" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L106" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="write.e,ChronosStream,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CChronosStream%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="chronosstream.html#ChronosStream"><span class="Identifier">ChronosStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CChronosStream%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="chronosstream.html#ChronosStream"><span class="Identifier">ChronosStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L127"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L142"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L127" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L142" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -481,9 +488,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L47"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/stream/chronosstream.nim#L51"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L47" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/chronosstream.nim#L51" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -497,7 +504,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-04 09:50:09 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 22:52:07 UTC</small>
       </div>
     </div>
   </div>

@@ -232,7 +232,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">closeImpl
       <li><a class="reference" href="#closeImpl.e%2CRelayConnection"
-    title="closeImpl(self: RelayConnection): Future[void]">closeImpl(self: RelayConnection): Future[void]</a></li>
+    title="closeImpl(self: RelayConnection): InternalRaisesFuture[void, void]">closeImpl(self: RelayConnection): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getWrapped
@@ -242,12 +242,16 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">readOnce
       <li><a class="reference" href="#readOnce.e%2CRelayConnection%2Cpointer%2Cint"
-    title="readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): Future[int]">readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): Future[int]</a></li>
+    title="readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]">readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">write
       <li><a class="reference" href="#write.e%2CRelayConnection%2Cseq%5Bbyte%5D"
-    title="write(self: RelayConnection; msg: seq[byte]): Future[void]">write(self: RelayConnection; msg: seq[byte]): Future[void]</a></li>
+    title="write(self: RelayConnection; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">write(self: RelayConnection; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
 
@@ -303,9 +307,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L44"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L48"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L44" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -315,20 +319,9 @@ class="link-seesrc" target="_blank">Source</a>
 <h1><a class="toc-backref" href="#14">Methods</a></h1>
 <dl class="item">
 <div id="closeImpl.e,RelayConnection" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CRelayConnection"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L38"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L38" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="getWrapped.e,RelayConnection" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#getWrapped.e%2CRelayConnection"><span class="Identifier">getWrapped</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">)</span><span class="Other">:</span> <a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CRelayConnection"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -339,31 +332,44 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="readOnce.e,RelayConnection,pointer,int" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CRelayConnection%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="getWrapped.e,RelayConnection" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#getWrapped.e%2CRelayConnection"><span class="Identifier">getWrapped</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">)</span><span class="Other">:</span> <a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L26"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L46"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L26" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L46" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="readOnce.e,RelayConnection,pointer,int" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CRelayConnection%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">int</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L27"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L27" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="write.e,RelayConnection,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CRelayConnection%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CRelayConnection%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L30"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/connectivity/relay/rconn.nim#L34"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L30" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rconn.nim#L34" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -377,7 +383,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-04 09:50:09 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 22:52:08 UTC</small>
       </div>
     </div>
   </div>
