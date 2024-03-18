@@ -214,8 +214,8 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#LPProtoHandler"
     title="LPProtoHandler = proc (conn: Connection; proto: string): Future[void] {.async.}">LPProtoHandler</a></li>
   <li><a class="reference" href="#LPProtoHandler2"
-    title="LPProtoHandler2 = proc (conn: Connection; proto: string): Future[void] {.
-    async: (raises: [CancelledError]).}">LPProtoHandler2</a></li>
+    title="LPProtoHandler2[E] = proc (conn: Connection; proto: string): InternalRaisesFuture[
+    void, E]">LPProtoHandler2</a></li>
 
   </ul>
 </li>
@@ -356,8 +356,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="LPProtoHandler2" class="tohide">
-<dt><pre><a href="protocol.html#LPProtoHandler2"><span class="Identifier">LPProtoHandler2</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <span class="Identifier">Connection</span><span class="Other">;</span> <span class="Identifier">proto</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">CancelledError</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
+<dt><pre><a href="protocol.html#LPProtoHandler2"><span class="Identifier">LPProtoHandler2</span></a><span class="Other">[</span><span class="Identifier">E</span><span class="Other">]</span> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">proto</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">E</span><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -427,7 +427,7 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="handler=,LPProtocol,LPProtoHandler2" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#handler%3D%2CLPProtocol%2CLPProtoHandler2"><span class="Identifier">handler=</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="protocol.html#LPProtocol"><span class="Identifier">LPProtocol</span></a><span class="Other">;</span> <span class="Identifier">handler</span><span class="Other">:</span> <a href="protocol.html#LPProtoHandler2"><span class="Identifier">LPProtoHandler2</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#handler%3D%2CLPProtocol%2CLPProtoHandler2"><span class="Identifier">handler=</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="protocol.html#LPProtocol"><span class="Identifier">LPProtocol</span></a><span class="Other">;</span> <span class="Identifier">handler</span><span class="Other">:</span> <a href="protocol.html#LPProtoHandler2"><span class="Identifier">LPProtoHandler2</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -572,7 +572,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-11 15:10:29 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-18 14:59:56 UTC</small>
       </div>
     </div>
   </div>
