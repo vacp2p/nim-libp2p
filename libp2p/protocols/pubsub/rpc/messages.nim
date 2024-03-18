@@ -51,6 +51,7 @@ type
       graft*: seq[ControlGraft]
       prune*: seq[ControlPrune]
       idontwant*: seq[ControlIWant]
+      imreceiving*: seq[ControlIWant]
 
     ControlIHave* = object
       topicId*: string
@@ -163,11 +164,12 @@ static: expectedFields(ControlPrune, @["topicId", "peers", "backoff"])
 proc byteSize(controlPrune: ControlPrune): int =
   controlPrune.topicId.len + controlPrune.peers.foldl(a + b.byteSize, 0) + 8 # 8 bytes for uint64
 
-static: expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
+static: expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "imreceiving"])
 proc byteSize(control: ControlMessage): int =
   control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
   control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-  control.idontwant.foldl(a + b.byteSize, 0)
+  control.idontwant.foldl(a + b.byteSize, 0) +
+  control.imreceiving.foldl(a + b.byteSize, 0)
 
 static: expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
 proc byteSize*(rpc: RPCMsg): int =

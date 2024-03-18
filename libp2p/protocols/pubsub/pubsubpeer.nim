@@ -75,6 +75,7 @@ type
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     heDontWants*: Deque[HashSet[MessageId]]
+    heIsReceivings*:Deque[HashSet[MessageId]]
     iHaveBudget*: int
     pingBudget*: int
     maxMessageSize: int
@@ -480,4 +481,5 @@ proc new*(
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))
+  result.heIsReceivings.addFirst(default(HashSet[MessageId]))
   result.startSendNonPriorityTask()
