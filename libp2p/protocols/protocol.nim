@@ -22,9 +22,9 @@ type
       conn: Connection,
       proto: string): Future[void] {.async.}
 
-  LPProtoHandler2* = proc (
+  LPProtoHandler2*[E] = proc (
       conn: Connection,
-      proto: string): Future[void] {.async: (raises: [CancelledError]).}
+      proto: string): InternalRaisesFuture[void, E]
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
