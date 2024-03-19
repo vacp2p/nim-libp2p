@@ -34,5 +34,9 @@ suite "TimedCache":
       4 in cache
 
     check:
+      cache.del(4).isSome()
+      4 notin cache
+
+    check:
       not cache.put(100, now + 100.seconds) # expires everything
       100 in cache

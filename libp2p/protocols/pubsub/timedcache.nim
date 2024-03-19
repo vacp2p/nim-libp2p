@@ -14,6 +14,8 @@ import chronos/timer, stew/results
 
 import ../../utility
 
+export results
+
 const Timeout* = 10.seconds # default timeout in ms
 
 type
@@ -36,9 +38,9 @@ func `==`*[E](a, b: TimedEntry[E]): bool =
 
 func hash*(a: TimedEntry): Hash =
   if isNil(a):
-    hash(a.key)
-  else:
     default(Hash)
+  else:
+    hash(a[].key)
 
 func expire*(t: var TimedCache, now: Moment = Moment.now()) =
   while t.head != nil and t.head.expiresAt < now:
@@ -53,8 +55,10 @@ func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
   if tmp in t.entries:
     let item = try:
       t.entries[tmp] # use the shared instance in the set
-    except KeyError as exc:
+    except KeyError:
       raiseAssert "just checked"
+    t.entries.excl(item)
+
     if t.head == item: t.head = item.next
     if t.tail == item: t.tail = item.prev
 
