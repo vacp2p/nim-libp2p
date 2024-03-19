@@ -288,14 +288,17 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
   if p.sendConn == nil:
     # Wait for a send conn to be setup. `connectOnce` will
     # complete this even if the sendConn setup failed
-    await p.connectedFut
+    try:
+      await p.connectedFut
+    except CatchableError as exc:
+      debug "Error when waiting for a send conn to be setup", msg = exc.msg, p
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection", p, msg = shortLog(msg)
+    debug "No send connection", msg = shortLog(msg), p
     return
 
-  trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+  trace "sending encoded msg to peer", conn, encoded = shortLog(msg), p
   await sendMsgContinue(conn, conn.writeLp(msg))
 
 proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
@@ -303,7 +306,7 @@ proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
     # Fast path that avoids copying msg (which happens for {.async.})
     let conn = p.sendConn
 
-    trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+    trace "sending encoded msg to peer", conn, encoded = shortLog(msg), p
     let f = conn.writeLp(msg)
     if not f.completed():
       sendMsgContinue(conn, f)
