@@ -148,7 +148,7 @@ type
     disconnectPeerAboveRateLimit*: bool
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
-  ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
+  ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
   RoutingRecordsHandler* =

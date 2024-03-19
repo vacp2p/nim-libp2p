@@ -16,6 +16,7 @@ import ./pubsub,
        ./timedcache,
        ./peertable,
        ./rpc/[message, messages, protobuf],
+       nimcrypto/[hash, sha2],
        ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
@@ -32,20 +33,27 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* {.public.} = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[MessageId] # message id:s already seen on the network
-    seenSalt*: seq[byte]
+    seen*: TimedCache[SaltedId] # message id:s already seen on the network
+    seenSalt*: sha256
+      # The salt in this case is a partially updated SHA256 context pre-seeded
+      # with some random data
 
-proc hasSeen*(f: FloodSub, msgId: MessageId): bool =
-  f.seenSalt & msgId in f.seen
+proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
+  var tmp = f.seenSalt
+  tmp.update(msgId)
+  SaltedId(data: tmp.finish())
 
-proc addSeen*(f: FloodSub, msgId: MessageId): bool =
+proc hasSeen*(f: FloodSub, msgId: SaltedId): bool =
+  msgId in f.seen
+
+proc addSeen*(f: FloodSub, msgId: SaltedId): bool =
   # Salting the seen hash helps avoid attacks against the hash function used
   # in the nim hash table
   # Return true if the message has already been seen
-  f.seen.put(f.seenSalt & msgId)
+  f.seen.put(msgId)
 
-proc firstSeen*(f: FloodSub, msgId: MessageId): Moment =
-  f.seen.addedAt(f.seenSalt & msgId)
+proc firstSeen*(f: FloodSub, msgId: SaltedId): Moment =
+  f.seen.addedAt(msgId)
 
 proc handleSubscribe*(f: FloodSub,
                       peer: PubSubPeer,
@@ -117,9 +125,11 @@ method rpcHandler*(f: FloodSub,
       # TODO: descore peers due to error during message validation (malicious?)
       continue
 
-    let msgId = msgIdResult.get
+    let
+      msgId = msgIdResult.get
+      saltedId = f.salt(msgId)
 
-    if f.addSeen(msgId):
+    if f.addSeen(saltedId):
       trace "Dropping already-seen message", msgId, peer
       continue
 
@@ -213,7 +223,7 @@ method publish*(f: FloodSub,
   trace "Created new message",
     msg = shortLog(msg), peers = peers.len, topic, msgId
 
-  if f.addSeen(msgId):
+  if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this
     trace "Dropping already-seen message", msgId, topic
     return 0
@@ -231,8 +241,11 @@ method publish*(f: FloodSub,
 method initPubSub*(f: FloodSub)
   {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
-  f.seen = TimedCache[MessageId].init(2.minutes)
-  f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
-  hmacDrbgGenerate(f.rng[], f.seenSalt)
+  f.seen = TimedCache[SaltedId].init(2.minutes)
+  f.seenSalt.init()
+
+  var tmp: array[32, byte]
+  hmacDrbgGenerate(f.rng[], tmp)
+  f.seenSalt.update(tmp)
 
   f.init()

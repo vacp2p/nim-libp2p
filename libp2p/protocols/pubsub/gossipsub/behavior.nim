@@ -251,7 +251,7 @@ proc handleIHave*(g: GossipSub,
         peer, topic = ihave.topicId, msgs = ihave.messageIds
       if ihave.topicId in g.topics:
         for msgId in ihave.messageIds:
-          if not g.hasSeen(msgId):
+          if not g.hasSeen(g.salt(msgId)):
             if peer.iHaveBudget <= 0:
               break
             elif msgId notin res.messageIds:
