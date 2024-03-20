@@ -299,7 +299,10 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg), p
-  await sendMsgContinue(conn, conn.writeLp(msg))
+  try:
+    await sendMsgContinue(conn, conn.writeLp(msg))
+  except CancelledError as exc:
+    trace "Continuation for pending `sendMsg` future has been unexpectedly cancelled"
 
 proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
   if p.sendConn != nil and not p.sendConn.closed():
