@@ -26,7 +26,7 @@ import ../libp2p/[switch,
                   muxers/muxer,
                   muxers/mplex/mplex,
                   protocols/secure/noise,
-                  protocols/secure/secio,
+                  protocols/secure/plaintext,
                   protocols/secure/secure,
                   upgrademngrs/muxedupgrade,
                   connmanager]
@@ -53,7 +53,7 @@ method init(p: TestProto) {.gcsafe.} =
 {.pop.}
 
 
-proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
+proc createSwitch(ma: MultiAddress; outgoing: bool, plaintext: bool = false): (Switch, PeerInfo) =
   var
     privateKey = PrivateKey.random(ECDSA, rng[]).get()
     peerInfo = PeerInfo.new(privateKey, @[ma])
@@ -66,8 +66,8 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
     peerStore = PeerStore.new(identify)
     mplexProvider = MuxerProvider.new(createMplex, MplexCodec)
     muxers = @[mplexProvider]
-    secureManagers = if secio:
-      [Secure(Secio.new(rng, privateKey))]
+    secureManagers = if plaintext:
+      [Secure(PlainText.new())]
     else:
       [Secure(Noise.new(rng, privateKey, outgoing = outgoing))]
     connManager = ConnManager.new()

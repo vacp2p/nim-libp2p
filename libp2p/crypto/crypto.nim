@@ -924,59 +924,6 @@ proc selectBest*(order: int, p1, p2: string): string =
       if felement == selement:
         return felement
 
-proc createProposal*(nonce, pubkey: openArray[byte],
-                     exchanges, ciphers, hashes: string): seq[byte] =
-  ## Create SecIO proposal message using random ``nonce``, local public key
-  ## ``pubkey``, comma-delimieted list of supported exchange schemes
-  ## ``exchanges``, comma-delimeted list of supported ciphers ``ciphers`` and
-  ## comma-delimeted list of supported hashes ``hashes``.
-  var msg = initProtoBuffer({WithUint32BeLength})
-  msg.write(1, nonce)
-  msg.write(2, pubkey)
-  msg.write(3, exchanges)
-  msg.write(4, ciphers)
-  msg.write(5, hashes)
-  msg.finish()
-  msg.buffer
-
-proc decodeProposal*(message: seq[byte], nonce, pubkey: var seq[byte],
-                     exchanges, ciphers, hashes: var string): bool =
-  ## Parse incoming proposal message and decode remote random nonce ``nonce``,
-  ## remote public key ``pubkey``, comma-delimieted list of supported exchange
-  ## schemes ``exchanges``, comma-delimeted list of supported ciphers
-  ## ``ciphers`` and comma-delimeted list of supported hashes ``hashes``.
-  ##
-  ## Procedure returns ``true`` on success and ``false`` on error.
-  var pb = initProtoBuffer(message)
-  let r1 = pb.getField(1, nonce)
-  let r2 = pb.getField(2, pubkey)
-  let r3 = pb.getField(3, exchanges)
-  let r4 = pb.getField(4, ciphers)
-  let r5 = pb.getField(5, hashes)
-
-  r1.get(false) and r2.get(false) and r3.get(false) and
-  r4.get(false) and r5.get(false)
-
-proc createExchange*(epubkey, signature: openArray[byte]): seq[byte] =
-  ## Create SecIO exchange message using ephemeral public key ``epubkey`` and
-  ## signature of proposal blocks ``signature``.
-  var msg = initProtoBuffer({WithUint32BeLength})
-  msg.write(1, epubkey)
-  msg.write(2, signature)
-  msg.finish()
-  msg.buffer
-
-proc decodeExchange*(message: seq[byte],
-                     pubkey, signature: var seq[byte]): bool =
-  ## Parse incoming exchange message and decode remote ephemeral public key
-  ## ``pubkey`` and signature ``signature``.
-  ##
-  ## Procedure returns ``true`` on success and ``false`` on error.
-  var pb = initProtoBuffer(message)
-  let r1 = pb.getField(1, pubkey)
-  let r2 = pb.getField(2, signature)
-  r1.get(false) and r2.get(false)
-
 ## Serialization/Deserialization helpers
 
 proc write*(vb: var VBuffer, pubkey: PublicKey) {.
