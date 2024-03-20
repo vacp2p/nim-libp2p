@@ -431,7 +431,9 @@ proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
        # clearSendPriorityQueue ensures we're not waiting for an already-finished
        # future
        if p.rpcmessagequeue.sendPriorityQueue.len > 0:
-        await p.rpcmessagequeue.sendPriorityQueue[^1]
+        # `race` prevents `p.rpcmessagequeue.sendPriorityQueue[^1]` from being
+        # cancelled when this task is cancelled
+        await race(p.rpcmessagequeue.sendPriorityQueue[^1])
      when defined(pubsubpeer_queue_metrics):
        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
      await p.sendMsg(msg)
