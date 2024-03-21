@@ -87,6 +87,82 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       maxNumElementsInNonPriorityQueue: DefaultMaxNumElementsInNonPriorityQueue
     )
 
+proc new*(
+  _: type[GossipSubParams],
+  explicit = true,
+  pruneBackoff = 1.minutes,
+  unsubscribeBackoff = 5.seconds,
+  floodPublish = true,
+  gossipFactor: float64 = 0.25,
+  d = GossipSubD,
+  dLow = GossipSubDlo,
+  dHigh = GossipSubDhi,
+  dScore = GossipSubDlo,
+  dOut = GossipSubDlo - 1, # DLow - 1
+  dLazy = GossipSubD, # Like D,
+  heartbeatInterval = GossipSubHeartbeatInterval,
+  historyLength = GossipSubHistoryLength,
+  historyGossip = GossipSubHistoryGossip,
+  fanoutTTL = GossipSubFanoutTTL,
+  seenTTL = 2.minutes,
+  gossipThreshold = -100.0,
+  publishThreshold = -1000.0,
+  graylistThreshold = -10000.0,
+  opportunisticGraftThreshold = 0.0,
+  decayInterval = 1.seconds,
+  decayToZero = 0.01,
+  retainScore = 2.minutes,
+  appSpecificWeight = 0.0,
+  ipColocationFactorWeight = 0.0,
+  ipColocationFactorThreshold = 1.0,
+  behaviourPenaltyWeight = -1.0,
+  behaviourPenaltyDecay = 0.999,
+  directPeers = initTable[PeerId, seq[MultiAddress]](),
+  disconnectBadPeers = false,
+  enablePX = false,
+  bandwidthEstimatebps = 100_000_000, # 100 Mbps or 12.5 MBps
+  overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
+  disconnectPeerAboveRateLimit = false,
+  maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams =
+
+  GossipSubParams(
+      explicit: true,
+      pruneBackoff: pruneBackoff,
+      unsubscribeBackoff: unsubscribeBackoff,
+      floodPublish: floodPublish,
+      gossipFactor: gossipFactor,
+      d: d,
+      dLow: dLow,
+      dHigh: dHigh,
+      dScore: dScore,
+      dOut: dOut,
+      dLazy: dLazy,
+      heartbeatInterval: heartbeatInterval,
+      historyLength: historyLength,
+      historyGossip: historyGossip,
+      fanoutTTL: fanoutTTL,
+      seenTTL: seenTTL,
+      gossipThreshold: gossipThreshold,
+      publishThreshold: publishThreshold,
+      graylistThreshold: graylistThreshold,
+      opportunisticGraftThreshold: opportunisticGraftThreshold,
+      decayInterval: decayInterval,
+      decayToZero: decayToZero,
+      retainScore: retainScore,
+      appSpecificWeight: appSpecificWeight,
+      ipColocationFactorWeight: ipColocationFactorWeight,
+      ipColocationFactorThreshold: ipColocationFactorThreshold,
+      behaviourPenaltyWeight: behaviourPenaltyWeight,
+      behaviourPenaltyDecay: behaviourPenaltyDecay,
+      directPeers: directPeers,
+      disconnectBadPeers: disconnectBadPeers,
+      enablePX: enablePX,
+      bandwidthEstimatebps: bandwidthEstimatebps,
+      overheadRateLimit: overheadRateLimit,
+      disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
+      maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue
+    )
+
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
   if  (parameters.dOut >= parameters.dLow) or
       (parameters.dOut > (parameters.d div 2)):
@@ -115,6 +191,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: behaviourPenaltyWeight parameter error, Must be negative")
   elif parameters.behaviourPenaltyDecay < 0 or parameters.behaviourPenaltyDecay >= 1:
     err("gossipsub: behaviourPenaltyDecay parameter error, Must be between 0 and 1")
+  elif parameters.maxNumElementsInNonPriorityQueue <= 0:
+    err("gossipsub: maxNumElementsInNonPriorityQueue parameter error, Must be > 0")
   else:
     ok()
 
