@@ -22,7 +22,7 @@ type
       conn: Connection,
       proto: string): Future[void] {.async.}
 
-  LPProtoHandler2*[E] = proc (
+  LPProtocolHandler*[E] = proc (
       conn: Connection,
       proto: string): InternalRaisesFuture[void, E]  # https://github.com/nim-lang/Nim/issues/23432
 
@@ -61,7 +61,7 @@ template `handler`*(
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
 
-func `handler=`*(p: LPProtocol, handler: LPProtoHandler2) =
+func `handler=`*(p: LPProtocol, handler: LPProtocolHandler) =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)
   p.handlerImpl = wrap
@@ -82,7 +82,7 @@ proc new*(
 proc new*(
     T: type LPProtocol,
     codecs: seq[string],
-    handler: LPProtoHandler2,
+    handler: LPProtocolHandler,
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)

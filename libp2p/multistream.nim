@@ -230,7 +230,7 @@ proc addHandler*(m: MultistreamSelect,
 
 proc addHandler*(m: MultistreamSelect,
                  codec: string,
-                 handler: LPProtoHandler|LPProtoHandler2,
+                 handler: LPProtoHandler | LPProtocolHandler,
                  matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
   trace "registering proto handler", proto = codec
