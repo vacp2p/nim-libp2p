@@ -24,7 +24,7 @@ type
 
   LPProtoHandler2*[E] = proc (
       conn: Connection,
-      proto: string): InternalRaisesFuture[void, E]
+      proto: string): InternalRaisesFuture[void, E]  # https://github.com/nim-lang/Nim/issues/23432
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]

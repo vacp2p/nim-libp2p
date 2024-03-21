@@ -24,6 +24,6 @@ proc allFuturesThrowing*(args: varargs[FutureBase]): Future[void] =
 proc allFuturesThrowing*[T](futs: varargs[Future[T]]): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))
 
-proc allFuturesThrowing*[T, E](
+proc allFuturesThrowing*[T, E](  # https://github.com/nim-lang/Nim/issues/23432
     futs: varargs[InternalRaisesFuture[T, E]]): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))
