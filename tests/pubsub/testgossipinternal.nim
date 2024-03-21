@@ -525,6 +525,17 @@ suite "GossipSub internal":
     await conn.close()
     await gossipSub.switch.stop()
 
+  asyncTest "invalid message bytes":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+    let peerId = randomPeerId()
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    expect(CatchableError):
+      await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
+
+    await gossipSub.switch.stop()
+
   asyncTest "rebalanceMesh fail due to backoff":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
     let topic = "foobar"

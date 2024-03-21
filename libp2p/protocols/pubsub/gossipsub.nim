@@ -429,7 +429,7 @@ method rpcHandler*(g: GossipSub,
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     await rateLimit(g, peer, msgSize)
-    return
+    raise newException(CatchableError, "Peer msg couldn't be decoded")
 
   when defined(libp2p_expensive_metrics):
     for m in rpcMsg.messages:
