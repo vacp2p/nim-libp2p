@@ -258,8 +258,8 @@ window.addEventListener('DOMContentLoaded', main);
            matcher: Matcher = nil)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string;
-           handler: LPProtoHandler | LPProtoHandler2; matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2C%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string;
-           handler: LPProtoHandler | LPProtoHandler2; matcher: Matcher = nil)</a></li>
+           handler: LPProtoHandler | LPProtocolHandler; matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2C%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string;
+           handler: LPProtoHandler | LPProtocolHandler; matcher: Matcher = nil)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
            matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2CLPProtocol%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
@@ -1989,9 +1989,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="handler%3D" href="#handler%3D"><span>handler=:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="protocol: handler=(p: LPProtocol; handler: LPProtoHandler)" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2CLPProtoHandler">protocol: handler=(p: LPProtocol; handler: LPProtoHandler)</a></li>
+          data-doc-search-tag="protocol: handler=(p: LPProtocol; handler: LPProtocolHandler)" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2CLPProtocolHandler">protocol: handler=(p: LPProtocol; handler: LPProtocolHandler)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="protocol: handler=(p: LPProtocol; handler: LPProtoHandler2)" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2CLPProtoHandler2">protocol: handler=(p: LPProtocol; handler: LPProtoHandler2)</a></li>
+          data-doc-search-tag="protocol: handler=(p: LPProtocol; handler: LPProtoHandler)" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2CLPProtoHandler">protocol: handler=(p: LPProtocol; handler: LPProtoHandler)</a></li>
           </ul></dd>
 <dt><a name="HandlerHolder" href="#HandlerHolder"><span>HandlerHolder:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2769,13 +2769,13 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="protocol: LPProtocol" href="libp2p/protocols/protocol.html#LPProtocol">protocol: LPProtocol</a></li>
           </ul></dd>
+<dt><a name="LPProtocolHandler" href="#LPProtocolHandler"><span>LPProtocolHandler:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="protocol: LPProtocolHandler" href="libp2p/protocols/protocol.html#LPProtocolHandler">protocol: LPProtocolHandler</a></li>
+          </ul></dd>
 <dt><a name="LPProtoHandler" href="#LPProtoHandler"><span>LPProtoHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="protocol: LPProtoHandler" href="libp2p/protocols/protocol.html#LPProtoHandler">protocol: LPProtoHandler</a></li>
-          </ul></dd>
-<dt><a name="LPProtoHandler2" href="#LPProtoHandler2"><span>LPProtoHandler2:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="protocol: LPProtoHandler2" href="libp2p/protocols/protocol.html#LPProtoHandler2">protocol: LPProtoHandler2</a></li>
           </ul></dd>
 <dt><a name="LPSomeUVarint" href="#LPSomeUVarint"><span>LPSomeUVarint:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3175,12 +3175,12 @@ window.addEventListener('DOMContentLoaded', main);
     rng: ref HmacDrbgContext = newRng()): T:type" href="libp2p/protocols/ping.html#new%2Ctypedesc%5BPing%5D%2CPingHandler%2Cref.HmacDrbgContext">ping: new(T: typedesc[Ping]; handler: PingHandler = nil;
     rng: ref HmacDrbgContext = newRng()): T:type</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
-    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtoHandler">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
+          data-doc-search-tag="protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtocolHandler;
+    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtocolHandler">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtocolHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler2;
-    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtoHandler2">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler2;
+          data-doc-search-tag="protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
+    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtoHandler">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
@@ -5378,7 +5378,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-21 14:28:28 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-21 14:40:33 UTC</small>
       </div>
     </div>
   </div>
