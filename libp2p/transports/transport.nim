@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -81,25 +81,25 @@ proc dial*(
   self.dial("", address)
 
 method upgrade*(
-  self: Transport,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Muxer] {.base, gcsafe.} =
+    self: Transport,
+    conn: Connection,
+    peerId: Opt[PeerId]
+): Future[Muxer] {.base, async: (raises: [
+    CancelledError, LPError], raw: true).} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
-
   self.upgrader.upgrade(conn, peerId)
 
 method handles*(
-  self: Transport,
-  address: MultiAddress): bool {.base, gcsafe.} =
+    self: Transport,
+    address: MultiAddress): bool {.base, gcsafe.} =
   ## check if transport supports the multiaddress
   ##
-
   # by default we skip circuit addresses to avoid
   # having to repeat the check in every transport
   let protocols = address.protocols.valueOr: return false
-  return protocols
+  protocols
     .filterIt(
       it == multiCodec("p2p-circuit")
     ).len == 0
