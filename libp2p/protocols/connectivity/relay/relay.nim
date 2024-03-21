@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -361,17 +361,25 @@ proc deletesReservation(r: Relay) {.async.} =
       if n > r.rsvp[k]:
         r.rsvp.del(k)
 
-method start*(r: Relay) {.async.} =
+method start*(
+    r: Relay
+): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
   if not r.reservationLoop.isNil:
     warn "Starting relay twice"
-    return
+    return fut
   r.reservationLoop = r.deletesReservation()
   r.started = true
+  fut
 
-method stop*(r: Relay) {.async.} =
+method stop*(r: Relay): Future[void] {.async: (raises: [], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
   if r.reservationLoop.isNil:
     warn "Stopping relay without starting it"
-    return
+    return fut
   r.started = false
   r.reservationLoop.cancel()
   r.reservationLoop = nil
+  fut
