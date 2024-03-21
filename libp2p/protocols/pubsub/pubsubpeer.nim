@@ -87,6 +87,7 @@ type
 
     rpcmessagequeue: RpcMessageQueue
     maxNumElementInNonPriorityQueue*: int # The max number of elements allowed in the non-priority queue.
+    disconnected: bool
 
   RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
@@ -344,8 +345,12 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     f
   else:
     if len(p.rpcmessagequeue.nonPriorityQueue) == p.maxNumElementInNonPriorityQueue:
-      libp2p_pubsub_disconnects_over_non_priority_queue_limit.inc()
-      p.closeSendConn(PubSubPeerEventKind.DisconnectionRequested)
+      if not p.disconnected:
+        p.disconnected = true
+        libp2p_pubsub_disconnects_over_non_priority_queue_limit.inc()
+        p.closeSendConn(PubSubPeerEventKind.DisconnectionRequested)
+      else:
+        Future[void].completed()
     else:
       let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
       when defined(pubsubpeer_queue_metrics):
