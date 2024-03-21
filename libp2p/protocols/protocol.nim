@@ -22,6 +22,11 @@ type
       conn: Connection,
       proto: string): Future[void] {.async.}
 
+  # Callbacks that are annotated with `{.async: (raises).}` explicitly
+  # document the types of errors that they may raise, but are not compatible
+  # with `LPProtoHandler` and need to use the `LPProtocolHandler` type.
+  # They are internally wrapped into a `LPProtoHandler`, but still allow the
+  # compiler to check that their `{.async: (raises).}` annotation is correct.
   LPProtocolHandler*[E] = proc (
       conn: Connection,
       proto: string): InternalRaisesFuture[void, E]  # https://github.com/nim-lang/Nim/issues/23432
