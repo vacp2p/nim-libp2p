@@ -176,10 +176,10 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
-  of PubSubPeerEventKind.Connected:
+  of PubSubPeerEventKind.StreamOpened:
     discard
-  of PubSubPeerEventKind.Disconnected:
-    # If a send connection is lost, it's better to remove peer from the mesh -
+  of PubSubPeerEventKind.StreamClosed:
+    # If a send stream is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
     # doesn't, well.. then we hope the peer is going away!
     for topic, peers in p.mesh.mpairs():
@@ -187,6 +187,8 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
       peers.excl(peer)
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
+  of PubSubPeerEventKind.DisconnectionRequested:
+    asyncSpawn p.disconnectPeer(peer) # this should unsubscribePeer the peer too
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
