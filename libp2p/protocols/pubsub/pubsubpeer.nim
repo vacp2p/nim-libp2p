@@ -83,6 +83,7 @@ type
     overheadRateLimitOpt*: Opt[TokenBucket]
 
     rpcmessagequeue: RpcMessageQueue
+    maxNumElementInNonPriorityQueue*: int # The max number of elements allowed in the non-priority queue.
 
   RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
@@ -181,6 +182,24 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     debug "exiting pubsub read loop",
       conn, peer = p, closed = conn.closed
 
+proc disconnect(p: PubSubPeer) {.async.} =
+  if p.sendConn != nil:
+    trace "Removing send connection", p, conn = p.sendConn
+    await p.sendConn.close()
+    p.sendConn = nil
+
+  if not p.connectedFut.finished:
+    p.connectedFut.complete()
+
+  try:
+    if p.onEvent != nil:
+      p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    debug "Errors during diconnection events", error = exc.msg
+  # don't cleanup p.address else we leak some gossip stat table
+
 proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   try:
     if p.connectedFut.finished:
@@ -207,23 +226,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
 
     await handle(p, newConn)
   finally:
-    if p.sendConn != nil:
-      trace "Removing send connection", p, conn = p.sendConn
-      await p.sendConn.close()
-      p.sendConn = nil
-
-    if not p.connectedFut.finished:
-      p.connectedFut.complete()
-
-    try:
-      if p.onEvent != nil:
-        p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.Disconnected))
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      debug "Errors during diconnection events", error = exc.msg
-
-    # don't cleanup p.address else we leak some gossip stat table
+    await p.disconnect()
 
 proc connectImpl(p: PubSubPeer) {.async.} =
   try:
@@ -337,10 +340,13 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
         libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
     f
   else:
-    let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
-    when defined(pubsubpeer_queue_metrics):
-      libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
-    f
+    if len(p.rpcmessagequeue.nonPriorityQueue) == p.maxNumElementInNonPriorityQueue:
+      p.disconnect()
+    else:
+      let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
+      when defined(pubsubpeer_queue_metrics):
+        libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
+      f
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
   ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
@@ -457,7 +463,7 @@ proc stopSendNonPriorityTask*(p: PubSubPeer) =
 proc new(T: typedesc[RpcMessageQueue]): T =
   return T(
     sendPriorityQueue: initDeque[Future[void]](),
-    nonPriorityQueue: newAsyncQueue[seq[byte]](),
+    nonPriorityQueue: newAsyncQueue[seq[byte]]()
   )
 
 proc new*(
@@ -467,6 +473,7 @@ proc new*(
   onEvent: OnEvent,
   codec: string,
   maxMessageSize: int,
+  maxNumElementInNonPriorityQueue: int = 1024,
   overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T =
 
   result = T(
@@ -478,6 +485,7 @@ proc new*(
     maxMessageSize: maxMessageSize,
     overheadRateLimitOpt: overheadRateLimitOpt,
     rpcmessagequeue: RpcMessageQueue.new(),
+    maxNumElementInNonPriorityQueue: maxNumElementInNonPriorityQueue
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))

@@ -83,7 +83,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
       overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
-      disconnectPeerAboveRateLimit: false
+      disconnectPeerAboveRateLimit: false,
+      maxNumElementInNonPriorityQueue: Opt.some(1024)
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -750,4 +751,6 @@ method getOrCreatePeer*(
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
+  g.parameters.maxNumElementInNonPriorityQueue.withValue(value):
+    peer.maxNumElementInNonPriorityQueue = value
   return peer
