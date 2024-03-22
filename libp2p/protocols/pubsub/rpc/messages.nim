@@ -81,7 +81,7 @@ func withSubs*(
 
 func shortLog*(s: ControlIHave): auto =
   (
-    topic: s.topic.shortLog,
+    topic: s.topicID.shortLog,
     messageIDs: mapIt(s.messageIDs, it.shortLog)
   )
 
@@ -92,12 +92,12 @@ func shortLog*(s: ControlIWant): auto =
 
 func shortLog*(s: ControlGraft): auto =
   (
-    topic: s.topic.shortLog
+    topic: s.topicID.shortLog
   )
 
 func shortLog*(s: ControlPrune): auto =
   (
-    topic: s.topic.shortLog
+    topic: s.topicID.shortLog
   )
 
 func shortLog*(c: ControlMessage): auto =

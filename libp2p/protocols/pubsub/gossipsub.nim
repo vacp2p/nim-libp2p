@@ -292,8 +292,8 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     if isPruneNotEmpty:
       for prune in respControl.prune:
-        if g.knownTopics.contains(prune.topic):
-          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topic])
+        if g.knownTopics.contains(prune.topicID):
+          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
@@ -557,7 +557,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # in the topic
     let msg = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
-            topic: topic,
+            topicID: topic,
             peers: g.peerExchangeList(topic),
             backoff: g.parameters.unsubscribeBackoff.seconds.uint64)])))
     g.broadcast(mpeers, msg, isHighPriority = true)
