@@ -753,5 +753,5 @@ method getOrCreatePeer*(
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
-  peer.maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue
+  peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
   return peer
