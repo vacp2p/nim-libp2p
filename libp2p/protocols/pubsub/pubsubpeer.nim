@@ -238,6 +238,10 @@ proc connectImpl(p: PubSubPeer) {.async.} =
     # send connection might get disconnected due to a timeout or an unrelated
     # issue so we try to get a new on
     while true:
+      if p.disconnected:
+        if not p.connectedFut.finished:
+          p.connectedFut.complete()
+        return
       await connectOnce(p)
   except CatchableError as exc: # never cancelled
     debug "Could not establish send connection", msg = exc.msg
