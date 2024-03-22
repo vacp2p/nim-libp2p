@@ -39,10 +39,21 @@ export transport, results
 
 const
   WebRtcTransportTrackerName* = "libp2p.webrtctransport"
+  MaxMessageSize = 16384 # 16KiB; from the WebRtc-direct spec
 
 # -- Message --
+# Implementation of the libp2p's WebRTC message defined here:
+# https://github.com/libp2p/specs/blob/master/webrtc/README.md?plain=1#L60-L79
+
 type
   MessageFlag = enum
+    ## Flags to support half-closing and reset of streams.
+    ## - Fin: Sender will no longer send messages
+    ## - StopSending: Sender will no longer read messages.
+    ##   Received messages are discarded
+    ## - ResetStream: Sender abruptly terminates the sending part of the stream.
+    ##   Receiver MAY discard any data that it already received on that stream
+    ## - FinAck: Acknowledges the previous receipt of a message with the Fin flag set.
     Fin = 0
     StopSending = 1
     ResetStream = 2
@@ -53,6 +64,7 @@ type
     data: seq[byte]
 
 proc decode(_: type WebRtcMessage, bytes: seq[byte]): Opt[WebRtcMessage] =
+  ## Decoding WebRTC Message from raw data
   var
     pb = initProtoBuffer(bytes)
     flagOrd: uint32
@@ -66,6 +78,7 @@ proc decode(_: type WebRtcMessage, bytes: seq[byte]): Opt[WebRtcMessage] =
   Opt.some(res)
 
 proc encode(msg: WebRtcMessage): seq[byte] =
+  ## Encoding WebRTC Message to raw data
   var pb = initProtoBuffer()
 
   msg.flag.withValue(val):
@@ -78,6 +91,11 @@ proc encode(msg: WebRtcMessage): seq[byte] =
   pb.buffer
 
 # -- Raw WebRTC Stream --
+# All the data written to or read from a WebRtcStream should be length-prefixed
+# so `readOnce`/`write` WebRtcStream implementation must either recode
+# `readLP`/`writeLP`, or implement a `RawWebRtcStream` on which we can 
+# directly use `readLP` and `writeLP`. The second solution is the less redundant,
+# so it's the one we've chosen.
 
 type
   RawWebRtcStream = ref object of Connection
@@ -85,8 +103,7 @@ type
     readData: seq[byte]
 
 proc new(_: type RawWebRtcStream, dataChannel: DataChannelStream): RawWebRtcStream =
-  let stream = RawWebRtcStream(dataChannel: dataChannel)
-  stream
+  RawWebRtcStream(dataChannel: dataChannel)
 
 method closeImpl*(s: RawWebRtcStream): Future[void] =
   # TODO: close datachannel
@@ -111,7 +128,6 @@ method readOnce*(s: RawWebRtcStream, pbytes: pointer, nbytes: int): Future[int] 
   s.readData = s.readData[result..^1]
 
 # -- Stream --
-const MaxMessageSize = 16384 # 16KiB
 
 type
   WebRtcState = enum
@@ -153,7 +169,6 @@ method write*(s: WebRtcStream, msg2: seq[byte]): Future[void] =
   # We need to make sure we send all of our data before another write
   # Otherwise, two concurrent writes could get intertwined
   # We avoid this by filling the s.sendQueue synchronously
-
   var msg = msg2
   trace "WebrtcStream write", msg, len=msg.len()
   let retFuture = newFuture[void]("WebRtcStream.write")
@@ -224,8 +239,10 @@ method closeImpl*(s: WebRtcStream) {.async.} =
     discard await s.readOnce(nil, 0)
 
 # -- Connection --
+
 type WebRtcConnection = ref object of Connection
   connection: DataChannelConnection
+  remoteAddress: MultiAddress
 
 method close*(conn: WebRtcConnection) {.async.} =
   #TODO
@@ -248,11 +265,11 @@ proc getStream*(conn: WebRtcConnection,
       of Direction.In:
         await conn.connection.accept()
       of Direction.Out:
-        #TODO don't hardcode stream id (should be in nim-webrtc)
         await conn.connection.openStream(noiseHandshake)
   return WebRtcStream.new(datachannel, conn.observedAddr, conn.peerId)
 
 # -- Muxer --
+
 type WebRtcMuxer = ref object of Muxer
   webRtcConn: WebRtcConnection
   handleFut: Future[void]
@@ -311,7 +328,7 @@ method upgrade*(
   echo "=> ", ((Noise)noiseHandler[0]).commonPrologue
 
   let
-    stream = await webRtcConn.getStream(Out, true) #TODO add channelId: 0
+    stream = await webRtcConn.getStream(Out, true)
     secureStream = await noiseHandler[0].handshake(
       stream,
       initiator = true, # we are always the initiator in webrtc-direct
@@ -326,6 +343,7 @@ method upgrade*(
   result.handler = result.handle()
 
 # -- Transport --
+
 type
   WebRtcTransport* = ref object of Transport
     connectionsTimeout: Duration
@@ -426,14 +444,14 @@ method start*(
 
     trace "Listening on", address = self.addrs[i]
 
-proc connHandler(self: WebRtcTransport,
-                 client: DataChannelConnection,
-                 observedAddr: Opt[MultiAddress],
-                 dir: Direction): Future[Connection] {.async.} =
-
+proc connHandler(
+    self: WebRtcTransport,
+    client: DataChannelConnection,
+    observedAddr: Opt[MultiAddress],
+    dir: Direction
+  ): Future[Connection] {.async.} =
   trace "Handling webrtc connection", address = $observedAddr, dir = $dir,
-                                      clients = self.clients[Direction.In].len +
-                                      self.clients[Direction.Out].len
+    clients = self.clients[Direction.In].len + self.clients[Direction.Out].len
 
   let conn: Connection =
     WebRtcConnection.new(
