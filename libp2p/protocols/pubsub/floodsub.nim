@@ -150,7 +150,9 @@ method rpcHandler*(f: FloodSub,
     var toSendPeers = initHashSet[PubSubPeer]()
     let topic = msg.topic
     if topic notin f.topics:
+      debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
       continue
+
     f.floodsub.withValue(topic, peers):
       toSendPeers.incl(peers[])
 
