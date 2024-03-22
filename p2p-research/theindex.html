@@ -883,16 +883,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="wire: createAsyncSocket(ma: MultiAddress): AsyncFD" href="libp2p/wire.html#createAsyncSocket%2CMultiAddress">wire: createAsyncSocket(ma: MultiAddress): AsyncFD</a></li>
           </ul></dd>
-<dt><a name="createExchange" href="#createExchange"><span>createExchange:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: createExchange(epubkey, signature: openArray[byte]): seq[byte]" href="libp2p/crypto/crypto.html#createExchange%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D">crypto: createExchange(epubkey, signature: openArray[byte]): seq[byte]</a></li>
-          </ul></dd>
-<dt><a name="createProposal" href="#createProposal"><span>createProposal:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: createProposal(nonce, pubkey: openArray[byte];
-               exchanges, ciphers, hashes: string): seq[byte]" href="libp2p/crypto/crypto.html#createProposal%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D%2Cstring%2Cstring%2Cstring">crypto: createProposal(nonce, pubkey: openArray[byte];
-               exchanges, ciphers, hashes: string): seq[byte]</a></li>
-          </ul></dd>
 <dt><a name="createStreamServer" href="#createStreamServer"><span>createStreamServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="wire: createStreamServer[T](ma: MultiAddress; flags: set[ServerFlags] = {};
@@ -1009,10 +999,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="multibase: decodedLength(mbtype: typedesc[MultiBase]; encoding: char; length: int): int" href="libp2p/multibase.html#decodedLength%2Ctypedesc%5BMultiBase%5D%2Cchar%2Cint">multibase: decodedLength(mbtype: typedesc[MultiBase]; encoding: char; length: int): int</a></li>
           </ul></dd>
-<dt><a name="decodeExchange" href="#decodeExchange"><span>decodeExchange:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: decodeExchange(message: seq[byte]; pubkey, signature: var seq[byte]): bool" href="libp2p/crypto/crypto.html#decodeExchange%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D">crypto: decodeExchange(message: seq[byte]; pubkey, signature: var seq[byte]): bool</a></li>
-          </ul></dd>
 <dt><a name="decodeGraft" href="#decodeGraft"><span>decodeGraft:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="protobuf: decodeGraft(pb: ProtoBuffer): ProtoResult[ControlGraft]" href="libp2p/protocols/pubsub/rpc/protobuf.html#decodeGraft%2CProtoBuffer">protobuf: decodeGraft(pb: ProtoBuffer): ProtoResult[ControlGraft]</a></li>
@@ -1040,12 +1026,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="decodePeerInfoMsg" href="#decodePeerInfoMsg"><span>decodePeerInfoMsg:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="protobuf: decodePeerInfoMsg(pb: ProtoBuffer): ProtoResult[PeerInfoMsg]" href="libp2p/protocols/pubsub/rpc/protobuf.html#decodePeerInfoMsg%2CProtoBuffer">protobuf: decodePeerInfoMsg(pb: ProtoBuffer): ProtoResult[PeerInfoMsg]</a></li>
-          </ul></dd>
-<dt><a name="decodeProposal" href="#decodeProposal"><span>decodeProposal:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: decodeProposal(message: seq[byte]; nonce, pubkey: var seq[byte];
-               exchanges, ciphers, hashes: var string): bool" href="libp2p/crypto/crypto.html#decodeProposal%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cstring%2Cstring%2Cstring">crypto: decodeProposal(message: seq[byte]; nonce, pubkey: var seq[byte];
-               exchanges, ciphers, hashes: var string): bool</a></li>
           </ul></dd>
 <dt><a name="decodePrune" href="#decodePrune"><span>decodePrune:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3039,10 +3019,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="multistream: MultistreamSelect" href="libp2p/multistream.html#MultistreamSelect">multistream: MultistreamSelect</a></li>
           </ul></dd>
-<dt><a name="mux" href="#mux"><span>mux:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="muxedupgrade: mux(self: MuxedUpgrade; conn: Connection): Future[Muxer]" href="libp2p/upgrademngrs/muxedupgrade.html#mux%2CMuxedUpgrade%2CConnection">muxedupgrade: mux(self: MuxedUpgrade; conn: Connection): Future[Muxer]</a></li>
-          </ul></dd>
 <dt><a name="MuxedUpgrade" href="#MuxedUpgrade"><span>MuxedUpgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="muxedupgrade: MuxedUpgrade" href="libp2p/upgrademngrs/muxedupgrade.html#MuxedUpgrade">muxedupgrade: MuxedUpgrade</a></li>
@@ -3779,9 +3755,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="rateLimit" href="#rateLimit"><span>rateLimit:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; rpcMsgOpt: Opt[RPCMsg]; msgSize: int): Future[
-    void]" href="libp2p/protocols/pubsub/gossipsub.html#rateLimit%2CGossipSub%2CPubSubPeer%2COpt%5BRPCMsg%5D%2Cint">gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; rpcMsgOpt: Opt[RPCMsg]; msgSize: int): Future[
-    void]</a></li>
+          data-doc-search-tag="gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): Future[void]" href="libp2p/protocols/pubsub/gossipsub.html#rateLimit%2CGossipSub%2CPubSubPeer%2Cint">gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): Future[void]</a></li>
           </ul></dd>
 <dt><a name="read" href="#read"><span>read:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4253,7 +4227,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="wstransport: secure(self: WsTransport): bool" href="libp2p/transports/wstransport.html#secure%2CWsTransport">wstransport: secure(self: WsTransport): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="upgrade: secure(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): Future[Connection]" href="libp2p/upgrademngrs/upgrade.html#secure%2CUpgrade%2CConnection%2COpt%5BPeerId%5D">upgrade: secure(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): Future[Connection]</a></li>
+          data-doc-search-tag="upgrade: secure(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Connection, (CancelledError, LPError)]" href="libp2p/upgrademngrs/upgrade.html#secure%2CUpgrade%2CConnection%2COpt%5BPeerId%5D">upgrade: secure(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Connection, (CancelledError, LPError)]</a></li>
           </ul></dd>
 <dt><a name="SecureConn" href="#SecureConn"><span>SecureConn:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4931,9 +4907,13 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="upgrade" href="#upgrade"><span>upgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="transport: upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]" href="libp2p/transports/transport.html#upgrade.e%2CTransport%2CConnection%2COpt%5BPeerId%5D">transport: upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]</a></li>
+          data-doc-search-tag="transport: upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]" href="libp2p/transports/transport.html#upgrade.e%2CTransport%2CConnection%2COpt%5BPeerId%5D">transport: upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]" href="libp2p/upgrademngrs/muxedupgrade.html#upgrade.e%2CMuxedUpgrade%2CConnection%2COpt%5BPeerId%5D">muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]</a></li>
+          data-doc-search-tag="muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]" href="libp2p/upgrademngrs/muxedupgrade.html#upgrade.e%2CMuxedUpgrade%2CConnection%2COpt%5BPeerId%5D">muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]</a></li>
           </ul></dd>
 <dt><a name="Upgrade" href="#Upgrade"><span>Upgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4941,7 +4921,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="upgrade" href="#upgrade"><span>upgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="upgrade: upgrade(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]" href="libp2p/upgrademngrs/upgrade.html#upgrade.e%2CUpgrade%2CConnection%2COpt%5BPeerId%5D">upgrade: upgrade(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]</a></li>
+          data-doc-search-tag="upgrade: upgrade(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]" href="libp2p/upgrademngrs/upgrade.html#upgrade.e%2CUpgrade%2CConnection%2COpt%5BPeerId%5D">upgrade: upgrade(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]</a></li>
           </ul></dd>
 <dt><a name="UpgradeFailedError" href="#UpgradeFailedError"><span>UpgradeFailedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5368,7 +5350,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 22:52:10 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-22 20:33:00 UTC</small>
       </div>
     </div>
   </div>
