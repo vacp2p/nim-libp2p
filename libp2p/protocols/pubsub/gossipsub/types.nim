@@ -147,7 +147,7 @@ type
     overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
     disconnectPeerAboveRateLimit*: bool
 
-    maxNumElementInNonPriorityQueue*: Opt[int]
+    maxNumElementsInNonPriorityQueue*: int
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]

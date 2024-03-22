@@ -49,9 +49,6 @@ declareCounter(libp2p_gossipsub_received, "number of messages received (deduplic
 when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
 
-const
-  DefaultMaxNumElementInNonPriorityQueue = 1024
-
 proc init*(_: type[GossipSubParams]): GossipSubParams =
   GossipSubParams(
       explicit: true,
@@ -87,7 +84,7 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
       overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
       disconnectPeerAboveRateLimit: false,
-      maxNumElementInNonPriorityQueue: Opt.some(DefaultMaxNumElementInNonPriorityQueue)
+      maxNumElementsInNonPriorityQueue: DefaultMaxNumElementsInNonPriorityQueue
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -756,8 +753,5 @@ method getOrCreatePeer*(
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
-  g.parameters.maxNumElementInNonPriorityQueue.withValue(value):
-    peer.maxNumElementInNonPriorityQueue = value
-  do:
-    peer.maxNumElementInNonPriorityQueue = DefaultMaxNumElementInNonPriorityQueue
+  peer.maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue
   return peer

@@ -37,6 +37,9 @@ when defined(pubsubpeer_queue_metrics):
 
 declareCounter(libp2p_pubsub_disconnects_over_non_priority_queue_limit, "number of peers disconnected due to over non-prio queue capacity")
 
+const
+  DefaultMaxNumElementsInNonPriorityQueue* = 1024
+
 type
   PeerRateLimitError* = object of CatchableError
 
@@ -86,7 +89,7 @@ type
     overheadRateLimitOpt*: Opt[TokenBucket]
 
     rpcmessagequeue: RpcMessageQueue
-    maxNumElementInNonPriorityQueue*: int # The max number of elements allowed in the non-priority queue.
+    maxNumElementsInNonPriorityQueue*: int # The max number of elements allowed in the non-priority queue.
     disconnected: bool
 
   RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
@@ -348,7 +351,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
         libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
     f
   else:
-    if len(p.rpcmessagequeue.nonPriorityQueue) == p.maxNumElementInNonPriorityQueue:
+    if len(p.rpcmessagequeue.nonPriorityQueue) == p.maxNumElementsInNonPriorityQueue:
       if not p.disconnected:
         p.disconnected = true
         libp2p_pubsub_disconnects_over_non_priority_queue_limit.inc()
@@ -486,7 +489,7 @@ proc new*(
   onEvent: OnEvent,
   codec: string,
   maxMessageSize: int,
-  maxNumElementInNonPriorityQueue: int = 1024,
+  maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
   overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T =
 
   result = T(
@@ -498,7 +501,7 @@ proc new*(
     maxMessageSize: maxMessageSize,
     overheadRateLimitOpt: overheadRateLimitOpt,
     rpcmessagequeue: RpcMessageQueue.new(),
-    maxNumElementInNonPriorityQueue: maxNumElementInNonPriorityQueue
+    maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[MessageId]))
