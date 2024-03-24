@@ -275,6 +275,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
+  g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIds.len > 0:
     respControl.iwant.add(iwant)
@@ -320,10 +321,39 @@ proc validateAndRelay(g: GossipSub,
                       msg: Message,
                       msgId, msgIdSalted: MessageId,
                       peer: PubSubPeer) {.async.} =
-  try:
-    let validation = await g.validate(msg)
 
-    var seenPeers: HashSet[PubSubPeer]
+  var seenPeers: HashSet[PubSubPeer]
+  var toSendPeers = HashSet[PubSubPeer]()
+  for t in msg.topicIds:                      # for every topic in the message
+    if t notin g.topics:
+      continue
+
+    g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
+    g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
+    # add direct peers
+    toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(t))
+    # Don't send it to source peer
+  toSendPeers.excl(peer)
+
+  for peer in toSendPeers:
+    for heDontWant in peer.heDontWants:
+      if msgId in heDontWant:
+        seenPeers.incl(peer)
+        libp2p_gossipsub_idontwant_saved_messages.inc
+        libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
+        break
+  toSendPeers.excl(seenPeers)
+
+  try:
+    # IDontWant is only worth it if the message is substantially
+    # bigger than the messageId
+    if msg.data.len > msgId.len * 10:
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
+          idontwant: @[ControlIWant(messageIds: @[msgId])]
+        ))), isHighPriority = true)
+
+    seenPeers.clear()
+    let validation = await g.validate(msg)
     discard g.validationSeen.pop(msgIdSalted, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc((msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"])
@@ -346,35 +376,15 @@ proc validateAndRelay(g: GossipSub,
 
     g.rewardDelivered(peer, msg.topicIds, true)
 
-    var toSendPeers = HashSet[PubSubPeer]()
-    for t in msg.topicIds:                      # for every topic in the message
-      if t notin g.topics:
-        continue
-
-      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
-      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
-
-      # add direct peers
-      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(t))
-
-    # Don't send it to source peer, or peers that
-    # sent it during validation
-    toSendPeers.excl(peer)
+    # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
 
-    # IDontWant is only worth it if the message is substantially
-    # bigger than the messageId
-    if msg.data.len > msgId.len * 10:
-      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
-          idontwant: @[ControlIWant(messageIds: @[msgId])]
-        ))), isHighPriority = true)
-
+    #We have received IMReceiving from these peers, We should not exclude them
+    #Ideally we should wait (TxTime + large safety cushion) before sending to these peers
     for peer in toSendPeers:
-      for heDontWant in peer.heDontWants:
-        if msgId in heDontWant:
+      for heIsReceiving in peer.heIsReceivings:
+        if msgId in heIsReceiving:
           seenPeers.incl(peer)
-          libp2p_gossipsub_idontwant_saved_messages.inc
-          libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
           break
     toSendPeers.excl(seenPeers)
 
