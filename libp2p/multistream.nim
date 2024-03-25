@@ -45,15 +45,18 @@ proc new*(T: typedesc[MultistreamSelect]): T =
   )
 
 template validateSuffix(str: string): untyped =
-    if str.endsWith("\n"):
-      str.removeSuffix("\n")
-    else:
-      raise newException(MultiStreamError, "MultistreamSelect failed, malformed message")
+  if str.endsWith("\n"):
+    str.removeSuffix("\n")
+  else:
+    raise (ref MultiStreamError)(msg:
+      "MultistreamSelect failed, malformed message")
 
-proc select*(_: MultistreamSelect | type MultistreamSelect,
-             conn: Connection,
-             proto: seq[string]):
-             Future[string] {.async.} =
+proc select*(
+    _: MultistreamSelect | type MultistreamSelect,
+    conn: Connection,
+    proto: seq[string]
+): Future[string] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError]).} =
   trace "initiating handshake", conn, codec = Codec
   ## select a remote protocol
   await conn.writeLp(Codec & "\n") # write handshake
@@ -66,7 +69,7 @@ proc select*(_: MultistreamSelect | type MultistreamSelect,
 
   if s != Codec:
     notice "handshake failed", conn, codec = s
-    raise newException(MultiStreamError, "MultistreamSelect handshake failed")
+    raise (ref MultiStreamError)(msg: "MultistreamSelect handshake failed")
   else:
     trace "multistream handshake success", conn
 
@@ -98,19 +101,29 @@ proc select*(_: MultistreamSelect | type MultistreamSelect,
       # No alternatives, fail
       return ""
 
-proc select*(_: MultistreamSelect | type MultistreamSelect,
-             conn: Connection,
-             proto: string): Future[bool] {.async.} =
+proc select*(
+    _: MultistreamSelect | type MultistreamSelect,
+    conn: Connection,
+    proto: string
+): Future[bool] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError]).} =
   if proto.len > 0:
-    return (await MultistreamSelect.select(conn, @[proto])) == proto
+    (await MultistreamSelect.select(conn, @[proto])) == proto
   else:
-    return (await MultistreamSelect.select(conn, @[])) == Codec
+    (await MultistreamSelect.select(conn, @[])) == Codec
 
-proc select*(m: MultistreamSelect, conn: Connection): Future[bool] =
+proc select*(
+    m: MultistreamSelect,
+    conn: Connection
+): Future[bool] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError], raw: true).} =
   m.select(conn, "")
 
-proc list*(m: MultistreamSelect,
-           conn: Connection): Future[seq[string]] {.async.} =
+proc list*(
+    m: MultistreamSelect,
+    conn: Connection
+): Future[seq[string]] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError]).} =
   ## list remote protos requests on connection
   if not await m.select(conn):
     return
@@ -126,12 +139,13 @@ proc list*(m: MultistreamSelect,
   result = list
 
 proc handle*(
-  _: type MultistreamSelect,
-  conn: Connection,
-  protos: seq[string],
-  matchers = newSeq[Matcher](),
-  active: bool = false,
-  ): Future[string] {.async.} =
+    _: type MultistreamSelect,
+    conn: Connection,
+    protos: seq[string],
+    matchers = newSeq[Matcher](),
+    active: bool = false
+): Future[string] {.async: (raises: [
+    CancelledError, LPStreamError, MultiStreamError]).} =
   trace "Starting multistream negotiation", conn, handshaked = active
   var handshaked = active
   while not conn.atEof:
@@ -140,8 +154,8 @@ proc handle*(
 
     if not handshaked and ms != Codec:
       debug "expected handshake message", conn, instead=ms
-      raise newException(CatchableError,
-                         "MultistreamSelect handling failed, invalid first message")
+      raise (ref MultiStreamError)(msg:
+        "MultistreamSelect handling failed, invalid first message")
 
     trace "handle: got request", conn, ms
     if ms.len() <= 0:
@@ -172,13 +186,16 @@ proc handle*(
       trace "no handlers", conn, protocol = ms
       await conn.writeLp(Na)
 
-proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.async.} =
+proc handle*(
+    m: MultistreamSelect,
+    conn: Connection,
+    active: bool = false) {.async: (raises: [CancelledError]).} =
   trace "Starting multistream handler", conn, handshaked = active
   var
     protos: seq[string]
     matchers: seq[Matcher]
   for h in m.handlers:
-    if not isNil(h.match):
+    if h.match != nil:
       matchers.add(h.match)
     for proto in h.protos:
       protos.add(proto)
@@ -186,12 +203,13 @@ proc handle*(m: MultistreamSelect, conn: Connection, active: bool = false) {.asy
   try:
     let ms = await MultistreamSelect.handle(conn, protos, matchers, active)
     for h in m.handlers:
-      if (not isNil(h.match) and h.match(ms)) or h.protos.contains(ms):
+      if (h.match != nil and h.match(ms)) or h.protos.contains(ms):
         trace "found handler", conn, protocol = ms
 
         var protocolHolder = h
         let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
-        if protocolHolder.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
+        if protocolHolder.openedStreams.getOrDefault(conn.peerId) >=
+            maxIncomingStreams:
           debug "Max streams for protocol reached, blocking new stream",
             conn, protocol = ms, maxIncomingStreams
           return
@@ -242,8 +260,34 @@ proc addHandler*(m: MultistreamSelect,
                                protocol: protocol,
                                match: matcher))
 
-proc start*(m: MultistreamSelect) {.async.} =
-  await allFutures(m.handlers.mapIt(it.protocol.start()))
+proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
+  # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([])`
+  var futs = newSeqOfCap[Future[void].Raising([CancelledError])](m.handlers.len)
+  for it in m.handlers:
+    futs.add it.protocol.start()
+  try:
+    await allFutures(futs)
+    for fut in futs:
+      await fut
+  except CancelledError as exc:
+    var pending: seq[Future[void].Raising([])]
+    doAssert m.handlers.len == futs.len, "Handlers modified while starting"
+    for i, fut in futs:
+      if not fut.finished:
+        pending.add noCancel fut.cancelAndWait()
+      elif fut.completed:
+        pending.add m.handlers[i].protocol.stop()
+      else:
+        static: doAssert typeof(fut).E is (CancelledError,)
+    await noCancel allFutures(pending)
+    raise exc
 
-proc stop*(m: MultistreamSelect) {.async.} =
-  await allFutures(m.handlers.mapIt(it.protocol.stop()))
+
+proc stop*(m: MultistreamSelect) {.async: (raises: []).} =
+  # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([CancelledError])`
+  var futs = newSeqOfCap[Future[void].Raising([])](m.handlers.len)
+  for it in m.handlers:
+    futs.add it.protocol.stop()
+  await noCancel allFutures(futs)
+  for fut in futs:
+    await fut

@@ -247,9 +247,8 @@ proc hasSendConn*(p: PubSubPeer): bool =
 template sendMetrics(msg: RPCMsg): untyped =
   when defined(libp2p_expensive_metrics):
     for x in msg.messages:
-      for t in x.topicIds:
-        # metrics
-        libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, t])
+      # metrics
+      libp2p_pubsub_sent_messages.inc(labelValues = [$p.peerId, x.topic])
 
 proc clearSendPriorityQueue(p: PubSubPeer) =
   if p.rpcmessagequeue.sendPriorityQueue.len == 0:
@@ -431,7 +430,9 @@ proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
        # clearSendPriorityQueue ensures we're not waiting for an already-finished
        # future
        if p.rpcmessagequeue.sendPriorityQueue.len > 0:
-        await p.rpcmessagequeue.sendPriorityQueue[^1]
+        # `race` prevents `p.rpcmessagequeue.sendPriorityQueue[^1]` from being
+        # cancelled when this task is cancelled
+        discard await race(p.rpcmessagequeue.sendPriorityQueue[^1])
      when defined(pubsubpeer_queue_metrics):
        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
      await p.sendMsg(msg)

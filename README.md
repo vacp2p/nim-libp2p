@@ -71,7 +71,6 @@ List of packages modules implemented in nim-libp2p:
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |
 | [libp2p-tor](libp2p/transports/tortransport.nim)           | Tor Transport                                                                                                    |
 | **Secure Channels**                                        |                                                                                                                  |
-| [libp2p-secio](libp2p/protocols/secure/secio.nim)          | Secio secure channel                                                                                             |
 | [libp2p-noise](libp2p/protocols/secure/noise.nim)          | [Noise](https://docs.libp2p.io/concepts/secure-comm/noise/) secure channel                                       |
 | [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim)  | Plain Text for development purposes                                                                              |
 | **Stream Multiplexers**                                    |                                                                                                                  |

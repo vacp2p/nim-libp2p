@@ -38,8 +38,19 @@ type
     maxIncomingStreams: Opt[int]
 
 method init*(p: LPProtocol) {.base, gcsafe.} = discard
-method start*(p: LPProtocol) {.async, base.} = p.started = true
-method stop*(p: LPProtocol) {.async, base.} = p.started = false
+
+method start*(
+    p: LPProtocol) {.async: (raises: [CancelledError], raw: true), base.} =
+  let fut = newFuture[void]()
+  fut.complete()
+  p.started = true
+  fut
+
+method stop*(p: LPProtocol) {.async: (raises: [], raw: true), base.} =
+  let fut = newFuture[void]()
+  fut.complete()
+  p.started = false
+  fut
 
 proc maxIncomingStreams*(p: LPProtocol): int =
   p.maxIncomingStreams.get(DefaultMaxIncomingStreams)
