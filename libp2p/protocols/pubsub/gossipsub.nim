@@ -83,7 +83,8 @@ proc init*(_: type[GossipSubParams]): GossipSubParams =
       enablePX: false,
       bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
       overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
-      disconnectPeerAboveRateLimit: false
+      disconnectPeerAboveRateLimit: false,
+      maxNumElementsInNonPriorityQueue: DefaultMaxNumElementsInNonPriorityQueue
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -172,10 +173,10 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
-  of PubSubPeerEventKind.Connected:
+  of PubSubPeerEventKind.StreamOpened:
     discard
-  of PubSubPeerEventKind.Disconnected:
-    # If a send connection is lost, it's better to remove peer from the mesh -
+  of PubSubPeerEventKind.StreamClosed:
+    # If a send stream is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
     # doesn't, well.. then we hope the peer is going away!
     for topic, peers in p.mesh.mpairs():
@@ -183,6 +184,8 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
       peers.excl(peer)
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
+  of PubSubPeerEventKind.DisconnectionRequested:
+    asyncSpawn p.disconnectPeer(peer) # this should unsubscribePeer the peer too
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
@@ -750,4 +753,5 @@ method getOrCreatePeer*(
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
+  peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
   return peer

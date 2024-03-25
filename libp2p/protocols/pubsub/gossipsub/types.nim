@@ -147,6 +147,9 @@ type
     overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
     disconnectPeerAboveRateLimit*: bool
 
+    # Max number of elements allowed in the non-priority queue. When this limit has been reached, the peer will be disconnected.
+    maxNumElementsInNonPriorityQueue*: int
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
 
