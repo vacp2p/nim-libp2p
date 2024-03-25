@@ -207,14 +207,14 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#ControlGraft"
     title="ControlGraft = object
-  topicId*: string">ControlGraft</a></li>
+  topicID*: string">ControlGraft</a></li>
   <li><a class="reference" href="#ControlIHave"
     title="ControlIHave = object
-  topicId*: string
-  messageIds*: seq[MessageId]">ControlIHave</a></li>
+  topicID*: string
+  messageIDs*: seq[MessageId]">ControlIHave</a></li>
   <li><a class="reference" href="#ControlIWant"
     title="ControlIWant = object
-  messageIds*: seq[MessageId]">ControlIWant</a></li>
+  messageIDs*: seq[MessageId]">ControlIWant</a></li>
   <li><a class="reference" href="#ControlMessage"
     title="ControlMessage = object
   ihave*: seq[ControlIHave]
@@ -224,7 +224,7 @@ window.addEventListener("DOMContentLoaded", main2);
   idontwant*: seq[ControlIWant]">ControlMessage</a></li>
   <li><a class="reference" href="#ControlPrune"
     title="ControlPrune = object
-  topicId*: string
+  topicID*: string
   peers*: seq[PeerInfoMsg]
   backoff*: uint64">ControlPrune</a></li>
   <li><a class="reference" href="#Message"
@@ -232,7 +232,7 @@ window.addEventListener("DOMContentLoaded", main2);
   fromPeer*: PeerId
   data*: seq[byte]
   seqno*: seq[byte]
-  topicIds*: seq[string]
+  topic*: string
   signature*: seq[byte]
   key*: seq[byte]">Message</a></li>
   <li><a class="reference" href="#MessageId"
@@ -319,7 +319,7 @@ class="link-seesrc" target="_blank">Source</a>
 <dl class="item">
 <div id="ControlGraft" class="tohide">
 <dt><pre><a href="messages.html#ControlGraft"><span class="Identifier">ControlGraft</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">topicId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">topicID</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
 </pre></dt>
 <dd>
 
@@ -333,8 +333,8 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="ControlIHave" class="tohide">
 <dt><pre><a href="messages.html#ControlIHave"><span class="Identifier">ControlIHave</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">topicId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-  <span class="Identifier">messageIds</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
+  <span class="Identifier">topicID</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">messageIDs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
 </pre></dt>
 <dd>
 
@@ -348,7 +348,7 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="ControlIWant" class="tohide">
 <dt><pre><a href="messages.html#ControlIWant"><span class="Identifier">ControlIWant</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">messageIds</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
+  <span class="Identifier">messageIDs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
 </pre></dt>
 <dd>
 
@@ -380,7 +380,7 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="ControlPrune" class="tohide">
 <dt><pre><a href="messages.html#ControlPrune"><span class="Identifier">ControlPrune</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">topicId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">topicID</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
   <span class="Identifier">peers</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#PeerInfoMsg"><span class="Identifier">PeerInfoMsg</span></a><span class="Other">]</span>
   <span class="Identifier">backoff</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint64</span>
 </pre></dt>
@@ -399,7 +399,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">fromPeer</span><span class="Operator">*</span><span class="Other">:</span> <a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">data</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">seqno</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
-  <span class="Identifier">topicIds</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
+  <span class="Identifier">topic</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
   <span class="Identifier">signature</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">key</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
 </pre></dt>
@@ -645,7 +645,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-21 14:54:43 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 17:21:53 UTC</small>
       </div>
     </div>
   </div>

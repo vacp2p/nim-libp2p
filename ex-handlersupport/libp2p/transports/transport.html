@@ -270,7 +270,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">upgrade
       <li><a class="reference" href="#upgrade.e%2CTransport%2CConnection%2COpt%5BPeerId%5D"
-    title="upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]">upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): Future[Muxer]</a></li>
+    title="upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]">upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]</a></li>
 
   </ul>
 
@@ -427,9 +429,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 check if transport supports the multiaddress 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-handlersupport/libp2p/transports/transport.nim#L93"
+href="https://github.com/status-im/nim-libp2p/tree/ex-handlersupport/libp2p/transports/transport.nim#L94"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L94" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -461,15 +463,16 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="upgrade.e,Transport,Connection,Opt[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#upgrade.e%2CTransport%2CConnection%2COpt%5BPeerId%5D"><span class="Identifier">upgrade</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="../upgrademngrs/upgrade.html#Transport"><span class="Identifier">Transport</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <a href="../muxers/muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#upgrade.e%2CTransport%2CConnection%2COpt%5BPeerId%5D"><span class="Identifier">upgrade</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="../upgrademngrs/upgrade.html#Transport"><span class="Identifier">Transport</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <a href="../muxers/muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-base upgrade method that the transport uses to perform transport specific upgrades 
+
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ex-handlersupport/libp2p/transports/transport.nim#L83"
+href="https://github.com/status-im/nim-libp2p/tree/ex-handlersupport/libp2p/transports/transport.nim#L87"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -488,7 +491,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-21 14:54:41 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 17:21:51 UTC</small>
       </div>
     </div>
   </div>
