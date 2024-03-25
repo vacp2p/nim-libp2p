@@ -329,30 +329,6 @@ window.addEventListener("DOMContentLoaded", main2);
     title="`==`(key1, key2: PublicKey): bool">`==`(key1, key2: PublicKey): bool</a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">createExchange
-      <li><a class="reference" href="#createExchange%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D"
-    title="createExchange(epubkey, signature: openArray[byte]): seq[byte]">createExchange(epubkey, signature: openArray[byte]): seq[byte]</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">createProposal
-      <li><a class="reference" href="#createProposal%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D%2Cstring%2Cstring%2Cstring"
-    title="createProposal(nonce, pubkey: openArray[byte];
-               exchanges, ciphers, hashes: string): seq[byte]">createProposal(nonce, pubkey: openArray[byte];
-               exchanges, ciphers, hashes: string): seq[byte]</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">decodeExchange
-      <li><a class="reference" href="#decodeExchange%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D"
-    title="decodeExchange(message: seq[byte]; pubkey, signature: var seq[byte]): bool">decodeExchange(message: seq[byte]; pubkey, signature: var seq[byte]): bool</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">decodeProposal
-      <li><a class="reference" href="#decodeProposal%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cstring%2Cstring%2Cstring"
-    title="decodeProposal(message: seq[byte]; nonce, pubkey: var seq[byte];
-               exchanges, ciphers, hashes: var string): bool">decodeProposal(message: seq[byte]; nonce, pubkey: var seq[byte];
-               exchanges, ciphers, hashes: var string): bool</a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">getBytes
       <li><a class="reference" href="#getBytes%2CPrivateKey"
     title="getBytes(key: PrivateKey): CryptoResult[seq[byte]]">getBytes(key: PrivateKey): CryptoResult[seq[byte]]</a></li>
@@ -888,64 +864,6 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="createExchange,openArray[byte],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#createExchange%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">createExchange</span></a><span class="Other">(</span><span class="Identifier">epubkey</span><span class="Other">,</span> <span class="Identifier">signature</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-Create SecIO exchange message using ephemeral public key <tt class="docutils literal"><span class="pre">epubkey</span></tt> and signature of proposal blocks <tt class="docutils literal"><span class="pre">signature</span></tt>.
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L960"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L960" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="createProposal,openArray[byte],openArray[byte],string,string,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#createProposal%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D%2Cstring%2Cstring%2Cstring"><span class="Identifier">createProposal</span></a><span class="Other">(</span><span class="Identifier">nonce</span><span class="Other">,</span> <span class="Identifier">pubkey</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
-                    <span class="Identifier">exchanges</span><span class="Other">,</span> <span class="Identifier">ciphers</span><span class="Other">,</span> <span class="Identifier">hashes</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-Create SecIO proposal message using random <tt class="docutils literal"><span class="pre">nonce</span></tt>, local public key <tt class="docutils literal"><span class="pre">pubkey</span></tt>, comma-delimieted list of supported exchange schemes <tt class="docutils literal"><span class="pre">exchanges</span></tt>, comma-delimeted list of supported ciphers <tt class="docutils literal"><span class="pre">ciphers</span></tt> and comma-delimeted list of supported hashes <tt class="docutils literal"><span class="pre">hashes</span></tt>.
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L927"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L927" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="decodeExchange,seq[byte],seq[byte],seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#decodeExchange%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D"><span class="Identifier">decodeExchange</span></a><span class="Other">(</span><span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pubkey</span><span class="Other">,</span> <span class="Identifier">signature</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-<p>Parse incoming exchange message and decode remote ephemeral public key <tt class="docutils literal"><span class="pre">pubkey</span></tt> and signature <tt class="docutils literal"><span class="pre">signature</span></tt>.</p>
-<p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success and <tt class="docutils literal"><span class="pre">false</span></tt> on error.</p>
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L969"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L969" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="decodeProposal,seq[byte],seq[byte],seq[byte],string,string,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#decodeProposal%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cstring%2Cstring%2Cstring"><span class="Identifier">decodeProposal</span></a><span class="Other">(</span><span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">nonce</span><span class="Other">,</span> <span class="Identifier">pubkey</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
-                    <span class="Identifier">exchanges</span><span class="Other">,</span> <span class="Identifier">ciphers</span><span class="Other">,</span> <span class="Identifier">hashes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-<p>Parse incoming proposal message and decode remote random nonce <tt class="docutils literal"><span class="pre">nonce</span></tt>, remote public key <tt class="docutils literal"><span class="pre">pubkey</span></tt>, comma-delimieted list of supported exchange schemes <tt class="docutils literal"><span class="pre">exchanges</span></tt>, comma-delimeted list of supported ciphers <tt class="docutils literal"><span class="pre">ciphers</span></tt> and comma-delimeted list of supported hashes <tt class="docutils literal"><span class="pre">hashes</span></tt>.</p>
-<p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success and <tt class="docutils literal"><span class="pre">false</span></tt> on error.</p>
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L942"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L942" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
 <div id="getBytes,PrivateKey" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CPrivateKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="crypto.html#PrivateKey"><span class="Identifier">PrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="crypto.html#CryptoResult"><span class="Identifier">CryptoResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
@@ -991,9 +909,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>On success deserialized signature will be stored in <tt class="docutils literal"><span class="pre">value</span></tt>.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L1024"
+href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L971"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1024" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L971" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1006,9 +924,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>On success deserialized key will be stored in <tt class="docutils literal"><span class="pre">value</span></tt>.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L1006"
+href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L953"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1006" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L953" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1553,9 +1471,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L1002"
+href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L949"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1002" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L949" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1566,9 +1484,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Write PublicKey value <tt class="docutils literal"><span class="pre">pubkey</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L982"
+href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L929"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L982" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L929" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1579,9 +1497,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Write PrivateKey value <tt class="docutils literal"><span class="pre">seckey</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L987"
+href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L934"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L987" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L934" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1592,9 +1510,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Write Signature value <tt class="docutils literal"><span class="pre">sig</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L992"
+href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L939"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L992" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L939" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1605,9 +1523,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L997"
+href="https://github.com/status-im/nim-libp2p/tree/message-id-mem/libp2p/crypto/crypto.nim#L944"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L997" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L944" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1703,7 +1621,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-20 05:58:40 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 11:17:59 UTC</small>
       </div>
     </div>
   </div>
