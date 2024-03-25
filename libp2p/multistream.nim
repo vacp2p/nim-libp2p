@@ -246,10 +246,14 @@ proc addHandler*(m: MultistreamSelect,
                  matcher: Matcher = nil) =
   addHandler(m, @[codec], protocol, matcher)
 
-proc addHandler*(m: MultistreamSelect,
-                 codec: string,
-                 handler: LPProtoHandler | LPProtocolHandler,
-                 matcher: Matcher = nil) =
+proc addHandler*[E](
+    m: MultistreamSelect,
+    codec: string,
+    handler: LPProtoHandler |
+      proc (
+        conn: Connection,
+        proto: string): InternalRaisesFuture[void, E],
+    matcher: Matcher = nil) =
   ## helper to allow registering pure handlers
   trace "registering proto handler", proto = codec
   let protocol = new LPProtocol

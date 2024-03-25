@@ -22,15 +22,6 @@ type
       conn: Connection,
       proto: string): Future[void] {.async.}
 
-  # Callbacks that are annotated with `{.async: (raises).}` explicitly
-  # document the types of errors that they may raise, but are not compatible
-  # with `LPProtoHandler` and need to use the `LPProtocolHandler` type.
-  # They are internally wrapped into a `LPProtoHandler`, but still allow the
-  # compiler to check that their `{.async: (raises).}` annotation is correct.
-  LPProtocolHandler*[E] = proc (
-      conn: Connection,
-      proto: string): InternalRaisesFuture[void, E]  # https://github.com/nim-lang/Nim/issues/23432
-
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
     handlerImpl: LPProtoHandler  ## invoked by the protocol negotiator
@@ -77,7 +68,17 @@ template `handler`*(
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
 
-func `handler=`*(p: LPProtocol, handler: LPProtocolHandler) =
+# Callbacks that are annotated with `{.async: (raises).}` explicitly
+# document the types of errors that they may raise, but are not compatible
+# with `LPProtoHandler` and need to use a custom `proc` type.
+# They are internally wrapped into a `LPProtoHandler`, but still allow the
+# compiler to check that their `{.async: (raises).}` annotation is correct.
+# https://github.com/nim-lang/Nim/issues/23432
+func `handler=`*[E](
+    p: LPProtocol,
+    handler: proc (
+      conn: Connection,
+      proto: string): InternalRaisesFuture[void, E]) =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)
   p.handlerImpl = wrap
@@ -95,10 +96,12 @@ proc new*(
       else: maxIncomingStreams
   )
 
-proc new*(
+proc new*[E](
     T: type LPProtocol,
     codecs: seq[string],
-    handler: LPProtocolHandler,
+    handler: proc (
+      conn: Connection,
+      proto: string): InternalRaisesFuture[void, E],
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)
