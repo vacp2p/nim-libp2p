@@ -692,7 +692,7 @@ suite "GossipSub internal":
       )
       peer.iHaveBudget = 0
       let iwants = gossipSub.handleIHave(peer, @[msg])
-      check: iwants.messageIds.len == 0
+      check: iwants.messageIDs.len == 0
 
     block:
       # given duplicate ihave should generate only one iwant
@@ -707,7 +707,7 @@ suite "GossipSub internal":
         messageIDs: @[id, id, id]
       )
       let iwants = gossipSub.handleIHave(peer, @[msg])
-      check: iwants.messageIds.len == 1
+      check: iwants.messageIDs.len == 1
 
     block:
       # given duplicate iwant should generate only one message
@@ -790,7 +790,7 @@ suite "GossipSub internal":
     let (iwantMessageIds, sentMessages) = createMessages(gossip0, gossip1, messageSize, messageSize)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topicId: "foobar", messageIds: iwantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: iwantMessageIds)]
     ))), isHighPriority = false)
 
     checkUntilTimeout: receivedMessages[] == sentMessages
@@ -807,7 +807,7 @@ suite "GossipSub internal":
     let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, messageSize, messageSize)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
     ))), isHighPriority = false)
 
     await sleepAsync(300.milliseconds)
@@ -824,7 +824,7 @@ suite "GossipSub internal":
     let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, size1, size2)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
     ))), isHighPriority = false)
 
     checkUntilTimeout: receivedMessages[] == sentMessages
@@ -842,7 +842,7 @@ suite "GossipSub internal":
     let (bigIWantMessageIds, sentMessages) = createMessages(gossip0, gossip1, size1, size2)
 
     gossip1.broadcast(gossip1.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      ihave: @[ControlIHave(topicId: "foobar", messageIds: bigIWantMessageIds)]
+      ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
     ))), isHighPriority = false)
 
     var smallestSet: HashSet[seq[byte]]

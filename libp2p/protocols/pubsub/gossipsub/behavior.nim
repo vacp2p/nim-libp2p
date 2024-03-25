@@ -103,8 +103,8 @@ proc handleGraft*(g: GossipSub,
                  grafts: seq[ControlGraft]): seq[ControlPrune] = # {.raises: [Defect].} TODO chronicles exception on windows
   var prunes: seq[ControlPrune]
   for graft in grafts:
-    let topic = graft.topicId
-    trace "peer grafted topic", peer, topic
+    let topic = graft.topicID
+    trace "peer grafted topicID", peer, topic
 
     # It is an error to GRAFT on a direct peer
     if peer.peerId in g.parameters.directPeers:
@@ -207,9 +207,9 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.raises: [].} =
   for prune in prunes:
-    let topic = prune.topicId
+    let topic = prune.topicID
 
-    trace "peer pruned topic", peer, topic
+    trace "peer pruned topicID", peer, topic
 
     # add peer backoff
     if prune.backoff > 0:
@@ -248,26 +248,26 @@ proc handleIHave*(g: GossipSub,
   else:
     for ihave in ihaves:
       trace "peer sent ihave",
-        peer, topic = ihave.topicId, msgs = ihave.messageIds
-      if ihave.topicId in g.topics:
-        for msgId in ihave.messageIds:
+        peer, topicID = ihave.topicID, msgs = ihave.messageIDs
+      if ihave.topicID in g.topics:
+        for msgId in ihave.messageIDs:
           if not g.hasSeen(msgId):
             if peer.iHaveBudget <= 0:
               break
-            elif msgId notin res.messageIds:
-              res.messageIds.add(msgId)
+            elif msgId notin res.messageIDs:
+              res.messageIDs.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID=msgId
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
-    g.rng.shuffle(res.messageIds)
+    g.rng.shuffle(res.messageIDs)
     return res
 
 proc handleIDontWant*(g: GossipSub,
                       peer: PubSubPeer,
                       iDontWants: seq[ControlIWant]) =
   for dontWant in iDontWants:
-    for messageId in dontWant.messageIds:
+    for messageId in dontWant.messageIDs:
       if peer.heDontWants[^1].len > 1000: break
       if messageId.len > 100: continue
       peer.heDontWants[^1].incl(messageId)
@@ -282,7 +282,7 @@ proc handleIWant*(g: GossipSub,
     trace "iwant: ignoring low score peer", peer, score = peer.score
   else:
     for iwant in iwants:
-      for mid in iwant.messageIds:
+      for mid in iwant.messageIDs:
         trace "peer sent iwant", peer, messageID = mid
         # canAskIWant will only return true once for a specific message
         if not peer.canAskIWant(mid):
@@ -579,7 +579,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
   trace "getting gossip peers (iHave)", ntopics=topics.len
   for topic in topics:
     if topic notin g.gossipsub:
-      trace "topic not in gossip array, skipping", topicID = topic
+      trace "topic not in gossip array, skipping", topic = topic
       continue
 
     let mids = g.mcache.window(topic)
@@ -621,7 +621,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       g.rng.shuffle(allPeers)
       allPeers.setLen(target)
 
-    let msgIdsAsSet = ihave.messageIds.toHashSet()
+    let msgIdsAsSet = ihave.messageIDs.toHashSet()
 
     for peer in allPeers:
       control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
@@ -687,8 +687,8 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
     for peer, control in peers:
       # only ihave from here
       for ihave in control.ihave:
-        if g.knownTopics.contains(ihave.topicId):
-          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicId])
+        if g.knownTopics.contains(ihave.topicID):
+          libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
         else:
           libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
       g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)

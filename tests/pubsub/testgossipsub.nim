@@ -911,7 +911,7 @@ suite "GossipSub":
     check: gossip3.mesh.peers("foobar") == 1
 
     gossip3.broadcast(gossip3.mesh["foobar"], RPCMsg(control: some(ControlMessage(
-      idontwant: @[ControlIWant(messageIds: @[newSeq[byte](10)])]
+      idontwant: @[ControlIWant(messageIDs: @[newSeq[byte](10)])]
     ))), isHighPriority = true)
     checkUntilTimeout: gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
 
@@ -970,8 +970,9 @@ suite "GossipSub":
 
     gossip0.broadcast(
       gossip0.mesh["foobar"],
-      RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](10))]),
-      isHighPriority = true)
+      RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](10))]),
+      isHighPriority = true,
+    )
     await sleepAsync(300.millis)
 
     check currentRateLimitHits() == rateLimitHits
@@ -981,8 +982,9 @@ suite "GossipSub":
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     gossip0.broadcast(
       gossip0.mesh["foobar"],
-      RPCMsg(messages: @[Message(topicIDs: @["foobar"], data: newSeq[byte](12))]),
-      isHighPriority = true)
+      RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](12))]),
+      isHighPriority = true,
+    )
     await sleepAsync(300.millis)
 
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -1053,7 +1055,7 @@ suite "GossipSub":
     gossip0.addValidator(topic, execValidator)
     gossip1.addValidator(topic, execValidator)
 
-    let msg = RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](40))])
+    let msg = RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](40))])
 
     gossip0.broadcast(gossip0.mesh[topic], msg, isHighPriority = true)
     await sleepAsync(300.millis)
@@ -1065,8 +1067,9 @@ suite "GossipSub":
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     gossip0.broadcast(
       gossip0.mesh[topic],
-      RPCMsg(messages: @[Message(topicIDs: @[topic], data: newSeq[byte](35))]),
-      isHighPriority = true)
+      RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](35))]),
+      isHighPriority = true,
+    )
 
     checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
     check currentRateLimitHits() == rateLimitHits + 2

@@ -276,7 +276,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
   let iwant = g.handleIHave(peer, control.ihave)
-  if iwant.messageIds.len > 0:
+  if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
@@ -292,8 +292,8 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     if isPruneNotEmpty:
       for prune in respControl.prune:
-        if g.knownTopics.contains(prune.topicId):
-          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicId])
+        if g.knownTopics.contains(prune.topicID):
+          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
@@ -304,11 +304,11 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   if messages.len > 0:
     for smsg in messages:
-      for topic in smsg.topicIds:
-        if g.knownTopics.contains(topic):
-          libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
-        else:
-          libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+      let topic = smsg.topic
+      if g.knownTopics.contains(topic):
+        libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
+      else:
+        libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
@@ -344,18 +344,18 @@ proc validateAndRelay(g: GossipSub,
     # store in cache only after validation
     g.mcache.put(msgId, msg)
 
-    g.rewardDelivered(peer, msg.topicIds, true)
+    let topic = msg.topic
+    g.rewardDelivered(peer, topic, true)
 
     var toSendPeers = HashSet[PubSubPeer]()
-    for t in msg.topicIds:                      # for every topic in the message
-      if t notin g.topics:
-        continue
+    if topic notin g.topics:
+      return
 
-      g.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
-      g.mesh.withValue(t, peers): toSendPeers.incl(peers[])
+    g.floodsub.withValue(topic, peers): toSendPeers.incl(peers[])
+    g.mesh.withValue(topic, peers): toSendPeers.incl(peers[])
 
-      # add direct peers
-      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(t))
+    # add direct peers
+    toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
     # Don't send it to source peer, or peers that
     # sent it during validation
@@ -366,7 +366,7 @@ proc validateAndRelay(g: GossipSub,
     # bigger than the messageId
     if msg.data.len > msgId.len * 10:
       g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
-          idontwant: @[ControlIWant(messageIds: @[msgId])]
+          idontwant: @[ControlIWant(messageIDs: @[msgId])]
         ))), isHighPriority = true)
 
     for peer in toSendPeers:
@@ -383,20 +383,18 @@ proc validateAndRelay(g: GossipSub,
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
-    for topic in msg.topicIds:
-      if topic notin g.topics: continue
 
-      if g.knownTopics.contains(topic):
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
-      else:
-        libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
+    if g.knownTopics.contains(topic):
+      libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
+    else:
+      libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = ["generic"])
 
-      await handleData(g, topic, msg.data)
+    await handleData(g, topic, msg.data)
   except CatchableError as exc:
     info "validateAndRelay failed", msg=exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
-  msgs.mapIt(it.data.len + it.topicIds.mapIt(it.len).foldl(a + b, 0)).foldl(a + b, 0)
+  msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
 
 proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
   # In this way we count even ignored fields by protobuf
@@ -433,8 +431,7 @@ method rpcHandler*(g: GossipSub,
 
   when defined(libp2p_expensive_metrics):
     for m in rpcMsg.messages:
-      for t in m.topicIds:
-        libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, t])
+      libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
@@ -470,6 +467,7 @@ method rpcHandler*(g: GossipSub,
     let
       msgId = msgIdResult.get
       msgIdSalted = msgId & g.seenSalt
+      topic = msg.topic
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
@@ -484,7 +482,7 @@ method rpcHandler*(g: GossipSub,
 
       if not alreadyReceived:
         let delay = Moment.now() - g.firstSeen(msgId)
-        g.rewardDelivered(peer, msg.topicIds, false, delay)
+        g.rewardDelivered(peer, topic, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
 
@@ -494,7 +492,7 @@ method rpcHandler*(g: GossipSub,
     libp2p_gossipsub_received.inc()
 
     # avoid processing messages we are not interested in
-    if msg.topicIds.allIt(it notin g.topics):
+    if topic notin g.topics:
       debug "Dropping message of topic without subscription", msgId = shortLog(msgId), peer
       continue
 

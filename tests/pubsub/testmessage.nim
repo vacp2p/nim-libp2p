@@ -75,14 +75,17 @@ suite "Message":
       msgIdResult.error == ValidationResult.Reject
 
   test "byteSize for RPCMsg":
-    var msg = Message(
-      fromPeer: PeerId(data: @['a'.byte, 'b'.byte]),  # 2 bytes
-      data: @[1'u8, 2, 3],  # 3 bytes
-      seqno: @[4'u8, 5],  # 2 bytes
-      signature: @['c'.byte, 'd'.byte],  # 2 bytes
-      key: @[6'u8, 7],  # 2 bytes
-      topicIds: @["abc", "defgh"]  # 3 + 5 = 8 bytes
-    )
+    var
+      msg =
+        Message(
+          fromPeer: PeerId(data: @['a'.byte, 'b'.byte]), # 2 bytes
+          data: @[1'u8, 2, 3], # 3 bytes
+          seqno: @[4'u8, 5], # 2 bytes
+          signature: @['c'.byte, 'd'.byte], # 2 bytes
+          key: @[6'u8, 7], # 2 bytes
+          topic: "abcde" # 5 bytes
+          ,
+        )
 
     var peerInfo = PeerInfoMsg(
       peerId: PeerId(data: @['e'.byte]),  # 1 byte
@@ -90,20 +93,20 @@ suite "Message":
     )
 
     var controlIHave = ControlIHave(
-      topicId: "ijk",  # 3 bytes
-      messageIds: @[ @['l'.byte], @['m'.byte, 'n'.byte] ]  # 1 + 2 = 3 bytes
+      topicID: "ijk",  # 3 bytes
+      messageIDs: @[ @['l'.byte], @['m'.byte, 'n'.byte] ]  # 1 + 2 = 3 bytes
     )
 
     var controlIWant = ControlIWant(
-      messageIds: @[ @['o'.byte, 'p'.byte], @['q'.byte] ]  # 2 + 1 = 3 bytes
+      messageIDs: @[ @['o'.byte, 'p'.byte], @['q'.byte] ]  # 2 + 1 = 3 bytes
     )
 
     var controlGraft = ControlGraft(
-      topicId: "rst"  # 3 bytes
+      topicID: "rst"  # 3 bytes
     )
 
     var controlPrune = ControlPrune(
-      topicId: "uvw",  # 3 bytes
+      topicID: "uvw",  # 3 bytes
       peers: @[peerInfo, peerInfo],  # (1 + 2) * 2 = 6 bytes
       backoff: 12345678  # 8 bytes for uint64
     )
@@ -118,10 +121,10 @@ suite "Message":
 
     var rpcMsg = RPCMsg(
       subscriptions: @[SubOpts(subscribe: true, topic: "a".repeat(12)), SubOpts(subscribe: false, topic: "b".repeat(14))],  # 1 + 12 + 1 + 14 = 28 bytes
-      messages: @[msg, msg],  # 19 * 2 = 38 bytes
+      messages: @[msg, msg],  # 16 * 2 = 32 bytes
       ping: @[1'u8, 2],  # 2 bytes
       pong: @[3'u8, 4],  # 2 bytes
       control: some(control)  # 12 + 3 + 3 + 17 + 3 = 38 bytes
     )
 
-    check byteSize(rpcMsg) == 28 + 38 + 2 + 2 + 38  # Total: 108 bytes
+    check byteSize(rpcMsg) == 28 + 32 + 2 + 2 + 38 # Total: 102 bytes

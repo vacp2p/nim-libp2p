@@ -250,43 +250,42 @@ proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) {.async
         await g.disconnectPeer(peer)
         raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
 
+  let topic = msg.topic
+  if topic notin g.topics:
+    return
 
-  for tt in msg.topicIds:
-    let t = tt
-    if t notin g.topics:
-      continue
-
-    let tt = t
-    # update stats
-    g.withPeerStats(peer.peerId) do (stats: var PeerStats):
-      stats.topicInfos.mgetOrPut(tt, TopicInfo()).invalidMessageDeliveries += 1
+  # update stats
+  g.withPeerStats(peer.peerId) do(stats: var PeerStats):
+    stats.topicInfos.mgetOrPut(topic, TopicInfo()).invalidMessageDeliveries += 1
 
 proc addCapped*[T](stat: var T, diff, cap: T) =
   stat += min(diff, cap - stat)
 
 proc rewardDelivered*(
-    g: GossipSub, peer: PubSubPeer, topics: openArray[string], first: bool, delay = ZeroDuration) =
-  for tt in topics:
-    let t = tt
-    if t notin g.topics:
-      continue
+    g: GossipSub,
+    peer: PubSubPeer,
+    topic: string,
+    first: bool,
+    delay = ZeroDuration,
+) =
+  if topic notin g.topics:
+    return
 
-    let tt = t
-    let topicParams = g.topicParams.mgetOrPut(t, TopicParams.init())
-                                            # if in mesh add more delivery score
+  let topicParams = g.topicParams.mgetOrPut(topic, TopicParams.init())
+    # if in mesh add more delivery score
 
-    if delay > topicParams.meshMessageDeliveriesWindow:
-      # Too old
-      continue
+  if delay > topicParams.meshMessageDeliveriesWindow:
+    # Too old
+    return
 
-    g.withPeerStats(peer.peerId) do (stats: var PeerStats):
-      stats.topicInfos.withValue(tt, tstats):
-        if first:
-          tstats[].firstMessageDeliveries.addCapped(
-            1, topicParams.firstMessageDeliveriesCap)
+  g.withPeerStats(peer.peerId) do (stats: var PeerStats):
+    stats.topicInfos.withValue(topic, tstats):
+      if first:
+        tstats[].firstMessageDeliveries.addCapped(
+          1, topicParams.firstMessageDeliveriesCap)
 
-        if tstats[].inMesh:
-          tstats[].meshMessageDeliveries.addCapped(
-            1, topicParams.meshMessageDeliveriesCap)
-      do: # make sure we don't loose this information
-        stats.topicInfos[tt] = TopicInfo(meshMessageDeliveries: 1)
+      if tstats[].inMesh:
+        tstats[].meshMessageDeliveries.addCapped(
+          1, topicParams.meshMessageDeliveriesCap)
+    do: # make sure we don't lose this information
+      stats.topicInfos[topic] = TopicInfo(meshMessageDeliveries: 1)
