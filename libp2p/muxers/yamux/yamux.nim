@@ -555,13 +555,13 @@ method handle*(m: Yamux) {.async: (raises: []).} =
               if flushed[] < 0:
                 raise newException(YamuxError,
                   "Peer exhausted the recvWindow after reset")
+              if header.length > 0:
+                var buffer = newSeqUninitialized[byte](header.length)
+                await m.connection.readExactly(
+                  addr buffer[0], int(header.length))
           do:
             raise newException(YamuxError,
               "Unknown stream ID: " & $header.streamId)
-          if header.length > 0:
-            var buffer = newSeqUninitialized[byte](header.length)
-            await m.connection.readExactly(
-              addr buffer[0], int(header.length))
           continue
 
         let channel =

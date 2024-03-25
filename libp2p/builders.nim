@@ -36,8 +36,7 @@ type
   TransportProvider* {.public.} = proc(upgr: Upgrade): Transport {.gcsafe, raises: [].}
 
   SecureProtocol* {.pure.} = enum
-    Noise,
-    Secio {.deprecated.}
+    Noise
 
   SwitchBuilder* = ref object
     privKey: Option[PrivateKey]
@@ -310,11 +309,6 @@ proc newStandardSwitch*(
     peerStoreCapacity = 1000
 ): Switch {.raises: [LPError], public.} =
   ## Helper for common switch configurations.
-  {.push warning[Deprecated]:off.}
-  if SecureProtocol.Secio in secureManagers:
-      quit("Secio is deprecated!") # use of secio is unsafe
-  {.pop.}
-
   let addrs = when addrs is MultiAddress: @[addrs] else: addrs
   var b = SwitchBuilder
     .new()

@@ -181,28 +181,28 @@ proc broadcast*(
         libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = ["generic"])
 
   for smsg in msg.messages:
-    for topic in smsg.topicIds:
-      if p.knownTopics.contains(topic):
-        libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
-      else:
-        libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
+    let topic = smsg.topic
+    if p.knownTopics.contains(topic):
+      libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
+    else:
+      libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
 
   msg.control.withValue(control):
     libp2p_pubsub_broadcast_iwant.inc(npeers * control.iwant.len.int64)
 
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicId):
-        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicId])
+      if p.knownTopics.contains(ihave.topicID):
+        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicID])
       else:
         libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicId):
-        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicId])
+      if p.knownTopics.contains(graft.topicID):
+        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicID])
       else:
         libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicId):
-        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicId])
+      if p.knownTopics.contains(prune.topicID):
+        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicID])
       else:
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
 
@@ -252,29 +252,27 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
         libp2p_pubsub_received_unsubscriptions.inc(labelValues = ["generic"])
 
   for i in 0..<rpcMsg.messages.len():
-    template smsg: untyped = rpcMsg.messages[i]
-    for j in 0..<smsg.topicIds.len():
-      template topic: untyped = smsg.topicIds[j]
-      if p.knownTopics.contains(topic):
-        libp2p_pubsub_received_messages.inc(labelValues = [topic])
-      else:
-        libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
+    let topic = rpcMsg.messages[i].topic
+    if p.knownTopics.contains(topic):
+      libp2p_pubsub_received_messages.inc(labelValues = [topic])
+    else:
+      libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
 
   rpcMsg.control.withValue(control):
     libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicId):
-        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicId])
+      if p.knownTopics.contains(ihave.topicID):
+        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
       else:
         libp2p_pubsub_received_ihave.inc(labelValues = ["generic"])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicId):
-        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicId])
+      if p.knownTopics.contains(graft.topicID):
+        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicID])
       else:
         libp2p_pubsub_received_graft.inc(labelValues = ["generic"])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicId):
-        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicId])
+      if p.knownTopics.contains(prune.topicID):
+        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
       else:
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 
@@ -517,7 +515,7 @@ method addValidator*(p: PubSub,
   ## will be sent to `hook`. `hook` can return either `Accept`,
   ## `Ignore` or `Reject` (which can descore the peer)
   for t in topic:
-    trace "adding validator for topic", topicId = t
+    trace "adding validator for topic", topic = t
     p.validators.mgetOrPut(t, HashSet[ValidatorHandler]()).incl(hook)
 
 method removeValidator*(p: PubSub,
@@ -532,13 +530,13 @@ method removeValidator*(p: PubSub,
 method validate*(p: PubSub, message: Message): Future[ValidationResult] {.async, base.} =
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
-  for topic in message.topicIds:
-    trace "looking for validators on topic", topicId = topic,
-                                             registered = toSeq(p.validators.keys)
-    if topic in p.validators:
-      trace "running validators for topic", topicId = topic
-      for validator in p.validators[topic]:
-        pending.add(validator(topic, message))
+  let topic = message.topic
+  trace "looking for validators on topic",
+    topic = topic, registered = toSeq(p.validators.keys)
+  if topic in p.validators:
+    trace "running validators for topic", topic = topic
+    for validator in p.validators[topic]:
+      pending.add(validator(topic, message))
 
   result = ValidationResult.Accept
   let futs = await allFinished(pending)

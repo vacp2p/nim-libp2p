@@ -158,12 +158,15 @@ method rpcHandler*(f: FloodSub,
       discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
-    for t in msg.topicIds:                     # for every topic in the message
-      if t notin f.topics:
-        continue
-      f.floodsub.withValue(t, peers): toSendPeers.incl(peers[])
+    let topic = msg.topic
+    if topic notin f.topics:
+      debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
+      continue
 
-      await handleData(f, t, msg.data)
+    f.floodsub.withValue(topic, peers):
+      toSendPeers.incl(peers[])
+
+    await handleData(f, topic, msg.data)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
