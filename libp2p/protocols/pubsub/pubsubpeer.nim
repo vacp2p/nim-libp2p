@@ -351,7 +351,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
         libp2p_gossipsub_priority_queue_size.inc(labelValues = [$p.peerId])
     f
   else:
-    if len(p.rpcmessagequeue.nonPriorityQueue) == p.maxNumElementsInNonPriorityQueue:
+    if len(p.rpcmessagequeue.nonPriorityQueue) >= p.maxNumElementsInNonPriorityQueue:
       if not p.disconnected:
         p.disconnected = true
         libp2p_pubsub_disconnects_over_non_priority_queue_limit.inc()
