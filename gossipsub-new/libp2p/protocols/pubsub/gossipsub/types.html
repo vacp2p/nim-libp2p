@@ -265,7 +265,8 @@ window.addEventListener("DOMContentLoaded", main2);
   enablePX*: bool
   bandwidthEstimatebps*: int
   overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
-  disconnectPeerAboveRateLimit*: bool">GossipSubParams</a></li>
+  disconnectPeerAboveRateLimit*: bool
+  maxNumElementsInNonPriorityQueue*: int">GossipSubParams</a></li>
   <li><a class="reference" href="#MeshMetrics"
     title="MeshMetrics = object
   otherPeersPerTopicMesh*: int64
@@ -383,9 +384,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L150"
+href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L152"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L150" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -416,9 +417,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L160"
+href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L162"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L160" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L162" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -459,6 +460,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">bandwidthEstimatebps</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">overheadRateLimit</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Keyword">tuple</span><span class="Other">[</span><span class="Identifier">bytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">interval</span><span class="Other">:</span> <span class="Identifier">Duration</span><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">disconnectPeerAboveRateLimit</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
+  <span class="Identifier">maxNumElementsInNonPriorityQueue</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
 </pre></dt>
 <dd>
 
@@ -484,9 +486,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L184"
+href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L186"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L184" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L186" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -516,9 +518,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L154"
+href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L156"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L156" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -528,9 +530,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L153"
+href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L155"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L153" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -591,9 +593,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L151"
+href="https://github.com/status-im/nim-libp2p/tree/gossipsub-new/libp2p/protocols/pubsub/gossipsub/types.nim#L153"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L151" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L153" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -780,7 +782,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 13:26:58 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 13:30:42 UTC</small>
       </div>
     </div>
   </div>
