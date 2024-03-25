@@ -244,10 +244,10 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">rewardDelivered
-      <li><a class="reference" href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2CopenArray%5Bstring%5D%2Cbool"
-    title="rewardDelivered(g: GossipSub; peer: PubSubPeer; topics: openArray[string];
-                first: bool; delay = ZeroDuration)">rewardDelivered(g: GossipSub; peer: PubSubPeer; topics: openArray[string];
-                first: bool; delay = ZeroDuration)</a></li>
+      <li><a class="reference" href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2Cstring%2Cbool"
+    title="rewardDelivered(g: GossipSub; peer: PubSubPeer; topic: string; first: bool;
+                delay = ZeroDuration)">rewardDelivered(g: GossipSub; peer: PubSubPeer; topic: string; first: bool;
+                delay = ZeroDuration)</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">scoringHeartbeat
@@ -314,9 +314,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/non-prio-queue-max-capacity/libp2p/protocols/pubsub/gossipsub/scoring.nim#L264"
+href="https://github.com/status-im/nim-libp2p/tree/non-prio-queue-max-capacity/libp2p/protocols/pubsub/gossipsub/scoring.nim#L261"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L264" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L261" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -383,17 +383,16 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="rewardDelivered,GossipSub,PubSubPeer,openArray[string],bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2CopenArray%5Bstring%5D%2Cbool"><span class="Identifier">rewardDelivered</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">topics</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">;</span>
-                     <span class="Identifier">first</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span> <span class="Identifier">delay</span> <span class="Other">=</span> <span class="Identifier">ZeroDuration</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="rewardDelivered,GossipSub,PubSubPeer,string,bool" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#rewardDelivered%2CGossipSub%2CPubSubPeer%2Cstring%2Cbool"><span class="Identifier">rewardDelivered</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">first</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span>
+                     <span class="Identifier">delay</span> <span class="Other">=</span> <span class="Identifier">ZeroDuration</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/non-prio-queue-max-capacity/libp2p/protocols/pubsub/gossipsub/scoring.nim#L267"
+href="https://github.com/status-im/nim-libp2p/tree/non-prio-queue-max-capacity/libp2p/protocols/pubsub/gossipsub/scoring.nim#L264"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L267" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L264" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -447,7 +446,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-22 17:38:39 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 13:34:05 UTC</small>
       </div>
     </div>
   </div>
