@@ -49,45 +49,7 @@ declareCounter(libp2p_gossipsub_received, "number of messages received (deduplic
 when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
 
-proc init*(_: type[GossipSubParams]): GossipSubParams =
-  GossipSubParams(
-      explicit: true,
-      pruneBackoff: 1.minutes,
-      unsubscribeBackoff: 5.seconds,
-      floodPublish: true,
-      gossipFactor: 0.25,
-      d: GossipSubD,
-      dLow: GossipSubDlo,
-      dHigh: GossipSubDhi,
-      dScore: GossipSubDlo,
-      dOut: GossipSubDlo - 1, # DLow - 1
-      dLazy: GossipSubD, # Like D
-      heartbeatInterval: GossipSubHeartbeatInterval,
-      historyLength: GossipSubHistoryLength,
-      historyGossip: GossipSubHistoryGossip,
-      fanoutTTL: GossipSubFanoutTTL,
-      seenTTL: 2.minutes,
-      gossipThreshold: -100,
-      publishThreshold: -1000,
-      graylistThreshold: -10000,
-      opportunisticGraftThreshold: 0,
-      decayInterval: 1.seconds,
-      decayToZero: 0.01,
-      retainScore: 2.minutes,
-      appSpecificWeight: 0.0,
-      ipColocationFactorWeight: 0.0,
-      ipColocationFactorThreshold: 1.0,
-      behaviourPenaltyWeight: -1.0,
-      behaviourPenaltyDecay: 0.999,
-      disconnectBadPeers: false,
-      enablePX: false,
-      bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
-      overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
-      disconnectPeerAboveRateLimit: false,
-      maxNumElementsInNonPriorityQueue: DefaultMaxNumElementsInNonPriorityQueue
-    )
-
-proc new*(
+proc init*(
   _: type[GossipSubParams],
   explicit = true,
   pruneBackoff = 1.minutes,
