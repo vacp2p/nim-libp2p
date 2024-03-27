@@ -216,8 +216,42 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">init
-      <li><a class="reference" href="#init%2Ctype%5BGossipSubParams%5D"
-    title="init(_: type[GossipSubParams]): GossipSubParams">init(_: type[GossipSubParams]): GossipSubParams</a></li>
+      <li><a class="reference" href="#init%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint"
+    title="init(_: type[GossipSubParams]; explicit = true; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams">init(_: type[GossipSubParams]; explicit = true; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">rateLimit
@@ -331,9 +365,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L687"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L727"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L687" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L727" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -344,14 +378,32 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L230"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L270"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L230" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L270" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="init,type[GossipSubParams]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctype%5BGossipSubParams%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span><span class="Other">[</span><a href="gossipsub/types.html#GossipSubParams"><span class="Identifier">GossipSubParams</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="gossipsub/types.html#GossipSubParams"><span class="Identifier">GossipSubParams</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="init,type[GossipSubParams],float64,float,float,float,float,float,float,float,float,float,float,int" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span><span class="Other">[</span><a href="gossipsub/types.html#GossipSubParams"><span class="Identifier">GossipSubParams</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">explicit</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span> <span class="Identifier">pruneBackoff</span> <span class="Other">=</span> <span class="DecNumber">1</span><span class="Other">.</span><span class="Identifier">minutes</span><span class="Other">;</span>
+          <span class="Identifier">unsubscribeBackoff</span> <span class="Other">=</span> <span class="DecNumber">5</span><span class="Other">.</span><span class="Identifier">seconds</span><span class="Other">;</span> <span class="Identifier">floodPublish</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span>
+          <span class="Identifier">gossipFactor</span><span class="Other">:</span> <span class="Identifier">float64</span> <span class="Other">=</span> <span class="FloatNumber">0.25</span><span class="Other">;</span> <span class="Identifier">d</span> <span class="Other">=</span> <span class="Identifier">GossipSubD</span><span class="Other">;</span> <span class="Identifier">dLow</span> <span class="Other">=</span> <span class="Identifier">GossipSubDlo</span><span class="Other">;</span>
+          <span class="Identifier">dHigh</span> <span class="Other">=</span> <span class="Identifier">GossipSubDhi</span><span class="Other">;</span> <span class="Identifier">dScore</span> <span class="Other">=</span> <span class="Identifier">GossipSubDlo</span><span class="Other">;</span> <span class="Identifier">dOut</span> <span class="Other">=</span> <a href="gossipsub/types.html#GossipSubDlo"><span class="Identifier">GossipSubDlo</span></a> <span class="Operator">-</span> <span class="DecNumber">1</span><span class="Other">;</span>
+          <span class="Identifier">dLazy</span> <span class="Other">=</span> <span class="Identifier">GossipSubD</span><span class="Other">;</span> <span class="Identifier">heartbeatInterval</span> <span class="Other">=</span> <span class="Identifier">GossipSubHeartbeatInterval</span><span class="Other">;</span>
+          <span class="Identifier">historyLength</span> <span class="Other">=</span> <span class="Identifier">GossipSubHistoryLength</span><span class="Other">;</span>
+          <span class="Identifier">historyGossip</span> <span class="Other">=</span> <span class="Identifier">GossipSubHistoryGossip</span><span class="Other">;</span>
+          <span class="Identifier">fanoutTTL</span> <span class="Other">=</span> <span class="Identifier">GossipSubFanoutTTL</span><span class="Other">;</span> <span class="Identifier">seenTTL</span> <span class="Other">=</span> <span class="DecNumber">2</span><span class="Other">.</span><span class="Identifier">minutes</span><span class="Other">;</span>
+          <span class="Identifier">gossipThreshold</span> <span class="Other">=</span> <span class="FloatNumber">-100.0</span><span class="Other">;</span> <span class="Identifier">publishThreshold</span> <span class="Other">=</span> <span class="FloatNumber">-1000.0</span><span class="Other">;</span>
+          <span class="Identifier">graylistThreshold</span> <span class="Other">=</span> <span class="FloatNumber">-10000.0</span><span class="Other">;</span> <span class="Identifier">opportunisticGraftThreshold</span> <span class="Other">=</span> <span class="FloatNumber">0.0</span><span class="Other">;</span>
+          <span class="Identifier">decayInterval</span> <span class="Other">=</span> <span class="DecNumber">1</span><span class="Other">.</span><span class="Identifier">seconds</span><span class="Other">;</span> <span class="Identifier">decayToZero</span> <span class="Other">=</span> <span class="FloatNumber">0.01</span><span class="Other">;</span>
+          <span class="Identifier">retainScore</span> <span class="Other">=</span> <span class="DecNumber">2</span><span class="Other">.</span><span class="Identifier">minutes</span><span class="Other">;</span> <span class="Identifier">appSpecificWeight</span> <span class="Other">=</span> <span class="FloatNumber">0.0</span><span class="Other">;</span>
+          <span class="Identifier">ipColocationFactorWeight</span> <span class="Other">=</span> <span class="FloatNumber">0.0</span><span class="Other">;</span> <span class="Identifier">ipColocationFactorThreshold</span> <span class="Other">=</span> <span class="FloatNumber">1.0</span><span class="Other">;</span>
+          <span class="Identifier">behaviourPenaltyWeight</span> <span class="Other">=</span> <span class="FloatNumber">-1.0</span><span class="Other">;</span> <span class="Identifier">behaviourPenaltyDecay</span> <span class="Other">=</span> <span class="FloatNumber">0.999</span><span class="Other">;</span>
+          <span class="Identifier">directPeers</span> <span class="Other">=</span> <span class="Identifier">initTable</span><span class="Other">(</span><span class="Other">)</span><span class="Other">;</span> <span class="Identifier">disconnectBadPeers</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
+          <span class="Identifier">enablePX</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span> <span class="Identifier">bandwidthEstimatebps</span> <span class="Other">=</span> <span class="DecNumber">100000000</span><span class="Other">;</span>
+          <span class="Identifier">overheadRateLimit</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Keyword">tuple</span><span class="Other">[</span><span class="Identifier">bytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">interval</span><span class="Other">:</span> <span class="Identifier">Duration</span><span class="Other">]</span><span class="Other">)</span><span class="Other">;</span>
+          <span class="Identifier">disconnectPeerAboveRateLimit</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span> <span class="Identifier">maxNumElementsInNonPriorityQueue</span> <span class="Other">=</span> <span class="Identifier">DefaultMaxNumElementsInNonPriorityQueue</span><span class="Other">)</span><span class="Other">:</span> <a href="gossipsub/types.html#GossipSubParams"><span class="Identifier">GossipSubParams</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -370,9 +422,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L417"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L457"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L417" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L457" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -383,9 +435,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L90"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L128"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L90" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -396,9 +448,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L121"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L161"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L121" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -414,9 +466,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L748"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L788"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L748" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L788" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -426,9 +478,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L141"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L181"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L181" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -439,9 +491,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L731"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L771"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L731" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L771" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -452,9 +504,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L160"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L200"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L160" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L200" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -465,9 +517,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L174"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L214"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L174" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L214" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -478,9 +530,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L537"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L577"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L537" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L577" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -492,9 +544,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L570"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L610"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L570" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L610" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -506,9 +558,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L428"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L468"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L428" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L468" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -520,9 +572,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L698"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L738"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L698" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L738" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -534,9 +586,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L714"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L754"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L714" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L754" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -547,9 +599,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 handle peer disconnects 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L192"
+href="https://github.com/status-im/nim-libp2p/tree/unstable/libp2p/protocols/pubsub/gossipsub.nim#L232"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L192" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L232" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -568,7 +620,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 21:01:46 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-27 10:55:38 UTC</small>
       </div>
     </div>
   </div>
