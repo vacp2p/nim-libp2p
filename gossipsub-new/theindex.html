@@ -2359,7 +2359,41 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="floodsub: init(f: FloodSub)" href="libp2p/protocols/pubsub/floodsub.html#init.e%2CFloodSub">floodsub: init(f: FloodSub)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: init(_: type[GossipSubParams]): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D">gossipsub: init(_: type[GossipSubParams]): GossipSubParams</a></li>
+          data-doc-search-tag="gossipsub: init(_: type[GossipSubParams]; explicit = true; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint">gossipsub: init(_: type[GossipSubParams]; explicit = true; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams</a></li>
           <li><a class="reference external"
           data-doc-search-tag="gossipsub: init(g: GossipSub)" href="libp2p/protocols/pubsub/gossipsub.html#init.e%2CGossipSub">gossipsub: init(g: GossipSub)</a></li>
           <li><a class="reference external"
@@ -3146,42 +3180,6 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtoHandler">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="gossipsub: new(_: type[GossipSubParams]; explicit = true; pruneBackoff = 1.minutes;
-    unsubscribeBackoff = 5.seconds; floodPublish = true;
-    gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
-    dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
-    dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
-    historyLength = GossipSubHistoryLength;
-    historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
-    seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
-    graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
-    decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
-    appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
-    ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
-    behaviourPenaltyDecay = 0.999; directPeers = initTable();
-    disconnectBadPeers = false; enablePX = false;
-    bandwidthEstimatebps = 100000000;
-    overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
-    disconnectPeerAboveRateLimit = false;
-    maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#new%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint">gossipsub: new(_: type[GossipSubParams]; explicit = true; pruneBackoff = 1.minutes;
-    unsubscribeBackoff = 5.seconds; floodPublish = true;
-    gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
-    dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
-    dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
-    historyLength = GossipSubHistoryLength;
-    historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
-    seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
-    graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
-    decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
-    appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
-    ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
-    behaviourPenaltyDecay = 0.999; directPeers = initTable();
-    disconnectBadPeers = false; enablePX = false;
-    bandwidthEstimatebps = 100000000;
-    overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
-    disconnectPeerAboveRateLimit = false;
-    maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
@@ -5390,7 +5388,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-25 21:15:34 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-27 09:36:31 UTC</small>
       </div>
     </div>
   </div>
