@@ -257,12 +257,14 @@ window.addEventListener('DOMContentLoaded', main);
            matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cseq%5Bstring%5D%2CLPProtocol%2CMatcher">multistream: addHandler(m: MultistreamSelect; codecs: seq[string]; protocol: LPProtocol;
            matcher: Matcher = nil)</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="multistream: addHandler[E](m: MultistreamSelect; codec: string; handler: LPProtoHandler |
+    proc (conn: Connection; proto: string): InternalRaisesFuture[void, E];
+              matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2C%2CMatcher">multistream: addHandler[E](m: MultistreamSelect; codec: string; handler: LPProtoHandler |
+    proc (conn: Connection; proto: string): InternalRaisesFuture[void, E];
+              matcher: Matcher = nil)</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
            matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2CLPProtocol%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
-           matcher: Matcher = nil)</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string; handler: LPProtoHandler;
-           matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2CLPProtoHandler%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string; handler: LPProtoHandler;
            matcher: Matcher = nil)</a></li>
           </ul></dd>
 <dt><a name="addObservation" href="#addObservation"><span>addObservation:</span></a></dt><dd><ul class="simple">
@@ -1967,6 +1969,20 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="behavior: handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])" href="libp2p/protocols/pubsub/gossipsub/behavior.html#handlePrune%2CGossipSub%2CPubSubPeer%2Cseq%5BControlPrune%5D">behavior: handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])</a></li>
           </ul></dd>
+<dt><a name="handler" href="#handler"><span>handler:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="protocol: handler(p: LPProtocol): LPProtoHandler" href="libp2p/protocols/protocol.html#handler.t%2CLPProtocol">protocol: handler(p: LPProtocol): LPProtoHandler</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="protocol: handler(p: LPProtocol; conn: Connection; proto: string): Future[void]" href="libp2p/protocols/protocol.html#handler.t%2CLPProtocol%2CConnection%2Cstring">protocol: handler(p: LPProtocol; conn: Connection; proto: string): Future[void]</a></li>
+          </ul></dd>
+<dt><a name="handler%3D" href="#handler%3D"><span>handler=:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="protocol: handler=(p: LPProtocol; handler: LPProtoHandler)" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2CLPProtoHandler">protocol: handler=(p: LPProtocol; handler: LPProtoHandler)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="protocol: handler=[E](p: LPProtocol; handler: proc (conn: Connection; proto: string): InternalRaisesFuture[
+    void, E])" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2Cproc%28Connection%2Cstring%29">protocol: handler=[E](p: LPProtocol; handler: proc (conn: Connection; proto: string): InternalRaisesFuture[
+    void, E])</a></li>
+          </ul></dd>
 <dt><a name="HandlerHolder" href="#HandlerHolder"><span>HandlerHolder:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multistream: HandlerHolder" href="libp2p/multistream.html#HandlerHolder">multistream: HandlerHolder</a></li>
@@ -3180,6 +3196,12 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtoHandler">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="protocol: new[E](T: type LPProtocol; codecs: seq[string]; handler: proc (conn: Connection;
+    proto: string): InternalRaisesFuture[void, E];
+       maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2Cproc%28Connection%2Cstring%29">protocol: new[E](T: type LPProtocol; codecs: seq[string]; handler: proc (conn: Connection;
+    proto: string): InternalRaisesFuture[void, E];
+       maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
@@ -5388,7 +5410,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-27 10:55:38 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-28 08:44:09 UTC</small>
       </div>
     </div>
   </div>
