@@ -19,14 +19,12 @@ const
 
 type
   LPProtoHandler* = proc (
-    conn: Connection,
-    proto: string):
-    Future[void]
-    {.gcsafe, raises: [].}
+      conn: Connection,
+      proto: string): Future[void] {.async.}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
-    handler*: LPProtoHandler ## this handler gets invoked by the protocol negotiator
+    handlerImpl: LPProtoHandler  ## invoked by the protocol negotiator
     started*: bool
     maxIncomingStreams: Opt[int]
 
@@ -52,7 +50,7 @@ proc `maxIncomingStreams=`*(p: LPProtocol, val: int) =
   p.maxIncomingStreams = Opt.some(val)
 
 func codec*(p: LPProtocol): string =
-  assert(p.codecs.len > 0, "Codecs sequence was empty!")
+  doAssert(p.codecs.len > 0, "Codecs sequence was empty!")
   p.codecs[0]
 
 func `codec=`*(p: LPProtocol, codec: string) =
@@ -60,15 +58,51 @@ func `codec=`*(p: LPProtocol, codec: string) =
   # if we use this abstraction
   p.codecs.insert(codec, 0)
 
+template `handler`*(p: LPProtocol): LPProtoHandler =
+  p.handlerImpl
+
+template `handler`*(
+    p: LPProtocol, conn: Connection, proto: string): Future[void] =
+  p.handlerImpl(conn, proto)
+
+func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
+  p.handlerImpl = handler
+
+# Callbacks that are annotated with `{.async: (raises).}` explicitly
+# document the types of errors that they may raise, but are not compatible
+# with `LPProtoHandler` and need to use a custom `proc` type.
+# They are internally wrapped into a `LPProtoHandler`, but still allow the
+# compiler to check that their `{.async: (raises).}` annotation is correct.
+# https://github.com/nim-lang/Nim/issues/23432
+func `handler=`*[E](
+    p: LPProtocol,
+    handler: proc (
+      conn: Connection,
+      proto: string): InternalRaisesFuture[void, E]) =
+  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
+    await handler(conn, proto)
+  p.handlerImpl = wrap
+
 proc new*(
-  T: type LPProtocol,
-  codecs: seq[string],
-  handler: LPProtoHandler,
-  maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
+    T: type LPProtocol,
+    codecs: seq[string],
+    handler: LPProtoHandler,
+    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
   T(
     codecs: codecs,
-    handler: handler,
+    handlerImpl: handler,
     maxIncomingStreams:
       when maxIncomingStreams is int: Opt.some(maxIncomingStreams)
       else: maxIncomingStreams
   )
+
+proc new*[E](
+    T: type LPProtocol,
+    codecs: seq[string],
+    handler: proc (
+      conn: Connection,
+      proto: string): InternalRaisesFuture[void, E],
+    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
+  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
+    await handler(conn, proto)
+  T.new(codec, wrap, maxIncomingStreams)

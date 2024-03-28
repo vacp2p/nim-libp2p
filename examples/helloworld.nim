@@ -20,7 +20,7 @@ proc new(T: typedesc[TestProto]): T =
     # We must close the connections ourselves when we're done with it
     await conn.close()
 
-  return T(codecs: @[TestCodec], handler: handle)
+  return T.new(codecs = @[TestCodec], handler = handle)
 
 ##
 # Helper to create a switch/node
