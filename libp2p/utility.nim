@@ -115,21 +115,24 @@ template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped 
 macro withValue*[T](self: Opt[T] | Option[T], value, body, body2: untyped): untyped =
   let elseBody = body2[0]
   quote do:
-    if `self`.isSome:
-      let `value` {.inject.} = `self`.get()
+    let temp = `self`
+    if temp.isSome:
+      let `value` {.inject.} = temp.get()
       `body`
     else:
       `elseBody`
 
 template valueOr*[T](self: Option[T], body: untyped): untyped =
-  if self.isSome:
-    self.get()
+  let temp = (self)
+  if temp.isSome:
+    temp.get()
   else:
     body
 
 template toOpt*[T, E](self: Result[T, E]): Opt[T] =
-  if self.isOk:
+  let temp = (self)
+  if temp.isOk:
     when T is void: Result[void, void].ok()
-    else: Opt.some(self.unsafeGet())
+    else: Opt.some(temp.unsafeGet())
   else:
     Opt.none(type(T))

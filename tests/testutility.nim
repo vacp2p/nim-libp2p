@@ -9,6 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import options
 import ./helpers
 import ../libp2p/utility
 
@@ -71,3 +72,75 @@ suite "Utility":
   test "unsuccessful safeConvert from uint to int":
     check not (compiles do:
       result: uint = safeConvert[int, uint](11.uint))
+
+  test "withValue":
+    type
+      TestObj = ref object
+        x: int
+
+    proc testObjGen(self: TestObj): Opt[TestObj] =
+      if self.isNil():
+        return Opt.none(TestObj)
+      self.x.inc()
+      return Opt.some(self)
+
+    var obj = TestObj(x: 42)
+
+    Opt.some(obj).withValue(v):
+      discard
+    else:
+      check false
+    Opt.none(TestObj).withValue(v):
+      check false
+    else:
+      discard
+
+    Opt.some(obj).withValue(v):
+      v.x = 10
+    check obj.x == 10
+
+    testObjGen(obj).withValue(v):
+      check v.x == 11
+      v.x = 33
+    check obj.x == 33
+    testObjGen(obj).withValue(v):
+      check v.x == 34
+      v.x = 0
+    else:
+      check false
+    check obj.x == 0
+
+    testObjGen(nil).withValue(v):
+      check false
+    testObjGen(nil).withValue(v):
+      check false
+    else:
+      obj.x = 25
+    check obj.x == 25
+
+  test "valueOr":
+    type
+      testObj = ref object
+        x: int
+
+    proc testGen(self: testObj): Option[testObj] =
+      if self.isNil():
+        return none(testObj)
+      self.x.inc()
+      return some(self)
+
+    var x = none(int).valueOr:
+      33
+    check x == 33
+    x = some(12).valueOr:
+      check false
+      return
+    check x == 12
+
+    var o = testGen(nil).valueOr:
+      testObj(x: 4)
+    check o.x == 4
+    o = testGen(o).valueOr:
+      check false
+      return
+    check o.x == 5
