@@ -93,7 +93,7 @@ proc encode(msg: WebRtcMessage): seq[byte] =
 # -- Raw WebRTC Stream --
 # All the data written to or read from a WebRtcStream should be length-prefixed
 # so `readOnce`/`write` WebRtcStream implementation must either recode
-# `readLP`/`writeLP`, or implement a `RawWebRtcStream` on which we can 
+# `readLP`/`writeLP`, or implement a `RawWebRtcStream` on which we can
 # directly use `readLP` and `writeLP`. The second solution is the less redundant,
 # so it's the one we've chosen.
 
