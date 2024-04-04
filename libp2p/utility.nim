@@ -112,10 +112,10 @@ template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped 
     let value {.inject.} = temp.get()
     body
 
-macro withValue*[T](self: Opt[T] | Option[T], value, body, body2: untyped): untyped =
-  let elseBody = body2[0]
+macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): untyped =
+  let elseBody = elseStmt[0]
   quote do:
-    let temp = `self`
+    let temp = (`self`)
     if temp.isSome:
       let `value` {.inject.} = temp.get()
       `body`

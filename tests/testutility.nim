@@ -73,74 +73,87 @@ suite "Utility":
     check not (compiles do:
       result: uint = safeConvert[int, uint](11.uint))
 
-  test "withValue":
-    type
-      TestObj = ref object
-        x: int
+suite "withValue and valueOr templates":
+  type
+    TestObj = ref object
+      x: int
 
-    proc testObjGen(self: TestObj): Opt[TestObj] =
-      if self.isNil():
-        return Opt.none(TestObj)
-      self.x.inc()
-      return Opt.some(self)
+  proc objIncAndOpt(self: TestObj): Opt[TestObj] =
+    self.x.inc()
+    return Opt.some(self)
 
-    var obj = TestObj(x: 42)
+  proc objIncAndOption(self: TestObj): Option[TestObj] =
+    self.x.inc()
+    return some(self)
 
-    Opt.some(obj).withValue(v):
-      discard
-    else:
-      check false
+  test "withValue calls right branch when Opt/Option is none":
+    var counter = 0
+    # check Opt/Option withValue with else
     Opt.none(TestObj).withValue(v):
       check false
     else:
-      discard
+      counter.inc()
+    none(TestObj).withValue(v):
+      check false
+    else:
+      counter.inc()
+    check counter == 2
 
+    # check Opt/Option withValue without else
+    Opt.none(TestObj).withValue(v):
+      check false
+    none(TestObj).withValue(v):
+      check false
+
+  test "withValue calls right branch when Opt/Option is some":
+    var obj = TestObj(x: 0)
+    # check Opt/Option withValue with else
     Opt.some(obj).withValue(v):
-      v.x = 10
-    check obj.x == 10
-
-    testObjGen(obj).withValue(v):
-      check v.x == 11
-      v.x = 33
-    check obj.x == 33
-    testObjGen(obj).withValue(v):
-      check v.x == 34
-      v.x = 0
+      v.x.inc()
     else:
       check false
+    some(obj).withValue(v):
+      v.x.inc()
+    else:
+      check false
+
+    # check Opt/Option withValue without else
+    Opt.some(obj).withValue(v):
+      v.x.inc()
+    some(obj).withValue(v):
+      v.x.inc()
+      check obj.x == 4
+
+  test "withValue calls right branch when Opt/Option is some with proc call":
+    var obj = TestObj(x: 0)
+    # check Opt/Option withValue with else
+    objIncAndOpt(obj).withValue(v):
+      v.x.inc()
+    else:
+      check false
+    objIncAndOption(obj).withValue(v):
+      v.x.inc()
+    else:
+      check false
+
+    # check Opt/Option withValue without else
+    objIncAndOpt(obj).withValue(v):
+      v.x.inc()
+    objIncAndOption(obj).withValue(v):
+      v.x.inc()
+
+    check obj.x == 8
+
+  test "valueOr calls with and without proc call":
+    var obj = none(TestObj).valueOr:
+      TestObj(x: 0)
     check obj.x == 0
-
-    testObjGen(nil).withValue(v):
-      check false
-    testObjGen(nil).withValue(v):
-      check false
-    else:
-      obj.x = 25
-    check obj.x == 25
-
-  test "valueOr":
-    type
-      testObj = ref object
-        x: int
-
-    proc testGen(self: testObj): Option[testObj] =
-      if self.isNil():
-        return none(testObj)
-      self.x.inc()
-      return some(self)
-
-    var x = none(int).valueOr:
-      33
-    check x == 33
-    x = some(12).valueOr:
+    obj = some(TestObj(x: 2)).valueOr:
       check false
       return
-    check x == 12
+    check obj.x == 2
 
-    var o = testGen(nil).valueOr:
-      testObj(x: 4)
-    check o.x == 4
-    o = testGen(o).valueOr:
+    obj = objIncAndOpt(obj).valueOr:
       check false
       return
-    check o.x == 5
+    check obj.x == 3
