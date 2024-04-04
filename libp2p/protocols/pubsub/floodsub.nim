@@ -33,7 +33,11 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* {.public.} = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[SaltedId] # message id:s already seen on the network
+    seen*: TimedCache[SaltedId]
+      # Early filter for messages recently observed on the network
+      # We use a salted id because the messages in this cache have not yet
+      # been validated meaning that an attacker has greater control over the
+      # hash key and therefore could poison the table
     seenSalt*: sha256
       # The salt in this case is a partially updated SHA256 context pre-seeded
       # with some random data
@@ -43,17 +47,15 @@ proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
   tmp.update(msgId)
   SaltedId(data: tmp.finish())
 
-proc hasSeen*(f: FloodSub, msgId: SaltedId): bool =
-  msgId in f.seen
+proc hasSeen*(f: FloodSub, saltedId: SaltedId): bool =
+  saltedId in f.seen
 
-proc addSeen*(f: FloodSub, msgId: SaltedId): bool =
-  # Salting the seen hash helps avoid attacks against the hash function used
-  # in the nim hash table
+proc addSeen*(f: FloodSub, saltedId: SaltedId): bool =
   # Return true if the message has already been seen
-  f.seen.put(msgId)
+  f.seen.put(saltedId)
 
-proc firstSeen*(f: FloodSub, msgId: SaltedId): Moment =
-  f.seen.addedAt(msgId)
+proc firstSeen*(f: FloodSub, saltedId: SaltedId): Moment =
+  f.seen.addedAt(saltedId)
 
 proc handleSubscribe*(f: FloodSub,
                       peer: PubSubPeer,
