@@ -90,39 +90,39 @@ suite "withValue and valueOr templates":
     var counter = 0
     # check Opt/Option withValue with else
     Opt.none(TestObj).withValue(v):
-      check false
+      fail()
     else:
       counter.inc()
     none(TestObj).withValue(v):
-      check false
+      fail()
     else:
       counter.inc()
     check counter == 2
 
     # check Opt/Option withValue without else
     Opt.none(TestObj).withValue(v):
-      check false
+      fail()
     none(TestObj).withValue(v):
-      check false
+      fail()
 
   test "withValue calls right branch when Opt/Option is some":
-    var obj = TestObj(x: 0)
+    var counter = 1
     # check Opt/Option withValue with else
-    Opt.some(obj).withValue(v):
-      v.x.inc()
+    Opt.some(counter).withValue(v):
+      counter.inc(v)
     else:
-      check false
-    some(obj).withValue(v):
-      v.x.inc()
+      fail()
+    some(counter).withValue(v):
+      counter.inc(v)
     else:
-      check false
+      fail()
 
     # check Opt/Option withValue without else
-    Opt.some(obj).withValue(v):
-      v.x.inc()
-    some(obj).withValue(v):
-      v.x.inc()
-      check obj.x == 4
+    Opt.some(counter).withValue(v):
+      counter.inc(v)
+    some(counter).withValue(v):
+      counter.inc(v)
+    check counter == 16
 
   test "withValue calls right branch when Opt/Option is some with proc call":
     var obj = TestObj(x: 0)
@@ -130,11 +130,11 @@ suite "withValue and valueOr templates":
     objIncAndOpt(obj).withValue(v):
       v.x.inc()
     else:
-      check false
+      fail()
     objIncAndOption(obj).withValue(v):
       v.x.inc()
     else:
-      check false
+      fail()
 
     # check Opt/Option withValue without else
     objIncAndOpt(obj).withValue(v):
@@ -149,11 +149,11 @@ suite "withValue and valueOr templates":
       TestObj(x: 0)
     check obj.x == 0
     obj = some(TestObj(x: 2)).valueOr:
-      check false
+      fail()
       return
     check obj.x == 2
 
     obj = objIncAndOpt(obj).valueOr:
-      check false
+      fail()
       return
     check obj.x == 3
