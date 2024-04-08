@@ -222,6 +222,7 @@ method accept*(self: TcpTransport): Future[Connection] {.async.} =
       let observedAddr = MultiAddress.init(transp.remoteAddress).tryGet()
       return await self.connHandler(transp, Opt.some(observedAddr), Direction.In)
     except CancelledError as exc:
+      debug "CancelledError", exc = exc.msg
       transp.close()
       raise exc
     except CatchableError as exc:
