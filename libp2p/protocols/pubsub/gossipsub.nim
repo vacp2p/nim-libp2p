@@ -51,7 +51,6 @@ when defined(libp2p_expensive_metrics):
 
 proc init*(
   _: type[GossipSubParams],
-  explicit = true,
   pruneBackoff = 1.minutes,
   unsubscribeBackoff = 5.seconds,
   floodPublish = true,
