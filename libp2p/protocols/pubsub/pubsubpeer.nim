@@ -35,8 +35,6 @@ when defined(pubsubpeer_queue_metrics):
   declareGauge(libp2p_gossipsub_priority_queue_size, "the number of messages in the priority queue", labels = ["id"])
   declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id"])
 
-declareCounter(libp2p_pubsub_disconnects_over_non_priority_queue_limit, "number of peers disconnected due to over non-prio queue capacity")
-
 const
   DefaultMaxNumElementsInNonPriorityQueue* = 1024
 
@@ -90,7 +88,6 @@ type
 
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int # The max number of elements allowed in the non-priority queue.
-    disconnected: bool
 
   RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void]
     {.gcsafe, raises: [].}
@@ -191,7 +188,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
 
 proc closeSendConn(p: PubSubPeer, event: PubSubPeerEventKind) {.async.} =
   if p.sendConn != nil:
-    trace "Removing send connection", p, conn = p.sendConn
+    debug "Removing send connection", p, conn = p.sendConn
     await p.sendConn.close()
     p.sendConn = nil
 
@@ -219,7 +216,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
     # remote peer - if we had multiple channels up and one goes down, all
     # stop working so we make an effort to only keep a single channel alive
 
-    trace "Get new send connection", p, newConn
+    debug "Get new send connection", p, newConn
 
     # Careful to race conditions here.
     # Topic subscription relies on either connectedFut
@@ -235,19 +232,15 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   finally:
     await p.closeSendConn(PubSubPeerEventKind.StreamClosed)
 
-proc connectImpl(p: PubSubPeer) {.async.} =
+proc connectImpl(peer: PubSubPeer) {.async.} =
   try:
     # Keep trying to establish a connection while it's possible to do so - the
     # send connection might get disconnected due to a timeout or an unrelated
     # issue so we try to get a new on
     while true:
-      if p.disconnected:
-        if not p.connectedFut.finished:
-          p.connectedFut.complete()
-        return
-      await connectOnce(p)
+      await connectOnce(peer)
   except CatchableError as exc: # never cancelled
-    debug "Could not establish send connection", msg = exc.msg
+    debug "Could not establish send connection", peer, msg = exc.msg
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
@@ -280,6 +273,10 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
     libp2p_gossipsub_priority_queue_size.set(
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64,
       labelValues = [$p.peerId])
+
+proc clearNonPriorityQueue*(p: PubSubPeer) =
+  if len(p.rpcmessagequeue.nonPriorityQueue) > 0:
+    p.rpcmessagequeue.nonPriorityQueue.clear()
 
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
   # Continuation for a pending `sendMsg` future from below
@@ -337,7 +334,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
   doAssert(not isNil(p), "pubsubpeer nil!")
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, msg = shortLog(msg)
+    debug "empty message, skipping", peer = p, msg = shortLog(msg)
     Future[void].completed()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
@@ -352,12 +349,12 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     f
   else:
     if len(p.rpcmessagequeue.nonPriorityQueue) >= p.maxNumElementsInNonPriorityQueue:
-      if not p.disconnected:
-        p.disconnected = true
-        libp2p_pubsub_disconnects_over_non_priority_queue_limit.inc()
-        p.closeSendConn(PubSubPeerEventKind.DisconnectionRequested)
-      else:
-        Future[void].completed()
+      if p.connected():
+        p.behaviourPenalty += 0.0001
+        trace "Peer has reached maxNumElementsInNonPriorityQueue. Discarding message and applying behaviour penalty.", peer = p, score = p.score,
+          behaviourPenalty = p.behaviourPenalty, agent = p.getAgent()
+
+      Future[void].completed()
     else:
       let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
       when defined(pubsubpeer_queue_metrics):
@@ -470,7 +467,7 @@ proc stopSendNonPriorityTask*(p: PubSubPeer) =
     p.rpcmessagequeue.sendNonPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonPriorityTask = nil
     p.rpcmessagequeue.sendPriorityQueue.clear()
-    p.rpcmessagequeue.nonPriorityQueue.clear()
+    p.clearNonPriorityQueue()
 
     when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
