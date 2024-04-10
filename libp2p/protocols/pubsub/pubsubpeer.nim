@@ -278,6 +278,9 @@ proc clearNonPriorityQueue*(p: PubSubPeer) =
   if len(p.rpcmessagequeue.nonPriorityQueue) > 0:
     p.rpcmessagequeue.nonPriorityQueue.clear()
 
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
   # Continuation for a pending `sendMsg` future from below
   try:
@@ -465,11 +468,9 @@ proc stopSendNonPriorityTask*(p: PubSubPeer) =
     p.rpcmessagequeue.sendNonPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonPriorityTask = nil
     p.rpcmessagequeue.sendPriorityQueue.clear()
-    p.clearNonPriorityQueue()
-
     when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
-      libp2p_gossipsub_non_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+    p.clearNonPriorityQueue()
 
 proc new(T: typedesc[RpcMessageQueue]): T =
   return T(
