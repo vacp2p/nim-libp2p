@@ -349,11 +349,9 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     f
   else:
     if len(p.rpcmessagequeue.nonPriorityQueue) >= p.maxNumElementsInNonPriorityQueue:
-      if p.connected():
-        p.behaviourPenalty += 0.0001
-        trace "Peer has reached maxNumElementsInNonPriorityQueue. Discarding message and applying behaviour penalty.", peer = p, score = p.score,
-          behaviourPenalty = p.behaviourPenalty, agent = p.getAgent()
-
+      p.behaviourPenalty += 0.0001
+      trace "Peer has reached maxNumElementsInNonPriorityQueue. Discarding message and applying behaviour penalty.", peer = p, score = p.score,
+        behaviourPenalty = p.behaviourPenalty, agent = p.getAgent()
       Future[void].completed()
     else:
       let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
