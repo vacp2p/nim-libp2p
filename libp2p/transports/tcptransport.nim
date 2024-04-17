@@ -190,7 +190,9 @@ method stop*(self: TcpTransport) {.async.} =
     await allFutures(toWait)
 
     self.servers = @[]
-    self.acceptFuts = @[]
+
+    if self.acceptFuts.allIt(it.finished()):
+      self.acceptFuts = @[]
 
     trace "Transport stopped"
     untrackCounter(TcpTransportTrackerName)
