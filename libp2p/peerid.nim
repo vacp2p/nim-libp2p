@@ -20,6 +20,7 @@ import
   utility,
   ./crypto/crypto, ./multicodec, ./multihash, ./vbuffer,
   ./protobuf/minprotobuf
+import utils/random/securerng
 
 export results, utility
 
@@ -178,9 +179,9 @@ func init*(t: typedesc[PeerId], seckey: PrivateKey): Result[PeerId, cstring] =
   ## Create new peer id from private key ``seckey``.
   PeerId.init(? seckey.getPublicKey().orError(cstring("invalid private key")))
 
-proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
+proc random*(t: typedesc[PeerId], rng: Rng = SecureRng.new()): Result[PeerId, cstring] =
   ## Create new peer id with random public key.
-  let randomKey = PrivateKey.random(Secp256k1, rng[])[]
+  let randomKey = PrivateKey.random(Secp256k1, rng)[]
   PeerId.init(randomKey).orError(cstring("failed to generate random key"))
 
 func match*(pid: PeerId, pubkey: PublicKey): bool =

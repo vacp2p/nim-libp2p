@@ -20,6 +20,7 @@ import minasn1
 import stew/[results, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
+import ../utils/random/rng
 
 export Asn1Error, results
 
@@ -115,7 +116,7 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
     pt = cast[ptr byte](cast[uint](pt) + 1)
     ptlen -= 1
 
-proc random*[T: RsaKP](t: typedesc[T], rng: var HmacDrbgContext,
+proc random*[T: RsaKP](t: typedesc[T], rng: Rng,
                        bits = DefaultKeySize,
                        pubexp = DefaultPublicExponent): RsaResult[T] =
   ## Generate new random RSA private key using BearSSL's HMAC-SHA256-DRBG
@@ -139,7 +140,7 @@ proc random*[T: RsaKP](t: typedesc[T], rng: var HmacDrbgContext,
 
   var keygen = rsaKeygenGetDefault()
 
-  if keygen(addr rng.vtable,
+  if keygen(rng.vtable,
             addr res.seck, addr res.buffer[sko],
             addr res.pubk, addr res.buffer[pko],
             cuint(bits), pubexp) == 0:

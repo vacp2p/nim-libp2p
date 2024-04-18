@@ -14,6 +14,7 @@ import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/crypto
 import ../libp2p/crypto/ed25519/ed25519
+import ../libp2p/utils/random/testrng
 
 const TestsCount = 20
 
@@ -101,7 +102,7 @@ const GoodScalars = [
   "ECD3F55C1A631258D69CF7A2DEF9DE1400000000000000000000000000000010",
 ]
 
-let rng = newRng()
+let rng = TestRng.new()
 
 suite "Ed25519 test suite":
   test "Scalar check edge cases test":
@@ -114,7 +115,7 @@ suite "Ed25519 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EdPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = EdPrivateKey.random(rng[])
+      var key = EdPrivateKey.random(rng)
       var skey1 = key.getBytes()
       check:
         key.toBytes(skey2) > 0
@@ -138,7 +139,7 @@ suite "Ed25519 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EdPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = EdKeyPair.random(rng[])
+      var pair = EdKeyPair.random(rng)
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
@@ -174,7 +175,7 @@ suite "Ed25519 test suite":
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
-      var kp = EdKeyPair.random(rng[])
+      var kp = EdKeyPair.random(rng)
       var sig = kp.seckey.sign(message)
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()

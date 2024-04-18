@@ -18,7 +18,8 @@ import ../libp2p/[stream/connection,
                   transports/tortransport,
                   upgrademngrs/upgrade,
                   multiaddress,
-                  builders]
+                  builders,
+                  utils/random/testrng]
 
 import ./helpers, ./stubs/torstub, ./commontransport
 
@@ -98,7 +99,7 @@ suite "Tor transport":
 
       return T.new(codecs = @[TestCodec], handler = handle)
 
-    let rng = newRng()
+    let rng = TestRng.new()
 
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()
 

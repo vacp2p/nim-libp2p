@@ -13,11 +13,14 @@ import unittest2
 import stew/byteutils
 import ../libp2p/[routing_record, crypto/crypto]
 
+import ../libp2p/utils/random/testrng
+
+let rng = TestRng.new()
+
 suite "Routing record":
   test "Encode -> decode test":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
       routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
@@ -50,8 +53,7 @@ suite "Routing record":
 suite "Signed Routing Record":
   test "Encode -> decode test":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
       routingRecord = SignedPeerRecord.init(privKey, PeerRecord.init(peerId, multiAddresses, 42)).tryGet()
@@ -68,9 +70,8 @@ suite "Signed Routing Record":
 
   test "Can't use mismatched public key":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
-      privKey2 = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
+      privKey2 = PrivateKey.random(rng).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
       routingRecord = SignedPeerRecord.init(privKey2, PeerRecord.init(peerId, multiAddresses, 42)).tryGet()
@@ -80,8 +81,7 @@ suite "Signed Routing Record":
 
   test "Decode doesn't fail if some addresses are invalid":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
       routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
@@ -93,8 +93,7 @@ suite "Signed Routing Record":
 
   test "Decode doesn't fail if there are no addresses":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = newSeq[MultiAddress]()
       routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
@@ -106,8 +105,7 @@ suite "Signed Routing Record":
 
   test "Decode fails if all addresses are invalid":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress(), MultiAddress()]
       routingRecord = PeerRecord.init(peerId, multiAddresses, 42)

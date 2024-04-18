@@ -10,8 +10,7 @@ import ./utils
 
 var rng = newRng()
 
-proc randomPeerId(): PeerId =
-  PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+
 
 const MsgIdGenSuccess = "msg id generation success"
 

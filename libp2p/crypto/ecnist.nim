@@ -23,6 +23,7 @@ import minasn1
 export minasn1.Asn1Error
 import stew/[results, ctops]
 
+import ../utils/random/rng
 import ../utility
 
 export results
@@ -233,7 +234,7 @@ proc clear*[T: EcPKI|EcKeyPair](pki: var T) =
 
 proc random*(
     T: typedesc[EcPrivateKey], kind: EcCurveKind,
-    rng: var HmacDrbgContext): EcResult[EcPrivateKey] =
+    rng: Rng): EcResult[EcPrivateKey] =
   ## Generate new random EC private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
   ##
@@ -241,7 +242,7 @@ proc random*(
   ## secp521r1).
   var ecimp = ecGetDefault()
   var res = new EcPrivateKey
-  if ecKeygen(addr rng.vtable, ecimp,
+  if ecKeygen(rng.vtable, ecimp,
                 addr res.key, addr res.buffer[0],
                 safeConvert[cint](kind)) == 0:
     err(EcKeyGenError)
@@ -267,7 +268,7 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
 
 proc random*(
     T: typedesc[EcKeyPair], kind: EcCurveKind,
-    rng: var HmacDrbgContext): EcResult[T] =
+    rng: Rng): EcResult[T] =
   ## Generate new random EC private and public keypair using BearSSL's
   ## HMAC-SHA256-DRBG algorithm.
   ##
@@ -999,7 +1000,7 @@ type ECDHEScheme* = EcCurveKind
 
 proc ephemeral*(
     scheme: ECDHEScheme,
-    rng: var HmacDrbgContext): EcResult[EcKeyPair] =
+    rng: Rng): EcResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
@@ -1011,7 +1012,7 @@ proc ephemeral*(
   ok(keypair)
 
 proc ephemeral*(
-    scheme: string, rng: var HmacDrbgContext): EcResult[EcKeyPair] =
+    scheme: string, rng: Rng): EcResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE using string encoding.
   ##
   ## Currently supported encoding strings are P-256, P-384, P-521, if encoding

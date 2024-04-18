@@ -13,11 +13,14 @@ import unittest2
 import stew/byteutils
 import ../libp2p/[signed_envelope]
 
+import ../libp2p/utils/random/testrng
+
+let rng = TestRng.new()
+
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
       envelope = Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
       buffer = envelope.encode().tryGet()
       decodedEnvelope = Envelope.decode(buffer, "domain").tryGet()
@@ -67,8 +70,7 @@ proc payloadType*(T: typedesc[DummyPayload]): seq[byte] = @[(byte) 0x00, (byte) 
 suite "Signed payload":
   test "Simple encode -> decode":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
 
       dummyPayload = DummyPayload(awesome: 12.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
@@ -81,8 +83,7 @@ suite "Signed payload":
 
   test "Invalid payload":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
 
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
@@ -91,8 +92,7 @@ suite "Signed payload":
 
   test "Invalid payload type":
     let
-      rng = newRng()
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng).tryGet()
 
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = Envelope.init(privKey, @[55.byte], dummyPayload.encode(), DummyPayload.payloadDomain).tryGet()

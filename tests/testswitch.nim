@@ -508,9 +508,8 @@ suite "Switch":
   asyncTest "e2e should trigger peer events only once per peer":
     let switch1 = newStandardSwitch()
 
-    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
-    let privKey = PrivateKey.random(rng[]).tryGet()
+    let privKey = PrivateKey.random(rng).tryGet()
     let switch2 = newStandardSwitch(
       privKey = some(privKey),
       rng = rng)
@@ -572,10 +571,9 @@ suite "Switch":
       switch3.stop())
 
   asyncTest "e2e should allow dropping peer from connection events":
-    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
-      privateKey = PrivateKey.random(rng[]).tryGet()
+      privateKey = PrivateKey.random(rng).tryGet()
       peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
@@ -609,10 +607,9 @@ suite "Switch":
       switches.mapIt( it.stop() ))
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
-    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
-      privateKey = PrivateKey.random(rng[]).tryGet()
+      privateKey = PrivateKey.random(rng).tryGet()
       peerInfo = PeerInfo.new(privateKey)
 
     var conns = 1
@@ -671,7 +668,7 @@ suite "Switch":
 
     await switch.start()
 
-    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    var peerId = randomPeerId()
     expect DialFailedError:
       await switch.connect(peerId, transport.addrs)
 
@@ -723,7 +720,7 @@ suite "Switch":
     let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
-    let seckey = PrivateKey.random(ECDSA, rng[]).get()
+    let seckey = PrivateKey.random(ECDSA, rng).get()
     let somePeer = PeerInfo.new(seckey, [someAddr])
     expect(DialFailedError):
       discard await switch2.dial(somePeer.peerId, somePeer.addrs, TestCodec)
@@ -980,7 +977,7 @@ suite "Switch":
       srcWsSwitch =
         SwitchBuilder.new()
         .withAddress(wsAddress)
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withMplex()
         .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
         .withNameResolver(resolver)
@@ -990,7 +987,7 @@ suite "Switch":
       destSwitch =
         SwitchBuilder.new()
         .withAddresses(@[tcpAddress, wsAddress])
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withMplex()
         .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
         .withTcpTransport()

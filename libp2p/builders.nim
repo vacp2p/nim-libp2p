@@ -27,7 +27,7 @@ import
   protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
   connmanager, upgrademngrs/muxedupgrade, observedaddrmanager,
   nameresolving/nameresolver,
-  errors, utility
+  errors, utility, utils/random/securerng
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
@@ -44,7 +44,7 @@ type
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerProvider]
     transports: seq[TransportProvider]
-    rng: ref HmacDrbgContext
+    rng: Rng
     maxConnections: int
     maxIn: int
     sendSignedPeerRecord: bool
@@ -149,7 +149,7 @@ proc withTransport*(b: SwitchBuilder, prov: TransportProvider): SwitchBuilder {.
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder {.public.} =
   b.withTransport(proc(upgr: Upgrade): Transport = TcpTransport.new(flags, upgr))
 
-proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
+proc withRng*(b: SwitchBuilder, rng: Rng): SwitchBuilder {.public.} =
   b.rng = rng
   b
 
@@ -215,7 +215,7 @@ proc build*(b: SwitchBuilder): Switch
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
-  let pkRes = PrivateKey.random(b.rng[])
+  let pkRes = PrivateKey.random(b.rng)
   let
     seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
@@ -253,7 +253,7 @@ proc build*(b: SwitchBuilder): Switch
     b.secureManagers &= SecureProtocol.Noise
 
   if isNil(b.rng):
-    b.rng = newRng()
+    b.rng = SecureRng.new()
 
   let peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
@@ -297,7 +297,7 @@ proc newStandardSwitch*(
       SecureProtocol.Noise,
     ],
     transportFlags: set[ServerFlags] = {},
-    rng = newRng(),
+    rng: Rng = SecureRng.new(),
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
     maxConnections = MaxConnections,

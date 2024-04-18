@@ -14,6 +14,8 @@ import nimcrypto/utils
 import ../libp2p/crypto/[crypto, ecnist]
 import stew/results
 
+import ../libp2p/utils/random/securerng
+
 const
   TestsCount = 10 # number of random tests
 
@@ -295,14 +297,14 @@ const
        35ab"""
   ]
 
-let rng = newRng()
+let rng = SecureRng.new()
 
 suite "EC NIST-P256/384/521 test suite":
   test "[secp256r1] Private key serialize/deserialize test":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EcPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = EcPrivateKey.random(Secp256r1, rng[]).expect("random key")
+      var key = EcPrivateKey.random(Secp256r1, rng).expect("random key")
       var skey1 = key.getBytes().expect("bytes")
       check:
         key.toBytes(skey2).expect("bytes") > 0
@@ -324,7 +326,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EcPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
+      var pair = EcKeyPair.random(Secp256r1, rng).expect("random key")
       var skey1 = pair.pubkey.getBytes().expect("bytes")
       check:
         pair.pubkey.toBytes(skey2).expect("bytes") > 0
@@ -343,8 +345,8 @@ suite "EC NIST-P256/384/521 test suite":
 
   test "[secp256r1] ECDHE test":
     for i in 0..<TestsCount:
-      var kp1 = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
-      var kp2 = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
+      var kp1 = EcKeyPair.random(Secp256r1, rng).expect("random key")
+      var kp2 = EcKeyPair.random(Secp256r1, rng).expect("random key")
       var shared1 = kp2.pubkey.scalarMul(kp1.seckey)
       var shared2 = kp1.pubkey.scalarMul(kp2.seckey)
       check:
@@ -398,7 +400,7 @@ suite "EC NIST-P256/384/521 test suite":
   test "[secp256r1] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
-      var kp = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
+      var kp = EcKeyPair.random(Secp256r1, rng).expect("random key")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")
       var serpk = kp.pubkey.getBytes().expect("bytes")
@@ -415,7 +417,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EcPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = EcPrivateKey.random(Secp384r1, rng[]).expect("random key")
+      var key = EcPrivateKey.random(Secp384r1, rng).expect("random key")
       var skey1 = key.getBytes().expect("bytes")
       check:
         key.toBytes(skey2).expect("bytes") > 0
@@ -437,7 +439,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EcPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
+      var pair = EcKeyPair.random(Secp384r1, rng).expect("random key")
       var skey1 = pair.pubkey.getBytes().expect("bytes")
       check:
         pair.pubkey.toBytes(skey2).expect("bytes") > 0
@@ -456,8 +458,8 @@ suite "EC NIST-P256/384/521 test suite":
 
   test "[secp384r1] ECDHE test":
     for i in 0..<TestsCount:
-      var kp1 = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
-      var kp2 = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
+      var kp1 = EcKeyPair.random(Secp384r1, rng).expect("random key")
+      var kp2 = EcKeyPair.random(Secp384r1, rng).expect("random key")
       var shared1 = kp2.pubkey.scalarMul(kp1.seckey)
       var shared2 = kp1.pubkey.scalarMul(kp2.seckey)
       check:
@@ -511,7 +513,7 @@ suite "EC NIST-P256/384/521 test suite":
   test "[secp384r1] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
-      var kp = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
+      var kp = EcKeyPair.random(Secp384r1, rng).expect("random key")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")
       var serpk = kp.pubkey.getBytes().expect("bytes")
@@ -528,7 +530,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EcPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = EcPrivateKey.random(Secp521r1, rng[]).expect("random key")
+      var key = EcPrivateKey.random(Secp521r1, rng).expect("random key")
       var skey1 = key.getBytes().expect("bytes")
       check:
         key.toBytes(skey2).expect("bytes") > 0
@@ -550,7 +552,7 @@ suite "EC NIST-P256/384/521 test suite":
     for i in 0..<TestsCount:
       var rkey1, rkey2: EcPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
+      var pair = EcKeyPair.random(Secp521r1, rng).expect("random key")
       var skey1 = pair.pubkey.getBytes().expect("bytes")
       check:
         pair.pubkey.toBytes(skey2).expect("bytes") > 0
@@ -569,8 +571,8 @@ suite "EC NIST-P256/384/521 test suite":
 
   test "[secp521r1] ECDHE test":
     for i in 0..<TestsCount:
-      var kp1 = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
-      var kp2 = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
+      var kp1 = EcKeyPair.random(Secp521r1, rng).expect("random key")
+      var kp2 = EcKeyPair.random(Secp521r1, rng).expect("random key")
       var shared1 = kp2.pubkey.scalarMul(kp1.seckey)
       var shared2 = kp1.pubkey.scalarMul(kp2.seckey)
       check:
@@ -624,7 +626,7 @@ suite "EC NIST-P256/384/521 test suite":
   test "[secp521r1] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0..<TestsCount:
-      var kp = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
+      var kp = EcKeyPair.random(Secp521r1, rng).expect("random key")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")
       var serpk = kp.pubkey.getBytes().expect("bytes")

@@ -21,8 +21,9 @@ import nimcrypto/utils as ncrutils
 import stew/[results, ctops]
 
 import ../../utility
+import ../../utils/random/rng
 
-export results
+export results, rng
 
 # This workaround needed because of some bugs in Nim Static[T].
 export hash, sha2, rand
@@ -1648,14 +1649,14 @@ proc checkScalar*(scalar: openArray[byte]): uint32 =
     c = -1
   result = NEQ(z, 0'u32) and LT0(c)
 
-proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey =
+proc random*(t: typedesc[EdPrivateKey], rng: Rng): EdPrivateKey =
   ## Generate new random ED25519 private key using the given random number generator
   var
     point: GeP3
     pk: array[EdPublicKeySize, byte]
     res: EdPrivateKey
 
-  hmacDrbgGenerate(rng, res.data.toOpenArray(0, 31))
+  rng.generate(res.data.toOpenArray(0, 31))
 
   var hh = sha512.digest(res.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8
@@ -1667,14 +1668,14 @@ proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey 
 
   res
 
-proc random*(t: typedesc[EdKeyPair], rng: var HmacDrbgContext): EdKeyPair =
+proc random*(t: typedesc[EdKeyPair], rng: Rng): EdKeyPair =
   ## Generate new random ED25519 private and public keypair using OS specific
   ## CSPRNG.
   var
     point: GeP3
     res: EdKeyPair
 
-  hmacDrbgGenerate(rng, res.seckey.data.toOpenArray(0, 31))
+  rng.generate(res.seckey.data.toOpenArray(0, 31))
 
   var hh = sha512.digest(res.seckey.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8

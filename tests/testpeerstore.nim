@@ -22,13 +22,13 @@ suite "PeerStore":
   # Testvars
   let
     # Peer 1
-    keyPair1 = KeyPair.random(ECDSA, rng[]).get()
+    keyPair1 = KeyPair.random(ECDSA, rng).get()
     peerId1 = PeerId.init(keyPair1.seckey).get()
     multiaddrStr1 = "/ip4/127.0.0.1/udp/1234/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr1 = MultiAddress.init(multiaddrStr1).get()
     testcodec1 = "/nim/libp2p/test/0.0.1-beta1"
     # Peer 2
-    keyPair2 = KeyPair.random(ECDSA, rng[]).get()
+    keyPair2 = KeyPair.random(ECDSA, rng).get()
     peerId2 = PeerId.init(keyPair2.seckey).get()
     multiaddrStr2 = "/ip4/0.0.0.0/tcp/1234/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr2 = MultiAddress.init(multiaddrStr2).get()
@@ -128,7 +128,7 @@ suite "PeerStore":
     var peerStore = PeerStore.new(nil, capacity = 20)
 
     for i in 0..<30:
-      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng).get().pubkey).get()
       peerStore[AgentBook][randomPeerId] = "gds"
       peerStore.cleanup(randomPeerId)
 
@@ -138,7 +138,7 @@ suite "PeerStore":
     var peerStore = PeerStore.new(nil, capacity = -1)
 
     for i in 0..<30:
-      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng).get().pubkey).get()
       peerStore[AgentBook][randomPeerId] = "gds"
       peerStore.cleanup(randomPeerId)
 
