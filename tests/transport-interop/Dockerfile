@@ -11,6 +11,6 @@ COPY . nim-libp2p/
 
 RUN \
   cd nim-libp2p && \
-  nim c --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs -p:nim-libp2p -d:chronicles_log_level=WARN --threads:off ./tests/transport-interop/main.nim
+  nim c --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs -p:nim-libp2p -d:chronicles_log_level=TRACE --threads:off ./tests/transport-interop/main.nim
 
 ENTRYPOINT ["/app/nim-libp2p/tests/transport-interop/main"]
