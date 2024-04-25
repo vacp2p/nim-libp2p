@@ -206,7 +206,7 @@ method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedLocally:
     trace "Closing yamux channel locally", streamId = channel.id, conn = channel.conn
     channel.closedLocally = true
-    channel.isEof = true
+    #channel.isEof = true
 
     if not channel.isReset and channel.sendQueue.len == 0:
       try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
