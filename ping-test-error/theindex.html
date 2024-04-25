@@ -951,10 +951,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="multiaddress: data(ma: MultiAddress): VBuffer" href="libp2p/multiaddress.html#data%2CMultiAddress">multiaddress: data(ma: MultiAddress): VBuffer</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="yamux: data(T: type[YamuxHeader]; streamId: uint32; length: uint32 = 0;
-     flags: set[MsgFlags] = {}): T:type" href="libp2p/muxers/yamux/yamux.html#data%2Ctype%5BYamuxHeader%5D%2Cuint32%2Cuint32%2Cset%5BMsgFlags%5D">yamux: data(T: type[YamuxHeader]; streamId: uint32; length: uint32 = 0;
-     flags: set[MsgFlags] = {}): T:type</a></li>
-          <li><a class="reference external"
           data-doc-search-tag="streamseq: data(v: StreamSeq): openArray[byte]" href="libp2p/stream/streamseq.html#data.t%2CStreamSeq">streamseq: data(v: StreamSeq): openArray[byte]</a></li>
           </ul></dd>
 <dt><a name="DConst" href="#DConst"><span>DConst:</span></a></dt><dd><ul class="simple">
@@ -3023,10 +3019,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="coder: Msg" href="libp2p/muxers/mplex/coder.html#Msg">coder: Msg</a></li>
           </ul></dd>
-<dt><a name="MsgFlags" href="#MsgFlags"><span>MsgFlags:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="yamux: MsgFlags" href="libp2p/muxers/yamux/yamux.html#MsgFlags">yamux: MsgFlags</a></li>
-          </ul></dd>
 <dt><a name="MsgIdProvider" href="#MsgIdProvider"><span>MsgIdProvider:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="pubsub: MsgIdProvider" href="libp2p/protocols/pubsub/pubsub.html#MsgIdProvider">pubsub: MsgIdProvider</a></li>
@@ -3838,12 +3830,6 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
     void, (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readExactly%2CLPStream%2Cpointer%2Cint">lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
     void, (CancelledError, LPStreamError)]</a></li>
-          </ul></dd>
-<dt><a name="readHeader" href="#readHeader"><span>readHeader:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="yamux: readHeader(conn: LPStream): InternalRaisesFuture[YamuxHeader,
-    (CancelledError, LPStreamError, MuxerError)]" href="libp2p/muxers/yamux/yamux.html#readHeader%2CLPStream">yamux: readHeader(conn: LPStream): InternalRaisesFuture[YamuxHeader,
-    (CancelledError, LPStreamError, MuxerError)]</a></li>
           </ul></dd>
 <dt><a name="readLine" href="#readLine"><span>readLine:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5103,12 +5089,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="mcache: window(c: MCache; topic: string): HashSet[MessageId]" href="libp2p/protocols/pubsub/mcache.html#window%2CMCache%2Cstring">mcache: window(c: MCache; topic: string): HashSet[MessageId]</a></li>
           </ul></dd>
-<dt><a name="windowUpdate" href="#windowUpdate"><span>windowUpdate:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="yamux: windowUpdate(T: type[YamuxHeader]; streamId: uint32; delta: uint32;
-             flags: set[MsgFlags] = {}): T:type" href="libp2p/muxers/yamux/yamux.html#windowUpdate%2Ctype%5BYamuxHeader%5D%2Cuint32%2Cuint32%2Cset%5BMsgFlags%5D">yamux: windowUpdate(T: type[YamuxHeader]; streamId: uint32; delta: uint32;
-             flags: set[MsgFlags] = {}): T:type</a></li>
-          </ul></dd>
 <dt><a name="withAddress" href="#withAddress"><span>withAddress:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="builders: withAddress(b: SwitchBuilder; address: MultiAddress): SwitchBuilder" href="libp2p/builders.html#withAddress%2CSwitchBuilder%2CMultiAddress">builders: withAddress(b: SwitchBuilder; address: MultiAddress): SwitchBuilder</a></li>
@@ -5254,10 +5234,6 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="multicodec: write(vb: var VBuffer; mc: MultiCodec)" href="libp2p/multicodec.html#write%2CVBuffer%2CMultiCodec">multicodec: write(vb: var VBuffer; mc: MultiCodec)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="multihash: write(vb: var VBuffer; mh: MultiHash)" href="libp2p/multihash.html#write%2CVBuffer%2CMultiHash">multihash: write(vb: var VBuffer; mh: MultiHash)</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="yamux: write(conn: LPStream; header: YamuxHeader): InternalRaisesFuture[void,
-    (CancelledError, LPStreamError)]" href="libp2p/muxers/yamux/yamux.html#write%2CLPStream%2CYamuxHeader">yamux: write(conn: LPStream; header: YamuxHeader): InternalRaisesFuture[void,
-    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="yamux: write(channel: YamuxChannel; msg: seq[byte]): InternalRaisesFuture[void,
     (CancelledError, LPStreamError)]" href="libp2p/muxers/yamux/yamux.html#write.e%2CYamuxChannel%2Cseq%5Bbyte%5D">yamux: write(channel: YamuxChannel; msg: seq[byte]): InternalRaisesFuture[void,
@@ -5413,10 +5389,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="yamux: YamuxError" href="libp2p/muxers/yamux/yamux.html#YamuxError">yamux: YamuxError</a></li>
           </ul></dd>
-<dt><a name="YamuxHeader" href="#YamuxHeader"><span>YamuxHeader:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="yamux: YamuxHeader" href="libp2p/muxers/yamux/yamux.html#YamuxHeader">yamux: YamuxHeader</a></li>
-          </ul></dd>
 <dt><a name="ZeroFe" href="#ZeroFe"><span>ZeroFe:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="constants: ZeroFe" href="libp2p/crypto/ed25519/constants.html#ZeroFe">constants: ZeroFe</a></li>
@@ -5438,7 +5410,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-25 13:07:04 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-25 20:53:46 UTC</small>
       </div>
     </div>
   </div>
