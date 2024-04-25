@@ -204,6 +204,7 @@ proc remoteClosed(channel: YamuxChannel) {.async: (raises: []).} =
 
 method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedLocally:
+    trace "Closing yamux channel locally", streamId = channel.id, conn = channel.conn
     channel.closedLocally = true
     channel.isEof = true
 
