@@ -282,7 +282,7 @@ method readOnce*(
     except ValueError: raiseAssert("Futures list is not empty")
     if channel.closedRemotely.completed() and channel.recvQueue.len == 0:
       channel.isEof = true
-      return 0
+      return 0 # we return 0 to indicate that the channel is closed for reading from now on
 
   let toRead = min(channel.recvQueue.len, nbytes)
 
