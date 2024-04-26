@@ -378,7 +378,7 @@ suite "Yamux":
       blocker.complete()
       await streamA.close()
 
-    asyncTest "Local close":
+    asyncTest "Peer must be able to read from stream after closing it for writing":
       mSetup()
 
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
