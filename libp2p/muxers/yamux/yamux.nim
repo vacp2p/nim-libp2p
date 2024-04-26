@@ -206,7 +206,6 @@ method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedLocally:
     trace "Closing yamux channel locally", streamId = channel.id, conn = channel.conn
     channel.closedLocally = true
-    #channel.isEof = true
 
     if not channel.isReset and channel.sendQueue.len == 0:
       try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
@@ -274,7 +273,7 @@ method readOnce*(
         newLPStreamClosedError()
       else:
         newLPStreamConnDownError()
-  if channel.returnedEof:
+  if channel.isEof:
     raise newLPStreamRemoteClosedError()
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
@@ -282,7 +281,6 @@ method readOnce*(
       discard await race(channel.closedRemotely, channel.receivedData.wait())
     except ValueError: raiseAssert("Futures list is not empty")
     if channel.closedRemotely.completed() and channel.recvQueue.len == 0:
-      channel.returnedEof = true
       channel.isEof = true
       return 0
 
