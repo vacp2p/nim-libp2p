@@ -229,20 +229,12 @@ window.addEventListener("DOMContentLoaded", main2);
     title="LPStreamError = object of LPError">LPStreamError</a></li>
   <li><a class="reference" href="#LPStreamIncompleteError"
     title="LPStreamIncompleteError = object of LPStreamError">LPStreamIncompleteError</a></li>
-  <li><a class="reference" href="#LPStreamIncorrectDefect"
-    title="LPStreamIncorrectDefect = object of Defect">LPStreamIncorrectDefect</a></li>
   <li><a class="reference" href="#LPStreamLimitError"
     title="LPStreamLimitError = object of LPStreamError">LPStreamLimitError</a></li>
-  <li><a class="reference" href="#LPStreamReadError"
-    title="LPStreamReadError = object of LPStreamError
-  par*: ref CatchableError">LPStreamReadError</a></li>
   <li><a class="reference" href="#LPStreamRemoteClosedError"
     title="LPStreamRemoteClosedError = object of LPStreamEOFError">LPStreamRemoteClosedError</a></li>
   <li><a class="reference" href="#LPStreamResetError"
     title="LPStreamResetError = object of LPStreamEOFError">LPStreamResetError</a></li>
-  <li><a class="reference" href="#LPStreamWriteError"
-    title="LPStreamWriteError = object of LPStreamError
-  par*: ref CatchableError">LPStreamWriteError</a></li>
   <li><a class="reference" href="#MaxSizeError"
     title="MaxSizeError = object of LPStreamError">MaxSizeError</a></li>
   <li><a class="reference" href="#StreamTracker"
@@ -267,12 +259,12 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">closeWithEOF
       <li><a class="reference" href="#closeWithEOF%2CLPStream"
-    title="closeWithEOF(s: LPStream): Future[void]">closeWithEOF(s: LPStream): Future[void]</a></li>
+    title="closeWithEOF(s: LPStream): InternalRaisesFuture[void, void]">closeWithEOF(s: LPStream): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">join
       <li><a class="reference" href="#join%2CLPStream"
-    title="join(s: LPStream): Future[void]">join(s: LPStream): Future[void]</a></li>
+    title="join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]">join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">newLPStreamClosedError
@@ -295,21 +287,9 @@ window.addEventListener("DOMContentLoaded", main2);
     title="newLPStreamIncompleteError(): ref LPStreamIncompleteError">newLPStreamIncompleteError(): ref LPStreamIncompleteError</a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">newLPStreamIncorrectDefect
-      <li><a class="reference" href="#newLPStreamIncorrectDefect%2Cstring"
-    title="newLPStreamIncorrectDefect(m: string): ref LPStreamIncorrectDefect">newLPStreamIncorrectDefect(m: string): ref LPStreamIncorrectDefect</a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">newLPStreamLimitError
       <li><a class="reference" href="#newLPStreamLimitError"
     title="newLPStreamLimitError(): ref LPStreamLimitError">newLPStreamLimitError(): ref LPStreamLimitError</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">newLPStreamReadError
-      <li><a class="reference" href="#newLPStreamReadError%2Cstring"
-    title="newLPStreamReadError(msg: string): ref LPStreamReadError">newLPStreamReadError(msg: string): ref LPStreamReadError</a></li>
-  <li><a class="reference" href="#newLPStreamReadError%2Cref.CatchableError"
-    title="newLPStreamReadError(p: ref CatchableError): ref LPStreamReadError">newLPStreamReadError(p: ref CatchableError): ref LPStreamReadError</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">newLPStreamRemoteClosedError
@@ -322,34 +302,32 @@ window.addEventListener("DOMContentLoaded", main2);
     title="newLPStreamResetError(): ref LPStreamResetError">newLPStreamResetError(): ref LPStreamResetError</a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">newLPStreamWriteError
-      <li><a class="reference" href="#newLPStreamWriteError%2Cref.CatchableError"
-    title="newLPStreamWriteError(p: ref CatchableError): ref LPStreamWriteError">newLPStreamWriteError(p: ref CatchableError): ref LPStreamWriteError</a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">readExactly
       <li><a class="reference" href="#readExactly%2CLPStream%2Cpointer%2Cint"
-    title="readExactly(s: LPStream; pbytes: pointer; nbytes: int): Future[void]">readExactly(s: LPStream; pbytes: pointer; nbytes: int): Future[void]</a></li>
+    title="readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]">readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">readLine
       <li><a class="reference" href="#readLine%2CLPStream%2Cint%2Cstring"
-    title="readLine(s: LPStream; limit = 0; sep = &quot;\r\n&quot;): Future[string]">readLine(s: LPStream; limit = 0; sep = &quot;\r\n&quot;): Future[string]</a></li>
+    title="readLine(s: LPStream; limit = 0; sep = &quot;\r\n&quot;): InternalRaisesFuture[string,
+    (CancelledError, LPStreamError)]">readLine(s: LPStream; limit = 0; sep = &quot;\r\n&quot;): InternalRaisesFuture[string,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">readLp
       <li><a class="reference" href="#readLp%2CLPStream%2Cint"
-    title="readLp(s: LPStream; maxSize: int): Future[seq[byte]]">readLp(s: LPStream; maxSize: int): Future[seq[byte]]</a></li>
+    title="readLp(s: LPStream; maxSize: int): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]">readLp(s: LPStream; maxSize: int): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">readVarint
       <li><a class="reference" href="#readVarint%2CLPStream"
-    title="readVarint(conn: LPStream): Future[uint64]">readVarint(conn: LPStream): Future[uint64]</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">setupStreamTracker
-      <li><a class="reference" href="#setupStreamTracker%2Cstring"
-    title="setupStreamTracker(name: string): StreamTracker">setupStreamTracker(name: string): StreamTracker</a></li>
+    title="readVarint(conn: LPStream): InternalRaisesFuture[uint64,
+    (CancelledError, LPStreamError)]">readVarint(conn: LPStream): InternalRaisesFuture[uint64,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">shortLog
@@ -359,14 +337,20 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">write
       <li><a class="reference" href="#write%2CLPStream%2Cstring"
-    title="write(s: LPStream; msg: string): Future[void]">write(s: LPStream; msg: string): Future[void]</a></li>
+    title="write(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">write(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">writeLp
       <li><a class="reference" href="#writeLp%2CLPStream%2CopenArray%5Bbyte%5D"
-    title="writeLp(s: LPStream; msg: openArray[byte]): Future[void]">writeLp(s: LPStream; msg: openArray[byte]): Future[void]</a></li>
+    title="writeLp(s: LPStream; msg: openArray[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">writeLp(s: LPStream; msg: openArray[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
   <li><a class="reference" href="#writeLp%2CLPStream%2Cstring"
-    title="writeLp(s: LPStream; msg: string): Future[void]">writeLp(s: LPStream; msg: string): Future[void]</a></li>
+    title="writeLp(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">writeLp(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
 
@@ -382,7 +366,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">close
       <li><a class="reference" href="#close.e%2CLPStream"
-    title="close(s: LPStream): Future[void]">close(s: LPStream): Future[void]</a></li>
+    title="close(s: LPStream): InternalRaisesFuture[void, void]">close(s: LPStream): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">closed
@@ -392,7 +376,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">closeImpl
       <li><a class="reference" href="#closeImpl.e%2CLPStream"
-    title="closeImpl(s: LPStream): Future[void]">closeImpl(s: LPStream): Future[void]</a></li>
+    title="closeImpl(s: LPStream): InternalRaisesFuture[void, void]">closeImpl(s: LPStream): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">initStream
@@ -402,12 +386,16 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">readOnce
       <li><a class="reference" href="#readOnce.e%2CLPStream%2Cpointer%2Cint"
-    title="readOnce(s: LPStream; pbytes: pointer; nbytes: int): Future[int]">readOnce(s: LPStream; pbytes: pointer; nbytes: int): Future[int]</a></li>
+    title="readOnce(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]">readOnce(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">write
       <li><a class="reference" href="#write.e%2CLPStream%2Cseq%5Bbyte%5D"
-    title="write(s: LPStream; msg: seq[byte]): Future[void]">write(s: LPStream; msg: seq[byte]): Future[void]</a></li>
+    title="write(s: LPStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">write(s: LPStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
 
   </ul>
 
@@ -470,9 +458,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L73"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L68"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L73" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -502,9 +490,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L69"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L64"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L69" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L64" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -514,9 +502,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L71"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L66"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L71" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L66" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -526,9 +514,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L59"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L54"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L54" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -556,8 +544,8 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="LPStreamIncorrectDefect" class="tohide">
-<dt><pre><a href="lpstream.html#LPStreamIncorrectDefect"><span class="Identifier">LPStreamIncorrectDefect</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">Defect</span></pre></dt>
+<div id="LPStreamLimitError" class="tohide">
+<dt><pre><a href="lpstream.html#LPStreamLimitError"><span class="Identifier">LPStreamLimitError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a></pre></dt>
 <dd>
 
 
@@ -568,41 +556,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="LPStreamLimitError" class="tohide">
-<dt><pre><a href="lpstream.html#LPStreamLimitError"><span class="Identifier">LPStreamLimitError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a></pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L54"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L54" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="LPStreamReadError" class="tohide">
-<dt><pre><a href="lpstream.html#LPStreamReadError"><span class="Identifier">LPStreamReadError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a>
-  <span class="Identifier">par</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">CatchableError</span>
-</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L55"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L55" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
 <div id="LPStreamRemoteClosedError" class="tohide">
 <dt><pre><a href="lpstream.html#LPStreamRemoteClosedError"><span class="Identifier">LPStreamRemoteClosedError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="lpstream.html#LPStreamEOFError"><span class="Identifier">LPStreamEOFError</span></a></pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L70"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L65"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L70" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L65" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -612,23 +574,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L68"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L63"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="LPStreamWriteError" class="tohide">
-<dt><pre><a href="lpstream.html#LPStreamWriteError"><span class="Identifier">LPStreamWriteError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a>
-  <span class="Identifier">par</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">CatchableError</span>
-</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L57"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L57" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L63" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -638,9 +586,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L74"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L69"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L74" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L69" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -653,9 +601,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L76"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L71"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L76" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L71" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -694,9 +642,9 @@ class="link-seesrc" target="_blank">Source</a>
 <h1><a class="toc-backref" href="#12">Procs</a></h1>
 <dl class="item">
 <div id="closeWithEOF,LPStream" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#closeWithEOF%2CLPStream"><span class="Identifier">closeWithEOF</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#closeWithEOF%2CLPStream"><span class="Identifier">closeWithEOF</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span>
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Close the stream and wait for EOF - use this with half-closed streams where an EOF is expected to arrive from the other end.</p>
@@ -704,65 +652,15 @@ class="link-seesrc" target="_blank">Source</a>
 <p>In particular, it must not be used when there is another concurrent read ongoing (which may be the case during cancellations)! </p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L323"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L314"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L323" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L314" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="join,LPStream" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#join%2CLPStream"><span class="Identifier">join</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-Wait for the stream to be closed
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L163"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L163" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamClosedError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamClosedError"><span class="Identifier">newLPStreamClosedError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamClosedError"><span class="Identifier">LPStreamClosedError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L134"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L134" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamConnDownError,ref.Exception" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamConnDownError%2Cref.Exception"><span class="Identifier">newLPStreamConnDownError</span></a><span class="Other">(</span><span class="Identifier">parentException</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">Exception</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamConnDownError"><span class="Identifier">LPStreamConnDownError</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L140"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L140" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamEOFError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamEOFError"><span class="Identifier">newLPStreamEOFError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamEOFError"><span class="Identifier">LPStreamEOFError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L128"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamIncompleteError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamIncompleteError"><span class="Identifier">newLPStreamIncompleteError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamIncompleteError"><span class="Identifier">LPStreamIncompleteError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#join%2CLPStream"><span class="Identifier">join</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.
+    <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
     <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -774,16 +672,54 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="newLPStreamIncorrectDefect,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamIncorrectDefect%2Cstring"><span class="Identifier">newLPStreamIncorrectDefect</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamIncorrectDefect"><span class="Identifier">LPStreamIncorrectDefect</span></a> {.
+<div id="newLPStreamClosedError" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamClosedError"><span class="Identifier">newLPStreamClosedError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamClosedError"><span class="Identifier">LPStreamClosedError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L87"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="newLPStreamConnDownError,ref.Exception" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamConnDownError%2Cref.Exception"><span class="Identifier">newLPStreamConnDownError</span></a><span class="Other">(</span><span class="Identifier">parentException</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">Exception</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamConnDownError"><span class="Identifier">LPStreamConnDownError</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L125"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L93"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L125" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="newLPStreamEOFError" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamEOFError"><span class="Identifier">newLPStreamEOFError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamEOFError"><span class="Identifier">LPStreamEOFError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L81"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L81" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="newLPStreamIncompleteError" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamIncompleteError"><span class="Identifier">newLPStreamIncompleteError</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamIncompleteError"><span class="Identifier">LPStreamIncompleteError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L75"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L75" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -794,35 +730,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L122"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L78"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L122" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamReadError,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamReadError%2Cstring"><span class="Identifier">newLPStreamReadError</span></a><span class="Other">(</span><span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamReadError"><span class="Identifier">LPStreamReadError</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L110"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L110" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamReadError,ref.CatchableError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamReadError%2Cref.CatchableError"><span class="Identifier">newLPStreamReadError</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">CatchableError</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamReadError"><span class="Identifier">LPStreamReadError</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L104"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L104" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L78" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -833,9 +743,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L137"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L90"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L137" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L90" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -846,91 +756,69 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L131"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L84"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L131" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="newLPStreamWriteError,ref.CatchableError" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#newLPStreamWriteError%2Cref.CatchableError"><span class="Identifier">newLPStreamWriteError</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">CatchableError</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <a href="lpstream.html#LPStreamWriteError"><span class="Identifier">LPStreamWriteError</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L113"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L113" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L84" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="readExactly,LPStream,pointer,int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#readExactly%2CLPStream%2Cpointer%2Cint"><span class="Identifier">readExactly</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#readExactly%2CLPStream%2Cpointer%2Cint"><span class="Identifier">readExactly</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Waits for <tt class="docutils literal"><span class="pre"><span class="Identifier">nbytes</span></span></tt> to be available, then read them and return them
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L186"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L144"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L186" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L144" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="readLine,LPStream,int,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#readLine%2CLPStream%2Cint%2Cstring"><span class="Identifier">readLine</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">limit</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">;</span> <span class="Identifier">sep</span> <span class="Other">=</span> <span class="StringLit">&quot;\r\n&quot;</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span>
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#readLine%2CLPStream%2Cint%2Cstring"><span class="Identifier">readLine</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">limit</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">;</span> <span class="Identifier">sep</span> <span class="Other">=</span> <span class="StringLit">&quot;\r\n&quot;</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">string</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Reads up to <tt class="docutils literal"><span class="pre"><span class="Identifier">limit</span></span></tt> bytes are read, or a <tt class="docutils literal"><span class="pre"><span class="Identifier">sep</span></span></tt> is found
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L223"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L182"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L223" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L182" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="readLp,LPStream,int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#readLp%2CLPStream%2Cint"><span class="Identifier">readLp</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">maxSize</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span>
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#readLp%2CLPStream%2Cint"><span class="Identifier">readLp</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">maxSize</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 read length prefixed msg, with the length encoded as a varint
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L267"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L231"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L267" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L231" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="readVarint,LPStream" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#readVarint%2CLPStream"><span class="Identifier">readVarint</span></a><span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">uint64</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span>
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#readVarint%2CLPStream"><span class="Identifier">readVarint</span></a><span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">uint64</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L249"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L210"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L249" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="setupStreamTracker,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#setupStreamTracker%2Cstring"><span class="Identifier">setupStreamTracker</span></a><span class="Other">(</span><span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="lpstream.html#StreamTracker"><span class="Identifier">StreamTracker</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L80"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L210" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -940,48 +828,54 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L147"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L100"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L147" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L100" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="write,LPStream,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#write%2CLPStream%2Cstring"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CLPStream%2Cstring"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L298"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L278"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L298" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L278" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="writeLp,LPStream,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#writeLp%2CLPStream%2CopenArray%5Bbyte%5D"><span class="Identifier">writeLp</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#writeLp%2CLPStream%2CopenArray%5Bbyte%5D"><span class="Identifier">writeLp</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-Write <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> with a varint-encoded length prefix
+
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L287"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L259"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L287" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L259" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="writeLp,LPStream,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#writeLp%2CLPStream%2Cstring"><span class="Identifier">writeLp</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#writeLp%2CLPStream%2Cstring"><span class="Identifier">writeLp</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L295"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L271"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L295" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L271" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -996,23 +890,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L170"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L126"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L170" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="close.e,LPStream" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CLPStream"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CLPStream"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span>
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-close the stream - this may block, but will not raise exceptions 
+
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L309"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L297"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L309" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L297" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1022,62 +916,64 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L167"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L123"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L167" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="closeImpl.e,LPStream" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CLPStream"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-Implementation of close - called only once
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L301"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L301" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="initStream.e,LPStream" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#initStream.e%2CLPStream"><span class="Identifier">initStream</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                                 <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">TimeEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L152"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="readOnce.e,LPStream,pointer,int" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CLPStream%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
-    <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-Reads whatever is available in the stream, up to <tt class="docutils literal"><span class="pre"><span class="Identifier">nbytes</span></span></tt>. Will block if nothing is available
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L177"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L177" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="write.e,LPStream,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CLPStream%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">method</span> <a href="#closeImpl.e%2CLPStream"><span class="Identifier">closeImpl</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
     <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L283"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L284"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L283" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L284" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="initStream.e,LPStream" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#initStream.e%2CLPStream"><span class="Identifier">initStream</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">)</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TimeEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L106"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L106" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="readOnce.e,LPStream,pointer,int" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#readOnce.e%2CLPStream%2Cpointer%2Cint"><span class="Identifier">readOnce</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">pointer</span><span class="Other">;</span> <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">int</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L133"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L133" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="write.e,LPStream,seq[byte]" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#write.e%2CLPStream%2Cseq%5Bbyte%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="lpstream.html#LPStream"><span class="Identifier">LPStream</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+                                       <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L251"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L251" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1092,9 +988,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L150"
+href="https://github.com/status-im/nim-libp2p/tree/master/libp2p/stream/lpstream.nim#L104"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L150" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/stream/lpstream.nim#L104" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1103,7 +999,7 @@ class="link-seesrc" target="_blank">Source</a>
 <div class="section" id="19">
 <h1><a class="toc-backref" href="#19">Exports</a></h1>
 <dl class="item">
-<a href="../errors.html#toException,cstring"><span class="Identifier">toException</span></a>, <a href="../errors.html#toException,string"><span class="Identifier">toException</span></a>, <a href="../errors.html#allFuturesThrowing,varargs[Future[T]]"><span class="Identifier">allFuturesThrowing</span></a>, <a href="../errors.html#tryAndWarn.t,static[string],untyped"><span class="Identifier">tryAndWarn</span></a>, <a href="../errors.html#checkFutures.m,seq[F],untyped"><span class="Identifier">checkFutures</span></a>, <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a>
+<a href="../errors.html#toException,cstring"><span class="Identifier">toException</span></a>, <a href="../errors.html#toException,string"><span class="Identifier">toException</span></a>, <a href="../errors.html#tryAndWarn.t,static[string],untyped"><span class="Identifier">tryAndWarn</span></a>, <a href="../errors.html#checkFutures.m,seq[F],untyped"><span class="Identifier">checkFutures</span></a>, <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a>
 </dl></div>
 
   </div>
@@ -1113,7 +1009,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-18 18:06:02 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-29 13:39:16 UTC</small>
       </div>
     </div>
   </div>

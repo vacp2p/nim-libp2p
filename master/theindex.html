@@ -215,6 +215,8 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="rtransport: accept(self: RelayTransport): Future[Connection]" href="libp2p/protocols/connectivity/relay/rtransport.html#accept.e%2CRelayTransport">rtransport: accept(self: RelayTransport): Future[Connection]</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="tcptransport: accept(self: TcpTransport): Future[Connection]" href="libp2p/transports/tcptransport.html#accept.e%2CTcpTransport">tcptransport: accept(self: TcpTransport): Future[Connection]</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="transport: accept(self: Transport): Future[Connection]" href="libp2p/transports/transport.html#accept.e%2CTransport">transport: accept(self: Transport): Future[Connection]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: accept(self: WsTransport): Future[Connection]" href="libp2p/transports/wstransport.html#accept.e%2CWsTransport">wstransport: accept(self: WsTransport): Future[Connection]</a></li>
@@ -255,12 +257,14 @@ window.addEventListener('DOMContentLoaded', main);
            matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cseq%5Bstring%5D%2CLPProtocol%2CMatcher">multistream: addHandler(m: MultistreamSelect; codecs: seq[string]; protocol: LPProtocol;
            matcher: Matcher = nil)</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="multistream: addHandler[E](m: MultistreamSelect; codec: string; handler: LPProtoHandler |
+    proc (conn: Connection; proto: string): InternalRaisesFuture[void, E];
+              matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2C%2CMatcher">multistream: addHandler[E](m: MultistreamSelect; codec: string; handler: LPProtoHandler |
+    proc (conn: Connection; proto: string): InternalRaisesFuture[void, E];
+              matcher: Matcher = nil)</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
            matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2CLPProtocol%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
-           matcher: Matcher = nil)</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string; handler: LPProtoHandler;
-           matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2CLPProtoHandler%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string; handler: LPProtoHandler;
            matcher: Matcher = nil)</a></li>
           </ul></dd>
 <dt><a name="addObservation" href="#addObservation"><span>addObservation:</span></a></dt><dd><ul class="simple">
@@ -332,10 +336,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="AllFuturesFailedError" href="#AllFuturesFailedError"><span>AllFuturesFailedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="future: AllFuturesFailedError" href="libp2p/utils/future.html#AllFuturesFailedError">future: AllFuturesFailedError</a></li>
-          </ul></dd>
-<dt><a name="allFuturesThrowing" href="#allFuturesThrowing"><span>allFuturesThrowing:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="errors: allFuturesThrowing[T](args: varargs[Future[T]]): Future[void]" href="libp2p/errors.html#allFuturesThrowing%2Cvarargs%5BFuture%5BT%5D%5D">errors: allFuturesThrowing[T](args: varargs[Future[T]]): Future[void]</a></li>
           </ul></dd>
 <dt><a name="AlreadyExpectingConnectionError" href="#AlreadyExpectingConnectionError"><span>AlreadyExpectingConnectionError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -549,11 +549,13 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="bridge" href="#bridge"><span>bridge:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: bridge(connSrc: Connection; connDst: Connection): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#bridge%2CConnection%2CConnection">utils: bridge(connSrc: Connection; connDst: Connection): Future[void]</a></li>
+          data-doc-search-tag="utils: bridge(connSrc: Connection; connDst: Connection): InternalRaisesFuture[void,
+    (CancelledError,)]" href="libp2p/protocols/connectivity/relay/utils.html#bridge%2CConnection%2CConnection">utils: bridge(connSrc: Connection; connDst: Connection): InternalRaisesFuture[void,
+    (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="broadcast" href="#broadcast"><span>broadcast:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg)" href="libp2p/protocols/pubsub/pubsub.html#broadcast%2CPubSub%2Cauto%2CRPCMsg">pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg)</a></li>
+          data-doc-search-tag="pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)" href="libp2p/protocols/pubsub/pubsub.html#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool">pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)</a></li>
           </ul></dd>
 <dt><a name="BufferStream" href="#BufferStream"><span>BufferStream:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -663,11 +665,13 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="connmanager: close(c: ConnManager): Future[void]" href="libp2p/connmanager.html#close%2CConnManager">connmanager: close(c: ConnManager): Future[void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="muxer: close(m: Muxer): Future[void]" href="libp2p/muxers/muxer.html#close.e%2CMuxer">muxer: close(m: Muxer): Future[void]</a></li>
+          data-doc-search-tag="mplex: close(m: Mplex): InternalRaisesFuture[void, void]" href="libp2p/muxers/mplex/mplex.html#close.e%2CMplex">mplex: close(m: Mplex): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="yamux: close(m: Yamux): Future[void]" href="libp2p/muxers/yamux/yamux.html#close.e%2CYamux">yamux: close(m: Yamux): Future[void]</a></li>
+          data-doc-search-tag="muxer: close(m: Muxer): InternalRaisesFuture[void, void]" href="libp2p/muxers/muxer.html#close.e%2CMuxer">muxer: close(m: Muxer): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="lpstream: close(s: LPStream): Future[void]" href="libp2p/stream/lpstream.html#close.e%2CLPStream">lpstream: close(s: LPStream): Future[void]</a></li>
+          data-doc-search-tag="yamux: close(m: Yamux): InternalRaisesFuture[void, void]" href="libp2p/muxers/yamux/yamux.html#close.e%2CYamux">yamux: close(m: Yamux): InternalRaisesFuture[void, void]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="lpstream: close(s: LPStream): InternalRaisesFuture[void, void]" href="libp2p/stream/lpstream.html#close.e%2CLPStream">lpstream: close(s: LPStream): InternalRaisesFuture[void, void]</a></li>
           </ul></dd>
 <dt><a name="closed" href="#closed"><span>closed:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -677,27 +681,27 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="closeImpl" href="#closeImpl"><span>closeImpl:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="yamux: closeImpl(channel: YamuxChannel): Future[void]" href="libp2p/muxers/yamux/yamux.html#closeImpl.e%2CYamuxChannel">yamux: closeImpl(channel: YamuxChannel): Future[void]</a></li>
+          data-doc-search-tag="yamux: closeImpl(channel: YamuxChannel): InternalRaisesFuture[void, void]" href="libp2p/muxers/yamux/yamux.html#closeImpl.e%2CYamuxChannel">yamux: closeImpl(channel: YamuxChannel): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rconn: closeImpl(self: RelayConnection): Future[void]" href="libp2p/protocols/connectivity/relay/rconn.html#closeImpl.e%2CRelayConnection">rconn: closeImpl(self: RelayConnection): Future[void]</a></li>
+          data-doc-search-tag="rconn: closeImpl(self: RelayConnection): InternalRaisesFuture[void, void]" href="libp2p/protocols/connectivity/relay/rconn.html#closeImpl.e%2CRelayConnection">rconn: closeImpl(self: RelayConnection): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="noise: closeImpl(s: NoiseConnection): Future[void]" href="libp2p/protocols/secure/noise.html#closeImpl.e%2CNoiseConnection">noise: closeImpl(s: NoiseConnection): Future[void]</a></li>
+          data-doc-search-tag="noise: closeImpl(s: NoiseConnection): InternalRaisesFuture[void, void]" href="libp2p/protocols/secure/noise.html#closeImpl.e%2CNoiseConnection">noise: closeImpl(s: NoiseConnection): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="secure: closeImpl(s: SecureConn): Future[void]" href="libp2p/protocols/secure/secure.html#closeImpl.e%2CSecureConn">secure: closeImpl(s: SecureConn): Future[void]</a></li>
+          data-doc-search-tag="secure: closeImpl(s: SecureConn): InternalRaisesFuture[void, void]" href="libp2p/protocols/secure/secure.html#closeImpl.e%2CSecureConn">secure: closeImpl(s: SecureConn): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="bufferstream: closeImpl(s: BufferStream): Future[void]" href="libp2p/stream/bufferstream.html#closeImpl.e%2CBufferStream">bufferstream: closeImpl(s: BufferStream): Future[void]</a></li>
+          data-doc-search-tag="bufferstream: closeImpl(s: BufferStream): InternalRaisesFuture[void, void]" href="libp2p/stream/bufferstream.html#closeImpl.e%2CBufferStream">bufferstream: closeImpl(s: BufferStream): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="chronosstream: closeImpl(s: ChronosStream): Future[void]" href="libp2p/stream/chronosstream.html#closeImpl.e%2CChronosStream">chronosstream: closeImpl(s: ChronosStream): Future[void]</a></li>
+          data-doc-search-tag="chronosstream: closeImpl(s: ChronosStream): InternalRaisesFuture[void, void]" href="libp2p/stream/chronosstream.html#closeImpl.e%2CChronosStream">chronosstream: closeImpl(s: ChronosStream): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="connection: closeImpl(s: Connection): Future[void]" href="libp2p/stream/connection.html#closeImpl.e%2CConnection">connection: closeImpl(s: Connection): Future[void]</a></li>
+          data-doc-search-tag="connection: closeImpl(s: Connection): InternalRaisesFuture[void, void]" href="libp2p/stream/connection.html#closeImpl.e%2CConnection">connection: closeImpl(s: Connection): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="lpstream: closeImpl(s: LPStream): Future[void]" href="libp2p/stream/lpstream.html#closeImpl.e%2CLPStream">lpstream: closeImpl(s: LPStream): Future[void]</a></li>
+          data-doc-search-tag="lpstream: closeImpl(s: LPStream): InternalRaisesFuture[void, void]" href="libp2p/stream/lpstream.html#closeImpl.e%2CLPStream">lpstream: closeImpl(s: LPStream): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="wstransport: closeImpl(s: WsStream): Future[void]" href="libp2p/transports/wstransport.html#closeImpl.e%2CWsStream">wstransport: closeImpl(s: WsStream): Future[void]</a></li>
+          data-doc-search-tag="wstransport: closeImpl(s: WsStream): InternalRaisesFuture[void, void]" href="libp2p/transports/wstransport.html#closeImpl.e%2CWsStream">wstransport: closeImpl(s: WsStream): InternalRaisesFuture[void, void]</a></li>
           </ul></dd>
 <dt><a name="closeWithEOF" href="#closeWithEOF"><span>closeWithEOF:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="lpstream: closeWithEOF(s: LPStream): Future[void]" href="libp2p/stream/lpstream.html#closeWithEOF%2CLPStream">lpstream: closeWithEOF(s: LPStream): Future[void]</a></li>
+          data-doc-search-tag="lpstream: closeWithEOF(s: LPStream): InternalRaisesFuture[void, void]" href="libp2p/stream/lpstream.html#closeWithEOF%2CLPStream">lpstream: closeWithEOF(s: LPStream): InternalRaisesFuture[void, void]</a></li>
           </ul></dd>
 <dt><a name="cmp" href="#cmp"><span>cmp:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -746,17 +750,17 @@ window.addEventListener('DOMContentLoaded', main);
     PeerId]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="dial: connect(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; upgradeDir = Direction.Out): Future[void]" href="libp2p/dial.html#connect.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D">dial: connect(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; upgradeDir = Direction.Out): Future[void]</a></li>
+        reuseConnection = true; dir = Direction.Out): Future[void]" href="libp2p/dial.html#connect.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D">dial: connect(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
+        reuseConnection = true; dir = Direction.Out): Future[void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="dialer: connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): Future[
     PeerId]" href="libp2p/dialer.html#connect.e%2CDialer%2CMultiAddress">dialer: connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): Future[
     PeerId]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="dialer: connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; upgradeDir = Direction.Out): Future[
+        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
     void]" href="libp2p/dialer.html#connect.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D">dialer: connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; upgradeDir = Direction.Out): Future[
+        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
     void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: connect(p: PubSubPeer)" href="libp2p/protocols/pubsub/pubsubpeer.html#connect%2CPubSubPeer">pubsubpeer: connect(p: PubSubPeer)</a></li>
@@ -766,8 +770,8 @@ window.addEventListener('DOMContentLoaded', main);
     PeerId]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="switch: connect(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; upgradeDir = Direction.Out): Future[void]" href="libp2p/switch.html#connect.e%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D">switch: connect(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; upgradeDir = Direction.Out): Future[void]</a></li>
+        reuseConnection = true; dir = Direction.Out): Future[void]" href="libp2p/switch.html#connect.e%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D">switch: connect(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
+        reuseConnection = true; dir = Direction.Out): Future[void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wire: connect(ma: MultiAddress; bufferSize = DefaultStreamBufferSize;
         child: StreamTransport = nil; flags = default(set[SocketFlags]);
@@ -880,16 +884,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="createAsyncSocket" href="#createAsyncSocket"><span>createAsyncSocket:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="wire: createAsyncSocket(ma: MultiAddress): AsyncFD" href="libp2p/wire.html#createAsyncSocket%2CMultiAddress">wire: createAsyncSocket(ma: MultiAddress): AsyncFD</a></li>
-          </ul></dd>
-<dt><a name="createExchange" href="#createExchange"><span>createExchange:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: createExchange(epubkey, signature: openArray[byte]): seq[byte]" href="libp2p/crypto/crypto.html#createExchange%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D">crypto: createExchange(epubkey, signature: openArray[byte]): seq[byte]</a></li>
-          </ul></dd>
-<dt><a name="createProposal" href="#createProposal"><span>createProposal:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: createProposal(nonce, pubkey: openArray[byte];
-               exchanges, ciphers, hashes: string): seq[byte]" href="libp2p/crypto/crypto.html#createProposal%2CopenArray%5Bbyte%5D%2CopenArray%5Bbyte%5D%2Cstring%2Cstring%2Cstring">crypto: createProposal(nonce, pubkey: openArray[byte];
-               exchanges, ciphers, hashes: string): seq[byte]</a></li>
           </ul></dd>
 <dt><a name="createStreamServer" href="#createStreamServer"><span>createStreamServer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1007,10 +1001,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="multibase: decodedLength(mbtype: typedesc[MultiBase]; encoding: char; length: int): int" href="libp2p/multibase.html#decodedLength%2Ctypedesc%5BMultiBase%5D%2Cchar%2Cint">multibase: decodedLength(mbtype: typedesc[MultiBase]; encoding: char; length: int): int</a></li>
           </ul></dd>
-<dt><a name="decodeExchange" href="#decodeExchange"><span>decodeExchange:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: decodeExchange(message: seq[byte]; pubkey, signature: var seq[byte]): bool" href="libp2p/crypto/crypto.html#decodeExchange%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D">crypto: decodeExchange(message: seq[byte]; pubkey, signature: var seq[byte]): bool</a></li>
-          </ul></dd>
 <dt><a name="decodeGraft" href="#decodeGraft"><span>decodeGraft:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="protobuf: decodeGraft(pb: ProtoBuffer): ProtoResult[ControlGraft]" href="libp2p/protocols/pubsub/rpc/protobuf.html#decodeGraft%2CProtoBuffer">protobuf: decodeGraft(pb: ProtoBuffer): ProtoResult[ControlGraft]</a></li>
@@ -1038,12 +1028,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="decodePeerInfoMsg" href="#decodePeerInfoMsg"><span>decodePeerInfoMsg:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="protobuf: decodePeerInfoMsg(pb: ProtoBuffer): ProtoResult[PeerInfoMsg]" href="libp2p/protocols/pubsub/rpc/protobuf.html#decodePeerInfoMsg%2CProtoBuffer">protobuf: decodePeerInfoMsg(pb: ProtoBuffer): ProtoResult[PeerInfoMsg]</a></li>
-          </ul></dd>
-<dt><a name="decodeProposal" href="#decodeProposal"><span>decodeProposal:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="crypto: decodeProposal(message: seq[byte]; nonce, pubkey: var seq[byte];
-               exchanges, ciphers, hashes: var string): bool" href="libp2p/crypto/crypto.html#decodeProposal%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cseq%5Bbyte%5D%2Cstring%2Cstring%2Cstring">crypto: decodeProposal(message: seq[byte]; nonce, pubkey: var seq[byte];
-               exchanges, ciphers, hashes: var string): bool</a></li>
           </ul></dd>
 <dt><a name="decodePrune" href="#decodePrune"><span>decodePrune:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1094,6 +1078,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="DefaultMaxIncomingStreams" href="#DefaultMaxIncomingStreams"><span>DefaultMaxIncomingStreams:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="protocol: DefaultMaxIncomingStreams" href="libp2p/protocols/protocol.html#DefaultMaxIncomingStreams">protocol: DefaultMaxIncomingStreams</a></li>
+          </ul></dd>
+<dt><a name="DefaultMaxNumElementsInNonPriorityQueue" href="#DefaultMaxNumElementsInNonPriorityQueue"><span>DefaultMaxNumElementsInNonPriorityQueue:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: DefaultMaxNumElementsInNonPriorityQueue" href="libp2p/protocols/pubsub/pubsubpeer.html#DefaultMaxNumElementsInNonPriorityQueue">pubsubpeer: DefaultMaxNumElementsInNonPriorityQueue</a></li>
           </ul></dd>
 <dt><a name="defaultMsgIdProvider" href="#defaultMsgIdProvider"><span>defaultMsgIdProvider:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1163,6 +1151,10 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="transport: dial(self: Transport; hostname: string; address: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/transport.html#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">transport: dial(self: Transport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="wstransport: dial(self: WsTransport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/wstransport.html#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">wstransport: dial(self: WsTransport; hostname: string; address: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
           </ul></dd>
 <dt><a name="Dialer" href="#Dialer"><span>Dialer:</span></a></dt><dd><ul class="simple">
@@ -1695,6 +1687,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="nameresolver: getHostname(ma: MultiAddress): string" href="libp2p/nameresolving/nameresolver.html#getHostname%2CMultiAddress">nameresolver: getHostname(ma: MultiAddress): string</a></li>
           </ul></dd>
+<dt><a name="getIncomingSlot" href="#getIncomingSlot"><span>getIncomingSlot:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="connmanager: getIncomingSlot(c: ConnManager): Future[ConnectionSlot]" href="libp2p/connmanager.html#getIncomingSlot%2CConnManager">connmanager: getIncomingSlot(c: ConnManager): Future[ConnectionSlot]</a></li>
+          </ul></dd>
 <dt><a name="getLen" href="#getLen"><span>getLen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="minprotobuf: getLen(pb: ProtoBuffer): int" href="libp2p/protobuf/minprotobuf.html#getLen.t%2CProtoBuffer">minprotobuf: getLen(pb: ProtoBuffer): int</a></li>
@@ -1803,6 +1799,8 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="getStream" href="#getStream"><span>getStream:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
+          data-doc-search-tag="connmanager: getStream(c: ConnManager; muxer: Muxer): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CMuxer">connmanager: getStream(c: ConnManager; muxer: Muxer): Future[Connection]</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="connmanager: getStream(c: ConnManager; peerId: PeerId): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CPeerId">connmanager: getStream(c: ConnManager; peerId: PeerId): Future[Connection]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="connmanager: getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CPeerId%2CDirection">connmanager: getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]</a></li>
@@ -1911,17 +1909,19 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="handle" href="#handle"><span>handle:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="multistream: handle(m: MultistreamSelect; conn: Connection; active: bool = false): Future[
-    void]" href="libp2p/multistream.html#handle%2CMultistreamSelect%2CConnection%2Cbool">multistream: handle(m: MultistreamSelect; conn: Connection; active: bool = false): Future[
-    void]</a></li>
+          data-doc-search-tag="multistream: handle(m: MultistreamSelect; conn: Connection; active: bool = false): InternalRaisesFuture[
+    void, (CancelledError,)]" href="libp2p/multistream.html#handle%2CMultistreamSelect%2CConnection%2Cbool">multistream: handle(m: MultistreamSelect; conn: Connection; active: bool = false): InternalRaisesFuture[
+    void, (CancelledError,)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="multistream: handle(_: type MultistreamSelect; conn: Connection; protos: seq[string];
-       matchers = newSeq[Matcher](); active: bool = false): Future[string]" href="libp2p/multistream.html#handle%2CtypeMultistreamSelect%2CConnection%2Cseq%5Bstring%5D%2Cbool">multistream: handle(_: type MultistreamSelect; conn: Connection; protos: seq[string];
-       matchers = newSeq[Matcher](); active: bool = false): Future[string]</a></li>
+       matchers = newSeq[Matcher](); active: bool = false): InternalRaisesFuture[
+    string, (CancelledError, LPStreamError, MultiStreamError)]" href="libp2p/multistream.html#handle%2CtypeMultistreamSelect%2CConnection%2Cseq%5Bstring%5D%2Cbool">multistream: handle(_: type MultistreamSelect; conn: Connection; protos: seq[string];
+       matchers = newSeq[Matcher](); active: bool = false): InternalRaisesFuture[
+    string, (CancelledError, LPStreamError, MultiStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="muxer: handle(m: Muxer): Future[void]" href="libp2p/muxers/muxer.html#handle.e%2CMuxer">muxer: handle(m: Muxer): Future[void]</a></li>
+          data-doc-search-tag="muxer: handle(m: Muxer): InternalRaisesFuture[void, void]" href="libp2p/muxers/muxer.html#handle.e%2CMuxer">muxer: handle(m: Muxer): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="yamux: handle(m: Yamux): Future[void]" href="libp2p/muxers/yamux/yamux.html#handle.e%2CYamux">yamux: handle(m: Yamux): Future[void]</a></li>
+          data-doc-search-tag="yamux: handle(m: Yamux): InternalRaisesFuture[void, void]" href="libp2p/muxers/yamux/yamux.html#handle.e%2CYamux">yamux: handle(m: Yamux): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: handle(p: PubSubPeer; conn: Connection): Future[void]" href="libp2p/protocols/pubsub/pubsubpeer.html#handle%2CPubSubPeer%2CConnection">pubsubpeer: handle(p: PubSubPeer; conn: Connection): Future[void]</a></li>
           </ul></dd>
@@ -1969,6 +1969,20 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="behavior: handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])" href="libp2p/protocols/pubsub/gossipsub/behavior.html#handlePrune%2CGossipSub%2CPubSubPeer%2Cseq%5BControlPrune%5D">behavior: handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])</a></li>
           </ul></dd>
+<dt><a name="handler" href="#handler"><span>handler:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="protocol: handler(p: LPProtocol): LPProtoHandler" href="libp2p/protocols/protocol.html#handler.t%2CLPProtocol">protocol: handler(p: LPProtocol): LPProtoHandler</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="protocol: handler(p: LPProtocol; conn: Connection; proto: string): Future[void]" href="libp2p/protocols/protocol.html#handler.t%2CLPProtocol%2CConnection%2Cstring">protocol: handler(p: LPProtocol; conn: Connection; proto: string): Future[void]</a></li>
+          </ul></dd>
+<dt><a name="handler%3D" href="#handler%3D"><span>handler=:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="protocol: handler=(p: LPProtocol; handler: LPProtoHandler)" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2CLPProtoHandler">protocol: handler=(p: LPProtocol; handler: LPProtoHandler)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="protocol: handler=[E](p: LPProtocol; handler: proc (conn: Connection; proto: string): InternalRaisesFuture[
+    void, E])" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2Cproc%28Connection%2Cstring%29">protocol: handler=[E](p: LPProtocol; handler: proc (conn: Connection; proto: string): InternalRaisesFuture[
+    void, E])</a></li>
+          </ul></dd>
 <dt><a name="HandlerHolder" href="#HandlerHolder"><span>HandlerHolder:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multistream: HandlerHolder" href="libp2p/multistream.html#HandlerHolder">multistream: HandlerHolder</a></li>
@@ -1991,13 +2005,13 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="handshake" href="#handshake"><span>handshake:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="noise: handshake(p: Noise; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    SecureConn]" href="libp2p/protocols/secure/noise.html#handshake.e%2CNoise%2CConnection%2Cbool%2COpt%5BPeerId%5D">noise: handshake(p: Noise; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    SecureConn]</a></li>
+          data-doc-search-tag="noise: handshake(p: Noise; conn: Connection; initiator: bool; peerId: Opt[PeerId]): InternalRaisesFuture[
+    SecureConn, (CancelledError, LPStreamError)]" href="libp2p/protocols/secure/noise.html#handshake.e%2CNoise%2CConnection%2Cbool%2COpt%5BPeerId%5D">noise: handshake(p: Noise; conn: Connection; initiator: bool; peerId: Opt[PeerId]): InternalRaisesFuture[
+    SecureConn, (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="secure: handshake(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    SecureConn]" href="libp2p/protocols/secure/secure.html#handshake.e%2CSecure%2CConnection%2Cbool%2COpt%5BPeerId%5D">secure: handshake(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    SecureConn]</a></li>
+          data-doc-search-tag="secure: handshake(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): InternalRaisesFuture[
+    SecureConn, (CancelledError, LPStreamError)]" href="libp2p/protocols/secure/secure.html#handshake.e%2CSecure%2CConnection%2Cbool%2COpt%5BPeerId%5D">secure: handshake(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): InternalRaisesFuture[
+    SecureConn, (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="hash" href="#hash"><span>hash:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2289,6 +2303,10 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="multiaddress: init(mtype: typedesc[MultiAddress]): MultiAddress" href="libp2p/multiaddress.html#init%2Ctypedesc%5BMultiAddress%5D">multiaddress: init(mtype: typedesc[MultiAddress]): MultiAddress</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="multiaddress: init(mtype: typedesc[MultiAddress]; address: IpAddress;
+     protocol: IpTransportProtocol; port: Port): MultiAddress" href="libp2p/multiaddress.html#init%2Ctypedesc%5BMultiAddress%5D%2CIpAddress%2CIpTransportProtocol%2CPort">multiaddress: init(mtype: typedesc[MultiAddress]; address: IpAddress;
+     protocol: IpTransportProtocol; port: Port): MultiAddress</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="multiaddress: init(mtype: typedesc[MultiAddress]; protocol: MultiCodec; value: int): MaResult[
     MultiAddress]" href="libp2p/multiaddress.html#init%2Ctypedesc%5BMultiAddress%5D%2CMultiCodec%2Cint">multiaddress: init(mtype: typedesc[MultiAddress]; protocol: MultiCodec; value: int): MaResult[
     MultiAddress]</a></li>
@@ -2310,10 +2328,6 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="multiaddress: init(mtype: typedesc[MultiAddress]; address: TransportAddress;
      protocol = IPPROTO_TCP): MaResult[MultiAddress]" href="libp2p/multiaddress.html#init%2Ctypedesc%5BMultiAddress%5D%2CTransportAddress">multiaddress: init(mtype: typedesc[MultiAddress]; address: TransportAddress;
      protocol = IPPROTO_TCP): MaResult[MultiAddress]</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="multiaddress: init(mtype: typedesc[MultiAddress]; address: ValidIpAddress;
-     protocol: IpTransportProtocol; port: Port): MultiAddress" href="libp2p/multiaddress.html#init%2Ctypedesc%5BMultiAddress%5D%2CValidIpAddress%2CIpTransportProtocol%2CPort">multiaddress: init(mtype: typedesc[MultiAddress]; address: ValidIpAddress;
-     protocol: IpTransportProtocol; port: Port): MultiAddress</a></li>
           <li><a class="reference external"
           data-doc-search-tag="multihash: init[T](mhtype: typedesc[MultiHash]; hashcode: MultiCodec; mdigest: MDigest[T]): MhResult[
     MultiHash]" href="libp2p/multihash.html#init%2Ctypedesc%5BMultiHash%5D%2CMultiCodec%2CMDigest%5BT%5D">multihash: init[T](mhtype: typedesc[MultiHash]; hashcode: MultiCodec; mdigest: MDigest[T]): MhResult[
@@ -2361,7 +2375,41 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="floodsub: init(f: FloodSub)" href="libp2p/protocols/pubsub/floodsub.html#init.e%2CFloodSub">floodsub: init(f: FloodSub)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: init(_: type[GossipSubParams]): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D">gossipsub: init(_: type[GossipSubParams]): GossipSubParams</a></li>
+          data-doc-search-tag="gossipsub: init(_: type[GossipSubParams]; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint">gossipsub: init(_: type[GossipSubParams]; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams</a></li>
           <li><a class="reference external"
           data-doc-search-tag="gossipsub: init(g: GossipSub)" href="libp2p/protocols/pubsub/gossipsub.html#init.e%2CGossipSub">gossipsub: init(g: GossipSub)</a></li>
           <li><a class="reference external"
@@ -2593,7 +2641,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="join" href="#join"><span>join:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="lpstream: join(s: LPStream): Future[void]" href="libp2p/stream/lpstream.html#join%2CLPStream">lpstream: join(s: LPStream): Future[void]</a></li>
+          data-doc-search-tag="lpstream: join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/stream/lpstream.html#join%2CLPStream">lpstream: join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="key" href="#key"><span>key:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2727,7 +2775,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="list" href="#list"><span>list:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="multistream: list(m: MultistreamSelect; conn: Connection): Future[seq[string]]" href="libp2p/multistream.html#list%2CMultistreamSelect%2CConnection">multistream: list(m: MultistreamSelect; conn: Connection): Future[seq[string]]</a></li>
+          data-doc-search-tag="multistream: list(m: MultistreamSelect; conn: Connection): InternalRaisesFuture[seq[string],
+    (CancelledError, LPStreamError, MultiStreamError)]" href="libp2p/multistream.html#list%2CMultistreamSelect%2CConnection">multistream: list(m: MultistreamSelect; conn: Connection): InternalRaisesFuture[seq[string],
+    (CancelledError, LPStreamError, MultiStreamError)]</a></li>
           </ul></dd>
 <dt><a name="low" href="#low"><span>low:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2781,17 +2831,9 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="lpstream: LPStreamIncompleteError" href="libp2p/stream/lpstream.html#LPStreamIncompleteError">lpstream: LPStreamIncompleteError</a></li>
           </ul></dd>
-<dt><a name="LPStreamIncorrectDefect" href="#LPStreamIncorrectDefect"><span>LPStreamIncorrectDefect:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="lpstream: LPStreamIncorrectDefect" href="libp2p/stream/lpstream.html#LPStreamIncorrectDefect">lpstream: LPStreamIncorrectDefect</a></li>
-          </ul></dd>
 <dt><a name="LPStreamLimitError" href="#LPStreamLimitError"><span>LPStreamLimitError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: LPStreamLimitError" href="libp2p/stream/lpstream.html#LPStreamLimitError">lpstream: LPStreamLimitError</a></li>
-          </ul></dd>
-<dt><a name="LPStreamReadError" href="#LPStreamReadError"><span>LPStreamReadError:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="lpstream: LPStreamReadError" href="libp2p/stream/lpstream.html#LPStreamReadError">lpstream: LPStreamReadError</a></li>
           </ul></dd>
 <dt><a name="LPStreamRemoteClosedError" href="#LPStreamRemoteClosedError"><span>LPStreamRemoteClosedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2804,10 +2846,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="LPStreamTrackerName" href="#LPStreamTrackerName"><span>LPStreamTrackerName:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: LPStreamTrackerName" href="libp2p/stream/lpstream.html#LPStreamTrackerName">lpstream: LPStreamTrackerName</a></li>
-          </ul></dd>
-<dt><a name="LPStreamWriteError" href="#LPStreamWriteError"><span>LPStreamWriteError:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="lpstream: LPStreamWriteError" href="libp2p/stream/lpstream.html#LPStreamWriteError">lpstream: LPStreamWriteError</a></li>
           </ul></dd>
 <dt><a name="mac" href="#mac"><span>mac:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3035,10 +3073,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="multistream: MultistreamSelect" href="libp2p/multistream.html#MultistreamSelect">multistream: MultistreamSelect</a></li>
           </ul></dd>
-<dt><a name="mux" href="#mux"><span>mux:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="muxedupgrade: mux(self: MuxedUpgrade; conn: Connection; direction: Direction): Future[Muxer]" href="libp2p/upgrademngrs/muxedupgrade.html#mux%2CMuxedUpgrade%2CConnection%2CDirection">muxedupgrade: mux(self: MuxedUpgrade; conn: Connection; direction: Direction): Future[Muxer]</a></li>
-          </ul></dd>
 <dt><a name="MuxedUpgrade" href="#MuxedUpgrade"><span>MuxedUpgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="muxedupgrade: MuxedUpgrade" href="libp2p/upgrademngrs/muxedupgrade.html#MuxedUpgrade">muxedupgrade: MuxedUpgrade</a></li>
@@ -3095,7 +3129,13 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="muxer: new(T: typedesc[MuxerProvider]; creator: MuxerConstructor; codec: string): T:type" href="libp2p/muxers/muxer.html#new%2Ctypedesc%5BMuxerProvider%5D%2CMuxerConstructor%2Cstring">muxer: new(T: typedesc[MuxerProvider]; creator: MuxerConstructor; codec: string): T:type</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount): T:type" href="libp2p/muxers/yamux/yamux.html#new%2Ctype%5BYamux%5D%2CConnection%2Cint">yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount): T:type</a></li>
+          data-doc-search-tag="yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
+    windowSize: int = YamuxDefaultWindowSize;
+    maxSendQueueSize: int = MaxSendQueueSize; inTimeout: Duration = 5.minutes;
+    outTimeout: Duration = 5.minutes): T:type" href="libp2p/muxers/yamux/yamux.html#new%2Ctype%5BYamux%5D%2CConnection%2Cint%2Cint%2Cint%2CDuration%2CDuration">yamux: new(T: type[Yamux]; conn: Connection; maxChannCount: int = MaxChannelCount;
+    windowSize: int = YamuxDefaultWindowSize;
+    maxSendQueueSize: int = MaxSendQueueSize; inTimeout: Duration = 5.minutes;
+    outTimeout: Duration = 5.minutes): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="observedaddrmanager: new(T: typedesc[ObservedAddrManager]; maxSize = 10; minCount = 3): T:type" href="libp2p/observedaddrmanager.html#new%2Ctypedesc%5BObservedAddrManager%5D%2Cint%2Cint">observedaddrmanager: new(T: typedesc[ObservedAddrManager]; maxSize = 10; minCount = 3): T:type</a></li>
           <li><a class="reference external"
@@ -3143,7 +3183,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="rtransport: new(T: typedesc[RelayTransport]; cl: RelayClient; upgrader: Upgrade): T:type" href="libp2p/protocols/connectivity/relay/rtransport.html#new%2Ctypedesc%5BRelayTransport%5D%2CRelayClient%2CUpgrade">rtransport: new(T: typedesc[RelayTransport]; cl: RelayClient; upgrader: Upgrade): T:type</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false): T:type" href="libp2p/protocols/identify.html#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo">identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false): T:type</a></li>
+          data-doc-search-tag="identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false;
+    observedAddrManager = ObservedAddrManager.new()): T:type" href="libp2p/protocols/identify.html#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo">identify: new(T: typedesc[Identify]; peerInfo: PeerInfo; sendSignedPeerRecord = false;
+    observedAddrManager = ObservedAddrManager.new()): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="identify: new(T: typedesc[IdentifyPush]; handler: IdentifyPushHandler = nil): T:type" href="libp2p/protocols/identify.html#new%2Ctypedesc%5BIdentifyPush%5D%2CIdentifyPushHandler">identify: new(T: typedesc[IdentifyPush]; handler: IdentifyPushHandler = nil): T:type</a></li>
           <li><a class="reference external"
@@ -3155,10 +3197,16 @@ window.addEventListener('DOMContentLoaded', main);
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtoHandler">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="protocol: new[E](T: type LPProtocol; codecs: seq[string]; handler: proc (conn: Connection;
+    proto: string): InternalRaisesFuture[void, E];
+       maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2Cproc%28Connection%2Cstring%29">protocol: new[E](T: type LPProtocol; codecs: seq[string]; handler: proc (conn: Connection;
+    proto: string): InternalRaisesFuture[void, E];
+       maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
-    codec: string; maxMessageSize: int;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2COpt%5BTokenBucket%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
-    codec: string; maxMessageSize: int;
+    codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2Cint%2COpt%5BTokenBucket%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
+    codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type</a></li>
@@ -3235,19 +3283,9 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="lpstream: newLPStreamIncompleteError(): ref LPStreamIncompleteError" href="libp2p/stream/lpstream.html#newLPStreamIncompleteError">lpstream: newLPStreamIncompleteError(): ref LPStreamIncompleteError</a></li>
           </ul></dd>
-<dt><a name="newLPStreamIncorrectDefect" href="#newLPStreamIncorrectDefect"><span>newLPStreamIncorrectDefect:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="lpstream: newLPStreamIncorrectDefect(m: string): ref LPStreamIncorrectDefect" href="libp2p/stream/lpstream.html#newLPStreamIncorrectDefect%2Cstring">lpstream: newLPStreamIncorrectDefect(m: string): ref LPStreamIncorrectDefect</a></li>
-          </ul></dd>
 <dt><a name="newLPStreamLimitError" href="#newLPStreamLimitError"><span>newLPStreamLimitError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: newLPStreamLimitError(): ref LPStreamLimitError" href="libp2p/stream/lpstream.html#newLPStreamLimitError">lpstream: newLPStreamLimitError(): ref LPStreamLimitError</a></li>
-          </ul></dd>
-<dt><a name="newLPStreamReadError" href="#newLPStreamReadError"><span>newLPStreamReadError:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="lpstream: newLPStreamReadError(p: ref CatchableError): ref LPStreamReadError" href="libp2p/stream/lpstream.html#newLPStreamReadError%2Cref.CatchableError">lpstream: newLPStreamReadError(p: ref CatchableError): ref LPStreamReadError</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="lpstream: newLPStreamReadError(msg: string): ref LPStreamReadError" href="libp2p/stream/lpstream.html#newLPStreamReadError%2Cstring">lpstream: newLPStreamReadError(msg: string): ref LPStreamReadError</a></li>
           </ul></dd>
 <dt><a name="newLPStreamRemoteClosedError" href="#newLPStreamRemoteClosedError"><span>newLPStreamRemoteClosedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3257,10 +3295,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="lpstream: newLPStreamResetError(): ref LPStreamResetError" href="libp2p/stream/lpstream.html#newLPStreamResetError">lpstream: newLPStreamResetError(): ref LPStreamResetError</a></li>
           </ul></dd>
-<dt><a name="newLPStreamWriteError" href="#newLPStreamWriteError"><span>newLPStreamWriteError:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="lpstream: newLPStreamWriteError(p: ref CatchableError): ref LPStreamWriteError" href="libp2p/stream/lpstream.html#newLPStreamWriteError%2Cref.CatchableError">lpstream: newLPStreamWriteError(p: ref CatchableError): ref LPStreamWriteError</a></li>
-          </ul></dd>
 <dt><a name="newRng" href="#newRng"><span>newRng:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="crypto: newRng(): ref HmacDrbgContext" href="libp2p/crypto/crypto.html#newRng">crypto: newRng(): ref HmacDrbgContext</a></li>
@@ -3268,19 +3302,19 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="newStandardSwitch" href="#newStandardSwitch"><span>newStandardSwitch:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="builders: newStandardSwitch(privKey = none(PrivateKey); addrs: MultiAddress |
-    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).tryGet();
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise];
-                  transportFlags: set[ServerFlags] = {}; rng = newRng();
-                  inTimeout: Duration = 5.minutes;
+    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).expect(
+    &quot;valid address&quot;); secureManagers: openArray[SecureProtocol] = [
+    SecureProtocol.Noise]; transportFlags: set[ServerFlags] = {};
+                  rng = newRng(); inTimeout: Duration = 5.minutes;
                   outTimeout: Duration = 5.minutes;
                   maxConnections = MaxConnections; maxIn = -1; maxOut = -1;
                   maxConnsPerPeer = MaxConnectionsPerPeer;
                   nameResolver: NameResolver = nil;
                   sendSignedPeerRecord = false; peerStoreCapacity = 1000): Switch" href="libp2p/builders.html#newStandardSwitch%2CopenArray%5BSecureProtocol%5D%2Cset%5BServerFlags%5D%2CDuration%2CDuration%2Cint%2Cint%2CNameResolver%2Cint">builders: newStandardSwitch(privKey = none(PrivateKey); addrs: MultiAddress |
-    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).tryGet();
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise];
-                  transportFlags: set[ServerFlags] = {}; rng = newRng();
-                  inTimeout: Duration = 5.minutes;
+    seq[MultiAddress] = init(MultiAddress, &quot;/ip4/127.0.0.1/tcp/0&quot;).expect(
+    &quot;valid address&quot;); secureManagers: openArray[SecureProtocol] = [
+    SecureProtocol.Noise]; transportFlags: set[ServerFlags] = {};
+                  rng = newRng(); inTimeout: Duration = 5.minutes;
                   outTimeout: Duration = 5.minutes;
                   maxConnections = MaxConnections; maxIn = -1; maxOut = -1;
                   maxConnsPerPeer = MaxConnectionsPerPeer;
@@ -3289,9 +3323,17 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="newStream" href="#newStream"><span>newStream:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="muxer: newStream(m: Muxer; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]" href="libp2p/muxers/muxer.html#newStream.e%2CMuxer%2Cstring%2Cbool">muxer: newStream(m: Muxer; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]</a></li>
+          data-doc-search-tag="mplex: newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]" href="libp2p/muxers/mplex/mplex.html#newStream.e%2CMplex%2Cstring%2Cbool">mplex: newStream(m: Mplex; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="yamux: newStream(m: Yamux; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]" href="libp2p/muxers/yamux/yamux.html#newStream.e%2CYamux%2Cstring%2Cbool">yamux: newStream(m: Yamux; name: string = &quot;&quot;; lazy: bool = false): Future[Connection]</a></li>
+          data-doc-search-tag="muxer: newStream(m: Muxer; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]" href="libp2p/muxers/muxer.html#newStream.e%2CMuxer%2Cstring%2Cbool">muxer: newStream(m: Muxer; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="yamux: newStream(m: Yamux; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]" href="libp2p/muxers/yamux/yamux.html#newStream.e%2CYamux%2Cstring%2Cbool">yamux: newStream(m: Yamux; name: string = &quot;&quot;; lazy: bool = false): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError, MuxerError)]</a></li>
           </ul></dd>
 <dt><a name="newSwitch" href="#newSwitch"><span>newSwitch:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3384,10 +3426,6 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="gossipsub: onTopicSubscription(g: GossipSub; topic: string; subscribed: bool)" href="libp2p/protocols/pubsub/gossipsub.html#onTopicSubscription.e%2CGossipSub%2Cstring%2Cbool">gossipsub: onTopicSubscription(g: GossipSub; topic: string; subscribed: bool)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsub: onTopicSubscription(p: PubSub; topic: string; subscribed: bool)" href="libp2p/protocols/pubsub/pubsub.html#onTopicSubscription.e%2CPubSub%2Cstring%2Cbool">pubsub: onTopicSubscription(p: PubSub; topic: string; subscribed: bool)</a></li>
-          </ul></dd>
-<dt><a name="open" href="#open"><span>open:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="yamux: open(channel: YamuxChannel): Future[void]" href="libp2p/muxers/yamux/yamux.html#open%2CYamuxChannel">yamux: open(channel: YamuxChannel): Future[void]</a></li>
           </ul></dd>
 <dt><a name="Or" href="#Or"><span>Or:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3693,11 +3731,15 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="pushData" href="#pushData"><span>pushData:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="bufferstream: pushData(s: BufferStream; data: seq[byte]): Future[void]" href="libp2p/stream/bufferstream.html#pushData.e%2CBufferStream%2Cseq%5Bbyte%5D">bufferstream: pushData(s: BufferStream; data: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="bufferstream: pushData(s: BufferStream; data: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/bufferstream.html#pushData.e%2CBufferStream%2Cseq%5Bbyte%5D">bufferstream: pushData(s: BufferStream; data: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="pushEof" href="#pushEof"><span>pushEof:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="bufferstream: pushEof(s: BufferStream): Future[void]" href="libp2p/stream/bufferstream.html#pushEof.e%2CBufferStream">bufferstream: pushEof(s: BufferStream): Future[void]</a></li>
+          data-doc-search-tag="bufferstream: pushEof(s: BufferStream): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/bufferstream.html#pushEof.e%2CBufferStream">bufferstream: pushEof(s: BufferStream): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="put" href="#put"><span>put:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3773,9 +3815,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="rateLimit" href="#rateLimit"><span>rateLimit:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; rpcMsgOpt: Opt[RPCMsg]; msgSize: int): Future[
-    void]" href="libp2p/protocols/pubsub/gossipsub.html#rateLimit%2CGossipSub%2CPubSubPeer%2COpt%5BRPCMsg%5D%2Cint">gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; rpcMsgOpt: Opt[RPCMsg]; msgSize: int): Future[
-    void]</a></li>
+          data-doc-search-tag="gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): Future[void]" href="libp2p/protocols/pubsub/gossipsub.html#rateLimit%2CGossipSub%2CPubSubPeer%2Cint">gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): Future[void]</a></li>
           </ul></dd>
 <dt><a name="read" href="#read"><span>read:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3787,43 +3827,69 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="readExactly" href="#readExactly"><span>readExactly:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): Future[void]" href="libp2p/stream/lpstream.html#readExactly%2CLPStream%2Cpointer%2Cint">lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): Future[void]</a></li>
+          data-doc-search-tag="lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readExactly%2CLPStream%2Cpointer%2Cint">lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readLine" href="#readLine"><span>readLine:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: readLine(s: LPStream; limit = 0; sep = &quot;\r
-&quot;): Future[string]" href="libp2p/stream/lpstream.html#readLine%2CLPStream%2Cint%2Cstring">lpstream: readLine(s: LPStream; limit = 0; sep = &quot;\r
-&quot;): Future[string]</a></li>
+&quot;): InternalRaisesFuture[string,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readLine%2CLPStream%2Cint%2Cstring">lpstream: readLine(s: LPStream; limit = 0; sep = &quot;\r
+&quot;): InternalRaisesFuture[string,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readLp" href="#readLp"><span>readLp:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="lpstream: readLp(s: LPStream; maxSize: int): Future[seq[byte]]" href="libp2p/stream/lpstream.html#readLp%2CLPStream%2Cint">lpstream: readLp(s: LPStream; maxSize: int): Future[seq[byte]]</a></li>
+          data-doc-search-tag="lpstream: readLp(s: LPStream; maxSize: int): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readLp%2CLPStream%2Cint">lpstream: readLp(s: LPStream; maxSize: int): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readMessage" href="#readMessage"><span>readMessage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="noise: readMessage(sconn: NoiseConnection): Future[seq[byte]]" href="libp2p/protocols/secure/noise.html#readMessage.e%2CNoiseConnection">noise: readMessage(sconn: NoiseConnection): Future[seq[byte]]</a></li>
+          data-doc-search-tag="noise: readMessage(sconn: NoiseConnection): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/secure/noise.html#readMessage.e%2CNoiseConnection">noise: readMessage(sconn: NoiseConnection): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="secure: readMessage(c: SecureConn): Future[seq[byte]]" href="libp2p/protocols/secure/secure.html#readMessage.e%2CSecureConn">secure: readMessage(c: SecureConn): Future[seq[byte]]</a></li>
+          data-doc-search-tag="secure: readMessage(c: SecureConn): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/secure/secure.html#readMessage.e%2CSecureConn">secure: readMessage(c: SecureConn): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readMsg" href="#readMsg"><span>readMsg:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="coder: readMsg(conn: Connection): Future[Msg]" href="libp2p/muxers/mplex/coder.html#readMsg%2CConnection">coder: readMsg(conn: Connection): Future[Msg]</a></li>
+          data-doc-search-tag="coder: readMsg(conn: Connection): InternalRaisesFuture[Msg,
+    (CancelledError, LPStreamError, MuxerError)]" href="libp2p/muxers/mplex/coder.html#readMsg%2CConnection">coder: readMsg(conn: Connection): InternalRaisesFuture[Msg,
+    (CancelledError, LPStreamError, MuxerError)]</a></li>
           </ul></dd>
 <dt><a name="readOnce" href="#readOnce"><span>readOnce:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="yamux: readOnce(channel: YamuxChannel; pbytes: pointer; nbytes: int): Future[int]" href="libp2p/muxers/yamux/yamux.html#readOnce.e%2CYamuxChannel%2Cpointer%2Cint">yamux: readOnce(channel: YamuxChannel; pbytes: pointer; nbytes: int): Future[int]</a></li>
+          data-doc-search-tag="yamux: readOnce(channel: YamuxChannel; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]" href="libp2p/muxers/yamux/yamux.html#readOnce.e%2CYamuxChannel%2Cpointer%2Cint">yamux: readOnce(channel: YamuxChannel; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rconn: readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): Future[int]" href="libp2p/protocols/connectivity/relay/rconn.html#readOnce.e%2CRelayConnection%2Cpointer%2Cint">rconn: readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): Future[int]</a></li>
+          data-doc-search-tag="rconn: readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/rconn.html#readOnce.e%2CRelayConnection%2Cpointer%2Cint">rconn: readOnce(self: RelayConnection; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="secure: readOnce(s: SecureConn; pbytes: pointer; nbytes: int): Future[int]" href="libp2p/protocols/secure/secure.html#readOnce.e%2CSecureConn%2Cpointer%2Cint">secure: readOnce(s: SecureConn; pbytes: pointer; nbytes: int): Future[int]</a></li>
+          data-doc-search-tag="secure: readOnce(s: SecureConn; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/secure/secure.html#readOnce.e%2CSecureConn%2Cpointer%2Cint">secure: readOnce(s: SecureConn; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="bufferstream: readOnce(s: BufferStream; pbytes: pointer; nbytes: int): Future[int]" href="libp2p/stream/bufferstream.html#readOnce.e%2CBufferStream%2Cpointer%2Cint">bufferstream: readOnce(s: BufferStream; pbytes: pointer; nbytes: int): Future[int]</a></li>
+          data-doc-search-tag="bufferstream: readOnce(s: BufferStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]" href="libp2p/stream/bufferstream.html#readOnce.e%2CBufferStream%2Cpointer%2Cint">bufferstream: readOnce(s: BufferStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="chronosstream: readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): Future[int]" href="libp2p/stream/chronosstream.html#readOnce.e%2CChronosStream%2Cpointer%2Cint">chronosstream: readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): Future[int]</a></li>
+          data-doc-search-tag="chronosstream: readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]" href="libp2p/stream/chronosstream.html#readOnce.e%2CChronosStream%2Cpointer%2Cint">chronosstream: readOnce(s: ChronosStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    int, (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="lpstream: readOnce(s: LPStream; pbytes: pointer; nbytes: int): Future[int]" href="libp2p/stream/lpstream.html#readOnce.e%2CLPStream%2Cpointer%2Cint">lpstream: readOnce(s: LPStream; pbytes: pointer; nbytes: int): Future[int]</a></li>
+          data-doc-search-tag="lpstream: readOnce(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readOnce.e%2CLPStream%2Cpointer%2Cint">lpstream: readOnce(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="wstransport: readOnce(s: WsStream; pbytes: pointer; nbytes: int): Future[int]" href="libp2p/transports/wstransport.html#readOnce.e%2CWsStream%2Cpointer%2Cint">wstransport: readOnce(s: WsStream; pbytes: pointer; nbytes: int): Future[int]</a></li>
+          data-doc-search-tag="wstransport: readOnce(s: WsStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]" href="libp2p/transports/wstransport.html#readOnce.e%2CWsStream%2Cpointer%2Cint">wstransport: readOnce(s: WsStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[int,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readSeq" href="#readSeq"><span>readSeq:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3831,7 +3897,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="readVarint" href="#readVarint"><span>readVarint:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="lpstream: readVarint(conn: LPStream): Future[uint64]" href="libp2p/stream/lpstream.html#readVarint%2CLPStream">lpstream: readVarint(conn: LPStream): Future[uint64]</a></li>
+          data-doc-search-tag="lpstream: readVarint(conn: LPStream): InternalRaisesFuture[uint64,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readVarint%2CLPStream">lpstream: readVarint(conn: LPStream): InternalRaisesFuture[uint64,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="vbuffer: readVarint(vb: var VBuffer; value: var LPSomeUVarint): int" href="libp2p/vbuffer.html#readVarint%2CVBuffer%2CLPSomeUVarint">vbuffer: readVarint(vb: var VBuffer; value: var LPSomeUVarint): int</a></li>
           </ul></dd>
@@ -4021,9 +4089,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="rewardDelivered" href="#rewardDelivered"><span>rewardDelivered:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="scoring: rewardDelivered(g: GossipSub; peer: PubSubPeer; topics: openArray[string];
-                first: bool; delay = ZeroDuration)" href="libp2p/protocols/pubsub/gossipsub/scoring.html#rewardDelivered%2CGossipSub%2CPubSubPeer%2CopenArray%5Bstring%5D%2Cbool">scoring: rewardDelivered(g: GossipSub; peer: PubSubPeer; topics: openArray[string];
-                first: bool; delay = ZeroDuration)</a></li>
+          data-doc-search-tag="scoring: rewardDelivered(g: GossipSub; peer: PubSubPeer; topic: string; first: bool;
+                delay = ZeroDuration)" href="libp2p/protocols/pubsub/gossipsub/scoring.html#rewardDelivered%2CGossipSub%2CPubSubPeer%2Cstring%2Cbool">scoring: rewardDelivered(g: GossipSub; peer: PubSubPeer; topic: string; first: bool;
+                delay = ZeroDuration)</a></li>
           </ul></dd>
 <dt><a name="RoutingRecordsHandler" href="#RoutingRecordsHandler"><span>RoutingRecordsHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4044,6 +4112,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="RPCHandler" href="#RPCHandler"><span>RPCHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: RPCHandler" href="libp2p/protocols/pubsub/pubsubpeer.html#RPCHandler">pubsubpeer: RPCHandler</a></li>
+          </ul></dd>
+<dt><a name="RpcMessageQueue" href="#RpcMessageQueue"><span>RpcMessageQueue:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: RpcMessageQueue" href="libp2p/protocols/pubsub/pubsubpeer.html#RpcMessageQueue">pubsubpeer: RpcMessageQueue</a></li>
           </ul></dd>
 <dt><a name="RPCMsg" href="#RPCMsg"><span>RPCMsg:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4209,15 +4281,15 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="secure" href="#secure"><span>secure:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="secure: secure(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    Connection]" href="libp2p/protocols/secure/secure.html#secure.e%2CSecure%2CConnection%2Cbool%2COpt%5BPeerId%5D">secure: secure(s: Secure; conn: Connection; initiator: bool; peerId: Opt[PeerId]): Future[
-    Connection]</a></li>
+          data-doc-search-tag="secure: secure(s: Secure; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError)]" href="libp2p/protocols/secure/secure.html#secure.e%2CSecure%2CConnection%2COpt%5BPeerId%5D">secure: secure(s: Secure; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Connection, (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: secure(self: WsTransport): bool" href="libp2p/transports/wstransport.html#secure%2CWsTransport">wstransport: secure(self: WsTransport): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="upgrade: secure(self: Upgrade; conn: Connection; direction: Direction;
-       peerId: Opt[PeerId]): Future[Connection]" href="libp2p/upgrademngrs/upgrade.html#secure%2CUpgrade%2CConnection%2CDirection%2COpt%5BPeerId%5D">upgrade: secure(self: Upgrade; conn: Connection; direction: Direction;
-       peerId: Opt[PeerId]): Future[Connection]</a></li>
+          data-doc-search-tag="upgrade: secure(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Connection, (CancelledError, LPError)]" href="libp2p/upgrademngrs/upgrade.html#secure%2CUpgrade%2CConnection%2COpt%5BPeerId%5D">upgrade: secure(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Connection, (CancelledError, LPError)]</a></li>
           </ul></dd>
 <dt><a name="SecureConn" href="#SecureConn"><span>SecureConn:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4234,14 +4306,20 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="select" href="#select"><span>select:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multistream: select(_: MultistreamSelect | type MultistreamSelect; conn: Connection;
-       proto: seq[string]): Future[string]" href="libp2p/multistream.html#select%2C%2CConnection%2Cseq%5Bstring%5D">multistream: select(_: MultistreamSelect | type MultistreamSelect; conn: Connection;
-       proto: seq[string]): Future[string]</a></li>
+       proto: seq[string]): InternalRaisesFuture[string,
+    (CancelledError, LPStreamError, MultiStreamError)]" href="libp2p/multistream.html#select%2C%2CConnection%2Cseq%5Bstring%5D">multistream: select(_: MultistreamSelect | type MultistreamSelect; conn: Connection;
+       proto: seq[string]): InternalRaisesFuture[string,
+    (CancelledError, LPStreamError, MultiStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="multistream: select(_: MultistreamSelect | type MultistreamSelect; conn: Connection;
-       proto: string): Future[bool]" href="libp2p/multistream.html#select%2C%2CConnection%2Cstring">multistream: select(_: MultistreamSelect | type MultistreamSelect; conn: Connection;
-       proto: string): Future[bool]</a></li>
+       proto: string): InternalRaisesFuture[bool,
+    (CancelledError, LPStreamError, MultiStreamError)]" href="libp2p/multistream.html#select%2C%2CConnection%2Cstring">multistream: select(_: MultistreamSelect | type MultistreamSelect; conn: Connection;
+       proto: string): InternalRaisesFuture[bool,
+    (CancelledError, LPStreamError, MultiStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="multistream: select(m: MultistreamSelect; conn: Connection): Future[bool]" href="libp2p/multistream.html#select%2CMultistreamSelect%2CConnection">multistream: select(m: MultistreamSelect; conn: Connection): Future[bool]</a></li>
+          data-doc-search-tag="multistream: select(m: MultistreamSelect; conn: Connection): InternalRaisesFuture[bool,
+    (CancelledError, LPStreamError, MultiStreamError)]" href="libp2p/multistream.html#select%2CMultistreamSelect%2CConnection">multistream: select(m: MultistreamSelect; conn: Connection): InternalRaisesFuture[bool,
+    (CancelledError, LPStreamError, MultiStreamError)]</a></li>
           </ul></dd>
 <dt><a name="selectBest" href="#selectBest"><span>selectBest:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4253,25 +4331,31 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="send" href="#send"><span>send:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg)" href="libp2p/protocols/pubsub/pubsub.html#send%2CPubSub%2CPubSubPeer%2CRPCMsg">pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg)</a></li>
+          data-doc-search-tag="pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)" href="libp2p/protocols/pubsub/pubsub.html#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool">pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool)" href="libp2p/protocols/pubsub/pubsubpeer.html#send%2CPubSubPeer%2CRPCMsg%2Cbool">pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool)</a></li>
+          data-doc-search-tag="pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool; isHighPriority: bool)" href="libp2p/protocols/pubsub/pubsubpeer.html#send%2CPubSubPeer%2CRPCMsg%2Cbool%2Cbool">pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool; isHighPriority: bool)</a></li>
           </ul></dd>
 <dt><a name="sendEncoded" href="#sendEncoded"><span>sendEncoded:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]): Future[void]" href="libp2p/protocols/pubsub/pubsubpeer.html#sendEncoded%2CPubSubPeer%2Cseq%5Bbyte%5D">pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]; isHighPriority: bool): Future[void]" href="libp2p/protocols/pubsub/pubsubpeer.html#sendEncoded%2CPubSubPeer%2Cseq%5Bbyte%5D%2Cbool">pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]; isHighPriority: bool): Future[void]</a></li>
           </ul></dd>
 <dt><a name="sendHopStatus" href="#sendHopStatus"><span>sendHopStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: sendHopStatus(conn: Connection; code: StatusV2): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#sendHopStatus%2CConnection%2CStatusV2">utils: sendHopStatus(conn: Connection; code: StatusV2): Future[void]</a></li>
+          data-doc-search-tag="utils: sendHopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/utils.html#sendHopStatus%2CConnection%2CStatusV2">utils: sendHopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="sendStatus" href="#sendStatus"><span>sendStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: sendStatus(conn: Connection; code: StatusV1): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#sendStatus%2CConnection%2CStatusV1">utils: sendStatus(conn: Connection; code: StatusV1): Future[void]</a></li>
+          data-doc-search-tag="utils: sendStatus(conn: Connection; code: StatusV1): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/utils.html#sendStatus%2CConnection%2CStatusV1">utils: sendStatus(conn: Connection; code: StatusV1): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="sendStopStatus" href="#sendStopStatus"><span>sendStopStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utils: sendStopStatus(conn: Connection; code: StatusV2): Future[void]" href="libp2p/protocols/connectivity/relay/utils.html#sendStopStatus%2CConnection%2CStatusV2">utils: sendStopStatus(conn: Connection; code: StatusV2): Future[void]</a></li>
+          data-doc-search-tag="utils: sendStopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/utils.html#sendStopStatus%2CConnection%2CStatusV2">utils: sendStopStatus(conn: Connection; code: StatusV2): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="sendSubs" href="#sendSubs"><span>sendSubs:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4292,10 +4376,6 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="rendezvous: setup(rdv: RendezVous; switch: Switch)" href="libp2p/protocols/rendezvous.html#setup%2CRendezVous%2CSwitch">rendezvous: setup(rdv: RendezVous; switch: Switch)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="switch: setup(self: Service; switch: Switch): Future[bool]" href="libp2p/switch.html#setup.e%2CService%2CSwitch">switch: setup(self: Service; switch: Switch): Future[bool]</a></li>
-          </ul></dd>
-<dt><a name="setupStreamTracker" href="#setupStreamTracker"><span>setupStreamTracker:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="lpstream: setupStreamTracker(name: string): StreamTracker" href="libp2p/stream/lpstream.html#setupStreamTracker%2Cstring">lpstream: setupStreamTracker(name: string): StreamTracker</a></li>
           </ul></dd>
 <dt><a name="Sha256" href="#Sha256"><span>Sha256:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4449,17 +4529,17 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="start" href="#start"><span>start:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="multistream: start(m: MultistreamSelect): Future[void]" href="libp2p/multistream.html#start%2CMultistreamSelect">multistream: start(m: MultistreamSelect): Future[void]</a></li>
+          data-doc-search-tag="multistream: start(m: MultistreamSelect): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/multistream.html#start%2CMultistreamSelect">multistream: start(m: MultistreamSelect): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="relay: start(r: Relay): Future[void]" href="libp2p/protocols/connectivity/relay/relay.html#start.e%2CRelay">relay: start(r: Relay): Future[void]</a></li>
+          data-doc-search-tag="relay: start(r: Relay): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/connectivity/relay/relay.html#start.e%2CRelay">relay: start(r: Relay): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rtransport: start(self: RelayTransport; ma: seq[MultiAddress]): Future[void]" href="libp2p/protocols/connectivity/relay/rtransport.html#start.e%2CRelayTransport%2Cseq%5BMultiAddress%5D">rtransport: start(self: RelayTransport; ma: seq[MultiAddress]): Future[void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="protocol: start(p: LPProtocol): Future[void]" href="libp2p/protocols/protocol.html#start.e%2CLPProtocol">protocol: start(p: LPProtocol): Future[void]</a></li>
+          data-doc-search-tag="protocol: start(p: LPProtocol): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/protocol.html#start.e%2CLPProtocol">protocol: start(p: LPProtocol): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: start(g: GossipSub): Future[void]" href="libp2p/protocols/pubsub/gossipsub.html#start.e%2CGossipSub">gossipsub: start(g: GossipSub): Future[void]</a></li>
+          data-doc-search-tag="gossipsub: start(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/pubsub/gossipsub.html#start.e%2CGossipSub">gossipsub: start(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: start(rdv: RendezVous): Future[void]" href="libp2p/protocols/rendezvous.html#start.e%2CRendezVous">rendezvous: start(rdv: RendezVous): Future[void]</a></li>
+          data-doc-search-tag="rendezvous: start(rdv: RendezVous): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/rendezvous.html#start.e%2CRendezVous">rendezvous: start(rdv: RendezVous): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="switch: start(s: Switch): Future[void]" href="libp2p/switch.html#start%2CSwitch">switch: start(s: Switch): Future[void]</a></li>
           <li><a class="reference external"
@@ -4483,17 +4563,17 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="stop" href="#stop"><span>stop:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="multistream: stop(m: MultistreamSelect): Future[void]" href="libp2p/multistream.html#stop%2CMultistreamSelect">multistream: stop(m: MultistreamSelect): Future[void]</a></li>
+          data-doc-search-tag="multistream: stop(m: MultistreamSelect): InternalRaisesFuture[void, void]" href="libp2p/multistream.html#stop%2CMultistreamSelect">multistream: stop(m: MultistreamSelect): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="relay: stop(r: Relay): Future[void]" href="libp2p/protocols/connectivity/relay/relay.html#stop.e%2CRelay">relay: stop(r: Relay): Future[void]</a></li>
+          data-doc-search-tag="relay: stop(r: Relay): InternalRaisesFuture[void, void]" href="libp2p/protocols/connectivity/relay/relay.html#stop.e%2CRelay">relay: stop(r: Relay): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rtransport: stop(self: RelayTransport): Future[void]" href="libp2p/protocols/connectivity/relay/rtransport.html#stop.e%2CRelayTransport">rtransport: stop(self: RelayTransport): Future[void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="protocol: stop(p: LPProtocol): Future[void]" href="libp2p/protocols/protocol.html#stop.e%2CLPProtocol">protocol: stop(p: LPProtocol): Future[void]</a></li>
+          data-doc-search-tag="protocol: stop(p: LPProtocol): InternalRaisesFuture[void, void]" href="libp2p/protocols/protocol.html#stop.e%2CLPProtocol">protocol: stop(p: LPProtocol): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: stop(g: GossipSub): Future[void]" href="libp2p/protocols/pubsub/gossipsub.html#stop.e%2CGossipSub">gossipsub: stop(g: GossipSub): Future[void]</a></li>
+          data-doc-search-tag="gossipsub: stop(g: GossipSub): InternalRaisesFuture[void, void]" href="libp2p/protocols/pubsub/gossipsub.html#stop.e%2CGossipSub">gossipsub: stop(g: GossipSub): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: stop(rdv: RendezVous): Future[void]" href="libp2p/protocols/rendezvous.html#stop.e%2CRendezVous">rendezvous: stop(rdv: RendezVous): Future[void]</a></li>
+          data-doc-search-tag="rendezvous: stop(rdv: RendezVous): InternalRaisesFuture[void, void]" href="libp2p/protocols/rendezvous.html#stop.e%2CRendezVous">rendezvous: stop(rdv: RendezVous): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="switch: stop(s: Switch): Future[void]" href="libp2p/switch.html#stop%2CSwitch">switch: stop(s: Switch): Future[void]</a></li>
           <li><a class="reference external"
@@ -4513,9 +4593,9 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="messages: StopMessageType" href="libp2p/protocols/connectivity/relay/messages.html#StopMessageType">messages: StopMessageType</a></li>
           </ul></dd>
-<dt><a name="storeMuxer" href="#storeMuxer"><span>storeMuxer:</span></a></dt><dd><ul class="simple">
+<dt><a name="stopSendNonPriorityTask" href="#stopSendNonPriorityTask"><span>stopSendNonPriorityTask:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="connmanager: storeMuxer(c: ConnManager; muxer: Muxer)" href="libp2p/connmanager.html#storeMuxer%2CConnManager%2CMuxer">connmanager: storeMuxer(c: ConnManager; muxer: Muxer)</a></li>
+          data-doc-search-tag="pubsubpeer: stopSendNonPriorityTask(p: PubSubPeer)" href="libp2p/protocols/pubsub/pubsubpeer.html#stopSendNonPriorityTask%2CPubSubPeer">pubsubpeer: stopSendNonPriorityTask(p: PubSubPeer)</a></li>
           </ul></dd>
 <dt><a name="StreamHandler" href="#StreamHandler"><span>StreamHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4600,10 +4680,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="TcpTransportError" href="#TcpTransportError"><span>TcpTransportError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tcptransport: TcpTransportError" href="libp2p/transports/tcptransport.html#TcpTransportError">tcptransport: TcpTransportError</a></li>
-          </ul></dd>
-<dt><a name="TcpTransportTracker" href="#TcpTransportTracker"><span>TcpTransportTracker:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="tcptransport: TcpTransportTracker" href="libp2p/transports/tcptransport.html#TcpTransportTracker">tcptransport: TcpTransportTracker</a></li>
           </ul></dd>
 <dt><a name="TcpTransportTrackerName" href="#TcpTransportTrackerName"><span>TcpTransportTrackerName:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4891,13 +4967,13 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="upgrade" href="#upgrade"><span>upgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="transport: upgrade(self: Transport; conn: Connection; direction: Direction;
-        peerId: Opt[PeerId]): Future[Muxer]" href="libp2p/transports/transport.html#upgrade.e%2CTransport%2CConnection%2CDirection%2COpt%5BPeerId%5D">transport: upgrade(self: Transport; conn: Connection; direction: Direction;
-        peerId: Opt[PeerId]): Future[Muxer]</a></li>
+          data-doc-search-tag="transport: upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]" href="libp2p/transports/transport.html#upgrade.e%2CTransport%2CConnection%2COpt%5BPeerId%5D">transport: upgrade(self: Transport; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; direction: Direction;
-        peerId: Opt[PeerId]): Future[Muxer]" href="libp2p/upgrademngrs/muxedupgrade.html#upgrade.e%2CMuxedUpgrade%2CConnection%2CDirection%2COpt%5BPeerId%5D">muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; direction: Direction;
-        peerId: Opt[PeerId]): Future[Muxer]</a></li>
+          data-doc-search-tag="muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]" href="libp2p/upgrademngrs/muxedupgrade.html#upgrade.e%2CMuxedUpgrade%2CConnection%2COpt%5BPeerId%5D">muxedupgrade: upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]</a></li>
           </ul></dd>
 <dt><a name="Upgrade" href="#Upgrade"><span>Upgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4905,9 +4981,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="upgrade" href="#upgrade"><span>upgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="upgrade: upgrade(self: Upgrade; conn: Connection; direction: Direction;
-        peerId: Opt[PeerId]): Future[Muxer]" href="libp2p/upgrademngrs/upgrade.html#upgrade.e%2CUpgrade%2CConnection%2CDirection%2COpt%5BPeerId%5D">upgrade: upgrade(self: Upgrade; conn: Connection; direction: Direction;
-        peerId: Opt[PeerId]): Future[Muxer]</a></li>
+          data-doc-search-tag="upgrade: upgrade(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]" href="libp2p/upgrademngrs/upgrade.html#upgrade.e%2CUpgrade%2CConnection%2COpt%5BPeerId%5D">upgrade: upgrade(self: Upgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
+    Muxer, (CancelledError, LPError)]</a></li>
           </ul></dd>
 <dt><a name="UpgradeFailedError" href="#UpgradeFailedError"><span>UpgradeFailedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5057,6 +5133,12 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="builders: withNoise(b: SwitchBuilder): SwitchBuilder" href="libp2p/builders.html#withNoise%2CSwitchBuilder">builders: withNoise(b: SwitchBuilder): SwitchBuilder</a></li>
           </ul></dd>
+<dt><a name="withObservedAddrManager" href="#withObservedAddrManager"><span>withObservedAddrManager:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="builders: withObservedAddrManager(b: SwitchBuilder;
+                        observedAddrManager: ObservedAddrManager): SwitchBuilder" href="libp2p/builders.html#withObservedAddrManager%2CSwitchBuilder%2CObservedAddrManager">builders: withObservedAddrManager(b: SwitchBuilder;
+                        observedAddrManager: ObservedAddrManager): SwitchBuilder</a></li>
+          </ul></dd>
 <dt><a name="withPeerStats" href="#withPeerStats"><span>withPeerStats:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="scoring: withPeerStats(g: GossipSub; peerId: PeerId;
@@ -5113,7 +5195,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="withValue" href="#withValue"><span>withValue:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utility: withValue[T](self: Opt[T] | Option[T]; value, body, body2: untyped): untyped" href="libp2p/utility.html#withValue.m%2C%2Cuntyped%2Cuntyped%2Cuntyped">utility: withValue[T](self: Opt[T] | Option[T]; value, body, body2: untyped): untyped</a></li>
+          data-doc-search-tag="utility: withValue[T](self: Opt[T] | Option[T]; value, body, elseStmt: untyped): untyped" href="libp2p/utility.html#withValue.m%2C%2Cuntyped%2Cuntyped%2Cuntyped">utility: withValue[T](self: Opt[T] | Option[T]; value, body, elseStmt: untyped): untyped</a></li>
           <li><a class="reference external"
           data-doc-search-tag="utility: withValue[T](self: Opt[T] | Option[T]; value, body: untyped): untyped" href="libp2p/utility.html#withValue.t%2C%2Cuntyped%2Cuntyped">utility: withValue[T](self: Opt[T] | Option[T]; value, body: untyped): untyped</a></li>
           </ul></dd>
@@ -5153,7 +5235,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="multihash: write(vb: var VBuffer; mh: MultiHash)" href="libp2p/multihash.html#write%2CVBuffer%2CMultiHash">multihash: write(vb: var VBuffer; mh: MultiHash)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="yamux: write(channel: YamuxChannel; msg: seq[byte]): Future[void]" href="libp2p/muxers/yamux/yamux.html#write.e%2CYamuxChannel%2Cseq%5Bbyte%5D">yamux: write(channel: YamuxChannel; msg: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="yamux: write(channel: YamuxChannel; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/muxers/yamux/yamux.html#write.e%2CYamuxChannel%2Cseq%5Bbyte%5D">yamux: write(channel: YamuxChannel; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="peerid: write(pb: var ProtoBuffer; field: int; pid: PeerId)" href="libp2p/peerid.html#write%2CProtoBuffer%2Cint%2CPeerId">peerid: write(pb: var ProtoBuffer; field: int; pid: PeerId)</a></li>
           <li><a class="reference external"
@@ -5165,7 +5249,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="minprotobuf: write[T: ProtoScalar](pb: var ProtoBuffer; field: int; value: T)" href="libp2p/protobuf/minprotobuf.html#write%2CProtoBuffer%2Cint%2CT">minprotobuf: write[T: ProtoScalar](pb: var ProtoBuffer; field: int; value: T)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rconn: write(self: RelayConnection; msg: seq[byte]): Future[void]" href="libp2p/protocols/connectivity/relay/rconn.html#write.e%2CRelayConnection%2Cseq%5Bbyte%5D">rconn: write(self: RelayConnection; msg: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="rconn: write(self: RelayConnection; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/rconn.html#write.e%2CRelayConnection%2Cseq%5Bbyte%5D">rconn: write(self: RelayConnection; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="protobuf: write(pb: var ProtoBuffer; field: int; graft: ControlGraft)" href="libp2p/protocols/pubsub/rpc/protobuf.html#write%2CProtoBuffer%2Cint%2CControlGraft">protobuf: write(pb: var ProtoBuffer; field: int; graft: ControlGraft)</a></li>
           <li><a class="reference external"
@@ -5183,17 +5269,27 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="protobuf: write(pb: var ProtoBuffer; field: int; subs: SubOpts)" href="libp2p/protocols/pubsub/rpc/protobuf.html#write%2CProtoBuffer%2Cint%2CSubOpts">protobuf: write(pb: var ProtoBuffer; field: int; subs: SubOpts)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="noise: write(sconn: NoiseConnection; message: seq[byte]): Future[void]" href="libp2p/protocols/secure/noise.html#write.e%2CNoiseConnection%2Cseq%5Bbyte%5D">noise: write(sconn: NoiseConnection; message: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="noise: write(sconn: NoiseConnection; message: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/secure/noise.html#write.e%2CNoiseConnection%2Cseq%5Bbyte%5D">noise: write(sconn: NoiseConnection; message: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="signed_envelope: write(pb: var ProtoBuffer; field: int; env: Envelope): Result[void, CryptoError]" href="libp2p/signed_envelope.html#write%2CProtoBuffer%2Cint%2CEnvelope">signed_envelope: write(pb: var ProtoBuffer; field: int; env: Envelope): Result[void, CryptoError]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="chronosstream: write(s: ChronosStream; msg: seq[byte]): Future[void]" href="libp2p/stream/chronosstream.html#write.e%2CChronosStream%2Cseq%5Bbyte%5D">chronosstream: write(s: ChronosStream; msg: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="chronosstream: write(s: ChronosStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/chronosstream.html#write.e%2CChronosStream%2Cseq%5Bbyte%5D">chronosstream: write(s: ChronosStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="lpstream: write(s: LPStream; msg: string): Future[void]" href="libp2p/stream/lpstream.html#write%2CLPStream%2Cstring">lpstream: write(s: LPStream; msg: string): Future[void]</a></li>
+          data-doc-search-tag="lpstream: write(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#write%2CLPStream%2Cstring">lpstream: write(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="lpstream: write(s: LPStream; msg: seq[byte]): Future[void]" href="libp2p/stream/lpstream.html#write.e%2CLPStream%2Cseq%5Bbyte%5D">lpstream: write(s: LPStream; msg: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="lpstream: write(s: LPStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#write.e%2CLPStream%2Cseq%5Bbyte%5D">lpstream: write(s: LPStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="wstransport: write(s: WsStream; msg: seq[byte]): Future[void]" href="libp2p/transports/wstransport.html#write.e%2CWsStream%2Cseq%5Bbyte%5D">wstransport: write(s: WsStream; msg: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="wstransport: write(s: WsStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/transports/wstransport.html#write.e%2CWsStream%2Cseq%5Bbyte%5D">wstransport: write(s: WsStream; msg: seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="writeArray" href="#writeArray"><span>writeArray:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5201,9 +5297,13 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="writeLp" href="#writeLp"><span>writeLp:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="lpstream: writeLp(s: LPStream; msg: openArray[byte]): Future[void]" href="libp2p/stream/lpstream.html#writeLp%2CLPStream%2CopenArray%5Bbyte%5D">lpstream: writeLp(s: LPStream; msg: openArray[byte]): Future[void]</a></li>
+          data-doc-search-tag="lpstream: writeLp(s: LPStream; msg: openArray[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#writeLp%2CLPStream%2CopenArray%5Bbyte%5D">lpstream: writeLp(s: LPStream; msg: openArray[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="lpstream: writeLp(s: LPStream; msg: string): Future[void]" href="libp2p/stream/lpstream.html#writeLp%2CLPStream%2Cstring">lpstream: writeLp(s: LPStream; msg: string): Future[void]</a></li>
+          data-doc-search-tag="lpstream: writeLp(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#writeLp%2CLPStream%2Cstring">lpstream: writeLp(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="writeLPVarint" href="#writeLPVarint"><span>writeLPVarint:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5212,12 +5312,14 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="writeMsg" href="#writeMsg"><span>writeMsg:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="coder: writeMsg(conn: Connection; id: uint64; msgType: MessageType;
-         data: seq[byte] = @[]): Future[void]" href="libp2p/muxers/mplex/coder.html#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cseq%5Bbyte%5D">coder: writeMsg(conn: Connection; id: uint64; msgType: MessageType;
-         data: seq[byte] = @[]): Future[void]</a></li>
+         data: seq[byte] = @[]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/muxers/mplex/coder.html#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cseq%5Bbyte%5D">coder: writeMsg(conn: Connection; id: uint64; msgType: MessageType;
+         data: seq[byte] = @[]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="coder: writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): Future[
-    void]" href="libp2p/muxers/mplex/coder.html#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cstring">coder: writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): Future[
-    void]</a></li>
+          data-doc-search-tag="coder: writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]" href="libp2p/muxers/mplex/coder.html#writeMsg%2CConnection%2Cuint64%2CMessageType%2Cstring">coder: writeMsg(conn: Connection; id: uint64; msgType: MessageType; data: string): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="writePacked" href="#writePacked"><span>writePacked:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5279,6 +5381,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="yamux: YamuxCodec" href="libp2p/muxers/yamux/yamux.html#YamuxCodec">yamux: YamuxCodec</a></li>
           </ul></dd>
+<dt><a name="YamuxDefaultWindowSize" href="#YamuxDefaultWindowSize"><span>YamuxDefaultWindowSize:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="yamux: YamuxDefaultWindowSize" href="libp2p/muxers/yamux/yamux.html#YamuxDefaultWindowSize">yamux: YamuxDefaultWindowSize</a></li>
+          </ul></dd>
 <dt><a name="YamuxError" href="#YamuxError"><span>YamuxError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="yamux: YamuxError" href="libp2p/muxers/yamux/yamux.html#YamuxError">yamux: YamuxError</a></li>
@@ -5304,7 +5410,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2023-12-18 18:06:05 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-29 13:39:20 UTC</small>
       </div>
     </div>
   </div>
