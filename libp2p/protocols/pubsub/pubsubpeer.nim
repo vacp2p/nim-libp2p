@@ -37,6 +37,8 @@ when defined(pubsubpeer_queue_metrics):
 
 const
   DefaultMaxNumElementsInNonPriorityQueue* = 1024
+  BehaviourPenaltyFoNonPriorityQueueOverLimit = 0.0001  # this value is quite arbitrary and was found empirically
+  # to result in a behaviourPenalty around [0.1, 0.2] when the score is updated.
 
 type
   PeerRateLimitError* = object of CatchableError
@@ -352,7 +354,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     f
   else:
     if len(p.rpcmessagequeue.nonPriorityQueue) >= p.maxNumElementsInNonPriorityQueue:
-      p.behaviourPenalty += 0.0001
+      p.behaviourPenalty += BehaviourPenaltyFoNonPriorityQueueOverLimit
       trace "Peer has reached maxNumElementsInNonPriorityQueue. Discarding message and applying behaviour penalty.", peer = p, score = p.score,
         behaviourPenalty = p.behaviourPenalty, agent = p.getAgent()
       Future[void].completed()
