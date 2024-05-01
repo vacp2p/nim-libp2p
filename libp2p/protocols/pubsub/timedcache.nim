@@ -9,11 +9,12 @@
 
 {.push raises: [].}
 
-import std/[tables]
-
+import std/[hashes, sets]
 import chronos/timer, stew/results
 
 import ../../utility
+
+export results
 
 const Timeout* = 10.seconds # default timeout in ms
 
@@ -26,20 +27,38 @@ type
 
   TimedCache*[K] = object of RootObj
     head, tail: TimedEntry[K] # nim linked list doesn't allow inserting at pos
-    entries: Table[K, TimedEntry[K]]
+    entries: HashSet[TimedEntry[K]]
     timeout: Duration
+
+func `==`*[E](a, b: TimedEntry[E]): bool =
+  if isNil(a) == isNil(b):
+    isNil(a) or a.key == b.key
+  else:
+    false
+
+func hash*(a: TimedEntry): Hash =
+  if isNil(a):
+    default(Hash)
+  else:
+    hash(a[].key)
 
 func expire*(t: var TimedCache, now: Moment = Moment.now()) =
   while t.head != nil and t.head.expiresAt < now:
-    t.entries.del(t.head.key)
+    t.entries.excl(t.head)
     t.head.prev = nil
     t.head = t.head.next
     if t.head == nil: t.tail = nil
 
 func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
   # Removes existing key from cache, returning the previous value if present
-  var item: TimedEntry[K]
-  if t.entries.pop(key, item):
+  let tmp = TimedEntry[K](key: key)
+  if tmp in t.entries:
+    let item = try:
+      t.entries[tmp] # use the shared instance in the set
+    except KeyError:
+      raiseAssert "just checked"
+    t.entries.excl(item)
+
     if t.head == item: t.head = item.next
     if t.tail == item: t.tail = item.prev
 
@@ -55,14 +74,14 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   # refreshed.
   t.expire(now)
 
-  var previous = t.del(k) # Refresh existing item
-
-  var addedAt = now
-  previous.withValue(previous):
-    addedAt = previous.addedAt
+  let
+    previous = t.del(k) # Refresh existing item
+    addedAt = if previous.isSome():
+      previous[].addedAt
+    else:
+      now
 
   let node = TimedEntry[K](key: k, addedAt: addedAt, expiresAt: now + t.timeout)
-
   if t.head == nil:
     t.tail = node
     t.head = t.tail
@@ -83,16 +102,24 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
       if cur == t.tail:
         t.tail = node
 
-  t.entries[k] = node
+  t.entries.incl(node)
 
   previous.isSome()
 
 func contains*[K](t: TimedCache[K], k: K): bool =
-  k in t.entries
+  let tmp = TimedEntry[K](key: k)
+  tmp in t.entries
 
-func addedAt*[K](t: TimedCache[K], k: K): Moment =
-  t.entries.getOrDefault(k).addedAt
+func addedAt*[K](t: var TimedCache[K], k: K): Moment =
+  let tmp = TimedEntry[K](key: k)
+  try:
+    if tmp in t.entries: # raising is slow
+      # Use shared instance from entries
+      return t.entries[tmp][].addedAt
+  except KeyError:
+    raiseAssert "just checked"
 
+  default(Moment)
 
 func init*[K](T: type TimedCache[K], timeout: Duration = Timeout): T =
   T(
