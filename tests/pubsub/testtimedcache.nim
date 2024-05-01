@@ -44,7 +44,7 @@ suite "TimedCache":
       100 in cache
       2 notin cache
 
-  test "spam":
+  test "enough items to force cache heap storage growth":
     var cache = TimedCache[int].init(5.seconds)
 
     let now = Moment.now()
