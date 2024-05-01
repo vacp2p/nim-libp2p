@@ -259,12 +259,14 @@ window.addEventListener('DOMContentLoaded', main);
            matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cseq%5Bstring%5D%2CLPProtocol%2CMatcher">multistream: addHandler(m: MultistreamSelect; codecs: seq[string]; protocol: LPProtocol;
            matcher: Matcher = nil)</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="multistream: addHandler[E](m: MultistreamSelect; codec: string; handler: LPProtoHandler |
+    proc (conn: Connection; proto: string): InternalRaisesFuture[void, E];
+              matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2C%2CMatcher">multistream: addHandler[E](m: MultistreamSelect; codec: string; handler: LPProtoHandler |
+    proc (conn: Connection; proto: string): InternalRaisesFuture[void, E];
+              matcher: Matcher = nil)</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
            matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2CLPProtocol%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string; protocol: LPProtocol;
-           matcher: Matcher = nil)</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="multistream: addHandler(m: MultistreamSelect; codec: string; handler: LPProtoHandler;
-           matcher: Matcher = nil)" href="libp2p/multistream.html#addHandler%2CMultistreamSelect%2Cstring%2CLPProtoHandler%2CMatcher">multistream: addHandler(m: MultistreamSelect; codec: string; handler: LPProtoHandler;
            matcher: Matcher = nil)</a></li>
           </ul></dd>
 <dt><a name="addObservation" href="#addObservation"><span>addObservation:</span></a></dt><dd><ul class="simple">
@@ -1078,6 +1080,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="DefaultMaxIncomingStreams" href="#DefaultMaxIncomingStreams"><span>DefaultMaxIncomingStreams:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="protocol: DefaultMaxIncomingStreams" href="libp2p/protocols/protocol.html#DefaultMaxIncomingStreams">protocol: DefaultMaxIncomingStreams</a></li>
+          </ul></dd>
+<dt><a name="DefaultMaxNumElementsInNonPriorityQueue" href="#DefaultMaxNumElementsInNonPriorityQueue"><span>DefaultMaxNumElementsInNonPriorityQueue:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: DefaultMaxNumElementsInNonPriorityQueue" href="libp2p/protocols/pubsub/pubsubpeer.html#DefaultMaxNumElementsInNonPriorityQueue">pubsubpeer: DefaultMaxNumElementsInNonPriorityQueue</a></li>
           </ul></dd>
 <dt><a name="defaultMsgIdProvider" href="#defaultMsgIdProvider"><span>defaultMsgIdProvider:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1965,6 +1971,20 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="behavior: handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])" href="libp2p/protocols/pubsub/gossipsub/behavior.html#handlePrune%2CGossipSub%2CPubSubPeer%2Cseq%5BControlPrune%5D">behavior: handlePrune(g: GossipSub; peer: PubSubPeer; prunes: seq[ControlPrune])</a></li>
           </ul></dd>
+<dt><a name="handler" href="#handler"><span>handler:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="protocol: handler(p: LPProtocol): LPProtoHandler" href="libp2p/protocols/protocol.html#handler.t%2CLPProtocol">protocol: handler(p: LPProtocol): LPProtoHandler</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="protocol: handler(p: LPProtocol; conn: Connection; proto: string): Future[void]" href="libp2p/protocols/protocol.html#handler.t%2CLPProtocol%2CConnection%2Cstring">protocol: handler(p: LPProtocol; conn: Connection; proto: string): Future[void]</a></li>
+          </ul></dd>
+<dt><a name="handler%3D" href="#handler%3D"><span>handler=:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="protocol: handler=(p: LPProtocol; handler: LPProtoHandler)" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2CLPProtoHandler">protocol: handler=(p: LPProtocol; handler: LPProtoHandler)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="protocol: handler=[E](p: LPProtocol; handler: proc (conn: Connection; proto: string): InternalRaisesFuture[
+    void, E])" href="libp2p/protocols/protocol.html#handler%3D%2CLPProtocol%2Cproc%28Connection%2Cstring%29">protocol: handler=[E](p: LPProtocol; handler: proc (conn: Connection; proto: string): InternalRaisesFuture[
+    void, E])</a></li>
+          </ul></dd>
 <dt><a name="HandlerHolder" href="#HandlerHolder"><span>HandlerHolder:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multistream: HandlerHolder" href="libp2p/multistream.html#HandlerHolder">multistream: HandlerHolder</a></li>
@@ -2359,7 +2379,41 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="floodsub: init(f: FloodSub)" href="libp2p/protocols/pubsub/floodsub.html#init.e%2CFloodSub">floodsub: init(f: FloodSub)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: init(_: type[GossipSubParams]): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D">gossipsub: init(_: type[GossipSubParams]): GossipSubParams</a></li>
+          data-doc-search-tag="gossipsub: init(_: type[GossipSubParams]; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint">gossipsub: init(_: type[GossipSubParams]; pruneBackoff = 1.minutes;
+     unsubscribeBackoff = 5.seconds; floodPublish = true;
+     gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
+     dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
+     dLazy = GossipSubD; heartbeatInterval = GossipSubHeartbeatInterval;
+     historyLength = GossipSubHistoryLength;
+     historyGossip = GossipSubHistoryGossip; fanoutTTL = GossipSubFanoutTTL;
+     seenTTL = 2.minutes; gossipThreshold = -100.0; publishThreshold = -1000.0;
+     graylistThreshold = -10000.0; opportunisticGraftThreshold = 0.0;
+     decayInterval = 1.seconds; decayToZero = 0.01; retainScore = 2.minutes;
+     appSpecificWeight = 0.0; ipColocationFactorWeight = 0.0;
+     ipColocationFactorThreshold = 1.0; behaviourPenaltyWeight = -1.0;
+     behaviourPenaltyDecay = 0.999; directPeers = initTable();
+     disconnectBadPeers = false; enablePX = false;
+     bandwidthEstimatebps = 100000000;
+     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
+     disconnectPeerAboveRateLimit = false;
+     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams</a></li>
           <li><a class="reference external"
           data-doc-search-tag="gossipsub: init(g: GossipSub)" href="libp2p/protocols/pubsub/gossipsub.html#init.e%2CGossipSub">gossipsub: init(g: GossipSub)</a></li>
           <li><a class="reference external"
@@ -3147,10 +3201,16 @@ window.addEventListener('DOMContentLoaded', main);
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2CLPProtoHandler">protocol: new(T: type LPProtocol; codecs: seq[string]; handler: LPProtoHandler;
     maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
           <li><a class="reference external"
+          data-doc-search-tag="protocol: new[E](T: type LPProtocol; codecs: seq[string]; handler: proc (conn: Connection;
+    proto: string): InternalRaisesFuture[void, E];
+       maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type" href="libp2p/protocols/protocol.html#new%2CtypeLPProtocol%2Cseq%5Bstring%5D%2Cproc%28Connection%2Cstring%29">protocol: new[E](T: type LPProtocol; codecs: seq[string]; handler: proc (conn: Connection;
+    proto: string): InternalRaisesFuture[void, E];
+       maxIncomingStreams: Opt[int] | int = Opt.none(int)): T:type</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
-    codec: string; maxMessageSize: int;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2COpt%5BTokenBucket%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
-    codec: string; maxMessageSize: int;
+    codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2Cint%2COpt%5BTokenBucket%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
+    codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type</a></li>
@@ -5147,7 +5207,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="withValue" href="#withValue"><span>withValue:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="utility: withValue[T](self: Opt[T] | Option[T]; value, body, body2: untyped): untyped" href="libp2p/utility.html#withValue.m%2C%2Cuntyped%2Cuntyped%2Cuntyped">utility: withValue[T](self: Opt[T] | Option[T]; value, body, body2: untyped): untyped</a></li>
+          data-doc-search-tag="utility: withValue[T](self: Opt[T] | Option[T]; value, body, elseStmt: untyped): untyped" href="libp2p/utility.html#withValue.m%2C%2Cuntyped%2Cuntyped%2Cuntyped">utility: withValue[T](self: Opt[T] | Option[T]; value, body, elseStmt: untyped): untyped</a></li>
           <li><a class="reference external"
           data-doc-search-tag="utility: withValue[T](self: Opt[T] | Option[T]; value, body: untyped): untyped" href="libp2p/utility.html#withValue.t%2C%2Cuntyped%2Cuntyped">utility: withValue[T](self: Opt[T] | Option[T]; value, body: untyped): untyped</a></li>
           </ul></dd>
@@ -5362,7 +5422,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-04 15:18:41 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-01 11:15:13 UTC</small>
       </div>
     </div>
   </div>
