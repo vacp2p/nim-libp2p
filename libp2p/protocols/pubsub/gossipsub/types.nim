@@ -102,6 +102,11 @@ type
     behaviourPenalty*: float64 # the eventual penalty score
 
   GossipSubParams* {.public.} = object
+    # explicit is used to check if the GossipSubParams instance was created by the user either passing params to GossipSubParams(...)
+    # or GossipSubParams.init(...). In the first case explicit should be set to true when calling the Nim constructor.
+    # In the second case, the param isn't necessary and should be always be set to true by init.
+    # If none of those options were used, it means the instance was created using Nim default values.
+    # In this case, GossipSubParams.init() should be called when initing GossipSub to set the values to their default value defined by nim-libp2p.
     explicit*: bool
     pruneBackoff*: Duration
     unsubscribeBackoff*: Duration
@@ -146,6 +151,9 @@ type
 
     overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
     disconnectPeerAboveRateLimit*: bool
+
+    # Max number of elements allowed in the non-priority queue. When this limit has been reached, the peer will be disconnected.
+    maxNumElementsInNonPriorityQueue*: int
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]

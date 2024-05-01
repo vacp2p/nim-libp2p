@@ -49,41 +49,79 @@ declareCounter(libp2p_gossipsub_received, "number of messages received (deduplic
 when defined(libp2p_expensive_metrics):
   declareCounter(libp2p_pubsub_received_messages, "number of messages received", labels = ["id", "topic"])
 
-proc init*(_: type[GossipSubParams]): GossipSubParams =
+proc init*(
+  _: type[GossipSubParams],
+  pruneBackoff = 1.minutes,
+  unsubscribeBackoff = 5.seconds,
+  floodPublish = true,
+  gossipFactor: float64 = 0.25,
+  d = GossipSubD,
+  dLow = GossipSubDlo,
+  dHigh = GossipSubDhi,
+  dScore = GossipSubDlo,
+  dOut = GossipSubDlo - 1, # DLow - 1
+  dLazy = GossipSubD, # Like D,
+  heartbeatInterval = GossipSubHeartbeatInterval,
+  historyLength = GossipSubHistoryLength,
+  historyGossip = GossipSubHistoryGossip,
+  fanoutTTL = GossipSubFanoutTTL,
+  seenTTL = 2.minutes,
+  gossipThreshold = -100.0,
+  publishThreshold = -1000.0,
+  graylistThreshold = -10000.0,
+  opportunisticGraftThreshold = 0.0,
+  decayInterval = 1.seconds,
+  decayToZero = 0.01,
+  retainScore = 2.minutes,
+  appSpecificWeight = 0.0,
+  ipColocationFactorWeight = 0.0,
+  ipColocationFactorThreshold = 1.0,
+  behaviourPenaltyWeight = -1.0,
+  behaviourPenaltyDecay = 0.999,
+  directPeers = initTable[PeerId, seq[MultiAddress]](),
+  disconnectBadPeers = false,
+  enablePX = false,
+  bandwidthEstimatebps = 100_000_000, # 100 Mbps or 12.5 MBps
+  overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
+  disconnectPeerAboveRateLimit = false,
+  maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams =
+
   GossipSubParams(
       explicit: true,
-      pruneBackoff: 1.minutes,
-      unsubscribeBackoff: 5.seconds,
-      floodPublish: true,
-      gossipFactor: 0.25,
-      d: GossipSubD,
-      dLow: GossipSubDlo,
-      dHigh: GossipSubDhi,
-      dScore: GossipSubDlo,
-      dOut: GossipSubDlo - 1, # DLow - 1
-      dLazy: GossipSubD, # Like D
-      heartbeatInterval: GossipSubHeartbeatInterval,
-      historyLength: GossipSubHistoryLength,
-      historyGossip: GossipSubHistoryGossip,
-      fanoutTTL: GossipSubFanoutTTL,
-      seenTTL: 2.minutes,
-      gossipThreshold: -100,
-      publishThreshold: -1000,
-      graylistThreshold: -10000,
-      opportunisticGraftThreshold: 0,
-      decayInterval: 1.seconds,
-      decayToZero: 0.01,
-      retainScore: 2.minutes,
-      appSpecificWeight: 0.0,
-      ipColocationFactorWeight: 0.0,
-      ipColocationFactorThreshold: 1.0,
-      behaviourPenaltyWeight: -1.0,
-      behaviourPenaltyDecay: 0.999,
-      disconnectBadPeers: false,
-      enablePX: false,
-      bandwidthEstimatebps: 100_000_000, # 100 Mbps or 12.5 MBps
-      overheadRateLimit: Opt.none(tuple[bytes: int, interval: Duration]),
-      disconnectPeerAboveRateLimit: false
+      pruneBackoff: pruneBackoff,
+      unsubscribeBackoff: unsubscribeBackoff,
+      floodPublish: floodPublish,
+      gossipFactor: gossipFactor,
+      d: d,
+      dLow: dLow,
+      dHigh: dHigh,
+      dScore: dScore,
+      dOut: dOut,
+      dLazy: dLazy,
+      heartbeatInterval: heartbeatInterval,
+      historyLength: historyLength,
+      historyGossip: historyGossip,
+      fanoutTTL: fanoutTTL,
+      seenTTL: seenTTL,
+      gossipThreshold: gossipThreshold,
+      publishThreshold: publishThreshold,
+      graylistThreshold: graylistThreshold,
+      opportunisticGraftThreshold: opportunisticGraftThreshold,
+      decayInterval: decayInterval,
+      decayToZero: decayToZero,
+      retainScore: retainScore,
+      appSpecificWeight: appSpecificWeight,
+      ipColocationFactorWeight: ipColocationFactorWeight,
+      ipColocationFactorThreshold: ipColocationFactorThreshold,
+      behaviourPenaltyWeight: behaviourPenaltyWeight,
+      behaviourPenaltyDecay: behaviourPenaltyDecay,
+      directPeers: directPeers,
+      disconnectBadPeers: disconnectBadPeers,
+      enablePX: enablePX,
+      bandwidthEstimatebps: bandwidthEstimatebps,
+      overheadRateLimit: overheadRateLimit,
+      disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
+      maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue
     )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -114,6 +152,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: behaviourPenaltyWeight parameter error, Must be negative")
   elif parameters.behaviourPenaltyDecay < 0 or parameters.behaviourPenaltyDecay >= 1:
     err("gossipsub: behaviourPenaltyDecay parameter error, Must be between 0 and 1")
+  elif parameters.maxNumElementsInNonPriorityQueue <= 0:
+    err("gossipsub: maxNumElementsInNonPriorityQueue parameter error, Must be > 0")
   else:
     ok()
 
@@ -172,10 +212,10 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
 method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
   case event.kind
-  of PubSubPeerEventKind.Connected:
+  of PubSubPeerEventKind.StreamOpened:
     discard
-  of PubSubPeerEventKind.Disconnected:
-    # If a send connection is lost, it's better to remove peer from the mesh -
+  of PubSubPeerEventKind.StreamClosed:
+    # If a send stream is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
     # doesn't, well.. then we hope the peer is going away!
     for topic, peers in p.mesh.mpairs():
@@ -183,6 +223,8 @@ method onPubSubPeerEvent*(p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
       peers.excl(peer)
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
+  of PubSubPeerEventKind.DisconnectionRequested:
+    asyncSpawn p.disconnectPeer(peer) # this should unsubscribePeer the peer too
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
@@ -750,4 +792,5 @@ method getOrCreatePeer*(
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protos)
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
+  peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
   return peer

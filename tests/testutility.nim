@@ -9,6 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import options
 import ./helpers
 import ../libp2p/utility
 
@@ -71,3 +72,88 @@ suite "Utility":
   test "unsuccessful safeConvert from uint to int":
     check not (compiles do:
       result: uint = safeConvert[int, uint](11.uint))
+
+suite "withValue and valueOr templates":
+  type
+    TestObj = ref object
+      x: int
+
+  proc objIncAndOpt(self: TestObj): Opt[TestObj] =
+    self.x.inc()
+    return Opt.some(self)
+
+  proc objIncAndOption(self: TestObj): Option[TestObj] =
+    self.x.inc()
+    return some(self)
+
+  test "withValue calls right branch when Opt/Option is none":
+    var counter = 0
+    # check Opt/Option withValue with else
+    Opt.none(TestObj).withValue(v):
+      fail()
+    else:
+      counter.inc()
+    none(TestObj).withValue(v):
+      fail()
+    else:
+      counter.inc()
+    check counter == 2
+
+    # check Opt/Option withValue without else
+    Opt.none(TestObj).withValue(v):
+      fail()
+    none(TestObj).withValue(v):
+      fail()
+
+  test "withValue calls right branch when Opt/Option is some":
+    var counter = 1
+    # check Opt/Option withValue with else
+    Opt.some(counter).withValue(v):
+      counter.inc(v)
+    else:
+      fail()
+    some(counter).withValue(v):
+      counter.inc(v)
+    else:
+      fail()
+
+    # check Opt/Option withValue without else
+    Opt.some(counter).withValue(v):
+      counter.inc(v)
+    some(counter).withValue(v):
+      counter.inc(v)
+    check counter == 16
+
+  test "withValue calls right branch when Opt/Option is some with proc call":
+    var obj = TestObj(x: 0)
+    # check Opt/Option withValue with else
+    objIncAndOpt(obj).withValue(v):
+      v.x.inc()
+    else:
+      fail()
+    objIncAndOption(obj).withValue(v):
+      v.x.inc()
+    else:
+      fail()
+
+    # check Opt/Option withValue without else
+    objIncAndOpt(obj).withValue(v):
+      v.x.inc()
+    objIncAndOption(obj).withValue(v):
+      v.x.inc()
+
+    check obj.x == 8
+
+  test "valueOr calls with and without proc call":
+    var obj = none(TestObj).valueOr:
+      TestObj(x: 0)
+    check obj.x == 0
+    obj = some(TestObj(x: 2)).valueOr:
+      fail()
+      return
+    check obj.x == 2
+
+    obj = objIncAndOpt(obj).valueOr:
+      fail()
+      return
+    check obj.x == 3

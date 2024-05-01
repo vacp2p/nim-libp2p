@@ -287,11 +287,14 @@ method onNewPeer(p: PubSub, peer: PubSubPeer) {.base, gcsafe.} = discard
 method onPubSubPeerEvent*(p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent) {.base, gcsafe.} =
   # Peer event is raised for the send connection in particular
   case event.kind
-  of PubSubPeerEventKind.Connected:
+  of PubSubPeerEventKind.StreamOpened:
     if p.topics.len > 0:
       p.sendSubs(peer, toSeq(p.topics.keys), true)
-  of PubSubPeerEventKind.Disconnected:
+  of PubSubPeerEventKind.StreamClosed:
     discard
+  of PubSubPeerEventKind.DisconnectionRequested:
+    discard
+
 
 method getOrCreatePeer*(
     p: PubSub,
