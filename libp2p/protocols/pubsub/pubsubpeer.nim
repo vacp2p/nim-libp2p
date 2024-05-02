@@ -80,7 +80,10 @@ type
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
-    heDontWants*: Deque[HashSet[MessageId]]
+    heDontWants*: Deque[HashSet[SaltedId]]
+      ## IDONTWANT contains unvalidated message id:s which may be long and/or
+      ## expensive to look up, so we apply the same salting to them as during
+      ## unvalidated message processing
     iHaveBudget*: int
     pingBudget*: int
     maxMessageSize: int
@@ -504,5 +507,5 @@ proc new*(
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
-  result.heDontWants.addFirst(default(HashSet[MessageId]))
+  result.heDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()

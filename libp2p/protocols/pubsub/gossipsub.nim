@@ -360,13 +360,13 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
-                      msgId: MessageId, msgIdSalted: SaltedId,
+                      msgId: MessageId, saltedId: SaltedId,
                       peer: PubSubPeer) {.async.} =
   try:
     let validation = await g.validate(msg)
 
     var seenPeers: HashSet[PubSubPeer]
-    discard g.validationSeen.pop(msgIdSalted, seenPeers)
+    discard g.validationSeen.pop(saltedId, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc((msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"])
 
@@ -413,13 +413,12 @@ proc validateAndRelay(g: GossipSub,
 
     for peer in toSendPeers:
       for heDontWant in peer.heDontWants:
-        if msgId in heDontWant:
+        if saltedId in heDontWant:
           seenPeers.incl(peer)
           libp2p_gossipsub_idontwant_saved_messages.inc
           libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
           break
     toSendPeers.excl(seenPeers)
-
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
