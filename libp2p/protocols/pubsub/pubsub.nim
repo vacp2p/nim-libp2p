@@ -30,7 +30,6 @@ import ./errors as pubsub_errors,
        ../../errors,
        ../../utility
 
-import metrics
 import stew/results
 export results
 

@@ -79,23 +79,20 @@ proc connHandler*(self: TcpTransport,
                                   conn
 
       self.clients[dir].keepItIf( it != client )
-
-      block:
-        let
-          fut1 = conn.close()
-          fut2 = client.closeWait()
-        await allFutures(fut1, fut2)
-        if fut1.failed:
-          let err = fut1.error()
-          debug "Error cleaning up client", errMsg = err.msg, conn
-        static: doAssert typeof(fut2).E is void  # Cannot fail
-
-      trace "Cleaned up client", addrs = $client.remoteAddress,
-                                 conn
-
     except CancelledError as exc:
       let useExc {.used.} = exc
       debug "Error cleaning up client", errMsg = exc.msg, conn
+
+    block:
+      let
+        fut1 = conn.close()
+        fut2 = client.closeWait()
+
+      await fut1
+      await fut2
+
+    trace "Cleaned up client", addrs = $client.remoteAddress,
+                                conn
 
   self.clients[dir].add(client)
   asyncSpawn onClose()
@@ -166,10 +163,9 @@ method stop*(self: TcpTransport) {.async.} =
   try:
     trace "Stopping TCP transport"
 
-    checkFutures(
-      await allFinished(
-        self.clients[Direction.In].mapIt(it.closeWait()) &
-        self.clients[Direction.Out].mapIt(it.closeWait())))
+    await allFutures(
+      self.clients[Direction.In].mapIt(it.closeWait()) &
+      self.clients[Direction.Out].mapIt(it.closeWait()))
 
     if not self.running:
       warn "TCP transport already stopped"
@@ -180,7 +176,7 @@ method stop*(self: TcpTransport) {.async.} =
     for fut in self.acceptFuts:
       if not fut.finished:
         toWait.add(fut.cancelAndWait())
-      elif fut.done:
+      elif fut.completed():
         toWait.add(fut.read().closeWait())
 
     for server in self.servers:

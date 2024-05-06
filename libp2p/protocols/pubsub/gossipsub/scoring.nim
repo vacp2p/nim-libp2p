@@ -87,8 +87,6 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     0.0
 
-{.pop.}
-
 proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async.} =
   try:
     await g.switch.disconnect(peer.peerId)

@@ -620,11 +620,10 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       g.rng.shuffle(allPeers)
       allPeers.setLen(target)
 
-    let msgIdsAsSet = ihave.messageIDs.toHashSet()
-
     for peer in allPeers:
       control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
-      peer.sentIHaves[^1].incl(msgIdsAsSet)
+      for msgId in ihave.messageIDs:
+        peer.sentIHaves[^1].incl(msgId)
 
   libp2p_gossipsub_cache_window_size.set(cacheWindowSize.int64)
 
@@ -693,8 +692,6 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
       g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 
     g.mcache.shift() # shift the cache
-
-# {.pop.} # raises []
 
 proc heartbeat*(g: GossipSub) {.async.} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:
