@@ -207,14 +207,14 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#ControlGraft"
     title="ControlGraft = object
-  topicId*: string">ControlGraft</a></li>
+  topicID*: string">ControlGraft</a></li>
   <li><a class="reference" href="#ControlIHave"
     title="ControlIHave = object
-  topicId*: string
-  messageIds*: seq[MessageId]">ControlIHave</a></li>
+  topicID*: string
+  messageIDs*: seq[MessageId]">ControlIHave</a></li>
   <li><a class="reference" href="#ControlIWant"
     title="ControlIWant = object
-  messageIds*: seq[MessageId]">ControlIWant</a></li>
+  messageIDs*: seq[MessageId]">ControlIWant</a></li>
   <li><a class="reference" href="#ControlMessage"
     title="ControlMessage = object
   ihave*: seq[ControlIHave]
@@ -224,7 +224,7 @@ window.addEventListener("DOMContentLoaded", main2);
   idontwant*: seq[ControlIWant]">ControlMessage</a></li>
   <li><a class="reference" href="#ControlPrune"
     title="ControlPrune = object
-  topicId*: string
+  topicID*: string
   peers*: seq[PeerInfoMsg]
   backoff*: uint64">ControlPrune</a></li>
   <li><a class="reference" href="#Message"
@@ -232,7 +232,7 @@ window.addEventListener("DOMContentLoaded", main2);
   fromPeer*: PeerId
   data*: seq[byte]
   seqno*: seq[byte]
-  topicIds*: seq[string]
+  topic*: string
   signature*: seq[byte]
   key*: seq[byte]">Message</a></li>
   <li><a class="reference" href="#MessageId"
@@ -248,6 +248,9 @@ window.addEventListener("DOMContentLoaded", main2);
   control*: Option[ControlMessage]
   ping*: seq[byte]
   pong*: seq[byte]">RPCMsg</a></li>
+  <li><a class="reference" href="#SaltedId"
+    title="SaltedId = object
+  data*: MDigest[256]">SaltedId</a></li>
   <li><a class="reference" href="#SubOpts"
     title="SubOpts = object
   subscribe*: bool
@@ -319,44 +322,44 @@ class="link-seesrc" target="_blank">Source</a>
 <dl class="item">
 <div id="ControlGraft" class="tohide">
 <dt><pre><a href="messages.html#ControlGraft"><span class="Identifier">ControlGraft</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">topicId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">topicID</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
 </pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L62"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L68"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L62" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="ControlIHave" class="tohide">
 <dt><pre><a href="messages.html#ControlIHave"><span class="Identifier">ControlIHave</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">topicId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-  <span class="Identifier">messageIds</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
+  <span class="Identifier">topicID</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">messageIDs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
 </pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L55"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L61"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L55" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L61" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="ControlIWant" class="tohide">
 <dt><pre><a href="messages.html#ControlIWant"><span class="Identifier">ControlIWant</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">messageIds</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
+  <span class="Identifier">messageIDs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span>
 </pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L59"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L65"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L65" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -372,15 +375,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L48"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L54"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L54" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="ControlPrune" class="tohide">
 <dt><pre><a href="messages.html#ControlPrune"><span class="Identifier">ControlPrune</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">topicId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">topicID</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
   <span class="Identifier">peers</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="messages.html#PeerInfoMsg"><span class="Identifier">PeerInfoMsg</span></a><span class="Other">]</span>
   <span class="Identifier">backoff</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint64</span>
 </pre></dt>
@@ -388,9 +391,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L65"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L71"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L65" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L71" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -399,7 +402,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">fromPeer</span><span class="Operator">*</span><span class="Other">:</span> <a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">data</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">seqno</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
-  <span class="Identifier">topicIds</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
+  <span class="Identifier">topic</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
   <span class="Identifier">signature</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">key</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
 </pre></dt>
@@ -407,9 +410,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L40"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L46"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L40" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L46" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -452,9 +455,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L70"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L76"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L70" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L76" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="SaltedId" class="tohide">
+<dt><pre><a href="messages.html#SaltedId"><span class="Identifier">SaltedId</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">data</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">MDigest</span><span class="Other">[</span><span class="DecNumber">256</span><span class="Other">]</span>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L40"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L40" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -484,9 +501,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L148"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L154"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -496,9 +513,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L155"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L161"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -508,9 +525,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L137"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L143"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L137" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L143" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -520,9 +537,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L141"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L147"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L147" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -532,9 +549,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L173"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L179"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L173" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L179" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -544,9 +561,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L103"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L109"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L103" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L109" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -556,9 +573,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L121"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L127"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L121" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L127" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -568,9 +585,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L111"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L117"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L111" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L117" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -580,26 +597,14 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L93"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L99"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L99" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="shortLog,ControlIHave" class="tohide">
 <dt><pre><span class="Keyword">func</span> <a href="#shortLog%2CControlIHave"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="messages.html#ControlIHave"><span class="Identifier">ControlIHave</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L82"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L82" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="shortLog,ControlIWant" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#shortLog%2CControlIWant"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="messages.html#ControlIWant"><span class="Identifier">ControlIWant</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -610,15 +615,27 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="shortLog,ControlIWant" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#shortLog%2CControlIWant"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="messages.html#ControlIWant"><span class="Identifier">ControlIWant</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L94"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L94" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="shortLog,ControlPrune" class="tohide">
 <dt><pre><span class="Keyword">func</span> <a href="#shortLog%2CControlPrune"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="messages.html#ControlPrune"><span class="Identifier">ControlPrune</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L98"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L104"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L104" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -629,9 +646,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L77"
+href="https://github.com/status-im/nim-libp2p/tree/p2p-research/libp2p/protocols/pubsub/rpc/messages.nim#L83"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L77" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/messages.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -645,7 +662,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-22 20:32:59 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-06 11:24:50 UTC</small>
       </div>
     </div>
   </div>
