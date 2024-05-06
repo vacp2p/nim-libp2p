@@ -266,10 +266,10 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
-proc handleSubscribe*(g: GossipSub,
-                      peer: PubSubPeer,
-                      topic: string,
-                      subscribe: bool) =
+proc handleSubscribe(g: GossipSub,
+                     peer: PubSubPeer,
+                     topic: string,
+                     subscribe: bool) =
   logScope:
     peer
     topic
@@ -395,9 +395,7 @@ proc validateAndRelay(g: GossipSub,
 
     g.floodsub.withValue(topic, peers): toSendPeers.incl(peers[])
     g.mesh.withValue(topic, peers): toSendPeers.incl(peers[])
-
-    # add direct peers
-    toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(topic))
+    g.subscribedDirectPeers.withValue(topic, peers): toSendPeers.incl(peers[])
 
     # Don't send it to source peer, or peers that
     # sent it during validation
@@ -468,6 +466,11 @@ method rpcHandler*(g: GossipSub,
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     await rateLimit(g, peer, msgSize)
+    # Raising in the handler closes the gossipsub connection (but doesn't
+    # disconnect the peer!)
+    # TODO evaluate behaviour penalty values
+    peer.behaviourPenalty += 0.1
+
     raise newException(CatchableError, "Peer msg couldn't be decoded")
 
   when defined(libp2p_expensive_metrics):
@@ -477,12 +480,13 @@ method rpcHandler*(g: GossipSub,
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
-  # trigger hooks
+  # trigger hooks - these may modify the message
   peer.recvObservers(rpcMsg)
 
   if rpcMsg.ping.len in 1..<64 and peer.pingBudget > 0:
     g.send(peer, RPCMsg(pong: rpcMsg.ping), isHighPriority = true)
     peer.pingBudget.dec
+
   for i in 0..<min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub: untyped = rpcMsg.subscriptions[i]
     g.handleSubscribe(peer, sub.topic, sub.subscribe)
@@ -502,7 +506,7 @@ method rpcHandler*(g: GossipSub,
     if msgIdResult.isErr:
       debug "Dropping message due to failed message id generation",
         error = msgIdResult.error
-      # TODO: descore peers due to error during message validation (malicious?)
+      await g.punishInvalidMessage(peer, msg)
       continue
 
     let
@@ -510,8 +514,6 @@ method rpcHandler*(g: GossipSub,
       msgIdSalted = g.salt(msgId)
       topic = msg.topic
 
-    # addSeen adds salt to msgId to avoid
-    # remote attacking the hash function
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
@@ -599,24 +601,23 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
 
     g.mesh.del(topic)
 
-
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
 method publish*(g: GossipSub,
                 topic: string,
                 data: seq[byte]): Future[int] {.async.} =
-  # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
-
   logScope:
     topic
-
-  trace "Publishing message on topic", data = data.shortLog
 
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish"
     return 0
+
+  # base returns always 0
+  discard await procCall PubSub(g).publish(topic, data)
+
+  trace "Publishing message on topic", data = data.shortLog
 
   var peers: HashSet[PubSubPeer]
 
@@ -630,38 +631,39 @@ method publish*(g: GossipSub,
     # With flood publishing enabled, the mesh is used when propagating messages from other peers,
     # but a peer's own messages will always be published to all known peers in the topic, limited
     # to the amount of peers we can send it to in one heartbeat
-    var maxPeersToFlodOpt: Opt[int64]
-    if g.parameters.bandwidthEstimatebps > 0:
-      let
-        bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000 # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
-        msToTransmit = max(data.len div bandwidth, 1)
-      maxPeersToFlodOpt = Opt.some(max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow))
+
+    let maxPeersToFlood =
+      if g.parameters.bandwidthEstimatebps > 0:
+        let
+          bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000 # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
+          msToTransmit = max(data.len div bandwidth, 1)
+        max(g.parameters.heartbeatInterval.milliseconds div msToTransmit, g.parameters.dLow)
+      else:
+        int.high() # unlimited
 
     for peer in g.gossipsub.getOrDefault(topic):
-      maxPeersToFlodOpt.withValue(maxPeersToFlod):
-        if peers.len >= maxPeersToFlod: break
+      if peers.len >= maxPeersToFlood: break
+
       if peer.score >= g.parameters.publishThreshold:
         trace "publish: including flood/high score peer", peer
         peers.incl(peer)
 
-  if peers.len < g.parameters.dLow:
-    # not subscribed, or bad mesh, send to fanout peers
-    var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-    if fanoutPeers.len < g.parameters.dLow:
-      g.replenishFanout(topic)
-      fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+  elif peers.len < g.parameters.dLow:
+    # not subscribed or bad mesh, send to fanout peers
+    # when flood-publishing, fanout won't help since all potential peers have
+    # already been added
 
+    g.replenishFanout(topic) # Make sure fanout is populated
+
+    var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
     g.rng.shuffle(fanoutPeers)
 
     for fanPeer in fanoutPeers:
       peers.incl(fanPeer)
       if peers.len > g.parameters.d: break
 
-    # even if we couldn't publish,
-    # we still attempted to publish
-    # on the topic, so it makes sense
-    # to update the last topic publish
-    # time
+    # Attempting to publish counts as fanout send (even if the message
+    # ultimately is not sent)
     g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
   if peers.len == 0:
@@ -690,7 +692,9 @@ method publish*(g: GossipSub,
   trace "Created new message", msg = shortLog(msg), peers = peers.len
 
   if g.addSeen(g.salt(msgId)):
-    # custom msgid providers might cause this
+    # If the message was received or published recently, don't re-publish it -
+    # this might happen when not using sequence id:s and / or with a custom
+    # message id provider
     trace "Dropping already-seen message"
     return 0
 
