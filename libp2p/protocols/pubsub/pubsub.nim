@@ -28,7 +28,8 @@ import ./errors as pubsub_errors,
        ../../peerid,
        ../../peerinfo,
        ../../errors,
-       ../../utility
+       ../../utility,
+       ../../utils/semaphore
 
 import metrics
 import stew/results
@@ -80,6 +81,11 @@ declarePublicCounter(libp2p_pubsub_received_ihave, "pubsub broadcast ihave", lab
 declarePublicCounter(libp2p_pubsub_received_graft, "pubsub broadcast graft", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", labels = ["topic"])
 
+#The number of simultaneous transmissions. A smaller number can speedup message reception and relaying
+#ideally this should be an adaptive number, increasing for low bandwidth peers and decreasing for high bandwidth peers
+const
+  DefaultMaxSimultaneousTx* = 2
+
 type
   InitializationError* = object of LPError
 
@@ -128,6 +134,7 @@ type
     rng*: ref HmacDrbgContext
 
     knownTopics*: HashSet[string]
+    semTxLimit: AsyncSemaphore
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
@@ -311,7 +318,7 @@ method getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize, addr p.semTxLimit)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -510,6 +517,7 @@ method initPubSub*(p: PubSub)
   p.observers = new(seq[PubSubObserver])
   if p.msgIdProvider == nil:
     p.msgIdProvider = defaultMsgIdProvider
+  p.semTxLimit = newAsyncSemaphore(DefaultMaxSimultaneousTx)
 
 method addValidator*(p: PubSub,
                      topic: varargs[string],

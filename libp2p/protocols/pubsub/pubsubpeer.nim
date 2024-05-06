@@ -19,7 +19,8 @@ import rpc/[messages, message, protobuf],
        ../../stream/connection,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
-       ../../utility
+       ../../utility,
+       ../../utils/semaphore
 
 export peerid, connection, deques
 
@@ -91,6 +92,7 @@ type
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
 
+    semTxLimit: ptr AsyncSemaphore         #Control Max simultaneous transmissions to speed up indivisual receptions
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int # The max number of elements allowed in the non-priority queue.
     disconnected: bool
@@ -311,23 +313,35 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
     debug "No send connection", p, msg = shortLog(msg)
     return
 
-  trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-  await sendMsgContinue(conn, conn.writeLp(msg))
-
-proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
+proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] {.async.}=
+  if p.sendConn == nil or p.sendConn.closed():
+    await sendMsgSlow(p, msg)
+  
   if p.sendConn != nil and not p.sendConn.closed():
-    # Fast path that avoids copying msg (which happens for {.async.})
     let conn = p.sendConn
-
     trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-    let f = conn.writeLp(msg)
-    if not f.completed():
-      sendMsgContinue(conn, f)
-    else:
-      f
-  else:
-    sendMsgSlow(p, msg)
 
+    if msg.len < 2000:    #ideally we should only forward idontwant messages through this fast path
+      let f = conn.writeLp(msg)
+      await f or sleepAsync(5.milliseconds)
+      if not f.completed:
+        asyncSpawn sendMsgContinue(conn, f)
+    else:
+      await p.semTxLimit[].acquire()
+      try:
+        let f = conn.writeLp(msg)
+        #ideally sleep time should be based on peer bandwidth and message size
+        await f or sleepAsync(450.milliseconds)
+
+        if not f.completed:
+          asyncSpawn sendMsgContinue(conn, f)
+        p.semTxLimit[].release()
+      
+      except CatchableError as exc:
+        p.semTxLimit[].release()
+        await conn.close()
+
+    
 proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[void] =
   ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
   ##
@@ -499,6 +513,7 @@ proc new*(
   onEvent: OnEvent,
   codec: string,
   maxMessageSize: int,
+  sem: ptr AsyncSemaphore,
   maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
   overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T =
 
@@ -516,3 +531,4 @@ proc new*(
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()
+  result.semTxLimit = sem
