@@ -304,7 +304,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
   if p.sendConn == nil:
     # Wait for a send conn to be setup. `connectOnce` will
     # complete this even if the sendConn setup failed
-    await p.connectedFut
+    discard await race(p.connectedFut)
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
