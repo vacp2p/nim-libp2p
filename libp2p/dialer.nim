@@ -82,6 +82,7 @@ proc dialAndUpgrade(
             dialed.dir = dir
           await transport.upgrade(dialed, peerId)
         except CancelledError as exc:
+          await dialed.close()
           raise exc
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
