@@ -13,6 +13,8 @@
 import chronos, stew/endians2
 import multiaddress, multicodec, errors, utility
 
+export multiaddress, chronos
+
 when defined(windows):
   import winlean
 else:
@@ -29,7 +31,6 @@ const
     RTRANSPMA,
     UDP,
   )
-
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
@@ -76,7 +77,7 @@ proc connect*(
   child: StreamTransport = nil,
   flags = default(set[SocketFlags]),
   localAddress: Opt[MultiAddress] = Opt.none(MultiAddress)): Future[StreamTransport]
-  {.raises: [LPError, MaInvalidAddress].} =
+  {.async.} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
@@ -88,12 +89,12 @@ proc connect*(
   let transportAddress = initTAddress(ma).tryGet()
 
   compilesOr:
-    return connect(transportAddress, bufferSize, child,
+    return await connect(transportAddress, bufferSize, child,
       if localAddress.isSome(): initTAddress(localAddress.expect("just checked")).tryGet() else: TransportAddress(),
       flags)
   do:
     # support for older chronos versions
-    return connect(transportAddress, bufferSize, child)
+    return await connect(transportAddress, bufferSize, child)
 
 proc createStreamServer*[T](ma: MultiAddress,
                             cbproc: StreamCallback,

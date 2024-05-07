@@ -81,16 +81,17 @@ proc dialAndUpgrade(
           if dialed.dir != dir:
             dialed.dir = dir
           await transport.upgrade(dialed, peerId)
+        except CancelledError as exc:
+          raise exc
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
           await dialed.close()
           debug "Connection upgrade failed", err = exc.msg, peerId = peerId.get(default(PeerId))
-          if exc isnot CancelledError:
-            if dialed.dir == Direction.Out:
-              libp2p_failed_upgrades_outgoing.inc()
-            else:
-              libp2p_failed_upgrades_incoming.inc()
+          if dialed.dir == Direction.Out:
+            libp2p_failed_upgrades_outgoing.inc()
+          else:
+            libp2p_failed_upgrades_incoming.inc()
 
           # Try other address
           return nil

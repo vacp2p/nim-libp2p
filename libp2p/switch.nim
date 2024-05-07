@@ -273,6 +273,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
     except CancelledError as exc:
       trace "releasing semaphore on cancellation"
       upgrades.release() # always release the slot
+      return
     except CatchableError as exc:
       error "Exception in accept loop, exiting", exc = exc.msg
       upgrades.release() # always release the slot
@@ -288,6 +289,12 @@ proc stop*(s: Switch) {.async, public.} =
 
   s.started = false
 
+  try:
+    # Stop accepting incoming connections
+    await allFutures(s.acceptFuts.mapIt(it.cancelAndWait())).wait(1.seconds)
+  except CatchableError as exc:
+    debug "Cannot cancel accepts", error = exc.msg
+
   for service in s.services:
     discard await service.stop(s)
 
@@ -301,18 +308,6 @@ proc stop*(s: Switch) {.async, public.} =
       raise exc
     except CatchableError as exc:
       warn "error cleaning up transports", msg = exc.msg
-
-  try:
-    await allFutures(s.acceptFuts)
-      .wait(1.seconds)
-  except CatchableError as exc:
-    trace "Exception while stopping accept loops", exc = exc.msg
-
-  # check that all futures were properly
-  # stopped and otherwise cancel them
-  for a in s.acceptFuts:
-    if not a.finished:
-      a.cancel()
 
   for service in s.services:
     discard await service.stop(s)
