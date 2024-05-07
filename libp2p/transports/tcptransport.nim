@@ -251,6 +251,8 @@ method accept*(self: TcpTransport): Future[Connection] =
           raise newTransportClosedError(exc)
         except TransportOsError as exc:
           raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+        except common.TransportError as exc: # Needed for chronos 4.0.0 support
+          raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
         except CancelledError as exc:
           raise exc
 
