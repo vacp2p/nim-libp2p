@@ -304,7 +304,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
   if p.sendConn == nil:
     # Wait for a send conn to be setup. `connectOnce` will
     # complete this even if the sendConn setup failed
-    await p.connectedFut
+    discard await race(p.connectedFut)
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
@@ -339,14 +339,21 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
   ## priority messages have been sent.
   doAssert(not isNil(p), "pubsubpeer nil!")
 
+  p.clearSendPriorityQueue()
+
+  # When queues are empty, skipping the non-priority queue for low priority
+  # messages reduces latency
+  let emptyQueues =
+   (p.rpcmessagequeue.sendPriorityQueue.len() +
+        p.rpcmessagequeue.nonPriorityQueue.len()) == 0
+
   if msg.len <= 0:
     debug "empty message, skipping", p, msg = shortLog(msg)
     Future[void].completed()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
     Future[void].completed()
-  elif isHighPriority:
-    p.clearSendPriorityQueue()
+  elif isHighPriority or emptyQueues:
     let f = p.sendMsg(msg)
     if not f.finished:
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
