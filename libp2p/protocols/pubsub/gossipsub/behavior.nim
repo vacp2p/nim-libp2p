@@ -204,6 +204,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
 
   routingRecords
 
+
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
     let topic = prune.topicID
@@ -610,10 +611,10 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
       x notin gossipPeers and
       x.score >= g.parameters.gossipThreshold
 
-    # https://github.com/libp2p/specs/blob/98c5aa9421703fc31b0833ad8860a55db15be063/pubsub/gossipsub/gossipsub-v1.1.md#adaptive-gossip-dissemination
-    let
-      factor = (g.parameters.gossipFactor.float * allPeers.len.float).int
-      target = max(g.parameters.dLazy, factor)
+    var target = g.parameters.dLazy
+    let factor = (g.parameters.gossipFactor.float * allPeers.len.float).int
+    if factor > target:
+      target = min(factor, allPeers.len)
 
     if target < allPeers.len:
       g.rng.shuffle(allPeers)

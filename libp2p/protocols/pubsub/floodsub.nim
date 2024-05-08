@@ -57,10 +57,10 @@ proc addSeen*(f: FloodSub, saltedId: SaltedId): bool =
 proc firstSeen*(f: FloodSub, saltedId: SaltedId): Moment =
   f.seen.addedAt(saltedId)
 
-proc handleSubscribe(f: FloodSub,
-                     peer: PubSubPeer,
-                     topic: string,
-                     subscribe: bool) =
+proc handleSubscribe*(f: FloodSub,
+                      peer: PubSubPeer,
+                      topic: string,
+                      subscribe: bool) =
   logScope:
     peer
     topic
@@ -106,9 +106,10 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
                    data: seq[byte]) {.async.} =
+
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
-    raise newException(CatchableError, "Peer msg couldn't be decoded")
+    raise newException(CatchableError, "")
 
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   # trigger hooks
