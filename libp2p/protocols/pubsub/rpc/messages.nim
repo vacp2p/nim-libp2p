@@ -9,8 +9,8 @@
 
 {.push raises: [].}
 
-import options, sequtils, sugar
-import "../../.."/[
+import options, sequtils
+import ../../../[
         peerid,
         routing_record,
         utility
