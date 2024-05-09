@@ -52,19 +52,18 @@ proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContex
 
 method init*(p: Ping) =
   proc handle(conn: Connection, proto: string) {.async.} =
-    var buf: array[PingSize, byte]
     try:
       trace "handling ping", conn
+      var buf: array[PingSize, byte]
       await conn.readExactly(addr buf[0], PingSize)
       trace "echoing ping", conn, pingData = @buf
       await conn.write(@buf)
       if not isNil(p.pingHandler):
         await p.pingHandler(conn.peerId)
     except CancelledError as exc:
-      trace "cancelled error in ping handler", exc = exc.msg, conn, pingData = @buf
       raise exc
     except CatchableError as exc:
-      trace "exception in ping handler", exc = exc.msg, conn, pingData = @buf
+      trace "exception in ping handler", exc = exc.msg, conn
 
   p.handler = handle
   p.codec = PingCodec
