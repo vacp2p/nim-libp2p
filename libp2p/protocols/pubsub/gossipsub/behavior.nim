@@ -30,7 +30,7 @@ declareGauge(libp2p_gossipsub_healthy_peers_topics, "number of topics in mesh wi
 declareCounter(libp2p_gossipsub_above_dhigh_condition, "number of above dhigh pruning branches ran", labels = ["topic"])
 declareGauge(libp2p_gossipsub_received_iwants, "received iwants", labels = ["kind"])
 
-proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) {.raises: [].} =
+proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
   g.withPeerStats(p.peerId) do (stats: var PeerStats):
     var info = stats.topicInfos.getOrDefault(topic)
     info.graftTime = Moment.now()
@@ -46,7 +46,7 @@ proc pruned*(g: GossipSub,
              p: PubSubPeer,
              topic: string,
              setBackoff: bool = true,
-             backoff = none(Duration)) {.raises: [].} =
+             backoff = none(Duration)) =
   if setBackoff:
     let
       backoffDuration = backoff.get(g.parameters.pruneBackoff)
@@ -70,7 +70,7 @@ proc pruned*(g: GossipSub,
 
       trace "pruned", peer=p, topic
 
-proc handleBackingOff*(t: var BackoffTable, topic: string) {.raises: [].} =
+proc handleBackingOff*(t: var BackoffTable, topic: string) =
   let now = Moment.now()
   var expired = toSeq(t.getOrDefault(topic).pairs())
   expired.keepIf do (pair: tuple[peer: PeerId, expire: Moment]) -> bool:
@@ -79,7 +79,7 @@ proc handleBackingOff*(t: var BackoffTable, topic: string) {.raises: [].} =
     t.withValue(topic, v):
       v[].del(peer)
 
-proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: [].} =
+proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] =
   if not g.parameters.enablePX:
     return @[]
   var peers = g.gossipsub.getOrDefault(topic, initHashSet[PubSubPeer]()).toSeq()
@@ -100,7 +100,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] {.raises: 
 
 proc handleGraft*(g: GossipSub,
                  peer: PubSubPeer,
-                 grafts: seq[ControlGraft]): seq[ControlPrune] = # {.raises: [Defect].} TODO chronicles exception on windows
+                 grafts: seq[ControlGraft]): seq[ControlPrune] =
   var prunes: seq[ControlPrune]
   for graft in grafts:
     let topic = graft.topicID
@@ -205,7 +205,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Option[PeerRe
   routingRecords
 
 
-proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.raises: [].} =
+proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
     let topic = prune.topicID
 
@@ -239,7 +239,7 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) {.r
 
 proc handleIHave*(g: GossipSub,
                  peer: PubSubPeer,
-                 ihaves: seq[ControlIHave]): ControlIWant {.raises: [].} =
+                 ihaves: seq[ControlIHave]): ControlIWant =
   var res: ControlIWant
   if peer.score < g.parameters.gossipThreshold:
     trace "ihave: ignoring low score peer", peer, score = peer.score
@@ -251,7 +251,7 @@ proc handleIHave*(g: GossipSub,
         peer, topicID = ihave.topicID, msgs = ihave.messageIDs
       if ihave.topicID in g.topics:
         for msgId in ihave.messageIDs:
-          if not g.hasSeen(msgId):
+          if not g.hasSeen(g.salt(msgId)):
             if peer.iHaveBudget <= 0:
               break
             elif msgId notin res.messageIDs:
@@ -269,12 +269,11 @@ proc handleIDontWant*(g: GossipSub,
   for dontWant in iDontWants:
     for messageId in dontWant.messageIDs:
       if peer.heDontWants[^1].len > 1000: break
-      if messageId.len > 100: continue
-      peer.heDontWants[^1].incl(messageId)
+      peer.heDontWants[^1].incl(g.salt(messageId))
 
 proc handleIWant*(g: GossipSub,
                  peer: PubSubPeer,
-                 iwants: seq[ControlIWant]): seq[Message] {.raises: [].} =
+                 iwants: seq[ControlIWant]): seq[Message] =
   var
     messages: seq[Message]
     invalidRequests = 0
@@ -300,7 +299,7 @@ proc handleIWant*(g: GossipSub,
         messages.add(msg)
   return messages
 
-proc commitMetrics(metrics: var MeshMetrics) {.raises: [].} =
+proc commitMetrics(metrics: var MeshMetrics) =
   libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)
   libp2p_gossipsub_no_peers_topics.set(metrics.noPeersTopics)
   libp2p_gossipsub_under_dout_topics.set(metrics.underDoutTopics)
@@ -309,7 +308,7 @@ proc commitMetrics(metrics: var MeshMetrics) {.raises: [].} =
   libp2p_gossipsub_peers_per_topic_fanout.set(metrics.otherPeersPerTopicFanout, labelValues = ["other"])
   libp2p_gossipsub_peers_per_topic_mesh.set(metrics.otherPeersPerTopicMesh, labelValues = ["other"])
 
-proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) {.raises: [].} =
+proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) =
   logScope:
     topic
     mesh = g.mesh.peers(topic)
@@ -539,7 +538,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
         backoff: g.parameters.pruneBackoff.seconds.uint64)])))
     g.broadcast(prunes, prune, isHighPriority = true)
 
-proc dropFanoutPeers*(g: GossipSub) {.raises: [].} =
+proc dropFanoutPeers*(g: GossipSub) =
   # drop peers that we haven't published to in
   # GossipSubFanoutTTL seconds
   let now = Moment.now()
@@ -552,7 +551,7 @@ proc dropFanoutPeers*(g: GossipSub) {.raises: [].} =
   for topic in drops:
     g.lastFanoutPubSub.del topic
 
-proc replenishFanout*(g: GossipSub, topic: string) {.raises: [].} =
+proc replenishFanout*(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
   logScope: topic
   trace "about to replenish fanout"
@@ -568,7 +567,7 @@ proc replenishFanout*(g: GossipSub, topic: string) {.raises: [].} =
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
-proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: [].} =
+proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
   ## gossip iHave messages to peers
   ##
 
@@ -621,17 +620,16 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] {.raises: 
       g.rng.shuffle(allPeers)
       allPeers.setLen(target)
 
-    let msgIdsAsSet = ihave.messageIDs.toHashSet()
-
     for peer in allPeers:
       control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
-      peer.sentIHaves[^1].incl(msgIdsAsSet)
+      for msgId in ihave.messageIDs:
+        peer.sentIHaves[^1].incl(msgId)
 
   libp2p_gossipsub_cache_window_size.set(cacheWindowSize.int64)
 
   return control
 
-proc onHeartbeat(g: GossipSub) {.raises: [].} =
+proc onHeartbeat(g: GossipSub) =
     # reset IWANT budget
     # reset IHAVE cap
     block:
@@ -639,7 +637,7 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
         peer.sentIHaves.addFirst(default(HashSet[MessageId]))
         if peer.sentIHaves.len > g.parameters.historyLength:
           discard peer.sentIHaves.popLast()
-        peer.heDontWants.addFirst(default(HashSet[MessageId]))
+        peer.heDontWants.addFirst(default(HashSet[SaltedId]))
         if peer.heDontWants.len > g.parameters.historyLength:
           discard peer.heDontWants.popLast()
         peer.iHaveBudget = IHavePeerBudget
@@ -694,8 +692,6 @@ proc onHeartbeat(g: GossipSub) {.raises: [].} =
       g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 
     g.mcache.shift() # shift the cache
-
-# {.pop.} # raises []
 
 proc heartbeat*(g: GossipSub) {.async.} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:

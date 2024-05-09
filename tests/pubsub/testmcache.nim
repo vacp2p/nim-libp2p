@@ -1,12 +1,11 @@
 {.used.}
 
-import unittest2, options, sets, sequtils
+import unittest2, sequtils
 import stew/byteutils
 import ../../libp2p/[peerid,
                      crypto/crypto,
                      protocols/pubsub/mcache,
-                     protocols/pubsub/rpc/messages]
-import ./utils
+                     protocols/pubsub/rpc/message]
 
 var rng = newRng()
 

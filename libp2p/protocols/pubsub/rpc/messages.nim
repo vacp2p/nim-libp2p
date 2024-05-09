@@ -9,8 +9,8 @@
 
 {.push raises: [].}
 
-import options, sequtils, sugar
-import "../../.."/[
+import options, sequtils
+import ../../../[
         peerid,
         routing_record,
         utility
@@ -36,6 +36,12 @@ type
     topic*: string
 
   MessageId* = seq[byte]
+
+  SaltedId* = object
+    # Salted hash of message ID - used instead of the ordinary message ID to
+    # avoid hash poisoning attacks and to make memory usage more predictable
+    # with respect to the variable-length message id
+    data*: MDigest[256]
 
   Message* = object
     fromPeer*: PeerId

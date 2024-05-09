@@ -7,7 +7,6 @@ if dirExists("nimbledeps/pkgs2"):
 switch("warning", "CaseTransition:off")
 switch("warning", "ObservableStores:off")
 switch("warning", "LockLevel:off")
---define:chronosStrictException
 --styleCheck:usages
 switch("warningAsError", "UseBase:on")
 --styleCheck:error

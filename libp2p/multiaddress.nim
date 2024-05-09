@@ -13,8 +13,8 @@
 {.push public.}
 
 import pkg/chronos, chronicles
-import std/[nativesockets, hashes]
-import tables, strutils, sets, stew/shims/net
+import std/[nativesockets, net, hashes]
+import tables, strutils, sets
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf, errors, utility
 import stew/[base58, base32, endians2, results]

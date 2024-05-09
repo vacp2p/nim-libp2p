@@ -360,13 +360,13 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
 proc validateAndRelay(g: GossipSub,
                       msg: Message,
-                      msgId, msgIdSalted: MessageId,
+                      msgId: MessageId, saltedId: SaltedId,
                       peer: PubSubPeer) {.async.} =
   try:
     let validation = await g.validate(msg)
 
     var seenPeers: HashSet[PubSubPeer]
-    discard g.validationSeen.pop(msgIdSalted, seenPeers)
+    discard g.validationSeen.pop(saltedId, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc((msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"])
 
@@ -413,13 +413,12 @@ proc validateAndRelay(g: GossipSub,
 
     for peer in toSendPeers:
       for heDontWant in peer.heDontWants:
-        if msgId in heDontWant:
+        if saltedId in heDontWant:
           seenPeers.incl(peer)
           libp2p_gossipsub_idontwant_saved_messages.inc
           libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
           break
     toSendPeers.excl(seenPeers)
-
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
@@ -508,12 +507,12 @@ method rpcHandler*(g: GossipSub,
 
     let
       msgId = msgIdResult.get
-      msgIdSalted = msgId & g.seenSalt
+      msgIdSalted = g.salt(msgId)
       topic = msg.topic
 
     # addSeen adds salt to msgId to avoid
     # remote attacking the hash function
-    if g.addSeen(msgId):
+    if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
       var alreadyReceived = false
@@ -523,7 +522,7 @@ method rpcHandler*(g: GossipSub,
           alreadyReceived = true
 
       if not alreadyReceived:
-        let delay = Moment.now() - g.firstSeen(msgId)
+        let delay = Moment.now() - g.firstSeen(msgIdSalted)
         g.rewardDelivered(peer, topic, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
@@ -690,7 +689,7 @@ method publish*(g: GossipSub,
 
   trace "Created new message", msg = shortLog(msg), peers = peers.len
 
-  if g.addSeen(msgId):
+  if g.addSeen(g.salt(msgId)):
     # custom msgid providers might cause this
     trace "Dropping already-seen message"
     return 0
@@ -779,7 +778,7 @@ method initPubSub*(g: GossipSub)
     raise newException(InitializationError, $validationRes.error)
 
   # init the floodsub stuff here, we customize timedcache in gossip!
-  g.seen = TimedCache[MessageId].init(g.parameters.seenTTL)
+  g.seen = TimedCache[SaltedId].init(g.parameters.seenTTL)
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
