@@ -230,7 +230,9 @@ window.addEventListener("DOMContentLoaded", main2);
   observers*: ref seq[PubSubObserver]
   score*: float64
   sentIHaves*: Deque[HashSet[MessageId]]
-  heDontWants*: Deque[HashSet[MessageId]]
+  heDontWants*: Deque[HashSet[SaltedId]] ## IDONTWANT contains unvalidated message id:s which may be long and/or
+                                         ## expensive to look up, so we apply the same salting to them as during
+                                         ## unvalidated message processing
   iHaveBudget*: int
   pingBudget*: int
   maxMessageSize: int
@@ -469,7 +471,9 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">observers</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="pubsubpeer.html#PubSubObserver"><span class="Identifier">PubSubObserver</span></a><span class="Other">]</span>
   <span class="Identifier">score</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">float64</span>
   <span class="Identifier">sentIHaves</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Deque</span><span class="Other">[</span><span class="Identifier">HashSet</span><span class="Other">[</span><a href="rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span><span class="Other">]</span>
-  <span class="Identifier">heDontWants</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Deque</span><span class="Other">[</span><span class="Identifier">HashSet</span><span class="Other">[</span><a href="rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span><span class="Other">]</span>
+  <span class="Identifier">heDontWants</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Deque</span><span class="Other">[</span><span class="Identifier">HashSet</span><span class="Other">[</span><a href="rpc/messages.html#SaltedId"><span class="Identifier">SaltedId</span></a><span class="Other">]</span><span class="Other">]</span> <span class="Comment">## IDONTWANT contains unvalidated message id:s which may be long and/or</span>
+                                         <span class="Comment">## expensive to look up, so we apply the same salting to them as during</span>
+                                         <span class="Comment">## unvalidated message processing</span>
   <span class="Identifier">iHaveBudget</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">pingBudget</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">maxMessageSize</span><span class="Other">:</span> <span class="Identifier">int</span>
@@ -524,9 +528,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L95"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L98"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L95" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -574,9 +578,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L120"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L123"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L120" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -586,9 +590,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L437"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L447"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L437" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L447" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -598,9 +602,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L252"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L255"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L252" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L255" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -610,9 +614,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L128"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L131"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L131" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -622,9 +626,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L107"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L110"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L107" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L110" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -635,9 +639,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L159"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L162"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L159" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L162" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -647,9 +651,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L117"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L120"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L117" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L120" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -659,9 +663,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L132"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L135"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L132" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L135" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -671,9 +675,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L258"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L261"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L258" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L261" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -687,9 +691,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L485"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L495"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L485" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L495" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -699,9 +703,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L135"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L138"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L135" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L138" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -712,9 +716,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L145"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L148"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L145" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -733,9 +737,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L402"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L412"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L402" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L412" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -753,9 +757,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L328"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L331"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L328" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L331" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -765,9 +769,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L123"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L126"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -778,9 +782,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L467"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L477"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L467" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L477" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -795,9 +799,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L126"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/pubsubpeer.nim#L129"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L129" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -816,7 +820,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-26 15:40:22 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-09 19:22:24 UTC</small>
       </div>
     </div>
   </div>
