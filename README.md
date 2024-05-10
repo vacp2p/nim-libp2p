@@ -134,6 +134,7 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 - Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it.
 - **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
 - **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](tests/).
+- **Small PRs**. Try to keep PRs atomic and digestible. This makes the review process and pinpointing bugs easier.
 
 The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
 
