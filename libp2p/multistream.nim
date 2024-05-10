@@ -266,6 +266,7 @@ proc addHandler*[E](
 
 proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
   # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([])`
+  # TODO https://github.com/nim-lang/Nim/issues/23445
   var futs = newSeqOfCap[Future[void].Raising([CancelledError])](m.handlers.len)
   for it in m.handlers:
     futs.add it.protocol.start()
@@ -278,14 +279,13 @@ proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
     doAssert m.handlers.len == futs.len, "Handlers modified while starting"
     for i, fut in futs:
       if not fut.finished:
-        pending.add noCancel fut.cancelAndWait()
+        pending.add fut.cancelAndWait()
       elif fut.completed:
         pending.add m.handlers[i].protocol.stop()
       else:
         static: doAssert typeof(fut).E is (CancelledError,)
     await noCancel allFutures(pending)
     raise exc
-
 
 proc stop*(m: MultistreamSelect) {.async: (raises: []).} =
   # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([CancelledError])`
