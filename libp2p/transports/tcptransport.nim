@@ -195,9 +195,11 @@ method stop*(self: TcpTransport): Future[void] =
           await acceptFut.value().closeWait()
       self.acceptFuts = @[]
 
-      # All clients should have cleaned themself up..
-      doAssert self.clients[Direction.In].len == 0
-      doAssert self.clients[Direction.Out].len == 0
+      if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
+        # Future updates could consider turning this warn into an assert since
+        # it should never happen if the shutdown code is correct
+        warn "Couldn't clean up clients",
+          len = self.clients[Direction.In].len + self.clients[Direction.Out].len
 
       trace "Transport stopped"
       untrackCounter(TcpTransportTrackerName)
