@@ -2,8 +2,7 @@ name: Bumper
 on:
   push:
     branches:
-      - unstable
-      - bumper
+      - master
   workflow_dispatch:
 
 jobs:
