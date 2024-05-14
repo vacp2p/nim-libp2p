@@ -35,7 +35,7 @@ type
     upgrader*: Upgrade
     networkReachability*: NetworkReachability
 
-proc newTransportClosedError*(parent: ref Exception = nil): ref LPError =
+proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError,
     "Transport closed, no more connections!", parent)
 
