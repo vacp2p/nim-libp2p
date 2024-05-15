@@ -172,8 +172,6 @@ type
     subscribedDirectPeers*: PeerTable          # directpeers that we keep alive
     backingOff*: BackoffTable                  # peers to backoff from when replenishing the mesh
     lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
-    gossip*: Table[string, seq[ControlIHave]]  # pending gossip
-    control*: Table[string, ControlMessage]    # pending control messages
     mcache*: MCache                            # messages cache
     validationSeen*: ValidationSeenTable       # peers who sent us message in validation
     heartbeatFut*: Future[void]                # cancellation future for heartbeat interval
