@@ -44,12 +44,3 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
             # We still don't abort but warn
             debug "A future has failed, enable trace logging for details", error=exc.name
             trace "Exception details", msg=exc.msg
-
-template tryAndWarn*(message: static[string]; body: untyped): untyped =
-  try:
-    body
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    debug "An exception has ocurred, enable trace logging for details", name = exc.name, msg = message
-    trace "Exception details", exc = exc.msg
