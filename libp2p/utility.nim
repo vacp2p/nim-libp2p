@@ -112,6 +112,9 @@ template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped 
     let value {.inject.} = temp.get()
     body
 
+template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
+  self.toOpt().withValue(value, body)
+
 macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): untyped =
   let elseBody = elseStmt[0]
   quote do:
