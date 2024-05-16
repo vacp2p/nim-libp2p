@@ -344,10 +344,12 @@ proc start*(s: Switch) {.async, public.} =
       await s.stop()
       raise fut.error
 
+  let peerIdMa = MultiAddress.init(multiCodec("p2p"), s.peerInfo.peerId).tryGet()
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:
       s.acceptFuts.add(s.accept(t))
-      s.peerInfo.listenAddrs &= t.addrs
+      let addrs = t.addrs.mapIt(it.concat(peerIdMa).tryget())
+      s.peerInfo.listenAddrs &= addrs
 
   await s.peerInfo.update()
 
