@@ -163,12 +163,9 @@ proc expandWildcardAddresses(
             )
             addresses.add(wildcardAddresses)
           else:
-            listenAddr.concat(peerIdMa).withValue(ma):
-              addresses.add(ma)
+            addresses.add(listenAddr)
     else:
-      let suffixed = listenAddr.concat(peerIdMa).valueOr:
-        continue
-      addresses.add(suffixed)
+      addresses.add(listenAddr)
   addresses
 
 method setup*(
