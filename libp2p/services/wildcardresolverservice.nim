@@ -22,19 +22,19 @@ logScope:
   topics = "libp2p wildcardresolverservice"
 
 type
-  # This type is used to resolve wildcard addresses of the type "0.0.0.0" for IPv4 or "::" for IPv6.
   WildcardAddressResolverService* = ref object of Service
-    # Used to get the list of network addresses.
+    ## Service used to resolve wildcard addresses of the type "0.0.0.0" for IPv4 or "::" for IPv6.
     networkInterfaceProvider: NetworkInterfaceProvider
-    # An implementation of an address mapper that takes a list of listen addresses and expands each wildcard address
-    # to the respective list of interface addresses. As an example, if the listen address is 0.0.0.0:4001
-    # and the machine has 2 interfaces with IPs 172.217.11.174 and 64.233.177.113, the address mapper will
-    # expand the wildcard address to 172.217.11.174:4001 and 64.233.177.113:4001.
+    ## Provides a list of network addresses.
     addressMapper: AddressMapper
-    # Represents the task that is scheduled to run the service.
+    ## An implementation of an address mapper that takes a list of listen addresses and expands each wildcard address
+    ## to the respective list of interface addresses. As an example, if the listen address is 0.0.0.0:4001
+    ## and the machine has 2 interfaces with IPs 172.217.11.174 and 64.233.177.113, the address mapper will
+    ## expand the wildcard address to 172.217.11.174:4001 and 64.233.177.113:4001.
     scheduleHandle: Future[void]
-    # The interval at which the service should run.
+    ## Represents the task that is scheduled to run the service.
     scheduleInterval: Opt[Duration]
+    ## The interval at which the service should run.
 
   NetworkInterfaceProvider* = ref object of RootObj
 
@@ -42,21 +42,21 @@ proc isLoopbackOrUp(networkInterface: NetworkInterface): bool =
   if (networkInterface.ifType == IfSoftwareLoopback) or
       (networkInterface.state == StatusUp): true else: false
 
-## This method retrieves the addresses of network interfaces based on the specified address family.
-##
-## The `getAddresses` method filters the available network interfaces to include only
-## those that are either loopback or up. It then collects all the addresses from these
-## interfaces and filters them to match the provided address family.
-##
-## Parameters:
-## - `networkInterfaceProvider`: A provider that offers access to network interfaces.
-## - `addrFamily`: The address family to filter the network addresses (e.g., `AddressFamily.IPv4` or `AddressFamily.IPv6`).
-##
-## Returns:
-## - A sequence of `InterfaceAddress` objects that match the specified address family.
 method getAddresses*(
     networkInterfaceProvider: NetworkInterfaceProvider, addrFamily: AddressFamily
 ): seq[InterfaceAddress] {.base.} =
+  ## This method retrieves the addresses of network interfaces based on the specified address family.
+  ##
+  ## The `getAddresses` method filters the available network interfaces to include only
+  ## those that are either loopback or up. It then collects all the addresses from these
+  ## interfaces and filters them to match the provided address family.
+  ##
+  ## Parameters:
+  ## - `networkInterfaceProvider`: A provider that offers access to network interfaces.
+  ## - `addrFamily`: The address family to filter the network addresses (e.g., `AddressFamily.IPv4` or `AddressFamily.IPv6`).
+  ##
+  ## Returns:
+  ## - A sequence of `InterfaceAddress` objects that match the specified address family.
   let
     interfaces = getInterfaces().filterIt(it.isLoopbackOrUp())
     flatInterfaceAddresses = concat(interfaces.mapIt(it.addresses))
