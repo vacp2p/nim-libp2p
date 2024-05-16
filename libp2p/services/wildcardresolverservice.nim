@@ -138,32 +138,31 @@ proc expandWildcardAddresses(
   for listenAddr in listenAddrs:
     if TCP_IP.matchPartial(listenAddr):
       listenAddr.getProtocolArgument(multiCodec("tcp")).toOpt.withValue(portArg):
-        if len(portArg) == sizeof(uint16):
-          let port = Port(uint16.fromBytesBE(portArg))
-          if IP4.matchPartial(listenAddr):
-            let wildcardAddresses = getWildcardAddress(
-              listenAddr,
-              multiCodec("ip4"),
-              AnyAddress.address_v4,
-              AddressFamily.IPv4,
-              port,
-              networkInterfaceProvider,
-              peerIdMa,
-            )
-            addresses.add(wildcardAddresses)
-          elif IP6.matchPartial(listenAddr):
-            let wildcardAddresses = getWildcardAddress(
-              listenAddr,
-              multiCodec("ip6"),
-              AnyAddress6.address_v6,
-              AddressFamily.IPv6,
-              port,
-              networkInterfaceProvider,
-              peerIdMa,
-            )
-            addresses.add(wildcardAddresses)
-          else:
-            addresses.add(listenAddr)
+        let port = Port(uint16.fromBytesBE(portArg))
+        if IP4.matchPartial(listenAddr):
+          let wildcardAddresses = getWildcardAddress(
+            listenAddr,
+            multiCodec("ip4"),
+            AnyAddress.address_v4,
+            AddressFamily.IPv4,
+            port,
+            networkInterfaceProvider,
+            peerIdMa,
+          )
+          addresses.add(wildcardAddresses)
+        elif IP6.matchPartial(listenAddr):
+          let wildcardAddresses = getWildcardAddress(
+            listenAddr,
+            multiCodec("ip6"),
+            AnyAddress6.address_v6,
+            AddressFamily.IPv6,
+            port,
+            networkInterfaceProvider,
+            peerIdMa,
+          )
+          addresses.add(wildcardAddresses)
+        else:
+          addresses.add(listenAddr)
     else:
       addresses.add(listenAddr)
   addresses
