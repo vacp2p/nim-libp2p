@@ -9,14 +9,11 @@
 
 {.push raises: [].}
 
-import std/[deques, sequtils]
+import std/sequtils
 import stew/[byteutils, results, endians2]
-import chronos, chronos/transports/[osnet, ipnet], metrics
+import chronos, chronos/transports/[osnet, ipnet], chronicles
 import ../[multiaddress, multicodec]
 import ../switch
-import ../wire
-import ../utils/heartbeat
-import ../crypto/crypto
 
 logScope:
   topics = "libp2p wildcardresolverservice"
@@ -24,7 +21,7 @@ logScope:
 type
   WildcardAddressResolverService* = ref object of Service
     ## Service used to resolve wildcard addresses of the type "0.0.0.0" for IPv4 or "::" for IPv6.
-    ## When used with a `Switch`, this service will be automatically started and stopped
+    ## When used with a `Switch`, this service will be automatically set up and stopped
     ## when the switch starts and stops. This is facilitated by adding the service to the switch's
     ## list of services using the `.withServices(@[svc])` method in the `SwitchBuilder`.
     networkInterfaceProvider: NetworkInterfaceProvider
@@ -34,10 +31,6 @@ type
     ## to the respective list of interface addresses. As an example, if the listen address is 0.0.0.0:4001
     ## and the machine has 2 interfaces with IPs 172.217.11.174 and 64.233.177.113, the address mapper will
     ## expand the wildcard address to 172.217.11.174:4001 and 64.233.177.113:4001.
-    scheduleHandle: Future[void]
-    ## Represents the task that is scheduled to run the service.
-    scheduleInterval: Opt[Duration]
-    ## The interval at which the service should run.
 
   NetworkInterfaceProvider* = ref object of RootObj
 
@@ -72,35 +65,17 @@ proc new*(
     scheduleInterval: Opt[Duration] = Opt.none(Duration),
     networkInterfaceProvider: NetworkInterfaceProvider = new(NetworkInterfaceProvider),
 ): T =
-  ## This procedure initializes a new `WildcardAddressResolverService` with the provided
-  ## schedule interval and network interface provider.
+  ## This procedure initializes a new `WildcardAddressResolverService` with the provided network interface provider.
   ##
   ## Parameters:
   ## - `T`: The type descriptor for `WildcardAddressResolverService`.
-  ## - `scheduleInterval`: An optional interval at which the service should run. Defaults to none.
   ## - `networkInterfaceProvider`: A provider that offers access to network interfaces. Defaults to a new instance of `NetworkInterfaceProvider`.
   ##
   ## Returns:
   ## - A new instance of `WildcardAddressResolverService`.
   return T(
-    scheduleInterval: scheduleInterval,
     networkInterfaceProvider: networkInterfaceProvider,
   )
-
-proc schedule(
-    service: WildcardAddressResolverService, switch: Switch, interval: Duration
-) {.async.} =
-  ## Schedules the WildcardAddressResolverService to run at regular intervals.
-  ##
-  ## Sets up a schedule for the WildcardAddressResolverService to execute periodically based
-  ## on the specified interval. It continuously runs the service on the given switch at the defined time intervals.
-  ##
-  ## Parameters:
-  ## - `service`: The instance of the WildcardAddressResolverService that will be scheduled.
-  ## - `switch`: The Switch object that the service will operate on.
-  ## - `interval`: The Duration specifying how often the service should run.
-  heartbeat "Scheduling WildcardAddressResolverService run", interval:
-    await service.run(switch)
 
 proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byte]] =
   var buffer: seq[byte]
@@ -201,8 +176,7 @@ method setup*(
 ): Future[bool] {.async.} =
   ## Sets up the `WildcardAddressResolverService`.
   ##
-  ## This method adds the address mapper to the peer's list of address mappers and schedules the seervice to run
-  ## at the specified interval.
+  ## This method adds the address mapper to the peer's list of address mappers.
   ##
   ## Parameters:
   ## - `self`: The instance of `WildcardAddressResolverService` being set up.
@@ -221,8 +195,6 @@ method setup*(
   debug "Setting up WildcardAddressResolverService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if hasBeenSetup:
-    self.scheduleInterval.withValue(interval):
-      self.scheduleHandle = schedule(self, switch, interval)
     switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
@@ -241,7 +213,7 @@ method stop*(
   ## Stops the WildcardAddressResolverService.
   ##
   ## Handles the shutdown process of the WildcardAddressResolverService for a given switch.
-  ## It cancels the scheduled task, if any, and removes the address mapper from the switch's list of address mappers.
+  ## It removes the address mapper from the switch's list of address mappers.
   ## It then updates the peer information for the provided switch. Any wildcard address wont be resolved anymore.
   ##
   ## Parameters:
@@ -253,9 +225,6 @@ method stop*(
   debug "Stopping WildcardAddressResolverService"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
-    if not isNil(self.scheduleHandle):
-      self.scheduleHandle.cancel()
-      self.scheduleHandle = nil
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
     await switch.peerInfo.update()
   return hasBeenStopped
