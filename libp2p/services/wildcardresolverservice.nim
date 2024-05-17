@@ -93,15 +93,13 @@ proc getWildcardMultiAddresses(
     interfaceAddresses: seq[InterfaceAddress],
     protocol: Protocol,
     port: Port,
-    suffix: MultiAddress,
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
   for ifaddr in interfaceAddresses:
     var address = ifaddr.host
     address.port = port
-    MultiAddress.init(address, protocol).toOpt.withValue(maddress):
-      maddress.concat(suffix).toOpt.withValue(a):
-        addresses.add(a)
+    MultiAddress.init(address, protocol).withValue(maddress):
+      addresses.add(maddress)
   addresses
 
 proc getWildcardAddress(
@@ -111,28 +109,22 @@ proc getWildcardAddress(
     addrFamily: AddressFamily,
     port: Port,
     networkInterfaceProvider: NetworkInterfaceProvider,
-    peerId: MultiAddress,
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
   maddress.getProtocolArgument(multiCodec).toOpt.withValue(address):
     if address == anyAddr:
       let filteredInterfaceAddresses = networkInterfaceProvider.getAddresses(addrFamily)
       addresses.add(
-        getWildcardMultiAddresses(filteredInterfaceAddresses, IPPROTO_TCP, port, peerId)
+        getWildcardMultiAddresses(filteredInterfaceAddresses, IPPROTO_TCP, port)
       )
     else:
-      maddress.concat(peerId).toOpt.withValue(a):
-        addresses.add(a)
+      addresses.add(maddress)
   return addresses
 
 proc expandWildcardAddresses(
     networkInterfaceProvider: NetworkInterfaceProvider,
-    peerId: PeerId,
     listenAddrs: seq[MultiAddress],
 ): seq[MultiAddress] =
-  let peerIdMa = MultiAddress.init(multiCodec("p2p"), peerId).valueOr:
-    return default(seq[MultiAddress])
-
   var addresses: seq[MultiAddress]
   # In this loop we expand bounded addresses like `0.0.0.0` and `::` to list of interface addresses.
   for listenAddr in listenAddrs:
@@ -147,7 +139,6 @@ proc expandWildcardAddresses(
             AddressFamily.IPv4,
             port,
             networkInterfaceProvider,
-            peerIdMa,
           )
           addresses.add(wildcardAddresses)
         elif IP6.matchPartial(listenAddr):
@@ -158,7 +149,6 @@ proc expandWildcardAddresses(
             AddressFamily.IPv6,
             port,
             networkInterfaceProvider,
-            peerIdMa,
           )
           addresses.add(wildcardAddresses)
         else:
@@ -185,7 +175,7 @@ method setup*(
   ): Future[seq[MultiAddress]] {.async.} =
     echo listenAddrs
     return expandWildcardAddresses(
-      self.networkInterfaceProvider, switch.peerInfo.peerId, listenAddrs
+      self.networkInterfaceProvider, listenAddrs
     )
 
   debug "Setting up WildcardAddressResolverService"
