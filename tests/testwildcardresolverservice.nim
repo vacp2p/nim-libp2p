@@ -70,22 +70,7 @@ suite "WildcardAddressResolverService":
     let tcpIp6 = switch.peerInfo.addrs[1][multiCodec("tcp")].get # tcp port for ip6
     return (svc, switch, tcpIp4, tcpIp6)
 
-  asyncTest "WildcardAddressResolverService must resolve all wildcard addresses":
-    let (svc, switch, tcpIp4, tcpIp6) = await setupWildcardService()
-    check switch.peerInfo.addrs == @[
-      MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4).get,
-      MultiAddress.init("/ip6/::" & $tcpIp6).get,
-    ]
-    await svc.run(switch)
-    check switch.peerInfo.addrs == @[
-      MultiAddress.init("/ip4/127.0.0.1" & $tcpIp4).get,
-      MultiAddress.init("/ip4/192.168.1.22" & $tcpIp4).get,
-      MultiAddress.init("/ip6/::1" & $tcpIp6).get,
-      MultiAddress.init("/ip6/fe80::1" & $tcpIp6).get,
-    ]
-    await switch.stop()
-
-  asyncTest "WildcardAddressResolverService must stop and not resolve wildcard addresses":
+  asyncTest "WildcardAddressResolverService must resolve wildcard addresses and stop doing so when stopped":
     let (svc, switch, tcpIp4, tcpIp6) = await setupWildcardService()
     check switch.peerInfo.addrs == @[
       MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4).get,
