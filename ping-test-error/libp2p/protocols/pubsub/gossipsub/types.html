@@ -215,8 +215,6 @@ window.addEventListener("DOMContentLoaded", main2);
   subscribedDirectPeers*: PeerTable
   backingOff*: BackoffTable
   lastFanoutPubSub*: Table[string, Moment]
-  gossip*: Table[string, seq[ControlIHave]]
-  control*: Table[string, ControlMessage]
   mcache*: MCache
   validationSeen*: ValidationSeenTable
   heartbeatFut*: Future[void]
@@ -398,8 +396,6 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">subscribedDirectPeers</span><span class="Operator">*</span><span class="Other">:</span> <a href="../peertable.html#PeerTable"><span class="Identifier">PeerTable</span></a>
   <span class="Identifier">backingOff</span><span class="Operator">*</span><span class="Other">:</span> <a href="types.html#BackoffTable"><span class="Identifier">BackoffTable</span></a>
   <span class="Identifier">lastFanoutPubSub</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <span class="Identifier">Moment</span><span class="Other">]</span>
-  <span class="Identifier">gossip</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../rpc/messages.html#ControlIHave"><span class="Identifier">ControlIHave</span></a><span class="Other">]</span><span class="Other">]</span>
-  <span class="Identifier">control</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <a href="../rpc/messages.html#ControlMessage"><span class="Identifier">ControlMessage</span></a><span class="Other">]</span>
   <span class="Identifier">mcache</span><span class="Operator">*</span><span class="Other">:</span> <a href="../mcache.html#MCache"><span class="Identifier">MCache</span></a>
   <span class="Identifier">validationSeen</span><span class="Operator">*</span><span class="Other">:</span> <a href="types.html#ValidationSeenTable"><span class="Identifier">ValidationSeenTable</span></a>
   <span class="Identifier">heartbeatFut</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span>
@@ -486,9 +482,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/gossipsub/types.nim#L192"
+href="https://github.com/status-im/nim-libp2p/tree/ping-test-error/libp2p/protocols/pubsub/gossipsub/types.nim#L190"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L192" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L190" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -782,7 +778,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-13 11:00:11 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-17 12:50:08 UTC</small>
       </div>
     </div>
   </div>
