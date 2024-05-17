@@ -16,6 +16,7 @@ import ./pubsub,
        ./timedcache,
        ./peertable,
        ./rpc/[message, messages, protobuf],
+       nimcrypto/[hash, sha2],
        ../../crypto/crypto,
        ../../stream/connection,
        ../../peerid,
@@ -32,25 +33,34 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type
   FloodSub* {.public.} = ref object of PubSub
     floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[MessageId] # message id:s already seen on the network
-    seenSalt*: seq[byte]
+    seen*: TimedCache[SaltedId]
+      # Early filter for messages recently observed on the network
+      # We use a salted id because the messages in this cache have not yet
+      # been validated meaning that an attacker has greater control over the
+      # hash key and therefore could poison the table
+    seenSalt*: sha256
+      # The salt in this case is a partially updated SHA256 context pre-seeded
+      # with some random data
 
-proc hasSeen*(f: FloodSub, msgId: MessageId): bool =
-  f.seenSalt & msgId in f.seen
+proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
+  var tmp = f.seenSalt
+  tmp.update(msgId)
+  SaltedId(data: tmp.finish())
 
-proc addSeen*(f: FloodSub, msgId: MessageId): bool =
-  # Salting the seen hash helps avoid attacks against the hash function used
-  # in the nim hash table
+proc hasSeen*(f: FloodSub, saltedId: SaltedId): bool =
+  saltedId in f.seen
+
+proc addSeen*(f: FloodSub, saltedId: SaltedId): bool =
   # Return true if the message has already been seen
-  f.seen.put(f.seenSalt & msgId)
+  f.seen.put(saltedId)
 
-proc firstSeen*(f: FloodSub, msgId: MessageId): Moment =
-  f.seen.addedAt(f.seenSalt & msgId)
+proc firstSeen*(f: FloodSub, saltedId: SaltedId): Moment =
+  f.seen.addedAt(saltedId)
 
-proc handleSubscribe*(f: FloodSub,
-                      peer: PubSubPeer,
-                      topic: string,
-                      subscribe: bool) =
+proc handleSubscribe(f: FloodSub,
+                     peer: PubSubPeer,
+                     topic: string,
+                     subscribe: bool) =
   logScope:
     peer
     topic
@@ -96,10 +106,9 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 method rpcHandler*(f: FloodSub,
                    peer: PubSubPeer,
                    data: seq[byte]) {.async.} =
-
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
-    raise newException(CatchableError, "")
+    raise newException(CatchableError, "Peer msg couldn't be decoded")
 
   trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
   # trigger hooks
@@ -117,9 +126,11 @@ method rpcHandler*(f: FloodSub,
       # TODO: descore peers due to error during message validation (malicious?)
       continue
 
-    let msgId = msgIdResult.get
+    let
+      msgId = msgIdResult.get
+      saltedId = f.salt(msgId)
 
-    if f.addSeen(msgId):
+    if f.addSeen(saltedId):
       trace "Dropping already-seen message", msgId, peer
       continue
 
@@ -216,7 +227,7 @@ method publish*(f: FloodSub,
   trace "Created new message",
     msg = shortLog(msg), peers = peers.len, topic, msgId
 
-  if f.addSeen(msgId):
+  if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this
     trace "Dropping already-seen message", msgId, topic
     return 0
@@ -234,8 +245,11 @@ method publish*(f: FloodSub,
 method initPubSub*(f: FloodSub)
   {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
-  f.seen = TimedCache[MessageId].init(2.minutes)
-  f.seenSalt = newSeqUninitialized[byte](sizeof(Hash))
-  hmacDrbgGenerate(f.rng[], f.seenSalt)
+  f.seen = TimedCache[SaltedId].init(2.minutes)
+  f.seenSalt.init()
+
+  var tmp: array[32, byte]
+  hmacDrbgGenerate(f.rng[], tmp)
+  f.seenSalt.update(tmp)
 
   f.init()

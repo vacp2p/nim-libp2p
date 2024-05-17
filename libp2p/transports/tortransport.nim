@@ -200,7 +200,7 @@ method dial*(
 
   try:
     await dialPeer(transp, address)
-    return await self.tcpTransport.connHandler(transp, Opt.none(MultiAddress), Direction.Out)
+    return self.tcpTransport.connHandler(transp, Opt.none(MultiAddress), Direction.Out)
   except CatchableError as err:
     await transp.closeWait()
     raise err
