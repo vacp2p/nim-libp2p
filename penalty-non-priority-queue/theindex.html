@@ -200,6 +200,8 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="peerid: `==`(a, b: PeerId): bool" href="libp2p/peerid.html#%3D%3D.t%2CPeerId%2CPeerId">peerid: `==`(a, b: PeerId): bool</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: `==`(a, b: PubSubPeer): bool" href="libp2p/protocols/pubsub/pubsubpeer.html#%3D%3D%2CPubSubPeer%2CPubSubPeer">pubsubpeer: `==`(a, b: PubSubPeer): bool</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="timedcache: `==`[E](a, b: TimedEntry[E]): bool" href="libp2p/protocols/pubsub/timedcache.html#%3D%3D%2CTimedEntry%5BE%5D%2CTimedEntry%5BE%5D">timedcache: `==`[E](a, b: TimedEntry[E]): bool</a></li>
           </ul></dd>
 <dt><a name="%60%5B%5D%60" href="#%60%5B%5D%60"><span>`[]`:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -249,7 +251,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="addedAt" href="#addedAt"><span>addedAt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="timedcache: addedAt[K](t: TimedCache[K]; k: K): Moment" href="libp2p/protocols/pubsub/timedcache.html#addedAt%2CTimedCache%5BK%5D%2CK">timedcache: addedAt[K](t: TimedCache[K]; k: K): Moment</a></li>
+          data-doc-search-tag="timedcache: addedAt[K](t: var TimedCache[K]; k: K): Moment" href="libp2p/protocols/pubsub/timedcache.html#addedAt%2CTimedCache%5BK%5D%2CK">timedcache: addedAt[K](t: var TimedCache[K]; k: K): Moment</a></li>
           </ul></dd>
 <dt><a name="addHandler" href="#addHandler"><span>addHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -305,7 +307,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="addSeen" href="#addSeen"><span>addSeen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="floodsub: addSeen(f: FloodSub; msgId: MessageId): bool" href="libp2p/protocols/pubsub/floodsub.html#addSeen%2CFloodSub%2CMessageId">floodsub: addSeen(f: FloodSub; msgId: MessageId): bool</a></li>
+          data-doc-search-tag="floodsub: addSeen(f: FloodSub; saltedId: SaltedId): bool" href="libp2p/protocols/pubsub/floodsub.html#addSeen%2CFloodSub%2CSaltedId">floodsub: addSeen(f: FloodSub; saltedId: SaltedId): bool</a></li>
           </ul></dd>
 <dt><a name="addTransport" href="#addTransport"><span>addTransport:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -824,8 +826,8 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="connHandler" href="#connHandler"><span>connHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tcptransport: connHandler(self: TcpTransport; client: StreamTransport;
-            observedAddr: Opt[MultiAddress]; dir: Direction): Future[Connection]" href="libp2p/transports/tcptransport.html#connHandler%2CTcpTransport%2CStreamTransport%2COpt%5BMultiAddress%5D%2CDirection">tcptransport: connHandler(self: TcpTransport; client: StreamTransport;
-            observedAddr: Opt[MultiAddress]; dir: Direction): Future[Connection]</a></li>
+            observedAddr: Opt[MultiAddress]; dir: Direction): Connection" href="libp2p/transports/tcptransport.html#connHandler%2CTcpTransport%2CStreamTransport%2COpt%5BMultiAddress%5D%2CDirection">tcptransport: connHandler(self: TcpTransport; client: StreamTransport;
+            observedAddr: Opt[MultiAddress]; dir: Direction): Connection</a></li>
           </ul></dd>
 <dt><a name="ConnManager" href="#ConnManager"><span>ConnManager:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -847,7 +849,7 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="multiaddress: contains(ma: MultiAddress; codec: MultiCodec): MaResult[bool]" href="libp2p/multiaddress.html#contains%2CMultiAddress%2CMultiCodec">multiaddress: contains(ma: MultiAddress; codec: MultiCodec): MaResult[bool]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="mcache: contains(c: MCache; mid: MessageId): bool" href="libp2p/protocols/pubsub/mcache.html#contains%2CMCache%2CMessageId">mcache: contains(c: MCache; mid: MessageId): bool</a></li>
+          data-doc-search-tag="mcache: contains(c: MCache; msgId: MessageId): bool" href="libp2p/protocols/pubsub/mcache.html#contains%2CMCache%2CMessageId">mcache: contains(c: MCache; msgId: MessageId): bool</a></li>
           <li><a class="reference external"
           data-doc-search-tag="timedcache: contains[K](t: TimedCache[K]; k: K): bool" href="libp2p/protocols/pubsub/timedcache.html#contains%2CTimedCache%5BK%5D%2CK">timedcache: contains[K](t: TimedCache[K]; k: K): bool</a></li>
           </ul></dd>
@@ -1505,7 +1507,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="firstSeen" href="#firstSeen"><span>firstSeen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="floodsub: firstSeen(f: FloodSub; msgId: MessageId): Moment" href="libp2p/protocols/pubsub/floodsub.html#firstSeen%2CFloodSub%2CMessageId">floodsub: firstSeen(f: FloodSub; msgId: MessageId): Moment</a></li>
+          data-doc-search-tag="floodsub: firstSeen(f: FloodSub; saltedId: SaltedId): Moment" href="libp2p/protocols/pubsub/floodsub.html#firstSeen%2CFloodSub%2CSaltedId">floodsub: firstSeen(f: FloodSub; saltedId: SaltedId): Moment</a></li>
           </ul></dd>
 <dt><a name="Fixed" href="#Fixed"><span>Fixed:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1589,7 +1591,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="get" href="#get"><span>get:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="mcache: get(c: MCache; mid: MessageId): Option[Message]" href="libp2p/protocols/pubsub/mcache.html#get%2CMCache%2CMessageId">mcache: get(c: MCache; mid: MessageId): Option[Message]</a></li>
+          data-doc-search-tag="mcache: get(c: MCache; msgId: MessageId): Opt[Message]" href="libp2p/protocols/pubsub/mcache.html#get%2CMCache%2CMessageId">mcache: get(c: MCache; msgId: MessageId): Opt[Message]</a></li>
           </ul></dd>
 <dt><a name="getAgent" href="#getAgent"><span>getAgent:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2001,12 +2003,6 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="wstransport: handles(t: WsTransport; address: MultiAddress): bool" href="libp2p/transports/wstransport.html#handles.e%2CWsTransport%2CMultiAddress">wstransport: handles(t: WsTransport; address: MultiAddress): bool</a></li>
           </ul></dd>
-<dt><a name="handleSubscribe" href="#handleSubscribe"><span>handleSubscribe:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="floodsub: handleSubscribe(f: FloodSub; peer: PubSubPeer; topic: string; subscribe: bool)" href="libp2p/protocols/pubsub/floodsub.html#handleSubscribe%2CFloodSub%2CPubSubPeer%2Cstring%2Cbool">floodsub: handleSubscribe(f: FloodSub; peer: PubSubPeer; topic: string; subscribe: bool)</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="gossipsub: handleSubscribe(g: GossipSub; peer: PubSubPeer; topic: string; subscribe: bool)" href="libp2p/protocols/pubsub/gossipsub.html#handleSubscribe%2CGossipSub%2CPubSubPeer%2Cstring%2Cbool">gossipsub: handleSubscribe(g: GossipSub; peer: PubSubPeer; topic: string; subscribe: bool)</a></li>
-          </ul></dd>
 <dt><a name="handshake" href="#handshake"><span>handshake:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="noise: handshake(p: Noise; conn: Connection; initiator: bool; peerId: Opt[PeerId]): InternalRaisesFuture[
@@ -2026,6 +2022,8 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="peerid: hash(pid: PeerId): Hash" href="libp2p/peerid.html#hash.t%2CPeerId">peerid: hash(pid: PeerId): Hash</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: hash(p: PubSubPeer): Hash" href="libp2p/protocols/pubsub/pubsubpeer.html#hash%2CPubSubPeer">pubsubpeer: hash(p: PubSubPeer): Hash</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="timedcache: hash(a: TimedEntry): Hash" href="libp2p/protocols/pubsub/timedcache.html#hash%2CTimedEntry">timedcache: hash(a: TimedEntry): Hash</a></li>
           <li><a class="reference external"
           data-doc-search-tag="connection: hash(p: Connection): Hash" href="libp2p/stream/connection.html#hash%2CConnection">connection: hash(p: Connection): Hash</a></li>
           </ul></dd>
@@ -2051,7 +2049,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="hasSeen" href="#hasSeen"><span>hasSeen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="floodsub: hasSeen(f: FloodSub; msgId: MessageId): bool" href="libp2p/protocols/pubsub/floodsub.html#hasSeen%2CFloodSub%2CMessageId">floodsub: hasSeen(f: FloodSub; msgId: MessageId): bool</a></li>
+          data-doc-search-tag="floodsub: hasSeen(f: FloodSub; saltedId: SaltedId): bool" href="libp2p/protocols/pubsub/floodsub.html#hasSeen%2CFloodSub%2CSaltedId">floodsub: hasSeen(f: FloodSub; saltedId: SaltedId): bool</a></li>
           </ul></dd>
 <dt><a name="hasSendConn" href="#hasSendConn"><span>hasSendConn:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3351,7 +3349,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="newTransportClosedError" href="#newTransportClosedError"><span>newTransportClosedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="transport: newTransportClosedError(parent: ref Exception = nil): ref LPError" href="libp2p/transports/transport.html#newTransportClosedError%2Cref.Exception">transport: newTransportClosedError(parent: ref Exception = nil): ref LPError</a></li>
+          data-doc-search-tag="transport: newTransportClosedError(parent: ref Exception = nil): ref TransportError" href="libp2p/transports/transport.html#newTransportClosedError%2Cref.Exception">transport: newTransportClosedError(parent: ref Exception = nil): ref TransportError</a></li>
           </ul></dd>
 <dt><a name="Noise" href="#Noise"><span>Noise:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4217,6 +4215,14 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="utility: safeConvert[T: SomeInteger; S: Ordinal](value: S): T" href="libp2p/utility.html#safeConvert.t%2CS">utility: safeConvert[T: SomeInteger; S: Ordinal](value: S): T</a></li>
           </ul></dd>
+<dt><a name="salt" href="#salt"><span>salt:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="floodsub: salt(f: FloodSub; msgId: MessageId): SaltedId" href="libp2p/protocols/pubsub/floodsub.html#salt%2CFloodSub%2CMessageId">floodsub: salt(f: FloodSub; msgId: MessageId): SaltedId</a></li>
+          </ul></dd>
+<dt><a name="SaltedId" href="#SaltedId"><span>SaltedId:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="messages: SaltedId" href="libp2p/protocols/pubsub/rpc/messages.html#SaltedId">messages: SaltedId</a></li>
+          </ul></dd>
 <dt><a name="scalarMul" href="#scalarMul"><span>scalarMul:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ecnist: scalarMul(pub: EcPublicKey; sec: EcPrivateKey): EcPublicKey" href="libp2p/crypto/ecnist.html#scalarMul%2CEcPublicKey%2CEcPrivateKey">ecnist: scalarMul(pub: EcPublicKey; sec: EcPrivateKey): EcPublicKey</a></li>
@@ -4891,10 +4897,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="semaphore: tryAcquire(s: AsyncSemaphore): bool" href="libp2p/utils/semaphore.html#tryAcquire%2CAsyncSemaphore">semaphore: tryAcquire(s: AsyncSemaphore): bool</a></li>
           </ul></dd>
-<dt><a name="tryAndWarn" href="#tryAndWarn"><span>tryAndWarn:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="errors: tryAndWarn(message: static[string]; body: untyped): untyped" href="libp2p/errors.html#tryAndWarn.t%2Cstatic%5Bstring%5D%2Cuntyped">errors: tryAndWarn(message: static[string]; body: untyped): untyped</a></li>
-          </ul></dd>
 <dt><a name="tryDial" href="#tryDial"><span>tryDial:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="dial: tryDial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]): Future[
@@ -5414,7 +5416,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-29 18:20:57 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-17 12:51:00 UTC</small>
       </div>
     </div>
   </div>
