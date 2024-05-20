@@ -822,8 +822,8 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="connHandler" href="#connHandler"><span>connHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tcptransport: connHandler(self: TcpTransport; client: StreamTransport;
-            observedAddr: Opt[MultiAddress]; dir: Direction): Future[Connection]" href="libp2p/transports/tcptransport.html#connHandler%2CTcpTransport%2CStreamTransport%2COpt%5BMultiAddress%5D%2CDirection">tcptransport: connHandler(self: TcpTransport; client: StreamTransport;
-            observedAddr: Opt[MultiAddress]; dir: Direction): Future[Connection]</a></li>
+            observedAddr: Opt[MultiAddress]; dir: Direction): Connection" href="libp2p/transports/tcptransport.html#connHandler%2CTcpTransport%2CStreamTransport%2COpt%5BMultiAddress%5D%2CDirection">tcptransport: connHandler(self: TcpTransport; client: StreamTransport;
+            observedAddr: Opt[MultiAddress]; dir: Direction): Connection</a></li>
           </ul></dd>
 <dt><a name="ConnManager" href="#ConnManager"><span>ConnManager:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -845,7 +845,7 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="multiaddress: contains(ma: MultiAddress; codec: MultiCodec): MaResult[bool]" href="libp2p/multiaddress.html#contains%2CMultiAddress%2CMultiCodec">multiaddress: contains(ma: MultiAddress; codec: MultiCodec): MaResult[bool]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="mcache: contains(c: MCache; mid: MessageId): bool" href="libp2p/protocols/pubsub/mcache.html#contains%2CMCache%2CMessageId">mcache: contains(c: MCache; mid: MessageId): bool</a></li>
+          data-doc-search-tag="mcache: contains(c: MCache; msgId: MessageId): bool" href="libp2p/protocols/pubsub/mcache.html#contains%2CMCache%2CMessageId">mcache: contains(c: MCache; msgId: MessageId): bool</a></li>
           <li><a class="reference external"
           data-doc-search-tag="timedcache: contains[K](t: TimedCache[K]; k: K): bool" href="libp2p/protocols/pubsub/timedcache.html#contains%2CTimedCache%5BK%5D%2CK">timedcache: contains[K](t: TimedCache[K]; k: K): bool</a></li>
           </ul></dd>
@@ -1587,7 +1587,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="get" href="#get"><span>get:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="mcache: get(c: MCache; mid: MessageId): Option[Message]" href="libp2p/protocols/pubsub/mcache.html#get%2CMCache%2CMessageId">mcache: get(c: MCache; mid: MessageId): Option[Message]</a></li>
+          data-doc-search-tag="mcache: get(c: MCache; msgId: MessageId): Opt[Message]" href="libp2p/protocols/pubsub/mcache.html#get%2CMCache%2CMessageId">mcache: get(c: MCache; msgId: MessageId): Opt[Message]</a></li>
           </ul></dd>
 <dt><a name="getAgent" href="#getAgent"><span>getAgent:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1998,12 +1998,6 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="transport: handles(self: Transport; address: MultiAddress): bool" href="libp2p/transports/transport.html#handles.e%2CTransport%2CMultiAddress">transport: handles(self: Transport; address: MultiAddress): bool</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: handles(t: WsTransport; address: MultiAddress): bool" href="libp2p/transports/wstransport.html#handles.e%2CWsTransport%2CMultiAddress">wstransport: handles(t: WsTransport; address: MultiAddress): bool</a></li>
-          </ul></dd>
-<dt><a name="handleSubscribe" href="#handleSubscribe"><span>handleSubscribe:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="floodsub: handleSubscribe(f: FloodSub; peer: PubSubPeer; topic: string; subscribe: bool)" href="libp2p/protocols/pubsub/floodsub.html#handleSubscribe%2CFloodSub%2CPubSubPeer%2Cstring%2Cbool">floodsub: handleSubscribe(f: FloodSub; peer: PubSubPeer; topic: string; subscribe: bool)</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="gossipsub: handleSubscribe(g: GossipSub; peer: PubSubPeer; topic: string; subscribe: bool)" href="libp2p/protocols/pubsub/gossipsub.html#handleSubscribe%2CGossipSub%2CPubSubPeer%2Cstring%2Cbool">gossipsub: handleSubscribe(g: GossipSub; peer: PubSubPeer; topic: string; subscribe: bool)</a></li>
           </ul></dd>
 <dt><a name="handshake" href="#handshake"><span>handshake:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3351,7 +3345,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="newTransportClosedError" href="#newTransportClosedError"><span>newTransportClosedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="transport: newTransportClosedError(parent: ref Exception = nil): ref LPError" href="libp2p/transports/transport.html#newTransportClosedError%2Cref.Exception">transport: newTransportClosedError(parent: ref Exception = nil): ref LPError</a></li>
+          data-doc-search-tag="transport: newTransportClosedError(parent: ref Exception = nil): ref TransportError" href="libp2p/transports/transport.html#newTransportClosedError%2Cref.Exception">transport: newTransportClosedError(parent: ref Exception = nil): ref TransportError</a></li>
           </ul></dd>
 <dt><a name="Noise" href="#Noise"><span>Noise:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4899,10 +4893,6 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="semaphore: tryAcquire(s: AsyncSemaphore): bool" href="libp2p/utils/semaphore.html#tryAcquire%2CAsyncSemaphore">semaphore: tryAcquire(s: AsyncSemaphore): bool</a></li>
           </ul></dd>
-<dt><a name="tryAndWarn" href="#tryAndWarn"><span>tryAndWarn:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="errors: tryAndWarn(message: static[string]; body: untyped): untyped" href="libp2p/errors.html#tryAndWarn.t%2Cstatic%5Bstring%5D%2Cuntyped">errors: tryAndWarn(message: static[string]; body: untyped): untyped</a></li>
-          </ul></dd>
 <dt><a name="tryDial" href="#tryDial"><span>tryDial:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="dial: tryDial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]): Future[
@@ -5422,7 +5412,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-06 11:24:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-20 14:47:42 UTC</small>
       </div>
     </div>
   </div>
