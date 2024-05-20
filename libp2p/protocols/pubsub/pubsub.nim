@@ -28,7 +28,8 @@ import ./errors as pubsub_errors,
        ../../peerid,
        ../../peerinfo,
        ../../errors,
-       ../../utility
+       ../../utility,
+       ../../utils/semaphore
 
 import stew/results
 export results
@@ -79,6 +80,9 @@ declarePublicCounter(libp2p_pubsub_received_ihave, "pubsub broadcast ihave", lab
 declarePublicCounter(libp2p_pubsub_received_graft, "pubsub broadcast graft", labels = ["topic"])
 declarePublicCounter(libp2p_pubsub_received_prune, "pubsub broadcast prune", labels = ["topic"])
 
+const
+  DefaultMaxSimultaneousTx* = 2
+
 type
   InitializationError* = object of LPError
 
@@ -127,6 +131,7 @@ type
     rng*: ref HmacDrbgContext
 
     knownTopics*: HashSet[string]
+    semTxLimit: AsyncSemaphore
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
@@ -137,7 +142,7 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
-proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool) {.raises: [].} =
+proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool, saltedId: Option[SaltedId] = none(SaltedId)) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
   ##
   ## Parameters:
@@ -149,13 +154,14 @@ proc send*(p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool) {.rai
   ## priority messages have been sent.
 
   trace "sending pubsub message to peer", peer, msg = shortLog(msg)
-  peer.send(msg, p.anonymize, isHighPriority)
+  peer.send(msg, p.anonymize, isHighPriority, saltedId)
 
 proc broadcast*(
   p: PubSub,
   sendPeers: auto, # Iteratble[PubSubPeer]
   msg: RPCMsg,
-  isHighPriority: bool) {.raises: [].} =
+  isHighPriority: bool,
+  sid: Option[SaltedId] = none(SaltedId)) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
   ##
   ## Parameters:
@@ -210,12 +216,12 @@ proc broadcast*(
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg, isHighPriority)
+      p.send(peer, msg, isHighPriority, sid)
   else:
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded, isHighPriority)
+      asyncSpawn peer.sendEncoded(encoded, isHighPriority, sid)
 
 proc sendSubs*(p: PubSub,
                peer: PubSubPeer,
@@ -310,7 +316,7 @@ method getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize, addr p.semTxLimit)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -509,6 +515,7 @@ method initPubSub*(p: PubSub)
   p.observers = new(seq[PubSubObserver])
   if p.msgIdProvider == nil:
     p.msgIdProvider = defaultMsgIdProvider
+  p.semTxLimit = newAsyncSemaphore(DefaultMaxSimultaneousTx)
 
 method addValidator*(p: PubSub,
                      topic: varargs[string],
