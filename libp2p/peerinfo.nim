@@ -24,12 +24,16 @@ type
   AddressMapper* =
     proc(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]]
       {.gcsafe, raises: [].}
+      ## A proc that expected to resolve the listen addresses into dialable addresses
 
   PeerInfo* {.public.} = ref object
     peerId*: PeerId
     listenAddrs*: seq[MultiAddress]
+    ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
     addrs: seq[MultiAddress]
+    ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
     addressMappers*: seq[AddressMapper]
+    ## contains a list of procs that can be used to resolve the listen addresses into dialable addresses.
     protocols*: seq[string]
     protoVersion*: string
     agentVersion*: string
