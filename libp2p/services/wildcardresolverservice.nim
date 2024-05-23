@@ -166,7 +166,6 @@ method setup*(
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async.} =
-    echo listenAddrs
     return expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
   debug "Setting up WildcardAddressResolverService"
