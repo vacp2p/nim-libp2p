@@ -105,7 +105,7 @@ proc getWildcardAddress(
     networkInterfaceProvider: NetworkInterfaceProvider,
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
-  maddress.getProtocolArgument(multiCodec).toOpt.withValue(address):
+  maddress.getProtocolArgument(multiCodec).withValue(address):
     if address == anyAddr:
       let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
       addresses.add(
@@ -122,7 +122,7 @@ proc expandWildcardAddresses(
   # In this loop we expand bounded addresses like `0.0.0.0` and `::` to list of interface addresses.
   for listenAddr in listenAddrs:
     if TCP_IP.matchPartial(listenAddr):
-      listenAddr.getProtocolArgument(multiCodec("tcp")).toOpt.withValue(portArg):
+      listenAddr.getProtocolArgument(multiCodec("tcp")).withValue(portArg):
         let port = Port(uint16.fromBytesBE(portArg))
         if IP4.matchPartial(listenAddr):
           let wildcardAddresses = getWildcardAddress(
