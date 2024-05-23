@@ -32,7 +32,8 @@ type
     ## and the machine has 2 interfaces with IPs 172.217.11.174 and 64.233.177.113, the address mapper will
     ## expand the wildcard address to 172.217.11.174:4001 and 64.233.177.113:4001.
 
-  NetworkInterfaceProvider* = proc (addrFamily: AddressFamily): seq[InterfaceAddress] {.gcsafe, raises: [].}
+  NetworkInterfaceProvider* =
+    proc(addrFamily: AddressFamily): seq[InterfaceAddress] {.gcsafe, raises: [].}
 
 proc isLoopbackOrUp(networkInterface: NetworkInterface): bool =
   if (networkInterface.ifType == IfSoftwareLoopback) or
@@ -70,9 +71,7 @@ proc new*(
   ##
   ## Returns:
   ## - A new instance of `WildcardAddressResolverService`.
-  return T(
-    networkInterfaceProvider: networkInterfaceProvider,
-  )
+  return T(networkInterfaceProvider: networkInterfaceProvider)
 
 proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byte]] =
   var buffer: seq[byte]
@@ -87,9 +86,7 @@ proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byt
   err("Multiaddress codec has not been found")
 
 proc getWildcardMultiAddresses(
-    interfaceAddresses: seq[InterfaceAddress],
-    protocol: Protocol,
-    port: Port,
+    interfaceAddresses: seq[InterfaceAddress], protocol: Protocol, port: Port
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
   for ifaddr in interfaceAddresses:
@@ -119,8 +116,7 @@ proc getWildcardAddress(
   return addresses
 
 proc expandWildcardAddresses(
-    networkInterfaceProvider: NetworkInterfaceProvider,
-    listenAddrs: seq[MultiAddress],
+    networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
   # In this loop we expand bounded addresses like `0.0.0.0` and `::` to list of interface addresses.
@@ -171,9 +167,7 @@ method setup*(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async.} =
     echo listenAddrs
-    return expandWildcardAddresses(
-      self.networkInterfaceProvider, listenAddrs
-    )
+    return expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
   debug "Setting up WildcardAddressResolverService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
