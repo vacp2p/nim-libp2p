@@ -18,11 +18,9 @@ import ../libp2p/services/wildcardresolverservice
 import ../libp2p/[multiaddress, multicodec]
 import ./helpers
 
-type NetworkInterfaceProviderMock* = ref object of NetworkInterfaceProvider
-
-method getAddresses*(
-    networkInterfaceProvider: NetworkInterfaceProviderMock, addrFamily: AddressFamily
-): seq[InterfaceAddress] =
+proc getAddressesMock(
+    addrFamily: AddressFamily
+): seq[InterfaceAddress] {.gcsafe, raises: [].} =
   try:
     if addrFamily == AddressFamily.IPv4:
       return
@@ -62,7 +60,7 @@ suite "WildcardAddressResolverService":
 
   proc setupWildcardService(): Future[tuple[svc: Service, switch: Switch, tcpIp4: MultiAddress, tcpIp6: MultiAddress]] {.async.} =
     let svc: Service = WildcardAddressResolverService.new(
-      networkInterfaceProvider = NetworkInterfaceProviderMock.new()
+      networkInterfaceProvider = getAddressesMock
     )
     let switch = createSwitch(svc)
     await switch.start()
