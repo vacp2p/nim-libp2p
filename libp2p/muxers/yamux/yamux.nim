@@ -440,7 +440,7 @@ proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_channels.set(
       m.lenBySrc(channel.isSrc).int64, [$channel.isSrc, $channel.peerId])
-  if (channel.isReset or not channel.closedRemotely.completed()) and channel.recvWindow > 0:
+  if channel.isReset and channel.recvWindow > 0:
     m.flushed[channel.id] = channel.recvWindow
 
 proc createStream(
