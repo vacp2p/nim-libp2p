@@ -32,15 +32,13 @@ type
     ## and the machine has 2 interfaces with IPs 172.217.11.174 and 64.233.177.113, the address mapper will
     ## expand the wildcard address to 172.217.11.174:4001 and 64.233.177.113:4001.
 
-  NetworkInterfaceProvider* = ref object of RootObj
+  NetworkInterfaceProvider* = proc (addrFamily: AddressFamily): seq[InterfaceAddress] {.gcsafe, raises: [].}
 
 proc isLoopbackOrUp(networkInterface: NetworkInterface): bool =
   if (networkInterface.ifType == IfSoftwareLoopback) or
       (networkInterface.state == StatusUp): true else: false
 
-method getAddresses*(
-    networkInterfaceProvider: NetworkInterfaceProvider, addrFamily: AddressFamily
-): seq[InterfaceAddress] {.base.} =
+proc getAddresses(addrFamily: AddressFamily): seq[InterfaceAddress] =
   ## This method retrieves the addresses of network interfaces based on the specified address family.
   ##
   ## The `getAddresses` method filters the available network interfaces to include only
@@ -48,7 +46,6 @@ method getAddresses*(
   ## interfaces and filters them to match the provided address family.
   ##
   ## Parameters:
-  ## - `networkInterfaceProvider`: A provider that offers access to network interfaces.
   ## - `addrFamily`: The address family to filter the network addresses (e.g., `AddressFamily.IPv4` or `AddressFamily.IPv6`).
   ##
   ## Returns:
@@ -63,7 +60,7 @@ method getAddresses*(
 proc new*(
     T: typedesc[WildcardAddressResolverService],
     scheduleInterval: Opt[Duration] = Opt.none(Duration),
-    networkInterfaceProvider: NetworkInterfaceProvider = new(NetworkInterfaceProvider),
+    networkInterfaceProvider: NetworkInterfaceProvider = getAddresses,
 ): T =
   ## This procedure initializes a new `WildcardAddressResolverService` with the provided network interface provider.
   ##
@@ -113,7 +110,7 @@ proc getWildcardAddress(
   var addresses: seq[MultiAddress]
   maddress.getProtocolArgument(multiCodec).toOpt.withValue(address):
     if address == anyAddr:
-      let filteredInterfaceAddresses = networkInterfaceProvider.getAddresses(addrFamily)
+      let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
       addresses.add(
         getWildcardMultiAddresses(filteredInterfaceAddresses, IPPROTO_TCP, port)
       )
