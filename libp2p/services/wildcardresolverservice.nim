@@ -119,7 +119,7 @@ proc expandWildcardAddresses(
     networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
-  # In this loop we expand bounded addresses like `0.0.0.0` and `::` to list of interface addresses.
+  # In this loop we expand bound addresses like `0.0.0.0` and `::` to list of interface addresses.
   for listenAddr in listenAddrs:
     if TCP_IP.matchPartial(listenAddr):
       listenAddr.getProtocolArgument(multiCodec("tcp")).withValue(portArg):
