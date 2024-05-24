@@ -19,7 +19,8 @@ runnableExamples:
 {.push raises: [].}
 
 import
-  options, tables, chronos, chronicles, sequtils,
+  options, tables, chronos, chronicles, sequtils
+import
   switch, peerid, peerinfo, stream/connection, multiaddress,
   crypto/crypto, transports/[transport, tcptransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
@@ -28,6 +29,7 @@ import
   connmanager, upgrademngrs/muxedupgrade, observedaddrmanager,
   nameresolving/nameresolver,
   errors, utility
+import services/wildcardresolverservice
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
@@ -59,6 +61,7 @@ type
     rdv: RendezVous
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
+    enableWildcardResolver: bool
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -85,19 +88,18 @@ proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.
   b.privKey = some(privateKey)
   b
 
-proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder {.public.} =
-  ## | Set the listening address of the switch
-  ## | Calling it multiple time will override the value
-
-  b.addresses = @[address]
-  b
-
-proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder {.public.} =
+proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress], enableWildcardResolver: bool = true): SwitchBuilder {.public.} =
   ## | Set the listening addresses of the switch
   ## | Calling it multiple time will override the value
-
   b.addresses = addresses
+  b.enableWildcardResolver = enableWildcardResolver
   b
+
+proc withAddress*(b: SwitchBuilder, address: MultiAddress, enableWildcardResolver: bool = true): SwitchBuilder {.public.} =
+  ## | Set the listening address of the switch
+  ## | Calling it multiple time will override the value
+  b.withAddresses(@[address], enableWildcardResolver)
+
 
 proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder {.public.} =
   b.sendSignedPeerRecord = sendIt
@@ -261,6 +263,9 @@ proc build*(b: SwitchBuilder): Switch
     else:
       PeerStore.new(identify)
 
+  if b.enableWildcardResolver:
+    b.services.add(WildcardAddressResolverService.new())
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -312,7 +317,7 @@ proc newStandardSwitch*(
   let addrs = when addrs is MultiAddress: @[addrs] else: addrs
   var b = SwitchBuilder
     .new()
-    .withAddresses(addrs)
+    .withAddresses(addrs, true)
     .withRng(rng)
     .withSignedPeerRecord(sendSignedPeerRecord)
     .withMaxConnections(maxConnections)
