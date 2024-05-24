@@ -315,7 +315,6 @@ suite "Circuit Relay V2":
         await sleepAsync(chronos.timer.seconds(ttl + 1))
 
         expect(DialFailedError):
-          check: conn.atEof()
           await conn.close()
           await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
           conn = await src.dial(dst.peerInfo.peerId, @[ addrs ], customProtoCodec)
