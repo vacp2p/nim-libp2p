@@ -32,14 +32,19 @@ type
     ## and the machine has 2 interfaces with IPs 172.217.11.174 and 64.233.177.113, the address mapper will
     ## expand the wildcard address to 172.217.11.174:4001 and 64.233.177.113:4001.
 
-  NetworkInterfaceProvider* =
-    proc(addrFamily: AddressFamily): seq[InterfaceAddress] {.gcsafe, raises: [].}
+  NetworkInterfaceProvider* = ref object of RootObj
 
 proc isLoopbackOrUp(networkInterface: NetworkInterface): bool =
   if (networkInterface.ifType == IfSoftwareLoopback) or
       (networkInterface.state == StatusUp): true else: false
 
-proc getAddresses(addrFamily: AddressFamily): seq[InterfaceAddress] =
+proc networkInterfaceProvider*(): NetworkInterfaceProvider =
+  ## Returns a new instance of `NetworkInterfaceProvider`.
+  return NetworkInterfaceProvider()
+
+method getAddresses*(
+    networkInterfaceProvider: NetworkInterfaceProvider, addrFamily: AddressFamily
+): seq[InterfaceAddress] {.base.} =
   ## This method retrieves the addresses of network interfaces based on the specified address family.
   ##
   ## The `getAddresses` method filters the available network interfaces to include only
@@ -47,10 +52,12 @@ proc getAddresses(addrFamily: AddressFamily): seq[InterfaceAddress] =
   ## interfaces and filters them to match the provided address family.
   ##
   ## Parameters:
+  ## - `networkInterfaceProvider`: A provider that offers access to network interfaces.
   ## - `addrFamily`: The address family to filter the network addresses (e.g., `AddressFamily.IPv4` or `AddressFamily.IPv6`).
   ##
   ## Returns:
   ## - A sequence of `InterfaceAddress` objects that match the specified address family.
+  echo "Getting addresses for address family: ", addrFamily
   let
     interfaces = getInterfaces().filterIt(it.isLoopbackOrUp())
     flatInterfaceAddresses = concat(interfaces.mapIt(it.addresses))
@@ -60,7 +67,7 @@ proc getAddresses(addrFamily: AddressFamily): seq[InterfaceAddress] =
 
 proc new*(
     T: typedesc[WildcardAddressResolverService],
-    networkInterfaceProvider: NetworkInterfaceProvider = getAddresses,
+    networkInterfaceProvider: NetworkInterfaceProvider = new(NetworkInterfaceProvider),
 ): T =
   ## This procedure initializes a new `WildcardAddressResolverService` with the provided network interface provider.
   ##
@@ -106,7 +113,7 @@ proc getWildcardAddress(
   var addresses: seq[MultiAddress]
   maddress.getProtocolArgument(multiCodec).withValue(address):
     if address == anyAddr:
-      let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
+      let filteredInterfaceAddresses = networkInterfaceProvider.getAddresses(addrFamily)
       addresses.add(
         getWildcardMultiAddresses(filteredInterfaceAddresses, IPPROTO_TCP, port)
       )
@@ -171,6 +178,7 @@ method setup*(
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if hasBeenSetup:
     switch.peerInfo.addressMappers.add(self.addressMapper)
+    await self.run(switch)
   return hasBeenSetup
 
 method run*(self: WildcardAddressResolverService, switch: Switch) {.async, public.} =
