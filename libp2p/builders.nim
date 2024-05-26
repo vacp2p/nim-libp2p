@@ -30,6 +30,7 @@ import
   nameresolving/nameresolver,
   errors, utility
 import services/wildcardresolverservice
+import ../di/di
 
 export
   switch, peerid, peerinfo, connection, multiaddress, crypto, errors
@@ -62,6 +63,7 @@ type
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
+    container*: Container
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -70,7 +72,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
   .init("/ip4/127.0.0.1/tcp/0")
   .expect("Should initialize to default")
 
-  SwitchBuilder(
+  let sb = SwitchBuilder(
     privKey: none(PrivateKey),
     addresses: @[address],
     secureManagers: @[],
@@ -79,7 +81,12 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
-    agentVersion: AgentVersion)
+    agentVersion: AgentVersion,
+    container: Container())
+
+  register[NetworkInterfaceProvider](sb.container, networkInterfaceProvider)
+
+  sb
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder {.public.} =
   ## Set the private key of the switch. Will be used to
@@ -211,6 +218,10 @@ proc withObservedAddrManager*(b: SwitchBuilder, observedAddrManager: ObservedAdd
   b.observedAddrManager = observedAddrManager
   b
 
+proc withBinding*[T](b: SwitchBuilder, binding: proc(): T {.gcsafe, raises: [].}): SwitchBuilder =
+  register[T](b.container, binding)
+  b
+
 proc build*(b: SwitchBuilder): Switch
   {.raises: [LPError], public.} =
 
@@ -263,8 +274,11 @@ proc build*(b: SwitchBuilder): Switch
     else:
       PeerStore.new(identify)
 
-  if b.enableWildcardResolver:
-    b.services.add(WildcardAddressResolverService.new())
+  try:
+    let networkInterfaceProvider = resolve[NetworkInterfaceProvider](b.container)
+    b.services.add(WildcardAddressResolverService.new(networkInterfaceProvider))
+  except BindingNotFoundError as e:
+    raise newException(LPError, "Cannot resolve NetworkInterfaceProvider", e)
 
   let switch = newSwitch(
     peerInfo = peerInfo,

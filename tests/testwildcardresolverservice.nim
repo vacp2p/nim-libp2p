@@ -17,10 +17,14 @@ import ../libp2p/[builders, switch]
 import ../libp2p/services/wildcardresolverservice
 import ../libp2p/[multiaddress, multicodec]
 import ./helpers
+import ../di/di
 
-proc getAddressesMock(
-    addrFamily: AddressFamily
+type NetworkInterfaceProviderMock* = ref object of NetworkInterfaceProvider
+
+method getAddresses(
+    networkInterfaceProvider: NetworkInterfaceProviderMock, addrFamily: AddressFamily
 ): seq[InterfaceAddress] {.gcsafe, raises: [].} =
+  echo "getAddressesMock"
   try:
     if addrFamily == AddressFamily.IPv4:
       return
@@ -38,7 +42,10 @@ proc getAddressesMock(
     echo "Error: " & $e.msg
     fail()
 
-proc createSwitch(svc: Service): Switch =
+proc networkInterfaceProviderMock(): NetworkInterfaceProvider =
+  NetworkInterfaceProviderMock.new()
+
+proc createSwitch(): Switch =
   SwitchBuilder
   .new()
   .withRng(newRng())
@@ -51,32 +58,19 @@ proc createSwitch(svc: Service): Switch =
   .withTcpTransport()
   .withMplex()
   .withNoise()
-  .withServices(@[svc])
+  .withBinding(networkInterfaceProviderMock)
   .build()
 
 suite "WildcardAddressResolverService":
   teardown:
     checkTrackers()
 
-  proc setupWildcardService(): Future[
-      tuple[svc: Service, switch: Switch, tcpIp4: MultiAddress, tcpIp6: MultiAddress]
-  ] {.async.} =
-    let svc: Service =
-      WildcardAddressResolverService.new(networkInterfaceProvider = getAddressesMock)
-    let switch = createSwitch(svc)
+  asyncTest "WildcardAddressResolverService must resolve wildcard addresses and stop doing so when stopped":
+    let switch = createSwitch()
     await switch.start()
     let tcpIp4 = switch.peerInfo.addrs[0][multiCodec("tcp")].get # tcp port for ip4
-    let tcpIp6 = switch.peerInfo.addrs[1][multiCodec("tcp")].get # tcp port for ip6
-    return (svc, switch, tcpIp4, tcpIp6)
+    let tcpIp6 = switch.peerInfo.addrs[2][multiCodec("tcp")].get # tcp port for ip6
 
-  asyncTest "WildcardAddressResolverService must resolve wildcard addresses and stop doing so when stopped":
-    let (svc, switch, tcpIp4, tcpIp6) = await setupWildcardService()
-    check switch.peerInfo.addrs ==
-      @[
-        MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4).get,
-        MultiAddress.init("/ip6/::" & $tcpIp6).get,
-      ]
-    await svc.run(switch)
     check switch.peerInfo.addrs ==
       @[
         MultiAddress.init("/ip4/127.0.0.1" & $tcpIp4).get,
