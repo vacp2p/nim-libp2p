@@ -261,6 +261,9 @@ proc build*(b: SwitchBuilder): Switch
     else:
       PeerStore.new(identify)
 
+  if b.enableWildcardResolver:
+    b.services.insert(WildcardAddressResolverService.new(), 0)
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
