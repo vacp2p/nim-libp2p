@@ -23,20 +23,21 @@ import ../libp2p/[stream/connection,
 import ./helpers, ./stubs/torstub, ./commontransport
 
 const torServer = initTAddress("127.0.0.1", 9050.Port)
-var stub: TorServerStub
-var startFut: Future[void]
 suite "Tor transport":
-  setup:
+  var
+    stub {.threadvar.}: TorServerStub
+    startFut {.threadvar.}: Future[void]
+  asyncSetup:
     stub = TorServerStub.new()
     stub.registerAddr("127.0.0.1:8080", "/ip4/127.0.0.1/tcp/8080")
     stub.registerAddr("libp2p.nim:8080", "/ip4/127.0.0.1/tcp/8080")
     stub.registerAddr("::1:8080", "/ip6/::1/tcp/8080")
     stub.registerAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion:80", "/ip4/127.0.0.1/tcp/8080")
     stub.registerAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae.onion:81", "/ip4/127.0.0.1/tcp/8081")
-    startFut = stub.start(torServer)
-  teardown:
-    waitFor startFut.cancelAndWait()
-    waitFor stub.stop()
+    startFut =  stub.start(torServer)
+  asyncTeardown:
+    await startFut.cancelAndWait()
+    await stub.stop()
     checkTrackers()
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
@@ -127,14 +128,7 @@ suite "Tor transport":
       await clientSwitch.stop()
 
     await startClient()
-
     await serverSwitch.stop()
-
-  test "It's not possible to add another transport in TorSwitch":
-    let torSwitch = TorSwitch.new(torServer = torServer, rng= rng, flags = {ReuseAddr})
-    expect(AssertionDefect):
-      torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
-    waitFor torSwitch.stop()
 
   proc transProvider(): Transport =
       TorTransport.new(torServer, {ReuseAddr}, Upgrade())
@@ -143,3 +137,9 @@ suite "Tor transport":
     transProvider,
     "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
     "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81")
+
+suite "Tor transport API":
+  asyncTest "It's not possible to add another transport in TorSwitch":
+    let torSwitch = TorSwitch.new(torServer = torServer, rng= rng, flags = {ReuseAddr})
+    expect(AssertionDefect):
+      torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))

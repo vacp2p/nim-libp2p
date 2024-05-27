@@ -45,12 +45,11 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
 
       await conn.close() #for some protocols, closing requires actively reading, so we must close here
 
+      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
       await allFuturesThrowing(
         allFinished(
           transport1.stop(),
           transport2.stop()))
-
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     asyncTest "e2e: handle write":
       let ma = @[MultiAddress.init(ma1).tryGet()]
@@ -72,13 +71,14 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
 
       await conn.close() #for some protocols, closing requires actively reading, so we must close here
 
+      check string.fromBytes(msg) == "Hello!"
+      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+
       await allFuturesThrowing(
         allFinished(
           transport1.stop(),
           transport2.stop()))
 
-      check string.fromBytes(msg) == "Hello!"
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
     asyncTest "e2e: handle read":
       let ma = @[MultiAddress.init(ma1).tryGet()]
