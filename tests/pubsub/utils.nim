@@ -28,9 +28,9 @@ type TestGossipSub* = ref object of GossipSub
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, GossipSubCodec)
+    p.switch.dial(peerId, GossipSubCodec_12)
 
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer

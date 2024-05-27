@@ -223,7 +223,7 @@ method init*(g: GossipSub) =
       trace "GossipSub handler leaks an error", exc = exc.msg, conn
 
   g.handler = handler
-  g.codecs &= GossipSubCodec
+  g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
 
@@ -459,8 +459,8 @@ proc validateAndRelay(
 
     var peersWhoSentIdontwant = HashSet[PubSubPeer]()
     for peer in toSendPeers:
-      for heDontWant in peer.heDontWants:
-        if saltedId in heDontWant:
+      for iDontWant in peer.iDontWants:
+        if saltedId in iDontWant:
           peersWhoSentIdontwant.incl(peer)
           libp2p_gossipsub_idontwant_saved_messages.inc
           libp2p_gossipsub_saved_bytes.inc(
