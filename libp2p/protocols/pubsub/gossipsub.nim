@@ -224,6 +224,7 @@ method init*(g: GossipSub) =
 
   g.handler = handler
   g.codecs &= GossipSubCodec
+  g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
 
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =

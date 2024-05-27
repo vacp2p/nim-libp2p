@@ -18,7 +18,8 @@ import "../../.."/[peerid, multiaddress, utility]
 export options, tables, sets
 
 const
-  GossipSubCodec* = "/meshsub/1.1.0"
+  GossipSubCodec* = "/meshsub/1.2.0"
+  GossipSubCodec_11* = "/meshsub/1.1.0"
   GossipSubCodec_10* = "/meshsub/1.0.0"
 
 # overlay parameters
