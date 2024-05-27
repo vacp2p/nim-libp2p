@@ -229,8 +229,7 @@ window.addEventListener("DOMContentLoaded", main2);
   circuitRelay: Relay
   rdv: RendezVous
   services: seq[Service]
-  observedAddrManager: ObservedAddrManager
-  enableWildcardResolver: bool">SwitchBuilder</a></li>
+  observedAddrManager: ObservedAddrManager">SwitchBuilder</a></li>
   <li><a class="reference" href="#TransportProvider"
     title="TransportProvider {.public.} = proc (upgr: Upgrade): Transport {.gcsafe,
     raises: [].}">TransportProvider</a></li>
@@ -269,17 +268,13 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">withAddress
-      <li><a class="reference" href="#withAddress%2CSwitchBuilder%2CMultiAddress%2Cbool"
-    title="withAddress(b: SwitchBuilder; address: MultiAddress;
-            enableWildcardResolver: bool = true): SwitchBuilder">withAddress(b: SwitchBuilder; address: MultiAddress;
-            enableWildcardResolver: bool = true): SwitchBuilder</a></li>
+      <li><a class="reference" href="#withAddress%2CSwitchBuilder%2CMultiAddress"
+    title="withAddress(b: SwitchBuilder; address: MultiAddress): SwitchBuilder">withAddress(b: SwitchBuilder; address: MultiAddress): SwitchBuilder</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">withAddresses
-      <li><a class="reference" href="#withAddresses%2CSwitchBuilder%2Cseq%5BMultiAddress%5D%2Cbool"
-    title="withAddresses(b: SwitchBuilder; addresses: seq[MultiAddress];
-              enableWildcardResolver: bool = true): SwitchBuilder">withAddresses(b: SwitchBuilder; addresses: seq[MultiAddress];
-              enableWildcardResolver: bool = true): SwitchBuilder</a></li>
+      <li><a class="reference" href="#withAddresses%2CSwitchBuilder%2Cseq%5BMultiAddress%5D"
+    title="withAddresses(b: SwitchBuilder; addresses: seq[MultiAddress]): SwitchBuilder">withAddresses(b: SwitchBuilder; addresses: seq[MultiAddress]): SwitchBuilder</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">withAgentVersion
@@ -411,7 +406,7 @@ class="link-seesrc" target="_blank">Source</a>
   <div class="section" id="6">
 <h1><a class="toc-backref" href="#6">Imports</a></h1>
 <dl class="item">
-<a class="reference external" href="switch.html">switch</a>, <a class="reference external" href="peerid.html">peerid</a>, <a class="reference external" href="peerinfo.html">peerinfo</a>, <a class="reference external" href="stream/connection.html">stream/connection</a>, <a class="reference external" href="multiaddress.html">multiaddress</a>, <a class="reference external" href="crypto/crypto.html">crypto/crypto</a>, <a class="reference external" href="transports/transport.html">transports/transport</a>, <a class="reference external" href="transports/tcptransport.html">transports/tcptransport</a>, <a class="reference external" href="muxers/muxer.html">muxers/muxer</a>, <a class="reference external" href="muxers/mplex/mplex.html">muxers/mplex/mplex</a>, <a class="reference external" href="muxers/yamux/yamux.html">muxers/yamux/yamux</a>, <a class="reference external" href="protocols/identify.html">protocols/identify</a>, <a class="reference external" href="protocols/secure/secure.html">protocols/secure/secure</a>, <a class="reference external" href="protocols/secure/noise.html">protocols/secure/noise</a>, <a class="reference external" href="protocols/rendezvous.html">protocols/rendezvous</a>, <a class="reference external" href="protocols/connectivity/autonat/server.html">protocols/connectivity/autonat/server</a>, <a class="reference external" href="protocols/connectivity/relay/relay.html">protocols/connectivity/relay/relay</a>, <a class="reference external" href="protocols/connectivity/relay/client.html">protocols/connectivity/relay/client</a>, <a class="reference external" href="protocols/connectivity/relay/rtransport.html">protocols/connectivity/relay/rtransport</a>, <a class="reference external" href="connmanager.html">connmanager</a>, <a class="reference external" href="upgrademngrs/muxedupgrade.html">upgrademngrs/muxedupgrade</a>, <a class="reference external" href="observedaddrmanager.html">observedaddrmanager</a>, <a class="reference external" href="nameresolving/nameresolver.html">nameresolving/nameresolver</a>, <a class="reference external" href="errors.html">errors</a>, <a class="reference external" href="utility.html">utility</a>, <a class="reference external" href="services/wildcardresolverservice.html">services/wildcardresolverservice</a>
+<a class="reference external" href="switch.html">switch</a>, <a class="reference external" href="peerid.html">peerid</a>, <a class="reference external" href="peerinfo.html">peerinfo</a>, <a class="reference external" href="stream/connection.html">stream/connection</a>, <a class="reference external" href="multiaddress.html">multiaddress</a>, <a class="reference external" href="crypto/crypto.html">crypto/crypto</a>, <a class="reference external" href="transports/transport.html">transports/transport</a>, <a class="reference external" href="transports/tcptransport.html">transports/tcptransport</a>, <a class="reference external" href="muxers/muxer.html">muxers/muxer</a>, <a class="reference external" href="muxers/mplex/mplex.html">muxers/mplex/mplex</a>, <a class="reference external" href="muxers/yamux/yamux.html">muxers/yamux/yamux</a>, <a class="reference external" href="protocols/identify.html">protocols/identify</a>, <a class="reference external" href="protocols/secure/secure.html">protocols/secure/secure</a>, <a class="reference external" href="protocols/secure/noise.html">protocols/secure/noise</a>, <a class="reference external" href="protocols/rendezvous.html">protocols/rendezvous</a>, <a class="reference external" href="protocols/connectivity/autonat/server.html">protocols/connectivity/autonat/server</a>, <a class="reference external" href="protocols/connectivity/relay/relay.html">protocols/connectivity/relay/relay</a>, <a class="reference external" href="protocols/connectivity/relay/client.html">protocols/connectivity/relay/client</a>, <a class="reference external" href="protocols/connectivity/relay/rtransport.html">protocols/connectivity/relay/rtransport</a>, <a class="reference external" href="connmanager.html">connmanager</a>, <a class="reference external" href="upgrademngrs/muxedupgrade.html">upgrademngrs/muxedupgrade</a>, <a class="reference external" href="observedaddrmanager.html">observedaddrmanager</a>, <a class="reference external" href="nameresolving/nameresolver.html">nameresolving/nameresolver</a>, <a class="reference external" href="errors.html">errors</a>, <a class="reference external" href="utility.html">utility</a>
 </dl></div>
 <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
@@ -423,9 +418,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L40"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L38"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L40" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L38" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -451,15 +446,14 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">rdv</span><span class="Other">:</span> <a href="protocols/rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a>
   <span class="Identifier">services</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="transports/transport.html#Service"><span class="Identifier">Service</span></a><span class="Other">]</span>
   <span class="Identifier">observedAddrManager</span><span class="Other">:</span> <a href="observedaddrmanager.html#ObservedAddrManager"><span class="Identifier">ObservedAddrManager</span></a>
-  <span class="Identifier">enableWildcardResolver</span><span class="Other">:</span> <span class="Identifier">bool</span>
 </pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L43"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L41"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L43" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L41" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -470,9 +464,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L38"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L36"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L38" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L36" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -487,9 +481,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Creates a SwitchBuilder
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L66"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L63"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L66" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L63" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -509,37 +503,35 @@ class="link-seesrc" target="_blank">Source</a>
 
 Helper for common switch configurations.
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L297"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L292"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L297" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L292" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="withAddress,SwitchBuilder,MultiAddress,bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#withAddress%2CSwitchBuilder%2CMultiAddress%2Cbool"><span class="Identifier">withAddress</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span>
-                 <span class="Identifier">enableWildcardResolver</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.<span class="Identifier">public</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="withAddress,SwitchBuilder,MultiAddress" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withAddress%2CSwitchBuilder%2CMultiAddress"><span class="Identifier">withAddress</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
+    <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Set the listening address of the switch<br/>Calling it multiple time will override the value<br/></p>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L98"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L88"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L88" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="withAddresses,SwitchBuilder,seq[MultiAddress],bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#withAddresses%2CSwitchBuilder%2Cseq%5BMultiAddress%5D%2Cbool"><span class="Identifier">withAddresses</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">addresses</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span>
-                   <span class="Identifier">enableWildcardResolver</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.<span class="Identifier">public</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="withAddresses,SwitchBuilder,seq[MultiAddress]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withAddresses%2CSwitchBuilder%2Cseq%5BMultiAddress%5D"><span class="Identifier">withAddresses</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">addresses</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
+    <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Set the listening addresses of the switch<br/>Calling it multiple time will override the value<br/></p>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L91"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L95"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L91" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L95" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -550,9 +542,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L186"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L184"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L186" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L184" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -562,9 +554,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L194"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L192"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L194" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L192" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -575,9 +567,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L198"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L196"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L198" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L196" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -588,9 +580,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent connections of the switch. You should either use this, or <a class="reference external" href="#withMaxIn,SwitchBuilder,int">withMaxIn</a> &amp; <a class="reference external" href="#withMaxOut,SwitchBuilder,int">withMaxOut</a>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L158"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L156"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L158" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L156" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -601,9 +593,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L174"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L172"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L174" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L172" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -614,9 +606,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent incoming connections. Should be used with <a class="reference external" href="#withMaxOut,SwitchBuilder,int">withMaxOut</a>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L164"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L162"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L164" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L162" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -627,9 +619,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent outgoing connections. Should be used with <a class="reference external" href="#withMaxIn,SwitchBuilder,int">withMaxIn</a>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L169"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L167"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L169" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L167" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -640,9 +632,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L190"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L188"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L190" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L188" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -652,9 +644,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L137"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L135"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L137" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L135" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -666,9 +658,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L210"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L208"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L210" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L208" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -679,9 +671,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L178"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L176"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L178" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L176" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -692,9 +684,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Set the private key of the switch. Will be used to generate a PeerId
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L84"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L81"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L84" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L81" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -705,9 +697,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L182"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L180"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L182" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L180" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -718,9 +710,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L202"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L200"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L202" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L200" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -731,9 +723,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L154"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L152"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -744,9 +736,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L206"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L204"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L206" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L204" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -757,9 +749,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L104"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L102"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L104" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L102" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -770,9 +762,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L151"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L149"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L151" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L149" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -788,9 +780,9 @@ Use a custom transport
   <span class="Operator">.</span><span class="Identifier">withTransport</span><span class="Punctuation">(</span><span class="Keyword">proc</span><span class="Punctuation">(</span><span class="Identifier">upgr</span><span class="Punctuation">:</span> <span class="Identifier">Upgrade</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">Transport</span> <span class="Operator">=</span> <span class="Identifier">TcpTransport</span><span class="Operator">.</span><span class="Identifier">new</span><span class="Punctuation">(</span><span class="Identifier">flags</span><span class="Punctuation">,</span> <span class="Identifier">upgr</span><span class="Punctuation">)</span><span class="Punctuation">)</span>
   <span class="Operator">.</span><span class="Identifier">build</span><span class="Punctuation">(</span><span class="Punctuation">)</span></pre>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L141"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/builders.nim#L139"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/builders.nim#L139" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -809,7 +801,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-27 02:21:21 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-27 12:47:19 UTC</small>
       </div>
     </div>
   </div>

@@ -233,7 +233,8 @@ window.addEventListener("DOMContentLoaded", main2);
   remoteReset: bool
   closedRemotely: Future[void].Raising([])
   closedLocally: bool
-  receivedData: AsyncEvent">YamuxChannel</a></li>
+  receivedData: AsyncEvent
+  returnedEof: bool">YamuxChannel</a></li>
   <li><a class="reference" href="#YamuxError"
     title="YamuxError = object of MuxerError">YamuxError</a></li>
 
@@ -366,9 +367,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L419"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L421"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L419" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L421" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -390,6 +391,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">closedRemotely</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span><span class="Other">.</span><span class="Identifier">Raising</span><span class="Other">(</span><span class="Other">[</span><span class="Other">]</span><span class="Other">)</span>
   <span class="Identifier">closedLocally</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">receivedData</span><span class="Other">:</span> <span class="Identifier">AsyncEvent</span>
+  <span class="Identifier">returnedEof</span><span class="Other">:</span> <span class="Identifier">bool</span>
 </pre></dt>
 <dd>
 
@@ -457,9 +459,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L631"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L633"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L631" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L633" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -470,9 +472,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L308"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L310"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L308" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L310" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -488,9 +490,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L491"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L493"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L491" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L493" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -502,9 +504,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L204"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L205"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L204" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L205" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -514,9 +516,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L614"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L616"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L614" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L616" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -526,9 +528,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L416"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L418"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L416" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L418" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -539,9 +541,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L514"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L516"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L514" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L516" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -554,9 +556,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L621"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L623"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L621" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L623" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -568,9 +570,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Read from a yamux channel
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L264"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L265"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L264" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L265" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -583,9 +585,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L383"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/muxers/yamux/yamux.nim#L385"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L383" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/muxers/yamux/yamux.nim#L385" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -604,7 +606,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-27 02:21:20 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-27 12:47:18 UTC</small>
       </div>
     </div>
   </div>
