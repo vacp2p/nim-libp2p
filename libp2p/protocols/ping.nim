@@ -56,7 +56,7 @@ method init*(p: Ping) =
       trace "handling ping", conn
       var buf: array[PingSize, byte]
       await conn.readExactly(addr buf[0], PingSize)
-      trace "echoing ping", conn, pingData = @buf
+      trace "echoing ping", conn
       await conn.write(@buf)
       if not isNil(p.pingHandler):
         await p.pingHandler(conn.peerId)

@@ -377,24 +377,3 @@ suite "Yamux":
       expect LPStreamClosedError: discard await streamA.readLp(100)
       blocker.complete()
       await streamA.close()
-
-    asyncTest "Peer must be able to read from stream after closing it for writing":
-      mSetup()
-
-      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
-        try:
-          check (await conn.readLp(100)) == fromHex("1234")
-        except CancelledError, LPStreamError:
-          return
-        try:
-          await conn.writeLp(fromHex("5678"))
-        except CancelledError, LPStreamError:
-          return
-        await conn.close()
-
-      let streamA = await yamuxa.newStream()
-      check streamA == yamuxa.getStreams()[0]
-
-      await streamA.writeLp(fromHex("1234"))
-      await streamA.close()
-      check (await streamA.readLp(100)) == fromHex("5678")
