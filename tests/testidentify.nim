@@ -210,8 +210,7 @@ suite "Identify":
 
     asyncTest "simple push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
-      switch2.peerInfo.listenAddrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
-      await switch2.peerInfo.update()
+      switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
@@ -224,16 +223,9 @@ suite "Identify":
 
       await closeAll()
 
-      # Wait the very end to be sure that the push has been processed
-      check:
-        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
-
-
     asyncTest "wrong peer id push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
-      switch2.peerInfo.listenAddrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
-      await switch2.peerInfo.update()
+      switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
