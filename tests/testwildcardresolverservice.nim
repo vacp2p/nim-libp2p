@@ -44,6 +44,7 @@ proc createSwitch(svc: Service): Switch =
   .withRng(newRng())
   .withAddresses(
     @[
+      MultiAddress.init("/ip4/127.0.0.1/tcp/0/").tryGet(),
       MultiAddress.init("/ip4/0.0.0.0/tcp/0/").tryGet(),
       MultiAddress.init("/ip6/::/tcp/0/").tryGet(),
     ],
@@ -59,35 +60,34 @@ suite "WildcardAddressResolverService":
   teardown:
     checkTrackers()
 
-  proc setupWildcardService(): Future[
-      tuple[svc: Service, switch: Switch, tcpIp4: MultiAddress, tcpIp6: MultiAddress]
-  ] {.async.} =
+  asyncTest "WildcardAddressResolverService must resolve wildcard addresses and stop doing so when stopped":
     let svc: Service =
       WildcardAddressResolverService.new(networkInterfaceProvider = getAddressesMock)
     let switch = createSwitch(svc)
     await switch.start()
-    let tcpIp4 = switch.peerInfo.addrs[0][multiCodec("tcp")].get # tcp port for ip4
-    let tcpIp6 = switch.peerInfo.addrs[1][multiCodec("tcp")].get # tcp port for ip6
-    return (svc, switch, tcpIp4, tcpIp6)
+    let tcpIp4Locahost = switch.peerInfo.addrs[0][multiCodec("tcp")].get
+    let tcpIp4Wildcard = switch.peerInfo.addrs[1][multiCodec("tcp")].get
+    let tcpIp6 = switch.peerInfo.addrs[2][multiCodec("tcp")].get # tcp port for ip6
 
-  asyncTest "WildcardAddressResolverService must resolve wildcard addresses and stop doing so when stopped":
-    let (svc, switch, tcpIp4, tcpIp6) = await setupWildcardService()
     check switch.peerInfo.addrs ==
       @[
-        MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4).get,
+        MultiAddress.init("/ip4/127.0.0.1" & $tcpIp4Locahost).get,
+        MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4Wildcard).get,
         MultiAddress.init("/ip6/::" & $tcpIp6).get,
       ]
     await svc.run(switch)
     check switch.peerInfo.addrs ==
       @[
-        MultiAddress.init("/ip4/127.0.0.1" & $tcpIp4).get,
-        MultiAddress.init("/ip4/192.168.1.22" & $tcpIp4).get,
+        MultiAddress.init("/ip4/127.0.0.1" & $tcpIp4Locahost).get,
+        MultiAddress.init("/ip4/127.0.0.1" & $tcpIp4Wildcard).get,
+        MultiAddress.init("/ip4/192.168.1.22" & $tcpIp4Wildcard).get,
         MultiAddress.init("/ip6/::1" & $tcpIp6).get,
         MultiAddress.init("/ip6/fe80::1" & $tcpIp6).get,
       ]
     await switch.stop()
     check switch.peerInfo.addrs ==
       @[
-        MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4).get,
+        MultiAddress.init("/ip4/127.0.0.1" & $tcpIp4Locahost).get,
+        MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4Wildcard).get,
         MultiAddress.init("/ip6/::" & $tcpIp6).get,
       ]
