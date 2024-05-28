@@ -53,8 +53,8 @@ func shortLog*(p: PeerInfo): auto =
 chronicles.formatIt(PeerInfo): shortLog(it)
 
 proc update*(p: PeerInfo) {.async.} =
-  # if p.addrs.len == 0:
-  p.addrs = p.listenAddrs
+  if p.addrs.len == 0:
+    p.addrs = p.listenAddrs
   for mapper in p.addressMappers:
     p.addrs = await mapper(p.addrs)
 
