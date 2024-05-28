@@ -60,7 +60,6 @@ proc getAddresses(addrFamily: AddressFamily): seq[InterfaceAddress] =
 
 proc new*(
     T: typedesc[WildcardAddressResolverService],
-    scheduleInterval: Opt[Duration] = Opt.none(Duration),
     networkInterfaceProvider: NetworkInterfaceProvider = getAddresses,
 ): T =
   ## This procedure initializes a new `WildcardAddressResolverService` with the provided network interface provider.
