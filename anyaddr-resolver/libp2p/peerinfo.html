@@ -212,7 +212,7 @@ window.addEventListener("DOMContentLoaded", main2);
     title="PeerInfo {.public.} = ref object
   peerId*: PeerId
   listenAddrs*: seq[MultiAddress] ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
-  addrs: seq[MultiAddress]   ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
+  addrs*: seq[MultiAddress]  ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
   addressMappers*: seq[AddressMapper] ## contains a list of procs that can be used to resolve the listen addresses into dialable addresses.
   protocols*: seq[string]
   protoVersion*: string
@@ -324,7 +324,7 @@ class="link-seesrc" target="_blank">Source</a>
 <dt><pre><a href="peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">peerId</span><span class="Operator">*</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">listenAddrs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> <span class="Comment">## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).</span>
-  <span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>   <span class="Comment">## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.</span>
+  <span class="Identifier">addrs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>  <span class="Comment">## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.</span>
   <span class="Identifier">addressMappers</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="peerinfo.html#AddressMapper"><span class="Identifier">AddressMapper</span></a><span class="Other">]</span> <span class="Comment">## contains a list of procs that can be used to resolve the listen addresses into dialable addresses.</span>
   <span class="Identifier">protocols</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
   <span class="Identifier">protoVersion</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
@@ -366,9 +366,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L67"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L68"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L67" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -379,9 +379,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L70"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L71"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L70" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L71" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -395,9 +395,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L91"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L92"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L91" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L92" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -408,9 +408,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L77"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L78"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L77" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L78" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -421,9 +421,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L88"
+href="https://github.com/status-im/nim-libp2p/tree/anyaddr-resolver/libp2p/peerinfo.nim#L89"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L88" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L89" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -484,7 +484,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-27 12:47:17 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-05-28 14:04:42 UTC</small>
       </div>
     </div>
   </div>
