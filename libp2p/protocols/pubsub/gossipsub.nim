@@ -425,13 +425,15 @@ proc validateAndRelay(g: GossipSub,
     toSendPeers.excl(peer)
     toSendPeers.excl(seenPeers)
 
+    var peersWhoSentIdontwant = HashSet[PubSubPeer]()
     for peer in toSendPeers:
       for heDontWant in peer.heDontWants:
         if saltedId in heDontWant:
-          toSendPeers.excl(peer)
+          peersWhoSentIdontwant.incl(peer)
           libp2p_gossipsub_idontwant_saved_messages.inc
           libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
           break
+    toSendPeers.excl(peersWhoSentIdontwant) # avoids len(s) == length` the length of the HashSet changed while iterating over it [AssertionDefect]
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
