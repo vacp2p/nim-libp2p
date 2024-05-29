@@ -660,6 +660,7 @@ proc onHeartbeat(g: GossipSub) =
           g.pruned(peer, t)
           g.mesh.removePeer(t, peer)
           prunes &= peer
+          peer.clearNonPriorityQueue()
       if prunes.len > 0:
         let prune = RPCMsg(control: some(ControlMessage(
           prune: @[ControlPrune(
