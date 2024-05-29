@@ -372,7 +372,7 @@ proc validateAndRelay(g: GossipSub,
       # In the case that it is not valid, this leads to some redundancy
       # (since the other peer should not send us an invalid message regardless),
       # but the expectation is that this is rare (due to such peers getting
-      # descorded) and that the savings from honest peers are greater than the
+      # descored) and that the savings from honest peers are greater than the
       # cost a dishonest peer can incur in short time (since the IDONTWANT is
       # small).
       var toSendPeers = HashSet[PubSubPeer]()
