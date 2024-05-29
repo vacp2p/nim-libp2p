@@ -12,7 +12,7 @@
 {.push raises: [].}
 
 import tables, hashes
-import varint, vbuffer
+import vbuffer
 import stew/results
 export results
 

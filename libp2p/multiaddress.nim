@@ -18,7 +18,7 @@ import tables, strutils, sets
 import multicodec, multihash, multibase, transcoder, vbuffer, peerid,
        protobuf/minprotobuf, errors, utility
 import stew/[base58, base32, endians2, results]
-export results, minprotobuf, vbuffer, utility, multicodec
+export results, minprotobuf, vbuffer, utility
 
 logScope:
   topics = "libp2p multiaddress"
