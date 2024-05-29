@@ -164,7 +164,6 @@ type
     closedRemotely: Future[void].Raising([])
     closedLocally: bool
     receivedData: AsyncEvent
-    returnedEof: bool
 
 proc `$`(channel: YamuxChannel): string =
   result = if channel.conn.dir == Out: "=> " else: "<= "
@@ -204,8 +203,8 @@ proc remoteClosed(channel: YamuxChannel) {.async: (raises: []).} =
 
 method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedLocally:
+    trace "Closing yamux channel locally", streamId = channel.id, conn = channel.conn
     channel.closedLocally = true
-    channel.isEof = true
 
     if not channel.isReset and channel.sendQueue.len == 0:
       try: await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
@@ -273,7 +272,7 @@ method readOnce*(
         newLPStreamClosedError()
       else:
         newLPStreamConnDownError()
-  if channel.returnedEof:
+  if channel.isEof:
     raise newLPStreamRemoteClosedError()
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
@@ -281,9 +280,8 @@ method readOnce*(
       discard await race(channel.closedRemotely, channel.receivedData.wait())
     except ValueError: raiseAssert("Futures list is not empty")
     if channel.closedRemotely.completed() and channel.recvQueue.len == 0:
-      channel.returnedEof = true
       channel.isEof = true
-      return 0
+      return 0 # we return 0 to indicate that the channel is closed for reading from now on
 
   let toRead = min(channel.recvQueue.len, nbytes)
 
