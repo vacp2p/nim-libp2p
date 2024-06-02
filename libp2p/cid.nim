@@ -31,7 +31,7 @@ type
     data*: VBuffer
 
 const
-  ContentIdsList = [
+  ContentIdsList* = [
     multiCodec("raw"),
     multiCodec("dag-pb"),
     multiCodec("dag-cbor"),
@@ -58,7 +58,13 @@ const
     multiCodec("dash-tx"),
     multiCodec("torrent-info"),
     multiCodec("torrent-file"),
-    multiCodec("ed25519-pub")
+    multiCodec("ed25519-pub"),
+    multiCodec("codex-root"),
+    multiCodec("codex-manifest"),
+    multiCodec("codex-block"),
+    multiCodec("codex-slot-root"),
+    multiCodec("codex-proving-root"),
+    multiCodec("codex-slot-cell"),
   ]
 
 proc initCidCodeTable(): Table[int, MultiCodec] {.compileTime.} =
@@ -66,7 +72,7 @@ proc initCidCodeTable(): Table[int, MultiCodec] {.compileTime.} =
     result[int(item)] = item
 
 const
-  CodeContentIds = initCidCodeTable()
+  CodeContentIds* = initCidCodeTable()
 
 template orError*(exp: untyped, err: untyped): untyped =
   (exp.mapErr do (_: auto) -> auto: err)
