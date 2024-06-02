@@ -365,7 +365,7 @@ proc validateAndRelay(g: GossipSub,
   try:
     template topic: string = msg.topic
 
-    template getIdwToSendPeers(peers: untyped) =
+    proc addToSendPeers(toSendPeers: var HashSet[PubSubPeer]) =
       g.floodsub.withValue(topic, peers): toSendPeers.incl(peers[])
       g.mesh.withValue(topic, peers): toSendPeers.incl(peers[])
       g.subscribedDirectPeers.withValue(topic, peers): toSendPeers.incl(peers[])
@@ -382,8 +382,7 @@ proc validateAndRelay(g: GossipSub,
       # cost a dishonest peer can incur in short time (since the IDONTWANT is
       # small).
       var toSendPeers = HashSet[PubSubPeer]()
-      getIdwToSendPeers(peers)
-
+      addToSendPeers(toSendPeers)
       g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
           idontwant: @[ControlIWant(messageIDs: @[msgId])]
         ))), isHighPriority = true)
@@ -419,7 +418,7 @@ proc validateAndRelay(g: GossipSub,
     # The send list typically matches the idontwant list from above, but
     # might differ if validation takes time
     var toSendPeers = HashSet[PubSubPeer]()
-    getIdwToSendPeers(peers)
+    addToSendPeers(toSendPeers)
     # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
 
