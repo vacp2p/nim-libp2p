@@ -362,8 +362,16 @@ proc validateAndRelay(g: GossipSub,
                       msg: Message,
                       msgId: MessageId, saltedId: SaltedId,
                       peer: PubSubPeer) {.async.} =
+
+
   try:
     template topic: string = msg.topic
+
+    template getIdwToSendPeers(peers: untyped) =
+      g.floodsub.withValue(topic, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(topic, peers): toSendPeers.incl(peers[])
+      g.subscribedDirectPeers.withValue(topic, peers): toSendPeers.incl(peers[])
+      toSendPeers.excl(peer)
 
     if msg.data.len > max(512, msgId.len * 10):
       # If the message is "large enough", let the mesh know that we do not want
@@ -376,10 +384,7 @@ proc validateAndRelay(g: GossipSub,
       # cost a dishonest peer can incur in short time (since the IDONTWANT is
       # small).
       var toSendPeers = HashSet[PubSubPeer]()
-      g.floodsub.withValue(topic, peers): toSendPeers.incl(peers[])
-      g.mesh.withValue(topic, peers): toSendPeers.incl(peers[])
-      g.subscribedDirectPeers.withValue(topic, peers): toSendPeers.incl(peers[])
-      toSendPeers.excl(peer)
+      getIdwToSendPeers(peers)
 
       g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
           idontwant: @[ControlIWant(messageIDs: @[msgId])]
@@ -416,13 +421,8 @@ proc validateAndRelay(g: GossipSub,
     # The send list typically matches the idontwant list from above, but
     # might differ if validation takes time
     var toSendPeers = HashSet[PubSubPeer]()
-    g.floodsub.withValue(topic, peers): toSendPeers.incl(peers[])
-    g.mesh.withValue(topic, peers): toSendPeers.incl(peers[])
-    g.subscribedDirectPeers.withValue(topic, peers): toSendPeers.incl(peers[])
-
-    # Don't send it to source peer, or peers that
-    # sent it during validation
-    toSendPeers.excl(peer)
+    getIdwToSendPeers(peers)
+    # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
 
     var peersWhoSentIdontwant = HashSet[PubSubPeer]()
