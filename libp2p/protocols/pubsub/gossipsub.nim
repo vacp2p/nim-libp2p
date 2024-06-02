@@ -362,8 +362,6 @@ proc validateAndRelay(g: GossipSub,
                       msg: Message,
                       msgId: MessageId, saltedId: SaltedId,
                       peer: PubSubPeer) {.async.} =
-
-
   try:
     template topic: string = msg.topic
 
