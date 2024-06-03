@@ -121,7 +121,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     var
       n_topics = 0
       is_grafted = 0
-      score = 0.0
+      scoreAcc = 0.0 # accumulates the peer score
 
     # Per topic
     for topic, topicParams in g.topicParams:
@@ -163,9 +163,9 @@ proc updateScores*(g: GossipSub) = # avoid async
         topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
         trace "p4", peer, p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries, topic, topicScore
 
-        score += topicScore * topicParams.topicWeight
+        scoreAcc += topicScore * topicParams.topicWeight
 
-        trace "updated peer topic's scores", peer, score, topic, info, topicScore,
+        trace "updated peer topic's scores", peer, scoreAcc, topic, info, topicScore,
                                              topicWeight = topicParams.topicWeight
 
       # Score metrics
@@ -196,18 +196,18 @@ proc updateScores*(g: GossipSub) = # avoid async
       # commit our changes, mgetOrPut does NOT work as wanted with value types (lent?)
       stats.topicInfos[topic] = info
 
-    score += peer.appScore * g.parameters.appSpecificWeight
-    trace "appScore", peer, score, appScore = peer.appScore,
+    scoreAcc += peer.appScore * g.parameters.appSpecificWeight
+    trace "appScore", peer, scoreAcc, appScore = peer.appScore,
                       appSpecificWeight = g.parameters.appSpecificWeight
 
     # The value of the parameter is the square of the counter and is mixed with a negative weight.
-    score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
-    trace "behaviourPenalty", peer, score, behaviourPenalty = peer.behaviourPenalty,
+    scoreAcc += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
+    trace "behaviourPenalty", peer, scoreAcc, behaviourPenalty = peer.behaviourPenalty,
                               behaviourPenaltyWeight = g.parameters.behaviourPenaltyWeight
 
     let colocationFactor = g.colocationFactor(peer)
-    score += colocationFactor * g.parameters.ipColocationFactorWeight
-    trace "colocationFactor", peer, score, colocationFactor,
+    scoreAcc += colocationFactor * g.parameters.ipColocationFactorWeight
+    trace "colocationFactor", peer, scoreAcc, colocationFactor,
                               ipColocationFactorWeight = g.parameters.ipColocationFactorWeight
     # Score metrics
     let agent = peer.getAgent()
@@ -220,7 +220,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     if peer.behaviourPenalty < g.parameters.decayToZero:
       peer.behaviourPenalty = 0
 
-    peer.score = score
+    peer.score = scoreAcc
 
     # copy into stats the score to keep until expired
     stats.score = peer.score
@@ -228,7 +228,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     stats.behaviourPenalty = peer.behaviourPenalty
     stats.expire = now + g.parameters.retainScore # refresh expiration
 
-    trace "updated peer's score", peer, score = peer.score, n_topics, is_grafted
+    trace "updated (accumulated) peer's score", peer, peerScore = peer.score, n_topics, is_grafted
 
     g.disconnectIfBadScorePeer(peer, stats.score)
     libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
