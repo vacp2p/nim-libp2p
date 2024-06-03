@@ -161,11 +161,12 @@ proc updateScores*(g: GossipSub) = # avoid async
         trace "p3b", peer, p3b = info.meshFailurePenalty, topic, topicScore
 
         topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
-        trace "p4", p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries, topic, topicScore
-
-        trace "updated peer topic's scores", peer, topic, info, topicScore
+        trace "p4", peer, p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries, topic, topicScore
 
         score += topicScore * topicParams.topicWeight
+
+        trace "updated peer topic's scores", peer, score, topic, info, topicScore,
+                                             topicWeight = topicParams.topicWeight
 
       # Score metrics
       let agent = peer.getAgent()
@@ -196,14 +197,18 @@ proc updateScores*(g: GossipSub) = # avoid async
       stats.topicInfos[topic] = info
 
     score += peer.appScore * g.parameters.appSpecificWeight
-
+    trace "appScore", peer, score, appScore = peer.appScore,
+                      appSpecificWeight = g.parameters.appSpecificWeight
 
     # The value of the parameter is the square of the counter and is mixed with a negative weight.
     score += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
+    trace "behaviourPenalty", peer, score, behaviourPenalty = peer.behaviourPenalty,
+                              behaviourPenaltyWeight = g.parameters.behaviourPenaltyWeight
 
     let colocationFactor = g.colocationFactor(peer)
     score += colocationFactor * g.parameters.ipColocationFactorWeight
-
+    trace "colocationFactor", peer, score, colocationFactor,
+                              ipColocationFactorWeight = g.parameters.ipColocationFactorWeight
     # Score metrics
     let agent = peer.getAgent()
     libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
