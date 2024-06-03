@@ -411,10 +411,8 @@ proc validateAndRelay(
       # small).
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
-      peersToSendIDontWant = peersToSendIDontWant.toSeq.filterIt(it.codec  == GossipSubCodec_12)
-
-      g.broadcast(
-        toSendPeers,
+      peersToSendIDontWant.exclIfIt(it.codec != GossipSubCodec_12)
+      g.broadcast(peersToSendIDontWant,
         RPCMsg(
           control:
             some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
@@ -459,18 +457,14 @@ proc validateAndRelay(
     # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
 
-    var peersWhoSentIdontwant = HashSet[PubSubPeer]()
-    for peer in toSendPeers:
-      for iDontWant in peer.iDontWants:
+    proc isMsgInIdontWant(it: PubSubPeer): bool =
+      for iDontWant in it.iDontWants:
         if saltedId in iDontWant:
-          peersWhoSentIdontwant.incl(peer)
           libp2p_gossipsub_idontwant_saved_messages.inc
-          libp2p_gossipsub_saved_bytes.inc(
-            msg.data.len.int64, labelValues = ["idontwant"]
-          )
-          break
-    toSendPeers.excl(peersWhoSentIdontwant)
-      # avoids len(s) == length` the length of the HashSet changed while iterating over it [AssertionDefect]
+          libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
+          return true
+      return false
+    toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
