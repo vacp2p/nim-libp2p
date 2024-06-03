@@ -186,7 +186,7 @@ proc networking(g: Game) {.async.} =
     "/tron/matchmaking",
     proc (topic: string, data: seq[byte]) {.async.} =
       # If we are still looking for an opponent,
-      # try to match anyone broadcasting it's address
+      # try to match anyone broadcasting its address
       if g.peerFound.finished or g.hasCandidate: return
       g.hasCandidate = true
 

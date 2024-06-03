@@ -18,8 +18,8 @@ type TestProto = ref object of LPProtocol
 
 ## We've set a [protocol ID](https://docs.libp2p.io/concepts/protocols/#protocol-ids), and created a custom `LPProtocol`. In a more complex protocol, we could use this structure to store interesting variables.
 ##
-## A protocol generally has two part: and handling/server part, and a dialing/client part.
-## Theses two parts can be identical, but in our trivial protocol, the server will wait for a message from the client, and the client will send a message, so we have to handle the two cases separately.
+## A protocol generally has two parts: a handling/server part, and a dialing/client part.
+## These two parts can be identical, but in our trivial protocol, the server will wait for a message from the client, and the client will send a message, so we have to handle the two cases separately.
 ##
 ## Let's start with the server part:
 
@@ -41,7 +41,7 @@ proc new(T: typedesc[TestProto]): T =
 proc hello(p: TestProto, conn: Connection) {.async.} =
   await conn.writeLp("Hello p2p!")
 
-## Again, pretty straight-forward, we just send a message on the connection.
+## Again, pretty straightforward, we just send a message on the connection.
 ##
 ## We can now create our main procedure:
 proc main() {.async.} =

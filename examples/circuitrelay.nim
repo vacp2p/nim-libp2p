@@ -1,7 +1,7 @@
 ## # Circuit Relay example
 ##
 ## Circuit Relay can be used when a node cannot reach another node
-## directly, but can reach it through a another node (the Relay).
+## directly, but can reach it through another node (the Relay).
 ##
 ## That may happen because of NAT, Firewalls, or incompatible transports.
 ##

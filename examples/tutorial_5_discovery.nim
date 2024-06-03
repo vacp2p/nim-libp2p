@@ -2,7 +2,7 @@
 ##
 ## In the [previous tutorial](tutorial_4_gossipsub.md), we built a custom protocol using [protobuf](https://developers.google.com/protocol-buffers) and
 ## spread informations (some metrics) on the network using gossipsub.
-## For this tutorial, on the other hand, we'll go back on a simple example
+## For this tutorial, on the other hand, we'll go back to a simple example
 ## we'll try to discover a specific peers to greet on the network.
 ##
 ## First, as usual, we import the dependencies:
