@@ -188,7 +188,7 @@ proc shuffle*[T](
     swap(x[i], x[y])
 
 proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
-             rng: var HmacDrbgContext,
+             rng: Rng,
              bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
@@ -220,7 +220,7 @@ proc random*(T: typedesc[PrivateKey], scheme: PKScheme,
     else:
       err(SchemeError)
 
-proc random*(T: typedesc[PrivateKey], rng: var HmacDrbgContext,
+proc random*(T: typedesc[PrivateKey], rng: Rng,
              bits = RsaDefaultKeySize): CryptoResult[PrivateKey] =
   ## Generate random private key using default public-key cryptography scheme.
   ##
@@ -244,7 +244,7 @@ proc random*(T: typedesc[PrivateKey], rng: var HmacDrbgContext,
     err(SchemeError)
 
 proc random*(T: typedesc[KeyPair], scheme: PKScheme,
-             rng: var HmacDrbgContext,
+             rng: Rng,
              bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
@@ -284,7 +284,7 @@ proc random*(T: typedesc[KeyPair], scheme: PKScheme,
     else:
       err(SchemeError)
 
-proc random*(T: typedesc[KeyPair], rng: var HmacDrbgContext,
+proc random*(T: typedesc[KeyPair], rng: Rng,
              bits = RsaDefaultKeySize): CryptoResult[KeyPair] =
   ## Generate random private pair of keys using default public-key cryptography
   ## scheme.

@@ -16,6 +16,7 @@ import unittest2
 import bearssl/hash
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+import ../libp2p/utils/random/securerng
 
 const
   PrivateKeys = [
@@ -366,7 +367,7 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
     if not result:
       break
 
-let rng = newRng()
+let rng = SecureRng.new()
 
 suite "Key interface test suite":
 
@@ -413,9 +414,9 @@ suite "Key interface test suite":
     var bmsg = cast[seq[byte]](msg)
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(ECDSA, rng[]).get()
+      var seckey = PrivateKey.random(ECDSA, rng).get()
       var pubkey = seckey.getPublicKey().get()
-      var pair = KeyPair.random(ECDSA, rng[]).get()
+      var pair = KeyPair.random(ECDSA, rng).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
@@ -433,9 +434,9 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0..<5:
-      var seckey = PrivateKey.random(Ed25519, rng[]).get()
+      var seckey = PrivateKey.random(Ed25519, rng).get()
       var pubkey = seckey.getPublicKey().get()
-      var pair = KeyPair.random(Ed25519, rng[]).get()
+      var pair = KeyPair.random(Ed25519, rng).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
@@ -453,9 +454,9 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0 ..< 2:
-      var seckey = PrivateKey.random(RSA, rng[], 2048).get()
+      var seckey = PrivateKey.random(RSA, rng, 2048).get()
       var pubkey = seckey.getPublicKey().get()
-      var pair = KeyPair.random(RSA, rng[], 2048).get()
+      var pair = KeyPair.random(RSA, rng, 2048).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()

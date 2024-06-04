@@ -19,7 +19,7 @@ import ./helpers
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
   var builder = SwitchBuilder.new()
-    .withRng(newRng())
+    .withRng(rng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()
@@ -52,7 +52,7 @@ suite "Autorelay":
       check: addresses[0] == buildRelayMA(switchRelay, switchClient)
       check: addresses.len() == 1
       fut.complete()
-    autorelay = AutoRelayService.new(3, relayClient, checkMA, newRng())
+    autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
     await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
@@ -70,7 +70,7 @@ suite "Autorelay":
     proc checkMA(address: seq[MultiAddress]) =
       check: address[0] == buildRelayMA(switchRelay, switchClient)
       fut.complete()
-    let autorelay = AutoRelayService.new(3, relayClient, checkMA, newRng())
+    let autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
     await sleepAsync(500.millis)
@@ -112,7 +112,7 @@ suite "Autorelay":
           addresses.len() == 2
         state += 1
         fut.complete()
-    let autorelay = AutoRelayService.new(2, relayClient, checkMA, newRng())
+    let autorelay = AutoRelayService.new(2, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), rel1.start(), rel2.start(), rel3.start())
     await switchClient.connect(rel1.peerInfo.peerId, rel1.peerInfo.addrs)

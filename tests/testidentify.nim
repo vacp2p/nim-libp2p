@@ -46,7 +46,7 @@ suite "Identify":
 
     asyncSetup:
       ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
+      remoteSecKey = PrivateKey.random(ECDSA, rng).get()
       remotePeerInfo = PeerInfo.new(
         remoteSecKey,
         ma,
@@ -129,7 +129,7 @@ suite "Identify":
       conn = await transport2.dial(transport1.addrs[0])
 
       expect IdentityNoMatchError:
-        let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
+        let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng).get())
         discard await msDial.select(conn, IdentifyCodec)
         discard await identifyProto2.identify(conn, pi2.peerId)
 
@@ -240,7 +240,7 @@ suite "Identify":
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] != switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
-      switch2.peerInfo = PeerInfo.new(PrivateKey.random(newRng()[]).get())
+      switch2.peerInfo = PeerInfo.new(PrivateKey.random(rng).get())
 
       await identifyPush2.push(switch2.peerInfo, conn)
 

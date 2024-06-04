@@ -13,6 +13,7 @@ import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
 import ../libp2p/switch
 import ../libp2p/nameresolving/[nameresolver, mockresolver]
+import ../libp2p/utils/random/testrng
 
 import "."/[asyncunit, errorhelpers]
 export asyncunit, errorhelpers, mockresolver
@@ -72,8 +73,8 @@ proc getRng(): ref HmacDrbgContext =
       rngVar.rng = newRng()
     rngVar.rng
 
-template rng*(): ref HmacDrbgContext =
-  getRng()
+template rng*(): Rng =
+  TestRng.new()
 
 type
   WriteHandler* = proc(
@@ -221,3 +222,6 @@ proc setDNSAddr*(switch: Switch) {.async.} =
       return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
   switch.peerInfo.addressMappers.add(addressMapper)
   await switch.peerInfo.update()
+
+proc randomPeerId*(): PeerId =
+  PeerId.init(PrivateKey.random(ECDSA, rng).get()).get()

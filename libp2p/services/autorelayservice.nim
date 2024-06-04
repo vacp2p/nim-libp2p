@@ -11,7 +11,8 @@
 
 import chronos, chronicles, times, tables, sequtils
 import ../switch,
-       ../protocols/connectivity/relay/[client, utils]
+       ../protocols/connectivity/relay/[client, utils],
+       ../utils/random/rng
 
 logScope:
   topics = "libp2p autorelay"
@@ -30,7 +31,7 @@ type
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
     addressMapper: AddressMapper
-    rng: ref HmacDrbgContext
+    rng: Rng
 
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
@@ -139,7 +140,7 @@ proc new*(T: typedesc[AutoRelayService],
           numRelays: int,
           client: RelayClient,
           onReservation: OnReservationHandler,
-          rng: ref HmacDrbgContext): T =
+          rng: Rng): T =
   T(numRelays: numRelays,
     client: client,
     onReservation: onReservation,

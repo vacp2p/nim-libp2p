@@ -21,7 +21,8 @@ import transport,
       ../builders,
       ../stream/[lpstream, connection, chronosstream],
       ../multiaddress,
-      ../upgrademngrs/upgrade
+      ../upgrademngrs/upgrade,
+      ../utils/random/rng
 
 const
   IPTcp = mapAnd(IP, mapEq("tcp"))
@@ -252,7 +253,7 @@ type
 proc new*(
   T: typedesc[TorSwitch],
   torServer: TransportAddress,
-  rng: ref HmacDrbgContext,
+  rng: Rng,
   addresses: seq[MultiAddress] = @[],
   flags: set[ServerFlags] = {}): TorSwitch
   {.raises: [LPError], public.} =

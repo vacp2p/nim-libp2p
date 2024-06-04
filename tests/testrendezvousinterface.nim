@@ -19,7 +19,7 @@ import ./helpers
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder.new()
-    .withRng(newRng())
+    .withRng(rng())
     .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
     .withTcpTransport()
     .withMplex()
@@ -67,7 +67,7 @@ suite "RendezVous Interface":
     await client.stop()
 
   asyncTest "Check timeToAdvertise interval":
-    await baseTimeToAdvertiseTest(MockRendezVous.new(newRng()))
+    await baseTimeToAdvertiseTest(MockRendezVous.new(rng()))
 
   asyncTest "Check timeToAdvertise interval when there is an error":
-    await baseTimeToAdvertiseTest(MockErrorRendezVous.new(newRng()))
+    await baseTimeToAdvertiseTest(MockErrorRendezVous.new(rng()))
