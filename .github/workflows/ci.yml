@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - master
-      - unstable
   pull_request:
   workflow_dispatch:
 
@@ -12,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  test-all:
     timeout-minutes: 90
     strategy:
       fail-fast: false

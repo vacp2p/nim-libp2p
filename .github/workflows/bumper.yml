@@ -1,4 +1,4 @@
-name: Bumper
+name: Dependency Bumper
 on:
   push:
     branches:
@@ -8,6 +8,7 @@ on:
 jobs:
   bumpProjects:
     runs-on: ubuntu-latest
+    name: Bump version on ${{ matrix.target.repo }}:${{ matrix.target.branch }}
     strategy:
       fail-fast: false
       matrix:

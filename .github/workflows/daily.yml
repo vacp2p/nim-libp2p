@@ -1,4 +1,4 @@
-name: Daily
+name: Daily Tests
 on:
   schedule:
     - cron: "30 6 * * *"
@@ -6,7 +6,23 @@ on:
 
 jobs:
   call-multi-nim-common:
-    uses: ./.github/workflows/daily_common.yml
+    name: Daily amd64
+    uses: ./.github/workflows/base_daily.yml
     with:
       nim-branch: "['version-1-6','version-2-0']"
+      cpu: "['amd64']"
+
+  call-multi-nim-common:
+    name: Daily i386
+    uses: ./.github/workflows/base_daily.yml
+    with:
+      nim-branch: "['version-1-6','version-2-0', 'devel']"
+      cpu: "['i386']"
+      exclude: "[{'platform': {'os':'macos'}}, {'platform': {'os':'windows'}}]"
+
+  call-multi-nim-common:
+    name: Daily Nim Devel
+    uses: ./.github/workflows/base_daily.yml
+    with:
+      nim-branch: "['devel']"
       cpu: "['amd64']"

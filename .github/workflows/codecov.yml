@@ -1,12 +1,13 @@
-name: nim-libp2p codecov builds
+name: Codecov
 
 on:
   #On push to common branches, this computes the "bases stats" for PRs
   push:
     branches:
       - master
-      - unstable
   pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  Coverage:
+  coverage:
+    name: Run coverage and upload to codecov
     runs-on: ubuntu-20.04
     env:
       CICOV: YES
