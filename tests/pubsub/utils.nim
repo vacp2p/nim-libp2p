@@ -56,61 +56,51 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ok mid.toBytes()
 
 proc generateNodes*(
-    num: Natural,
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
-    msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
-    gossip: bool = false,
-    triggerSelf: bool = false,
-    verifySignature: bool = libp2p_pubsub_verify,
-    anonymize: bool = libp2p_pubsub_anonymize,
-    sign: bool = libp2p_pubsub_sign,
-    sendSignedPeerRecord = false,
-    unsubscribeBackoff = 1.seconds,
-    maxMessageSize: int = 1024 * 1024,
-    enablePX: bool = false,
-    overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
-      Opt.none(tuple[bytes: int, interval: Duration]),
-): seq[PubSub] =
-  for i in 0 ..< num:
-    let switch = newStandardSwitch(
-      secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord
-    )
-    let pubsub =
-      if gossip:
-        let g = GossipSub.init(
-          switch = switch,
-          triggerSelf = triggerSelf,
-          verifySignature = verifySignature,
-          sign = sign,
-          msgIdProvider = msgIdProvider,
-          anonymize = anonymize,
-          maxMessageSize = maxMessageSize,
-          parameters = (
-            var p = GossipSubParams.init()
-            p.floodPublish = false
-            p.historyLength = 20
-            p.historyGossip = 20
-            p.unsubscribeBackoff = unsubscribeBackoff
-            p.enablePX = enablePX
-            p.overheadRateLimit = overheadRateLimit
-            p
-          ),
-        )
-        # set some testing params, to enable scores
-        g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
-        g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
-        g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
-        g.PubSub
-      else:
-        FloodSub.init(
-          switch = switch,
-          triggerSelf = triggerSelf,
-          verifySignature = verifySignature,
-          sign = sign,
-          msgIdProvider = msgIdProvider,
-          maxMessageSize = maxMessageSize,
-          anonymize = anonymize,
-        ).PubSub
+  num: Natural,
+  secureManagers: openArray[SecureProtocol] = [
+    SecureProtocol.Noise
+  ],
+  msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
+  gossip: bool = false,
+  triggerSelf: bool = false,
+  verifySignature: bool = libp2p_pubsub_verify,
+  anonymize: bool = libp2p_pubsub_anonymize,
+  sign: bool = libp2p_pubsub_sign,
+  sendSignedPeerRecord = false,
+  unsubscribeBackoff = 1.seconds,
+  maxMessageSize: int = 1024 * 1024,
+  enablePX: bool = false,
+  overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] = Opt.none(tuple[bytes: int, interval: Duration]),
+  gossipSubVersion: string = ""): seq[PubSub] =
+
+  for i in 0..<num:
+    let switch = newStandardSwitch(secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord)
+    let pubsub = if gossip:
+      let g = GossipSub.init(
+        switch = switch,
+        triggerSelf = triggerSelf,
+        verifySignature = verifySignature,
+        sign = sign,
+        msgIdProvider = msgIdProvider,
+        anonymize = anonymize,
+        maxMessageSize = maxMessageSize,
+        parameters = (var p = GossipSubParams.init(); p.floodPublish = false; p.historyLength = 20; p.historyGossip = 20; p.unsubscribeBackoff = unsubscribeBackoff; p.enablePX = enablePX; p.overheadRateLimit = overheadRateLimit; p))
+      # set some testing params, to enable scores
+      g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
+      g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
+      g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
+      if gossipSubVersion != "":
+        g.codecs = @[gossipSubVersion]
+      g.PubSub
+    else:
+      FloodSub.init(
+        switch = switch,
+        triggerSelf = triggerSelf,
+        verifySignature = verifySignature,
+        sign = sign,
+        msgIdProvider = msgIdProvider,
+        maxMessageSize = maxMessageSize,
+        anonymize = anonymize).PubSub
 
     switch.mount(pubsub)
     result.add(pubsub)
