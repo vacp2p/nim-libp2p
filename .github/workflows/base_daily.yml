@@ -1,6 +1,10 @@
-name: daily-common
+name: Daily
 
 on:
+  push:
+    branches:
+      - master
+  pull_request:
   workflow_call:
     inputs:
       nim-branch:
@@ -17,30 +21,46 @@ on:
         type: string
         default: "[]"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   delete-cache:
     runs-on: ubuntu-latest
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
-  build:
+  test:
     needs: delete-cache
-    timeout-minutes: 120
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         platform:
           - os: linux
             builder: ubuntu-22.04
+            cpu: amd64
+            shell: bash
+          - os: linux
+            builder: ubuntu-22.04
+            cpu: i386
             shell: bash
           - os: macos
             builder: macos-13
+            cpu: amd64
             shell: bash
           - os: windows
             builder: windows-2022
+            cpu: amd64
             shell: msys2 {0}
-        branch: ${{ fromJSON(inputs.nim-branch) }}
-        cpu: ${{ fromJSON(inputs.cpu) }}
+          # - os: windows
+          #   builder: windows-2019
+          #   cpu: i386
+          #   shell: msys2 {0}
+        nim-branch:
+          - version-1-6
+          - version-2-0
         exclude: ${{ fromJSON(inputs.exclude) }}
 
     defaults:
@@ -49,18 +69,20 @@ jobs:
 
     name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.branch }})'
     runs-on: ${{ matrix.platform.builder }}
-    continue-on-error: ${{ matrix.branch == 'devel' || matrix.branch == 'version-2-0' }}
+    continue-on-error: ${{ matrix.nim-branch == 'version-2-0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
           os: ${{ matrix.platform.os }}
           shell: ${{ matrix.platform.shell }}
-          nim_branch: ${{ matrix.branch }}
-          cpu: ${{ matrix.cpu }}
+          nim_branch: ${{ matrix.nim-branch }}
+          cpu: ${{ matrix.platform.cpu }}
 
       - name: Setup Go
         uses: actions/setup-go@v4
@@ -71,14 +93,15 @@ jobs:
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+      
+      - name: Install deps
+        run: |
+          nimble install -y --depsOnly
 
       - name: Run tests
         run: |
           nim --version
           nimble --version
-          nimble install -y --depsOnly
-          NIMFLAGS="${NIMFLAGS} --mm:refc" nimble test
-          if [[ "${{ matrix.branch }}" == "devel" ]]; then
-            echo -e "\nTesting with '--mm:orc':\n"
-            NIMFLAGS="${NIMFLAGS} --mm:orc" nimble test
-          fi
+          # --mm:orc | Should we run tests with ORC instead?
+          NIMFLAGS="${NIMFLAGS} --mm:refc"
+          nimble test
