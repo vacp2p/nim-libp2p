@@ -289,10 +289,6 @@ proc `==`*(a, b: MultiCodec): bool =
   ## Returns ``true`` if MultiCodecs ``a`` and ``b`` are equal.
   int(a) == int(b)
 
-proc `!=`*(a, b: MultiCodec): bool =
-  ## Returns ``true`` if MultiCodecs ``a`` and ``b`` are not equal.
-  int(a) != int(b)
-
 proc hash*(m: MultiCodec): Hash {.inline.} =
   ## Hash procedure for tables.
   hash(int(m))

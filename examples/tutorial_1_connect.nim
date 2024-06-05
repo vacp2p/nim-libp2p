@@ -34,7 +34,7 @@ import libp2p/protocols/ping
 
 ## [chronos](https://github.com/status-im/nim-chronos) the asynchronous framework used by `nim-libp2p`
 ##
-## Next, we'll create an helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
+## Next, we'll create a helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
 proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
   var switch = SwitchBuilder
     .new()
@@ -77,7 +77,7 @@ proc main() {.async.} =
   ## Now that we've started the nodes, they are listening for incoming peers.
   ## We can find out which port was attributed, and the resulting local addresses, by using `switch1.peerInfo.addrs`.
   ##
-  ## We'll **dial** the first switch from the second one, by specifying it's **Peer ID**, it's **MultiAddress** and the **`Ping` protocol codec**:
+  ## We'll **dial** the first switch from the second one, by specifying its **Peer ID**, its **MultiAddress** and the **`Ping` protocol codec**:
   let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
   ## We now have a `Ping` connection setup between the second and the first switch, we can use it to actually ping the node:
   # ping the other node and echo the ping duration

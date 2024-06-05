@@ -26,7 +26,7 @@ We recommend using `1.15.15`, as previously stated.
 ./scripts/build_p2pd.sh
 ```
 If everything goes correctly, the binary (`p2pd`) should be built and placed in the correct directory.
-If you find any issues, please head into our discord and ask for our asistance.
+If you find any issues, please head into our discord and ask for our assistance.
 
 After successfully building the binary, remember to add it to your path so it can be found. You can do that by running:
 ```sh
