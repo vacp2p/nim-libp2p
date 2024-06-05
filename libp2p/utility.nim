@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[sets, options, macros]
+import std/[options, macros]
 import stew/[byteutils, results]
 
 export results
@@ -140,11 +140,3 @@ template toOpt*[T, E](self: Result[T, E]): Opt[T] =
       Opt.some(temp.unsafeGet())
   else:
     Opt.none(type(T))
-
-template exclIfIt*[T](set: var HashSet[T], condition: untyped) =
-  if set.len != 0:
-    var toExcl = HashSet[T]()
-    for it {.inject.} in set:
-      if condition:
-        toExcl.incl(it)
-    set.excl(toExcl)
