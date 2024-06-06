@@ -5,24 +5,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  call-multi-nim-common:
+  test_amd64:
     name: Daily amd64
-    uses: ./.github/workflows/base_daily.yml
+    uses: ./.github/workflows/base_tests.yml
     with:
-      nim-branch: "['version-1-6','version-2-0']"
-      cpu: "['amd64']"
+      exclude: "[{'platform': {'cpu': 'amd64'}}]"
 
-  call-multi-nim-common:
+  test_i386:
     name: Daily i386
-    uses: ./.github/workflows/base_daily.yml
+    uses: ./.github/workflows/base_tests.yml
     with:
-      nim-branch: "['version-1-6','version-2-0', 'devel']"
-      cpu: "['i386']"
-      exclude: "[{'platform': {'os':'macos'}}, {'platform': {'os':'windows'}}]"
+      exclude: "[{'platform': {'cpu': 'i386'}}]"
 
-  call-multi-nim-common:
-    name: Daily Nim Devel
-    uses: ./.github/workflows/base_daily.yml
+  test_nim_devel:
+    name: Daily 
+    uses: ./.github/workflows/base_tests.yml
     with:
-      nim-branch: "['devel']"
-      cpu: "['amd64']"
+      include: "[{'nim-branch': ['devel']}]"
+      exclude: "[{'platform': {'os': 'linux', 'cpu': 'amd64'}}]"

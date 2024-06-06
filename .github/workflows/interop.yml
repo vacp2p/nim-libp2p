@@ -1,4 +1,4 @@
-name: Interoperability Testing
+name: Interoperability Tests
 on:
   pull_request:
   push:

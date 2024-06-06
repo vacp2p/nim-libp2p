@@ -1,4 +1,4 @@
-name: Dependency Bumper
+name: Update this project's version where it servers as a dependency
 on:
   push:
     branches:
@@ -6,9 +6,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  bumpProjects:
+  update_version:
+    # Is this job necessary?
     runs-on: ubuntu-latest
-    name: Bump version on ${{ matrix.target.repo }}:${{ matrix.target.branch }}
+    name: Updating version on ${{ matrix.target.repo }}:${{ matrix.target.branch }}
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +36,7 @@ jobs:
           git checkout $GITHUB_SHA
 
       - name: Commit this bump
+        # Is it mandatory to create a new commit? Or does it exist as a way to communicate why the version was updated.
         run: |
           cd nbc
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"

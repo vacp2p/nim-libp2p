@@ -1,4 +1,4 @@
-name: Daily
+name: Base Tests
 
 on:
   push:
@@ -7,14 +7,11 @@ on:
   pull_request:
   workflow_call:
     inputs:
-      nim-branch:
-        description: 'Nim branch'
-        required: true
+      include:
+        description: 'Include matrix configurations'
+        required: false
         type: string
-      cpu:
-        description: 'CPU'
-        required: true
-        type: string
+        default: "[]"
       exclude:
         description: 'Exclude matrix configurations'
         required: false
@@ -26,13 +23,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  delete-cache:
+  delete_cache:
     runs-on: ubuntu-latest
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
   test:
-    needs: delete-cache
+    needs: delete_cache
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -54,13 +51,10 @@ jobs:
             builder: windows-2022
             cpu: amd64
             shell: msys2 {0}
-          # - os: windows
-          #   builder: windows-2019
-          #   cpu: i386
-          #   shell: msys2 {0}
         nim-branch:
           - version-1-6
           - version-2-0
+        include: ${{ fromJSON(inputs.include) }}
         exclude: ${{ fromJSON(inputs.exclude) }}
 
     defaults:
@@ -105,3 +99,25 @@ jobs:
           # --mm:orc | Should we run tests with ORC instead?
           NIMFLAGS="${NIMFLAGS} --mm:refc"
           nimble test
+
+  lint:
+    name: "Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
+
+      - name: Check nph formatting
+        # Pin nph to a specific version to avoid sudden style differences.
+        # Updating nph version should be accompanied with running the new
+        # version on the fluffy directory.
+        run: |
+          VERSION="v0.5.1"
+          ARCHIVE="nph-linux_x64.tar.gz"
+          curl -L "https://github.com/arnetheduck/nph/releases/download/${VERSION}/${ARCHIVE}" -o ${ARCHIVE}
+          tar -xzf ${ARCHIVE}
+          shopt -s extglob  # Enable extended globbing
+          ./nph examples libp2p tests tools *.@(nim|nims|nimble)
+          git diff --exit-code

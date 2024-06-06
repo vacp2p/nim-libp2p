@@ -1,7 +1,7 @@
-name: Codecov
+name: Coverage
 
 on:
-  #On push to common branches, this computes the "bases stats" for PRs
+  # On push to common branches, this computes the coverage PRs will compared against
   push:
     branches:
       - master
@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  coverage:
+  codecov:
+    # Improvement: Split single job into run tests, generate coverage, and upload to codecov.
     name: Run coverage and upload to codecov
     runs-on: ubuntu-22.04
     env:

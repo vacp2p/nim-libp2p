@@ -1,4 +1,4 @@
-name: Docgen
+name: Documentation generation and publishing
 on:
   push:
     branches:
