@@ -9,17 +9,18 @@ jobs:
     name: Daily amd64
     uses: ./.github/workflows/base_tests.yml
     with:
-      exclude: "[{'platform': {'cpu': 'amd64'}}]"
+      include: "[{'nim-branch': 'version-2-0'}]"
+      exclude: "[{'platform': {'cpu': 'i386'}}]"
 
   test_i386:
     name: Daily i386
     uses: ./.github/workflows/base_tests.yml
     with:
-      exclude: "[{'platform': {'cpu': 'i386'}}]"
+      exclude: "[{'platform': {'cpu': 'amd64'}}]"
 
   test_nim_devel:
     name: Daily 
     uses: ./.github/workflows/base_tests.yml
     with:
-      include: "[{'nim-branch': ['devel']}]"
-      exclude: "[{'platform': {'os': 'linux', 'cpu': 'amd64'}}]"
+      include: "[{'nim-branch': 'devel'}]"
+      exclude: "[{'platform': {'os': 'windows'}}, {'platform': {'os': 'macos'}}, {'platform': {'cpu': 'i386'}}]"

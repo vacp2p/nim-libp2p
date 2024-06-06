@@ -54,7 +54,6 @@ jobs:
             shell: msys2 {0}
         nim-branch:
           - version-1-6
-          - version-2-0
         # If exclude or include are defined use their value, otherwise default to empty list (as declared on workflow_call.inputs).
         # Reason for above is when workflow is not initiated by workflow_call, the parameters are not defined. Their value is 0 or '' (empty string).
         # This relies on the value 0 meaning the parameter was not filled in.
@@ -67,7 +66,7 @@ jobs:
 
     name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim-branch }})'
     runs-on: ${{ matrix.platform.builder }}
-    continue-on-error: ${{ matrix.nim-branch == 'version-2-0' }}
+    continue-on-error: ${{ matrix.nim-branch == 'version-2-0' || matrix.nim-branch == 'devel' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
