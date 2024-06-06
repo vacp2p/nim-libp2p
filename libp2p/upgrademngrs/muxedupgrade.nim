@@ -12,21 +12,18 @@
 import std/sequtils
 import pkg/[chronos, chronicles, metrics]
 
-import ../upgrademngrs/upgrade,
-       ../muxers/muxer
+import ../upgrademngrs/upgrade, ../muxers/muxer
 
 export Upgrade
 
 logScope:
   topics = "libp2p muxedupgrade"
 
-type
-  MuxedUpgrade* = ref object of Upgrade
-    muxers*: seq[MuxerProvider]
-    streamHandler*: StreamHandler
+type MuxedUpgrade* = ref object of Upgrade
+  muxers*: seq[MuxerProvider]
+  streamHandler*: StreamHandler
 
-func getMuxerByCodec(
-    self: MuxedUpgrade, muxerName: string): Opt[MuxerProvider] =
+func getMuxerByCodec(self: MuxedUpgrade, muxerName: string): Opt[MuxerProvider] =
   if muxerName.len == 0 or muxerName == "na":
     return Opt.none(MuxerProvider)
   for m in self.muxers:
@@ -35,10 +32,10 @@ func getMuxerByCodec(
   Opt.none(MuxerProvider)
 
 proc mux(
-    self: MuxedUpgrade,
-    conn: Connection
-): Future[Opt[Muxer]] {.async: (raises: [
-    CancelledError, LPStreamError, MultiStreamError]).} =
+    self: MuxedUpgrade, conn: Connection
+): Future[Opt[Muxer]] {.
+    async: (raises: [CancelledError, LPStreamError, MultiStreamError])
+.} =
   ## mux connection
   trace "Muxing connection", conn
   if self.muxers.len == 0:
@@ -67,28 +64,25 @@ proc mux(
   Opt.some(muxer)
 
 method upgrade*(
-    self: MuxedUpgrade,
-    conn: Connection,
-    peerId: Opt[PeerId]
+    self: MuxedUpgrade, conn: Connection, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   trace "Upgrading connection", conn, direction = conn.dir
 
-  let sconn = await self.secure(conn, peerId)  # secure the connection
+  let sconn = await self.secure(conn, peerId) # secure the connection
   if sconn == nil:
-    raise (ref UpgradeFailedError)(msg:
-      "unable to secure connection, stopping upgrade")
+    raise (ref UpgradeFailedError)(msg: "unable to secure connection, stopping upgrade")
 
-  let muxer = (await self.mux(sconn)).valueOr:  # mux it if possible
-    raise (ref UpgradeFailedError)(msg:
-      "a muxer is required for outgoing connections")
+  let muxer = (await self.mux(sconn)).valueOr:
+    raise (ref UpgradeFailedError)(msg: "a muxer is required for outgoing connections")
 
   when defined(libp2p_agents_metrics):
     conn.shortAgent = muxer.connection.shortAgent
 
   if sconn.closed():
     await sconn.close()
-    raise (ref UpgradeFailedError)(msg:
-      "Connection closed or missing peer info, stopping upgrade")
+    raise (ref UpgradeFailedError)(
+      msg: "Connection closed or missing peer info, stopping upgrade"
+    )
 
   trace "Upgraded connection", conn, sconn, direction = conn.dir
   muxer
@@ -97,11 +91,9 @@ proc new*(
     T: type MuxedUpgrade,
     muxers: seq[MuxerProvider],
     secureManagers: openArray[Secure] = [],
-    ms: MultistreamSelect): T =
-  let upgrader = T(
-    muxers: muxers,
-    secureManagers: @secureManagers,
-    ms: ms)
+    ms: MultistreamSelect,
+): T =
+  let upgrader = T(muxers: muxers, secureManagers: @secureManagers, ms: ms)
 
   upgrader.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
     trace "Starting stream handler", conn
