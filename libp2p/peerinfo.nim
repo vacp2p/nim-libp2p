@@ -53,6 +53,9 @@ func shortLog*(p: PeerInfo): auto =
 chronicles.formatIt(PeerInfo): shortLog(it)
 
 proc update*(p: PeerInfo) {.async.} =
+  # p.addrs.len == 0 overrides addrs only if it is the first time update is being executed or if the field is empty.
+  # p.addressMappers.len == 0 is for when all addressMappers have been removed,
+  # and we wish to have addrs in its initial state, i.e., a copy of listenAddrs.
   if p.addrs.len == 0 or p.addressMappers.len == 0:
     p.addrs = p.listenAddrs
   for mapper in p.addressMappers:
