@@ -38,7 +38,7 @@ proc isRunning*(self: AutoRelayService): bool =
 proc addressMapper(
   self: AutoRelayService,
   listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
-  return concat(toSeq(self.relayAddresses.values))
+  return concat(toSeq(self.relayAddresses.values)) & listenAddrs
 
 proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, switch: Switch) {.async.} =
   while self.running:

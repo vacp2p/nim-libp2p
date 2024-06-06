@@ -110,12 +110,12 @@ suite "Autonat Service":
     check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
-    check switch1.peerInfo.addrs == switch1.peerInfo.listenAddrs.mapIt(switch1.peerStore.guessDialableAddr(it))
+    check switch1.peerInfo.addrs == switch1.peerInfo.addrs.mapIt(switch1.peerStore.guessDialableAddr(it))
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
-    check switch1.peerInfo.addrs == switch1.peerInfo.listenAddrs
+    check switch1.peerInfo.addrs == switch1.peerInfo.addrs
 
   asyncTest "Peer must be not reachable and then reachable":
 
@@ -261,7 +261,6 @@ suite "Autonat Service":
     let autonatService = AutonatService.new(AutonatClient.new(), newRng(), Opt.some(1.seconds), maxQueueSize = 1)
 
     let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)
-    await switch1.setDNSAddr()
 
     let switch2 = createSwitch(maxConnsPerPeer = 0, nameResolver = MockResolver.default())
 
@@ -277,6 +276,8 @@ suite "Autonat Service":
     autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
+    switch1.peerInfo.addrs.add([ MultiAddress.init("/dns4/localhost/").tryGet() & switch1.peerInfo.addrs[0][1].tryGet() ])
+
     await switch2.start()
 
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)

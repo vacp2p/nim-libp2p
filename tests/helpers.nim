@@ -215,9 +215,3 @@ proc default*(T: typedesc[MockResolver]): T =
   resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
   resolver.ipResponses[("localhost", true)] = @["::1"]
   resolver
-
-proc setDNSAddr*(switch: Switch) {.async.} =
-  proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
-      return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
-  switch.peerInfo.addressMappers.add(addressMapper)
-  await switch.peerInfo.update()

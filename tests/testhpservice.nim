@@ -65,11 +65,6 @@ suite "Hole Punching":
 
     let publicPeerSwitch = createSwitch(RelayClient.new())
 
-    proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
-        return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
-    publicPeerSwitch.peerInfo.addressMappers.add(addressMapper)
-    await publicPeerSwitch.peerInfo.update()
-
     proc checkMA(address: seq[MultiAddress]) =
       if not privatePeerRelayAddr.completed():
         privatePeerRelayAddr.complete(address)
@@ -83,6 +78,7 @@ suite "Hole Punching":
     let switchRelay = createSwitch(Relay.new())
 
     await allFuturesThrowing(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
+    publicPeerSwitch.peerInfo.addrs.add([ MultiAddress.init("/dns4/localhost/").tryGet() & publicPeerSwitch.peerInfo.addrs[0][1].tryGet() ])
 
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
@@ -106,7 +102,6 @@ suite "Hole Punching":
     let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
 
     let publicPeerSwitch = createSwitch(RelayClient.new())
-    await publicPeerSwitch.setDNSAddr()
 
     proc checkMA(address: seq[MultiAddress]) =
       if not privatePeerRelayAddr.completed():
@@ -121,6 +116,7 @@ suite "Hole Punching":
     let switchRelay = createSwitch(Relay.new())
 
     await allFuturesThrowing(switchRelay.start(), privatePeerSwitch.start(), publicPeerSwitch.start(), peerSwitch.start())
+    publicPeerSwitch.peerInfo.addrs.add([ MultiAddress.init("/dns4/localhost/").tryGet() & publicPeerSwitch.peerInfo.addrs[0][1].tryGet() ])
 
     await privatePeerSwitch.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await privatePeerSwitch.connect(peerSwitch.peerInfo.peerId, peerSwitch.peerInfo.addrs) # for autonat
@@ -162,7 +158,7 @@ suite "Hole Punching":
 
     let privatePeerSwitch1 = SwitchStub.new(createSwitch(relayClient1, hpservice1, nameresolver = MockResolver.default()))
     let privatePeerSwitch2 = SwitchStub.new(createSwitch(relayClient2, hpservice2))
-    await privatePeerSwitch2.setDNSAddr()
+
     let switchRelay = createSwitch(Relay.new())
     let switchAux = createSwitch()
     let switchAux2 = createSwitch()

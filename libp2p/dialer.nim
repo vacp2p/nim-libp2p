@@ -137,7 +137,7 @@ proc dialAndUpgrade(
   dir = Direction.Out):
   Future[Muxer] {.async.} =
 
-  debug "Dialing peer", peerId = peerId.get(default(PeerId))
+  debug "Dialing peer", peerId = peerId.get(default(PeerId)), addrs
 
   for rawAddress in addrs:
     # resolve potential dnsaddr

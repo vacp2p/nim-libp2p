@@ -80,7 +80,7 @@ suite "Autorelay":
     check:
       addresses == @[buildRelayMA(switchRelay, switchClient)]
       addresses.len() == 1
-      addresses == switchClient.peerInfo.addrs
+      addresses[0] in switchClient.peerInfo.addrs
     await allFutures(switchClient.stop(), switchRelay.stop())
 
     check addresses != switchClient.peerInfo.addrs
