@@ -55,8 +55,8 @@ jobs:
         nim-branch:
           - version-1-6
           - version-2-0
-        include: ${{ fromJSON(inputs.include) || fromJSON('[]') }}
-        exclude: ${{ fromJSON(inputs.exclude) || fromJSON('[]') }}
+        include: ${{ inputs.include != 0 && fromJSON(inputs.include) || fromJSON('[]') }}
+        exclude: ${{ inputs.exclude != 0 && fromJSON(inputs.exclude) || fromJSON('[]') }}
 
     defaults:
       run:
