@@ -1,6 +1,8 @@
-name: Docgen
+name: Documentation generation and publishing
 on:
   push:
+    branches:
+      - master
   workflow_dispatch:
 
 
