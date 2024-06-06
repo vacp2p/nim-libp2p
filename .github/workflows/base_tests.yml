@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   delete_cache:
+    name: Delete github action's branch cache
     runs-on: ubuntu-latest
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
@@ -54,8 +55,8 @@ jobs:
         nim-branch:
           - version-1-6
           - version-2-0
-        include: ${{ fromJSON(inputs.include) }}
-        exclude: ${{ fromJSON(inputs.exclude) }}
+        include: ${{ fromJSON(inputs.include) || [] }}
+        exclude: ${{ fromJSON(inputs.exclude) || [] }}
 
     defaults:
       run:
