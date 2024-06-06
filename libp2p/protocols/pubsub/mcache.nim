@@ -28,8 +28,10 @@ type
 
 func get*(c: MCache, msgId: MessageId): Opt[Message] =
   if msgId in c.msgs:
-    try: Opt.some(c.msgs[msgId])
-    except KeyError: raiseAssert "checked"
+    try:
+      Opt.some(c.msgs[msgId])
+    except KeyError:
+      raiseAssert "checked"
   else:
     Opt.none(Message)
 
@@ -42,10 +44,9 @@ func put*(c: var MCache, msgId: MessageId, msg: Message) =
     c.history[c.pos].add(CacheEntry(msgId: msgId, topic: msg.topic))
 
 func window*(c: MCache, topic: string): HashSet[MessageId] =
-  let
-    len = min(c.windowSize, c.history.len)
+  let len = min(c.windowSize, c.history.len)
 
-  for i in 0..<len:
+  for i in 0 ..< len:
     # Work backwards from `pos` in the circular buffer
     for entry in c.history[(c.pos + c.history.len - i) mod c.history.len]:
       if entry.topic == topic:
@@ -62,7 +63,4 @@ func shift*(c: var MCache) =
   reset(c.history[c.pos])
 
 func init*(T: type MCache, window, history: Natural): T =
-  T(
-    history: newSeq[seq[CacheEntry]](history),
-    windowSize: window
-  )
+  T(history: newSeq[seq[CacheEntry]](history), windowSize: window)

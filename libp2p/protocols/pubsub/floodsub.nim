@@ -11,17 +11,18 @@
 
 import std/[sets, hashes, tables]
 import chronos, chronicles, metrics
-import ./pubsub,
-       ./pubsubpeer,
-       ./timedcache,
-       ./peertable,
-       ./rpc/[message, messages, protobuf],
-       nimcrypto/[hash, sha2],
-       ../../crypto/crypto,
-       ../../stream/connection,
-       ../../peerid,
-       ../../peerinfo,
-       ../../utility
+import
+  ./pubsub,
+  ./pubsubpeer,
+  ./timedcache,
+  ./peertable,
+  ./rpc/[message, messages, protobuf],
+  nimcrypto/[hash, sha2],
+  ../../crypto/crypto,
+  ../../stream/connection,
+  ../../peerid,
+  ../../peerinfo,
+  ../../utility
 
 ## Simple flood-based publishing.
 
@@ -30,17 +31,16 @@ logScope:
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 
-type
-  FloodSub* {.public.} = ref object of PubSub
-    floodsub*: PeerTable      # topic to remote peer map
-    seen*: TimedCache[SaltedId]
-      # Early filter for messages recently observed on the network
-      # We use a salted id because the messages in this cache have not yet
-      # been validated meaning that an attacker has greater control over the
-      # hash key and therefore could poison the table
-    seenSalt*: sha256
-      # The salt in this case is a partially updated SHA256 context pre-seeded
-      # with some random data
+type FloodSub* {.public.} = ref object of PubSub
+  floodsub*: PeerTable # topic to remote peer map
+  seen*: TimedCache[SaltedId]
+    # Early filter for messages recently observed on the network
+    # We use a salted id because the messages in this cache have not yet
+    # been validated meaning that an attacker has greater control over the
+    # hash key and therefore could poison the table
+  seenSalt*: sha256
+    # The salt in this case is a partially updated SHA256 context pre-seeded
+    # with some random data
 
 proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
   var tmp = f.seenSalt
@@ -57,10 +57,7 @@ proc addSeen*(f: FloodSub, saltedId: SaltedId): bool =
 proc firstSeen*(f: FloodSub, saltedId: SaltedId): Moment =
   f.seen.addedAt(saltedId)
 
-proc handleSubscribe(f: FloodSub,
-                     peer: PubSubPeer,
-                     topic: string,
-                     subscribe: bool) =
+proc handleSubscribe(f: FloodSub, peer: PubSubPeer, topic: string, subscribe: bool) =
   logScope:
     peer
     topic
@@ -73,7 +70,8 @@ proc handleSubscribe(f: FloodSub,
     trace "ignoring unknown peer"
     return
 
-  if subscribe and not(isNil(f.subscriptionValidator)) and not(f.subscriptionValidator(topic)):
+  if subscribe and not (isNil(f.subscriptionValidator)) and
+      not (f.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
     warn "ignoring invalid topic subscription", topic, peer
     return
@@ -103,9 +101,7 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
   procCall PubSub(f).unsubscribePeer(peer)
 
-method rpcHandler*(f: FloodSub,
-                   peer: PubSubPeer,
-                   data: seq[byte]) {.async.} =
+method rpcHandler*(f: FloodSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     raise newException(CatchableError, "Peer msg couldn't be decoded")
@@ -114,11 +110,13 @@ method rpcHandler*(f: FloodSub,
   # trigger hooks
   peer.recvObservers(rpcMsg)
 
-  for i in 0..<min(f.topicsHigh, rpcMsg.subscriptions.len):
-    template sub: untyped = rpcMsg.subscriptions[i]
+  for i in 0 ..< min(f.topicsHigh, rpcMsg.subscriptions.len):
+    template sub(): untyped =
+      rpcMsg.subscriptions[i]
+
     f.handleSubscribe(peer, sub.topic, sub.subscribe)
 
-  for msg in rpcMsg.messages:                         # for every message
+  for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
     if msgIdResult.isErr:
       debug "Dropping message due to failed message id generation",
@@ -194,9 +192,7 @@ method init*(f: FloodSub) =
   f.handler = handler
   f.codec = FloodSubCodec
 
-method publish*(f: FloodSub,
-                topic: string,
-                data: seq[byte]): Future[int] {.async.} =
+method publish*(f: FloodSub, topic: string, data: seq[byte]): Future[int] {.async.} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
 
@@ -220,12 +216,10 @@ method publish*(f: FloodSub,
         inc f.msgSeqno
         Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
     msgId = f.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish",
-        error = error
+      trace "Error generating message id, skipping publish", error = error
       return 0
 
-  trace "Created new message",
-    msg = shortLog(msg), peers = peers.len, topic, msgId
+  trace "Created new message", msg = shortLog(msg), peers = peers.len, topic, msgId
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this
@@ -242,8 +236,7 @@ method publish*(f: FloodSub,
 
   return peers.len
 
-method initPubSub*(f: FloodSub)
-  {.raises: [InitializationError].} =
+method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[SaltedId].init(2.minutes)
   f.seenSalt.init()

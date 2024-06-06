@@ -47,23 +47,29 @@ func expire*(t: var TimedCache, now: Moment = Moment.now()) =
     t.entries.excl(t.head)
     t.head.prev = nil
     t.head = t.head.next
-    if t.head == nil: t.tail = nil
+    if t.head == nil:
+      t.tail = nil
 
 func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
   # Removes existing key from cache, returning the previous value if present
   let tmp = TimedEntry[K](key: key)
   if tmp in t.entries:
-    let item = try:
-      t.entries[tmp] # use the shared instance in the set
-    except KeyError:
-      raiseAssert "just checked"
+    let item =
+      try:
+        t.entries[tmp] # use the shared instance in the set
+      except KeyError:
+        raiseAssert "just checked"
     t.entries.excl(item)
 
-    if t.head == item: t.head = item.next
-    if t.tail == item: t.tail = item.prev
+    if t.head == item:
+      t.head = item.next
+    if t.tail == item:
+      t.tail = item.prev
 
-    if item.next != nil: item.next.prev = item.prev
-    if item.prev != nil: item.prev.next = item.next
+    if item.next != nil:
+      item.next.prev = item.prev
+    if item.prev != nil:
+      item.prev.next = item.next
     Opt.some(item)
   else:
     Opt.none(TimedEntry[K])
@@ -76,10 +82,11 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
 
   let
     previous = t.del(k) # Refresh existing item
-    addedAt = if previous.isSome():
-      previous[].addedAt
-    else:
-      now
+    addedAt =
+      if previous.isSome():
+        previous[].addedAt
+      else:
+        now
 
   let node = TimedEntry[K](key: k, addedAt: addedAt, expiresAt: now + t.timeout)
   if t.head == nil:
@@ -122,6 +129,4 @@ func addedAt*[K](t: var TimedCache[K], k: K): Moment =
   default(Moment)
 
 func init*[K](T: type TimedCache[K], timeout: Duration = Timeout): T =
-  T(
-    timeout: timeout
-  )
+  T(timeout: timeout)
