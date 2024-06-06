@@ -10,29 +10,22 @@
 {.push raises: [].}
 
 import pkg/[chronos, chronicles, stew/byteutils]
-import ../../stream/connection,
-       ../../utility,
-       ../../varint,
-       ../../vbuffer,
-       ../muxer
+import ../../stream/connection, ../../utility, ../../varint, ../../vbuffer, ../muxer
 
 logScope:
   topics = "libp2p mplexcoder"
 
 type
   MessageType* {.pure.} = enum
-    New,
-    MsgIn,
-    MsgOut,
-    CloseIn,
-    CloseOut,
-    ResetIn,
+    New
+    MsgIn
+    MsgOut
+    CloseIn
+    CloseOut
+    ResetIn
     ResetOut
 
-  Msg* = tuple
-    id: uint64
-    msgType: MessageType
-    data: seq[byte]
+  Msg* = tuple[id: uint64, msgType: MessageType, data: seq[byte]]
 
   InvalidMplexMsgType* = object of MuxerError
 
@@ -44,8 +37,7 @@ proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
 
 proc readMsg*(
     conn: Connection
-): Future[Msg] {.async: (raises: [
-    CancelledError, LPStreamError, MuxerError]).} =
+): Future[Msg] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   let header = await conn.readVarint()
   trace "read header varint", varint = header, conn
 
@@ -59,12 +51,8 @@ proc readMsg*(
   return (header shr 3, MessageType(msgType), data)
 
 proc writeMsg*(
-    conn: Connection,
-    id: uint64,
-    msgType: MessageType,
-    data: seq[byte] = @[]
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true).} =
+    conn: Connection, id: uint64, msgType: MessageType, data: seq[byte] = @[]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   var
     left = data.len
     offset = 0
@@ -72,8 +60,11 @@ proc writeMsg*(
 
   # Split message into length-prefixed chunks
   while left > 0 or data.len == 0:
-    let
-      chunkSize = if left > MaxMsgSize: MaxMsgSize - 64 else: left
+    let chunkSize =
+      if left > MaxMsgSize:
+        MaxMsgSize - 64
+      else:
+        left
 
     buf.writePBVarint(id shl 3 or ord(msgType).uint64)
     buf.writeSeq(data.toOpenArray(offset, offset + chunkSize - 1))
@@ -91,10 +82,6 @@ proc writeMsg*(
   conn.write(buf.buffer)
 
 proc writeMsg*(
-    conn: Connection,
-    id: uint64,
-    msgType: MessageType,
-    data: string
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true).} =
+    conn: Connection, id: uint64, msgType: MessageType, data: string
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   conn.writeMsg(id, msgType, data.toBytes())

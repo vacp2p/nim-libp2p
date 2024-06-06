@@ -11,10 +11,8 @@
 
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics]
-import ./coder,
-       ../muxer,
-       ../../stream/[bufferstream, connection, streamseq],
-       ../../peerinfo
+import
+  ./coder, ../muxer, ../../stream/[bufferstream, connection, streamseq], ../../peerinfo
 
 export connection
 
@@ -22,7 +20,8 @@ logScope:
   topics = "libp2p mplexchannel"
 
 when defined(libp2p_mplex_metrics):
-  declareHistogram libp2p_mplex_qlen, "message queue length",
+  declareHistogram libp2p_mplex_qlen,
+    "message queue length",
     buckets = [0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0]
   declareCounter libp2p_mplex_qlenclose, "closed because of max queuelen"
   declareHistogram libp2p_mplex_qtime, "message queuing time"
@@ -43,36 +42,39 @@ when defined(libp2p_network_protocols_metrics):
 ## EOF marker
 
 const
-  MaxWrites = 1024 ##\
+  MaxWrites = 1024
+    ##\
     ## Maximum number of in-flight writes - after this, we disconnect the peer
 
   LPChannelTrackerName* = "LPChannel"
 
-type
-  LPChannel* = ref object of BufferStream
-    id*: uint64                   # channel id
-    name*: string                 # name of the channel (for debugging)
-    conn*: Connection             # wrapped connection used to for writing
-    initiator*: bool              # initiated remotely or locally flag
-    isOpen*: bool                 # has channel been opened
-    closedLocal*: bool            # has channel been closed locally
-    remoteReset*: bool            # has channel been remotely reset
-    localReset*: bool             # has channel been reset locally
-    msgCode*: MessageType         # cached in/out message code
-    closeCode*: MessageType       # cached in/out close code
-    resetCode*: MessageType       # cached in/out reset code
-    writes*: int                  # In-flight writes
+type LPChannel* = ref object of BufferStream
+  id*: uint64 # channel id
+  name*: string # name of the channel (for debugging)
+  conn*: Connection # wrapped connection used to for writing
+  initiator*: bool # initiated remotely or locally flag
+  isOpen*: bool # has channel been opened
+  closedLocal*: bool # has channel been closed locally
+  remoteReset*: bool # has channel been remotely reset
+  localReset*: bool # has channel been reset locally
+  msgCode*: MessageType # cached in/out message code
+  closeCode*: MessageType # cached in/out close code
+  resetCode*: MessageType # cached in/out reset code
+  writes*: int # In-flight writes
 
 func shortLog*(s: LPChannel): auto =
   try:
-    if s == nil: "LPChannel(nil)"
+    if s == nil:
+      "LPChannel(nil)"
     elif s.name != $s.oid and s.name.len > 0:
       &"{shortLog(s.conn.peerId)}:{s.oid}:{s.name}"
-    else: &"{shortLog(s.conn.peerId)}:{s.oid}"
+    else:
+      &"{shortLog(s.conn.peerId)}:{s.oid}"
   except ValueError as exc:
     raiseAssert(exc.msg)
 
-chronicles.formatIt(LPChannel): shortLog(it)
+chronicles.formatIt(LPChannel):
+  shortLog(it)
 
 proc open*(s: LPChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Opening channel", s, conn = s.conn
@@ -160,9 +162,7 @@ method initStream*(s: LPChannel) =
   procCall BufferStream(s).initStream()
 
 method readOnce*(
-    s: LPChannel,
-    pbytes: pointer,
-    nbytes: int
+    s: LPChannel, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Mplex relies on reading being done regularly from every channel, or all
   ## channels are blocked - in particular, this means that reading from one
@@ -180,7 +180,7 @@ method readOnce*(
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
     when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
-        libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.protocol, "in"])
+        libp2p_protocols_bytes.inc(bytes.int64, labelValues = [s.protocol, "in"])
 
     trace "readOnce", s, bytes
     if bytes == 0:
@@ -196,8 +196,7 @@ method readOnce*(
     raise newLPStreamConnDownError(exc)
 
 proc prepareWrite(
-    s: LPChannel,
-    msg: seq[byte]
+    s: LPChannel, msg: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
@@ -215,7 +214,7 @@ proc prepareWrite(
     debug "Closing connection, too many in-flight writes on channel",
       s, conn = s.conn, writes = s.writes
     when defined(libp2p_mplex_metrics):
-        libp2p_mplex_qlenclose.inc()
+      libp2p_mplex_qlenclose.inc()
     await s.reset()
     await s.conn.close()
     return
@@ -228,7 +227,7 @@ proc prepareWrite(
 proc completeWrite(
     s: LPChannel,
     fut: Future[void].Raising([CancelledError, LPStreamError]),
-    msgLen: int
+    msgLen: int,
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   try:
     s.writes += 1
@@ -244,8 +243,7 @@ proc completeWrite(
       if s.protocol.len > 0:
         # This crashes on Nim 2.0.2 with `--mm:orc` during `nimble test`
         # https://github.com/status-im/nim-metrics/issues/79
-        libp2p_protocols_bytes.inc(
-          msgLen.int64, labelValues = [s.protocol, "out"])
+        libp2p_protocols_bytes.inc(msgLen.int64, labelValues = [s.protocol, "out"])
 
     s.activity = true
   except CancelledError as exc:
@@ -266,15 +264,12 @@ proc completeWrite(
     s.writes -= 1
 
 method write*(
-    s: LPChannel,
-    msg: seq[byte]
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true).} =
+    s: LPChannel, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Write to mplex channel - there may be up to MaxWrite concurrent writes
   ## pending after which the peer is disconnected
 
-  let
-    closed = s.closedLocal or s.conn.closed
+  let closed = s.closedLocal or s.conn.closed
 
   let fut =
     if (not closed) and msg.len > 0 and s.writes < MaxWrites and s.isOpen:
@@ -287,7 +282,8 @@ method write*(
 
   s.completeWrite(fut, msg.len)
 
-method getWrapped*(s: LPChannel): Connection = s.conn
+method getWrapped*(s: LPChannel): Connection =
+  s.conn
 
 proc init*(
     L: type LPChannel,
@@ -295,7 +291,8 @@ proc init*(
     conn: Connection,
     initiator: bool,
     name: string = "",
-    timeout: Duration = DefaultChanTimeout): LPChannel =
+    timeout: Duration = DefaultChanTimeout,
+): LPChannel =
   let chann = L(
     id: id,
     name: name,
@@ -306,12 +303,17 @@ proc init*(
     msgCode: if initiator: MessageType.MsgOut else: MessageType.MsgIn,
     closeCode: if initiator: MessageType.CloseOut else: MessageType.CloseIn,
     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
-    dir: if initiator: Direction.Out else: Direction.In)
+    dir: if initiator: Direction.Out else: Direction.In,
+  )
 
   chann.initStream()
 
   when chronicles.enabledLogLevel == LogLevel.TRACE:
-    chann.name = if chann.name.len > 0: chann.name else: $chann.oid
+    chann.name =
+      if chann.name.len > 0:
+        chann.name
+      else:
+        $chann.oid
 
   trace "Created new lpchannel", s = chann, id, initiator
 
