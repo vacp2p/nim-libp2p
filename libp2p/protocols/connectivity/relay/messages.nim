@@ -11,8 +11,7 @@
 
 import macros
 import stew/[objects, results]
-import ../../../peerinfo,
-       ../../../signed_envelope
+import ../../../peerinfo, ../../../signed_envelope
 
 # Circuit Relay V1 Message
 
@@ -87,22 +86,22 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
 
   let pb = initProtoBuffer(buf)
 
-  if ? pb.getField(1, msgTypeOrd).toOpt():
+  if ?pb.getField(1, msgTypeOrd).toOpt():
     if msgTypeOrd.int notin RelayType:
       return Opt.none(RelayMessage)
     rMsg.msgType = Opt.some(RelayType(msgTypeOrd))
 
-  if ? pb.getField(2, pbSrc).toOpt():
-    discard ? pbSrc.getField(1, src.peerId).toOpt()
-    discard ? pbSrc.getRepeatedField(2, src.addrs).toOpt()
+  if ?pb.getField(2, pbSrc).toOpt():
+    discard ?pbSrc.getField(1, src.peerId).toOpt()
+    discard ?pbSrc.getRepeatedField(2, src.addrs).toOpt()
     rMsg.srcPeer = Opt.some(src)
 
-  if ? pb.getField(3, pbDst).toOpt():
-    discard ? pbDst.getField(1, dst.peerId).toOpt()
-    discard ? pbDst.getRepeatedField(2, dst.addrs).toOpt()
+  if ?pb.getField(3, pbDst).toOpt():
+    discard ?pbDst.getField(1, dst.peerId).toOpt()
+    discard ?pbDst.getRepeatedField(2, dst.addrs).toOpt()
     rMsg.dstPeer = Opt.some(dst)
 
-  if ? pb.getField(4, statusOrd).toOpt():
+  if ?pb.getField(4, statusOrd).toOpt():
     var status: StatusV1
     if not checkedEnumAssign(status, statusOrd):
       return Opt.none(RelayMessage)
@@ -111,19 +110,18 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
 
 # Voucher
 
-type
-  Voucher* = object
-    relayPeerId*: PeerId     # peer ID of the relay
-    reservingPeerId*: PeerId # peer ID of the reserving peer
-    expiration*: uint64      # UNIX UTC expiration time for the reservation
+type Voucher* = object
+  relayPeerId*: PeerId # peer ID of the relay
+  reservingPeerId*: PeerId # peer ID of the reserving peer
+  expiration*: uint64 # UNIX UTC expiration time for the reservation
 
 proc decode*(_: typedesc[Voucher], buf: seq[byte]): Result[Voucher, ProtoError] =
   let pb = initProtoBuffer(buf)
   var v = Voucher()
 
-  ? pb.getRequiredField(1, v.relayPeerId)
-  ? pb.getRequiredField(2, v.reservingPeerId)
-  ? pb.getRequiredField(3, v.expiration)
+  ?pb.getRequiredField(1, v.relayPeerId)
+  ?pb.getRequiredField(2, v.reservingPeerId)
+  ?pb.getRequiredField(3, v.expiration)
 
   ok(v)
 
@@ -137,20 +135,23 @@ proc encode*(v: Voucher): seq[byte] =
   pb.finish()
   pb.buffer
 
-proc init*(T: typedesc[Voucher],
-          relayPeerId: PeerId,
-          reservingPeerId: PeerId,
-          expiration: uint64): T =
+proc init*(
+    T: typedesc[Voucher],
+    relayPeerId: PeerId,
+    reservingPeerId: PeerId,
+    expiration: uint64,
+): T =
   T(
-    relayPeerId = relayPeerId,
-    reservingPeerId = reservingPeerId,
-    expiration: expiration
+    relayPeerId = relayPeerId, reservingPeerId = reservingPeerId, expiration: expiration
   )
 
 type SignedVoucher* = SignedPayload[Voucher]
 
-proc payloadDomain*(_: typedesc[Voucher]): string = "libp2p-relay-rsvp"
-proc payloadType*(_: typedesc[Voucher]): seq[byte] = @[ (byte)0x03, (byte)0x02 ]
+proc payloadDomain*(_: typedesc[Voucher]): string =
+  "libp2p-relay-rsvp"
+
+proc payloadType*(_: typedesc[Voucher]): seq[byte] =
+  @[(byte) 0x03, (byte) 0x02]
 
 proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
   if not spr.data.relayPeerId.match(spr.envelope.publicKey):
@@ -164,13 +165,15 @@ type
   Peer* = object
     peerId*: PeerId
     addrs*: seq[MultiAddress]
+
   Reservation* = object
-    expire*: uint64              # required, Unix expiration time (UTC)
-    addrs*: seq[MultiAddress]    # relay address for reserving peer
-    svoucher*: Opt[seq[byte]]    # optional, reservation voucher
+    expire*: uint64 # required, Unix expiration time (UTC)
+    addrs*: seq[MultiAddress] # relay address for reserving peer
+    svoucher*: Opt[seq[byte]] # optional, reservation voucher
+
   Limit* = object
-    duration*: uint32            # seconds
-    data*: uint64                # bytes
+    duration*: uint32 # seconds
+    data*: uint64 # bytes
 
   StatusV2* = enum
     Ok = 100
@@ -181,10 +184,12 @@ type
     NoReservation = 204
     MalformedMessage = 400
     UnexpectedMessage = 401
+
   HopMessageType* {.pure.} = enum
     Reserve = 0
     Connect = 1
     Status = 2
+
   HopMessage* = object
     msgType*: HopMessageType
     peer*: Opt[Peer]
@@ -214,8 +219,10 @@ proc encode*(msg: HopMessage): ProtoBuffer =
     pb.write(3, rpb.buffer)
   if msg.limit.duration > 0 or msg.limit.data > 0:
     var lpb = initProtoBuffer()
-    if msg.limit.duration > 0: lpb.write(1, msg.limit.duration)
-    if msg.limit.data > 0: lpb.write(2, msg.limit.data)
+    if msg.limit.duration > 0:
+      lpb.write(1, msg.limit.duration)
+    if msg.limit.data > 0:
+      lpb.write(2, msg.limit.data)
     lpb.finish()
     pb.write(4, lpb.buffer)
   msg.status.withValue(status):
@@ -229,35 +236,35 @@ proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Opt[HopMessage] =
   let pb = initProtoBuffer(buf)
 
   var msgTypeOrd: uint32
-  ? pb.getRequiredField(1, msgTypeOrd).toOpt()
+  ?pb.getRequiredField(1, msgTypeOrd).toOpt()
   if not checkedEnumAssign(msg.msgType, msgTypeOrd):
     return Opt.none(HopMessage)
 
   var pbPeer: ProtoBuffer
-  if ? pb.getField(2, pbPeer).toOpt():
+  if ?pb.getField(2, pbPeer).toOpt():
     var peer: Peer
-    ? pbPeer.getRequiredField(1, peer.peerId).toOpt()
-    discard ? pbPeer.getRepeatedField(2, peer.addrs).toOpt()
+    ?pbPeer.getRequiredField(1, peer.peerId).toOpt()
+    discard ?pbPeer.getRepeatedField(2, peer.addrs).toOpt()
     msg.peer = Opt.some(peer)
 
   var pbReservation: ProtoBuffer
-  if ? pb.getField(3, pbReservation).toOpt():
+  if ?pb.getField(3, pbReservation).toOpt():
     var
       svoucher: seq[byte]
       reservation: Reservation
-    if ? pbReservation.getField(3, svoucher).toOpt():
+    if ?pbReservation.getField(3, svoucher).toOpt():
       reservation.svoucher = Opt.some(svoucher)
-    ? pbReservation.getRequiredField(1, reservation.expire).toOpt()
-    discard ? pbReservation.getRepeatedField(2, reservation.addrs).toOpt()
+    ?pbReservation.getRequiredField(1, reservation.expire).toOpt()
+    discard ?pbReservation.getRepeatedField(2, reservation.addrs).toOpt()
     msg.reservation = Opt.some(reservation)
 
   var pbLimit: ProtoBuffer
-  if ? pb.getField(4, pbLimit).toOpt():
-    discard ? pbLimit.getField(1, msg.limit.duration).toOpt()
-    discard ? pbLimit.getField(2, msg.limit.data).toOpt()
+  if ?pb.getField(4, pbLimit).toOpt():
+    discard ?pbLimit.getField(1, msg.limit.duration).toOpt()
+    discard ?pbLimit.getField(2, msg.limit.data).toOpt()
 
   var statusOrd: uint32
-  if ? pb.getField(5, statusOrd).toOpt():
+  if ?pb.getField(5, statusOrd).toOpt():
     var status: StatusV2
     if not checkedEnumAssign(status, statusOrd):
       return Opt.none(HopMessage)
@@ -270,12 +277,12 @@ type
   StopMessageType* {.pure.} = enum
     Connect = 0
     Status = 1
+
   StopMessage* = object
     msgType*: StopMessageType
     peer*: Opt[Peer]
     limit*: Limit
     status*: Opt[StatusV2]
-
 
 proc encode*(msg: StopMessage): ProtoBuffer =
   var pb = initProtoBuffer()
@@ -290,8 +297,10 @@ proc encode*(msg: StopMessage): ProtoBuffer =
     pb.write(2, ppb.buffer)
   if msg.limit.duration > 0 or msg.limit.data > 0:
     var lpb = initProtoBuffer()
-    if msg.limit.duration > 0: lpb.write(1, msg.limit.duration)
-    if msg.limit.data > 0: lpb.write(2, msg.limit.data)
+    if msg.limit.duration > 0:
+      lpb.write(1, msg.limit.duration)
+    if msg.limit.data > 0:
+      lpb.write(2, msg.limit.data)
     lpb.finish()
     pb.write(3, lpb.buffer)
   msg.status.withValue(status):
@@ -306,26 +315,25 @@ proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Opt[StopMessage] =
   let pb = initProtoBuffer(buf)
 
   var msgTypeOrd: uint32
-  ? pb.getRequiredField(1, msgTypeOrd).toOpt()
+  ?pb.getRequiredField(1, msgTypeOrd).toOpt()
   if msgTypeOrd.int notin StopMessageType:
     return Opt.none(StopMessage)
   msg.msgType = StopMessageType(msgTypeOrd)
 
-
   var pbPeer: ProtoBuffer
-  if ? pb.getField(2, pbPeer).toOpt():
+  if ?pb.getField(2, pbPeer).toOpt():
     var peer: Peer
-    ? pbPeer.getRequiredField(1, peer.peerId).toOpt()
-    discard ? pbPeer.getRepeatedField(2, peer.addrs).toOpt()
+    ?pbPeer.getRequiredField(1, peer.peerId).toOpt()
+    discard ?pbPeer.getRepeatedField(2, peer.addrs).toOpt()
     msg.peer = Opt.some(peer)
 
   var pbLimit: ProtoBuffer
-  if ? pb.getField(3, pbLimit).toOpt():
-    discard ? pbLimit.getField(1, msg.limit.duration).toOpt()
-    discard ? pbLimit.getField(2, msg.limit.data).toOpt()
+  if ?pb.getField(3, pbLimit).toOpt():
+    discard ?pbLimit.getField(1, msg.limit.duration).toOpt()
+    discard ?pbLimit.getField(2, msg.limit.data).toOpt()
 
   var statusOrd: uint32
-  if ? pb.getField(4, statusOrd).toOpt():
+  if ?pb.getField(4, statusOrd).toOpt():
     var status: StatusV2
     if not checkedEnumAssign(status, statusOrd):
       return Opt.none(StopMessage)

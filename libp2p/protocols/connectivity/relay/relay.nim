@@ -13,18 +13,19 @@ import sequtils, tables
 
 import chronos, chronicles
 
-import ./messages,
-       ./rconn,
-       ./utils,
-       ../../../peerinfo,
-       ../../../switch,
-       ../../../multiaddress,
-       ../../../multicodec,
-       ../../../stream/connection,
-       ../../../protocols/protocol,
-       ../../../errors,
-       ../../../utils/heartbeat,
-       ../../../signed_envelope
+import
+  ./messages,
+  ./rconn,
+  ./utils,
+  ../../../peerinfo,
+  ../../../switch,
+  ../../../multiaddress,
+  ../../../multicodec,
+  ../../../stream/connection,
+  ../../../protocols/protocol,
+  ../../../errors,
+  ../../../utils/heartbeat,
+  ../../../signed_envelope
 
 # TODO:
 # * Eventually replace std/times by chronos/timer. Currently chronos/timer
@@ -54,47 +55,53 @@ type
 
 # Relay Side
 
-type
-  Relay* = ref object of LPProtocol
-    switch*: Switch
-    peerCount: CountTable[PeerId]
+type Relay* = ref object of LPProtocol
+  switch*: Switch
+  peerCount: CountTable[PeerId]
 
-    # number of reservation (relayv2) + number of connection (relayv1)
-    maxCircuit*: int
+  # number of reservation (relayv2) + number of connection (relayv1)
+  maxCircuit*: int
 
-    maxCircuitPerPeer*: int
-    msgSize*: int
-    # RelayV1
-    isCircuitRelayV1*: bool
-    streamCount: int
-    # RelayV2
-    rsvp: Table[PeerId, DateTime]
-    reservationLoop: Future[void]
-    reservationTTL*: times.Duration
-    heartbeatSleepTime*: uint32
-    limit*: Limit
+  maxCircuitPerPeer*: int
+  msgSize*: int
+  # RelayV1
+  isCircuitRelayV1*: bool
+  streamCount: int
+  # RelayV2
+  rsvp: Table[PeerId, DateTime]
+  reservationLoop: Future[void]
+  reservationTTL*: times.Duration
+  heartbeatSleepTime*: uint32
+  limit*: Limit
 
 # Relay V2
 
 proc createReserveResponse(
-    r: Relay,
-    pid: PeerId,
-    expire: DateTime): Result[HopMessage, CryptoError] =
+    r: Relay, pid: PeerId, expire: DateTime
+): Result[HopMessage, CryptoError] =
   let
     expireUnix = expire.toTime.toUnix.uint64
-    v = Voucher(relayPeerId: r.switch.peerInfo.peerId,
-                  reservingPeerId: pid,
-                  expiration: expireUnix)
-    sv = ? SignedVoucher.init(r.switch.peerInfo.privateKey, v)
-    ma = ? MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).orErr(CryptoError.KeyError)
-    rsrv = Reservation(expire: expireUnix,
-                       addrs: r.switch.peerInfo.addrs.mapIt(
-                         ? it.concat(ma).orErr(CryptoError.KeyError)),
-                       svoucher: Opt.some(? sv.encode))
-    msg = HopMessage(msgType: HopMessageType.Status,
-                     reservation: Opt.some(rsrv),
-                     limit: r.limit,
-                     status: Opt.some(Ok))
+    v = Voucher(
+      relayPeerId: r.switch.peerInfo.peerId,
+      reservingPeerId: pid,
+      expiration: expireUnix,
+    )
+    sv = ?SignedVoucher.init(r.switch.peerInfo.privateKey, v)
+    ma =
+      ?MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).orErr(
+        CryptoError.KeyError
+      )
+    rsrv = Reservation(
+      expire: expireUnix,
+      addrs: r.switch.peerInfo.addrs.mapIt(?it.concat(ma).orErr(CryptoError.KeyError)),
+      svoucher: Opt.some(?sv.encode),
+    )
+    msg = HopMessage(
+      msgType: HopMessageType.Status,
+      reservation: Opt.some(rsrv),
+      limit: r.limit,
+      status: Opt.some(Ok),
+    )
   return ok(msg)
 
 proc isRelayed*(conn: Connection): bool =
@@ -126,9 +133,7 @@ proc handleReserve(r: Relay, conn: Connection) {.async.} =
   r.rsvp[pid] = expire
   await conn.writeLp(encode(msg).buffer)
 
-proc handleConnect(r: Relay,
-                   connSrc: Connection,
-                   msg: HopMessage) {.async.} =
+proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
   if connSrc.isRelayed():
     trace "connection attempt over relay connection"
     await sendHopStatus(connSrc, PermissionDenied)
@@ -150,38 +155,42 @@ proc handleConnect(r: Relay,
     r.peerCount.inc(src, -1)
     r.peerCount.inc(dst, -1)
 
-  if r.peerCount[src] > r.maxCircuitPerPeer or
-     r.peerCount[dst] > r.maxCircuitPerPeer:
-    trace "too many connections", src = r.peerCount[src],
-                                  dst = r.peerCount[dst],
-                                  max = r.maxCircuitPerPeer
+  if r.peerCount[src] > r.maxCircuitPerPeer or r.peerCount[dst] > r.maxCircuitPerPeer:
+    trace "too many connections",
+      src = r.peerCount[src], dst = r.peerCount[dst], max = r.maxCircuitPerPeer
     await sendHopStatus(connSrc, ResourceLimitExceeded)
     return
 
-  let connDst = try:
-    await r.switch.dial(dst, RelayV2StopCodec)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error opening relay stream", dst, exc=exc.msg
-    await sendHopStatus(connSrc, ConnectionFailed)
-    return
+  let connDst =
+    try:
+      await r.switch.dial(dst, RelayV2StopCodec)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "error opening relay stream", dst, exc = exc.msg
+      await sendHopStatus(connSrc, ConnectionFailed)
+      return
   defer:
     await connDst.close()
 
   proc sendStopMsg() {.async.} =
-    let stopMsg = StopMessage(msgType: StopMessageType.Connect,
-                            peer: Opt.some(Peer(peerId: src, addrs: @[])),
-                            limit: r.limit)
+    let stopMsg = StopMessage(
+      msgType: StopMessageType.Connect,
+      peer: Opt.some(Peer(peerId: src, addrs: @[])),
+      limit: r.limit,
+    )
     await connDst.writeLp(encode(stopMsg).buffer)
     let msg = StopMessage.decode(await connDst.readLp(r.msgSize)).valueOr:
       raise newException(SendStopError, "Malformed message")
     if msg.msgType != StopMessageType.Status:
-      raise newException(SendStopError, "Unexpected stop response, not a status message")
+      raise
+        newException(SendStopError, "Unexpected stop response, not a status message")
     if msg.status.get(UnexpectedMessage) != Ok:
       raise newException(SendStopError, "Relay stop failure")
-    await connSrc.writeLp(encode(HopMessage(msgType: HopMessageType.Status,
-                                          status: Opt.some(Ok))).buffer)
+    await connSrc.writeLp(
+      encode(HopMessage(msgType: HopMessageType.Status, status: Opt.some(Ok))).buffer
+    )
+
   try:
     await sendStopMsg()
   except CancelledError as exc:
@@ -205,20 +214,24 @@ proc handleHopStreamV2*(r: Relay, conn: Connection) {.async.} =
     await sendHopStatus(conn, MalformedMessage)
     return
   trace "relayv2 handle stream", msg = msg
-  case msg.msgType:
-  of HopMessageType.Reserve: await r.handleReserve(conn)
-  of HopMessageType.Connect: await r.handleConnect(conn, msg)
+  case msg.msgType
+  of HopMessageType.Reserve:
+    await r.handleReserve(conn)
+  of HopMessageType.Connect:
+    await r.handleConnect(conn, msg)
   else:
-    trace "Unexpected relayv2 handshake", msgType=msg.msgType
+    trace "Unexpected relayv2 handshake", msgType = msg.msgType
     await sendHopStatus(conn, MalformedMessage)
 
 # Relay V1
 
 proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
   r.streamCount.inc()
-  defer: r.streamCount.dec()
+  defer:
+    r.streamCount.dec()
   if r.streamCount + r.rsvp.len() >= r.maxCircuit:
-    trace "refusing connection; too many active circuit", streamCount = r.streamCount, rsvp = r.rsvp.len()
+    trace "refusing connection; too many active circuit",
+      streamCount = r.streamCount, rsvp = r.rsvp.len()
     await sendStatus(connSrc, StatusV1.HopCantSpeakRelay)
     return
 
@@ -236,13 +249,14 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
       trace "relay not connected to dst", dst
       return err(StatusV1.HopNoConnToDst)
     ok(msg)
+
   let check = checkMsg()
   if check.isErr:
     await sendStatus(connSrc, check.error())
     return
 
   if r.peerCount[src.peerId] >= r.maxCircuitPerPeer or
-     r.peerCount[dst.peerId] >= r.maxCircuitPerPeer:
+      r.peerCount[dst.peerId] >= r.maxCircuitPerPeer:
     trace "refusing connection; too many connection from src or to dst", src, dst
     await sendStatus(connSrc, StatusV1.HopCantSpeakRelay)
     return
@@ -252,31 +266,32 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
     r.peerCount.inc(src.peerId, -1)
     r.peerCount.inc(dst.peerId, -1)
 
-  let connDst = try:
-    await r.switch.dial(dst.peerId, RelayV1Codec)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error opening relay stream", dst, exc=exc.msg
-    await sendStatus(connSrc, StatusV1.HopCantDialDst)
-    return
+  let connDst =
+    try:
+      await r.switch.dial(dst.peerId, RelayV1Codec)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "error opening relay stream", dst, exc = exc.msg
+      await sendStatus(connSrc, StatusV1.HopCantDialDst)
+      return
   defer:
     await connDst.close()
 
   let msgToSend = RelayMessage(
-    msgType: Opt.some(RelayType.Stop),
-    srcPeer: Opt.some(src),
-    dstPeer: Opt.some(dst))
+    msgType: Opt.some(RelayType.Stop), srcPeer: Opt.some(src), dstPeer: Opt.some(dst)
+  )
 
-  let msgRcvFromDstOpt = try:
-    await connDst.writeLp(encode(msgToSend).buffer)
-    RelayMessage.decode(await connDst.readLp(r.msgSize))
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "error writing stop handshake or reading stop response", exc=exc.msg
-    await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
-    return
+  let msgRcvFromDstOpt =
+    try:
+      await connDst.writeLp(encode(msgToSend).buffer)
+      RelayMessage.decode(await connDst.readLp(r.msgSize))
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      trace "error writing stop handshake or reading stop response", exc = exc.msg
+      await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
+      return
 
   let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
     trace "error reading stop response", msg = msgRcvFromDstOpt
@@ -284,7 +299,7 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
     return
 
   if msgRcvFromDst.msgType.get(RelayType.Stop) != RelayType.Status or
-     msgRcvFromDst.status.get(StatusV1.StopRelayRefused) != StatusV1.Success:
+      msgRcvFromDst.status.get(StatusV1.StopRelayRefused) != StatusV1.Success:
     trace "unexcepted relay stop response", msgRcvFromDst
     await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
     return
@@ -303,44 +318,54 @@ proc handleStreamV1(r: Relay, conn: Connection) {.async.} =
     trace "Message type not set"
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
-  case typ:
-    of RelayType.Hop: await r.handleHop(conn, msg)
-    of RelayType.Stop: await sendStatus(conn, StatusV1.StopRelayRefused)
-    of RelayType.CanHop: await sendStatus(conn, StatusV1.Success)
-    else:
-      trace "Unexpected relay handshake", msgType=msg.msgType
-      await sendStatus(conn, StatusV1.MalformedMessage)
+  case typ
+  of RelayType.Hop:
+    await r.handleHop(conn, msg)
+  of RelayType.Stop:
+    await sendStatus(conn, StatusV1.StopRelayRefused)
+  of RelayType.CanHop:
+    await sendStatus(conn, StatusV1.Success)
+  else:
+    trace "Unexpected relay handshake", msgType = msg.msgType
+    await sendStatus(conn, StatusV1.MalformedMessage)
 
 proc setup*(r: Relay, switch: Switch) =
   r.switch = switch
   r.switch.addPeerEventHandler(
-    proc (peerId: PeerId, event: PeerEvent) {.async.} =
-      r.rsvp.del(peerId),
-    Left)
+    proc(peerId: PeerId, event: PeerEvent) {.async.} =
+      r.rsvp.del(peerId)
+    ,
+    Left,
+  )
 
-proc new*(T: typedesc[Relay],
-     reservationTTL: times.Duration = DefaultReservationTTL,
-     limitDuration: uint32 = DefaultLimitDuration,
-     limitData: uint64 = DefaultLimitData,
-     heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
-     maxCircuit: int = MaxCircuit,
-     maxCircuitPerPeer: int = MaxCircuitPerPeer,
-     msgSize: int = RelayMsgSize,
-     circuitRelayV1: bool = false): T =
-
-  let r = T(reservationTTL: reservationTTL,
-            limit: Limit(duration: limitDuration, data: limitData),
-            heartbeatSleepTime: heartbeatSleepTime,
-            maxCircuit: maxCircuit,
-            maxCircuitPerPeer: maxCircuitPerPeer,
-            msgSize: msgSize,
-            isCircuitRelayV1: circuitRelayV1)
+proc new*(
+    T: typedesc[Relay],
+    reservationTTL: times.Duration = DefaultReservationTTL,
+    limitDuration: uint32 = DefaultLimitDuration,
+    limitData: uint64 = DefaultLimitData,
+    heartbeatSleepTime: uint32 = DefaultHeartbeatSleepTime,
+    maxCircuit: int = MaxCircuit,
+    maxCircuitPerPeer: int = MaxCircuitPerPeer,
+    msgSize: int = RelayMsgSize,
+    circuitRelayV1: bool = false,
+): T =
+  let r = T(
+    reservationTTL: reservationTTL,
+    limit: Limit(duration: limitDuration, data: limitData),
+    heartbeatSleepTime: heartbeatSleepTime,
+    maxCircuit: maxCircuit,
+    maxCircuitPerPeer: maxCircuitPerPeer,
+    msgSize: msgSize,
+    isCircuitRelayV1: circuitRelayV1,
+  )
 
   proc handleStream(conn: Connection, proto: string) {.async.} =
     try:
-      case proto:
-      of RelayV2HopCodec: await r.handleHopStreamV2(conn)
-      of RelayV1Codec: await r.handleStreamV1(conn)
+      case proto
+      of RelayV2HopCodec:
+        await r.handleHopStreamV2(conn)
+      of RelayV1Codec:
+        await r.handleStreamV1(conn)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -349,8 +374,11 @@ proc new*(T: typedesc[Relay],
       trace "exiting relayv2 handler", conn
       await conn.close()
 
-  r.codecs = if r.isCircuitRelayV1: @[RelayV1Codec]
-             else: @[RelayV2HopCodec, RelayV1Codec]
+  r.codecs =
+    if r.isCircuitRelayV1:
+      @[RelayV1Codec]
+    else:
+      @[RelayV2HopCodec, RelayV1Codec]
   r.handler = handleStream
   r
 
@@ -361,9 +389,7 @@ proc deletesReservation(r: Relay) {.async.} =
       if n > r.rsvp[k]:
         r.rsvp.del(k)
 
-method start*(
-    r: Relay
-): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+method start*(r: Relay): Future[void] {.async: (raises: [CancelledError], raw: true).} =
   let fut = newFuture[void]()
   fut.complete()
   if not r.reservationLoop.isNil:
