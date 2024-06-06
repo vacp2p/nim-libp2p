@@ -10,14 +10,13 @@
 {.push raises: [].}
 
 import chronos, chronicles, times, tables, sequtils
-import ../switch,
-       ../protocols/connectivity/relay/[client, utils]
+import ../switch, ../protocols/connectivity/relay/[client, utils]
 
 logScope:
   topics = "libp2p autorelay"
 
 type
-  OnReservationHandler = proc (addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
+  OnReservationHandler = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
 
   AutoRelayService* = ref object of Service
     running: bool
@@ -36,16 +35,17 @@ proc isRunning*(self: AutoRelayService): bool =
   return self.running
 
 proc addressMapper(
-  self: AutoRelayService,
-  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
+    self: AutoRelayService, listenAddrs: seq[MultiAddress]
+): Future[seq[MultiAddress]] {.async.} =
   return concat(toSeq(self.relayAddresses.values)) & listenAddrs
 
-proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, switch: Switch) {.async.} =
+proc reserveAndUpdate(
+    self: AutoRelayService, relayPid: PeerId, switch: Switch
+) {.async.} =
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
-      relayedAddr = rsvp.addrs.mapIt(
-        MultiAddress.init($it & "/p2p-circuit").tryGet())
+      relayedAddr = rsvp.addrs.mapIt(MultiAddress.init($it & "/p2p-circuit").tryGet())
       ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
     if ttl <= 60:
       # A reservation under a minute is basically useless
@@ -59,7 +59,9 @@ proc reserveAndUpdate(self: AutoRelayService, relayPid: PeerId, switch: Switch) 
     await sleepAsync chronos.seconds(ttl - 30)
 
 method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
-  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
+  self.addressMapper = proc(
+      listenAddrs: seq[MultiAddress]
+  ): Future[seq[MultiAddress]] {.async.} =
     return await addressMapper(self, listenAddrs)
 
   let hasBeenSetUp = await procCall Service(self).setup(switch)
@@ -68,10 +70,12 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
       trace "Peer Joined", peerId
       if self.relayPeers.len < self.numRelays:
         self.peerAvailable.fire()
+
     proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async.} =
       trace "Peer Left", peerId
       self.relayPeers.withValue(peerId, future):
         future[].cancel()
+
     switch.addPeerEventHandler(handlePeerJoined, Joined)
     switch.addPeerEventHandler(handlePeerLeft, Left)
     switch.peerInfo.addressMappers.add(self.addressMapper)
@@ -100,9 +104,10 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
     # Get all connected relayPeers
     self.peerAvailable.clear()
     var connectedPeers = switch.connectedPeers(Direction.Out)
-    connectedPeers.keepItIf(RelayV2HopCodec in switch.peerStore[ProtoBook][it] and
-                            it notin self.relayPeers and
-                            it notin self.backingOff)
+    connectedPeers.keepItIf(
+      RelayV2HopCodec in switch.peerStore[ProtoBook][it] and it notin self.relayPeers and
+        it notin self.backingOff
+    )
     self.rng.shuffle(connectedPeers)
 
     for relayPid in connectedPeers:
@@ -135,13 +140,17 @@ method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
   result = concat(toSeq(self.relayAddresses.values))
 
-proc new*(T: typedesc[AutoRelayService],
-          numRelays: int,
-          client: RelayClient,
-          onReservation: OnReservationHandler,
-          rng: ref HmacDrbgContext): T =
-  T(numRelays: numRelays,
+proc new*(
+    T: typedesc[AutoRelayService],
+    numRelays: int,
+    client: RelayClient,
+    onReservation: OnReservationHandler,
+    rng: ref HmacDrbgContext,
+): T =
+  T(
+    numRelays: numRelays,
     client: client,
     onReservation: onReservation,
     peerAvailable: newAsyncEvent(),
-    rng: rng)
+    rng: rng,
+  )
