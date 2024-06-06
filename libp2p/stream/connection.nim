@@ -12,10 +12,7 @@
 import std/[hashes, oids, strformat]
 import stew/results
 import chronicles, chronos, metrics
-import lpstream,
-       ../multiaddress,
-       ../peerinfo,
-       ../errors
+import lpstream, ../multiaddress, ../peerinfo, ../errors
 
 export lpstream, peerinfo, errors, results
 
@@ -30,14 +27,14 @@ type
   TimeoutHandler* = proc(): Future[void] {.async: (raises: []).}
 
   Connection* = ref object of LPStream
-    activity*: bool  # reset every time data is sent or received
-    timeout*: Duration  # channel timeout if no activity
-    timerTaskFut: Future[void].Raising([])  # the current timer instance
+    activity*: bool # reset every time data is sent or received
+    timeout*: Duration # channel timeout if no activity
+    timerTaskFut: Future[void].Raising([]) # the current timer instance
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
     observedAddr*: Opt[MultiAddress]
-    protocol*: string  # protocol used by the connection, used as metrics tag
-    transportDir*: Direction  # underlying transport (usually socket) direction
+    protocol*: string # protocol used by the connection, used as metrics tag
+    transportDir*: Direction # underlying transport (usually socket) direction
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
@@ -45,12 +42,15 @@ proc timeoutMonitor(s: Connection) {.async: (raises: []).}
 
 func shortLog*(conn: Connection): string =
   try:
-    if conn == nil: "Connection(nil)"
-    else: &"{shortLog(conn.peerId)}:{conn.oid}"
+    if conn == nil:
+      "Connection(nil)"
+    else:
+      &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raiseAssert(exc.msg)
 
-chronicles.formatIt(Connection): shortLog(it)
+chronicles.formatIt(Connection):
+  shortLog(it)
 
 method initStream*(s: Connection) =
   if s.objName.len == 0:
@@ -65,10 +65,9 @@ method initStream*(s: Connection) =
 
     s.timerTaskFut = s.timeoutMonitor()
     if s.timeoutHandler == nil:
-      s.timeoutHandler =
-        proc(): Future[void] {.async: (raises: [], raw: true).} =
-          trace "Idle timeout expired, closing connection", s
-          s.close()
+      s.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
+        trace "Idle timeout expired, closing connection", s
+        s.close()
 
 method closeImpl*(s: Connection): Future[void] {.async: (raises: []).} =
   # Cleanup timeout timer
@@ -140,11 +139,14 @@ proc new*(
     dir: Direction,
     observedAddr: Opt[MultiAddress],
     timeout: Duration = DefaultConnectionTimeout,
-    timeoutHandler: TimeoutHandler = nil): Connection =
-  result = C(peerId: peerId,
-             dir: dir,
-             timeout: timeout,
-             timeoutHandler: timeoutHandler,
-             observedAddr: observedAddr)
+    timeoutHandler: TimeoutHandler = nil,
+): Connection =
+  result = C(
+    peerId: peerId,
+    dir: dir,
+    timeout: timeout,
+    timeoutHandler: timeoutHandler,
+    observedAddr: observedAddr,
+  )
 
   result.initStream()
