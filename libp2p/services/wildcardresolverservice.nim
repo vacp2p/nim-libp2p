@@ -40,9 +40,9 @@ proc isLoopbackOrUp(networkInterface: NetworkInterface): bool =
       (networkInterface.state == StatusUp): true else: false
 
 proc getAddresses(addrFamily: AddressFamily): seq[InterfaceAddress] =
-  ## This method retrieves the addresses of network interfaces based on the specified address family.
+  ## Retrieves the addresses of network interfaces based on the specified address family.
   ##
-  ## The `getAddresses` method filters the available network interfaces to include only
+  ## It filters the available network interfaces to include only
   ## those that are either loopback or up. It then collects all the addresses from these
   ## interfaces and filters them to match the provided address family.
   ##
