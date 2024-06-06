@@ -1,8 +1,9 @@
-import std/[os, options, strformat]
+import std/[os, options, strformat, sequtils]
 import redis
 import chronos, chronicles
 import ../../libp2p/[builders,
                   switch,
+                  multicodec,
                   observedaddrmanager,
                   services/hpservice,
                   services/autorelayservice,
@@ -76,7 +77,7 @@ proc main() {.async.} =
     debug "Connected to relay", relayId
 
     # Wait for our relay address to be published
-    while switch.peerInfo.addrs.len == 0:
+    while not switch.peerInfo.addrs.anyIt(it.contains(multiCodec("p2p-circuit")).tryGet()):
       await sleepAsync(100.milliseconds)
 
     if isListener:
