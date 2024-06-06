@@ -352,7 +352,7 @@ method getOrCreatePeer*(
 ,
     protoNegotiated: string = ""): PubSubPeer {.base, gcsafe.} =
   p.peers.withValue(peerId, peer):
-    if peer[].codec == "" and protoNegotiated != "":
+    if peer[].codec == "":
       peer[].codec = protoNegotiated
     return peer[]
 
