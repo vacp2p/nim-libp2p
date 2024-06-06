@@ -62,7 +62,7 @@ jobs:
       run:
         shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.branch }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim-branch }})'
     runs-on: ${{ matrix.platform.builder }}
     continue-on-error: ${{ matrix.nim-branch == 'version-2-0' }}
     steps:
