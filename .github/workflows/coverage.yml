@@ -44,25 +44,35 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
-
-      - name: Run
+      
+      - name: Install coverage tools and setup
         run: |
           sudo apt-get update
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
+
+      - name: Run coverage-enabled test suite
+        run: |
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
           nimble testnative
           nimble testpubsub
           nimble testfilter
+      
+      - name: Run coverage
+        run: |
           find nimcache -name *.c -delete
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           shopt -s globstar
           ls `pwd`/libp2p/{*,**/*}.nim
           lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --output-directory coverage/output
+      
+      - name: Upload coverage to codecov
+        run: |
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
 
-          #- uses: actions/upload-artifact@master
-          #  with:
-          #    name: coverage
-          #    path: coverage
+        # Alternatively, use the upload artifact action
+        # - uses: actions/upload-artifact@master
+        #  with:
+        #    name: coverage
+        #    path: coverage
