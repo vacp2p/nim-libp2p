@@ -23,7 +23,7 @@ import stubs/autonatclientstub
 proc createSwitch(autonatSvc: Service = nil, withAutonat = true, maxConnsPerPeer = 1, maxConns = 100, nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
+    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ], false)
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMaxConnections(maxConns)
