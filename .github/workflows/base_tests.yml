@@ -37,11 +37,11 @@ jobs:
       matrix:
         platform:
           - os: linux
-            builder: ubuntu-20
+            builder: ubuntu-20.04
             cpu: amd64
             shell: bash
           - os: linux
-            builder: ubuntu-20
+            builder: ubuntu-20.04
             cpu: i386
             shell: bash
           - os: macos
