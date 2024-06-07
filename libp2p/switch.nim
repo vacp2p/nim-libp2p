@@ -349,13 +349,11 @@ proc start*(s: Switch) {.async, public.} =
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.listenAddrs &= t.addrs
 
-  await s.peerInfo.update()
-
-  await s.ms.start()
-
   for service in s.services:
     discard await service.setup(s)
 
+  await s.peerInfo.update()
+  await s.ms.start()
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
