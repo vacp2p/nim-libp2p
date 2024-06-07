@@ -20,7 +20,7 @@ import ./helpers
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
   var builder = SwitchBuilder.new()
     .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
+    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ], false)
     .withTcpTransport()
     .withMplex()
     .withNoise()
