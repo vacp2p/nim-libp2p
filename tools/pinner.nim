@@ -14,14 +14,15 @@ discard execCmd("nimble install -dy")
 
 var allDeps: Table[string, string]
 let nimblePkgs =
-  if dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
-  else: "nimbledeps/pkgs2"
+  if dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs" else: "nimbledeps/pkgs2"
 for (_, dependency) in walkDir(nimblePkgs):
   let
     jsonContent = parseJson(readFile(dependency & "/nimblemeta.json"))
     fileContent =
-      if "metaData" in jsonContent: jsonContent["metaData"]
-      else: jsonContent
+      if "metaData" in jsonContent:
+        jsonContent["metaData"]
+      else:
+        jsonContent
   let url = fileContent.getOrDefault("url").getStr("")
   var version = fileContent.getOrDefault("vcsRevision").getStr("")
   var packageName = dependency.split('/')[^1].split('-')[0]
