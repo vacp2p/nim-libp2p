@@ -27,17 +27,24 @@
 ##   7. Message: required bytes
 import os
 import nimcrypto/utils, stew/endians2
-import protobuf/minprotobuf, stream/connection, protocols/secure/secure,
-       multiaddress, peerid, varint, muxers/mplex/coder
+import
+  protobuf/minprotobuf,
+  stream/connection,
+  protocols/secure/secure,
+  multiaddress,
+  peerid,
+  varint,
+  muxers/mplex/coder
 
-from times import getTime, toUnix, fromUnix, nanosecond, format, Time,
-                  NanosecondRange, initTime
+from times import
+  getTime, toUnix, fromUnix, nanosecond, format, Time, NanosecondRange, initTime
 from strutils import toHex, repeat
 export peerid, multiaddress
 
 type
   FlowDirection* = enum
-    Outgoing, Incoming
+    Outgoing
+    Incoming
 
   ProtoMessage* = object
     timestamp*: uint64
@@ -48,11 +55,10 @@ type
     local*: Opt[MultiAddress]
     remote*: Opt[MultiAddress]
 
-const
-  libp2p_dump_dir* {.strdefine.} = "nim-libp2p"
-    ## default directory where all the dumps will be stored, if the path
-    ## relative it will be created in home directory. You can overload this path
-    ## using ``-d:libp2p_dump_dir=<otherpath>``.
+const libp2p_dump_dir* {.strdefine.} = "nim-libp2p"
+  ## default directory where all the dumps will be stored, if the path
+  ## relative it will be created in home directory. You can overload this path
+  ## using ``-d:libp2p_dump_dir=<otherpath>``.
 
 proc getTimestamp(): uint64 =
   ## This procedure is present because `stdlib.times` missing it.
@@ -65,8 +71,7 @@ proc getTimedate(value: uint64): string =
   let time = initTime(int64(value div 1_000_000_000), value mod 1_000_000_000)
   time.format("yyyy-MM-dd HH:mm:ss'.'fffzzz")
 
-proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
-                  data: openArray[byte]) =
+proc dumpMessage*(conn: SecureConn, direction: FlowDirection, data: openArray[byte]) =
   ## Store unencrypted message ``data`` to dump file, all the metadata will be
   ## extracted from ``conn`` instance.
   var pb = initProtoBuffer(options = {WithVarintLength})
@@ -87,7 +92,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
 
   # This is debugging procedure so it should not generate any exceptions,
   # and we going to return at every possible OS error.
-  if not(dirExists(dirName)):
+  if not (dirExists(dirName)):
     try:
       createDir(dirName)
     except CatchableError:
@@ -153,13 +158,11 @@ iterator messages*(data: seq[byte]): Opt[ProtoMessage] =
   while offset < len(data):
     value = 0
     size = 0
-    let res = PB.getUVarint(data.toOpenArray(offset, len(data) - 1),
-                            size, value)
+    let res = PB.getUVarint(data.toOpenArray(offset, len(data) - 1), size, value)
     if res.isOk():
       if (value > 0'u64) and (value < uint64(len(data) - offset)):
         offset += size
-        yield decodeDumpMessage(data.toOpenArray(offset,
-                                                 offset + int(value) - 1))
+        yield decodeDumpMessage(data.toOpenArray(offset, offset + int(value) - 1))
         # value is previously checked to be less then len(data) which is `int`.
         offset += int(value)
       else:
@@ -179,10 +182,15 @@ proc dumpHex*(pbytes: openArray[byte], groupBy = 1, ascii = true): string =
 
     for k in 0 ..< groupBy:
       let ch = pbytes[offset + k]
-      ascii.add(if ord(ch) > 31 and ord(ch) < 127: char(ch) else: '.')
+      ascii.add(
+        if ord(ch) > 31 and ord(ch) < 127:
+          char(ch)
+        else:
+          '.'
+      )
 
     let item =
-      case groupBy:
+      case groupBy
       of 1:
         toHex(pbytes[offset])
       of 2:
@@ -204,8 +212,7 @@ proc dumpHex*(pbytes: openArray[byte], groupBy = 1, ascii = true): string =
       res.add("\p")
 
   if (offset mod 16) != 0:
-    let spacesCount = ((16 - (offset mod 16)) div groupBy) *
-                        (groupBy * 2 + 1) + 1
+    let spacesCount = ((16 - (offset mod 16)) div groupBy) * (groupBy * 2 + 1) + 1
     res = res & repeat(' ', spacesCount)
     res = res & ascii
 
@@ -233,25 +240,30 @@ proc toString*(msg: ProtoMessage, dump = true): string =
   var res = getTimedate(msg.timestamp)
   let direction =
     case msg.direction
-    of Incoming:
-      " << "
-    of Outgoing:
-      " >> "
-  let address =
-    block:
-      let local = block:
-        msg.local.withValue(loc): "[" & $loc & "]"
-        else: "[LOCAL]"
-      let remote = block:
-        msg.remote.withValue(rem): "[" & $rem & "]"
-        else: "[REMOTE]"
-      local & direction & remote
+    of Incoming: " << "
+    of Outgoing: " >> "
+  let address = block:
+    let local = block:
+      msg.local.withValue(loc):
+        "[" & $loc & "]"
+      else:
+        "[LOCAL]"
+    let remote = block:
+      msg.remote.withValue(rem):
+        "[" & $rem & "]"
+      else:
+        "[REMOTE]"
+    local & direction & remote
   let seqid = block:
-    msg.seqID.withValue(seqid): "seqID = " & $seqid & " "
-    else: ""
+    msg.seqID.withValue(seqid):
+      "seqID = " & $seqid & " "
+    else:
+      ""
   let mtype = block:
-    msg.mtype.withValue(typ): "type = " & $typ & " "
-    else: ""
+    msg.mtype.withValue(typ):
+      "type = " & $typ & " "
+    else:
+      ""
   res.add(" ")
   res.add(address)
   res.add(" ")

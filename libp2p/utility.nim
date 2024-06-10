@@ -14,16 +14,12 @@ import stew/[byteutils, results]
 
 export results
 
-template public* {.pragma.}
+template public*() {.pragma.}
 
-const
-  ShortDumpMax = 12
+const ShortDumpMax = 12
 
 template compilesOr*(a, b: untyped): untyped =
-  when compiles(a):
-    a
-  else:
-    b
+  when compiles(a): a else: b
 
 func shortLog*(item: openArray[byte]): string =
   if item.len <= ShortDumpMax:
@@ -45,9 +41,9 @@ func shortLog*(item: string): string =
       split = ShortDumpMax div 2
       dumpLen = ShortDumpMax + 3
     result = newStringOfCap(dumpLen)
-    result &= item[0..<split]
+    result &= item[0 ..< split]
     result &= "..."
-    result &= item[(item.len - split)..item.high]
+    result &= item[(item.len - split) .. item.high]
 
 when defined(libp2p_agents_metrics):
   import strutils
@@ -78,12 +74,15 @@ template exceptionToAssert*(body: untyped): untyped =
   block:
     var res: type(body)
     when defined(nimHasWarnBareExcept):
-      {.push warning[BareExcept]:off.}
+      {.push warning[BareExcept]: off.}
     try:
       res = body
-    except CatchableError as exc: raise exc
-    except Defect as exc: raise exc
-    except Exception as exc: raiseAssert exc.msg
+    except CatchableError as exc:
+      raise exc
+    except Defect as exc:
+      raise exc
+    except Exception as exc:
+      raiseAssert exc.msg
     when defined(nimHasWarnBareExcept):
       {.pop.}
     res
@@ -117,7 +116,7 @@ template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
 
 macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): untyped =
   let elseBody = elseStmt[0]
-  quote do:
+  quote:
     let temp = (`self`)
     if temp.isSome:
       let `value` {.inject.} = temp.get()
@@ -135,7 +134,9 @@ template valueOr*[T](self: Option[T], body: untyped): untyped =
 template toOpt*[T, E](self: Result[T, E]): Opt[T] =
   let temp = (self)
   if temp.isOk:
-    when T is void: Result[void, void].ok()
-    else: Opt.some(temp.unsafeGet())
+    when T is void:
+      Result[void, void].ok()
+    else:
+      Opt.some(temp.unsafeGet())
   else:
     Opt.none(type(T))

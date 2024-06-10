@@ -10,10 +10,11 @@
 ## This module implements transcoder interface.
 import vbuffer
 
-type
-  Transcoder* = object
-    stringToBuffer*: proc(s: string,
-                          vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [].}
-    bufferToString*: proc(vb: var VBuffer,
-                          s: var string): bool {.nimcall, gcsafe, noSideEffect, raises: [].}
-    validateBuffer*: proc(vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [].}
+type Transcoder* = object
+  stringToBuffer*:
+    proc(s: string, vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [].}
+  bufferToString*: proc(vb: var VBuffer, s: var string): bool {.
+    nimcall, gcsafe, noSideEffect, raises: []
+  .}
+  validateBuffer*:
+    proc(vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [].}

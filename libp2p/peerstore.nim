@@ -29,7 +29,8 @@ import
   ./crypto/crypto,
   ./protocols/identify,
   ./protocols/protocol,
-  ./peerid, ./peerinfo,
+  ./peerid,
+  ./peerinfo,
   ./routing_record,
   ./multiaddress,
   ./stream/connection,
@@ -41,7 +42,6 @@ type
   #################
   # Handler types #
   #################
-
   PeerBookChangeHandler* = proc(peerId: PeerId) {.gcsafe, raises: [].}
 
   #########
@@ -69,31 +69,26 @@ type
   ####################
   # Peer store types #
   ####################
-
   PeerStore* {.public.} = ref object
     books: Table[string, BasePeerBook]
     identify: Identify
     capacity*: int
     toClean*: seq[PeerId]
 
-proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore {.public.} =
-  T(
-    identify: identify,
-    capacity: capacity
-  )
+proc new*(
+    T: type PeerStore, identify: Identify, capacity = 1000
+): PeerStore {.public.} =
+  T(identify: identify, capacity: capacity)
 
 #########################
 # Generic Peer Book API #
 #########################
 
-proc `[]`*[T](peerBook: PeerBook[T],
-             peerId: PeerId): T {.public.} =
+proc `[]`*[T](peerBook: PeerBook[T], peerId: PeerId): T {.public.} =
   ## Get all known metadata of a provided peer, or default(T) if missing
   peerBook.book.getOrDefault(peerId)
 
-proc `[]=`*[T](peerBook: PeerBook[T],
-             peerId: PeerId,
-             entry: T) {.public.} =
+proc `[]=`*[T](peerBook: PeerBook[T], peerId: PeerId, entry: T) {.public.} =
   ## Set metadata for a given peerId.
 
   peerBook.book[peerId] = entry
@@ -102,8 +97,7 @@ proc `[]=`*[T](peerBook: PeerBook[T],
   for handler in peerBook.changeHandlers:
     handler(peerId)
 
-proc del*[T](peerBook: PeerBook[T],
-                peerId: PeerId): bool {.public.} =
+proc del*[T](peerBook: PeerBook[T], peerId: PeerId): bool {.public.} =
   ## Delete the provided peer from the book. Returns whether the peer was in the book
 
   if peerId notin peerBook.book:
@@ -122,7 +116,8 @@ proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) {.pub
   ## Adds a callback that will be called everytime the book changes
   peerBook.changeHandlers.add(handler)
 
-proc len*[T](peerBook: PeerBook[T]): int {.public.} = peerBook.book.len
+proc len*[T](peerBook: PeerBook[T]): int {.public.} =
+  peerBook.book.len
 
 ##################
 # Peer Store API #
@@ -145,16 +140,12 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T {.public.} =
     p.books[name] = result
   return result
 
-proc del*(peerStore: PeerStore,
-             peerId: PeerId) {.public.} =
+proc del*(peerStore: PeerStore, peerId: PeerId) {.public.} =
   ## Delete the provided peer from every book.
   for _, book in peerStore.books:
     book.deletor(peerId)
 
-proc updatePeerInfo*(
-  peerStore: PeerStore,
-  info: IdentifyInfo) =
-
+proc updatePeerInfo*(peerStore: PeerStore, info: IdentifyInfo) =
   if info.addrs.len > 0:
     peerStore[AddressBook][info.peerId] = info.addrs
 
@@ -177,10 +168,7 @@ proc updatePeerInfo*(
   if cleanupPos >= 0:
     peerStore.toClean.delete(cleanupPos)
 
-proc cleanup*(
-  peerStore: PeerStore,
-  peerId: PeerId) =
-
+proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
   if peerStore.capacity == 0:
     peerStore.del(peerId)
     return
@@ -193,10 +181,7 @@ proc cleanup*(
     peerStore.del(peerStore.toClean[0])
     peerStore.toClean.delete(0)
 
-proc identify*(
-  peerStore: PeerStore,
-  muxer: Muxer) {.async.} =
-
+proc identify*(peerStore: PeerStore, muxer: Muxer) {.async.} =
   # new stream for identify
   var stream = await muxer.newStream()
   if stream == nil:
@@ -209,7 +194,8 @@ proc identify*(
       when defined(libp2p_agents_metrics):
         var
           knownAgent = "unknown"
-          shortAgent = info.agentVersion.get("").split("/")[0].safeToLowerAscii().get("")
+          shortAgent =
+            info.agentVersion.get("").split("/")[0].safeToLowerAscii().get("")
         if KnownLibP2PAgentsSeq.contains(shortAgent):
           knownAgent = shortAgent
         muxer.connection.setShortAgent(knownAgent)
