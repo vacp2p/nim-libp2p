@@ -20,14 +20,15 @@ import libp2p/discovery/discoverymngr
 ##
 ## Note that other discovery methods such as [Kademlia](https://github.com/libp2p/specs/blob/master/kad-dht/README.md) or [discv5](https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md) exist.
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder.new()
-    .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
-    .withTcpTransport()
-    .withYamux()
-    .withNoise()
-    .withRendezVous(rdv)
-    .build()
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withYamux()
+  .withNoise()
+  .withRendezVous(rdv)
+  .build()
 
 # Create a really simple protocol to log one message received then close the stream
 const DumbCodec = "/dumb/proto/1.0.0"
@@ -36,6 +37,7 @@ proc new(T: typedesc[DumbProto], nodeNumber: int): T =
   proc handle(conn: Connection, proto: string) {.async.} =
     echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
     await conn.close()
+
   return T.new(codecs = @[DumbCodec], handler = handle)
 
 ## ## Bootnodes
@@ -58,7 +60,7 @@ proc main() {.async.} =
     switches: seq[Switch] = @[]
     discManagers: seq[DiscoveryManager] = @[]
 
-  for i in 0..5:
+  for i in 0 .. 5:
     let rdv = RendezVous.new()
     # Create a remote future to await at the end of the program
     let switch = createSwitch(rdv)
@@ -93,7 +95,7 @@ proc main() {.async.} =
 
   # Use the discovery manager to find peers on the OddClub topic to greet them
   let queryOddClub = dm.request(RdvNamespace("OddClub"))
-  for _ in 0..2:
+  for _ in 0 .. 2:
     let
       # getPeer give you a PeerAttribute containing informations about the peer.
       res = await queryOddClub.getPeer()
@@ -109,7 +111,7 @@ proc main() {.async.} =
 
   # Maybe it was because he wanted to join the EvenGang
   let queryEvenGang = dm.request(RdvNamespace("EvenGang"))
-  for _ in 0..2:
+  for _ in 0 .. 2:
     let
       res = await queryEvenGang.getPeer()
       conn = await newcomer.dial(res[PeerId], res.getAll(MultiAddress), DumbCodec)
