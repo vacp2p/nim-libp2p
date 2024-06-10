@@ -11,16 +11,20 @@
 
 import chronos, options
 import ../libp2p
-import ../libp2p/[crypto/crypto,
-                  protocols/connectivity/relay/relay,
-                  protocols/connectivity/relay/client,
-                  services/autorelayservice]
+import
+  ../libp2p/[
+    crypto/crypto,
+    protocols/connectivity/relay/relay,
+    protocols/connectivity/relay/client,
+    services/autorelayservice,
+  ]
 import ./helpers
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
-  var builder = SwitchBuilder.new()
+  var builder = SwitchBuilder
+    .new()
     .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ], false)
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
     .withTcpTransport()
     .withMplex()
     .withNoise()
@@ -29,10 +33,13 @@ proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
     builder = builder.withServices(@[autorelay])
   builder.build()
 
-
 proc buildRelayMA(switchRelay: Switch, switchClient: Switch): MultiAddress =
-  MultiAddress.init($switchRelay.peerInfo.addrs[0] & "/p2p/" &
-                    $switchRelay.peerInfo.peerId & "/p2p-circuit").get()
+  MultiAddress
+  .init(
+    $switchRelay.peerInfo.addrs[0] & "/p2p/" & $switchRelay.peerInfo.peerId &
+      "/p2p-circuit"
+  )
+  .get()
 
 suite "Autorelay":
   asyncTeardown:
@@ -49,9 +56,12 @@ suite "Autorelay":
     relayClient = RelayClient.new()
     let fut = newFuture[void]()
     proc checkMA(addresses: seq[MultiAddress]) =
-      check: addresses[0] == buildRelayMA(switchRelay, switchClient)
-      check: addresses.len() == 1
+      check:
+        addresses[0] == buildRelayMA(switchRelay, switchClient)
+      check:
+        addresses.len() == 1
       fut.complete()
+
     autorelay = AutoRelayService.new(3, relayClient, checkMA, newRng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
@@ -68,8 +78,10 @@ suite "Autorelay":
     relayClient = RelayClient.new()
     let fut = newFuture[void]()
     proc checkMA(address: seq[MultiAddress]) =
-      check: address[0] == buildRelayMA(switchRelay, switchClient)
+      check:
+        address[0] == buildRelayMA(switchRelay, switchClient)
       fut.complete()
+
     let autorelay = AutoRelayService.new(3, relayClient, checkMA, newRng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
@@ -112,6 +124,7 @@ suite "Autorelay":
           addresses.len() == 2
         state += 1
         fut.complete()
+
     let autorelay = AutoRelayService.new(2, relayClient, checkMA, newRng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), rel1.start(), rel2.start(), rel3.start())

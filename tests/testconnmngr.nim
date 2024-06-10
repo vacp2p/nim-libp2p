@@ -9,31 +9,24 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sequtils,tables]
+import std/[sequtils, tables]
 import stew/results
 import chronos
-import ../libp2p/[connmanager,
-                  stream/connection,
-                  crypto/crypto,
-                  muxers/muxer,
-                  peerinfo,
-                  errors]
+import
+  ../libp2p/
+    [connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo, errors]
 
 import helpers
 
 proc getMuxer(peerId: PeerId, dir: Direction = Direction.In): Muxer =
   return Muxer(connection: Connection.new(peerId, dir, Opt.none(MultiAddress)))
 
-type
-  TestMuxer = ref object of Muxer
-    peerId: PeerId
+type TestMuxer = ref object of Muxer
+  peerId: PeerId
 
 method newStream*(
-    m: TestMuxer,
-    name: string = "",
-    lazy: bool = false
-): Future[Connection] {.async: (raises: [
-    CancelledError, LPStreamError, MuxerError]).} =
+    m: TestMuxer, name: string = "", lazy: bool = false
+): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   Connection.new(m.peerId, Direction.Out, Opt.none(MultiAddress))
 
 suite "Connection Manager":
@@ -57,9 +50,10 @@ suite "Connection Manager":
   asyncTest "get all connections":
     let connMngr = ConnManager.new()
 
-    let peers = toSeq(0..<2).mapIt(PeerId.random.tryGet())
-    let muxs = toSeq(0..<2).mapIt(getMuxer(peers[it]))
-    for mux in muxs: connMngr.storeMuxer(mux)
+    let peers = toSeq(0 ..< 2).mapIt(PeerId.random.tryGet())
+    let muxs = toSeq(0 ..< 2).mapIt(getMuxer(peers[it]))
+    for mux in muxs:
+      connMngr.storeMuxer(mux)
 
     let conns = connMngr.getConnections()
     let connsMux = toSeq(conns.values).mapIt(it[0])
@@ -140,7 +134,7 @@ suite "Connection Manager":
     check muxer in connMngr
 
     let stream = await connMngr.getStream(peerId)
-    check not(isNil(stream))
+    check not (isNil(stream))
     check stream.peerId == peerId
 
     await connMngr.close()
@@ -160,7 +154,7 @@ suite "Connection Manager":
     check muxer in connMngr
 
     let stream1 = await connMngr.getStream(peerId, Direction.In)
-    check not(isNil(stream1))
+    check not (isNil(stream1))
     let stream2 = await connMngr.getStream(peerId, Direction.Out)
     check isNil(stream2)
 
@@ -181,8 +175,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-    await allFuturesThrowing(
-      allFutures(muxs.mapIt( it.close() )))
+    await allFuturesThrowing(allFutures(muxs.mapIt(it.close())))
 
   asyncTest "expect connection from peer":
     # FIXME This should be 1 instead of 0, it will get fixed soon
@@ -191,9 +184,7 @@ suite "Connection Manager":
 
     connMngr.storeMuxer(getMuxer(peerId))
 
-    let muxs = @[
-        getMuxer(peerId),
-        getMuxer(peerId)]
+    let muxs = @[getMuxer(peerId), getMuxer(peerId)]
 
     expect TooManyConnectionsError:
       connMngr.storeMuxer(muxs[0])
@@ -206,7 +197,9 @@ suite "Connection Manager":
     await waitedConn1.cancelAndWait()
     let
       waitedConn2 = connMngr.expectConnection(peerId, In)
-      waitedConn3 = connMngr.expectConnection(PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(), In)
+      waitedConn3 = connMngr.expectConnection(
+        PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(), In
+      )
       conn = getMuxer(peerId)
     connMngr.storeMuxer(conn)
     check (await waitedConn2) == conn
@@ -216,10 +209,10 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-    checkUntilTimeout: waitedConn3.cancelled()
+    checkUntilTimeout:
+      waitedConn3.cancelled()
 
-    await allFuturesThrowing(
-      allFutures(muxs.mapIt( it.close() )))
+    await allFuturesThrowing(allFutures(muxs.mapIt(it.close())))
 
   asyncTest "cleanup on connection close":
     let connMngr = ConnManager.new()
@@ -232,7 +225,8 @@ suite "Connection Manager":
 
     await muxer.close()
 
-    checkUntilTimeout: muxer notin connMngr
+    checkUntilTimeout:
+      muxer notin connMngr
 
     await connMngr.close()
 
@@ -240,22 +234,21 @@ suite "Connection Manager":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
-    for i in 0..<2:
-      let dir = if i mod 2 == 0:
-        Direction.In else:
-        Direction.Out
+    for i in 0 ..< 2:
+      let dir = if i mod 2 == 0: Direction.In else: Direction.Out
 
       let muxer = getMuxer(peerId, dir)
 
       connMngr.storeMuxer(muxer)
 
       check muxer in connMngr
-      check not(isNil(connMngr.selectMuxer(peerId, dir)))
+      check not (isNil(connMngr.selectMuxer(peerId, dir)))
 
     check peerId in connMngr
     await connMngr.dropPeer(peerId)
 
-    checkUntilTimeout: peerId notin connMngr
+    checkUntilTimeout:
+      peerId notin connMngr
     check isNil(connMngr.selectMuxer(peerId, Direction.In))
     check isNil(connMngr.selectMuxer(peerId, Direction.Out))
 
@@ -264,18 +257,18 @@ suite "Connection Manager":
   asyncTest "track total incoming connection limits":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
     # should timeout adding a connection over the limit
-    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
+    check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
 
   asyncTest "track total outgoing connection limits":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
 
     # should throw adding a connection over the limit
@@ -287,18 +280,18 @@ suite "Connection Manager":
   asyncTest "track both incoming and outgoing total connections limits - fail on incoming":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
 
     # should timeout adding a connection over the limit
-    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
+    check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
 
   asyncTest "track both incoming and outgoing total connections limits - fail on outgoing":
     let connMngr = ConnManager.new(maxConnections = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
     # should throw adding a connection over the limit
@@ -310,17 +303,17 @@ suite "Connection Manager":
   asyncTest "track max incoming connection limits":
     let connMngr = ConnManager.new(maxIn = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
-    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
+    check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
 
   asyncTest "track max outgoing connection limits":
     let connMngr = ConnManager.new(maxOut = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
 
     # should throw adding a connection over the limit
@@ -332,18 +325,18 @@ suite "Connection Manager":
   asyncTest "track incoming max connections limits - fail on incoming":
     let connMngr = ConnManager.new(maxOut = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
 
     # should timeout adding a connection over the limit
-    check not(await connMngr.getIncomingSlot().withTimeout(10.millis))
+    check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
     await connMngr.close()
 
   asyncTest "track incoming max connections limits - fail on outgoing":
     let connMngr = ConnManager.new(maxIn = 3)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
     # should throw adding a connection over the limit
@@ -355,7 +348,7 @@ suite "Connection Manager":
   asyncTest "allow force dial":
     let connMngr = ConnManager.new(maxConnections = 2)
 
-    for i in 0..<3:
+    for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot(true)
 
     # should throw adding a connection over the limit
@@ -368,13 +361,13 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     var muxs: seq[Muxer]
-    for i in 0..<3:
+    for i in 0 ..< 3:
       let slot = connMngr.getOutgoingSlot()
 
-      let muxer =
-        getMuxer(
-          PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
-          Direction.In)
+      let muxer = getMuxer(
+        PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(),
+        Direction.In,
+      )
 
       slot.trackMuxer(muxer)
       muxs.add(muxer)
@@ -384,8 +377,7 @@ suite "Connection Manager":
 
     check (await incomingSlot.withTimeout(10.millis)) == false
 
-    await allFuturesThrowing(
-      allFutures(muxs.mapIt( it.close() )))
+    await allFuturesThrowing(allFutures(muxs.mapIt(it.close())))
 
     check await incomingSlot.withTimeout(10.millis)
 

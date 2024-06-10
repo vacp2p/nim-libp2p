@@ -9,17 +9,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2,
-      ../libp2p/multiaddress,
-      ../libp2p/observedaddrmanager,
-      ./helpers
+import unittest2, ../libp2p/multiaddress, ../libp2p/observedaddrmanager, ./helpers
 
 suite "ObservedAddrManager":
   teardown:
     checkTrackers()
 
   asyncTest "Calculate the most oberserved IP correctly":
-
     let observedAddrManager = ObservedAddrManager.new(minCount = 3)
 
     # Calculate the most oberserved IP4 correctly
@@ -35,7 +31,8 @@ suite "ObservedAddrManager":
       observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.0/tcp/2").get())
       observedAddrManager.addObservation(MultiAddress.init("/ip4/1.2.3.1/tcp/1").get())
 
-      observedAddrManager.guessDialableAddr(maIP4) == MultiAddress.init("/ip4/1.2.3.0/tcp/80").get()
+      observedAddrManager.guessDialableAddr(maIP4) ==
+        MultiAddress.init("/ip4/1.2.3.0/tcp/80").get()
       observedAddrManager.getMostObservedProtosAndPorts().len == 0
 
       observedAddrManager.addObservation(mostObservedIP4AndPort)
@@ -55,12 +52,14 @@ suite "ObservedAddrManager":
       observedAddrManager.addObservation(MultiAddress.init("/ip6/::2/tcp/2").get())
       observedAddrManager.addObservation(MultiAddress.init("/ip6/::3/tcp/1").get())
 
-      observedAddrManager.guessDialableAddr(maIP6) == MultiAddress.init("/ip6/::2/tcp/80").get()
+      observedAddrManager.guessDialableAddr(maIP6) ==
+        MultiAddress.init("/ip6/::2/tcp/80").get()
       observedAddrManager.getMostObservedProtosAndPorts().len == 1
 
       observedAddrManager.addObservation(mostObservedIP6AndPort)
 
-      observedAddrManager.getMostObservedProtosAndPorts() == @[mostObservedIP4AndPort, mostObservedIP6AndPort]
+      observedAddrManager.getMostObservedProtosAndPorts() ==
+        @[mostObservedIP4AndPort, mostObservedIP6AndPort]
 
   asyncTest "replace first proto value by most observed when there is only one protocol":
     let observedAddrManager = ObservedAddrManager.new(minCount = 3)
@@ -71,5 +70,5 @@ suite "ObservedAddrManager":
       observedAddrManager.addObservation(mostObservedIP4AndPort)
       observedAddrManager.addObservation(mostObservedIP4AndPort)
 
-      observedAddrManager.guessDialableAddr(
-        MultiAddress.init("/ip4/0.0.0.0").get()) == MultiAddress.init("/ip4/1.2.3.4").get()
+      observedAddrManager.guessDialableAddr(MultiAddress.init("/ip4/0.0.0.0").get()) ==
+        MultiAddress.init("/ip4/1.2.3.4").get()

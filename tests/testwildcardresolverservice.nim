@@ -48,7 +48,7 @@ proc createSwitch(svc: Service): Switch =
       MultiAddress.init("/ip4/0.0.0.0/tcp/0/").tryGet(),
       MultiAddress.init("/ip6/::/tcp/0/").tryGet(),
     ],
-    false
+    false,
   )
   .withTcpTransport()
   .withMplex()

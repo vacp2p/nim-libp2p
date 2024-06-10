@@ -11,18 +11,21 @@
 
 import options
 import chronos
-import ../libp2p/[protocols/identify,
-                  multiaddress,
-                  peerinfo,
-                  peerid,
-                  stream/connection,
-                  multistream,
-                  transports/transport,
-                  switch,
-                  builders,
-                  transports/tcptransport,
-                  crypto/crypto,
-                  upgrademngrs/upgrade]
+import
+  ../libp2p/[
+    protocols/identify,
+    multiaddress,
+    peerinfo,
+    peerid,
+    stream/connection,
+    multistream,
+    transports/transport,
+    switch,
+    builders,
+    transports/tcptransport,
+    crypto/crypto,
+    upgrademngrs/upgrade,
+  ]
 import ./helpers
 
 suite "Identify":
@@ -47,10 +50,8 @@ suite "Identify":
     asyncSetup:
       ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
-      remotePeerInfo = PeerInfo.new(
-        remoteSecKey,
-        ma,
-        ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
+      remotePeerInfo =
+        PeerInfo.new(remoteSecKey, ma, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
 
       transport1 = TcpTransport.new(upgrade = Upgrade())
       transport2 = TcpTransport.new(upgrade = Upgrade())
@@ -161,11 +162,12 @@ suite "Identify":
       identifyPush2 {.threadvar.}: IdentifyPush
       conn {.threadvar.}: Connection
     asyncSetup:
-      switch1 = newStandardSwitch(sendSignedPeerRecord=true)
-      switch2 = newStandardSwitch(sendSignedPeerRecord=true)
+      switch1 = newStandardSwitch(sendSignedPeerRecord = true)
+      switch2 = newStandardSwitch(sendSignedPeerRecord = true)
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
+
       proc updateStore2(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch2.peerStore.updatePeerInfo(info)
 
@@ -179,9 +181,8 @@ suite "Identify":
       await switch2.start()
 
       conn = await switch2.dial(
-        switch1.peerInfo.peerId,
-        switch1.peerInfo.addrs,
-        IdentifyPushCodec)
+        switch1.peerInfo.peerId, switch1.peerInfo.addrs, IdentifyPushCodec
+      )
 
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
@@ -190,17 +191,25 @@ suite "Identify":
         switch1.peerStore[KeyBook][switch2.peerInfo.peerId] == switch2.peerInfo.publicKey
         switch2.peerStore[KeyBook][switch1.peerInfo.peerId] == switch1.peerInfo.publicKey
 
-        switch1.peerStore[AgentBook][switch2.peerInfo.peerId] == switch2.peerInfo.agentVersion
-        switch2.peerStore[AgentBook][switch1.peerInfo.peerId] == switch1.peerInfo.agentVersion
+        switch1.peerStore[AgentBook][switch2.peerInfo.peerId] ==
+          switch2.peerInfo.agentVersion
+        switch2.peerStore[AgentBook][switch1.peerInfo.peerId] ==
+          switch1.peerInfo.agentVersion
 
-        switch1.peerStore[ProtoVersionBook][switch2.peerInfo.peerId] == switch2.peerInfo.protoVersion
-        switch2.peerStore[ProtoVersionBook][switch1.peerInfo.peerId] == switch1.peerInfo.protoVersion
+        switch1.peerStore[ProtoVersionBook][switch2.peerInfo.peerId] ==
+          switch2.peerInfo.protoVersion
+        switch2.peerStore[ProtoVersionBook][switch1.peerInfo.peerId] ==
+          switch1.peerInfo.protoVersion
 
-        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
-        switch2.peerStore[ProtoBook][switch1.peerInfo.peerId] == switch1.peerInfo.protocols
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] ==
+          switch2.peerInfo.protocols
+        switch2.peerStore[ProtoBook][switch1.peerInfo.peerId] ==
+          switch1.peerInfo.protocols
 
-        switch1.peerStore[SPRBook][switch2.peerInfo.peerId] == switch2.peerInfo.signedPeerRecord.envelope
-        switch2.peerStore[SPRBook][switch1.peerInfo.peerId] == switch1.peerInfo.signedPeerRecord.envelope
+        switch1.peerStore[SPRBook][switch2.peerInfo.peerId] ==
+          switch2.peerInfo.signedPeerRecord.envelope
+        switch2.peerStore[SPRBook][switch1.peerInfo.peerId] ==
+          switch1.peerInfo.signedPeerRecord.envelope
 
     proc closeAll() {.async.} =
       await conn.close()
@@ -214,12 +223,16 @@ suite "Identify":
 
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
-        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] != switch2.peerInfo.protocols
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
+          switch2.peerInfo.protocols
 
       await identifyPush2.push(switch2.peerInfo, conn)
 
-      checkUntilTimeout: switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
-      checkUntilTimeout: switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
+      checkUntilTimeout:
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] ==
+          switch2.peerInfo.protocols
+      checkUntilTimeout:
+        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
 
       await closeAll()
 
@@ -229,7 +242,8 @@ suite "Identify":
 
       check:
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
-        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] != switch2.peerInfo.protocols
+        switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
+          switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
       switch2.peerInfo = PeerInfo.new(PrivateKey.random(newRng()[]).get())

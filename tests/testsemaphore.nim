@@ -97,7 +97,7 @@ suite "AsyncSemaphore":
         await sema.acquire()
         resource.inc()
         check resource > 0 and resource <= 3
-        let sleep = rand(0..10).millis
+        let sleep = rand(0 .. 10).millis
         # echo sleep
         await sleepAsync(sleep)
       finally:
@@ -105,7 +105,7 @@ suite "AsyncSemaphore":
         sema.release()
 
     var tasks: seq[Future[void]]
-    for i in 0..<10:
+    for i in 0 ..< 10:
       tasks.add(task())
 
     await allFutures(tasks)
@@ -134,7 +134,7 @@ suite "AsyncSemaphore":
   asyncTest "should handle out of order cancellations":
     let sema = newAsyncSemaphore(1)
 
-    await sema.acquire()      # 1st acquire
+    await sema.acquire() # 1st acquire
     let tmp1 = sema.acquire() # 2nd acquire
     check not tmp1.finished()
 
@@ -160,7 +160,8 @@ suite "AsyncSemaphore":
     let sema = newAsyncSemaphore(1)
 
     await sema.acquire()
-    check not(await sema.acquire().withTimeout(1.millis)) # should not acquire but cancel
+    check not (await sema.acquire().withTimeout(1.millis))
+      # should not acquire but cancel
     sema.release()
 
     check await sema.acquire().withTimeout(10.millis)
@@ -169,7 +170,8 @@ suite "AsyncSemaphore":
     let sema = newAsyncSemaphore(1)
 
     await sema.acquire()
-    check not(await sema.acquire().withTimeout(1.millis)) # should not acquire but cancel
+    check not (await sema.acquire().withTimeout(1.millis))
+      # should not acquire but cancel
 
     let
       fut1 = sema.acquire()
@@ -188,7 +190,6 @@ suite "AsyncSemaphore":
     check:
       fut1.finished()
       fut2.finished()
-
 
     sema.forceAcquire()
     sema.forceAcquire()

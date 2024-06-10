@@ -13,12 +13,15 @@
 
 import tables
 import chronos, stew/[byteutils]
-import ../libp2p/[stream/connection,
-                  transports/tcptransport,
-                  transports/tortransport,
-                  upgrademngrs/upgrade,
-                  multiaddress,
-                  builders]
+import
+  ../libp2p/[
+    stream/connection,
+    transports/tcptransport,
+    transports/tortransport,
+    upgrademngrs/upgrade,
+    multiaddress,
+    builders,
+  ]
 
 import ./helpers, ./stubs/torstub, ./commontransport
 
@@ -31,8 +34,14 @@ suite "Tor transport":
     stub.registerAddr("127.0.0.1:8080", "/ip4/127.0.0.1/tcp/8080")
     stub.registerAddr("libp2p.nim:8080", "/ip4/127.0.0.1/tcp/8080")
     stub.registerAddr("::1:8080", "/ip6/::1/tcp/8080")
-    stub.registerAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion:80", "/ip4/127.0.0.1/tcp/8080")
-    stub.registerAddr("a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae.onion:81", "/ip4/127.0.0.1/tcp/8081")
+    stub.registerAddr(
+      "a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion:80",
+      "/ip4/127.0.0.1/tcp/8080",
+    )
+    stub.registerAddr(
+      "a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae.onion:81",
+      "/ip4/127.0.0.1/tcp/8081",
+    )
     startFut = stub.start(torServer)
   teardown:
     waitFor startFut.cancelAndWait()
@@ -81,11 +90,9 @@ suite "Tor transport":
   asyncTest "test start and dial usion onion3 and builder":
     const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
 
-    type
-      TestProto = ref object of LPProtocol # declare a custom protocol
+    type TestProto = ref object of LPProtocol # declare a custom protocol
 
     proc new(T: typedesc[TestProto]): T =
-
       # every incoming connections will be in handled in this closure
       proc handle(conn: Connection, proto: string) {.async.} =
         var resp: array[6, byte]
@@ -100,7 +107,11 @@ suite "Tor transport":
 
     let rng = newRng()
 
-    let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80").tryGet()
+    let ma = MultiAddress
+      .init(
+        "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
+      )
+      .tryGet()
 
     let serverSwitch = TorSwitch.new(torServer, rng, @[ma], {ReuseAddr})
 
@@ -114,7 +125,8 @@ suite "Tor transport":
     let serverAddress = serverSwitch.peerInfo.addrs
 
     proc startClient() {.async.} =
-      let clientSwitch = TorSwitch.new(torServer = torServer, rng= rng, flags = {ReuseAddr})
+      let clientSwitch =
+        TorSwitch.new(torServer = torServer, rng = rng, flags = {ReuseAddr})
 
       let conn = await clientSwitch.dial(serverPeerId, serverAddress, TestCodec)
 
@@ -131,15 +143,16 @@ suite "Tor transport":
     await serverSwitch.stop()
 
   test "It's not possible to add another transport in TorSwitch":
-    let torSwitch = TorSwitch.new(torServer = torServer, rng= rng, flags = {ReuseAddr})
+    let torSwitch = TorSwitch.new(torServer = torServer, rng = rng, flags = {ReuseAddr})
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
     waitFor torSwitch.stop()
 
   proc transProvider(): Transport =
-      TorTransport.new(torServer, {ReuseAddr}, Upgrade())
+    TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
   commonTransportTest(
     transProvider,
     "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-    "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81")
+    "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81",
+  )

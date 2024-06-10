@@ -11,28 +11,30 @@
 
 import std/[strutils, sequtils, tables]
 import chronos
-import ../libp2p/[stream/connection,
-                  transports/tcptransport,
-                  upgrademngrs/upgrade,
-                  multiaddress,
-                  nameresolving/nameresolver,
-                  nameresolving/dnsresolver,
-                  nameresolving/mockresolver]
+import
+  ../libp2p/[
+    stream/connection,
+    transports/tcptransport,
+    upgrademngrs/upgrade,
+    multiaddress,
+    nameresolving/nameresolver,
+    nameresolving/dnsresolver,
+    nameresolving/mockresolver,
+  ]
 
 import ./helpers
 #
 #Cloudflare
-const fallbackDnsServers = @[
-  initTAddress("1.1.1.1:53"),
-  initTAddress("1.0.0.1:53"),
-  initTAddress("[2606:4700:4700::1111]:53")
-]
+const fallbackDnsServers =
+  @[
+    initTAddress("1.1.1.1:53"),
+    initTAddress("1.0.0.1:53"),
+    initTAddress("[2606:4700:4700::1111]:53"),
+  ]
 
-const unixPlatform = defined(linux) or defined(solaris) or
-                     defined(macosx) or defined(freebsd) or
-                     defined(netbsd) or defined(openbsd) or
-                     defined(dragonfly)
-
+const unixPlatform =
+  defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
+  defined(netbsd) or defined(openbsd) or defined(dragonfly)
 
 proc guessOsNameServers(): seq[TransportAddress] =
   when unixPlatform:
@@ -40,13 +42,17 @@ proc guessOsNameServers(): seq[TransportAddress] =
     try:
       for l in lines("/etc/resolv.conf"):
         let lineParsed = l.strip().split(seps = Whitespace + {'%'}, maxsplit = 2)
-        if lineParsed.len < 2: continue
-        if lineParsed[0].startsWith('#'): continue
+        if lineParsed.len < 2:
+          continue
+        if lineParsed[0].startsWith('#'):
+          continue
 
         if lineParsed[0] == "nameserver":
           resultSeq.add(initTAddress(lineParsed[1], Port(53)))
 
-          if resultSeq.len > 2: break #3 nameserver max on linux
+          if resultSeq.len > 2:
+            break
+            #3 nameserver max on linux
     except CatchableError as err:
       echo "Failed to get unix nameservers ", err.msg
     finally:
@@ -58,7 +64,6 @@ proc guessOsNameServers(): seq[TransportAddress] =
     return fallbackDnsServers
   else:
     return fallbackDnsServers
-
 
 suite "Name resolving":
   suite "Generic Resolving":
@@ -88,7 +93,10 @@ suite "Name resolving":
       check testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
       check testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
       check testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
-      check testOne("/dns6/localhost/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN", "/ip6/::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN")
+      check testOne(
+        "/dns6/localhost/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "/ip6/::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+      )
 
     asyncTest "test non dns resolve":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
@@ -97,61 +105,85 @@ suite "Name resolving":
       check testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
 
     asyncTest "dnsaddr recursive test":
-      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
-        "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb"
-      ]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
+        @[
+          "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+          "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+        ]
 
-      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
-        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
-      ]
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] =
+        @[
+          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        ]
 
-      resolver.txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] = @[
-        "dnsaddr=/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-        "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb"
-      ]
+      resolver.txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] =
+        @[
+          "dnsaddr=/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+          "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+        ]
 
-      check testOne("/dnsaddr/bootstrap.libp2p.io/", @[
-        "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        "/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-        "/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-      ])
+      check testOne(
+        "/dnsaddr/bootstrap.libp2p.io/",
+        @[
+          "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+          "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+          "/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+          "/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+        ],
+      )
 
     asyncTest "dnsaddr suffix matching test":
-      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
-        "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-        "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        "dnsaddr=/dnsaddr/nrt-1.bootstrap.libp2p.io/tcp/4001/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-        "dnsaddr=/dnsaddr/ewr-1.bootstrap.libp2p.io/tcp/4001/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-      ]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
+        @[
+          "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+          "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+          "dnsaddr=/dnsaddr/nrt-1.bootstrap.libp2p.io/tcp/4001/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+          "dnsaddr=/dnsaddr/ewr-1.bootstrap.libp2p.io/tcp/4001/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+        ]
 
-      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
-        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-      ]
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] =
+        @[
+          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        ]
 
-      resolver.txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] = @[
-        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/shouldbefiltered",
-        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
-      ]
+      resolver.txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] =
+        @[
+          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/shouldbefiltered",
+          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
+        ]
 
-      check testOne("/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN", @[
-        "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-      ])
+      check testOne(
+        "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        @[
+          "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+          "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        ],
+      )
 
     asyncTest "dnsaddr infinite recursion":
-      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
+        @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
 
       check testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
 
     test "getHostname":
       check:
-        MultiAddress.init("/dnsaddr/bootstrap.libp2p.io/").tryGet().getHostname == "bootstrap.libp2p.io"
-        MultiAddress.init("/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").tryGet().getHostname == "147.75.69.143"
-        MultiAddress.init("/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN").tryGet().getHostname == "2604:1380:1000:6000::1"
+        MultiAddress.init("/dnsaddr/bootstrap.libp2p.io/").tryGet().getHostname ==
+          "bootstrap.libp2p.io"
+
+        MultiAddress
+        .init(
+          "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+        )
+        .tryGet().getHostname == "147.75.69.143"
+
+        MultiAddress
+        .init(
+          "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+        )
+        .tryGet().getHostname == "2604:1380:1000:6000::1"
         MultiAddress.init("/dns/localhost/udp/0").tryGet().getHostname == "localhost"
         MultiAddress.init("/dns4/hello.com/udp/0").tryGet().getHostname == "hello.com"
         MultiAddress.init("/dns6/hello.com/udp/0").tryGet().getHostname == "hello.com"
@@ -163,18 +195,19 @@ suite "Name resolving":
 
     asyncTest "test manual dns ip resolve":
       ## DNS mock server
-      proc clientMark1(transp: DatagramTransport,
-                       raddr: TransportAddress): Future[void] {.async.} =
+      proc clientMark1(
+          transp: DatagramTransport, raddr: TransportAddress
+      ): Future[void] {.async.} =
         var msg = transp.getMessage()
-        let
-          resp = if msg[24] == 1: #AAAA or A
-              "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
+        let resp =
+          if msg[24] == 1: #AAAA or A
+            "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
               "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
               "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
               "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
               "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
-            else:
-              "\xe8\xc5\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
+          else:
+            "\xe8\xc5\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
               "\x74\x75\x73\x02\x69\x6d\x00\x00\x1c\x00\x01\xc0\x0c\x00\x1c\x00" &
               "\x01\x00\x00\x00\x4f\x00\x10\x26\x06\x47\x00\x00\x10\x00\x00\x00" &
               "\x00\x00\x00\x68\x16\x19\xb5\xc0\x0c\x00\x1c\x00\x01\x00\x00\x00" &
@@ -190,33 +223,47 @@ suite "Name resolving":
 
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_UNSPEC)) ==
         mapIt(
-          @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0",
-          "[2606:4700:10::6816:19b5]:0", "[2606:4700:10::6816:18b5]:0", "[2606:4700:10::ac43:aa1]:0"
-        ], initTAddress(it))
+          @[
+            "104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0",
+            "[2606:4700:10::6816:19b5]:0", "[2606:4700:10::6816:18b5]:0",
+            "[2606:4700:10::ac43:aa1]:0",
+          ],
+          initTAddress(it),
+        )
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
-        mapIt(@["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it))
+        mapIt(
+          @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it)
+        )
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET6)) ==
-        mapIt(@["[2606:4700:10::6816:19b5]:0", "[2606:4700:10::6816:18b5]:0", "[2606:4700:10::ac43:aa1]:0"], initTAddress(it))
+        mapIt(
+          @[
+            "[2606:4700:10::6816:19b5]:0", "[2606:4700:10::6816:18b5]:0",
+            "[2606:4700:10::ac43:aa1]:0",
+          ],
+          initTAddress(it),
+        )
 
       await server.closeWait()
 
     asyncTest "test unresponsive dns server":
       var unresponsiveTentatives = 0
       ## DNS mock server
-      proc clientMark1(transp: DatagramTransport,
-                       raddr: TransportAddress): Future[void] {.async.} =
+      proc clientMark1(
+          transp: DatagramTransport, raddr: TransportAddress
+      ): Future[void] {.async.} =
         unresponsiveTentatives.inc()
         check unresponsiveTentatives == 1
 
-      proc clientMark2(transp: DatagramTransport,
-                       raddr: TransportAddress): Future[void] {.async.} =
+      proc clientMark2(
+          transp: DatagramTransport, raddr: TransportAddress
+      ): Future[void] {.async.} =
         var msg = transp.getMessage()
         let resp =
-              "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
-              "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
-              "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
-              "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
-              "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
+          "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
+          "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
+          "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
+          "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
+          "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
         await transp.sendTo(raddr, resp)
 
       let
@@ -224,13 +271,18 @@ suite "Name resolving":
         server = newDatagramTransport(clientMark2)
 
       # The test
-      var dnsresolver = DnsResolver.new(@[unresponsiveServer.localAddress, server.localAddress])
+      var dnsresolver =
+        DnsResolver.new(@[unresponsiveServer.localAddress, server.localAddress])
 
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
-        mapIt(@["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it))
+        mapIt(
+          @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it)
+        )
 
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
-        mapIt(@["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it))
+        mapIt(
+          @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it)
+        )
 
       await server.closeWait()
       await unresponsiveServer.closeWait()
