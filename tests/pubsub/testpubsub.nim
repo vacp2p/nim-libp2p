@@ -1,8 +1,4 @@
 {.used.}
 
-import testfloodsub,
-       testgossipsub,
-       testgossipsub2,
-       testmcache,
-       testtimedcache,
-       testmessage
+import
+  testfloodsub, testgossipsub, testgossipsub2, testmcache, testtimedcache, testmessage
