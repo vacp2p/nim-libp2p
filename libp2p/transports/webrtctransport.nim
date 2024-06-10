@@ -37,6 +37,14 @@ logScope:
 
 export transport, results
 
+const charset = toSeq("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/+".items)
+proc genUfrag*(rng: ref HmacDrbgContext, size: int): seq[byte] =
+  # https://github.com/libp2p/specs/blob/master/webrtc/webrtc-direct.md?plain=1#L73-L77
+  result = newSeq[byte](size)
+  for resultIndex in 0..<size:
+    let charsetIndex = rng[].generate(uint) mod charset.len()
+    result[resultIndex] = charset[charsetIndex].ord().uint8
+
 const
   WebRtcTransportTrackerName* = "libp2p.webrtctransport"
   MaxMessageSize = 16384 # 16KiB; from the WebRtc-direct spec
