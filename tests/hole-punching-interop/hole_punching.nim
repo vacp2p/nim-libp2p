@@ -5,7 +5,8 @@ import
   ../../libp2p/[
     builders,
     switch,
-    multicodec,observedaddrmanager,
+    multicodec,
+    observedaddrmanager,
     services/hpservice,
     services/autorelayservice,
     protocols/connectivity/autonat/client as aclient,
@@ -81,7 +82,10 @@ proc main() {.async.} =
     debug "Connected to relay", relayId
 
     # Wait for our relay address to be published
-    while not switch.peerInfo.addrs.anyIt(it.contains(multiCodec("p2p-circuit")).tryGet()):
+    while not switch.peerInfo.addrs.anyIt(
+      it.contains(multiCodec("p2p-circuit")).tryGet()
+    )
+    :
       await sleepAsync(100.milliseconds)
 
     if isListener:
