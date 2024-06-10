@@ -20,7 +20,7 @@ jobs:
         ]
     steps:
       - name: Clone repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: ${{ matrix.target.repo }}
           ref: ${{ matrix.target.branch }}
