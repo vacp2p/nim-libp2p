@@ -1,6 +1,8 @@
-name: Docgen
+name: Documentation generation and publishing
 on:
   push:
+    branches:
+      - master
   workflow_dispatch:
 
 
@@ -13,7 +15,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -33,7 +35,7 @@ jobs:
           ls ${GITHUB_REF##*/}
 
       - name: Clone the gh-pages branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: status-im/nim-libp2p
           ref: gh-pages
@@ -68,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - uses: actions/setup-python@v2
         with:
@@ -82,7 +84,7 @@ jobs:
         run: pip install mkdocs-material && nimble website
 
       - name: Clone the gh-pages branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: status-im/nim-libp2p
           ref: gh-pages
