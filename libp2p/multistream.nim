@@ -11,8 +11,7 @@
 
 import std/[strutils, sequtils, tables]
 import chronos, chronicles, stew/byteutils
-import stream/connection,
-       protocols/protocol
+import stream/connection, protocols/protocol
 
 logScope:
   topics = "libp2p multistream"
@@ -25,7 +24,7 @@ const
   Ls = "ls\n"
 
 type
-  Matcher* = proc (proto: string): bool {.gcsafe, raises: [].}
+  Matcher* = proc(proto: string): bool {.gcsafe, raises: [].}
 
   MultiStreamError* = object of LPError
 
@@ -40,23 +39,17 @@ type
     codec*: string
 
 proc new*(T: typedesc[MultistreamSelect]): T =
-  T(
-    codec: Codec,
-  )
+  T(codec: Codec)
 
 template validateSuffix(str: string): untyped =
   if str.endsWith("\n"):
     str.removeSuffix("\n")
   else:
-    raise (ref MultiStreamError)(msg:
-      "MultistreamSelect failed, malformed message")
+    raise (ref MultiStreamError)(msg: "MultistreamSelect failed, malformed message")
 
 proc select*(
-    _: MultistreamSelect | type MultistreamSelect,
-    conn: Connection,
-    proto: seq[string]
-): Future[string] {.async: (raises: [
-    CancelledError, LPStreamError, MultiStreamError]).} =
+    _: MultistreamSelect | type MultistreamSelect, conn: Connection, proto: seq[string]
+): Future[string] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
   trace "initiating handshake", conn, codec = Codec
   ## select a remote protocol
   await conn.writeLp(Codec & "\n") # write handshake
@@ -85,7 +78,7 @@ proc select*(
       return proto[0]
     elif proto.len > 1:
       # Try to negotiate alternatives
-      let protos = proto[1..<proto.len()]
+      let protos = proto[1 ..< proto.len()]
       trace "selecting one of several protos", conn, protos = protos
       for p in protos:
         trace "selecting proto", conn, proto = p
@@ -102,28 +95,25 @@ proc select*(
       return ""
 
 proc select*(
-    _: MultistreamSelect | type MultistreamSelect,
-    conn: Connection,
-    proto: string
-): Future[bool] {.async: (raises: [
-    CancelledError, LPStreamError, MultiStreamError]).} =
+    _: MultistreamSelect | type MultistreamSelect, conn: Connection, proto: string
+): Future[bool] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
   if proto.len > 0:
     (await MultistreamSelect.select(conn, @[proto])) == proto
   else:
     (await MultistreamSelect.select(conn, @[])) == Codec
 
 proc select*(
-    m: MultistreamSelect,
-    conn: Connection
-): Future[bool] {.async: (raises: [
-    CancelledError, LPStreamError, MultiStreamError], raw: true).} =
+    m: MultistreamSelect, conn: Connection
+): Future[bool] {.
+    async: (raises: [CancelledError, LPStreamError, MultiStreamError], raw: true)
+.} =
   m.select(conn, "")
 
 proc list*(
-    m: MultistreamSelect,
-    conn: Connection
-): Future[seq[string]] {.async: (raises: [
-    CancelledError, LPStreamError, MultiStreamError]).} =
+    m: MultistreamSelect, conn: Connection
+): Future[seq[string]] {.
+    async: (raises: [CancelledError, LPStreamError, MultiStreamError])
+.} =
   ## list remote protos requests on connection
   if not await m.select(conn):
     return
@@ -143,9 +133,8 @@ proc handle*(
     conn: Connection,
     protos: seq[string],
     matchers = newSeq[Matcher](),
-    active: bool = false
-): Future[string] {.async: (raises: [
-    CancelledError, LPStreamError, MultiStreamError]).} =
+    active: bool = false,
+): Future[string] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
   trace "Starting multistream negotiation", conn, handshaked = active
   var handshaked = active
   while not conn.atEof:
@@ -153,16 +142,17 @@ proc handle*(
     validateSuffix(ms)
 
     if not handshaked and ms != Codec:
-      debug "expected handshake message", conn, instead=ms
-      raise (ref MultiStreamError)(msg:
-        "MultistreamSelect handling failed, invalid first message")
+      debug "expected handshake message", conn, instead = ms
+      raise (ref MultiStreamError)(
+        msg: "MultistreamSelect handling failed, invalid first message"
+      )
 
     trace "handle: got request", conn, ms
     if ms.len() <= 0:
       trace "handle: invalid proto", conn
       await conn.writeLp(Na)
 
-    case ms:
+    case ms
     of "ls":
       trace "handle: listing protos", conn
       #TODO this doens't seem to follow spec, each protocol
@@ -174,8 +164,7 @@ proc handle*(
         await conn.writeLp(Codec & "\n")
         handshaked = true
       else:
-        trace "handle: sending `na` for duplicate handshake while handshaked",
-          conn
+        trace "handle: sending `na` for duplicate handshake while handshaked", conn
         await conn.writeLp(Na)
     elif ms in protos or matchers.anyIt(it(ms)):
       trace "found handler", conn, protocol = ms
@@ -187,9 +176,8 @@ proc handle*(
       await conn.writeLp(Na)
 
 proc handle*(
-    m: MultistreamSelect,
-    conn: Connection,
-    active: bool = false) {.async: (raises: [CancelledError]).} =
+    m: MultistreamSelect, conn: Connection, active: bool = false
+) {.async: (raises: [CancelledError]).} =
   trace "Starting multistream handler", conn, handshaked = active
   var
     protos: seq[string]
@@ -208,8 +196,7 @@ proc handle*(
 
         var protocolHolder = h
         let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
-        if protocolHolder.openedStreams.getOrDefault(conn.peerId) >=
-            maxIncomingStreams:
+        if protocolHolder.openedStreams.getOrDefault(conn.peerId) >= maxIncomingStreams:
           debug "Max streams for protocol reached, blocking new stream",
             conn, protocol = ms, maxIncomingStreams
           return
@@ -231,38 +218,35 @@ proc handle*(
 
   trace "Stopped multistream handler", conn
 
-proc addHandler*(m: MultistreamSelect,
-                 codecs: seq[string],
-                 protocol: LPProtocol,
-                 matcher: Matcher = nil) =
+proc addHandler*(
+    m: MultistreamSelect,
+    codecs: seq[string],
+    protocol: LPProtocol,
+    matcher: Matcher = nil,
+) =
   trace "registering protocols", protos = codecs
-  m.handlers.add(HandlerHolder(protos: codecs,
-                               protocol: protocol,
-                               match: matcher))
+  m.handlers.add(HandlerHolder(protos: codecs, protocol: protocol, match: matcher))
 
-proc addHandler*(m: MultistreamSelect,
-                 codec: string,
-                 protocol: LPProtocol,
-                 matcher: Matcher = nil) =
+proc addHandler*(
+    m: MultistreamSelect, codec: string, protocol: LPProtocol, matcher: Matcher = nil
+) =
   addHandler(m, @[codec], protocol, matcher)
 
 proc addHandler*[E](
     m: MultistreamSelect,
     codec: string,
-    handler: LPProtoHandler |
-      proc (
-        conn: Connection,
-        proto: string): InternalRaisesFuture[void, E],
-    matcher: Matcher = nil) =
+    handler:
+      LPProtoHandler |
+      proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
+    matcher: Matcher = nil,
+) =
   ## helper to allow registering pure handlers
   trace "registering proto handler", proto = codec
   let protocol = new LPProtocol
   protocol.codec = codec
   protocol.handler = handler
 
-  m.handlers.add(HandlerHolder(protos: @[codec],
-                               protocol: protocol,
-                               match: matcher))
+  m.handlers.add(HandlerHolder(protos: @[codec], protocol: protocol, match: matcher))
 
 proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
   # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([])`
@@ -283,7 +267,8 @@ proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
       elif fut.completed:
         pending.add m.handlers[i].protocol.stop()
       else:
-        static: doAssert typeof(fut).E is (CancelledError,)
+        static:
+          doAssert typeof(fut).E is (CancelledError,)
     await noCancel allFutures(pending)
     raise exc
 

@@ -11,34 +11,32 @@
 
 import strformat, stew/byteutils
 import chronos
-import ../libp2p/multistream,
-       ../libp2p/stream/bufferstream,
-       ../libp2p/stream/connection,
-       ../libp2p/multiaddress,
-       ../libp2p/transports/transport,
-       ../libp2p/transports/tcptransport,
-       ../libp2p/protocols/protocol,
-       ../libp2p/upgrademngrs/upgrade
-
+import
+  ../libp2p/multistream,
+  ../libp2p/stream/bufferstream,
+  ../libp2p/stream/connection,
+  ../libp2p/multiaddress,
+  ../libp2p/transports/transport,
+  ../libp2p/transports/tcptransport,
+  ../libp2p/protocols/protocol,
+  ../libp2p/upgrademngrs/upgrade
 
 {.push raises: [].}
 
 import ./helpers
 
-when defined(nimHasUsed): {.used.}
+when defined(nimHasUsed):
+  {.used.}
 
 ## Mock stream for select test
-type
-  TestSelectStream = ref object of Connection
-    step*: int
+type TestSelectStream = ref object of Connection
+  step*: int
 
 method readOnce*(
-    s: TestSelectStream,
-    pbytes: pointer,
-    nbytes: int
+    s: TestSelectStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   let fut = newFuture[int]()
-  case s.step:
+  case s.step
   of 1:
     var buf = newSeq[byte](1)
     buf[0] = 19
@@ -61,18 +59,14 @@ method readOnce*(
     copyMem(pbytes, addr buf[0], buf.len())
     fut.complete(buf.len)
   else:
-    copyMem(pbytes,
-            cstring("\0x3na\n"),
-            "\0x3na\n".len())
+    copyMem(pbytes, cstring("\0x3na\n"), "\0x3na\n".len())
 
     fut.complete("\0x3na\n".len())
   fut
 
 method write*(
-    s: TestSelectStream,
-    msg: seq[byte]
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true).} =
+    s: TestSelectStream, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   let fut = newFuture[void]()
   fut.complete()
   fut
@@ -90,21 +84,19 @@ proc newTestSelectStream(): TestSelectStream =
 
 ## Mock stream for handles `ls` test
 type
-  LsHandler = proc(
-      procs: seq[byte]
-  ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).}
+  LsHandler = proc(procs: seq[byte]): Future[void] {.
+    async: (raises: [CancelledError, LPStreamError])
+  .}
 
   TestLsStream = ref object of Connection
     step*: int
     ls*: LsHandler
 
 method readOnce*(
-    s: TestLsStream,
-    pbytes: pointer,
-    nbytes: int
+    s: TestLsStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   let fut = newFuture[int]()
-  case s.step:
+  case s.step
   of 1:
     var buf = newSeq[byte](1)
     buf[0] = 19
@@ -133,10 +125,8 @@ method readOnce*(
   fut
 
 method write*(
-    s: TestLsStream,
-    msg: seq[byte]
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true).} =
+    s: TestLsStream, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.ls(msg)
   let fut = newFuture[void]()
@@ -157,21 +147,19 @@ proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
 
 ## Mock stream for handles `na` test
 type
-  NaHandler = proc(
-      procs: string
-  ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).}
+  NaHandler = proc(procs: string): Future[void] {.
+    async: (raises: [CancelledError, LPStreamError])
+  .}
 
   TestNaStream = ref object of Connection
     step*: int
     na*: NaHandler
 
 method readOnce*(
-    s: TestNaStream,
-    pbytes: pointer,
-    nbytes: int
+    s: TestNaStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   let fut = newFuture[int]()
-  case s.step:
+  case s.step
   of 1:
     var buf = newSeq[byte](1)
     buf[0] = 19
@@ -194,18 +182,14 @@ method readOnce*(
     copyMem(pbytes, addr buf[0], buf.len())
     fut.complete(buf.len())
   else:
-    copyMem(pbytes,
-            cstring("\0x3na\n"),
-            "\0x3na\n".len())
+    copyMem(pbytes, cstring("\0x3na\n"), "\0x3na\n".len())
 
     fut.complete("\0x3na\n".len())
   fut
 
 method write*(
-    s: TestNaStream,
-    msg: seq[byte]
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true).} =
+    s: TestNaStream, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.na(string.fromBytes(msg))
   let fut = newFuture[void]()
@@ -239,9 +223,7 @@ suite "Multistream select":
     let conn = newTestSelectStream()
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection,
-                      proto: string):
-                      Future[void] {.async.} =
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
       check proto == "/test/proto/1.0.0"
       await conn.close()
 
@@ -255,15 +237,18 @@ suite "Multistream select":
     var conn: Connection = nil
     let done = newFuture[void]()
     proc testLsHandler(
-        proto: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+        proto: seq[byte]
+    ) {.async: (raises: [CancelledError, LPStreamError]).} =
       var strProto: string = string.fromBytes(proto)
       check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
       await conn.close()
       done.complete()
+
     conn = Connection(newTestLsStream(testLsHandler))
 
-    proc testHandler(conn: Connection, proto: string): Future[void]
-      {.async.} = discard
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+      discard
+
     var protocol: LPProtocol = new LPProtocol
     protocol.handler = testHandler
     ms.addHandler("/test/proto1/1.0.0", protocol)
@@ -280,12 +265,13 @@ suite "Multistream select":
     ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
       check msg == "\x03na\n"
       await conn.close()
+
     conn = newTestNaStream(testNaHandler)
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection,
-                      proto: string):
-                      Future[void] {.async.} = discard
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+      discard
+
     protocol.handler = testHandler
     ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
@@ -295,9 +281,7 @@ suite "Multistream select":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection,
-                      proto: string):
-                      Future[void] {.async.} =
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
       check proto == "/test/proto/1.0.0"
       await conn.writeLp("Hello!")
       await conn.close()
@@ -338,18 +322,13 @@ suite "Multistream select":
     # Start 5 streams which are blocked by `blocker`
     # Try to start a new one, which should fail
     # Unblock the 5 streams, check that we can open a new one
-    proc testHandler(conn: Connection,
-                      proto: string):
-                      Future[void] {.async.} =
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
       await blocker
       await conn.writeLp("Hello!")
       await conn.close()
 
-    var protocol: LPProtocol = LPProtocol.new(
-      @["/test/proto/1.0.0"],
-      testHandler,
-      maxIncomingStreams = 5
-    )
+    var protocol: LPProtocol =
+      LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreams = 5)
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
@@ -372,25 +351,29 @@ suite "Multistream select":
     let msDial = MultistreamSelect.new()
     let transport2 = TcpTransport.new(upgrade = Upgrade())
 
-    proc connector {.async.} =
+    proc connector() {.async.} =
       let conn = await transport2.dial(transport1.addrs[0])
-      check: (await msDial.select(conn, "/test/proto/1.0.0")) == true
-      check: string.fromBytes(await conn.readLp(1024)) == "Hello!"
+      check:
+        (await msDial.select(conn, "/test/proto/1.0.0")) == true
+      check:
+        string.fromBytes(await conn.readLp(1024)) == "Hello!"
       await conn.close()
 
     # Fill up the 5 allowed streams
     var dialers: seq[Future[void]]
-    for _ in 0..<5:
+    for _ in 0 ..< 5:
       dialers.add(connector())
 
     # This one will fail during negotiation
     expect(CatchableError):
-      try: waitFor(connector().wait(1.seconds))
+      try:
+        waitFor(connector().wait(1.seconds))
       except AsyncTimeoutError as exc:
         check false
         raise exc
     # check that the dialers aren't finished
-    check: (await dialers[0].withTimeout(10.milliseconds)) == false
+    check:
+      (await dialers[0].withTimeout(10.milliseconds)) == false
 
     # unblock the dialers
     blocker.complete()
@@ -413,9 +396,7 @@ suite "Multistream select":
       # never reached
       discard
 
-    proc testHandler(conn: Connection,
-                      proto: string):
-                      Future[void] {.async.} =
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
       # never reached
       discard
 
@@ -457,9 +438,7 @@ suite "Multistream select":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection,
-                      proto: string):
-                      Future[void] {.async.} =
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
       check proto == "/test/proto/1.0.0"
       await conn.writeLp("Hello!")
       await conn.close()
@@ -480,8 +459,8 @@ suite "Multistream select":
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.addrs[0])
 
-    check (await msDial.select(conn,
-      @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) == "/test/proto/1.0.0"
+    check (await msDial.select(conn, @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) ==
+      "/test/proto/1.0.0"
 
     let hello = string.fromBytes(await conn.readLp(1024))
     check hello == "Hello!"
@@ -495,9 +474,7 @@ suite "Multistream select":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection,
-                      proto: string):
-                      Future[void] {.async.} =
+    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
       await conn.writeLp(&"Hello from {proto}!")
       await conn.close()
 
@@ -518,11 +495,8 @@ suite "Multistream select":
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let conn = await transport2.dial(transport1.addrs[0])
 
-    check (await msDial.select(conn,
-      @[
-        "/test/proto2/1.0.0",
-        "/test/proto1/1.0.0"
-      ])) == "/test/proto2/1.0.0"
+    check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) ==
+      "/test/proto2/1.0.0"
 
     check string.fromBytes(await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
 

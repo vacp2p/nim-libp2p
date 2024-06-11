@@ -13,21 +13,21 @@ import sequtils, strutils
 
 import chronos, chronicles
 
-import ./client,
-       ./rconn,
-       ./utils,
-       ../../../switch,
-       ../../../stream/connection,
-       ../../../transports/transport
+import
+  ./client,
+  ./rconn,
+  ./utils,
+  ../../../switch,
+  ../../../stream/connection,
+  ../../../transports/transport
 
 logScope:
   topics = "libp2p relay relay-transport"
 
-type
-  RelayTransport* = ref object of Transport
-    client*: RelayClient
-    queue: AsyncQueue[Connection]
-    selfRunning: bool
+type RelayTransport* = ref object of Transport
+  client*: RelayClient
+  queue: AsyncQueue[Connection]
+  selfRunning: bool
 
 method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
   if self.selfRunning:
@@ -35,11 +35,10 @@ method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
     return
 
   self.client.onNewConnection = proc(
-    conn: Connection,
-    duration: uint32 = 0,
-    data: uint64 = 0) {.async.} =
-      await self.queue.addLast(RelayConnection.new(conn, duration, data))
-      await conn.join()
+      conn: Connection, duration: uint32 = 0, data: uint64 = 0
+  ) {.async.} =
+    await self.queue.addLast(RelayConnection.new(conn, duration, data))
+    await conn.join()
   self.selfRunning = true
   await procCall Transport(self).start(ma)
   trace "Starting Relay transport"
@@ -57,7 +56,7 @@ method accept*(self: RelayTransport): Future[Connection] {.async.} =
 proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.} =
   let
     sma = toSeq(ma.items())
-    relayAddrs = sma[0..sma.len-4].mapIt(it.tryGet()).foldl(a & b)
+    relayAddrs = sma[0 .. sma.len - 4].mapIt(it.tryGet()).foldl(a & b)
   var
     relayPeerId: PeerId
     dstPeerId: PeerId
@@ -68,13 +67,12 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.}
   trace "Dial", relayPeerId, dstPeerId
 
   let conn = await self.client.switch.dial(
-    relayPeerId,
-    @[ relayAddrs ],
-    @[ RelayV2HopCodec, RelayV1Codec ])
+    relayPeerId, @[relayAddrs], @[RelayV2HopCodec, RelayV1Codec]
+  )
   conn.dir = Direction.Out
   var rc: RelayConnection
   try:
-    case conn.protocol:
+    case conn.protocol
     of RelayV1Codec:
       return await self.client.dialPeerV1(conn, dstPeerId, @[])
     of RelayV2HopCodec:
@@ -83,14 +81,16 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.}
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    if not rc.isNil: await rc.close()
+    if not rc.isNil:
+      await rc.close()
     raise exc
 
 method dial*(
-  self: RelayTransport,
-  hostname: string,
-  ma: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async.} =
+    self: RelayTransport,
+    hostname: string,
+    ma: MultiAddress,
+    peerId: Opt[PeerId] = Opt.none(PeerId),
+): Future[Connection] {.async.} =
   peerId.withValue(pid):
     let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
     result = await self.dial(address)

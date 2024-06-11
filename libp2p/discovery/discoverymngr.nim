@@ -33,12 +33,13 @@ proc ofType*[T](f: BaseAttr, _: type[T]): bool =
 proc to*[T](f: BaseAttr, _: type[T]): T =
   Attribute[T](f).value
 
-proc add*[T](pa: var PeerAttributes,
-             value: T) =
-  pa.attributes.add(Attribute[T](
+proc add*[T](pa: var PeerAttributes, value: T) =
+  pa.attributes.add(
+    Attribute[T](
       value: value,
       comparator: proc(f: BaseAttr, c: BaseAttr): bool =
         f.ofType(T) and c.ofType(T) and f.to(T) == c.to(T)
+      ,
     )
   )
 
@@ -58,7 +59,8 @@ proc `{}`*[T](pa: PeerAttributes, t: typedesc[T]): Opt[T] =
   Opt.none(T)
 
 proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [KeyError].} =
-  pa{T}.valueOr: raise newException(KeyError, "Attritute not found")
+  pa{T}.valueOr:
+    raise newException(KeyError, "Attritute not found")
 
 proc match*(pa, candidate: PeerAttributes): bool =
   for f in pa.attributes:
@@ -101,7 +103,7 @@ type
 proc add*(dm: DiscoveryManager, di: DiscoveryInterface) =
   dm.interfaces &= di
 
-  di.onPeerFound = proc (pa: PeerAttributes) =
+  di.onPeerFound = proc(pa: PeerAttributes) =
     for query in dm.queries:
       if query.attr.match(pa):
         try:
@@ -139,8 +141,10 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
   proc forEachInternal(q: DiscoveryQuery) {.async.} =
     while true:
       let peer {.inject.} =
-        try: await q.getPeer()
-        except DiscoveryFinished: return
+        try:
+          await q.getPeer()
+        except DiscoveryFinished:
+          return
       code
 
   asyncSpawn forEachInternal(query)
@@ -148,13 +152,15 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
 proc stop*(query: DiscoveryQuery) =
   query.finished = true
   for r in query.futs:
-    if not r.finished(): r.cancel()
+    if not r.finished():
+      r.cancel()
 
 proc stop*(dm: DiscoveryManager) =
   for q in dm.queries:
     q.stop()
   for i in dm.interfaces:
-    if isNil(i.advertiseLoop): continue
+    if isNil(i.advertiseLoop):
+      continue
     i.advertiseLoop.cancel()
 
 proc getPeer*(query: DiscoveryQuery): Future[PeerAttributes] {.async.} =

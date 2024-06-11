@@ -13,20 +13,20 @@
 import std/[strformat]
 import stew/results
 import chronos, chronicles
-import ../protocol,
-       ../../stream/streamseq,
-       ../../stream/connection,
-       ../../multiaddress,
-       ../../peerinfo,
-       ../../errors
+import
+  ../protocol,
+  ../../stream/streamseq,
+  ../../stream/connection,
+  ../../multiaddress,
+  ../../peerinfo,
+  ../../errors
 
 export protocol, results
 
 logScope:
   topics = "libp2p secure"
 
-const
-  SecureConnTrackerName* = "SecureConn"
+const SecureConnTrackerName* = "SecureConn"
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
@@ -37,25 +37,31 @@ type
 
 func shortLog*(conn: SecureConn): auto =
   try:
-    if conn == nil: "SecureConn(nil)"
-    else: &"{shortLog(conn.peerId)}:{conn.oid}"
+    if conn == nil:
+      "SecureConn(nil)"
+    else:
+      &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
     raiseAssert(exc.msg)
 
-chronicles.formatIt(SecureConn): shortLog(it)
+chronicles.formatIt(SecureConn):
+  shortLog(it)
 
 proc new*(
     T: type SecureConn,
     conn: Connection,
     peerId: PeerId,
     observedAddr: Opt[MultiAddress],
-    timeout: Duration = DefaultConnectionTimeout): T =
-  result = T(stream: conn,
-             peerId: peerId,
-             observedAddr: observedAddr,
-             closeEvent: conn.closeEvent,
-             timeout: timeout,
-             dir: conn.dir)
+    timeout: Duration = DefaultConnectionTimeout,
+): T =
+  result = T(
+    stream: conn,
+    peerId: peerId,
+    observedAddr: observedAddr,
+    closeEvent: conn.closeEvent,
+    timeout: timeout,
+    dir: conn.dir,
+  )
   result.initStream()
 
 method initStream*(s: SecureConn) =
@@ -73,26 +79,23 @@ method closeImpl*(s: SecureConn) {.async: (raises: []).} =
 
 method readMessage*(
     c: SecureConn
-): Future[seq[byte]] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true), base.} =
+): Future[seq[byte]] {.
+    async: (raises: [CancelledError, LPStreamError], raw: true), base
+.} =
   raiseAssert("Not implemented!")
 
-method getWrapped*(s: SecureConn): Connection = s.stream
+method getWrapped*(s: SecureConn): Connection =
+  s.stream
 
 method handshake*(
-    s: Secure,
-    conn: Connection,
-    initiator: bool,
-    peerId: Opt[PeerId]
-): Future[SecureConn] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true), base.} =
+    s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
+): Future[SecureConn] {.
+    async: (raises: [CancelledError, LPStreamError], raw: true), base
+.} =
   raiseAssert("Not implemented!")
 
 proc handleConn(
-    s: Secure,
-    conn: Connection,
-    initiator: bool,
-    peerId: Opt[PeerId]
+    s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
 ): Future[Connection] {.async: (raises: [CancelledError, LPStreamError]).} =
   var sconn = await s.handshake(conn, initiator, peerId)
   # mark connection bottom level transport direction
@@ -106,20 +109,26 @@ proc handleConn(
         let
           fut1 = conn.join()
           fut2 = sconn.join()
-        try:  # https://github.com/status-im/nim-chronos/issues/516
+        try: # https://github.com/status-im/nim-chronos/issues/516
           discard await race(fut1, fut2)
-        except ValueError: raiseAssert("Futures list is not empty")
+        except ValueError:
+          raiseAssert("Futures list is not empty")
         # at least one join() completed, cancel pending one, if any
-        if not fut1.finished: await fut1.cancelAndWait()
-        if not fut2.finished: await fut2.cancelAndWait()
+        if not fut1.finished:
+          await fut1.cancelAndWait()
+        if not fut2.finished:
+          await fut2.cancelAndWait()
       block:
         let
           fut1 = sconn.close()
           fut2 = conn.close()
         await allFutures(fut1, fut2)
-        static: doAssert typeof(fut1).E is void  # Cannot fail
-        static: doAssert typeof(fut2).E is void  # Cannot fail
-
+        static:
+          doAssert typeof(fut1).E is void
+          # Cannot fail
+        static:
+          doAssert typeof(fut2).E is void
+          # Cannot fail
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
@@ -152,17 +161,14 @@ method init*(s: Secure) =
   s.handler = handle
 
 method secure*(
-    s: Secure,
-    conn: Connection,
-    peerId: Opt[PeerId]
-): Future[Connection] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true), base.} =
+    s: Secure, conn: Connection, peerId: Opt[PeerId]
+): Future[Connection] {.
+    async: (raises: [CancelledError, LPStreamError], raw: true), base
+.} =
   s.handleConn(conn, conn.dir == Direction.Out, peerId)
 
 method readOnce*(
-    s: SecureConn,
-    pbytes: pointer,
-    nbytes: int
+    s: SecureConn, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
 
@@ -182,9 +188,7 @@ method readOnce*(
       raise exc
     except LPStreamError as err:
       debug "Error while reading message from secure connection, closing.",
-        error = err.name,
-        message = err.msg,
-        connection = s
+        error = err.name, message = err.msg, connection = s
       await s.close()
       raise err
 

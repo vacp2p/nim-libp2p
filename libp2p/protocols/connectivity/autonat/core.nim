@@ -11,9 +11,7 @@
 
 import stew/[results, objects]
 import chronos, chronicles
-import ../../../multiaddress,
-       ../../../peerid,
-       ../../../errors
+import ../../../multiaddress, ../../../peerid, ../../../errors
 
 logScope:
   topics = "libp2p autonat"
@@ -55,7 +53,9 @@ type
     response*: Opt[AutonatDialResponse]
 
   NetworkReachability* {.pure.} = enum
-    Unknown, NotReachable, Reachable
+    Unknown
+    NotReachable
+    Reachable
 
 proc encode(p: AutonatPeerInfo): ProtoBuffer =
   result = initProtoBuffer()
@@ -103,37 +103,39 @@ proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Opt[AutonatMsg] =
 
   let pb = initProtoBuffer(buf)
 
-  if ? pb.getField(1, msgTypeOrd).toOpt() and not checkedEnumAssign(msg.msgType, msgTypeOrd):
+  if ?pb.getField(1, msgTypeOrd).toOpt() and
+      not checkedEnumAssign(msg.msgType, msgTypeOrd):
     return Opt.none(AutonatMsg)
-  if ? pb.getField(2, pbDial).toOpt():
+  if ?pb.getField(2, pbDial).toOpt():
     var
       pbPeerInfo: ProtoBuffer
       dial: AutonatDial
-    let r4 = ? pbDial.getField(1, pbPeerInfo).toOpt()
+    let r4 = ?pbDial.getField(1, pbPeerInfo).toOpt()
 
     var peerInfo: AutonatPeerInfo
     if r4:
       var pid: PeerId
       let
-        r5 = ? pbPeerInfo.getField(1, pid).toOpt()
-        r6 = ? pbPeerInfo.getRepeatedField(2, peerInfo.addrs).toOpt()
-      if r5: peerInfo.id = Opt.some(pid)
+        r5 = ?pbPeerInfo.getField(1, pid).toOpt()
+        r6 = ?pbPeerInfo.getRepeatedField(2, peerInfo.addrs).toOpt()
+      if r5:
+        peerInfo.id = Opt.some(pid)
       dial.peerInfo = Opt.some(peerInfo)
     msg.dial = Opt.some(dial)
 
-  if ? pb.getField(3, pbResponse).toOpt():
+  if ?pb.getField(3, pbResponse).toOpt():
     var
       statusOrd: uint
       text: string
       ma: MultiAddress
       response: AutonatDialResponse
 
-    if ? pbResponse.getField(1, statusOrd).optValue():
+    if ?pbResponse.getField(1, statusOrd).optValue():
       if not checkedEnumAssign(response.status, statusOrd):
         return Opt.none(AutonatMsg)
-    if ? pbResponse.getField(2, text).optValue():
+    if ?pbResponse.getField(2, text).optValue():
       response.text = Opt.some(text)
-    if ? pbResponse.getField(3, ma).optValue():
+    if ?pbResponse.getField(3, ma).optValue():
       response.ma = Opt.some(ma)
     msg.response = Opt.some(response)
   return Opt.some(msg)

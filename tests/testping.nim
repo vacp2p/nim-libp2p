@@ -10,16 +10,19 @@
 # those terms.
 
 import chronos
-import ../libp2p/[protocols/ping,
-                  multiaddress,
-                  peerinfo,
-                  peerid,
-                  stream/connection,
-                  multistream,
-                  transports/transport,
-                  transports/tcptransport,
-                  crypto/crypto,
-                  upgrademngrs/upgrade]
+import
+  ../libp2p/[
+    protocols/ping,
+    multiaddress,
+    peerinfo,
+    peerid,
+    stream/connection,
+    multistream,
+    transports/transport,
+    transports/tcptransport,
+    crypto/crypto,
+    upgrademngrs/upgrade,
+  ]
 import ./helpers
 
 suite "Ping":
@@ -44,6 +47,7 @@ suite "Ping":
 
     proc handlePing(peer: PeerId) {.async, closure.} =
       inc pingReceivedCount
+
     pingProto1 = Ping.new()
     pingProto2 = Ping.new(handlePing)
 
@@ -98,6 +102,7 @@ suite "Ping":
         fakebuf: array[32, byte]
       await conn.readExactly(addr buf[0], 32)
       await conn.write(@fakebuf)
+
     fakePingProto.codec = PingCodec
     fakePingProto.handler = fakeHandle
 

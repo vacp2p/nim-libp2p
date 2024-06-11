@@ -10,14 +10,12 @@
 {.push raises: [].}
 
 import chronos, chronicles
-import ../stream/connection,
-       ../errors
+import ../stream/connection, ../errors
 
 logScope:
   topics = "libp2p muxer"
 
-const
-  DefaultChanTimeout* = 5.minutes
+const DefaultChanTimeout* = 5.minutes
 
 type
   MuxerError* = object of LPError
@@ -32,8 +30,7 @@ type
     connection*: Connection
 
   # user provider proc that returns a constructed Muxer
-  MuxerConstructor* =
-    proc(conn: Connection): Muxer {.gcsafe, closure, raises: [].}
+  MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [].}
 
   # this wraps a creator proc that knows how to make muxers
   MuxerProvider* = object
@@ -41,30 +38,32 @@ type
     codec*: string
 
 func shortLog*(m: Muxer): auto =
-  if m == nil: "nil"
-  else: shortLog(m.connection)
+  if m == nil:
+    "nil"
+  else:
+    shortLog(m.connection)
 
-chronicles.formatIt(Muxer): shortLog(it)
+chronicles.formatIt(Muxer):
+  shortLog(it)
 
 # muxer interface
 method newStream*(
-    m: Muxer,
-    name: string = "",
-    lazy: bool = false
-): Future[Connection] {.base, async: (raises: [
-    CancelledError, LPStreamError, MuxerError], raw: true).} =
+    m: Muxer, name: string = "", lazy: bool = false
+): Future[Connection] {.
+    base, async: (raises: [CancelledError, LPStreamError, MuxerError], raw: true)
+.} =
   raiseAssert("Not implemented!")
 
 method close*(m: Muxer) {.base, async: (raises: []).} =
   if m.connection != nil:
     await m.connection.close()
 
-method handle*(m: Muxer): Future[void] {.base, async: (raises: []).} = discard
+method handle*(m: Muxer): Future[void] {.base, async: (raises: []).} =
+  discard
 
 proc new*(
-    T: typedesc[MuxerProvider],
-    creator: MuxerConstructor,
-    codec: string): T {.gcsafe.} =
+    T: typedesc[MuxerProvider], creator: MuxerConstructor, codec: string
+): T {.gcsafe.} =
   let muxerProvider = T(newMuxer: creator, codec: codec)
   muxerProvider
 

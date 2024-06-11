@@ -15,16 +15,11 @@
 import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
-import ../varint,
-       ../peerinfo,
-       ../multiaddress,
-       ../utility,
-       ../errors
+import ../varint, ../peerinfo, ../multiaddress, ../utility, ../errors
 
 export errors
 
-declareGauge libp2p_open_streams,
-  "open stream instances", labels = ["type", "dir"]
+declareGauge libp2p_open_streams, "open stream instances", labels = ["type", "dir"]
 
 export oids
 
@@ -37,7 +32,8 @@ const
 
 type
   Direction* {.pure.} = enum
-    In, Out
+    In
+    Out
 
   LPStream* = ref object of RootObj
     closeEvent*: AsyncEvent
@@ -53,13 +49,12 @@ type
   LPStreamLimitError* = object of LPStreamError
   LPStreamEOFError* = object of LPStreamError
 
-#        X        |           Read            |         Write
-#   Local close   |           Works           |  LPStreamClosedError
-#   Remote close  | LPStreamRemoteClosedError |         Works
-#   Local reset   |    LPStreamClosedError    |  LPStreamClosedError
-#   Remote reset  |    LPStreamResetError     |  LPStreamResetError
-# Connection down |     LPStreamConnDown      | LPStreamConnDownError
-
+  #        X        |           Read            |         Write
+  #   Local close   |           Works           |  LPStreamClosedError
+  #   Remote close  | LPStreamRemoteClosedError |         Works
+  #   Local reset   |    LPStreamClosedError    |  LPStreamClosedError
+  #   Remote reset  |    LPStreamResetError     |  LPStreamResetError
+  # Connection down |     LPStreamConnDown      | LPStreamConnDownError
   LPStreamResetError* = object of LPStreamEOFError
   LPStreamClosedError* = object of LPStreamEOFError
   LPStreamRemoteClosedError* = object of LPStreamEOFError
@@ -91,17 +86,20 @@ proc newLPStreamRemoteClosedError*(): ref LPStreamRemoteClosedError =
   result = newException(LPStreamRemoteClosedError, "Stream Remotely Closed!")
 
 proc newLPStreamConnDownError*(
-    parentException: ref Exception = nil): ref LPStreamConnDownError =
+    parentException: ref Exception = nil
+): ref LPStreamConnDownError =
   result = newException(
-    LPStreamConnDownError,
-    "Stream Underlying Connection Closed!",
-    parentException)
+    LPStreamConnDownError, "Stream Underlying Connection Closed!", parentException
+  )
 
 func shortLog*(s: LPStream): auto =
-  if s == nil: "LPStream(nil)"
-  else: $s.oid
+  if s == nil:
+    "LPStream(nil)"
+  else:
+    $s.oid
 
-chronicles.formatIt(LPStream): shortLog(it)
+chronicles.formatIt(LPStream):
+  shortLog(it)
 
 method initStream*(s: LPStream) {.base.} =
   if s.objName.len == 0:
@@ -127,20 +125,17 @@ method atEof*(s: LPStream): bool {.base, public.} =
   s.isEof
 
 method readOnce*(
-    s: LPStream,
-    pbytes: pointer,
-    nbytes: int
-): Future[int] {.base, async: (raises: [
-    CancelledError, LPStreamError], raw: true), public.} =
+    s: LPStream, pbytes: pointer, nbytes: int
+): Future[int] {.
+    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
+.} =
   ## Reads whatever is available in the stream,
   ## up to `nbytes`. Will block if nothing is
   ## available
   raiseAssert("Not implemented!")
 
 proc readExactly*(
-    s: LPStream,
-    pbytes: pointer,
-    nbytes: int
+    s: LPStream, pbytes: pointer, nbytes: int
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## Waits for `nbytes` to be available, then read
   ## them and return them
@@ -159,7 +154,7 @@ proc readExactly*(
 
   var pbuffer = cast[ptr UncheckedArray[byte]](pbytes)
   var read = 0
-  while read < nbytes and not(s.atEof()):
+  while read < nbytes and not (s.atEof()):
     read += await s.readOnce(addr pbuffer[read], nbytes - read)
 
   if read == 0:
@@ -176,9 +171,7 @@ proc readExactly*(
     raise newLPStreamIncompleteError()
 
 proc readLine*(
-    s: LPStream,
-    limit = 0,
-    sep = "\r\n"
+    s: LPStream, limit = 0, sep = "\r\n"
 ): Future[string] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## Reads up to `limit` bytes are read, or a `sep` is found
   # TODO replace with something that exploits buffering better
@@ -208,10 +201,9 @@ proc readLine*(
 proc readVarint*(
     conn: LPStream
 ): Future[uint64] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  var
-    buffer: array[10, byte]
+  var buffer: array[10, byte]
 
-  for i in 0..<len(buffer):
+  for i in 0 ..< len(buffer):
     await conn.readExactly(addr buffer[i], 1)
 
     var
@@ -226,10 +218,8 @@ proc readVarint*(
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
 proc readLp*(
-    s: LPStream,
-    maxSize: int
-): Future[seq[byte]] {.async: (raises: [
-    CancelledError, LPStreamError]), public.} =
+    s: LPStream, maxSize: int
+): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await s.readVarint()
@@ -246,42 +236,34 @@ proc readLp*(
   res
 
 method write*(
-    s: LPStream,
-    msg: seq[byte]
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true), base, public.} =
+    s: LPStream, msg: seq[byte]
+): Future[void] {.
+    async: (raises: [CancelledError, LPStreamError], raw: true), base, public
+.} =
   # Write `msg` to stream, waiting for the write to be finished
   raiseAssert("Not implemented!")
 
 proc writeLp*(
-    s: LPStream,
-    msg: openArray[byte]
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true), public.} =
+    s: LPStream, msg: openArray[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
   ## Write `msg` with a varint-encoded length prefix
   let vbytes = PB.toBytes(msg.len().uint64)
   var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
-  buf[0..<vbytes.len] = vbytes.toOpenArray()
-  buf[vbytes.len..<buf.len] = msg
+  buf[0 ..< vbytes.len] = vbytes.toOpenArray()
+  buf[vbytes.len ..< buf.len] = msg
   s.write(buf)
 
 proc writeLp*(
-    s: LPStream,
-    msg: string
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true), public.} =
+    s: LPStream, msg: string
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
 
 proc write*(
-    s: LPStream,
-    msg: string
-): Future[void] {.async: (raises: [
-    CancelledError, LPStreamError], raw: true), public.} =
+    s: LPStream, msg: string
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
   s.write(msg.toBytes())
 
-method closeImpl*(
-    s: LPStream
-): Future[void] {.async: (raises: [], raw: true), base.} =
+method closeImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
   ## Implementation of close - called only once
   trace "Closing stream", s, objName = s.objName, dir = $s.dir
   libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
@@ -310,8 +292,7 @@ method close*(
   # itself must implement this - once-only check as well, with their own field
   closeImpl(s)
 
-proc closeWithEOF*(
-    s: LPStream): Future[void] {.async: (raises: []), public.} =
+proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []), public.} =
   ## Close the stream and wait for EOF - use this with half-closed streams where
   ## an EOF is expected to arrive from the other end.
   ##

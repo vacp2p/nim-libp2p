@@ -19,26 +19,31 @@ type
     switch*: Switch
     connectStub*: connectStubType
 
-  connectStubType* = proc (self: SwitchStub,
-                           peerId: PeerId,
-                           addrs: seq[MultiAddress],
-                           forceDial = false,
-                           reuseConnection = true,
-                           dir = Direction.Out): Future[void]  {.async.}
+  connectStubType* = proc(
+    self: SwitchStub,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out,
+  ): Future[void] {.async.}
 
 method connect*(
- self: SwitchStub,
- peerId: PeerId,
- addrs: seq[MultiAddress],
- forceDial = false,
- reuseConnection = true,
- dir = Direction.Out) {.async.} =
+    self: SwitchStub,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out,
+) {.async.} =
   if (self.connectStub != nil):
     await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, dir)
   else:
     await self.switch.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
-proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil): T =
+proc new*(
+    T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType = nil
+): T =
   return SwitchStub(
     switch: switch,
     peerInfo: switch.peerInfo,
@@ -49,4 +54,5 @@ proc new*(T: typedesc[SwitchStub], switch: Switch, connectStub: connectStubType 
     dialer: switch.dialer,
     nameResolver: switch.nameResolver,
     services: switch.services,
-    connectStub: connectStub)
+    connectStub: connectStub,
+  )

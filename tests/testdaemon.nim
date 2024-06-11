@@ -1,8 +1,14 @@
 import chronos, unittest2, helpers
-import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress, ../libp2p/multicodec,
-       ../libp2p/cid, ../libp2p/multihash, ../libp2p/peerid
+import
+  ../libp2p/daemon/daemonapi,
+  ../libp2p/multiaddress,
+  ../libp2p/multicodec,
+  ../libp2p/cid,
+  ../libp2p/multihash,
+  ../libp2p/peerid
 
-when defined(nimHasUsed): {.used.}
+when defined(nimHasUsed):
+  {.used.}
 
 proc identitySpawnTest(): Future[bool] {.async.} =
   var api = await newDaemonApi()
@@ -83,9 +89,9 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var handlerFuture1 = newFuture[void]()
   var handlerFuture2 = newFuture[void]()
 
-  proc pubsubHandler1(api: DaemonAPI,
-                     ticket: PubsubTicket,
-                     message: PubSubMessage): Future[bool] {.async.} =
+  proc pubsubHandler1(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async.} =
     let smsg = cast[string](message.data)
     if smsg == pubsubData:
       inc(resultsCount)
@@ -93,9 +99,9 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
     # Callback must return `false` to close subscription channel.
     result = false
 
-  proc pubsubHandler2(api: DaemonAPI,
-                     ticket: PubsubTicket,
-                     message: PubSubMessage): Future[bool] {.async.} =
+  proc pubsubHandler2(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async.} =
     let smsg = cast[string](message.data)
     if smsg == pubsubData:
       inc(resultsCount)
@@ -121,8 +127,8 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
       # Publish test data via api1.
       await sleepAsync(500.milliseconds)
       await api1.pubsubPublish("test-topic", msgData)
-      var res = await one(allFutures(handlerFuture1, handlerFuture2),
-                          sleepAsync(10.seconds))
+      var res =
+        await one(allFutures(handlerFuture1, handlerFuture2), sleepAsync(10.seconds))
 
   await api1.close()
   await api2.close()
@@ -140,7 +146,7 @@ when isMainModule:
     # test "Provide CID test":
     #   check:
     #     waitFor(provideCidTest()) == true
-    flakyAsyncTest "GossipSub test", attempts=4:
+    flakyAsyncTest "GossipSub test", attempts = 4:
       check (await pubsubTest({PSGossipSub})) == true
-    flakyAsyncTest "FloodSub test", attempts=4:
+    flakyAsyncTest "FloodSub test", attempts = 4:
       check (await pubsubTest({PSFloodSub})) == true

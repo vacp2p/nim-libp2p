@@ -11,13 +11,14 @@
 
 import tables, sequtils, oids
 import chronos, chronicles, stew/byteutils, metrics
-import ../muxer,
-       ../../stream/connection,
-       ../../stream/bufferstream,
-       ../../utility,
-       ../../peerinfo,
-       ./coder,
-       ./lpchannel
+import
+  ../muxer,
+  ../../stream/connection,
+  ../../stream/bufferstream,
+  ../../utility,
+  ../../peerinfo,
+  ./coder,
+  ./lpchannel
 
 export muxer
 
@@ -26,12 +27,10 @@ logScope:
 
 const MplexCodec* = "/mplex/6.7.0"
 
-const
-  MaxChannelCount = 200
+const MaxChannelCount = 200
 
 when defined(libp2p_expensive_metrics):
-  declareGauge(libp2p_mplex_channels,
-    "mplex channels", labels = ["initiator", "peer"])
+  declareGauge(libp2p_mplex_channels, "mplex channels", labels = ["initiator", "peer"])
 
 type
   InvalidChannelIdError* = object of MuxerError
@@ -48,7 +47,8 @@ type
 func shortLog*(m: Mplex): auto =
   shortLog(m.connection)
 
-chronicles.formatIt(Mplex): shortLog(it)
+chronicles.formatIt(Mplex):
+  shortLog(it)
 
 proc newTooManyChannels(): ref TooManyChannels =
   newException(TooManyChannels, "max allowed channel count exceeded")
@@ -67,7 +67,8 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []), inline.} =
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
         m.channels[chann.initiator].len.int64,
-        labelValues = [$chann.initiator, $m.connection.peerId])
+        labelValues = [$chann.initiator, $m.connection.peerId],
+      )
   except CancelledError as exc:
     warn "Error cleaning up mplex channel", m, chann, msg = exc.msg
 
@@ -76,22 +77,21 @@ proc newStreamInternal*(
     initiator: bool = true,
     chanId: uint64 = 0,
     name: string = "",
-    timeout: Duration): LPChannel {.gcsafe, raises: [InvalidChannelIdError].} =
+    timeout: Duration,
+): LPChannel {.gcsafe, raises: [InvalidChannelIdError].} =
   ## create new channel/stream
   ##
   let id =
-    if initiator: m.currentId.inc(); m.currentId
-    else: chanId
+    if initiator:
+      m.currentId.inc()
+      m.currentId
+    else:
+      chanId
 
   if id in m.channels[initiator]:
     raise newInvalidChannelIdError()
 
-  result = LPChannel.init(
-    id,
-    m.connection,
-    initiator,
-    name,
-    timeout = timeout)
+  result = LPChannel.init(id, m.connection, initiator, name, timeout = timeout)
 
   result.peerId = m.connection.peerId
   result.observedAddr = m.connection.observedAddr
@@ -108,8 +108,8 @@ proc newStreamInternal*(
 
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
-      m.channels[initiator].len.int64,
-      labelValues = [$initiator, $m.connection.peerId])
+      m.channels[initiator].len.int64, labelValues = [$initiator, $m.connection.peerId]
+    )
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## call the muxer stream handler for this channel
@@ -146,7 +146,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         else:
           if m.channels[false].len > m.maxChannCount - 1:
             warn "too many channels created by remote peer",
-                 allowedMax = MaxChannelCount, m
+              allowedMax = MaxChannelCount, m
             raise newTooManyChannels()
 
           let name = string.fromBytes(data)
@@ -154,7 +154,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
 
       trace "Processing channel message", m, channel, data = data.shortLog
 
-      case msgType:
+      case msgType
       of MessageType.New:
         trace "created channel", m, channel
 
@@ -162,11 +162,10 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           # Launch handler task
           # All the errors are handled inside `handleStream()` procedure.
           asyncSpawn m.handleStream(channel)
-
       of MessageType.MsgIn, MessageType.MsgOut:
         if data.len > MaxMsgSize:
           warn "attempting to send a packet larger than allowed",
-                allowed = MaxMsgSize, channel
+            allowed = MaxMsgSize, channel
           raise newLPStreamLimitError()
 
         trace "pushing data to channel", m, channel, len = data.len
@@ -175,10 +174,9 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           trace "pushed data to channel", m, channel, len = data.len
         except LPStreamClosedError as exc:
           # Channel is being closed, but `cleanupChann` was not yet triggered.
-          trace "pushing data to channel failed", m, channel, len = data.len,
-            msg = exc.msg
-          discard  # Ignore message, same as if `cleanupChann` had completed.
-
+          trace "pushing data to channel failed",
+            m, channel, len = data.len, msg = exc.msg
+          discard # Ignore message, same as if `cleanupChann` had completed.
       of MessageType.CloseIn, MessageType.CloseOut:
         await channel.pushEof()
       of MessageType.ResetIn, MessageType.ResetOut:
@@ -201,19 +199,19 @@ proc new*(
     conn: Connection,
     inTimeout: Duration = DefaultChanTimeout,
     outTimeout: Duration = DefaultChanTimeout,
-    maxChannCount: int = MaxChannelCount): Mplex =
-  M(connection: conn,
+    maxChannCount: int = MaxChannelCount,
+): Mplex =
+  M(
+    connection: conn,
     inChannTimeout: inTimeout,
     outChannTimeout: outTimeout,
     oid: genOid(),
-    maxChannCount: maxChannCount)
+    maxChannCount: maxChannCount,
+  )
 
 method newStream*(
-    m: Mplex,
-    name: string = "",
-    lazy: bool = false
-): Future[Connection] {.async: (raises: [
-    CancelledError, LPStreamError, MuxerError]).} =
+    m: Mplex, name: string = "", lazy: bool = false
+): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   let channel = m.newStreamInternal(timeout = m.inChannTimeout)
 
   if not lazy:
@@ -250,5 +248,7 @@ method close*(m: Mplex) {.async: (raises: []).} =
   trace "Closed mplex", m
 
 method getStreams*(m: Mplex): seq[Connection] =
-  for c in m.channels[false].values: result.add(c)
-  for c in m.channels[true].values: result.add(c)
+  for c in m.channels[false].values:
+    result.add(c)
+  for c in m.channels[true].values:
+    result.add(c)

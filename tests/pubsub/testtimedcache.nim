@@ -17,7 +17,9 @@ suite "TimedCache":
       1 in cache
       2 in cache
 
-    check: not cache.put(3, now + 6.seconds) # expires 1
+    check:
+      not cache.put(3, now + 6.seconds)
+      # expires 1
 
     check:
       1 notin cache
@@ -48,10 +50,10 @@ suite "TimedCache":
     var cache = TimedCache[int].init(5.seconds)
 
     let now = Moment.now()
-    for i in 101..100000:
+    for i in 101 .. 100000:
       check:
         not cache.put(i, now)
 
-    for i in 101..100000:
+    for i in 101 .. 100000:
       check:
         i in cache

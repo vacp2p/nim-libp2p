@@ -2,8 +2,7 @@ import chronos, nimcrypto, strutils
 import ../../libp2p/daemon/daemonapi
 import ../hexdump
 
-const
-  PubSubTopic = "test-net"
+const PubSubTopic = "test-net"
 
 proc dumpSubscribedPeers(api: DaemonAPI) {.async.} =
   var peers = await api.pubsubListPeers(PubSubTopic)
@@ -37,12 +36,12 @@ proc main() {.async.} =
 
   asyncSpawn monitor(api)
 
-  proc pubsubLogger(api: DaemonAPI,
-                    ticket: PubsubTicket,
-                    message: PubSubMessage): Future[bool] {.async.} =
+  proc pubsubLogger(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async.} =
     let msglen = len(message.data)
-    echo "= Recieved pubsub message with length ", msglen,
-         " bytes from peer ", message.peer.pretty()
+    echo "= Recieved pubsub message with length ",
+      msglen, " bytes from peer ", message.peer.pretty()
     echo dumpHex(message.data)
     await api.dumpSubscribedPeers()
     result = true

@@ -14,13 +14,12 @@ import secure, ../../stream/connection
 
 const PlainTextCodec* = "/plaintext/1.0.0"
 
-type
-  PlainText* = ref object of Secure
+type PlainText* = ref object of Secure
 
 method init(p: PlainText) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string)
-    {.async.} = discard
+  proc handle(conn: Connection, proto: string) {.async.} =
     ## plain text doesn't do anything
+    discard
 
   p.codec = PlainTextCodec
   p.handler = handle

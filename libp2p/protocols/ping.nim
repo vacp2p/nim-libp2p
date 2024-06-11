@@ -13,15 +13,16 @@
 
 import chronos, chronicles
 import bearssl/rand
-import ../protobuf/minprotobuf,
-       ../peerinfo,
-       ../stream/connection,
-       ../peerid,
-       ../crypto/crypto,
-       ../multiaddress,
-       ../protocols/protocol,
-       ../utility,
-       ../errors
+import
+  ../protobuf/minprotobuf,
+  ../peerinfo,
+  ../stream/connection,
+  ../peerid,
+  ../crypto/crypto,
+  ../multiaddress,
+  ../protocols/protocol,
+  ../utility,
+  ../errors
 
 export chronicles, rand, connection
 
@@ -36,16 +37,15 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of PingError
 
-  PingHandler* {.public.} = proc (
-    peer: PeerId):
-    Future[void]
-    {.gcsafe, raises: [].}
+  PingHandler* {.public.} = proc(peer: PeerId): Future[void] {.gcsafe, raises: [].}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
     rng: ref HmacDrbgContext
 
-proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()): T {.public.} =
+proc new*(
+    T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()
+): T {.public.} =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
@@ -68,10 +68,7 @@ method init*(p: Ping) =
   p.handler = handle
   p.codec = PingCodec
 
-proc ping*(
-  p: Ping,
-  conn: Connection,
-  ): Future[Duration] {.async, public.} =
+proc ping*(p: Ping, conn: Connection): Future[Duration] {.async, public.} =
   ## Sends ping to `conn`, returns the delay
 
   trace "initiating ping", conn
@@ -93,7 +90,7 @@ proc ping*(
 
   trace "got ping response", conn, responseDur
 
-  for i in 0..<randomBuf.len:
+  for i in 0 ..< randomBuf.len:
     if randomBuf[i] != resultBuf[i]:
       raise newException(WrongPingAckError, "Incorrect ping data from peer!")
 

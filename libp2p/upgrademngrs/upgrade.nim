@@ -13,21 +13,24 @@
 import std/[sequtils, strutils]
 import pkg/[chronos, chronicles, metrics]
 
-import ../stream/connection,
-       ../protocols/secure/secure,
-       ../protocols/identify,
-       ../muxers/muxer,
-       ../multistream,
-       ../connmanager,
-       ../errors,
-       ../utility
+import
+  ../stream/connection,
+  ../protocols/secure/secure,
+  ../protocols/identify,
+  ../muxers/muxer,
+  ../multistream,
+  ../connmanager,
+  ../errors,
+  ../utility
 
 export connmanager, connection, identify, secure, multistream
 
-declarePublicCounter(libp2p_failed_upgrades_incoming,
-  "incoming connections failed upgrades")
-declarePublicCounter(libp2p_failed_upgrades_outgoing,
-  "outgoing connections failed upgrades")
+declarePublicCounter(
+  libp2p_failed_upgrades_incoming, "incoming connections failed upgrades"
+)
+declarePublicCounter(
+  libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades"
+)
 
 logScope:
   topics = "libp2p upgrade"
@@ -40,17 +43,12 @@ type
     secureManagers*: seq[Secure]
 
 method upgrade*(
-    self: Upgrade,
-    conn: Connection,
-    peerId: Opt[PeerId]
-): Future[Muxer] {.async: (raises: [
-    CancelledError, LPError], raw: true), base.} =
+    self: Upgrade, conn: Connection, peerId: Opt[PeerId]
+): Future[Muxer] {.async: (raises: [CancelledError, LPError], raw: true), base.} =
   raiseAssert("Not implemented!")
 
 proc secure*(
-    self: Upgrade,
-    conn: Connection,
-    peerId: Opt[PeerId]
+    self: Upgrade, conn: Connection, peerId: Opt[PeerId]
 ): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
   if self.secureManagers.len <= 0:
     raise (ref UpgradeFailedError)(msg: "No secure managers registered!")

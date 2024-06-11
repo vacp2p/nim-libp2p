@@ -21,16 +21,56 @@ import ../pubsub
 logScope:
   topics = "libp2p gossipsub"
 
-declareGauge(libp2p_gossipsub_peers_scores, "the scores of the peers in gossipsub", labels = ["agent"])
-declareCounter(libp2p_gossipsub_bad_score_disconnection, "the number of peers disconnected by gossipsub", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_firstMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_meshMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_meshFailurePenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_invalidMessageDeliveries, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_appScore, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_behaviourPenalty, "Detailed gossipsub scoring metric", labels = ["agent"])
-declareGauge(libp2p_gossipsub_peers_score_colocationFactor, "Detailed gossipsub scoring metric", labels = ["agent"])
-declarePublicCounter(libp2p_gossipsub_peers_rate_limit_hits, "The number of times peers were above their rate limit", labels = ["agent"])
+declareGauge(
+  libp2p_gossipsub_peers_scores,
+  "the scores of the peers in gossipsub",
+  labels = ["agent"],
+)
+declareCounter(
+  libp2p_gossipsub_bad_score_disconnection,
+  "the number of peers disconnected by gossipsub",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_firstMessageDeliveries,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_meshMessageDeliveries,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_meshFailurePenalty,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_invalidMessageDeliveries,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_appScore,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_behaviourPenalty,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_colocationFactor,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declarePublicCounter(
+  libp2p_gossipsub_peers_rate_limit_hits,
+  "The number of times peers were above their rate limit",
+  labels = ["agent"],
+)
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
@@ -50,21 +90,24 @@ proc init*(_: type[TopicParams]): TopicParams =
     meshFailurePenaltyWeight: -1.0,
     meshFailurePenaltyDecay: 0.5,
     invalidMessageDeliveriesWeight: -1.0,
-    invalidMessageDeliveriesDecay: 0.5
+    invalidMessageDeliveriesDecay: 0.5,
   )
 
 proc withPeerStats*(
     g: GossipSub,
     peerId: PeerId,
-    action: proc (stats: var PeerStats) {.gcsafe, raises: [].}) =
+    action: proc(stats: var PeerStats) {.gcsafe, raises: [].},
+) =
   ## Add or update peer statistics for a particular peer id - the statistics
   ## are retained across multiple connections until they expire
-  g.peerStats.withValue(peerId, stats) do:
+  g.peerStats.withValue(peerId, stats):
     action(stats[])
   do:
-    action(g.peerStats.mgetOrPut(peerId, PeerStats(
-      expire: Moment.now() + g.parameters.retainScore
-    )))
+    action(
+      g.peerStats.mgetOrPut(
+        peerId, PeerStats(expire: Moment.now() + g.parameters.retainScore)
+      )
+    )
 
 func `/`(a, b: Duration): float64 =
   let
@@ -72,14 +115,15 @@ func `/`(a, b: Duration): float64 =
     fb = float64(b.nanoseconds)
   fa / fb
 
-func byScore*(x,y: PubSubPeer): int = system.cmp(x.score, y.score)
+func byScore*(x, y: PubSubPeer): int =
+  system.cmp(x.score, y.score)
 
 proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
-  let address = peer.address.valueOr: return 0.0
+  let address = peer.address.valueOr:
+    return 0.0
 
   g.peersInIP.mgetOrPut(address, initHashSet[PeerId]()).incl(peer.peerId)
-  let
-    ipPeers = g.peersInIP.getOrDefault(address).len().float64
+  let ipPeers = g.peersInIP.getOrDefault(address).len().float64
   if ipPeers > g.parameters.ipColocationFactorThreshold:
     trace "colocationFactor over threshold", peer, address, ipPeers
     let over = ipPeers - g.parameters.ipColocationFactorThreshold
@@ -95,7 +139,7 @@ proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async.} =
 
 proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
-     peer.peerId notin g.parameters.directPeers:
+      peer.peerId notin g.parameters.directPeers:
     debug "disconnecting bad score peer", peer, score = peer.score
     asyncSpawn(g.disconnectPeer(peer))
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
@@ -110,7 +154,7 @@ proc updateScores*(g: GossipSub) = # avoid async
 
   for peerId, stats in g.peerStats.mpairs:
     let peer = g.peers.getOrDefault(peerId)
-    if isNil(peer) or not(peer.connected):
+    if isNil(peer) or not (peer.connected):
       if now > stats.expire:
         evicting.add(peerId)
         trace "evicted peer from memory", peer = peerId
@@ -147,12 +191,14 @@ proc updateScores*(g: GossipSub) = # avoid async
         else:
           info.meshMessageDeliveriesActive = false
 
-        topicScore += info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
+        topicScore +=
+          info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
         trace "p2", peer, p2 = info.firstMessageDeliveries, topic, topicScore
 
         if info.meshMessageDeliveriesActive:
           if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
-            let deficit = topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
+            let deficit =
+              topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
             let p3 = deficit * deficit
             trace "p3", peer, p3, topic, topicScore
             topicScore += p3 * topicParams.meshMessageDeliveriesWeight
@@ -160,20 +206,34 @@ proc updateScores*(g: GossipSub) = # avoid async
         topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
         trace "p3b", peer, p3b = info.meshFailurePenalty, topic, topicScore
 
-        topicScore += info.invalidMessageDeliveries * info.invalidMessageDeliveries * topicParams.invalidMessageDeliveriesWeight
-        trace "p4", peer, p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries, topic, topicScore
+        topicScore +=
+          info.invalidMessageDeliveries * info.invalidMessageDeliveries *
+          topicParams.invalidMessageDeliveriesWeight
+        trace "p4",
+          peer,
+          p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries,
+          topic,
+          topicScore
 
         scoreAcc += topicScore * topicParams.topicWeight
 
-        trace "updated peer topic's scores", peer, scoreAcc, topic, info, topicScore,
-                                             topicWeight = topicParams.topicWeight
+        trace "updated peer topic's scores",
+          peer, scoreAcc, topic, info, topicScore, topicWeight = topicParams.topicWeight
 
       # Score metrics
       let agent = peer.getAgent()
-      libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(info.firstMessageDeliveries, labelValues = [agent])
-      libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(info.meshMessageDeliveries, labelValues = [agent])
-      libp2p_gossipsub_peers_score_meshFailurePenalty.inc(info.meshFailurePenalty, labelValues = [agent])
-      libp2p_gossipsub_peers_score_invalidMessageDeliveries.inc(info.invalidMessageDeliveries, labelValues = [agent])
+      libp2p_gossipsub_peers_score_firstMessageDeliveries.inc(
+        info.firstMessageDeliveries, labelValues = [agent]
+      )
+      libp2p_gossipsub_peers_score_meshMessageDeliveries.inc(
+        info.meshMessageDeliveries, labelValues = [agent]
+      )
+      libp2p_gossipsub_peers_score_meshFailurePenalty.inc(
+        info.meshFailurePenalty, labelValues = [agent]
+      )
+      libp2p_gossipsub_peers_score_invalidMessageDeliveries.inc(
+        info.invalidMessageDeliveries, labelValues = [agent]
+      )
 
       # Score decay
       info.firstMessageDeliveries *= topicParams.firstMessageDeliveriesDecay
@@ -197,23 +257,37 @@ proc updateScores*(g: GossipSub) = # avoid async
       stats.topicInfos[topic] = info
 
     scoreAcc += peer.appScore * g.parameters.appSpecificWeight
-    trace "appScore", peer, scoreAcc, appScore = peer.appScore,
-                      appSpecificWeight = g.parameters.appSpecificWeight
+    trace "appScore",
+      peer,
+      scoreAcc,
+      appScore = peer.appScore,
+      appSpecificWeight = g.parameters.appSpecificWeight
 
     # The value of the parameter is the square of the counter and is mixed with a negative weight.
-    scoreAcc += peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
-    trace "behaviourPenalty", peer, scoreAcc, behaviourPenalty = peer.behaviourPenalty,
-                              behaviourPenaltyWeight = g.parameters.behaviourPenaltyWeight
+    scoreAcc +=
+      peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
+    trace "behaviourPenalty",
+      peer,
+      scoreAcc,
+      behaviourPenalty = peer.behaviourPenalty,
+      behaviourPenaltyWeight = g.parameters.behaviourPenaltyWeight
 
     let colocationFactor = g.colocationFactor(peer)
     scoreAcc += colocationFactor * g.parameters.ipColocationFactorWeight
-    trace "colocationFactor", peer, scoreAcc, colocationFactor,
-                              ipColocationFactorWeight = g.parameters.ipColocationFactorWeight
+    trace "colocationFactor",
+      peer,
+      scoreAcc,
+      colocationFactor,
+      ipColocationFactorWeight = g.parameters.ipColocationFactorWeight
     # Score metrics
     let agent = peer.getAgent()
     libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
-    libp2p_gossipsub_peers_score_behaviourPenalty.inc(peer.behaviourPenalty, labelValues = [agent])
-    libp2p_gossipsub_peers_score_colocationFactor.inc(colocationFactor, labelValues = [agent])
+    libp2p_gossipsub_peers_score_behaviourPenalty.inc(
+      peer.behaviourPenalty, labelValues = [agent]
+    )
+    libp2p_gossipsub_peers_score_colocationFactor.inc(
+      colocationFactor, labelValues = [agent]
+    )
 
     # decay behaviourPenalty
     peer.behaviourPenalty *= g.parameters.behaviourPenaltyDecay
@@ -228,7 +302,8 @@ proc updateScores*(g: GossipSub) = # avoid async
     stats.behaviourPenalty = peer.behaviourPenalty
     stats.expire = now + g.parameters.retainScore # refresh expiration
 
-    trace "updated (accumulated) peer's score", peer, peerScore = peer.score, n_topics, is_grafted
+    trace "updated (accumulated) peer's score",
+      peer, peerScore = peer.score, n_topics, is_grafted
 
     g.disconnectIfBadScorePeer(peer, stats.score)
     libp2p_gossipsub_peers_scores.inc(peer.score, labelValues = [agent])
@@ -243,15 +318,19 @@ proc scoringHeartbeat*(g: GossipSub) {.async.} =
     trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
-proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) {.async.}  =
+proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) {.async.} =
   let uselessAppBytesNum = msg.data.len
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):
-      debug "Peer sent invalid message and it's above rate limit", peer, uselessAppBytesNum
-      libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()]) # let's just measure at the beginning for test purposes.
+      debug "Peer sent invalid message and it's above rate limit",
+        peer, uselessAppBytesNum
+      libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
+        # let's just measure at the beginning for test purposes.
       if g.parameters.disconnectPeerAboveRateLimit:
         await g.disconnectPeer(peer)
-        raise newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
+        raise newException(
+          PeerRateLimitError, "Peer disconnected because it's above rate limit."
+        )
 
   let topic = msg.topic
   if topic notin g.topics:
@@ -265,11 +344,7 @@ proc addCapped*[T](stat: var T, diff, cap: T) =
   stat += min(diff, cap - stat)
 
 proc rewardDelivered*(
-    g: GossipSub,
-    peer: PubSubPeer,
-    topic: string,
-    first: bool,
-    delay = ZeroDuration,
+    g: GossipSub, peer: PubSubPeer, topic: string, first: bool, delay = ZeroDuration
 ) =
   if topic notin g.topics:
     return
@@ -281,14 +356,16 @@ proc rewardDelivered*(
     # Too old
     return
 
-  g.withPeerStats(peer.peerId) do (stats: var PeerStats):
+  g.withPeerStats(peer.peerId) do(stats: var PeerStats):
     stats.topicInfos.withValue(topic, tstats):
       if first:
         tstats[].firstMessageDeliveries.addCapped(
-          1, topicParams.firstMessageDeliveriesCap)
+          1, topicParams.firstMessageDeliveriesCap
+        )
 
       if tstats[].inMesh:
         tstats[].meshMessageDeliveries.addCapped(
-          1, topicParams.meshMessageDeliveriesCap)
-    do: # make sure we don't lose this information
+          1, topicParams.meshMessageDeliveriesCap
+        )
+    do:
       stats.topicInfos[topic] = TopicInfo(meshMessageDeliveries: 1)
