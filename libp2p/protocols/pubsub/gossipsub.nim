@@ -411,7 +411,8 @@ proc validateAndRelay(
       # small).
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
-      g.broadcast(peersToSendIDontWant,
+      g.broadcast(
+        peersToSendIDontWant,
         RPCMsg(
           control:
             some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
@@ -460,9 +461,12 @@ proc validateAndRelay(
       for iDontWant in it.iDontWants:
         if saltedId in iDontWant:
           libp2p_gossipsub_idontwant_saved_messages.inc
-          libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
+          libp2p_gossipsub_saved_bytes.inc(
+            msg.data.len.int64, labelValues = ["idontwant"]
+          )
           return true
       return false
+
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     # In theory, if topics are the same in all messages, we could batch - we'd
