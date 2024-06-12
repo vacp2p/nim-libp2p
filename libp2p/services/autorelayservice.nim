@@ -22,7 +22,7 @@ type
     running: bool
     runner: Future[void]
     client: RelayClient
-    numRelays: int
+    maxNumRelays: int # maximum number of relays we can reserve at the same time
     relayPeers: Table[PeerId, Future[void]]
     relayAddresses: Table[PeerId, seq[MultiAddress]]
     backingOff: seq[PeerId]
@@ -68,7 +68,7 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
   if hasBeenSetUp:
     proc handlePeerJoined(peerId: PeerId, event: PeerEvent) {.async.} =
       trace "Peer Joined", peerId
-      if self.relayPeers.len < self.numRelays:
+      if self.relayPeers.len < self.maxNumRelays:
         self.peerAvailable.fire()
 
     proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async.} =
@@ -111,7 +111,7 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
     self.rng.shuffle(connectedPeers)
 
     for relayPid in connectedPeers:
-      if self.relayPeers.len() >= self.numRelays:
+      if self.relayPeers.len() >= self.maxNumRelays:
         break
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch)
 
@@ -142,13 +142,13 @@ proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
 
 proc new*(
     T: typedesc[AutoRelayService],
-    numRelays: int,
+    maxNumRelays: int,
     client: RelayClient,
     onReservation: OnReservationHandler,
     rng: ref HmacDrbgContext,
 ): T =
   T(
-    numRelays: numRelays,
+    maxNumRelays: maxNumRelays,
     client: client,
     onReservation: onReservation,
     peerAvailable: newAsyncEvent(),
