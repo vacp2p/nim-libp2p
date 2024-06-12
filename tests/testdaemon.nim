@@ -114,7 +114,9 @@ when isMainModule:
     test "Connect/Accept peer/stream test":
       check:
         waitFor(connectStreamTest()) == true
-    flakyAsyncTest "GossipSub test", attempts = 4:
-      check (await pubsubTest({PSGossipSub})) == true
-    flakyAsyncTest "FloodSub test", attempts = 4:
-      check (await pubsubTest({PSFloodSub})) == true
+    asyncTest "GossipSub test":
+      checkUntilTimeout:
+       (await pubsubTest({PSGossipSub}))
+    asyncTest "FloodSub test":
+      checkUntilTimeout:
+        (await pubsubTest({PSFloodSub}))

@@ -162,7 +162,7 @@ macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
           if `combinedBoolExpr`:
             return
           else:
-            await sleepAsync(1.millis)
+            await sleepAsync(100.millis)
 
     await checkExpiringInternal()
 
