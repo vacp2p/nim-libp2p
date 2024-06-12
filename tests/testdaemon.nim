@@ -116,7 +116,7 @@ when isMainModule:
         waitFor(connectStreamTest()) == true
     asyncTest "GossipSub test":
       checkUntilTimeout:
-       (await pubsubTest({PSGossipSub}))
+        (await pubsubTest({PSGossipSub}))
     asyncTest "FloodSub test":
       checkUntilTimeout:
         (await pubsubTest({PSFloodSub}))
