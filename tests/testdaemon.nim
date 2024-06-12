@@ -44,34 +44,6 @@ proc connectStreamTest(): Future[bool] {.async.} =
   await api2.close()
   result = true
 
-# proc provideCidTest(): Future[bool] {.async.} =
-#   var api1 = await newDaemonApi({DHTFull})
-#   var api2 = await newDaemonApi({DHTFull})
-#   var msg = "ethereum2-beacon-chain"
-#   var bmsg = cast[seq[byte]](msg)
-#   var mh = MultiHash.digest("sha2-256", bmsg)
-#   var cid = Cid.init(CIDv1, multiCodec("dag-pb"), mh)
-
-#   var id1 = await api1.identity()
-#   var id2 = await api2.identity()
-
-#   await api1.connect(id2.peer, id2.addresses)
-
-#   while true:
-#     var peers = await api1.listPeers()
-#     if len(peers) > 0:
-#       break
-
-#   await api1.dhtProvide(cid)
-#   var peers = await api2.dhtFindProviders(cid, 10)
-
-#   if len(peers) == 1:
-#     if peers[0].peer == id1.peer:
-#       result = true
-
-#   await api1.close()
-#   await api2.close()
-
 proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var pubsubData = "TEST MESSAGE"
   var msgData = cast[seq[byte]](pubsubData)
@@ -142,9 +114,6 @@ when isMainModule:
     test "Connect/Accept peer/stream test":
       check:
         waitFor(connectStreamTest()) == true
-    # test "Provide CID test":
-    #   check:
-    #     waitFor(provideCidTest()) == true
     flakyAsyncTest "GossipSub test", attempts = 4:
       check (await pubsubTest({PSGossipSub})) == true
     flakyAsyncTest "FloodSub test", attempts = 4:
