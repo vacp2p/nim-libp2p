@@ -862,8 +862,12 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
 
-method getOrCreatePeer*(g: GossipSub, peerId: PeerId, protosToDial: seq[string],
-    protoNegotiated: string = ""): PubSubPeer =
+method getOrCreatePeer*(
+    g: GossipSub,
+    peerId: PeerId,
+    protosToDial: seq[string],
+    protoNegotiated: string = "",
+): PubSubPeer =
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protosToDial, protoNegotiated)
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt =

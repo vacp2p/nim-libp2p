@@ -348,9 +348,8 @@ method onPubSubPeerEvent*(
     discard
 
 method getOrCreatePeer*(
-    p: PubSub, peerId: PeerId, protosToDial: seq[string]
-,
-    protoNegotiated: string = ""): PubSubPeer {.base, gcsafe.} =
+    p: PubSub, peerId: PeerId, protosToDial: seq[string], protoNegotiated: string = ""
+): PubSubPeer {.base, gcsafe.} =
   p.peers.withValue(peerId, peer):
     if peer[].codec == "":
       peer[].codec = protoNegotiated
@@ -363,7 +362,8 @@ method getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protoNegotiated, p.maxMessageSize)
+  let pubSubPeer =
+    PubSubPeer.new(peerId, getConn, onEvent, protoNegotiated, p.maxMessageSize)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
