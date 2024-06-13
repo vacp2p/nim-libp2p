@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -10,10 +10,11 @@
 ## This module implements transcoder interface.
 import vbuffer
 
-type
-  Transcoder* = object
-    stringToBuffer*: proc(s: string,
-                          vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
-    bufferToString*: proc(vb: var VBuffer,
-                          s: var string): bool {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
-    validateBuffer*: proc(vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [Defect].}
+type Transcoder* = object
+  stringToBuffer*:
+    proc(s: string, vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [].}
+  bufferToString*: proc(vb: var VBuffer, s: var string): bool {.
+    nimcall, gcsafe, noSideEffect, raises: []
+  .}
+  validateBuffer*:
+    proc(vb: var VBuffer): bool {.nimcall, gcsafe, noSideEffect, raises: [].}

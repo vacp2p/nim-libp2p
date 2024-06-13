@@ -1,21 +1,30 @@
 {.used.}
 
-import options, sequtils, strutils
-import stew/byteutils, chronos
-import ../libp2p/[protocols/rendezvous,
-                  switch,
-                  builders,]
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import sequtils, strutils
+import chronos
+import ../libp2p/[protocols/rendezvous, switch, builders]
+import ../libp2p/discovery/[rendezvousinterface, discoverymngr]
 import ./helpers
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder.new()
-    .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .withRendezVous(rdv)
-    .build()
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .withRendezVous(rdv)
+  .build()
 
 suite "RendezVous":
   teardown:
@@ -69,12 +78,14 @@ suite "RendezVous":
       clientSeq: seq[Switch] = @[]
       remoteSwitch = createSwitch()
 
-    for x in 0..10:
+    for x in 0 .. 10:
       rdvSeq.add(RendezVous.new())
       clientSeq.add(createSwitch(rdvSeq[^1]))
     await remoteSwitch.start()
     await allFutures(clientSeq.mapIt(it.start()))
-    await allFutures(clientSeq.mapIt(remoteSwitch.connect(it.peerInfo.peerId, it.peerInfo.addrs)))
+    await allFutures(
+      clientSeq.mapIt(remoteSwitch.connect(it.peerInfo.peerId, it.peerInfo.addrs))
+    )
     await allFutures(rdvSeq.mapIt(it.advertise("foo")))
     var data = clientSeq.mapIt(it.peerInfo.signedPeerRecord.data)
     let res1 = await rdvSeq[0].request("foo", 5)
@@ -117,9 +128,15 @@ suite "RendezVous":
     let
       rdv = RendezVous.new()
       switch = createSwitch(rdv)
-    expect RendezVousError: discard await rdv.request("A".repeat(300))
-    expect RendezVousError: discard await rdv.request("A", -1)
-    expect RendezVousError: discard await rdv.request("A", 3000)
-    expect RendezVousError: await rdv.advertise("A".repeat(300))
-    expect RendezVousError: await rdv.advertise("A", 2.weeks)
-    expect RendezVousError: await rdv.advertise("A", 5.minutes)
+    expect RendezVousError:
+      discard await rdv.request("A".repeat(300))
+    expect RendezVousError:
+      discard await rdv.request("A", -1)
+    expect RendezVousError:
+      discard await rdv.request("A", 3000)
+    expect RendezVousError:
+      await rdv.advertise("A".repeat(300))
+    expect RendezVousError:
+      await rdv.advertise("A", 2.weeks)
+    expect RendezVousError:
+      await rdv.advertise("A", 5.minutes)

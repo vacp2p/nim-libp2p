@@ -19,7 +19,7 @@ jobs:
 
       - uses: jiro4989/setup-nim-action@v1
         with:
-          nim-version: 'stable'
+          nim-version: '1.6.x'
 
       - name: Generate doc
         run: |
@@ -79,12 +79,12 @@ jobs:
           nim-version: 'stable'
 
       - name: Generate website
-        run: pip install mkdocs-material && nimble website
+        run: pip install mkdocs-material && nimble -y website
 
       - name: Clone the gh-pages branch
         uses: actions/checkout@v2
         with:
-          repository: status-im/nim-libp2p
+          repository: vacp2p/nim-libp2p
           ref: gh-pages
           path: subdoc
           fetch-depth: 0

@@ -1,15 +1,12 @@
-when not(compileOption("threads")):
+when not (compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
-import
-  strformat, strutils,
-  stew/byteutils,
-  chronos,
-  libp2p
+import strformat, strutils, stew/byteutils, chronos, libp2p
 
 const DefaultAddr = "/ip4/127.0.0.1/tcp/0"
 
-const Help = """
+const Help =
+  """
   Commands: /[?|help|connect|disconnect|exit]
   help: Prints this help
   connect: dials a remote peer
@@ -17,12 +14,11 @@ const Help = """
   exit: closes the chat
 """
 
-type
-  Chat = ref object
-    switch: Switch          # a single entry point for dialing and listening to peer
-    stdinReader: StreamTransport # transport streams between read & write file descriptor
-    conn: Connection        # connection to the other peer
-    connected: bool         # if the node is connected to another peer
+type Chat = ref object
+  switch: Switch # a single entry point for dialing and listening to peer
+  stdinReader: StreamTransport # transport streams between read & write file descriptor
+  conn: Connection # connection to the other peer
+  connected: bool # if the node is connected to another peer
 
 ##
 # Stdout helpers, to write the prompt
@@ -41,8 +37,7 @@ proc writeStdout(c: Chat, str: string) =
 ##
 const ChatCodec = "/nim-libp2p/chat/1.0.0"
 
-type
-  ChatProto = ref object of LPProtocol
+type ChatProto = ref object of LPProtocol
 
 proc new(T: typedesc[ChatProto], c: Chat): T =
   let chatproto = T()
@@ -77,9 +72,9 @@ proc handlePeer(c: Chat, conn: Connection) {.async.} =
         strData = await conn.readLp(1024)
         str = string.fromBytes(strData)
       c.writeStdout $conn.peerId & ": " & $str
-
   except LPStreamEOFError:
-    defer: c.writeStdout $conn.peerId & " disconnected"
+    defer:
+      c.writeStdout $conn.peerId & " disconnected"
     await c.conn.close()
     c.connected = false
 
@@ -88,10 +83,7 @@ proc dialPeer(c: Chat, address: string) {.async.} =
   let
     multiAddr = MultiAddress.init(address).tryGet()
     # split the peerId part /p2p/...
-    peerIdBytes = multiAddr[multiCodec("p2p")]
-      .tryGet()
-      .protoAddress()
-      .tryGet()
+    peerIdBytes = multiAddr[multiCodec("p2p")].tryGet().protoAddress().tryGet()
     remotePeer = PeerId.init(peerIdBytes).tryGet()
     # split the wire address
     ip4Addr = multiAddr[multiCodec("ip4")].tryGet()
@@ -124,7 +116,6 @@ proc readLoop(c: Chat) {.async.} =
       let address = await c.stdinReader.readLine()
       if address.len > 0:
         await c.dialPeer(address)
-
     elif line.startsWith("/exit"):
       if c.connected and c.conn.closed.not:
         await c.conn.close()
@@ -171,16 +162,18 @@ proc main() {.async.} =
 
   var switch = SwitchBuilder
     .new()
-    .withRng(rng)       # Give the application RNG
+    .withRng(rng)
+    # Give the application RNG
     .withAddress(localAddress)
-    .withTcpTransport() # Use TCP as transport
-    .withMplex()        # Use Mplex as muxer
-    .withNoise()        # Use Noise as secure manager
+    .withTcpTransport()
+    # Use TCP as transport
+    .withMplex()
+    # Use Mplex as muxer
+    .withNoise()
+    # Use Noise as secure manager
     .build()
 
-  let chat = Chat(
-    switch: switch,
-    stdinReader: stdinReader)
+  let chat = Chat(switch: switch, stdinReader: stdinReader)
 
   switch.mount(ChatProto.new(chat))
 

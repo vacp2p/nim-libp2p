@@ -3,6 +3,7 @@
 
 import ../../utility
 
-type
-  ValidationResult* {.pure, public.} = enum
-    Accept, Reject, Ignore
+type ValidationResult* {.pure, public.} = enum
+  Accept
+  Reject
+  Ignore

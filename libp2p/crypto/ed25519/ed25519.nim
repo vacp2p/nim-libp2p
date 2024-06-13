@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -11,10 +11,7 @@
 ## This code is a port of the public domain, "ref10" implementation of ed25519
 ## from SUPERCOP.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import bearssl/rand
 import constants
@@ -22,18 +19,18 @@ import nimcrypto/[hash, sha2]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import stew/[results, ctops]
+
+import ../../utility
+
 export results
 
 # This workaround needed because of some bugs in Nim Static[T].
 export hash, sha2, rand
 
 const
-  EdPrivateKeySize* = 64
-    ## Size in octets (bytes) of serialized ED25519 private key.
-  EdPublicKeySize* = 32
-    ## Size in octets (bytes) of serialized ED25519 public key.
-  EdSignatureSize* = 64
-    ## Size in octets (bytes) of serialized ED25519 signature.
+  EdPrivateKeySize* = 64 ## Size in octets (bytes) of serialized ED25519 private key.
+  EdPublicKeySize* = 32 ## Size in octets (bytes) of serialized ED25519 public key.
+  EdSignatureSize* = 64 ## Size in octets (bytes) of serialized ED25519 signature.
 
 type
   EdPrivateKey* = object
@@ -59,18 +56,50 @@ proc `-`(x: uint8): uint8 {.inline.} =
   result = (0xFF'u8 - x) + 1'u8
 
 proc fe0(h: var Fe) =
-  h[0] = 0; h[1] = 0; h[2] = 0; h[3] = 0; h[4] = 0
-  h[5] = 0; h[6] = 0; h[7] = 0; h[8] = 0; h[9] = 0
+  h[0] = 0
+  h[1] = 0
+  h[2] = 0
+  h[3] = 0
+  h[4] = 0
+  h[5] = 0
+  h[6] = 0
+  h[7] = 0
+  h[8] = 0
+  h[9] = 0
 
 proc fe1(h: var Fe) =
-  h[0] = 1; h[1] = 0; h[2] = 0; h[3] = 0; h[4] = 0
-  h[5] = 0; h[6] = 0; h[7] = 0; h[8] = 0; h[9] = 0
+  h[0] = 1
+  h[1] = 0
+  h[2] = 0
+  h[3] = 0
+  h[4] = 0
+  h[5] = 0
+  h[6] = 0
+  h[7] = 0
+  h[8] = 0
+  h[9] = 0
 
 proc feAdd(h: var Fe, f, g: Fe) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4]
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9]
-  var g0 = g[0]; var g1 = g[1]; var g2 = g[2]; var g3 = g[3]; var g4 = g[4]
-  var g5 = g[5]; var g6 = g[6]; var g7 = g[7]; var g8 = g[8]; var g9 = g[9]
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
+  var g0 = g[0]
+  var g1 = g[1]
+  var g2 = g[2]
+  var g3 = g[3]
+  var g4 = g[4]
+  var g5 = g[5]
+  var g6 = g[6]
+  var g7 = g[7]
+  var g8 = g[8]
+  var g9 = g[9]
   var h0 = f0 + g0
   var h1 = f1 + g1
   var h2 = f2 + g2
@@ -93,10 +122,26 @@ proc feAdd(h: var Fe, f, g: Fe) =
   h[9] = h9
 
 proc feSub(h: var Fe, f, g: Fe) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4]
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9]
-  var g0 = g[0]; var g1 = g[1]; var g2 = g[2]; var g3 = g[3]; var g4 = g[4]
-  var g5 = g[5]; var g6 = g[6]; var g7 = g[7]; var g8 = g[8]; var g9 = g[9]
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
+  var g0 = g[0]
+  var g1 = g[1]
+  var g2 = g[2]
+  var g3 = g[3]
+  var g4 = g[4]
+  var g5 = g[5]
+  var g6 = g[6]
+  var g7 = g[7]
+  var g8 = g[8]
+  var g9 = g[9]
   var h0 = f0 - g0
   var h1 = f1 - g1
   var h2 = f2 - g2
@@ -119,10 +164,26 @@ proc feSub(h: var Fe, f, g: Fe) =
   h[9] = h9
 
 proc feCmov(f: var Fe, g: Fe, b: uint32) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4]
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9]
-  var g0 = g[0]; var g1 = g[1]; var g2 = g[2]; var g3 = g[3]; var g4 = g[4]
-  var g5 = g[5]; var g6 = g[6]; var g7 = g[7]; var g8 = g[8]; var g9 = g[9]
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
+  var g0 = g[0]
+  var g1 = g[1]
+  var g2 = g[2]
+  var g3 = g[3]
+  var g4 = g[4]
+  var g5 = g[5]
+  var g6 = g[6]
+  var g7 = g[7]
+  var g8 = g[8]
+  var g9 = g[9]
   var x0 = f0 xor g0
   var x1 = f1 xor g1
   var x2 = f2 xor g2
@@ -156,8 +217,16 @@ proc feCmov(f: var Fe, g: Fe, b: uint32) =
   f[9] = f9 xor x9
 
 proc feCopy(h: var Fe, f: Fe) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4]
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9]
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
   h[0] = f0
   h[1] = f1
   h[2] = f2
@@ -170,15 +239,15 @@ proc feCopy(h: var Fe, f: Fe) =
   h[9] = f9
 
 proc load_3(inp: openArray[byte]): uint64 =
-  result = cast[uint64](inp[0])
-  result = result or (cast[uint64](inp[1]) shl 8)
-  result = result or (cast[uint64](inp[2]) shl 16)
+  result = safeConvert[uint64](inp[0])
+  result = result or (safeConvert[uint64](inp[1]) shl 8)
+  result = result or (safeConvert[uint64](inp[2]) shl 16)
 
 proc load_4(inp: openArray[byte]): uint64 =
-  result = cast[uint64](inp[0])
-  result = result or (cast[uint64](inp[1]) shl 8)
-  result = result or (cast[uint64](inp[2]) shl 16)
-  result = result or (cast[uint64](inp[3]) shl 24)
+  result = safeConvert[uint64](inp[0])
+  result = result or (safeConvert[uint64](inp[1]) shl 8)
+  result = result or (safeConvert[uint64](inp[2]) shl 16)
+  result = result or (safeConvert[uint64](inp[3]) shl 24)
 
 proc feFromBytes(h: var Fe, s: openArray[byte]) =
   var c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int64
@@ -194,17 +263,37 @@ proc feFromBytes(h: var Fe, s: openArray[byte]) =
   var h8 = cast[int64](load_3(s.toOpenArray(26, 28))) shl 4
   var h9 = (cast[int64](load_3(s.toOpenArray(29, 31))) and 8388607'i32) shl 2
 
-  c9 = ashr((h9 + (1'i64 shl 24)), 25); h0 = h0 + (c9 * 19); h9 -= (c9 shl 25)
-  c1 = ashr((h1 + (1'i64 shl 24)), 25); h2 = h2 + c1; h1 -= (c1 shl 25)
-  c3 = ashr((h3 + (1'i64 shl 24)), 25); h4 = h4 + c3; h3 -= (c3 shl 25)
-  c5 = ashr((h5 + (1'i64 shl 24)), 25); h6 = h6 + c5; h5 -= (c5 shl 25)
-  c7 = ashr((h7 + (1'i64 shl 24)), 25); h8 = h8 + c7; h7 -= (c7 shl 25)
+  c9 = ashr((h9 + (1'i64 shl 24)), 25)
+  h0 = h0 + (c9 * 19)
+  h9 -= (c9 shl 25)
+  c1 = ashr((h1 + (1'i64 shl 24)), 25)
+  h2 = h2 + c1
+  h1 -= (c1 shl 25)
+  c3 = ashr((h3 + (1'i64 shl 24)), 25)
+  h4 = h4 + c3
+  h3 -= (c3 shl 25)
+  c5 = ashr((h5 + (1'i64 shl 24)), 25)
+  h6 = h6 + c5
+  h5 -= (c5 shl 25)
+  c7 = ashr((h7 + (1'i64 shl 24)), 25)
+  h8 = h8 + c7
+  h7 -= (c7 shl 25)
 
-  c0 = ashr((h0 + (1'i64 shl 25)), 26); h1 = h1 + c0; h0 -= (c0 shl 26)
-  c2 = ashr((h2 + (1'i64 shl 25)), 26); h3 = h3 + c2; h2 -= (c2 shl 26)
-  c4 = ashr((h4 + (1'i64 shl 25)), 26); h5 = h5 + c4; h4 -= (c4 shl 26)
-  c6 = ashr((h6 + (1'i64 shl 25)), 26); h7 = h7 + c6; h6 -= (c6 shl 26)
-  c8 = ashr((h8 + (1'i64 shl 25)), 26); h9 = h9 + c8; h8 -= (c8 shl 26)
+  c0 = ashr((h0 + (1'i64 shl 25)), 26)
+  h1 = h1 + c0
+  h0 -= (c0 shl 26)
+  c2 = ashr((h2 + (1'i64 shl 25)), 26)
+  h3 = h3 + c2
+  h2 -= (c2 shl 26)
+  c4 = ashr((h4 + (1'i64 shl 25)), 26)
+  h5 = h5 + c4
+  h4 -= (c4 shl 26)
+  c6 = ashr((h6 + (1'i64 shl 25)), 26)
+  h7 = h7 + c6
+  h6 -= (c6 shl 26)
+  c8 = ashr((h8 + (1'i64 shl 25)), 26)
+  h9 = h9 + c8
+  h8 -= (c8 shl 26)
 
   h[0] = cast[int32](h0)
   h[1] = cast[int32](h1)
@@ -218,8 +307,16 @@ proc feFromBytes(h: var Fe, s: openArray[byte]) =
   h[9] = cast[int32](h9)
 
 proc feToBytes(s: var openArray[byte], h: Fe) =
-  var h0 = h[0]; var h1 = h[1]; var h2 = h[2]; var h3 = h[3]; var h4 = h[4]
-  var h5 = h[5]; var h6 = h[6]; var h7 = h[7]; var h8 = h[8]; var h9 = h[9]
+  var h0 = h[0]
+  var h1 = h[1]
+  var h2 = h[2]
+  var h3 = h[3]
+  var h4 = h[4]
+  var h5 = h[5]
+  var h6 = h[6]
+  var h7 = h[7]
+  var h8 = h[8]
+  var h9 = h[9]
   var q, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int32
 
   q = ashr((19 * h9 + (1'i32 shl 24)), 25)
@@ -236,16 +333,35 @@ proc feToBytes(s: var openArray[byte], h: Fe) =
 
   h0 = h0 + 19 * q
 
-  c0 = ashr(h0, 26); h1 += c0; h0 -= c0 shl 26;
-  c1 = ashr(h1, 25); h2 += c1; h1 -= c1 shl 25;
-  c2 = ashr(h2, 26); h3 += c2; h2 -= c2 shl 26;
-  c3 = ashr(h3, 25); h4 += c3; h3 -= c3 shl 25;
-  c4 = ashr(h4, 26); h5 += c4; h4 -= c4 shl 26;
-  c5 = ashr(h5, 25); h6 += c5; h5 -= c5 shl 25;
-  c6 = ashr(h6, 26); h7 += c6; h6 -= c6 shl 26;
-  c7 = ashr(h7, 25); h8 += c7; h7 -= c7 shl 25;
-  c8 = ashr(h8, 26); h9 += c8; h8 -= c8 shl 26;
-  c9 = ashr(h9, 25);           h9 -= c9 shl 25;
+  c0 = ashr(h0, 26)
+  h1 += c0
+  h0 -= c0 shl 26
+  c1 = ashr(h1, 25)
+  h2 += c1
+  h1 -= c1 shl 25
+  c2 = ashr(h2, 26)
+  h3 += c2
+  h2 -= c2 shl 26
+  c3 = ashr(h3, 25)
+  h4 += c3
+  h3 -= c3 shl 25
+  c4 = ashr(h4, 26)
+  h5 += c4
+  h4 -= c4 shl 26
+  c5 = ashr(h5, 25)
+  h6 += c5
+  h5 -= c5 shl 25
+  c6 = ashr(h6, 26)
+  h7 += c6
+  h6 -= c6 shl 26
+  c7 = ashr(h7, 25)
+  h8 += c7
+  h7 -= c7 shl 25
+  c8 = ashr(h8, 26)
+  h9 += c8
+  h8 -= c8 shl 26
+  c9 = ashr(h9, 25)
+  h9 -= c9 shl 25
 
   s[0] = cast[byte](ashr(h0, 0))
   s[1] = cast[byte](ashr(h0, 8))
@@ -281,10 +397,26 @@ proc feToBytes(s: var openArray[byte], h: Fe) =
   s[31] = cast[byte](ashr(h9, 18))
 
 proc feMul(h: var Fe, f, g: Fe) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4]
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9]
-  var g0 = g[0]; var g1 = g[1]; var g2 = g[2]; var g3 = g[3]; var g4 = g[4]
-  var g5 = g[5]; var g6 = g[6]; var g7 = g[7]; var g8 = g[8]; var g9 = g[9]
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
+  var g0 = g[0]
+  var g1 = g[1]
+  var g2 = g[2]
+  var g3 = g[3]
+  var g4 = g[4]
+  var g5 = g[5]
+  var g6 = g[6]
+  var g7 = g[7]
+  var g8 = g[8]
+  var g9 = g[9]
   var g1_19 = 19 * g1
   var g2_19 = 19 * g2
   var g3_19 = 19 * g3
@@ -299,141 +431,169 @@ proc feMul(h: var Fe, f, g: Fe) =
   var f5_2 = 2 * f5
   var f7_2 = 2 * f7
   var f9_2 = 2 * f9
-  var f0g0 = cast[int64](f0) * cast[int64](g0)
-  var f0g1 = cast[int64](f0) * cast[int64](g1)
-  var f0g2 = cast[int64](f0) * cast[int64](g2)
-  var f0g3 = cast[int64](f0) * cast[int64](g3)
-  var f0g4 = cast[int64](f0) * cast[int64](g4)
-  var f0g5 = cast[int64](f0) * cast[int64](g5)
-  var f0g6 = cast[int64](f0) * cast[int64](g6)
-  var f0g7 = cast[int64](f0) * cast[int64](g7)
-  var f0g8 = cast[int64](f0) * cast[int64](g8)
-  var f0g9 = cast[int64](f0) * cast[int64](g9)
-  var f1g0 = cast[int64](f1) * cast[int64](g0)
-  var f1g1_2 = cast[int64](f1_2) * cast[int64](g1)
-  var f1g2 = cast[int64](f1) * cast[int64](g2)
-  var f1g3_2 = cast[int64](f1_2) * cast[int64](g3)
-  var f1g4 = cast[int64](f1) * cast[int64](g4)
-  var f1g5_2 = cast[int64](f1_2) * cast[int64](g5)
-  var f1g6 = cast[int64](f1) * cast[int64](g6)
-  var f1g7_2 = cast[int64](f1_2) * cast[int64](g7)
-  var f1g8 = cast[int64](f1) * cast[int64](g8)
-  var f1g9_38 = cast[int64](f1_2) * cast[int64](g9_19)
-  var f2g0 = cast[int64](f2) * cast[int64](g0)
-  var f2g1 = cast[int64](f2) * cast[int64](g1)
-  var f2g2 = cast[int64](f2) * cast[int64](g2)
-  var f2g3 = cast[int64](f2) * cast[int64](g3)
-  var f2g4 = cast[int64](f2) * cast[int64](g4)
-  var f2g5 = cast[int64](f2) * cast[int64](g5)
-  var f2g6 = cast[int64](f2) * cast[int64](g6)
-  var f2g7 = cast[int64](f2) * cast[int64](g7)
-  var f2g8_19 = cast[int64](f2) * cast[int64](g8_19)
-  var f2g9_19 = cast[int64](f2) * cast[int64](g9_19)
-  var f3g0 = cast[int64](f3) * cast[int64](g0)
-  var f3g1_2  = cast[int64](f3_2) * cast[int64](g1)
-  var f3g2 = cast[int64](f3) * cast[int64](g2)
-  var f3g3_2  = cast[int64](f3_2) * cast[int64](g3)
-  var f3g4 = cast[int64](f3) * cast[int64](g4)
-  var f3g5_2  = cast[int64](f3_2) * cast[int64](g5)
-  var f3g6 = cast[int64](f3) * cast[int64](g6)
-  var f3g7_38 = cast[int64](f3_2) * cast[int64](g7_19)
-  var f3g8_19 = cast[int64](f3) * cast[int64](g8_19)
-  var f3g9_38 = cast[int64](f3_2) * cast[int64](g9_19)
-  var f4g0 = cast[int64](f4) * cast[int64](g0)
-  var f4g1 = cast[int64](f4) * cast[int64](g1)
-  var f4g2 = cast[int64](f4) * cast[int64](g2)
-  var f4g3 = cast[int64](f4) * cast[int64](g3)
-  var f4g4 = cast[int64](f4) * cast[int64](g4)
-  var f4g5 = cast[int64](f4) * cast[int64](g5)
-  var f4g6_19 = cast[int64](f4) * cast[int64](g6_19)
-  var f4g7_19 = cast[int64](f4) * cast[int64](g7_19)
-  var f4g8_19 = cast[int64](f4) * cast[int64](g8_19)
-  var f4g9_19 = cast[int64](f4) * cast[int64](g9_19)
-  var f5g0 = cast[int64](f5) * cast[int64](g0)
-  var f5g1_2 = cast[int64](f5_2) * cast[int64](g1)
-  var f5g2 = cast[int64](f5) * cast[int64](g2)
-  var f5g3_2 = cast[int64](f5_2) * cast[int64](g3)
-  var f5g4 = cast[int64](f5) * cast[int64](g4)
-  var f5g5_38 = cast[int64](f5_2) * cast[int64](g5_19)
-  var f5g6_19 = cast[int64](f5) * cast[int64](g6_19)
-  var f5g7_38 = cast[int64](f5_2) * cast[int64](g7_19)
-  var f5g8_19 = cast[int64](f5) * cast[int64](g8_19)
-  var f5g9_38 = cast[int64](f5_2) * cast[int64](g9_19)
-  var f6g0 = cast[int64](f6) * cast[int64](g0)
-  var f6g1 = cast[int64](f6) * cast[int64](g1)
-  var f6g2 = cast[int64](f6) * cast[int64](g2)
-  var f6g3 = cast[int64](f6) * cast[int64](g3)
-  var f6g4_19 = cast[int64](f6) * cast[int64](g4_19)
-  var f6g5_19 = cast[int64](f6) * cast[int64](g5_19)
-  var f6g6_19 = cast[int64](f6) * cast[int64](g6_19)
-  var f6g7_19 = cast[int64](f6) * cast[int64](g7_19)
-  var f6g8_19 = cast[int64](f6) * cast[int64](g8_19)
-  var f6g9_19 = cast[int64](f6) * cast[int64](g9_19)
-  var f7g0 = cast[int64](f7) * cast[int64](g0)
-  var f7g1_2 = cast[int64](f7_2) * cast[int64](g1)
-  var f7g2 = cast[int64](f7) * cast[int64](g2)
-  var f7g3_38 = cast[int64](f7_2) * cast[int64](g3_19)
-  var f7g4_19 = cast[int64](f7) * cast[int64](g4_19)
-  var f7g5_38 = cast[int64](f7_2) * cast[int64](g5_19)
-  var f7g6_19 = cast[int64](f7) * cast[int64](g6_19)
-  var f7g7_38 = cast[int64](f7_2) * cast[int64](g7_19)
-  var f7g8_19 = cast[int64](f7) * cast[int64](g8_19)
-  var f7g9_38 = cast[int64](f7_2) * cast[int64](g9_19)
-  var f8g0 = cast[int64](f8) * cast[int64](g0)
-  var f8g1 = cast[int64](f8) * cast[int64](g1)
-  var f8g2_19 = cast[int64](f8) * cast[int64](g2_19)
-  var f8g3_19 = cast[int64](f8) * cast[int64](g3_19)
-  var f8g4_19 = cast[int64](f8) * cast[int64](g4_19)
-  var f8g5_19 = cast[int64](f8) * cast[int64](g5_19)
-  var f8g6_19 = cast[int64](f8) * cast[int64](g6_19)
-  var f8g7_19 = cast[int64](f8) * cast[int64](g7_19)
-  var f8g8_19 = cast[int64](f8) * cast[int64](g8_19)
-  var f8g9_19 = cast[int64](f8) * cast[int64](g9_19)
-  var f9g0 = cast[int64](f9) * cast[int64](g0)
-  var f9g1_38 = cast[int64](f9_2) * cast[int64](g1_19)
-  var f9g2_19 = cast[int64](f9) * cast[int64](g2_19)
-  var f9g3_38 = cast[int64](f9_2) * cast[int64](g3_19)
-  var f9g4_19 = cast[int64](f9) * cast[int64](g4_19)
-  var f9g5_38 = cast[int64](f9_2) * cast[int64](g5_19)
-  var f9g6_19 = cast[int64](f9) * cast[int64](g6_19)
-  var f9g7_38 = cast[int64](f9_2) * cast[int64](g7_19)
-  var f9g8_19 = cast[int64](f9) * cast[int64](g8_19)
-  var f9g9_38 = cast[int64](f9_2) * cast[int64](g9_19)
+  var f0g0 = safeConvert[int64](f0) * safeConvert[int64](g0)
+  var f0g1 = safeConvert[int64](f0) * safeConvert[int64](g1)
+  var f0g2 = safeConvert[int64](f0) * safeConvert[int64](g2)
+  var f0g3 = safeConvert[int64](f0) * safeConvert[int64](g3)
+  var f0g4 = safeConvert[int64](f0) * safeConvert[int64](g4)
+  var f0g5 = safeConvert[int64](f0) * safeConvert[int64](g5)
+  var f0g6 = safeConvert[int64](f0) * safeConvert[int64](g6)
+  var f0g7 = safeConvert[int64](f0) * safeConvert[int64](g7)
+  var f0g8 = safeConvert[int64](f0) * safeConvert[int64](g8)
+  var f0g9 = safeConvert[int64](f0) * safeConvert[int64](g9)
+  var f1g0 = safeConvert[int64](f1) * safeConvert[int64](g0)
+  var f1g1_2 = safeConvert[int64](f1_2) * safeConvert[int64](g1)
+  var f1g2 = safeConvert[int64](f1) * safeConvert[int64](g2)
+  var f1g3_2 = safeConvert[int64](f1_2) * safeConvert[int64](g3)
+  var f1g4 = safeConvert[int64](f1) * safeConvert[int64](g4)
+  var f1g5_2 = safeConvert[int64](f1_2) * safeConvert[int64](g5)
+  var f1g6 = safeConvert[int64](f1) * safeConvert[int64](g6)
+  var f1g7_2 = safeConvert[int64](f1_2) * safeConvert[int64](g7)
+  var f1g8 = safeConvert[int64](f1) * safeConvert[int64](g8)
+  var f1g9_38 = safeConvert[int64](f1_2) * safeConvert[int64](g9_19)
+  var f2g0 = safeConvert[int64](f2) * safeConvert[int64](g0)
+  var f2g1 = safeConvert[int64](f2) * safeConvert[int64](g1)
+  var f2g2 = safeConvert[int64](f2) * safeConvert[int64](g2)
+  var f2g3 = safeConvert[int64](f2) * safeConvert[int64](g3)
+  var f2g4 = safeConvert[int64](f2) * safeConvert[int64](g4)
+  var f2g5 = safeConvert[int64](f2) * safeConvert[int64](g5)
+  var f2g6 = safeConvert[int64](f2) * safeConvert[int64](g6)
+  var f2g7 = safeConvert[int64](f2) * safeConvert[int64](g7)
+  var f2g8_19 = safeConvert[int64](f2) * safeConvert[int64](g8_19)
+  var f2g9_19 = safeConvert[int64](f2) * safeConvert[int64](g9_19)
+  var f3g0 = safeConvert[int64](f3) * safeConvert[int64](g0)
+  var f3g1_2 = safeConvert[int64](f3_2) * safeConvert[int64](g1)
+  var f3g2 = safeConvert[int64](f3) * safeConvert[int64](g2)
+  var f3g3_2 = safeConvert[int64](f3_2) * safeConvert[int64](g3)
+  var f3g4 = safeConvert[int64](f3) * safeConvert[int64](g4)
+  var f3g5_2 = safeConvert[int64](f3_2) * safeConvert[int64](g5)
+  var f3g6 = safeConvert[int64](f3) * safeConvert[int64](g6)
+  var f3g7_38 = safeConvert[int64](f3_2) * safeConvert[int64](g7_19)
+  var f3g8_19 = safeConvert[int64](f3) * safeConvert[int64](g8_19)
+  var f3g9_38 = safeConvert[int64](f3_2) * safeConvert[int64](g9_19)
+  var f4g0 = safeConvert[int64](f4) * safeConvert[int64](g0)
+  var f4g1 = safeConvert[int64](f4) * safeConvert[int64](g1)
+  var f4g2 = safeConvert[int64](f4) * safeConvert[int64](g2)
+  var f4g3 = safeConvert[int64](f4) * safeConvert[int64](g3)
+  var f4g4 = safeConvert[int64](f4) * safeConvert[int64](g4)
+  var f4g5 = safeConvert[int64](f4) * safeConvert[int64](g5)
+  var f4g6_19 = safeConvert[int64](f4) * safeConvert[int64](g6_19)
+  var f4g7_19 = safeConvert[int64](f4) * safeConvert[int64](g7_19)
+  var f4g8_19 = safeConvert[int64](f4) * safeConvert[int64](g8_19)
+  var f4g9_19 = safeConvert[int64](f4) * safeConvert[int64](g9_19)
+  var f5g0 = safeConvert[int64](f5) * safeConvert[int64](g0)
+  var f5g1_2 = safeConvert[int64](f5_2) * safeConvert[int64](g1)
+  var f5g2 = safeConvert[int64](f5) * safeConvert[int64](g2)
+  var f5g3_2 = safeConvert[int64](f5_2) * safeConvert[int64](g3)
+  var f5g4 = safeConvert[int64](f5) * safeConvert[int64](g4)
+  var f5g5_38 = safeConvert[int64](f5_2) * safeConvert[int64](g5_19)
+  var f5g6_19 = safeConvert[int64](f5) * safeConvert[int64](g6_19)
+  var f5g7_38 = safeConvert[int64](f5_2) * safeConvert[int64](g7_19)
+  var f5g8_19 = safeConvert[int64](f5) * safeConvert[int64](g8_19)
+  var f5g9_38 = safeConvert[int64](f5_2) * safeConvert[int64](g9_19)
+  var f6g0 = safeConvert[int64](f6) * safeConvert[int64](g0)
+  var f6g1 = safeConvert[int64](f6) * safeConvert[int64](g1)
+  var f6g2 = safeConvert[int64](f6) * safeConvert[int64](g2)
+  var f6g3 = safeConvert[int64](f6) * safeConvert[int64](g3)
+  var f6g4_19 = safeConvert[int64](f6) * safeConvert[int64](g4_19)
+  var f6g5_19 = safeConvert[int64](f6) * safeConvert[int64](g5_19)
+  var f6g6_19 = safeConvert[int64](f6) * safeConvert[int64](g6_19)
+  var f6g7_19 = safeConvert[int64](f6) * safeConvert[int64](g7_19)
+  var f6g8_19 = safeConvert[int64](f6) * safeConvert[int64](g8_19)
+  var f6g9_19 = safeConvert[int64](f6) * safeConvert[int64](g9_19)
+  var f7g0 = safeConvert[int64](f7) * safeConvert[int64](g0)
+  var f7g1_2 = safeConvert[int64](f7_2) * safeConvert[int64](g1)
+  var f7g2 = safeConvert[int64](f7) * safeConvert[int64](g2)
+  var f7g3_38 = safeConvert[int64](f7_2) * safeConvert[int64](g3_19)
+  var f7g4_19 = safeConvert[int64](f7) * safeConvert[int64](g4_19)
+  var f7g5_38 = safeConvert[int64](f7_2) * safeConvert[int64](g5_19)
+  var f7g6_19 = safeConvert[int64](f7) * safeConvert[int64](g6_19)
+  var f7g7_38 = safeConvert[int64](f7_2) * safeConvert[int64](g7_19)
+  var f7g8_19 = safeConvert[int64](f7) * safeConvert[int64](g8_19)
+  var f7g9_38 = safeConvert[int64](f7_2) * safeConvert[int64](g9_19)
+  var f8g0 = safeConvert[int64](f8) * safeConvert[int64](g0)
+  var f8g1 = safeConvert[int64](f8) * safeConvert[int64](g1)
+  var f8g2_19 = safeConvert[int64](f8) * safeConvert[int64](g2_19)
+  var f8g3_19 = safeConvert[int64](f8) * safeConvert[int64](g3_19)
+  var f8g4_19 = safeConvert[int64](f8) * safeConvert[int64](g4_19)
+  var f8g5_19 = safeConvert[int64](f8) * safeConvert[int64](g5_19)
+  var f8g6_19 = safeConvert[int64](f8) * safeConvert[int64](g6_19)
+  var f8g7_19 = safeConvert[int64](f8) * safeConvert[int64](g7_19)
+  var f8g8_19 = safeConvert[int64](f8) * safeConvert[int64](g8_19)
+  var f8g9_19 = safeConvert[int64](f8) * safeConvert[int64](g9_19)
+  var f9g0 = safeConvert[int64](f9) * safeConvert[int64](g0)
+  var f9g1_38 = safeConvert[int64](f9_2) * safeConvert[int64](g1_19)
+  var f9g2_19 = safeConvert[int64](f9) * safeConvert[int64](g2_19)
+  var f9g3_38 = safeConvert[int64](f9_2) * safeConvert[int64](g3_19)
+  var f9g4_19 = safeConvert[int64](f9) * safeConvert[int64](g4_19)
+  var f9g5_38 = safeConvert[int64](f9_2) * safeConvert[int64](g5_19)
+  var f9g6_19 = safeConvert[int64](f9) * safeConvert[int64](g6_19)
+  var f9g7_38 = safeConvert[int64](f9_2) * safeConvert[int64](g7_19)
+  var f9g8_19 = safeConvert[int64](f9) * safeConvert[int64](g8_19)
+  var f9g9_38 = safeConvert[int64](f9_2) * safeConvert[int64](g9_19)
   var
     c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int64
-    h0: int64 = f0g0 + f1g9_38 + f2g8_19 + f3g7_38 + f4g6_19 + f5g5_38 +
-                f6g4_19 + f7g3_38 + f8g2_19 + f9g1_38
-    h1: int64 = f0g1 + f1g0 + f2g9_19 + f3g8_19 + f4g7_19 + f5g6_19 +
-                f6g5_19 + f7g4_19 + f8g3_19 + f9g2_19
-    h2: int64 = f0g2 + f1g1_2 + f2g0 + f3g9_38 + f4g8_19 + f5g7_38 + f6g6_19 +
-                f7g5_38 + f8g4_19 + f9g3_38
-    h3: int64 = f0g3 + f1g2 + f2g1 + f3g0 + f4g9_19 + f5g8_19 + f6g7_19 +
-                f7g6_19 + f8g5_19 + f9g4_19
-    h4: int64 = f0g4 + f1g3_2 + f2g2 + f3g1_2 + f4g0 + f5g9_38 + f6g8_19 +
-                f7g7_38 + f8g6_19 + f9g5_38
-    h5: int64 = f0g5 + f1g4 + f2g3 + f3g2 + f4g1 + f5g0 + f6g9_19 + f7g8_19 +
-                f8g7_19 + f9g6_19
-    h6: int64 = f0g6 + f1g5_2 + f2g4 + f3g3_2 + f4g2 + f5g1_2 + f6g0 +
-                f7g9_38 + f8g8_19 + f9g7_38
-    h7: int64 = f0g7 + f1g6 + f2g5 + f3g4 + f4g3 + f5g2 + f6g1 + f7g0 +
-                f8g9_19 + f9g8_19
-    h8: int64 = f0g8 + f1g7_2 + f2g6 + f3g5_2 + f4g4 + f5g3_2 + f6g2 +
-                f7g1_2 + f8g0 + f9g9_38
-    h9: int64 = f0g9 + f1g8 + f2g7 + f3g6 + f4g5 + f5g4 + f6g3 + f7g2 +
-                f8g1 + f9g0
+    h0: int64 =
+      f0g0 + f1g9_38 + f2g8_19 + f3g7_38 + f4g6_19 + f5g5_38 + f6g4_19 + f7g3_38 +
+      f8g2_19 + f9g1_38
+    h1: int64 =
+      f0g1 + f1g0 + f2g9_19 + f3g8_19 + f4g7_19 + f5g6_19 + f6g5_19 + f7g4_19 + f8g3_19 +
+      f9g2_19
+    h2: int64 =
+      f0g2 + f1g1_2 + f2g0 + f3g9_38 + f4g8_19 + f5g7_38 + f6g6_19 + f7g5_38 + f8g4_19 +
+      f9g3_38
+    h3: int64 =
+      f0g3 + f1g2 + f2g1 + f3g0 + f4g9_19 + f5g8_19 + f6g7_19 + f7g6_19 + f8g5_19 +
+      f9g4_19
+    h4: int64 =
+      f0g4 + f1g3_2 + f2g2 + f3g1_2 + f4g0 + f5g9_38 + f6g8_19 + f7g7_38 + f8g6_19 +
+      f9g5_38
+    h5: int64 =
+      f0g5 + f1g4 + f2g3 + f3g2 + f4g1 + f5g0 + f6g9_19 + f7g8_19 + f8g7_19 + f9g6_19
+    h6: int64 =
+      f0g6 + f1g5_2 + f2g4 + f3g3_2 + f4g2 + f5g1_2 + f6g0 + f7g9_38 + f8g8_19 + f9g7_38
+    h7: int64 =
+      f0g7 + f1g6 + f2g5 + f3g4 + f4g3 + f5g2 + f6g1 + f7g0 + f8g9_19 + f9g8_19
+    h8: int64 =
+      f0g8 + f1g7_2 + f2g6 + f3g5_2 + f4g4 + f5g3_2 + f6g2 + f7g1_2 + f8g0 + f9g9_38
+    h9: int64 = f0g9 + f1g8 + f2g7 + f3g6 + f4g5 + f5g4 + f6g3 + f7g2 + f8g1 + f9g0
 
-  c0 = ashr((h0 + (1'i64 shl 25)), 26); h1 = h1 + c0; h0 -= (c0 shl 26)
-  c4 = ashr((h4 + (1'i64 shl 25)), 26); h5 = h5 + c4; h4 -= (c4 shl 26)
-  c1 = ashr((h1 + (1'i64 shl 24)), 25); h2 = h2 + c1; h1 -= (c1 shl 25)
-  c5 = ashr((h5 + (1'i64 shl 24)), 25); h6 = h6 + c5; h5 -= (c5 shl 25)
-  c2 = ashr((h2 + (1'i64 shl 25)), 26); h3 = h3 + c2; h2 -= (c2 shl 26)
-  c6 = ashr((h6 + (1'i64 shl 25)), 26); h7 = h7 + c6; h6 -= (c6 shl 26)
-  c3 = ashr((h3 + (1'i64 shl 24)), 25); h4 = h4 + c3; h3 -= (c3 shl 25)
-  c7 = ashr((h7 + (1'i64 shl 24)), 25); h8 = h8 + c7; h7 -= (c7 shl 25)
-  c4 = ashr((h4 + (1'i64 shl 25)), 26); h5 = h5 + c4; h4 -= (c4 shl 26)
-  c8 = ashr((h8 + (1'i64 shl 25)), 26); h9 = h9 + c8; h8 -= (c8 shl 26)
-  c9 = ashr((h9 + (1'i64 shl 24)), 25); h0 = h0 + (c9 * 19); h9 -= (c9 shl 25)
-  c0 = ashr((h0 + (1'i64 shl 25)), 26); h1 = h1 + c0; h0 -= (c0 shl 26)
+  c0 = ashr((h0 + (1'i64 shl 25)), 26)
+  h1 = h1 + c0
+  h0 -= (c0 shl 26)
+  c4 = ashr((h4 + (1'i64 shl 25)), 26)
+  h5 = h5 + c4
+  h4 -= (c4 shl 26)
+  c1 = ashr((h1 + (1'i64 shl 24)), 25)
+  h2 = h2 + c1
+  h1 -= (c1 shl 25)
+  c5 = ashr((h5 + (1'i64 shl 24)), 25)
+  h6 = h6 + c5
+  h5 -= (c5 shl 25)
+  c2 = ashr((h2 + (1'i64 shl 25)), 26)
+  h3 = h3 + c2
+  h2 -= (c2 shl 26)
+  c6 = ashr((h6 + (1'i64 shl 25)), 26)
+  h7 = h7 + c6
+  h6 -= (c6 shl 26)
+  c3 = ashr((h3 + (1'i64 shl 24)), 25)
+  h4 = h4 + c3
+  h3 -= (c3 shl 25)
+  c7 = ashr((h7 + (1'i64 shl 24)), 25)
+  h8 = h8 + c7
+  h7 -= (c7 shl 25)
+  c4 = ashr((h4 + (1'i64 shl 25)), 26)
+  h5 = h5 + c4
+  h4 -= (c4 shl 26)
+  c8 = ashr((h8 + (1'i64 shl 25)), 26)
+  h9 = h9 + c8
+  h8 -= (c8 shl 26)
+  c9 = ashr((h9 + (1'i64 shl 24)), 25)
+  h0 = h0 + (c9 * 19)
+  h9 -= (c9 shl 25)
+  c0 = ashr((h0 + (1'i64 shl 25)), 26)
+  h1 = h1 + c0
+  h0 -= (c0 shl 26)
 
   h[0] = cast[int32](h0)
   h[1] = cast[int32](h1)
@@ -447,12 +607,36 @@ proc feMul(h: var Fe, f, g: Fe) =
   h[9] = cast[int32](h9)
 
 proc feNeg(h: var Fe, f: Fe) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4]
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9]
-  var h0 = -f0; var h1 = -f1; var h2 = -f2; var h3 = -f3; var h4 = -f4
-  var h5 = -f5; var h6 = -f6; var h7 = -f7; var h8 = -f8; var h9 = -f9
-  h[0] = h0; h[1] = h1; h[2] = h2; h[3] = h3; h[4] = h4
-  h[5] = h5; h[6] = h6; h[7] = h7; h[8] = h8; h[9] = h9
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
+  var h0 = -f0
+  var h1 = -f1
+  var h2 = -f2
+  var h3 = -f3
+  var h4 = -f4
+  var h5 = -f5
+  var h6 = -f6
+  var h7 = -f7
+  var h8 = -f8
+  var h9 = -f9
+  h[0] = h0
+  h[1] = h1
+  h[2] = h2
+  h[3] = h3
+  h[4] = h4
+  h[5] = h5
+  h[6] = h6
+  h[7] = h7
+  h[8] = h8
+  h[9] = h9
 
 proc verify32(x: openArray[byte], y: openArray[byte]): int32 =
   var d = 0'u32
@@ -493,7 +677,7 @@ proc verify32(x: openArray[byte], y: openArray[byte]): int32 =
 proc feIsNegative(f: Fe): int32 =
   var s: array[32, byte]
   feToBytes(s, f)
-  result = cast[int32](s[0] and 1'u8)
+  result = safeConvert[int32](s[0] and 1'u8)
 
 proc feIsNonZero(f: Fe): int32 =
   var s: array[32, byte]
@@ -501,8 +685,16 @@ proc feIsNonZero(f: Fe): int32 =
   result = verify32(s, ZeroFe)
 
 proc feSq(h: var Fe, f: Fe) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4];
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9];
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
   var f0_2: int32 = 2 * f0
   var f1_2: int32 = 2 * f1
   var f2_2: int32 = 2 * f2
@@ -516,61 +708,61 @@ proc feSq(h: var Fe, f: Fe) =
   var f7_38: int32 = 38 * f7
   var f8_19: int32 = 19 * f8
   var f9_38: int32 = 38 * f9
-  var f0f0: int64 = f0 * cast[int64](f0)
-  var f0f1_2: int64 = f0_2 * cast[int64](f1)
-  var f0f2_2: int64 = f0_2 * cast[int64](f2)
-  var f0f3_2: int64 = f0_2 * cast[int64](f3)
-  var f0f4_2: int64 = f0_2 * cast[int64](f4)
-  var f0f5_2: int64 = f0_2 * cast[int64](f5)
-  var f0f6_2: int64 = f0_2 * cast[int64](f6)
-  var f0f7_2: int64 = f0_2 * cast[int64](f7)
-  var f0f8_2: int64 = f0_2 * cast[int64](f8)
-  var f0f9_2: int64 = f0_2 * cast[int64](f9)
-  var f1f1_2: int64 = f1_2 * cast[int64](f1)
-  var f1f2_2: int64 = f1_2 * cast[int64](f2)
-  var f1f3_4: int64 = f1_2 * cast[int64](f3_2)
-  var f1f4_2: int64 = f1_2 * cast[int64](f4)
-  var f1f5_4: int64 = f1_2 * cast[int64](f5_2)
-  var f1f6_2: int64 = f1_2 * cast[int64](f6)
-  var f1f7_4: int64 = f1_2 * cast[int64](f7_2)
-  var f1f8_2: int64 = f1_2 * cast[int64](f8)
-  var f1f9_76: int64 = f1_2 * cast[int64](f9_38)
-  var f2f2: int64 = f2 * cast[int64](f2)
-  var f2f3_2: int64 = f2_2 * cast[int64](f3)
-  var f2f4_2: int64 = f2_2 * cast[int64](f4)
-  var f2f5_2: int64 = f2_2 * cast[int64](f5)
-  var f2f6_2: int64 = f2_2 * cast[int64](f6)
-  var f2f7_2: int64 = f2_2 * cast[int64](f7)
-  var f2f8_38: int64 = f2_2 * cast[int64](f8_19)
-  var f2f9_38: int64 = f2 * cast[int64](f9_38)
-  var f3f3_2: int64 = f3_2 * cast[int64](f3)
-  var f3f4_2: int64 = f3_2 * cast[int64](f4)
-  var f3f5_4: int64 = f3_2 * cast[int64](f5_2)
-  var f3f6_2: int64 = f3_2 * cast[int64](f6)
-  var f3f7_76: int64 = f3_2 * cast[int64](f7_38)
-  var f3f8_38: int64 = f3_2 * cast[int64](f8_19)
-  var f3f9_76: int64 = f3_2 * cast[int64](f9_38)
-  var f4f4: int64 = f4 * cast[int64](f4)
-  var f4f5_2: int64 = f4_2 * cast[int64](f5)
-  var f4f6_38: int64 = f4_2 * cast[int64](f6_19)
-  var f4f7_38: int64 = f4 * cast[int64](f7_38)
-  var f4f8_38: int64 = f4_2 * cast[int64](f8_19)
-  var f4f9_38: int64 = f4 * cast[int64](f9_38)
-  var f5f5_38: int64 = f5 * cast[int64](f5_38)
-  var f5f6_38: int64 = f5_2 * cast[int64](f6_19)
-  var f5f7_76: int64 = f5_2 * cast[int64](f7_38)
-  var f5f8_38: int64 = f5_2 * cast[int64](f8_19)
-  var f5f9_76: int64 = f5_2 * cast[int64](f9_38)
-  var f6f6_19: int64 = f6 * cast[int64](f6_19)
-  var f6f7_38: int64 = f6 * cast[int64](f7_38)
-  var f6f8_38: int64 = f6_2 * cast[int64](f8_19)
-  var f6f9_38: int64 = f6 * cast[int64](f9_38)
-  var f7f7_38: int64 = f7 * cast[int64](f7_38)
-  var f7f8_38: int64 = f7_2 * cast[int64](f8_19)
-  var f7f9_76: int64 = f7_2 * cast[int64](f9_38)
-  var f8f8_19: int64 = f8 * cast[int64](f8_19)
-  var f8f9_38: int64 = f8 * cast[int64](f9_38)
-  var f9f9_38: int64 = f9 * cast[int64](f9_38)
+  var f0f0: int64 = f0 * safeConvert[int64](f0)
+  var f0f1_2: int64 = f0_2 * safeConvert[int64](f1)
+  var f0f2_2: int64 = f0_2 * safeConvert[int64](f2)
+  var f0f3_2: int64 = f0_2 * safeConvert[int64](f3)
+  var f0f4_2: int64 = f0_2 * safeConvert[int64](f4)
+  var f0f5_2: int64 = f0_2 * safeConvert[int64](f5)
+  var f0f6_2: int64 = f0_2 * safeConvert[int64](f6)
+  var f0f7_2: int64 = f0_2 * safeConvert[int64](f7)
+  var f0f8_2: int64 = f0_2 * safeConvert[int64](f8)
+  var f0f9_2: int64 = f0_2 * safeConvert[int64](f9)
+  var f1f1_2: int64 = f1_2 * safeConvert[int64](f1)
+  var f1f2_2: int64 = f1_2 * safeConvert[int64](f2)
+  var f1f3_4: int64 = f1_2 * safeConvert[int64](f3_2)
+  var f1f4_2: int64 = f1_2 * safeConvert[int64](f4)
+  var f1f5_4: int64 = f1_2 * safeConvert[int64](f5_2)
+  var f1f6_2: int64 = f1_2 * safeConvert[int64](f6)
+  var f1f7_4: int64 = f1_2 * safeConvert[int64](f7_2)
+  var f1f8_2: int64 = f1_2 * safeConvert[int64](f8)
+  var f1f9_76: int64 = f1_2 * safeConvert[int64](f9_38)
+  var f2f2: int64 = f2 * safeConvert[int64](f2)
+  var f2f3_2: int64 = f2_2 * safeConvert[int64](f3)
+  var f2f4_2: int64 = f2_2 * safeConvert[int64](f4)
+  var f2f5_2: int64 = f2_2 * safeConvert[int64](f5)
+  var f2f6_2: int64 = f2_2 * safeConvert[int64](f6)
+  var f2f7_2: int64 = f2_2 * safeConvert[int64](f7)
+  var f2f8_38: int64 = f2_2 * safeConvert[int64](f8_19)
+  var f2f9_38: int64 = f2 * safeConvert[int64](f9_38)
+  var f3f3_2: int64 = f3_2 * safeConvert[int64](f3)
+  var f3f4_2: int64 = f3_2 * safeConvert[int64](f4)
+  var f3f5_4: int64 = f3_2 * safeConvert[int64](f5_2)
+  var f3f6_2: int64 = f3_2 * safeConvert[int64](f6)
+  var f3f7_76: int64 = f3_2 * safeConvert[int64](f7_38)
+  var f3f8_38: int64 = f3_2 * safeConvert[int64](f8_19)
+  var f3f9_76: int64 = f3_2 * safeConvert[int64](f9_38)
+  var f4f4: int64 = f4 * safeConvert[int64](f4)
+  var f4f5_2: int64 = f4_2 * safeConvert[int64](f5)
+  var f4f6_38: int64 = f4_2 * safeConvert[int64](f6_19)
+  var f4f7_38: int64 = f4 * safeConvert[int64](f7_38)
+  var f4f8_38: int64 = f4_2 * safeConvert[int64](f8_19)
+  var f4f9_38: int64 = f4 * safeConvert[int64](f9_38)
+  var f5f5_38: int64 = f5 * safeConvert[int64](f5_38)
+  var f5f6_38: int64 = f5_2 * safeConvert[int64](f6_19)
+  var f5f7_76: int64 = f5_2 * safeConvert[int64](f7_38)
+  var f5f8_38: int64 = f5_2 * safeConvert[int64](f8_19)
+  var f5f9_76: int64 = f5_2 * safeConvert[int64](f9_38)
+  var f6f6_19: int64 = f6 * safeConvert[int64](f6_19)
+  var f6f7_38: int64 = f6 * safeConvert[int64](f7_38)
+  var f6f8_38: int64 = f6_2 * safeConvert[int64](f8_19)
+  var f6f9_38: int64 = f6 * safeConvert[int64](f9_38)
+  var f7f7_38: int64 = f7 * safeConvert[int64](f7_38)
+  var f7f8_38: int64 = f7_2 * safeConvert[int64](f8_19)
+  var f7f9_76: int64 = f7_2 * safeConvert[int64](f9_38)
+  var f8f8_19: int64 = f8 * safeConvert[int64](f8_19)
+  var f8f9_38: int64 = f8 * safeConvert[int64](f9_38)
+  var f9f9_38: int64 = f9 * safeConvert[int64](f9_38)
   var h0: int64 = f0f0 + f1f9_76 + f2f8_38 + f3f7_76 + f4f6_38 + f5f5_38
   var h1: int64 = f0f1_2 + f2f9_38 + f3f8_38 + f4f7_38 + f5f6_38
   var h2: int64 = f0f2_2 + f1f1_2 + f3f9_76 + f4f8_38 + f5f7_76 + f6f6_19
@@ -583,18 +775,42 @@ proc feSq(h: var Fe, f: Fe) =
   var h9: int64 = f0f9_2 + f1f8_2 + f2f7_2 + f3f6_2 + f4f5_2
   var c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int64
 
-  c0 = ashr((h0 + (1'i64 shl 25)), 26); h1 += c0; h0 -= c0 shl 26
-  c4 = ashr((h4 + (1'i64 shl 25)), 26); h5 += c4; h4 -= c4 shl 26
-  c1 = ashr((h1 + (1'i64 shl 24)), 25); h2 += c1; h1 -= c1 shl 25
-  c5 = ashr((h5 + (1'i64 shl 24)), 25); h6 += c5; h5 -= c5 shl 25
-  c2 = ashr((h2 + (1'i64 shl 25)), 26); h3 += c2; h2 -= c2 shl 26
-  c6 = ashr((h6 + (1'i64 shl 25)), 26); h7 += c6; h6 -= c6 shl 26
-  c3 = ashr((h3 + (1'i64 shl 24)), 25); h4 += c3; h3 -= c3 shl 25
-  c7 = ashr((h7 + (1'i64 shl 24)), 25); h8 += c7; h7 -= c7 shl 25
-  c4 = ashr((h4 + (1'i64 shl 25)), 26); h5 += c4; h4 -= c4 shl 26
-  c8 = ashr((h8 + (1'i64 shl 25)), 26); h9 += c8; h8 -= c8 shl 26
-  c9 = ashr((h9 + (1'i64 shl 24)), 25); h0 += c9 * 19; h9 -= c9 shl 25
-  c0 = ashr((h0 + (1'i64 shl 25)), 26); h1 += c0; h0 -= c0 shl 26
+  c0 = ashr((h0 + (1'i64 shl 25)), 26)
+  h1 += c0
+  h0 -= c0 shl 26
+  c4 = ashr((h4 + (1'i64 shl 25)), 26)
+  h5 += c4
+  h4 -= c4 shl 26
+  c1 = ashr((h1 + (1'i64 shl 24)), 25)
+  h2 += c1
+  h1 -= c1 shl 25
+  c5 = ashr((h5 + (1'i64 shl 24)), 25)
+  h6 += c5
+  h5 -= c5 shl 25
+  c2 = ashr((h2 + (1'i64 shl 25)), 26)
+  h3 += c2
+  h2 -= c2 shl 26
+  c6 = ashr((h6 + (1'i64 shl 25)), 26)
+  h7 += c6
+  h6 -= c6 shl 26
+  c3 = ashr((h3 + (1'i64 shl 24)), 25)
+  h4 += c3
+  h3 -= c3 shl 25
+  c7 = ashr((h7 + (1'i64 shl 24)), 25)
+  h8 += c7
+  h7 -= c7 shl 25
+  c4 = ashr((h4 + (1'i64 shl 25)), 26)
+  h5 += c4
+  h4 -= c4 shl 26
+  c8 = ashr((h8 + (1'i64 shl 25)), 26)
+  h9 += c8
+  h8 -= c8 shl 26
+  c9 = ashr((h9 + (1'i64 shl 24)), 25)
+  h0 += c9 * 19
+  h9 -= c9 shl 25
+  c0 = ashr((h0 + (1'i64 shl 25)), 26)
+  h1 += c0
+  h0 -= c0 shl 26
 
   h[0] = cast[int32](h0)
   h[1] = cast[int32](h1)
@@ -608,8 +824,16 @@ proc feSq(h: var Fe, f: Fe) =
   h[9] = cast[int32](h9)
 
 proc feSq2(h: var Fe, f: Fe) =
-  var f0 = f[0]; var f1 = f[1]; var f2 = f[2]; var f3 = f[3]; var f4 = f[4]
-  var f5 = f[5]; var f6 = f[6]; var f7 = f[7]; var f8 = f[8]; var f9 = f[9]
+  var f0 = f[0]
+  var f1 = f[1]
+  var f2 = f[2]
+  var f3 = f[3]
+  var f4 = f[4]
+  var f5 = f[5]
+  var f6 = f[6]
+  var f7 = f[7]
+  var f8 = f[8]
+  var f9 = f[9]
   var f0_2 = 2 * f0
   var f1_2 = 2 * f1
   var f2_2 = 2 * f2
@@ -623,61 +847,61 @@ proc feSq2(h: var Fe, f: Fe) =
   var f7_38 = 38 * f7
   var f8_19 = 19 * f8
   var f9_38 = 38 * f9
-  var f0f0 = cast[int64](f0) * cast[int64](f0)
-  var f0f1_2 = cast[int64](f0_2) * cast[int64](f1)
-  var f0f2_2 = cast[int64](f0_2) * cast[int64](f2)
-  var f0f3_2 = cast[int64](f0_2) * cast[int64](f3)
-  var f0f4_2 = cast[int64](f0_2) * cast[int64](f4)
-  var f0f5_2 = cast[int64](f0_2) * cast[int64](f5)
-  var f0f6_2 = cast[int64](f0_2) * cast[int64](f6)
-  var f0f7_2 = cast[int64](f0_2) * cast[int64](f7)
-  var f0f8_2 = cast[int64](f0_2) * cast[int64](f8)
-  var f0f9_2 = cast[int64](f0_2) * cast[int64](f9)
-  var f1f1_2 = cast[int64](f1_2) * cast[int64](f1)
-  var f1f2_2 = cast[int64](f1_2) * cast[int64](f2)
-  var f1f3_4 = cast[int64](f1_2) * cast[int64](f3_2)
-  var f1f4_2 = cast[int64](f1_2) * cast[int64](f4)
-  var f1f5_4 = cast[int64](f1_2) * cast[int64](f5_2)
-  var f1f6_2 = cast[int64](f1_2) * cast[int64](f6)
-  var f1f7_4 = cast[int64](f1_2) * cast[int64](f7_2)
-  var f1f8_2 = cast[int64](f1_2) * cast[int64](f8)
-  var f1f9_76 = cast[int64](f1_2) * cast[int64](f9_38)
-  var f2f2 = cast[int64](f2) * cast[int64](f2)
-  var f2f3_2 = cast[int64](f2_2) * cast[int64](f3)
-  var f2f4_2 = cast[int64](f2_2) * cast[int64](f4)
-  var f2f5_2 = cast[int64](f2_2) * cast[int64](f5)
-  var f2f6_2 = cast[int64](f2_2) * cast[int64](f6)
-  var f2f7_2 = cast[int64](f2_2) * cast[int64](f7)
-  var f2f8_38 = cast[int64](f2_2) * cast[int64](f8_19)
-  var f2f9_38 = cast[int64](f2) * cast[int64](f9_38)
-  var f3f3_2 = cast[int64](f3_2) * cast[int64](f3)
-  var f3f4_2 = cast[int64](f3_2) * cast[int64](f4)
-  var f3f5_4 = cast[int64](f3_2) * cast[int64](f5_2)
-  var f3f6_2 = cast[int64](f3_2) * cast[int64](f6)
-  var f3f7_76 = cast[int64](f3_2) * cast[int64](f7_38)
-  var f3f8_38 = cast[int64](f3_2) * cast[int64](f8_19)
-  var f3f9_76 = cast[int64](f3_2) * cast[int64](f9_38)
-  var f4f4 = cast[int64](f4) * cast[int64](f4)
-  var f4f5_2 = cast[int64](f4_2) * cast[int64](f5)
-  var f4f6_38 = cast[int64](f4_2) * cast[int64](f6_19)
-  var f4f7_38 = cast[int64](f4) * cast[int64](f7_38)
-  var f4f8_38 = cast[int64](f4_2) * cast[int64](f8_19)
-  var f4f9_38 = cast[int64](f4) * cast[int64](f9_38)
-  var f5f5_38 = cast[int64](f5) * cast[int64](f5_38)
-  var f5f6_38 = cast[int64](f5_2) * cast[int64](f6_19)
-  var f5f7_76 = cast[int64](f5_2) * cast[int64](f7_38)
-  var f5f8_38 = cast[int64](f5_2) * cast[int64](f8_19)
-  var f5f9_76 = cast[int64](f5_2) * cast[int64](f9_38)
-  var f6f6_19 = cast[int64](f6) * cast[int64](f6_19)
-  var f6f7_38 = cast[int64](f6) * cast[int64](f7_38)
-  var f6f8_38 = cast[int64](f6_2) * cast[int64](f8_19)
-  var f6f9_38 = cast[int64](f6) * cast[int64](f9_38)
-  var f7f7_38 = cast[int64](f7) * cast[int64](f7_38)
-  var f7f8_38 = cast[int64](f7_2) * cast[int64](f8_19)
-  var f7f9_76 = cast[int64](f7_2) * cast[int64](f9_38)
-  var f8f8_19 = cast[int64](f8) * cast[int64](f8_19)
-  var f8f9_38 = cast[int64](f8) * cast[int64](f9_38)
-  var f9f9_38 = cast[int64](f9) * cast[int64](f9_38)
+  var f0f0 = safeConvert[int64](f0) * safeConvert[int64](f0)
+  var f0f1_2 = safeConvert[int64](f0_2) * safeConvert[int64](f1)
+  var f0f2_2 = safeConvert[int64](f0_2) * safeConvert[int64](f2)
+  var f0f3_2 = safeConvert[int64](f0_2) * safeConvert[int64](f3)
+  var f0f4_2 = safeConvert[int64](f0_2) * safeConvert[int64](f4)
+  var f0f5_2 = safeConvert[int64](f0_2) * safeConvert[int64](f5)
+  var f0f6_2 = safeConvert[int64](f0_2) * safeConvert[int64](f6)
+  var f0f7_2 = safeConvert[int64](f0_2) * safeConvert[int64](f7)
+  var f0f8_2 = safeConvert[int64](f0_2) * safeConvert[int64](f8)
+  var f0f9_2 = safeConvert[int64](f0_2) * safeConvert[int64](f9)
+  var f1f1_2 = safeConvert[int64](f1_2) * safeConvert[int64](f1)
+  var f1f2_2 = safeConvert[int64](f1_2) * safeConvert[int64](f2)
+  var f1f3_4 = safeConvert[int64](f1_2) * safeConvert[int64](f3_2)
+  var f1f4_2 = safeConvert[int64](f1_2) * safeConvert[int64](f4)
+  var f1f5_4 = safeConvert[int64](f1_2) * safeConvert[int64](f5_2)
+  var f1f6_2 = safeConvert[int64](f1_2) * safeConvert[int64](f6)
+  var f1f7_4 = safeConvert[int64](f1_2) * safeConvert[int64](f7_2)
+  var f1f8_2 = safeConvert[int64](f1_2) * safeConvert[int64](f8)
+  var f1f9_76 = safeConvert[int64](f1_2) * safeConvert[int64](f9_38)
+  var f2f2 = safeConvert[int64](f2) * safeConvert[int64](f2)
+  var f2f3_2 = safeConvert[int64](f2_2) * safeConvert[int64](f3)
+  var f2f4_2 = safeConvert[int64](f2_2) * safeConvert[int64](f4)
+  var f2f5_2 = safeConvert[int64](f2_2) * safeConvert[int64](f5)
+  var f2f6_2 = safeConvert[int64](f2_2) * safeConvert[int64](f6)
+  var f2f7_2 = safeConvert[int64](f2_2) * safeConvert[int64](f7)
+  var f2f8_38 = safeConvert[int64](f2_2) * safeConvert[int64](f8_19)
+  var f2f9_38 = safeConvert[int64](f2) * safeConvert[int64](f9_38)
+  var f3f3_2 = safeConvert[int64](f3_2) * safeConvert[int64](f3)
+  var f3f4_2 = safeConvert[int64](f3_2) * safeConvert[int64](f4)
+  var f3f5_4 = safeConvert[int64](f3_2) * safeConvert[int64](f5_2)
+  var f3f6_2 = safeConvert[int64](f3_2) * safeConvert[int64](f6)
+  var f3f7_76 = safeConvert[int64](f3_2) * safeConvert[int64](f7_38)
+  var f3f8_38 = safeConvert[int64](f3_2) * safeConvert[int64](f8_19)
+  var f3f9_76 = safeConvert[int64](f3_2) * safeConvert[int64](f9_38)
+  var f4f4 = safeConvert[int64](f4) * safeConvert[int64](f4)
+  var f4f5_2 = safeConvert[int64](f4_2) * safeConvert[int64](f5)
+  var f4f6_38 = safeConvert[int64](f4_2) * safeConvert[int64](f6_19)
+  var f4f7_38 = safeConvert[int64](f4) * safeConvert[int64](f7_38)
+  var f4f8_38 = safeConvert[int64](f4_2) * safeConvert[int64](f8_19)
+  var f4f9_38 = safeConvert[int64](f4) * safeConvert[int64](f9_38)
+  var f5f5_38 = safeConvert[int64](f5) * safeConvert[int64](f5_38)
+  var f5f6_38 = safeConvert[int64](f5_2) * safeConvert[int64](f6_19)
+  var f5f7_76 = safeConvert[int64](f5_2) * safeConvert[int64](f7_38)
+  var f5f8_38 = safeConvert[int64](f5_2) * safeConvert[int64](f8_19)
+  var f5f9_76 = safeConvert[int64](f5_2) * safeConvert[int64](f9_38)
+  var f6f6_19 = safeConvert[int64](f6) * safeConvert[int64](f6_19)
+  var f6f7_38 = safeConvert[int64](f6) * safeConvert[int64](f7_38)
+  var f6f8_38 = safeConvert[int64](f6_2) * safeConvert[int64](f8_19)
+  var f6f9_38 = safeConvert[int64](f6) * safeConvert[int64](f9_38)
+  var f7f7_38 = safeConvert[int64](f7) * safeConvert[int64](f7_38)
+  var f7f8_38 = safeConvert[int64](f7_2) * safeConvert[int64](f8_19)
+  var f7f9_76 = safeConvert[int64](f7_2) * safeConvert[int64](f9_38)
+  var f8f8_19 = safeConvert[int64](f8) * safeConvert[int64](f8_19)
+  var f8f9_38 = safeConvert[int64](f8) * safeConvert[int64](f9_38)
+  var f9f9_38 = safeConvert[int64](f9) * safeConvert[int64](f9_38)
   var
     c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int64
     h0: int64 = f0f0 + f1f9_76 + f2f8_38 + f3f7_76 + f4f6_38 + f5f5_38
@@ -691,21 +915,53 @@ proc feSq2(h: var Fe, f: Fe) =
     h8: int64 = f0f8_2 + f1f7_4 + f2f6_2 + f3f5_4 + f4f4 + f9f9_38
     h9: int64 = f0f9_2 + f1f8_2 + f2f7_2 + f3f6_2 + f4f5_2
 
-  h0 += h0; h1 += h1; h2 += h2; h3 += h3; h4 += h4;
-  h5 += h5; h6 += h6; h7 += h7; h8 += h8; h9 += h9;
+  h0 += h0
+  h1 += h1
+  h2 += h2
+  h3 += h3
+  h4 += h4
+  h5 += h5
+  h6 += h6
+  h7 += h7
+  h8 += h8
+  h9 += h9
 
-  c0 = ashr((h0 + (1'i64 shl 25)), 26); h1 += c0; h0 -= c0 shl 26
-  c4 = ashr((h4 + (1'i64 shl 25)), 26); h5 += c4; h4 -= c4 shl 26
-  c1 = ashr((h1 + (1'i64 shl 24)), 25); h2 += c1; h1 -= c1 shl 25
-  c5 = ashr((h5 + (1'i64 shl 24)), 25); h6 += c5; h5 -= c5 shl 25
-  c2 = ashr((h2 + (1'i64 shl 25)), 26); h3 += c2; h2 -= c2 shl 26
-  c6 = ashr((h6 + (1'i64 shl 25)), 26); h7 += c6; h6 -= c6 shl 26
-  c3 = ashr((h3 + (1'i64 shl 24)), 25); h4 += c3; h3 -= c3 shl 25
-  c7 = ashr((h7 + (1'i64 shl 24)), 25); h8 += c7; h7 -= c7 shl 25
-  c4 = ashr((h4 + (1'i64 shl 25)), 26); h5 += c4; h4 -= c4 shl 26
-  c8 = ashr((h8 + (1'i64 shl 25)), 26); h9 += c8; h8 -= c8 shl 26
-  c9 = ashr((h9 + (1'i64 shl 24)), 25); h0 += c9 * 19; h9 -= c9 shl 25
-  c0 = ashr((h0 + (1'i64 shl 25)), 26); h1 += c0; h0 -= c0 shl 26
+  c0 = ashr((h0 + (1'i64 shl 25)), 26)
+  h1 += c0
+  h0 -= c0 shl 26
+  c4 = ashr((h4 + (1'i64 shl 25)), 26)
+  h5 += c4
+  h4 -= c4 shl 26
+  c1 = ashr((h1 + (1'i64 shl 24)), 25)
+  h2 += c1
+  h1 -= c1 shl 25
+  c5 = ashr((h5 + (1'i64 shl 24)), 25)
+  h6 += c5
+  h5 -= c5 shl 25
+  c2 = ashr((h2 + (1'i64 shl 25)), 26)
+  h3 += c2
+  h2 -= c2 shl 26
+  c6 = ashr((h6 + (1'i64 shl 25)), 26)
+  h7 += c6
+  h6 -= c6 shl 26
+  c3 = ashr((h3 + (1'i64 shl 24)), 25)
+  h4 += c3
+  h3 -= c3 shl 25
+  c7 = ashr((h7 + (1'i64 shl 24)), 25)
+  h8 += c7
+  h7 -= c7 shl 25
+  c4 = ashr((h4 + (1'i64 shl 25)), 26)
+  h5 += c4
+  h4 -= c4 shl 26
+  c8 = ashr((h8 + (1'i64 shl 25)), 26)
+  h9 += c8
+  h8 -= c8 shl 26
+  c9 = ashr((h9 + (1'i64 shl 24)), 25)
+  h0 += c9 * 19
+  h9 -= c9 shl 25
+  c0 = ashr((h0 + (1'i64 shl 25)), 26)
+  h1 += c0
+  h0 -= c0 shl 26
 
   h[0] = cast[int32](h0)
   h[1] = cast[int32](h1)
@@ -721,73 +977,95 @@ proc feSq2(h: var Fe, f: Fe) =
 proc feInvert(outfe: var Fe, z: Fe) =
   var t0, t1, t2, t3: Fe
   feSq(t0, z)
-  for i in 1..<1: feSq(t0, t0)
+  for i in 1 ..< 1:
+    feSq(t0, t0)
   feSq(t1, t0)
-  for i in 1..<2: feSq(t1, t1)
+  for i in 1 ..< 2:
+    feSq(t1, t1)
   feMul(t1, z, t1)
   feMul(t0, t0, t1)
   feSq(t2, t0)
-  for i in 1..<1: feSq(t2, t2)
+  for i in 1 ..< 1:
+    feSq(t2, t2)
   feMul(t1, t1, t2)
   feSq(t2, t1)
-  for i in 1..<5: feSq(t2, t2)
+  for i in 1 ..< 5:
+    feSq(t2, t2)
   feMul(t1, t2, t1)
   feSq(t2, t1)
-  for i in 1..<10: feSq(t2, t2)
+  for i in 1 ..< 10:
+    feSq(t2, t2)
   feMul(t2, t2, t1)
   feSq(t3, t2)
-  for i in 1..<20: feSq(t3, t3)
+  for i in 1 ..< 20:
+    feSq(t3, t3)
   feMul(t2, t3, t2)
   feSq(t2, t2)
-  for i in 1..<10: feSq(t2, t2)
+  for i in 1 ..< 10:
+    feSq(t2, t2)
   feMul(t1, t2, t1)
   feSq(t2, t1)
-  for i in 1..<50: feSq(t2, t2)
+  for i in 1 ..< 50:
+    feSq(t2, t2)
   feMul(t2, t2, t1)
   feSq(t3, t2)
-  for i in 1..<100: feSq(t3, t3)
+  for i in 1 ..< 100:
+    feSq(t3, t3)
   feMul(t2, t3, t2)
   feSq(t2, t2)
-  for i in 1..<50: feSq(t2, t2)
+  for i in 1 ..< 50:
+    feSq(t2, t2)
   feMul(t1, t2, t1)
   feSq(t1, t1)
-  for i in 1..<5: feSq(t1, t1)
+  for i in 1 ..< 5:
+    feSq(t1, t1)
   feMul(outfe, t1, t0)
 
 proc fePow22523(outfe: var Fe, z: Fe) =
   var t0, t1, t2: Fe
   feSq(t0, z)
-  for i in 1..<1: feSq(t0, t0)
+  for i in 1 ..< 1:
+    feSq(t0, t0)
   feSq(t1, t0)
-  for i in 1..<2: feSq(t1, t1)
+  for i in 1 ..< 2:
+    feSq(t1, t1)
   feMul(t1, z, t1)
   feMul(t0, t0, t1)
   feSq(t0, t0)
-  for i in 1..<1: feSq(t0, t0)
+  for i in 1 ..< 1:
+    feSq(t0, t0)
   feMul(t0, t1, t0)
   feSq(t1, t0)
-  for i in 1..<5: feSq(t1, t1)
+  for i in 1 ..< 5:
+    feSq(t1, t1)
   feMul(t0, t1, t0)
   feSq(t1, t0)
-  for i in 1..<10: feSq(t1, t1)
+  for i in 1 ..< 10:
+    feSq(t1, t1)
   feMul(t1, t1, t0)
   feSq(t2, t1)
-  for i in 1..<20: feSq(t2, t2)
+  for i in 1 ..< 20:
+    feSq(t2, t2)
   feMul(t1, t2, t1)
   feSq(t1, t1)
-  for i in 1..<10: feSq(t1, t1)
+  for i in 1 ..< 10:
+    feSq(t1, t1)
   feMul(t0, t1, t0)
   feSq(t1, t0)
-  for i in 1..<50: feSq(t1, t1)
+  for i in 1 ..< 50:
+    feSq(t1, t1)
   feMul(t1, t1, t0)
   feSq(t2, t1)
-  for i in 1..<100: feSq(t2, t2)
+  for i in 1 ..< 100:
+    feSq(t2, t2)
   feMul(t1, t2, t1)
   feSq(t1, t1)
-  for i in 1..<50: feSq(t1, t1)
+  for i in 1 ..< 50:
+    feSq(t1, t1)
   feMul(t0, t1, t0)
   feSq(t0, t0)
-  for i in 1..<2: feSq(t0, t0)
+  for i in 1 ..< 2:
+    feSq(t0, t0)
   feMul(outfe, t0, z)
 
 proc geAdd(r: var GeP1P1, p: GeP3, q: GeCached) =
@@ -798,7 +1076,7 @@ proc geAdd(r: var GeP1P1, p: GeP3, q: GeCached) =
   feMul(r.y, r.y, q.yminusx)
   feMul(r.t, q.t2d, p.t)
   feMul(r.x, p.z, q.z)
-  feAdd(t0,r.x, r.x)
+  feAdd(t0, r.x, r.x)
   feSub(r.x, r.z, r.y)
   feAdd(r.y, r.z, r.y)
   feAdd(r.z, t0, r.t)
@@ -831,10 +1109,10 @@ proc geFromBytesNegateVartime(h: var GeP3, s: openArray[byte]): int32 =
   if feIsNonZero(check) != 0:
     feAdd(check, vxx, u)
     if feIsNonZero(check) != 0:
-      return -1;
+      return -1
     feMul(h.x, h.x, SqrTm1)
 
-  if feIsNegative(h.x) == cast[int32](s[31] shr 7):
+  if feIsNegative(h.x) == safeConvert[int32](s[31] shr 7):
     feNeg(h.x, h.x)
 
   feMul(h.t, h.x, h.y)
@@ -935,10 +1213,10 @@ proc geP3dbl(r: var GeP1P1, p: GeP3) =
 proc geP3ToBytes(s: var openArray[byte], h: GeP3) =
   var recip, x, y: Fe
 
-  feInvert(recip, h.z);
-  feMul(x, h.x, recip);
-  feMul(y, h.y, recip);
-  feToBytes(s, y);
+  feInvert(recip, h.z)
+  feMul(x, h.x, recip)
+  feMul(y, h.y, recip)
+  feToBytes(s, y)
   s[31] = s[31] xor cast[byte](feIsNegative(x) shl 7)
 
 proc geP3ToCached(r: var GeCached, p: GeP3) =
@@ -956,14 +1234,14 @@ proc equal(b, c: int8): byte =
   var ub = cast[byte](b)
   var uc = cast[byte](c)
   var x = ub xor uc
-  var y = cast[uint32](x)
+  var y = safeConvert[uint32](x)
   y = y - 1
   y = y shr 31
   result = cast[byte](y)
 
 proc negative(b: int8): byte =
-  var x = cast[uint64](b)
-  x = x shr 63
+  var x = cast[uint8](b)
+  x = x shr 7
   result = cast[byte](x)
 
 proc cmov(t: var GePrecomp, u: GePrecomp, b: byte) =
@@ -996,12 +1274,12 @@ proc geScalarMultBase(h: var GeP3, a: openArray[byte]) =
   var s: GeP2
   var t: GePrecomp
 
-  for i in 0..<32:
+  for i in 0 ..< 32:
     e[2 * i + 0] = cast[int8]((a[i] shr 0) and 15)
     e[2 * i + 1] = cast[int8]((a[i] shr 4) and 15)
 
   carry = 0
-  for i in 0..<63:
+  for i in 0 ..< 63:
     e[i] += carry
     carry = e[i] + 8
     carry = carry shr 4
@@ -1014,10 +1292,14 @@ proc geScalarMultBase(h: var GeP3, a: openArray[byte]) =
     geMadd(r, h, t)
     geP1P1toP3(h, r)
 
-  geP3dbl(r, h); geP1P1toP2(s, r)
-  geP2dbl(r, s); geP1P1toP2(s, r)
-  geP2dbl(r, s); geP1P1toP2(s, r)
-  geP2dbl(r, s); geP1P1toP3(h, r)
+  geP3dbl(r, h)
+  geP1P1toP2(s, r)
+  geP2dbl(r, s)
+  geP1P1toP2(s, r)
+  geP2dbl(r, s)
+  geP1P1toP2(s, r)
+  geP2dbl(r, s)
+  geP1P1toP3(h, r)
 
   for i in countup(0, 63, 2):
     select(t, i div 2, e[i])
@@ -1073,26 +1355,32 @@ proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   s3 = c3 + a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0
   s4 = c4 + a0 * b4 + a1 * b3 + a2 * b2 + a3 * b1 + a4 * b0
   s5 = c5 + a0 * b5 + a1 * b4 + a2 * b3 + a3 * b2 + a4 * b1 + a5 * b0
-  s6 = c6 + a0 * b6 + a1 * b5 + a2 * b4 + a3 * b3 + a4 * b2 + a5 * b1 +
-       a6 * b0
-  s7 = c7 + a0 * b7 + a1 * b6 + a2 * b5 + a3 * b4 + a4 * b3 + a5 * b2 +
-       a6 * b1 + a7 * b0
-  s8 = c8 + a0 * b8 + a1 * b7 + a2 * b6 + a3 * b5 + a4 * b4 + a5 * b3 +
-       a6 * b2 + a7 * b1 + a8 * b0
-  s9 = c9 + a0 * b9 + a1 * b8 + a2 * b7 + a3 * b6 + a4 * b5 + a5 * b4 +
-       a6 * b3 + a7 * b2 + a8 * b1 + a9 * b0
-  s10 = c10 + a0 * b10 + a1 * b9 + a2 * b8 + a3 * b7 + a4 * b6 + a5 * b5 +
-       a6 * b4 + a7 * b3 + a8 * b2 + a9 * b1 + a10 * b0
-  s11 = c11 + a0 * b11 + a1 * b10 + a2 * b9 + a3 * b8 + a4 * b7 + a5 * b6 +
-        a6 * b5 + a7 * b4 + a8 * b3 + a9 * b2 + a10 * b1 + a11 * b0
-  s12 = a1 * b11 + a2 * b10 + a3 * b9 + a4 * b8 + a5 * b7 + a6 * b6 + a7 * b5 +
-        a8 * b4 + a9 * b3 + a10 * b2 + a11 * b1
-  s13 = a2 * b11 + a3 * b10 + a4 * b9 + a5 * b8 + a6 * b7 + a7 * b6 + a8 * b5 +
-        a9 * b4 + a10 * b3 + a11 * b2
-  s14 = a3 * b11 + a4 * b10 + a5 * b9 + a6 * b8 + a7 * b7 + a8 * b6 + a9 * b5 +
-        a10 * b4 + a11 * b3
-  s15 = a4 * b11 + a5 * b10 + a6 * b9 + a7 * b8 + a8 * b7 + a9 * b6 + a10 * b5 +
-        a11 * b4
+  s6 = c6 + a0 * b6 + a1 * b5 + a2 * b4 + a3 * b3 + a4 * b2 + a5 * b1 + a6 * b0
+  s7 =
+    c7 + a0 * b7 + a1 * b6 + a2 * b5 + a3 * b4 + a4 * b3 + a5 * b2 + a6 * b1 + a7 * b0
+  s8 =
+    c8 + a0 * b8 + a1 * b7 + a2 * b6 + a3 * b5 + a4 * b4 + a5 * b3 + a6 * b2 + a7 * b1 +
+    a8 * b0
+  s9 =
+    c9 + a0 * b9 + a1 * b8 + a2 * b7 + a3 * b6 + a4 * b5 + a5 * b4 + a6 * b3 + a7 * b2 +
+    a8 * b1 + a9 * b0
+  s10 =
+    c10 + a0 * b10 + a1 * b9 + a2 * b8 + a3 * b7 + a4 * b6 + a5 * b5 + a6 * b4 + a7 * b3 +
+    a8 * b2 + a9 * b1 + a10 * b0
+  s11 =
+    c11 + a0 * b11 + a1 * b10 + a2 * b9 + a3 * b8 + a4 * b7 + a5 * b6 + a6 * b5 + a7 * b4 +
+    a8 * b3 + a9 * b2 + a10 * b1 + a11 * b0
+  s12 =
+    a1 * b11 + a2 * b10 + a3 * b9 + a4 * b8 + a5 * b7 + a6 * b6 + a7 * b5 + a8 * b4 +
+    a9 * b3 + a10 * b2 + a11 * b1
+  s13 =
+    a2 * b11 + a3 * b10 + a4 * b9 + a5 * b8 + a6 * b7 + a7 * b6 + a8 * b5 + a9 * b4 +
+    a10 * b3 + a11 * b2
+  s14 =
+    a3 * b11 + a4 * b10 + a5 * b9 + a6 * b8 + a7 * b7 + a8 * b6 + a9 * b5 + a10 * b4 +
+    a11 * b3
+  s15 =
+    a4 * b11 + a5 * b10 + a6 * b9 + a7 * b8 + a8 * b7 + a9 * b6 + a10 * b5 + a11 * b4
   s16 = a5 * b11 + a6 * b10 + a7 * b9 + a8 * b8 + a9 * b7 + a10 * b6 + a11 * b5
   s17 = a6 * b11 + a7 * b10 + a8 * b9 + a9 * b8 + a10 * b7 + a11 * b6
   s18 = a7 * b11 + a8 * b10 + a9 * b9 + a10 * b8 + a11 * b7
@@ -1102,30 +1390,76 @@ proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   s22 = a11 * b11
   s23 = 0
 
-  cr0 = ashr((s0 + (1'i64 shl 20)), 21); s1 += cr0; s0 -= cr0 shl 21
-  cr2 = ashr((s2 + (1'i64 shl 20)), 21); s3 += cr2; s2 -= cr2 shl 21
-  cr4 = ashr((s4 + (1'i64 shl 20)), 21); s5 += cr4; s4 -= cr4 shl 21
-  cr6 = ashr((s6 + (1'i64 shl 20)), 21); s7 += cr6; s6 -= cr6 shl 21
-  cr8 = ashr((s8 + (1'i64 shl 20)), 21); s9 += cr8; s8 -= cr8 shl 21
-  cr10 = ashr((s10 + (1'i64 shl 20)), 21); s11 += cr10; s10 -= cr10 shl 21
-  cr12 = ashr((s12 + (1'i64 shl 20)), 21); s13 += cr12; s12 -= cr12 shl 21
-  cr14 = ashr((s14 + (1'i64 shl 20)), 21); s15 += cr14; s14 -= cr14 shl 21
-  cr16 = ashr((s16 + (1'i64 shl 20)), 21); s17 += cr16; s16 -= cr16 shl 21
-  cr18 = ashr((s18 + (1'i64 shl 20)), 21); s19 += cr18; s18 -= cr18 shl 21
-  cr20 = ashr((s20 + (1'i64 shl 20)), 21); s21 += cr20; s20 -= cr20 shl 21
-  cr22 = ashr((s22 + (1'i64 shl 20)), 21); s23 += cr22; s22 -= cr22 shl 21
+  cr0 = ashr((s0 + (1'i64 shl 20)), 21)
+  s1 += cr0
+  s0 -= cr0 shl 21
+  cr2 = ashr((s2 + (1'i64 shl 20)), 21)
+  s3 += cr2
+  s2 -= cr2 shl 21
+  cr4 = ashr((s4 + (1'i64 shl 20)), 21)
+  s5 += cr4
+  s4 -= cr4 shl 21
+  cr6 = ashr((s6 + (1'i64 shl 20)), 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr8 = ashr((s8 + (1'i64 shl 20)), 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr10 = ashr((s10 + (1'i64 shl 20)), 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
+  cr12 = ashr((s12 + (1'i64 shl 20)), 21)
+  s13 += cr12
+  s12 -= cr12 shl 21
+  cr14 = ashr((s14 + (1'i64 shl 20)), 21)
+  s15 += cr14
+  s14 -= cr14 shl 21
+  cr16 = ashr((s16 + (1'i64 shl 20)), 21)
+  s17 += cr16
+  s16 -= cr16 shl 21
+  cr18 = ashr((s18 + (1'i64 shl 20)), 21)
+  s19 += cr18
+  s18 -= cr18 shl 21
+  cr20 = ashr((s20 + (1'i64 shl 20)), 21)
+  s21 += cr20
+  s20 -= cr20 shl 21
+  cr22 = ashr((s22 + (1'i64 shl 20)), 21)
+  s23 += cr22
+  s22 -= cr22 shl 21
 
-  cr1 = ashr((s1 + (1'i64 shl 20)), 21); s2 += cr1; s1 -= cr1 shl 21
-  cr3 = ashr((s3 + (1'i64 shl 20)), 21); s4 += cr3; s3 -= cr3 shl 21
-  cr5 = ashr((s5 + (1'i64 shl 20)), 21); s6 += cr5; s5 -= cr5 shl 21
-  cr7 = ashr((s7 + (1'i64 shl 20)), 21); s8 += cr7; s7 -= cr7 shl 21
-  cr9 = ashr((s9 + (1'i64 shl 20)), 21); s10 += cr9; s9 -= cr9 shl 21
-  cr11 = ashr((s11 + (1'i64 shl 20)), 21); s12 += cr11; s11 -= cr11 shl 21
-  cr13 = ashr((s13 + (1'i64 shl 20)), 21); s14 += cr13; s13 -= cr13 shl 21
-  cr15 = ashr((s15 + (1'i64 shl 20)), 21); s16 += cr15; s15 -= cr15 shl 21
-  cr17 = ashr((s17 + (1'i64 shl 20)), 21); s18 += cr17; s17 -= cr17 shl 21
-  cr19 = ashr((s19 + (1'i64 shl 20)), 21); s20 += cr19; s19 -= cr19 shl 21
-  cr21 = ashr((s21 + (1'i64 shl 20)), 21); s22 += cr21; s21 -= cr21 shl 21
+  cr1 = ashr((s1 + (1'i64 shl 20)), 21)
+  s2 += cr1
+  s1 -= cr1 shl 21
+  cr3 = ashr((s3 + (1'i64 shl 20)), 21)
+  s4 += cr3
+  s3 -= cr3 shl 21
+  cr5 = ashr((s5 + (1'i64 shl 20)), 21)
+  s6 += cr5
+  s5 -= cr5 shl 21
+  cr7 = ashr((s7 + (1'i64 shl 20)), 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr9 = ashr((s9 + (1'i64 shl 20)), 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr11 = ashr((s11 + (1'i64 shl 20)), 21)
+  s12 += cr11
+  s11 -= cr11 shl 21
+  cr13 = ashr((s13 + (1'i64 shl 20)), 21)
+  s14 += cr13
+  s13 -= cr13 shl 21
+  cr15 = ashr((s15 + (1'i64 shl 20)), 21)
+  s16 += cr15
+  s15 -= cr15 shl 21
+  cr17 = ashr((s17 + (1'i64 shl 20)), 21)
+  s18 += cr17
+  s17 -= cr17 shl 21
+  cr19 = ashr((s19 + (1'i64 shl 20)), 21)
+  s20 += cr19
+  s19 -= cr19 shl 21
+  cr21 = ashr((s21 + (1'i64 shl 20)), 21)
+  s22 += cr21
+  s21 -= cr21 shl 21
 
   s11 += s23 * 666643
   s12 += s23 * 470296
@@ -1175,18 +1509,40 @@ proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   s11 -= s18 * 683901
   s18 = 0
 
-  cr6 = ashr((s6 + (1'i64 shl 20)), 21); s7 += cr6; s6 -= cr6 shl 21
-  cr8 = ashr((s8 + (1'i64 shl 20)), 21); s9 += cr8; s8 -= cr8 shl 21
-  cr10 = ashr((s10 + (1'i64 shl 20)), 21); s11 += cr10; s10 -= cr10 shl 21
-  cr12 = ashr((s12 + (1'i64 shl 20)), 21); s13 += cr12; s12 -= cr12 shl 21
-  cr14 = ashr((s14 + (1'i64 shl 20)), 21); s15 += cr14; s14 -= cr14 shl 21
-  cr16 = ashr((s16 + (1'i64 shl 20)), 21); s17 += cr16; s16 -= cr16 shl 21
+  cr6 = ashr((s6 + (1'i64 shl 20)), 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr8 = ashr((s8 + (1'i64 shl 20)), 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr10 = ashr((s10 + (1'i64 shl 20)), 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
+  cr12 = ashr((s12 + (1'i64 shl 20)), 21)
+  s13 += cr12
+  s12 -= cr12 shl 21
+  cr14 = ashr((s14 + (1'i64 shl 20)), 21)
+  s15 += cr14
+  s14 -= cr14 shl 21
+  cr16 = ashr((s16 + (1'i64 shl 20)), 21)
+  s17 += cr16
+  s16 -= cr16 shl 21
 
-  cr7 = ashr((s7 + (1'i64 shl 20)), 21); s8 += cr7; s7 -= cr7 shl 21
-  cr9 = ashr((s9 + (1'i64 shl 20)), 21); s10 += cr9; s9 -= cr9 shl 21
-  cr11 = ashr((s11 + (1'i64 shl 20)), 21); s12 += cr11; s11 -= cr11 shl 21
-  cr13 = ashr((s13 + (1'i64 shl 20)), 21); s14 += cr13; s13 -= cr13 shl 21
-  cr15 = ashr((s15 + (1'i64 shl 20)), 21); s16 += cr15; s15 -= cr15 shl 21
+  cr7 = ashr((s7 + (1'i64 shl 20)), 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr9 = ashr((s9 + (1'i64 shl 20)), 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr11 = ashr((s11 + (1'i64 shl 20)), 21)
+  s12 += cr11
+  s11 -= cr11 shl 21
+  cr13 = ashr((s13 + (1'i64 shl 20)), 21)
+  s14 += cr13
+  s13 -= cr13 shl 21
+  cr15 = ashr((s15 + (1'i64 shl 20)), 21)
+  s16 += cr15
+  s15 -= cr15 shl 21
 
   s5 += s17 * 666643
   s6 += s17 * 470296
@@ -1236,19 +1592,43 @@ proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   s5 -= s12 * 683901
   s12 = 0
 
-  cr0 = ashr((s0 + (1'i64 shl 20)), 21); s1 += cr0; s0 -= cr0 shl 21
-  cr2 = ashr((s2 + (1'i64 shl 20)), 21); s3 += cr2; s2 -= cr2 shl 21
-  cr4 = ashr((s4 + (1'i64 shl 20)), 21); s5 += cr4; s4 -= cr4 shl 21
-  cr6 = ashr((s6 + (1'i64 shl 20)), 21); s7 += cr6; s6 -= cr6 shl 21
-  cr8 = ashr((s8 + (1'i64 shl 20)), 21); s9 += cr8; s8 -= cr8 shl 21
-  cr10 = ashr((s10 + (1'i64 shl 20)), 21); s11 += cr10; s10 -= cr10 shl 21
+  cr0 = ashr((s0 + (1'i64 shl 20)), 21)
+  s1 += cr0
+  s0 -= cr0 shl 21
+  cr2 = ashr((s2 + (1'i64 shl 20)), 21)
+  s3 += cr2
+  s2 -= cr2 shl 21
+  cr4 = ashr((s4 + (1'i64 shl 20)), 21)
+  s5 += cr4
+  s4 -= cr4 shl 21
+  cr6 = ashr((s6 + (1'i64 shl 20)), 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr8 = ashr((s8 + (1'i64 shl 20)), 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr10 = ashr((s10 + (1'i64 shl 20)), 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
 
-  cr1 = ashr((s1 + (1'i64 shl 20)), 21); s2 += cr1; s1 -= cr1 shl 21
-  cr3 = ashr((s3 + (1'i64 shl 20)), 21); s4 += cr3; s3 -= cr3 shl 21
-  cr5 = ashr((s5 + (1'i64 shl 20)), 21); s6 += cr5; s5 -= cr5 shl 21
-  cr7 = ashr((s7 + (1'i64 shl 20)), 21); s8 += cr7; s7 -= cr7 shl 21
-  cr9 = ashr((s9 + (1'i64 shl 20)), 21); s10 += cr9; s9 -= cr9 shl 21
-  cr11 = ashr((s11 + (1'i64 shl 20)), 21); s12 += cr11; s11 -= cr11 shl 21
+  cr1 = ashr((s1 + (1'i64 shl 20)), 21)
+  s2 += cr1
+  s1 -= cr1 shl 21
+  cr3 = ashr((s3 + (1'i64 shl 20)), 21)
+  s4 += cr3
+  s3 -= cr3 shl 21
+  cr5 = ashr((s5 + (1'i64 shl 20)), 21)
+  s6 += cr5
+  s5 -= cr5 shl 21
+  cr7 = ashr((s7 + (1'i64 shl 20)), 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr9 = ashr((s9 + (1'i64 shl 20)), 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr11 = ashr((s11 + (1'i64 shl 20)), 21)
+  s12 += cr11
+  s11 -= cr11 shl 21
 
   s0 += s12 * 666643
   s1 += s12 * 470296
@@ -1258,18 +1638,42 @@ proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   s5 -= s12 * 683901
   s12 = 0
 
-  cr0 = ashr(s0, 21); s1 += cr0; s0 -= cr0 shl 21
-  cr1 = ashr(s1, 21); s2 += cr1; s1 -= cr1 shl 21
-  cr2 = ashr(s2, 21); s3 += cr2; s2 -= cr2 shl 21
-  cr3 = ashr(s3, 21); s4 += cr3; s3 -= cr3 shl 21
-  cr4 = ashr(s4, 21); s5 += cr4; s4 -= cr4 shl 21
-  cr5 = ashr(s5, 21); s6 += cr5; s5 -= cr5 shl 21
-  cr6 = ashr(s6, 21); s7 += cr6; s6 -= cr6 shl 21
-  cr7 = ashr(s7, 21); s8 += cr7; s7 -= cr7 shl 21
-  cr8 = ashr(s8, 21); s9 += cr8; s8 -= cr8 shl 21
-  cr9 = ashr(s9, 21); s10 += cr9; s9 -= cr9 shl 21
-  cr10 = ashr(s10, 21); s11 += cr10; s10 -= cr10 shl 21
-  cr11 = ashr(s11, 21); s12 += cr11; s11 -= cr11 shl 21
+  cr0 = ashr(s0, 21)
+  s1 += cr0
+  s0 -= cr0 shl 21
+  cr1 = ashr(s1, 21)
+  s2 += cr1
+  s1 -= cr1 shl 21
+  cr2 = ashr(s2, 21)
+  s3 += cr2
+  s2 -= cr2 shl 21
+  cr3 = ashr(s3, 21)
+  s4 += cr3
+  s3 -= cr3 shl 21
+  cr4 = ashr(s4, 21)
+  s5 += cr4
+  s4 -= cr4 shl 21
+  cr5 = ashr(s5, 21)
+  s6 += cr5
+  s5 -= cr5 shl 21
+  cr6 = ashr(s6, 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr7 = ashr(s7, 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr8 = ashr(s8, 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr9 = ashr(s9, 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr10 = ashr(s10, 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
+  cr11 = ashr(s11, 21)
+  s12 += cr11
+  s11 -= cr11 shl 21
 
   s0 += s12 * 666643
   s1 += s12 * 470296
@@ -1279,17 +1683,39 @@ proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   s5 -= s12 * 683901
   s12 = 0
 
-  cr0 = ashr(s0, 21); s1 += cr0; s0 -= cr0 shl 21
-  cr1 = ashr(s1, 21); s2 += cr1; s1 -= cr1 shl 21
-  cr2 = ashr(s2, 21); s3 += cr2; s2 -= cr2 shl 21
-  cr3 = ashr(s3, 21); s4 += cr3; s3 -= cr3 shl 21
-  cr4 = ashr(s4, 21); s5 += cr4; s4 -= cr4 shl 21
-  cr5 = ashr(s5, 21); s6 += cr5; s5 -= cr5 shl 21
-  cr6 = ashr(s6, 21); s7 += cr6; s6 -= cr6 shl 21
-  cr7 = ashr(s7, 21); s8 += cr7; s7 -= cr7 shl 21
-  cr8 = ashr(s8, 21); s9 += cr8; s8 -= cr8 shl 21
-  cr9 = ashr(s9, 21); s10 += cr9; s9 -= cr9 shl 21
-  cr10 = ashr(s10, 21); s11 += cr10; s10 -= cr10 shl 21
+  cr0 = ashr(s0, 21)
+  s1 += cr0
+  s0 -= cr0 shl 21
+  cr1 = ashr(s1, 21)
+  s2 += cr1
+  s1 -= cr1 shl 21
+  cr2 = ashr(s2, 21)
+  s3 += cr2
+  s2 -= cr2 shl 21
+  cr3 = ashr(s3, 21)
+  s4 += cr3
+  s3 -= cr3 shl 21
+  cr4 = ashr(s4, 21)
+  s5 += cr4
+  s4 -= cr4 shl 21
+  cr5 = ashr(s5, 21)
+  s6 += cr5
+  s5 -= cr5 shl 21
+  cr6 = ashr(s6, 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr7 = ashr(s7, 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr8 = ashr(s8, 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr9 = ashr(s9, 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr10 = ashr(s10, 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
 
   s[0] = cast[uint8](ashr(s0, 0))
   s[1] = cast[uint8](ashr(s0, 8))
@@ -1325,7 +1751,7 @@ proc scMulAdd(s: var openArray[byte], a, b, c: openArray[byte]) =
   s[31] = cast[uint8](ashr(s11, 17))
 
 proc scReduce(s: var openArray[byte]) =
-  var s0 = 2097151'i64 and cast[int64](load_3(s.toOpenArray(0, 2)));
+  var s0 = 2097151'i64 and cast[int64](load_3(s.toOpenArray(0, 2)))
   var s1 = 2097151'i64 and cast[int64](load_4(s.toOpenArray(2, 5)) shr 5)
   var s2 = 2097151'i64 and cast[int64](load_3(s.toOpenArray(5, 7)) shr 2)
   var s3 = 2097151'i64 and cast[int64](load_4(s.toOpenArray(7, 10)) shr 7)
@@ -1401,18 +1827,40 @@ proc scReduce(s: var openArray[byte]) =
   s11 -= s18 * 683901
   s18 = 0
 
-  cr6 = ashr((s6 + (1'i64 shl 20)), 21); s7 += cr6; s6 -= cr6 shl 21
-  cr8 = ashr((s8 + (1'i64 shl 20)), 21); s9 += cr8; s8 -= cr8 shl 21
-  cr10 = ashr((s10 + (1'i64 shl 20)), 21); s11 += cr10; s10 -= cr10 shl 21
-  cr12 = ashr((s12 + (1'i64 shl 20)), 21); s13 += cr12; s12 -= cr12 shl 21
-  cr14 = ashr((s14 + (1'i64 shl 20)), 21); s15 += cr14; s14 -= cr14 shl 21
-  cr16 = ashr((s16 + (1'i64 shl 20)), 21); s17 += cr16; s16 -= cr16 shl 21
+  cr6 = ashr((s6 + (1'i64 shl 20)), 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr8 = ashr((s8 + (1'i64 shl 20)), 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr10 = ashr((s10 + (1'i64 shl 20)), 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
+  cr12 = ashr((s12 + (1'i64 shl 20)), 21)
+  s13 += cr12
+  s12 -= cr12 shl 21
+  cr14 = ashr((s14 + (1'i64 shl 20)), 21)
+  s15 += cr14
+  s14 -= cr14 shl 21
+  cr16 = ashr((s16 + (1'i64 shl 20)), 21)
+  s17 += cr16
+  s16 -= cr16 shl 21
 
-  cr7 = ashr((s7 + (1'i64 shl 20)), 21); s8 += cr7; s7 -= cr7 shl 21
-  cr9 = ashr((s9 + (1'i64 shl 20)), 21); s10 += cr9; s9 -= cr9 shl 21
-  cr11 = ashr((s11 + (1'i64 shl 20)), 21); s12 += cr11; s11 -= cr11 shl 21
-  cr13 = ashr((s13 + (1'i64 shl 20)), 21); s14 += cr13; s13 -= cr13 shl 21
-  cr15 = ashr((s15 + (1'i64 shl 20)), 21); s16 += cr15; s15 -= cr15 shl 21
+  cr7 = ashr((s7 + (1'i64 shl 20)), 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr9 = ashr((s9 + (1'i64 shl 20)), 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr11 = ashr((s11 + (1'i64 shl 20)), 21)
+  s12 += cr11
+  s11 -= cr11 shl 21
+  cr13 = ashr((s13 + (1'i64 shl 20)), 21)
+  s14 += cr13
+  s13 -= cr13 shl 21
+  cr15 = ashr((s15 + (1'i64 shl 20)), 21)
+  s16 += cr15
+  s15 -= cr15 shl 21
 
   s5 += s17 * 666643
   s6 += s17 * 470296
@@ -1462,40 +1910,43 @@ proc scReduce(s: var openArray[byte]) =
   s5 -= s12 * 683901
   s12 = 0
 
-  cr0 = ashr((s0 + (1'i64 shl 20)), 21); s1 += cr0; s0 -= cr0 shl 21
-  cr2 = ashr((s2 + (1'i64 shl 20)), 21); s3 += cr2; s2 -= cr2 shl 21
-  cr4 = ashr((s4 + (1'i64 shl 20)), 21); s5 += cr4; s4 -= cr4 shl 21
-  cr6 = ashr((s6 + (1'i64 shl 20)), 21); s7 += cr6; s6 -= cr6 shl 21
-  cr8 = ashr((s8 + (1'i64 shl 20)), 21); s9 += cr8; s8 -= cr8 shl 21
-  cr10 = ashr((s10 + (1'i64 shl 20)), 21); s11 += cr10; s10 -= cr10 shl 21
+  cr0 = ashr((s0 + (1'i64 shl 20)), 21)
+  s1 += cr0
+  s0 -= cr0 shl 21
+  cr2 = ashr((s2 + (1'i64 shl 20)), 21)
+  s3 += cr2
+  s2 -= cr2 shl 21
+  cr4 = ashr((s4 + (1'i64 shl 20)), 21)
+  s5 += cr4
+  s4 -= cr4 shl 21
+  cr6 = ashr((s6 + (1'i64 shl 20)), 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr8 = ashr((s8 + (1'i64 shl 20)), 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr10 = ashr((s10 + (1'i64 shl 20)), 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
 
-  cr1 = ashr((s1 + (1'i64 shl 20)), 21); s2 += cr1; s1 -= cr1 shl 21
-  cr3 = ashr((s3 + (1'i64 shl 20)), 21); s4 += cr3; s3 -= cr3 shl 21
-  cr5 = ashr((s5 + (1'i64 shl 20)), 21); s6 += cr5; s5 -= cr5 shl 21
-  cr7 = ashr((s7 + (1'i64 shl 20)), 21); s8 += cr7; s7 -= cr7 shl 21
-  cr9 = ashr((s9 + (1'i64 shl 20)), 21); s10 += cr9; s9 -= cr9 shl 21
-  cr11 = ashr((s11 + (1'i64 shl 20)), 21); s12 += cr11; s11 -= cr11 shl 21
-
-  s0 += s12 * 666643
-  s1 += s12 * 470296
-  s2 += s12 * 654183
-  s3 -= s12 * 997805
-  s4 += s12 * 136657
-  s5 -= s12 * 683901
-  s12 = 0;
-
-  cr0 = ashr(s0, 21); s1 += cr0; s0 -= cr0 shl 21
-  cr1 = ashr(s1, 21); s2 += cr1; s1 -= cr1 shl 21
-  cr2 = ashr(s2, 21); s3 += cr2; s2 -= cr2 shl 21
-  cr3 = ashr(s3, 21); s4 += cr3; s3 -= cr3 shl 21
-  cr4 = ashr(s4, 21); s5 += cr4; s4 -= cr4 shl 21
-  cr5 = ashr(s5, 21); s6 += cr5; s5 -= cr5 shl 21
-  cr6 = ashr(s6, 21); s7 += cr6; s6 -= cr6 shl 21
-  cr7 = ashr(s7, 21); s8 += cr7; s7 -= cr7 shl 21
-  cr8 = ashr(s8, 21); s9 += cr8; s8 -= cr8 shl 21
-  cr9 = ashr(s9, 21); s10 += cr9; s9 -= cr9 shl 21
-  cr10 = ashr(s10, 21); s11 += cr10; s10 -= cr10 shl 21
-  cr11 = ashr(s11, 21); s12 += cr11; s11 -= cr11 shl 21
+  cr1 = ashr((s1 + (1'i64 shl 20)), 21)
+  s2 += cr1
+  s1 -= cr1 shl 21
+  cr3 = ashr((s3 + (1'i64 shl 20)), 21)
+  s4 += cr3
+  s3 -= cr3 shl 21
+  cr5 = ashr((s5 + (1'i64 shl 20)), 21)
+  s6 += cr5
+  s5 -= cr5 shl 21
+  cr7 = ashr((s7 + (1'i64 shl 20)), 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr9 = ashr((s9 + (1'i64 shl 20)), 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr11 = ashr((s11 + (1'i64 shl 20)), 21)
+  s12 += cr11
+  s11 -= cr11 shl 21
 
   s0 += s12 * 666643
   s1 += s12 * 470296
@@ -1505,17 +1956,84 @@ proc scReduce(s: var openArray[byte]) =
   s5 -= s12 * 683901
   s12 = 0
 
-  cr0 = ashr(s0, 21); s1 += cr0; s0 -= cr0 shl 21
-  cr1 = ashr(s1, 21); s2 += cr1; s1 -= cr1 shl 21
-  cr2 = ashr(s2, 21); s3 += cr2; s2 -= cr2 shl 21
-  cr3 = ashr(s3, 21); s4 += cr3; s3 -= cr3 shl 21
-  cr4 = ashr(s4, 21); s5 += cr4; s4 -= cr4 shl 21
-  cr5 = ashr(s5, 21); s6 += cr5; s5 -= cr5 shl 21
-  cr6 = ashr(s6, 21); s7 += cr6; s6 -= cr6 shl 21
-  cr7 = ashr(s7, 21); s8 += cr7; s7 -= cr7 shl 21
-  cr8 = ashr(s8, 21); s9 += cr8; s8 -= cr8 shl 21
-  cr9 = ashr(s9, 21); s10 += cr9; s9 -= cr9 shl 21
-  cr10 = ashr(s10, 21); s11 += cr10; s10 -= cr10 shl 21
+  cr0 = ashr(s0, 21)
+  s1 += cr0
+  s0 -= cr0 shl 21
+  cr1 = ashr(s1, 21)
+  s2 += cr1
+  s1 -= cr1 shl 21
+  cr2 = ashr(s2, 21)
+  s3 += cr2
+  s2 -= cr2 shl 21
+  cr3 = ashr(s3, 21)
+  s4 += cr3
+  s3 -= cr3 shl 21
+  cr4 = ashr(s4, 21)
+  s5 += cr4
+  s4 -= cr4 shl 21
+  cr5 = ashr(s5, 21)
+  s6 += cr5
+  s5 -= cr5 shl 21
+  cr6 = ashr(s6, 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr7 = ashr(s7, 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr8 = ashr(s8, 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr9 = ashr(s9, 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr10 = ashr(s10, 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
+  cr11 = ashr(s11, 21)
+  s12 += cr11
+  s11 -= cr11 shl 21
+
+  s0 += s12 * 666643
+  s1 += s12 * 470296
+  s2 += s12 * 654183
+  s3 -= s12 * 997805
+  s4 += s12 * 136657
+  s5 -= s12 * 683901
+  s12 = 0
+
+  cr0 = ashr(s0, 21)
+  s1 += cr0
+  s0 -= cr0 shl 21
+  cr1 = ashr(s1, 21)
+  s2 += cr1
+  s1 -= cr1 shl 21
+  cr2 = ashr(s2, 21)
+  s3 += cr2
+  s2 -= cr2 shl 21
+  cr3 = ashr(s3, 21)
+  s4 += cr3
+  s3 -= cr3 shl 21
+  cr4 = ashr(s4, 21)
+  s5 += cr4
+  s4 -= cr4 shl 21
+  cr5 = ashr(s5, 21)
+  s6 += cr5
+  s5 -= cr5 shl 21
+  cr6 = ashr(s6, 21)
+  s7 += cr6
+  s6 -= cr6 shl 21
+  cr7 = ashr(s7, 21)
+  s8 += cr7
+  s7 -= cr7 shl 21
+  cr8 = ashr(s8, 21)
+  s9 += cr8
+  s8 -= cr8 shl 21
+  cr9 = ashr(s9, 21)
+  s10 += cr9
+  s9 -= cr9 shl 21
+  cr10 = ashr(s10, 21)
+  s11 += cr10
+  s10 -= cr10 shl 21
 
   s[0] = cast[byte](ashr(s0, 0))
   s[1] = cast[byte](ashr(s0, 8))
@@ -1551,18 +2069,19 @@ proc scReduce(s: var openArray[byte]) =
   s[31] = cast[byte](ashr(s11, 17))
 
 proc slide(r: var openArray[int8], a: openArray[byte]) =
-  for i in 0..<256:
+  for i in 0 ..< 256:
     r[i] = cast[int8](1'u8 and (a[i shr 3] shr (i and 7)))
-  for i in 0..<256:
+  for i in 0 ..< 256:
     if r[i] != 0'i8:
       var b = 1
       while (b <= 6) and (i + b < 256):
         if r[i + b] != 0'i8:
           if r[i] + (r[i + b] shl b) <= 15:
-            r[i] += r[i + b] shl b; r[i + b] = 0'i8
+            r[i] += r[i + b] shl b
+            r[i + b] = 0'i8
           elif (r[i] - (r[i + b] shl b)) >= -15:
             r[i] -= r[i + b] shl b
-            for k in (i + b)..<256:
+            for k in (i + b) ..< 256:
               if r[k] == 0'i8:
                 r[k] = 1'i8
                 break
@@ -1571,8 +2090,9 @@ proc slide(r: var openArray[int8], a: openArray[byte]) =
             break
         inc(b)
 
-proc geDoubleScalarMultVartime(r: var GeP2, a: openArray[byte], A: GeP3,
-                               b: openArray[byte]) =
+proc geDoubleScalarMultVartime(
+    r: var GeP2, a: openArray[byte], A: GeP3, b: openArray[byte]
+) =
   var
     aslide: array[256, int8]
     bslide: array[256, int8]
@@ -1585,14 +2105,29 @@ proc geDoubleScalarMultVartime(r: var GeP2, a: openArray[byte], A: GeP3,
   slide(bslide, b)
 
   geP3ToCached(ai[0], A)
-  geP3dbl(t, A); geP1P1toP3(a2, t)
-  geAdd(t, a2, ai[0]); geP1P1toP3(u, t); geP3ToCached(ai[1], u)
-  geAdd(t, a2, ai[1]); geP1P1toP3(u, t); geP3ToCached(ai[2], u)
-  geAdd(t, a2, ai[2]); geP1P1toP3(u, t); geP3ToCached(ai[3], u)
-  geAdd(t, a2, ai[3]); geP1P1toP3(u, t); geP3ToCached(ai[4], u)
-  geAdd(t, a2, ai[4]); geP1P1toP3(u, t); geP3ToCached(ai[5], u)
-  geAdd(t, a2, ai[5]); geP1P1toP3(u, t); geP3ToCached(ai[6], u)
-  geAdd(t, a2, ai[6]); geP1P1toP3(u, t); geP3ToCached(ai[7], u)
+  geP3dbl(t, A)
+  geP1P1toP3(a2, t)
+  geAdd(t, a2, ai[0])
+  geP1P1toP3(u, t)
+  geP3ToCached(ai[1], u)
+  geAdd(t, a2, ai[1])
+  geP1P1toP3(u, t)
+  geP3ToCached(ai[2], u)
+  geAdd(t, a2, ai[2])
+  geP1P1toP3(u, t)
+  geP3ToCached(ai[3], u)
+  geAdd(t, a2, ai[3])
+  geP1P1toP3(u, t)
+  geP3ToCached(ai[4], u)
+  geAdd(t, a2, ai[4])
+  geP1P1toP3(u, t)
+  geP3ToCached(ai[5], u)
+  geAdd(t, a2, ai[5])
+  geP1P1toP3(u, t)
+  geP3ToCached(ai[6], u)
+  geAdd(t, a2, ai[6])
+  geP1P1toP3(u, t)
+  geP3ToCached(ai[7], u)
   geP20(r)
 
   var k = 255
@@ -1627,7 +2162,7 @@ proc CMP(x, y: uint32): int32 {.inline.} =
 
 proc EQ0(x: int32): uint32 {.inline.} =
   var q = cast[uint32](x)
-  result = not(q or -q) shr 31
+  result = not (q or -q) shr 31
 
 proc NEQ(x, y: uint32): uint32 {.inline.} =
   var q = cast[uint32](x xor y)
@@ -1663,7 +2198,7 @@ proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey 
   hh.data[31] = hh.data[31] or 0x40'u8
   geScalarMultBase(point, hh.data)
   geP3ToBytes(pk, point)
-  res.data[32..63] = pk
+  res.data[32 .. 63] = pk
 
   res
 
@@ -1682,7 +2217,7 @@ proc random*(t: typedesc[EdKeyPair], rng: var HmacDrbgContext): EdKeyPair =
   hh.data[31] = hh.data[31] or 0x40'u8
   geScalarMultBase(point, hh.data)
   geP3ToBytes(res.pubkey.data, point)
-  res.seckey.data[32..63] = res.pubkey.data
+  res.seckey.data[32 .. 63] = res.pubkey.data
 
   res
 
@@ -1720,14 +2255,14 @@ proc toBytes*(sig: EdSignature, data: var openArray[byte]): int =
   if len(data) >= result:
     copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
 
-proc getBytes*(key: EdPrivateKey): seq[byte] = @(key.data)
-  ## Serialize ED25519 `private key` and return it.
+proc getBytes*(key: EdPrivateKey): seq[byte] =
+  @(key.data) ## Serialize ED25519 `private key` and return it.
 
-proc getBytes*(key: EdPublicKey): seq[byte] = @(key.data)
-  ## Serialize ED25519 `public key` and return it.
+proc getBytes*(key: EdPublicKey): seq[byte] =
+  @(key.data) ## Serialize ED25519 `public key` and return it.
 
-proc getBytes*(sig: EdSignature): seq[byte] = @(sig.data)
-  ## Serialize ED25519 `signature` and return it.
+proc getBytes*(sig: EdSignature): seq[byte] =
+  @(sig.data) ## Serialize ED25519 `signature` and return it.
 
 proc `==`*(eda, edb: EdPrivateKey): bool =
   ## Compare ED25519 `private key` objects for equality.
@@ -1804,8 +2339,9 @@ proc init*(sig: var EdSignature, data: string): bool =
   ## Procedure returns ``true`` on success.
   init(sig, ncrutils.fromHex(data))
 
-proc init*(t: typedesc[EdPrivateKey],
-           data: openArray[byte]): Result[EdPrivateKey, EdError] =
+proc init*(
+    t: typedesc[EdPrivateKey], data: openArray[byte]
+): Result[EdPrivateKey, EdError] =
   ## Initialize ED25519 `private key` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1814,8 +2350,9 @@ proc init*(t: typedesc[EdPrivateKey],
   else:
     ok(res)
 
-proc init*(t: typedesc[EdPublicKey],
-           data: openArray[byte]): Result[EdPublicKey, EdError] =
+proc init*(
+    t: typedesc[EdPublicKey], data: openArray[byte]
+): Result[EdPublicKey, EdError] =
   ## Initialize ED25519 `public key` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1824,8 +2361,9 @@ proc init*(t: typedesc[EdPublicKey],
   else:
     ok(res)
 
-proc init*(t: typedesc[EdSignature],
-           data: openArray[byte]): Result[EdSignature, EdError] =
+proc init*(
+    t: typedesc[EdSignature], data: openArray[byte]
+): Result[EdSignature, EdError] =
   ## Initialize ED25519 `signature` from raw binary representation ``data``
   ## and return constructed object.
   var res: t
@@ -1834,8 +2372,7 @@ proc init*(t: typedesc[EdSignature],
   else:
     ok(res)
 
-proc init*(t: typedesc[EdPrivateKey],
-           data: string): Result[EdPrivateKey, EdError] =
+proc init*(t: typedesc[EdPrivateKey], data: string): Result[EdPrivateKey, EdError] =
   ## Initialize ED25519 `private key` from hexadecimal string representation
   ## ``data`` and return constructed object.
   var res: t
@@ -1844,8 +2381,7 @@ proc init*(t: typedesc[EdPrivateKey],
   else:
     ok(res)
 
-proc init*(t: typedesc[EdPublicKey],
-           data: string): Result[EdPublicKey, EdError] =
+proc init*(t: typedesc[EdPublicKey], data: string): Result[EdPublicKey, EdError] =
   ## Initialize ED25519 `public key` from hexadecimal string representation
   ## ``data`` and return constructed object.
   var res: t
@@ -1854,8 +2390,7 @@ proc init*(t: typedesc[EdPublicKey],
   else:
     ok(res)
 
-proc init*(t: typedesc[EdSignature],
-           data: string): Result[EdSignature, EdError] =
+proc init*(t: typedesc[EdSignature], data: string): Result[EdSignature, EdError] =
   ## Initialize ED25519 `signature` from hexadecimal string representation
   ## ``data`` and return constructed object.
   var res: t
@@ -1881,8 +2416,9 @@ proc clear*(pair: var EdKeyPair) =
   burnMem(pair.seckey.data)
   burnMem(pair.pubkey.data)
 
-proc sign*[T: byte|char](key: EdPrivateKey,
-                         message: openArray[T]): EdSignature {.gcsafe, noinit.} =
+proc sign*[T: byte | char](
+    key: EdPrivateKey, message: openArray[T]
+): EdSignature {.gcsafe, noinit.} =
   ## Create ED25519 signature of data ``message`` using private key ``key``.
   var ctx: sha512
   var r: GeP3
@@ -1912,11 +2448,16 @@ proc sign*[T: byte|char](key: EdPrivateKey,
   ctx.clear()
 
   scReduce(hram.data)
-  scMulAdd(result.data.toOpenArray(32, 63), hram.data.toOpenArray(0, 31),
-           hash.data.toOpenArray(0, 31), nonce.data.toOpenArray(0, 31))
+  scMulAdd(
+    result.data.toOpenArray(32, 63),
+    hram.data.toOpenArray(0, 31),
+    hash.data.toOpenArray(0, 31),
+    nonce.data.toOpenArray(0, 31),
+  )
 
-proc verify*[T: byte|char](sig: EdSignature, message: openArray[T],
-                           key: EdPublicKey): bool =
+proc verify*[T: byte | char](
+    sig: EdSignature, message: openArray[T], key: EdPublicKey
+): bool =
   ## Verify ED25519 signature ``sig`` using public key ``key`` and data
   ## ``message``.
   ##
@@ -1941,8 +2482,9 @@ proc verify*[T: byte|char](sig: EdSignature, message: openArray[T],
   var hash = ctx.finish()
   scReduce(hash.data)
 
-  geDoubleScalarMultVartime(r, hash.data.toOpenArray(0, 31),
-                            a, sig.data.toOpenArray(32, 63))
+  geDoubleScalarMultVartime(
+    r, hash.data.toOpenArray(0, 31), a, sig.data.toOpenArray(32, 63)
+  )
   geToBytes(rcheck, r)
 
   result = (verify32(sig.data.toOpenArray(0, 31), rcheck) == 0)

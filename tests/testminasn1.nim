@@ -1,84 +1,75 @@
+{.used.}
+
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
 import unittest2
 import ../libp2p/crypto/minasn1
 import nimcrypto/utils as ncrutils
 
-when defined(nimHasUsed): {.used.}
-
 const Asn1EdgeValues = [
-  0'u64, (1'u64 shl 7) - 1'u64,
-  (1'u64 shl 7), (1'u64 shl 8) - 1'u64,
-  (1'u64 shl 8), (1'u64 shl 16) - 1'u64,
-  (1'u64 shl 16), (1'u64 shl 24) - 1'u64,
-  (1'u64 shl 24), (1'u64 shl 32) - 1'u64,
-  (1'u64 shl 32), (1'u64 shl 40) - 1'u64,
-  (1'u64 shl 40), (1'u64 shl 48) - 1'u64,
-  (1'u64 shl 48), (1'u64 shl 56) - 1'u64,
-  (1'u64 shl 56), 0xFFFF_FFFF_FFFF_FFFF'u64
+  0'u64,
+  (1'u64 shl 7) - 1'u64,
+  (1'u64 shl 7),
+  (1'u64 shl 8) - 1'u64,
+  (1'u64 shl 8),
+  (1'u64 shl 16) - 1'u64,
+  (1'u64 shl 16),
+  (1'u64 shl 24) - 1'u64,
+  (1'u64 shl 24),
+  (1'u64 shl 32) - 1'u64,
+  (1'u64 shl 32),
+  (1'u64 shl 40) - 1'u64,
+  (1'u64 shl 40),
+  (1'u64 shl 48) - 1'u64,
+  (1'u64 shl 48),
+  (1'u64 shl 56) - 1'u64,
+  (1'u64 shl 56),
+  0xFFFF_FFFF_FFFF_FFFF'u64,
 ]
 
 const Asn1EdgeExpects = [
-  "00", "7F",
-  "8180", "81FF",
-  "820100", "82FFFF",
-  "83010000", "83FFFFFF",
-  "8401000000", "84FFFFFFFF",
-  "850100000000", "85FFFFFFFFFF",
-  "86010000000000", "86FFFFFFFFFFFF",
-  "8701000000000000", "87FFFFFFFFFFFFFF",
-  "880100000000000000", "88FFFFFFFFFFFFFFFF",
+  "00", "7F", "8180", "81FF", "820100", "82FFFF", "83010000", "83FFFFFF", "8401000000",
+  "84FFFFFFFF", "850100000000", "85FFFFFFFFFF", "86010000000000", "86FFFFFFFFFFFF",
+  "8701000000000000", "87FFFFFFFFFFFFFF", "880100000000000000", "88FFFFFFFFFFFFFFFF",
 ]
 
-const Asn1UIntegerValues8 = [
-  0x00'u8, 0x7F'u8, 0x80'u8, 0xFF'u8,
-]
+const Asn1UIntegerValues8 = [0x00'u8, 0x7F'u8, 0x80'u8, 0xFF'u8]
 
-const Asn1UIntegerExpects8 = [
-  "020100", "02017F", "02020080", "020200FF"
-]
+const Asn1UIntegerExpects8 = ["020100", "02017F", "02020080", "020200FF"]
 
-const Asn1UIntegerValues16 = [
-  0x00'u16, 0x7F'u16, 0x80'u16, 0xFF'u16,
-  0x7FFF'u16, 0x8000'u16, 0xFFFF'u16
-]
+const Asn1UIntegerValues16 =
+  [0x00'u16, 0x7F'u16, 0x80'u16, 0xFF'u16, 0x7FFF'u16, 0x8000'u16, 0xFFFF'u16]
 
-const Asn1UIntegerExpects16 = [
-  "020100", "02017F", "02020080", "020200FF", "02027FFF",
-  "0203008000", "020300FFFF"
-]
+const Asn1UIntegerExpects16 =
+  ["020100", "02017F", "02020080", "020200FF", "02027FFF", "0203008000", "020300FFFF"]
 
 const Asn1UIntegerValues32 = [
-  0x00'u32, 0x7F'u32, 0x80'u32, 0xFF'u32,
-  0x7FFF'u32, 0x8000'u32, 0xFFFF'u32,
-  0x7FFF_FFFF'u32, 0x8000_0000'u32, 0xFFFF_FFFF'u32
+  0x00'u32, 0x7F'u32, 0x80'u32, 0xFF'u32, 0x7FFF'u32, 0x8000'u32, 0xFFFF'u32,
+  0x7FFF_FFFF'u32, 0x8000_0000'u32, 0xFFFF_FFFF'u32,
 ]
 
 const Asn1UIntegerExpects32 = [
-  "020100", "02017F", "02020080", "020200FF", "02027FFF",
-  "0203008000", "020300FFFF", "02047FFFFFFF", "02050080000000",
-  "020500FFFFFFFF"
+  "020100", "02017F", "02020080", "020200FF", "02027FFF", "0203008000", "020300FFFF",
+  "02047FFFFFFF", "02050080000000", "020500FFFFFFFF",
 ]
 
 const Asn1UIntegerValues64 = [
-  0x00'u64, 0x7F'u64, 0x80'u64, 0xFF'u64,
-  0x7FFF'u64, 0x8000'u64, 0xFFFF'u64,
-  0x7FFF_FFFF'u64, 0x8000_0000'u64, 0xFFFF_FFFF'u64,
-  0x7FFF_FFFF_FFFF_FFFF'u64, 0x8000_0000_0000_0000'u64,
-  0xFFFF_FFFF_FFFF_FFFF'u64
+  0x00'u64, 0x7F'u64, 0x80'u64, 0xFF'u64, 0x7FFF'u64, 0x8000'u64, 0xFFFF'u64,
+  0x7FFF_FFFF'u64, 0x8000_0000'u64, 0xFFFF_FFFF'u64, 0x7FFF_FFFF_FFFF_FFFF'u64,
+  0x8000_0000_0000_0000'u64, 0xFFFF_FFFF_FFFF_FFFF'u64,
 ]
 
 const Asn1UIntegerExpects64 = [
-  "020100", "02017F", "02020080", "020200FF", "02027FFF",
-  "0203008000", "020300FFFF", "02047FFFFFFF", "02050080000000",
-  "020500FFFFFFFF", "02087FFFFFFFFFFFFFFF", "0209008000000000000000",
-  "020900FFFFFFFFFFFFFFFF"
+  "020100", "02017F", "02020080", "020200FF", "02027FFF", "0203008000", "020300FFFF",
+  "02047FFFFFFF", "02050080000000", "020500FFFFFFFF", "02087FFFFFFFFFFFFFFF",
+  "0209008000000000000000", "020900FFFFFFFFFFFFFFFF",
 ]
 
 suite "Minimal ASN.1 encode/decode suite":

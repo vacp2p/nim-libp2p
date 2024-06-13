@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,26 +7,18 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import bearssl/rand
-import
-  secp256k1,
-  stew/[byteutils, results],
-  nimcrypto/[hash, sha2]
+import secp256k1, stew/[byteutils, results], nimcrypto/[hash, sha2]
 
 export sha2, results, rand
 
 const
-  SkRawPrivateKeySize* = 256 div 8
-    ## Size of private key in octets (bytes)
+  SkRawPrivateKeySize* = 256 div 8 ## Size of private key in octets (bytes)
   SkRawSignatureSize* = SkRawPrivateKeySize * 2 + 1
     ## Size of signature in octets (bytes)
-  SkRawPublicKeySize* = SkRawPrivateKeySize + 1
-    ## Size of public key in octets (bytes)
+  SkRawPublicKeySize* = SkRawPrivateKeySize + 1 ## Size of public key in octets (bytes)
 
 # This is extremely confusing but it's to avoid.. confusion between Eth standard and Secp standard
 type
@@ -34,9 +26,6 @@ type
   SkPublicKey* = distinct secp256k1.SkPublicKey
   SkSignature* = distinct secp256k1.SkSignature
   SkKeyPair* = distinct secp256k1.SkKeyPair
-
-template pubkey*(v: SkKeyPair): SkPublicKey = SkPublicKey(secp256k1.SkKeyPair(v).pubkey)
-template seckey*(v: SkKeyPair): SkPrivateKey = SkPrivateKey(secp256k1.SkKeyPair(v).seckey)
 
 proc random*(t: typedesc[SkPrivateKey], rng: var HmacDrbgContext): SkPrivateKey =
   #TODO is there a better way?
@@ -62,31 +51,31 @@ template pubkey*(v: SkKeyPair): SkPublicKey =
 proc init*(key: var SkPrivateKey, data: openArray[byte]): SkResult[void] =
   ## Initialize Secp256k1 `private key` ``key`` from raw binary
   ## representation ``data``.
-  key = SkPrivateKey(? secp256k1.SkSecretKey.fromRaw(data))
+  key = SkPrivateKey(?secp256k1.SkSecretKey.fromRaw(data))
   ok()
 
 proc init*(key: var SkPrivateKey, data: string): SkResult[void] =
   ## Initialize Secp256k1 `private key` ``key`` from hexadecimal string
   ## representation ``data``.
-  key = SkPrivateKey(? secp256k1.SkSecretKey.fromHex(data))
+  key = SkPrivateKey(?secp256k1.SkSecretKey.fromHex(data))
   ok()
 
 proc init*(key: var SkPublicKey, data: openArray[byte]): SkResult[void] =
   ## Initialize Secp256k1 `public key` ``key`` from raw binary
   ## representation ``data``.
-  key = SkPublicKey(? secp256k1.SkPublicKey.fromRaw(data))
+  key = SkPublicKey(?secp256k1.SkPublicKey.fromRaw(data))
   ok()
 
 proc init*(key: var SkPublicKey, data: string): SkResult[void] =
   ## Initialize Secp256k1 `public key` ``key`` from hexadecimal string
   ## representation ``data``.
-  key = SkPublicKey(? secp256k1.SkPublicKey.fromHex(data))
+  key = SkPublicKey(?secp256k1.SkPublicKey.fromHex(data))
   ok()
 
 proc init*(sig: var SkSignature, data: openArray[byte]): SkResult[void] =
   ## Initialize Secp256k1 `signature` ``sig`` from raw binary
   ## representation ``data``.
-  sig = SkSignature(? secp256k1.SkSignature.fromDer(data))
+  sig = SkSignature(?secp256k1.SkSignature.fromDer(data))
   ok()
 
 proc init*(sig: var SkSignature, data: string): SkResult[void] =
@@ -157,7 +146,7 @@ proc toBytes*(key: SkPrivateKey, data: var openArray[byte]): SkResult[int] =
   ## Procedure returns number of bytes (octets) needed to store
   ## Secp256k1 private key.
   if len(data) >= SkRawPrivateKeySize:
-    data[0..<SkRawPrivateKeySize] = SkSecretKey(key).toRaw()
+    data[0 ..< SkRawPrivateKeySize] = SkSecretKey(key).toRaw()
     ok(SkRawPrivateKeySize)
   else:
     err("secp: Not enough bytes")
@@ -169,7 +158,7 @@ proc toBytes*(key: SkPublicKey, data: var openArray[byte]): SkResult[int] =
   ## Procedure returns number of bytes (octets) needed to store
   ## Secp256k1 public key.
   if len(data) >= SkRawPublicKeySize:
-    data[0..<SkRawPublicKeySize] = secp256k1.SkPublicKey(key).toRawCompressed()
+    data[0 ..< SkRawPublicKeySize] = secp256k1.SkPublicKey(key).toRawCompressed()
     ok(SkRawPublicKeySize)
   else:
     err("secp: Not enough bytes")
@@ -196,22 +185,28 @@ proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   let length = toBytes(sig, result)
   result.setLen(length)
 
-proc sign*[T: byte|char](key: SkPrivateKey, msg: openArray[T]): SkSignature =
+proc sign*[T: byte | char](key: SkPrivateKey, msg: openArray[T]): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
   let h = sha256.digest(msg)
   SkSignature(sign(SkSecretKey(key), SkMessage(h.data)))
 
-proc verify*[T: byte|char](sig: SkSignature, msg: openArray[T],
-                           key: SkPublicKey): bool =
+proc verify*[T: byte | char](
+    sig: SkSignature, msg: openArray[T], key: SkPublicKey
+): bool =
   let h = sha256.digest(msg)
   verify(secp256k1.SkSignature(sig), SkMessage(h.data), secp256k1.SkPublicKey(key))
 
-func clear*(key: var SkPrivateKey) = clear(secp256k1.SkSecretKey(key))
+func clear*(key: var SkPrivateKey) =
+  clear(secp256k1.SkSecretKey(key))
 
-func `$`*(key: SkPrivateKey): string = $secp256k1.SkSecretKey(key)
-func `$`*(key: SkPublicKey): string = $secp256k1.SkPublicKey(key)
-func `$`*(key: SkSignature): string = $secp256k1.SkSignature(key)
-func `$`*(key: SkKeyPair): string = $secp256k1.SkKeyPair(key)
+func `$`*(key: SkPrivateKey): string =
+  $secp256k1.SkSecretKey(key)
+func `$`*(key: SkPublicKey): string =
+  $secp256k1.SkPublicKey(key)
+func `$`*(key: SkSignature): string =
+  $secp256k1.SkSignature(key)
+func `$`*(key: SkKeyPair): string =
+  $secp256k1.SkKeyPair(key)
 
 func `==`*(a, b: SkPrivateKey): bool =
   secp256k1.SkSecretKey(a) == secp256k1.SkSecretKey(b)

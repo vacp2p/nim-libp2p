@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -21,7 +21,8 @@ when defined(nimdoc):
   ## that can help you get started.
 
   # Import stuff for doc
-  import libp2p/[
+  import
+    libp2p/[
       protobuf/minprotobuf,
       switch,
       stream/lpstream,
@@ -33,40 +34,39 @@ when defined(nimdoc):
       peerid,
       peerinfo,
       peerstore,
-      multiaddress]
+      multiaddress,
+    ]
 
   proc dummyPrivateProc*() =
     ## A private proc example
     discard
+
 else:
   import
-    libp2p/[protobuf/minprotobuf,
-            muxers/muxer,
-            muxers/mplex/mplex,
-            stream/lpstream,
-            stream/bufferstream,
-            stream/connection,
-            transports/transport,
-            transports/tcptransport,
-            transports/wstransport,
-            protocols/secure/noise,
-            protocols/ping,
-            cid,
-            multihash,
-            multibase,
-            multicodec,
-            errors,
-            switch,
-            peerid,
-            peerinfo,
-            multiaddress,
-            builders,
-            crypto/crypto,
-            protocols/pubsub]
+    libp2p/[
+      protobuf/minprotobuf,
+      muxers/muxer,
+      muxers/mplex/mplex,
+      stream/lpstream,
+      stream/bufferstream,
+      stream/connection,
+      transports/transport,
+      transports/tcptransport,
+      protocols/secure/noise,
+      cid,
+      multihash,
+      multicodec,
+      errors,
+      switch,
+      peerid,
+      peerinfo,
+      multiaddress,
+      builders,
+      crypto/crypto,
+      protocols/pubsub,
+    ]
 
   export
-    minprotobuf, switch, peerid, peerinfo,
-    connection, multiaddress, crypto, lpstream,
-    bufferstream, muxer, mplex, transport,
-    tcptransport, noise, errors, cid, multihash,
+    minprotobuf, switch, peerid, peerinfo, connection, multiaddress, crypto, lpstream,
+    bufferstream, muxer, mplex, transport, tcptransport, noise, errors, cid, multihash,
     multicodec, builders, pubsub

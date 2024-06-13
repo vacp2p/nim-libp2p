@@ -1,5 +1,7 @@
+{.used.}
+
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,12 +11,11 @@
 
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
+from std/strutils import toUpper
 import unittest2
 import bearssl/hash
-import nimcrypto/[utils, sysrand]
+import nimcrypto/utils
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-
-when defined(nimHasUsed): {.used.}
 
 const
   PrivateKeys = [
@@ -192,7 +193,7 @@ const
        F497BA747F5CA6CB69E21ADA2F291A6040D2D58BD254E1ECCB13B72999""",
     """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
        E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
-       E731065A"""
+       E731065A""",
   ]
 
   PublicKeys = [
@@ -242,12 +243,11 @@ const
        407CC163A2BFF807DAE1BB58A67A3C1A3C80CF83C31C9736607407137511F068
        12B6F497BA747F5CA6CB69E21ADA2F291A6040D2D58BD254E1ECCB13B72999""",
     """080112206A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
-       E731065A"""
+       E731065A""",
   ]
 
   # Key expanding test vectors obtained from Go implementation
   # https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
-
   Secrets = [
     # AES-128 SHA-256
     "4F13360145891C202B74FDCA838A85A37CBAEBF5E0774CC344BD6DABA9C4C86A",
@@ -276,35 +276,21 @@ const
   ]
 
   Ivs = [
-    "F643627AA8B91D40BA644B894C7F148E",
-    "F1D6521E4EE59248F7CCFA6D6C916A32",
-    "937D77D24441858AF5040C9A81B3D178",
-    "C7D6AE667F38A3E0C77F4AC96D82112F",
-    "735E51C37802A6E72277EE74C829A84D",
-    "617BAEA342062AE87B7A5D5D9F99371C",
-    "B535FFA95043C90C5FEEF3654E846445",
-    "3B2D2219A7EE18AB9164910821955C05",
-
-    "DACC23805C4ED233A7100A488AB5D68F",
-    "C5BFA3F8BF0D8436840D1AAAF091BD69",
-    "54CA4A681AEB8B5793A450100244256F",
-    "D1EB94C73D4C033EA4130B47669F4485",
-    "1F1ADF6BBDE1DFC5F922D672D2344F3A",
-    "A828F6D249F38A917CD297F7BDDE7B70",
-    "54FC8070579A17F6DAD342174062D60A",
-    "D33C7696183DA21C5CD40AB677BECE7C",
+    "F643627AA8B91D40BA644B894C7F148E", "F1D6521E4EE59248F7CCFA6D6C916A32",
+    "937D77D24441858AF5040C9A81B3D178", "C7D6AE667F38A3E0C77F4AC96D82112F",
+    "735E51C37802A6E72277EE74C829A84D", "617BAEA342062AE87B7A5D5D9F99371C",
+    "B535FFA95043C90C5FEEF3654E846445", "3B2D2219A7EE18AB9164910821955C05",
+    "DACC23805C4ED233A7100A488AB5D68F", "C5BFA3F8BF0D8436840D1AAAF091BD69",
+    "54CA4A681AEB8B5793A450100244256F", "D1EB94C73D4C033EA4130B47669F4485",
+    "1F1ADF6BBDE1DFC5F922D672D2344F3A", "A828F6D249F38A917CD297F7BDDE7B70",
+    "54FC8070579A17F6DAD342174062D60A", "D33C7696183DA21C5CD40AB677BECE7C",
   ]
 
   CipherKeys = [
-    "8C2964320284FAD935AFEC1AFEC9EEF7",
-    "622A9292256B012F3EBE814C0DB22095",
-    "3171DCDBE794BB6CAADDDD71E1751F2C",
-    "5E1519DFCABA2AF17AA4AA580CC1B76E",
-    "8B7AC311FF7B7EA7B4E55E37688DA2BD",
-    "6BB6E06A3A92D5C300598023330712D4",
-    "D794A6B794C1E3501A24240D348B9A62",
-    "45E2FFAC35B7647AD5045C8581F39BF0",
-
+    "8C2964320284FAD935AFEC1AFEC9EEF7", "622A9292256B012F3EBE814C0DB22095",
+    "3171DCDBE794BB6CAADDDD71E1751F2C", "5E1519DFCABA2AF17AA4AA580CC1B76E",
+    "8B7AC311FF7B7EA7B4E55E37688DA2BD", "6BB6E06A3A92D5C300598023330712D4",
+    "D794A6B794C1E3501A24240D348B9A62", "45E2FFAC35B7647AD5045C8581F39BF0",
     "B2F8CDBD11B158DC68120E10A6D04C0B272DC3F698EB56B18094275076307CEB",
     "E0238BAA6B77646CD708DD00DE1FD17C6BB45F184348F512F4AE64E00CEA37B9",
     "CE009DE8D1C76C2793540A8B24774E09B0F84590B583F1A0551AC0CF1E911BF9",
@@ -324,7 +310,6 @@ const
     "0C9ECECB80DF43CA2720DD340DD992A80AAB56DB",
     "028BCC3F5559CF43DA1B0C1A03E263C90D04DD77",
     "02DAF3FF888999C6121CA50F1D49C10FF55F1ACF",
-
     "6F015DDA49E0DFABD5532E6CB08709CE43F326EC",
     "68C703B3867247723D21A8C58BA9109DDBB359EF",
     "6C91DBB5FE99B94A11D0937D0F4E50F2BCB248F3",
@@ -339,7 +324,7 @@ proc cmp(a, b: openArray[byte]): bool =
   result = (@a == @b)
 
 proc testStretcher(s, e: int, cs: string, ds: string): bool =
-  for i in s..<e:
+  for i in s ..< e:
     var sharedsecret = fromHex(stripSpaces(Secrets[i]))
     var secret = stretchKeys(cs, ds, sharedsecret)
     var iv1 = fromHex(stripSpaces(Ivs[i * 2]))
@@ -360,19 +345,20 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
     var rA = cmp(secret.macOpenArray(1), mkey2) == true
     var rB = secret.mac(0) == mkey1
     var rC = secret.mac(1) == mkey2
-    result = r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8 and
-             r9 and rA and rB and rC
+    result =
+      r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8 and r9 and rA and rB and rC
     if not result:
       break
 
 let rng = newRng()
 
 suite "Key interface test suite":
-
   test "Go test vectors":
-    for i in 0..<len(PrivateKeys):
-      var seckey = PrivateKey.init(fromHex(stripSpaces(PrivateKeys[i]))).expect("private key")
-      var pubkey = PublicKey.init(fromHex(stripSpaces(PublicKeys[i]))).expect("public key")
+    for i in 0 ..< len(PrivateKeys):
+      var seckey =
+        PrivateKey.init(fromHex(stripSpaces(PrivateKeys[i]))).expect("private key")
+      var pubkey =
+        PublicKey.init(fromHex(stripSpaces(PublicKeys[i]))).expect("public key")
       var calckey = seckey.getPublicKey().expect("public key")
       check:
         pubkey == calckey
@@ -382,11 +368,51 @@ suite "Key interface test suite":
         toHex(checkseckey) == stripSpaces(PrivateKeys[i])
         toHex(checkpubkey) == stripSpaces(PublicKeys[i])
 
+  test "Spec test vectors":
+    # https://github.com/libp2p/specs/pull/537
+    const keys = [
+      (
+        private:
+          "08031279307702010104203E5B1FE9712E6C314942A750BD67485DE3C1EFE85B1BFB520AE8F9AE3DFA4A4CA00A06082A8648CE3D030107A14403420004DE3D300FA36AE0E8F5D530899D83ABAB44ABF3161F162A4BC901D8E6ECDA020E8B6D5F8DA30525E71D6851510C098E5C47C646A597FB4DCEC034E9F77C409E62",
+        public:
+          "0803125b3059301306072a8648ce3d020106082a8648ce3d03010703420004de3d300fa36ae0e8f5d530899d83abab44abf3161f162a4bc901d8e6ecda020e8b6d5f8da30525e71d6851510c098e5c47c646a597fb4dcec034e9f77c409e62",
+      ),
+      (
+        private:
+          "080112407e0830617c4a7de83925dfb2694556b12936c477a0e1feb2e148ec9da60fee7d1ed1e8fae2c4a144b8be8fd4b47bf3d3b34b871c3cacf6010f0e42d474fce27e",
+        public:
+          "080112201ed1e8fae2c4a144b8be8fd4b47bf3d3b34b871c3cacf6010f0e42d474fce27e",
+      ),
+      (
+        private:
+          "0802122053DADF1D5A164D6B4ACDB15E24AA4C5B1D3461BDBD42ABEDB0A4404D56CED8FB",
+        public:
+          "08021221037777e994e452c21604f91de093ce415f5432f701dd8cd1a7a6fea0e630bfca99",
+      ),
+      (
+        private:
+          "080012ae123082092a0201000282020100e1beab071d08200bde24eef00d049449b07770ff9910257b2d7d5dda242ce8f0e2f12e1af4b32d9efd2c090f66b0f29986dbb645dae9880089704a94e5066d594162ae6ee8892e6ec70701db0a6c445c04778eb3de1293aa1a23c3825b85c6620a2bc3f82f9b0c309bc0ab3aeb1873282bebd3da03c33e76c21e9beb172fd44c9e43be32e2c99827033cf8d0f0c606f4579326c930eb4e854395ad941256542c793902185153c474bed109d6ff5141ebf9cd256cf58893a37f83729f97e7cb435ec679d2e33901d27bb35aa0d7e20561da08885ef0abbf8e2fb48d6a5487047a9ecb1ad41fa7ed84f6e3e8ecd5d98b3982d2a901b4454991766da295ab78822add5612a2df83bcee814cf50973e80d7ef38111b1bd87da2ae92438a2c8cbcc70b31ee319939a3b9c761dbc13b5c086d6b64bf7ae7dacc14622375d92a8ff9af7eb962162bbddebf90acb32adb5e4e4029f1c96019949ecfbfeffd7ac1e3fbcc6b6168c34be3d5a2e5999fcbb39bba7adbca78eab09b9bc39f7fa4b93411f4cc175e70c0a083e96bfaefb04a9580b4753c1738a6a760ae1afd851a1a4bdad231cf56e9284d832483df215a46c1c21bdf0c6cfe951c18f1ee4078c79c13d63edb6e14feaeffabc90ad317e4875fe648101b0864097e998f0ca3025ef9638cd2b0caecd3770ab54a1d9c6ca959b0f5dcbc90caeefc4135baca6fd475224269bbe1b02030100010282020100a472ffa858efd8588ce59ee264b957452f3673acdf5631d7bfd5ba0ef59779c231b0bc838a8b14cae367b6d9ef572c03c7883b0a3c652f5c24c316b1ccfd979f13d0cd7da20c7d34d9ec32dfdc81ee7292167e706d705efde5b8f3edfcba41409e642f8897357df5d320d21c43b33600a7ae4e505db957c1afbc189d73f0b5d972d9aaaeeb232ca20eebd5de6fe7f29d01470354413cc9a0af1154b7af7c1029adcd67c74b4798afeb69e09f2cb387305e73a1b5f450202d54f0ef096fe1bde340219a1194d1ac9026e90b366cce0c59b239d10e4888f52ca1780824d39ae01a6b9f4dd6059191a7f12b2a3d8db3c2868cd4e5a5862b8b625a4197d52c6ac77710116ebd3ced81c4d91ad5fdfbed68312ebce7eea45c1833ca3acf7da2052820eacf5c6b07d086dabeb893391c71417fd8a4b1829ae2cf60d1749d0e25da19530d889461c21da3492a8dc6ccac7de83ac1c2185262c7473c8cc42f547cc9864b02a8073b6aa54a037d8c0de3914784e6205e83d97918b944f11b877b12084c0dd1d36592f8a4f8b8da5bb404c3d2c079b22b6ceabfbcb637c0dbe0201f0909d533f8bf308ada47aee641a012a494d31b54c974e58b87f140258258bb82f31692659db7aa07e17a5b2a0832c24e122d3a8babcc9ee74cbb07d3058bb85b15f6f6b2674aba9fd34367be9782d444335fbed31e3c4086c652597c27104938b47fa10282010100e9fdf843c1550070ca711cb8ff28411466198f0e212511c3186623890c0071bf6561219682fe7dbdfd81176eba7c4faba21614a20721e0fcd63768e6d925688ecc90992059ac89256e0524de90bf3d8a052ce6a9f6adafa712f3107a016e20c80255c9e37d8206d1bc327e06e66eb24288da866b55904fd8b59e6b2ab31bc5eab47e597093c63fab7872102d57b4c589c66077f534a61f5f65127459a33c91f6db61fc431b1ae90be92b4149a3255291baf94304e3efb77b1107b5a3bda911359c40a53c347ff9100baf8f36dc5cd991066b5bdc28b39ed644f404afe9213f4d31c9d4e40f3a5f5e3c39bebeb244e84137544e1a1839c1c8aaebf0c78a7fad590282010100f6fa1f1e6b803742d5490b7441152f500970f46feb0b73a6e4baba2aaf3c0e245ed852fc31d86a8e46eb48e90fac409989dfee45238f97e8f1f8e83a136488c1b04b8a7fb695f37b8616307ff8a8d63e8cfa0b4fb9b9167ffaebabf111aa5a4344afbabd002ae8961c38c02da76a9149abdde93eb389eb32595c29ba30d8283a7885218a5a9d33f7f01dbdf85f3aad016c071395491338ec318d39220e1c7bd69d3d6b520a13a30d745c102b827ad9984b0dd6aed73916ffa82a06c1c111e7047dcd2668f988a0570a71474992eecf416e068f029ec323d5d635fd24694fc9bf96973c255d26c772a95bf8b7f876547a5beabf86f06cd21b67994f944e7a5493028201010095b02fd30069e547426a8bea58e8a2816f33688dac6c6f6974415af8402244a22133baedf34ce499d7036f3f19b38eb00897c18949b0c5a25953c71aeeccfc8f6594173157cc854bd98f16dffe8f28ca13b77eb43a2730585c49fc3f608cd811bb54b03b84bddaa8ef910988567f783012266199667a546a18fd88271fbf63a45ae4fd4884706da8befb9117c0a4d73de5172f8640b1091ed8a4aea3ed4641463f5ff6a5e3401ad7d0c92811f87956d1fd5f9a1d15c7f3839a08698d9f35f9d966e5000f7cb2655d7b6c4adcd8a9d950ea5f61bb7c9a33c17508f9baa313eecfee4ae493249ebe05a5d7770bbd3551b2eeb752e3649e0636de08e3d672e66cb90282010100ad93e4c31072b063fc5ab5fe22afacece775c795d0efdf7c704cfc027bde0d626a7646fc905bb5a80117e3ca49059af14e0160089f9190065be9bfecf12c3b2145b211c8e89e42dd91c38e9aa23ca73697063564f6f6aa6590088a738722df056004d18d7bccac62b3bafef6172fc2a4b071ea37f31eff7a076bcab7dd144e51a9da8754219352aef2c73478971539fa41de4759285ea626fa3c72e7085be47d554d915bbb5149cb6ef835351f231043049cd941506a034bf2f8767f3e1e42ead92f91cb3d75549b57ef7d56ac39c2d80d67f6a2b4ca192974bfc5060e2dd171217971002193dba12e7e4133ab201f07500a90495a38610279b13a48d54f0c99028201003e3a1ac0c2b67d54ed5c4bbe04a7db99103659d33a4f9d35809e1f60c282e5988dddc964527f3b05e6cc890eab3dcb571d66debf3a5527704c87264b3954d7265f4e8d2c637dd89b491b9cf23f264801f804b90454d65af0c4c830d1aef76f597ef61b26ca857ecce9cb78d4f6c2218c00d2975d46c2b013fbf59b750c3b92d8d3ed9e6d1fd0ef1ec091a5c286a3fe2dead292f40f380065731e2079ebb9f2a7ef2c415ecbb488da98f3a12609ca1b6ec8c734032c8bd513292ff842c375d4acd1b02dfb206b24cd815f8e2f9d4af8e7dea0370b19c1b23cc531d78b40e06e1119ee2e08f6f31c6e2e8444c568d13c5d451a291ae0c9f1d4f27d23b3a00d60ad",
+        public:
+          "080012a60430820222300d06092a864886f70d01010105000382020f003082020a0282020100e1beab071d08200bde24eef00d049449b07770ff9910257b2d7d5dda242ce8f0e2f12e1af4b32d9efd2c090f66b0f29986dbb645dae9880089704a94e5066d594162ae6ee8892e6ec70701db0a6c445c04778eb3de1293aa1a23c3825b85c6620a2bc3f82f9b0c309bc0ab3aeb1873282bebd3da03c33e76c21e9beb172fd44c9e43be32e2c99827033cf8d0f0c606f4579326c930eb4e854395ad941256542c793902185153c474bed109d6ff5141ebf9cd256cf58893a37f83729f97e7cb435ec679d2e33901d27bb35aa0d7e20561da08885ef0abbf8e2fb48d6a5487047a9ecb1ad41fa7ed84f6e3e8ecd5d98b3982d2a901b4454991766da295ab78822add5612a2df83bcee814cf50973e80d7ef38111b1bd87da2ae92438a2c8cbcc70b31ee319939a3b9c761dbc13b5c086d6b64bf7ae7dacc14622375d92a8ff9af7eb962162bbddebf90acb32adb5e4e4029f1c96019949ecfbfeffd7ac1e3fbcc6b6168c34be3d5a2e5999fcbb39bba7adbca78eab09b9bc39f7fa4b93411f4cc175e70c0a083e96bfaefb04a9580b4753c1738a6a760ae1afd851a1a4bdad231cf56e9284d832483df215a46c1c21bdf0c6cfe951c18f1ee4078c79c13d63edb6e14feaeffabc90ad317e4875fe648101b0864097e998f0ca3025ef9638cd2b0caecd3770ab54a1d9c6ca959b0f5dcbc90caeefc4135baca6fd475224269bbe1b0203010001",
+      ),
+    ]
+    for (private, public) in keys:
+      var seckey = PrivateKey.init(fromHex(private)).expect("private key")
+      var pubkey = PublicKey.init(fromHex(public)).expect("public key")
+      var calckey = seckey.getPublicKey().expect("public key")
+      check:
+        pubkey == calckey
+      var checkseckey = seckey.getBytes().expect("private key")
+      var checkpubkey = pubkey.getBytes().expect("public key")
+      check:
+        toHex(checkseckey) == stripSpaces(private).toUpper()
+        toHex(checkpubkey) == stripSpaces(public).toUpper()
+
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var msg = "message to sign"
     var bmsg = cast[seq[byte]](msg)
 
-    for i in 0..<5:
+    for i in 0 ..< 5:
       var seckey = PrivateKey.random(ECDSA, rng[]).get()
       var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(ECDSA, rng[]).get()
@@ -406,7 +432,7 @@ suite "Key interface test suite":
         sig2.verify(bmsg, pubkey) == true
         recsig2.verify(bmsg, recpub2) == true
 
-    for i in 0..<5:
+    for i in 0 ..< 5:
       var seckey = PrivateKey.random(Ed25519, rng[]).get()
       var pubkey = seckey.getPublicKey().get()
       var pair = KeyPair.random(Ed25519, rng[]).get()
@@ -455,16 +481,34 @@ suite "Key interface test suite":
     # test data from:
     # https://github.com/RustCrypto/AEADs/blob/0cf02f200c8f9404979b46356a8a7b67d7c35a96/chacha20poly1305/tests/lib.rs#L66
     let
-      plain =  cast[seq[byte]](@"Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.")
-      tag: ChaChaPolyTag = [0x1a.byte, 0xe1, 0x0b, 0x59, 0x4f, 0x09, 0xe2, 0x6a, 0x7e, 0x90, 0x2e, 0xcb, 0xd0, 0x60, 0x06, 0x91]
+      plain = cast[seq[byte]](@"Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.")
+      tag: ChaChaPolyTag = [
+        0x1a.byte, 0xe1, 0x0b, 0x59, 0x4f, 0x09, 0xe2, 0x6a, 0x7e, 0x90, 0x2e, 0xcb,
+        0xd0, 0x60, 0x06, 0x91,
+      ]
     var
-      key: ChaChaPolyKey = [0x80.byte, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f,
-    0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f]
-      nonce: ChaChaPolyNonce = [0x07.byte, 0x00, 0x00, 0x00, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47]
+      key: ChaChaPolyKey = [
+        0x80.byte, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b,
+        0x8c, 0x8d, 0x8e, 0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98,
+        0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f,
+      ]
+      nonce: ChaChaPolyNonce =
+        [0x07.byte, 0x00, 0x00, 0x00, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47]
       ntag: ChaChaPolyTag # empty
       text = plain
-      cipher = [0xd3.byte, 0x1a, 0x8d, 0x34, 0x64, 0x8e, 0x60, 0xdb, 0x7b, 0x86, 0xaf, 0xbc, 0x53, 0xef, 0x7e, 0xc2, 0xa4, 0xad, 0xed, 0x51, 0x29, 0x6e, 0x08, 0xfe, 0xa9, 0xe2, 0xb5, 0xa7, 0x36, 0xee, 0x62, 0xd6, 0x3d, 0xbe, 0xa4, 0x5e, 0x8c, 0xa9, 0x67, 0x12, 0x82, 0xfa, 0xfb, 0x69, 0xda, 0x92, 0x72, 0x8b, 0x1a, 0x71, 0xde, 0x0a, 0x9e, 0x06, 0x0b, 0x29, 0x05, 0xd6, 0xa5, 0xb6, 0x7e, 0xcd, 0x3b, 0x36, 0x92, 0xdd, 0xbd, 0x7f, 0x2d, 0x77, 0x8b, 0x8c, 0x98, 0x03, 0xae, 0xe3, 0x28, 0x09, 0x1b, 0x58, 0xfa, 0xb3, 0x24, 0xe4, 0xfa, 0xd6, 0x75, 0x94, 0x55, 0x85, 0x80, 0x8b, 0x48, 0x31, 0xd7, 0xbc, 0x3f, 0xf4, 0xde, 0xf0, 0x8e, 0x4b, 0x7a, 0x9d, 0xe5, 0x76, 0xd2, 0x65, 0x86, 0xce, 0xc6, 0x4b, 0x61, 0x16]
-      aed = [0x50.byte, 0x51, 0x52, 0x53, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7]
+      cipher = [
+        0xd3.byte, 0x1a, 0x8d, 0x34, 0x64, 0x8e, 0x60, 0xdb, 0x7b, 0x86, 0xaf, 0xbc,
+        0x53, 0xef, 0x7e, 0xc2, 0xa4, 0xad, 0xed, 0x51, 0x29, 0x6e, 0x08, 0xfe, 0xa9,
+        0xe2, 0xb5, 0xa7, 0x36, 0xee, 0x62, 0xd6, 0x3d, 0xbe, 0xa4, 0x5e, 0x8c, 0xa9,
+        0x67, 0x12, 0x82, 0xfa, 0xfb, 0x69, 0xda, 0x92, 0x72, 0x8b, 0x1a, 0x71, 0xde,
+        0x0a, 0x9e, 0x06, 0x0b, 0x29, 0x05, 0xd6, 0xa5, 0xb6, 0x7e, 0xcd, 0x3b, 0x36,
+        0x92, 0xdd, 0xbd, 0x7f, 0x2d, 0x77, 0x8b, 0x8c, 0x98, 0x03, 0xae, 0xe3, 0x28,
+        0x09, 0x1b, 0x58, 0xfa, 0xb3, 0x24, 0xe4, 0xfa, 0xd6, 0x75, 0x94, 0x55, 0x85,
+        0x80, 0x8b, 0x48, 0x31, 0xd7, 0xbc, 0x3f, 0xf4, 0xde, 0xf0, 0x8e, 0x4b, 0x7a,
+        0x9d, 0xe5, 0x76, 0xd2, 0x65, 0x86, 0xce, 0xc6, 0x4b, 0x61, 0x16,
+      ]
+      aed =
+        [0x50.byte, 0x51, 0x52, 0x53, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7]
 
     ChaChaPoly.encrypt(key, nonce, ntag, text, aed)
     check text.toHex == cipher.toHex
@@ -497,34 +541,67 @@ suite "Key interface test suite":
   test "Curve25519":
     # from bearssl test_crypto.c
     var
-      bearOp = fromHex("A546E36BF0527C9D3B16154B82465EDD62144C0AC1FC5A18506A2244BA449AC4").intoCurve25519Key()
-      bearIn = fromHex("E6DB6867583030DB3594C1A424B15F7C726624EC26B3353B10A903A6D0AB1C4C").intoCurve25519Key()
-      bearOut = fromHex("C3DA55379DE9C6908E94EA4DF28D084F32ECCF03491C71F754B4075577A28552").intoCurve25519Key()
+      bearOp = fromHex(
+          "A546E36BF0527C9D3B16154B82465EDD62144C0AC1FC5A18506A2244BA449AC4"
+        )
+        .intoCurve25519Key()
+      bearIn = fromHex(
+          "E6DB6867583030DB3594C1A424B15F7C726624EC26B3353B10A903A6D0AB1C4C"
+        )
+        .intoCurve25519Key()
+      bearOut = fromHex(
+          "C3DA55379DE9C6908E94EA4DF28D084F32ECCF03491C71F754B4075577A28552"
+        )
+        .intoCurve25519Key()
 
     Curve25519.mul(bearIn, bearOp)
     check bearIn == bearOut
 
     # from https://github.com/golang/crypto/blob/1d94cc7ab1c630336ab82ccb9c9cda72a875c382/curve25519/vectors_test.go#L26
     var
-      private1: Curve25519Key = [0x66.byte, 0x8f, 0xb9, 0xf7, 0x6a, 0xd9, 0x71, 0xc8, 0x1a, 0xc9, 0x0, 0x7, 0x1a, 0x15, 0x60, 0xbc, 0xe2, 0xca, 0x0, 0xca, 0xc7, 0xe6, 0x7a, 0xf9, 0x93, 0x48, 0x91, 0x37, 0x61, 0x43, 0x40, 0x14]
-      base: Curve25519Key = [0xdb.byte, 0x5f, 0x32, 0xb7, 0xf8, 0x41, 0xe7, 0xa1, 0xa0, 0x9, 0x68, 0xef, 0xfd, 0xed, 0x12, 0x73, 0x5f, 0xc4, 0x7a, 0x3e, 0xb1, 0x3b, 0x57, 0x9a, 0xac, 0xad, 0xea, 0xe8, 0x9, 0x39, 0xa7, 0xdd]
-      public1Test: Curve25519Key = [0x9.byte, 0xd, 0x85, 0xe5, 0x99, 0xea, 0x8e, 0x2b, 0xee, 0xb6, 0x13, 0x4, 0xd3, 0x7b, 0xe1, 0xe, 0xc5, 0xc9, 0x5, 0xf9, 0x92, 0x7d, 0x32, 0xf4, 0x2a, 0x9a, 0xa, 0xfb, 0x3e, 0xb, 0x40, 0x74]
+      private1: Curve25519Key = [
+        0x66.byte, 0x8f, 0xb9, 0xf7, 0x6a, 0xd9, 0x71, 0xc8, 0x1a, 0xc9, 0x0, 0x7, 0x1a,
+        0x15, 0x60, 0xbc, 0xe2, 0xca, 0x0, 0xca, 0xc7, 0xe6, 0x7a, 0xf9, 0x93, 0x48,
+        0x91, 0x37, 0x61, 0x43, 0x40, 0x14,
+      ]
+      base: Curve25519Key = [
+        0xdb.byte, 0x5f, 0x32, 0xb7, 0xf8, 0x41, 0xe7, 0xa1, 0xa0, 0x9, 0x68, 0xef,
+        0xfd, 0xed, 0x12, 0x73, 0x5f, 0xc4, 0x7a, 0x3e, 0xb1, 0x3b, 0x57, 0x9a, 0xac,
+        0xad, 0xea, 0xe8, 0x9, 0x39, 0xa7, 0xdd,
+      ]
+      public1Test: Curve25519Key = [
+        0x9.byte, 0xd, 0x85, 0xe5, 0x99, 0xea, 0x8e, 0x2b, 0xee, 0xb6, 0x13, 0x4, 0xd3,
+        0x7b, 0xe1, 0xe, 0xc5, 0xc9, 0x5, 0xf9, 0x92, 0x7d, 0x32, 0xf4, 0x2a, 0x9a, 0xa,
+        0xfb, 0x3e, 0xb, 0x40, 0x74,
+      ]
 
     Curve25519.mul(base, private1)
     check base.toHex == public1Test.toHex
 
     # RFC vectors
-    private1 = fromHex("a8abababababababababababababababababababababababababababababab6b").intoCurve25519Key
-    check private1.public().toHex  == "E3712D851A0E5D79B831C5E34AB22B41A198171DE209B8B8FACA23A11C624859"
-    private1 = fromHex("c8cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd4d").intoCurve25519Key
-    check private1.public().toHex  == "B5BEA823D9C9FF576091C54B7C596C0AE296884F0E150290E88455D7FBA6126F"
-    private1 = fromHex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a").intoCurve25519Key
+    private1 = fromHex(
+      "a8abababababababababababababababababababababababababababababab6b"
+    ).intoCurve25519Key
+    check private1.public().toHex ==
+      "E3712D851A0E5D79B831C5E34AB22B41A198171DE209B8B8FACA23A11C624859"
+    private1 = fromHex(
+      "c8cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd4d"
+    ).intoCurve25519Key
+    check private1.public().toHex ==
+      "B5BEA823D9C9FF576091C54B7C596C0AE296884F0E150290E88455D7FBA6126F"
+    private1 = fromHex(
+      "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
+    ).intoCurve25519Key
     var
-      private2 = fromHex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb").intoCurve25519Key
+      private2 = fromHex(
+        "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"
+      ).intoCurve25519Key
       p1Pub = private1.public()
       p2Pub = private2.public()
-    check p1Pub.toHex  == "8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A"
-    check p2Pub.toHex  == "DE9EDB7D7B7DC1B4D35B61C2ECE435373F8343C85B78674DADFC7E146F882B4F"
+    check p1Pub.toHex ==
+      "8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A"
+    check p2Pub.toHex ==
+      "DE9EDB7D7B7DC1B4D35B61C2ECE435373F8343C85B78674DADFC7E146F882B4F"
 
     var
       secret1 = p2Pub
@@ -533,15 +610,14 @@ suite "Key interface test suite":
     Curve25519.mul(secret2, private2)
     check secret1.toHex == secret2.toHex
 
-
   test "HKDF 1":
     let
       ikm = fromHex("0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
       salt = fromHex("0x000102030405060708090a0b0c")
       info = fromHex("0xf0f1f2f3f4f5f6f7f8f9")
-      truth = "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
-    var
-      output: array[1, array[42, byte]]
+      truth =
+        "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
+    var output: array[1, array[42, byte]]
 
     sha256.hkdf(salt, ikm, info, output)
     check output[0].toHex(true) == truth
@@ -551,9 +627,9 @@ suite "Key interface test suite":
       ikm = fromHex("0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
       salt = fromHex("")
       info = fromHex("")
-      truth = "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8"
-    var
-      output: array[1, array[42, byte]]
+      truth =
+        "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8"
+    var output: array[1, array[42, byte]]
 
     sha256.hkdf(salt, ikm, info, output)
     check output[0].toHex(true) == truth

@@ -2,18 +2,16 @@ import chronos, nimcrypto, strutils
 import ../../libp2p/daemon/daemonapi
 
 ## nim c -r --threads:on chat.nim
-when not(compileOption("threads")):
+when not (compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 
-const
-  ServerProtocols = @["/test-chat-stream"]
+const ServerProtocols = @["/test-chat-stream"]
 
-type
-  CustomData = ref object
-    api: DaemonAPI
-    remotes: seq[StreamTransport]
-    consoleFd: AsyncFD
-    serveFut: Future[void]
+type CustomData = ref object
+  api: DaemonAPI
+  remotes: seq[StreamTransport]
+  consoleFd: AsyncFD
+  serveFut: Future[void]
 
 proc threadMain(wfd: AsyncFD) {.thread.} =
   ## This procedure performs reading from `stdin` and sends data over
@@ -82,7 +80,7 @@ proc serveThread(udata: CustomData) {.async.} =
                 relay = true
                 break
             if relay:
-              echo peer.pretty(), " * ",  " [", addresses.join(", "), "]"
+              echo peer.pretty(), " * ", " [", addresses.join(", "), "]"
             else:
               echo peer.pretty(), " [", addresses.join(", "), "]"
       elif line.startsWith("/exit"):

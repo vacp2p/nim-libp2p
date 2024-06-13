@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,13 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 {.push public.}
 
-import std/[options, sequtils]
+import std/sequtils
 import pkg/[chronos, chronicles, stew/results]
 import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 
@@ -24,15 +21,18 @@ export peerid, multiaddress, crypto, routing_record, errors, results
 type
   PeerInfoError* = object of LPError
 
-  AddressMapper* =
-    proc(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]]
-      {.gcsafe, raises: [Defect].}
+  AddressMapper* = proc(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.
+    gcsafe, raises: []
+  .} ## A proc that expected to resolve the listen addresses into dialable addresses
 
   PeerInfo* {.public.} = ref object
     peerId*: PeerId
     listenAddrs*: seq[MultiAddress]
-    addrs: seq[MultiAddress]
+    ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
+    addrs*: seq[MultiAddress]
+    ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
     addressMappers*: seq[AddressMapper]
+    ## contains a list of procs that can be used to resolve the listen addresses into dialable addresses.
     protocols*: seq[string]
     protoVersion*: string
     agentVersion*: string
@@ -49,59 +49,57 @@ func shortLog*(p: PeerInfo): auto =
     protoVersion: p.protoVersion,
     agentVersion: p.agentVersion,
   )
-chronicles.formatIt(PeerInfo): shortLog(it)
+chronicles.formatIt(PeerInfo):
+  shortLog(it)
 
 proc update*(p: PeerInfo) {.async.} =
-  p.addrs = p.listenAddrs
+  # p.addrs.len == 0 overrides addrs only if it is the first time update is being executed or if the field is empty.
+  # p.addressMappers.len == 0 is for when all addressMappers have been removed,
+  # and we wish to have addrs in its initial state, i.e., a copy of listenAddrs.
+  if p.addrs.len == 0 or p.addressMappers.len == 0:
+    p.addrs = p.listenAddrs
   for mapper in p.addressMappers:
     p.addrs = await mapper(p.addrs)
 
-  let sprRes = SignedPeerRecord.init(
-    p.privateKey,
-    PeerRecord.init(p.peerId, p.addrs)
-  )
-  if sprRes.isOk:
-    p.signedPeerRecord = sprRes.get()
-  else:
-    discard
-    #info "Can't update the signed peer record"
+  p.signedPeerRecord = SignedPeerRecord.init(
+    p.privateKey, PeerRecord.init(p.peerId, p.addrs)
+  ).valueOr:
+    info "Can't update the signed peer record"
+    return
 
 proc addrs*(p: PeerInfo): seq[MultiAddress] =
   p.addrs
 
 proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
-  let peerIdPart = ? MultiAddress.init(multiCodec("p2p"), p.peerId.data)
+  let peerIdPart = ?MultiAddress.init(multiCodec("p2p"), p.peerId.data)
   var res: seq[MultiAddress]
   for address in p.addrs:
-    res.add(? concat(address, peerIdPart))
+    res.add(?concat(address, peerIdPart))
   ok(res)
 
 proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
-  let p2pPart = ? ma[^1]
-  if ? p2pPart.protoCode != multiCodec("p2p"):
+  let p2pPart = ?ma[^1]
+  if ?p2pPart.protoCode != multiCodec("p2p"):
     return err("Missing p2p part from multiaddress!")
 
-  let res = (
-    ? PeerId.init(? p2pPart.protoArgument()).orErr("invalid peerid"),
-    ? ma[0 .. ^2]
-  )
+  let res =
+    (?PeerId.init(?p2pPart.protoArgument()).orErr("invalid peerid"), ?ma[0 .. ^2])
   ok(res)
 
 proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)] =
-  parseFullAddress(? MultiAddress.init(ma))
+  parseFullAddress(?MultiAddress.init(ma))
 
 proc new*(
-  p: typedesc[PeerInfo],
-  key: PrivateKey,
-  listenAddrs: openArray[MultiAddress] = [],
-  protocols: openArray[string] = [],
-  protoVersion: string = "",
-  agentVersion: string = "",
-  addressMappers = newSeq[AddressMapper](),
-  ): PeerInfo
-  {.raises: [Defect, LPError].} =
-
-  let pubkey = try:
+    p: typedesc[PeerInfo],
+    key: PrivateKey,
+    listenAddrs: openArray[MultiAddress] = [],
+    protocols: openArray[string] = [],
+    protoVersion: string = "",
+    agentVersion: string = "",
+    addressMappers = newSeq[AddressMapper](),
+): PeerInfo {.raises: [LPError].} =
+  let pubkey =
+    try:
       key.getPublicKey().tryGet()
     except CatchableError:
       raise newException(PeerInfoError, "invalid private key")
@@ -116,7 +114,7 @@ proc new*(
     agentVersion: agentVersion,
     listenAddrs: @listenAddrs,
     protocols: @protocols,
-    addressMappers: addressMappers
+    addressMappers: addressMappers,
   )
 
   return peerInfo

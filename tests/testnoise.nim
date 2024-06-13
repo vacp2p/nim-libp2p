@@ -1,5 +1,7 @@
-# Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+{.used.}
+
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,45 +9,40 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.used.}
-
-import tables
 import chronos, stew/byteutils
 import chronicles
-import ../libp2p/[switch,
-                  errors,
-                  multistream,
-                  stream/bufferstream,
-                  protocols/identify,
-                  stream/connection,
-                  transports/transport,
-                  transports/tcptransport,
-                  multiaddress,
-                  peerinfo,
-                  crypto/crypto,
-                  protocols/protocol,
-                  muxers/muxer,
-                  muxers/mplex/mplex,
-                  protocols/secure/noise,
-                  protocols/secure/secio,
-                  protocols/secure/secure,
-                  upgrademngrs/muxedupgrade,
-                  connmanager]
+import
+  ../libp2p/[
+    switch,
+    errors,
+    multistream,
+    stream/bufferstream,
+    protocols/identify,
+    stream/connection,
+    transports/transport,
+    transports/tcptransport,
+    multiaddress,
+    peerinfo,
+    crypto/crypto,
+    protocols/protocol,
+    muxers/muxer,
+    muxers/mplex/mplex,
+    protocols/secure/noise,
+    protocols/secure/plaintext,
+    protocols/secure/secure,
+    upgrademngrs/muxedupgrade,
+    connmanager,
+  ]
 import ./helpers
 
-const
-  TestCodec = "/test/proto/1.0.0"
+const TestCodec = "/test/proto/1.0.0"
 
-type
-  TestProto = ref object of LPProtocol
+type TestProto = ref object of LPProtocol
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
     await conn.writeLp("Hello!")
@@ -56,8 +53,9 @@ method init(p: TestProto) {.gcsafe.} =
 
 {.pop.}
 
-
-proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switch, PeerInfo) =
+proc createSwitch(
+    ma: MultiAddress, outgoing: bool, plaintext: bool = false
+): (Switch, PeerInfo) =
   var
     privateKey = PrivateKey.random(ECDSA, rng[]).get()
     peerInfo = PeerInfo.new(privateKey, @[ma])
@@ -67,24 +65,21 @@ proc createSwitch(ma: MultiAddress; outgoing: bool, secio: bool = false): (Switc
 
   let
     identify = Identify.new(peerInfo)
+    peerStore = PeerStore.new(identify)
     mplexProvider = MuxerProvider.new(createMplex, MplexCodec)
     muxers = @[mplexProvider]
-    secureManagers = if secio:
-      [Secure(Secio.new(rng, privateKey))]
-    else:
-      [Secure(Noise.new(rng, privateKey, outgoing = outgoing))]
+    secureManagers =
+      if plaintext:
+        [Secure(PlainText.new())]
+      else:
+        [Secure(Noise.new(rng, privateKey, outgoing = outgoing))]
     connManager = ConnManager.new()
     ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.new(identify, muxers, secureManagers, connManager, ms)
+    muxedUpgrade = MuxedUpgrade.new(muxers, secureManagers, ms)
     transports = @[Transport(TcpTransport.new(upgrade = muxedUpgrade))]
 
-  let switch = newSwitch(
-      peerInfo,
-      transports,
-      identify,
-      secureManagers,
-      connManager,
-      ms)
+  let switch =
+    newSwitch(peerInfo, transports, secureManagers, connManager, ms, peerStore)
   result = (switch, peerInfo)
 
 suite "Noise":
@@ -103,7 +98,7 @@ suite "Noise":
 
     proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
+      let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       try:
         await sconn.write("Hello!")
       finally:
@@ -118,7 +113,7 @@ suite "Noise":
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
 
-    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
+    let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
     var msg = newSeq[byte](6)
     await sconn.readExactly(addr msg[0], 6)
@@ -138,16 +133,15 @@ suite "Noise":
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
 
-    let
-      transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+    let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
 
     asyncSpawn transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       var conn: Connection
       try:
         conn = await transport1.accept()
-        discard await serverNoise.secure(conn, false, Opt.none(PeerId))
+        discard await serverNoise.secure(conn, Opt.none(PeerId))
       except CatchableError:
         discard
       finally:
@@ -158,12 +152,14 @@ suite "Noise":
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
-      clientNoise = Noise.new(rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8])
+      clientNoise = Noise.new(
+        rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8]
+      )
       conn = await transport2.dial(transport1.addrs[0])
 
     var sconn: Connection = nil
     expect(NoiseDecryptTagError):
-      sconn = await clientNoise.secure(conn, true, Opt.some(conn.peerId))
+      sconn = await clientNoise.secure(conn, Opt.some(conn.peerId))
 
     await conn.close()
     await handlerWait
@@ -181,9 +177,9 @@ suite "Noise":
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
+      let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       defer:
         await sconn.close()
         await conn.close()
@@ -199,7 +195,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
+    let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
     await sconn.write("Hello!")
     await acceptFut
@@ -224,12 +220,12 @@ suite "Noise":
       transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       listenFut = transport1.start(server)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport1.accept()
-      let sconn = await serverNoise.secure(conn, false, Opt.none(PeerId))
+      let sconn = await serverNoise.secure(conn, Opt.none(PeerId))
       defer:
         await sconn.close()
-      let msg = await sconn.readLp(1024*1024)
+      let msg = await sconn.readLp(1024 * 1024)
       check msg == hugePayload
       readTask.complete()
 
@@ -240,7 +236,7 @@ suite "Noise":
       clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
-    let sconn = await clientNoise.secure(conn, true, Opt.some(serverInfo.peerId))
+    let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
     await sconn.writeLp(hugePayload)
     await readTask
@@ -268,15 +264,14 @@ suite "Noise":
     (switch2, peerInfo2) = createSwitch(ma2, true)
     await switch1.start()
     await switch2.start()
-    let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+    let conn =
+      await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
     await conn.writeLp("Hello!")
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
-      switch1.stop(),
-      switch2.stop())
+    await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   asyncTest "e2e test wrong secure negotiation":
     let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -295,8 +290,7 @@ suite "Noise":
     await switch1.start()
     await switch2.start()
     expect(DialFailedError):
-      let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+      let conn =
+        await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
-    await allFuturesThrowing(
-      switch1.stop(),
-      switch2.stop())
+    await allFuturesThrowing(switch1.stop(), switch2.stop())

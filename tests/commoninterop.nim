@@ -8,9 +8,11 @@ import ../libp2p/protocols/connectivity/relay/[relay, client, utils]
 type
   SwitchCreator = proc(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport = TcpTransport.new({}, upgr),
-    relay: Relay = Relay.new(circuitRelayV1 = true)):
-       Switch {.gcsafe, raises: [Defect, LPError].}
+    prov: TransportProvider = proc(upgr: Upgrade): Transport =
+      TcpTransport.new({}, upgr)
+    ,
+    relay: Relay = Relay.new(circuitRelayV1 = true),
+  ): Switch {.gcsafe, raises: [LPError].}
   DaemonPeerInfo = daemonapi.PeerInfo
 
 proc writeLp(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.} =
@@ -20,7 +22,7 @@ proc writeLp(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.
   buf.finish()
   result = s.write(buf.buffer)
 
-proc readLp(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
+proc readLp(s: StreamTransport): Future[seq[byte]] {.async.} =
   ## read length prefixed msg
   var
     size: uint
@@ -28,7 +30,7 @@ proc readLp(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
     res: VarintResult[void]
   result = newSeq[byte](10)
 
-  for i in 0..<len(result):
+  for i in 0 ..< len(result):
     await s.readExactly(addr result[i], 1)
     res = LP.getUVarint(result.toOpenArray(0, i), length, size)
     if res.isOk():
@@ -39,9 +41,8 @@ proc readLp(s: StreamTransport): Future[seq[byte]] {.async, gcsafe.} =
     await s.readExactly(addr result[0], int(size))
 
 proc testPubSubDaemonPublish(
-    gossip: bool = false,
-    count: int = 1,
-    swCreator: SwitchCreator) {.async.} =
+    gossip: bool = false, count: int = 1, swCreator: SwitchCreator
+) {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = pubsubData.toBytes()
@@ -54,12 +55,11 @@ proc testPubSubDaemonPublish(
   let daemonPeer = await daemonNode.identity()
   let nativeNode = swCreator()
 
-  let pubsub = if gossip:
-      GossipSub.init(
-        switch = nativeNode).PubSub
+  let pubsub =
+    if gossip:
+      GossipSub.init(switch = nativeNode).PubSub
     else:
-      FloodSub.init(
-        switch = nativeNode).PubSub
+      FloodSub.init(switch = nativeNode).PubSub
 
   nativeNode.mount(pubsub)
 
@@ -81,9 +81,9 @@ proc testPubSubDaemonPublish(
   await sleepAsync(1.seconds)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
-  proc pubsubHandler(api: DaemonAPI,
-                     ticket: PubsubTicket,
-                     message: PubSubMessage): Future[bool] {.async.} =
+  proc pubsubHandler(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async.} =
     result = true # don't cancel subscription
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
@@ -102,9 +102,8 @@ proc testPubSubDaemonPublish(
   await daemonNode.close()
 
 proc testPubSubNodePublish(
-    gossip: bool = false,
-    count: int = 1,
-    swCreator: SwitchCreator) {.async.} =
+    gossip: bool = false, count: int = 1, swCreator: SwitchCreator
+) {.async.} =
   var pubsubData = "TEST MESSAGE"
   var testTopic = "test-topic"
   var msgData = pubsubData.toBytes()
@@ -117,12 +116,11 @@ proc testPubSubNodePublish(
   let daemonPeer = await daemonNode.identity()
   let nativeNode = swCreator()
 
-  let pubsub = if gossip:
-      GossipSub.init(
-        switch = nativeNode).PubSub
+  let pubsub =
+    if gossip:
+      GossipSub.init(switch = nativeNode).PubSub
     else:
-      FloodSub.init(
-        switch = nativeNode).PubSub
+      FloodSub.init(switch = nativeNode).PubSub
 
   nativeNode.mount(pubsub)
 
@@ -137,9 +135,9 @@ proc testPubSubNodePublish(
 
   var times = 0
   var finished = false
-  proc pubsubHandler(api: DaemonAPI,
-                     ticket: PubsubTicket,
-                     message: PubSubMessage): Future[bool] {.async.} =
+  proc pubsubHandler(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async.} =
     let smsg = string.fromBytes(message.data)
     check smsg == pubsubData
     times.inc()
@@ -148,7 +146,9 @@ proc testPubSubNodePublish(
     result = true # don't cancel subscription
 
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  proc nativeHandler(topic: string, data: seq[byte]) {.async.} = discard
+  proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
+    discard
+
   pubsub.subscribe(testTopic, nativeHandler)
   await sleepAsync(5.seconds)
 
@@ -300,7 +300,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       let nativeNode = swCreator(
         ma = wsAddress,
-        prov = proc (upgr: Upgrade): Transport = WsTransport.new(upgr)
+        prov = proc(upgr: Upgrade): Transport =
+          WsTransport.new(upgr)
+        ,
       )
 
       nativeNode.mount(proto)
@@ -338,7 +340,10 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
         .withAddress(wsAddress)
         .withRng(crypto.newRng())
         .withMplex()
-        .withTransport(proc (upgr: Upgrade): Transport = WsTransport.new(upgr))
+        .withTransport(
+          proc(upgr: Upgrade): Transport =
+            WsTransport.new(upgr)
+        )
         .withNoise()
         .build()
 
@@ -489,6 +494,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
         discard await stream.transp.writeLp("line4")
         await closeBlocker
         await stream.close()
+
       let
         maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -499,14 +505,15 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await rel.start()
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
-      let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $daemonPeer.peer
+      let maStr =
+        $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit"
       let maddr = MultiAddress.init(maStr).tryGet()
       await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.connect(daemonPeer.peer, daemonPeer.addresses)
 
-      await daemonNode.addHandler(@[ "/testCustom" ], daemonHandler)
+      await daemonNode.addHandler(@["/testCustom"], daemonHandler)
 
-      let conn = await src.dial(daemonPeer.peer, @[ maddr ], @[ "/testCustom" ])
+      let conn = await src.dial(daemonPeer.peer, @[maddr], @["/testCustom"])
 
       await conn.writeLp("line1")
       check string.fromBytes(await conn.readLp(1024)) == "line2"
@@ -525,28 +532,28 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
         check "line3" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("line4")
         await conn.close()
-      let
-        protos = @[ "/customProto", RelayV1Codec ]
-      var
-        customProto = new LPProtocol
+
+      let protos = @["/customProto", RelayV1Codec]
+      var customProto = new LPProtocol
       customProto.handler = customHandler
       customProto.codec = protos[0]
       let
         maRel = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         rel = relayCreator(maRel)
-        dst = relayCreator(maDst, relay=RelayClient.new())
+        dst = relayCreator(maDst, relay = RelayClient.new())
 
       dst.mount(customProto)
       await rel.start()
       await dst.start()
       let daemonNode = await newDaemonApi()
       let daemonPeer = await daemonNode.identity()
-      let maStr = $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+      let maStr =
+        $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit"
       let maddr = MultiAddress.init(maStr).tryGet()
       await daemonNode.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-      await daemonNode.connect(dst.peerInfo.peerId, @[ maddr ])
+      await daemonNode.connect(dst.peerInfo.peerId, @[maddr])
       var stream = await daemonNode.openStream(dst.peerInfo.peerId, protos)
 
       discard await stream.transp.writeLp("line1")
@@ -564,28 +571,27 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
         check "line3" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("line4")
         await conn.close()
-      let
-        protos = @[ "/customProto", RelayV1Codec ]
-      var
-        customProto = new LPProtocol
+
+      let protos = @["/customProto", RelayV1Codec]
+      var customProto = new LPProtocol
       customProto.handler = customHandler
       customProto.codec = protos[0]
       let
         maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
         maDst = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-        src = relayCreator(maSrc, relay=RelayClient.new())
-        dst = relayCreator(maDst, relay=RelayClient.new())
+        src = relayCreator(maSrc, relay = RelayClient.new())
+        dst = relayCreator(maDst, relay = RelayClient.new())
 
       dst.mount(customProto)
       await src.start()
       await dst.start()
       let daemonNode = await newDaemonApi({RelayHop})
       let daemonPeer = await daemonNode.identity()
-      let maStr = $daemonPeer.addresses[0] & "/p2p/" & $daemonPeer.peer & "/p2p-circuit/p2p/" & $dst.peerInfo.peerId
+      let maStr = $daemonPeer.addresses[0] & "/p2p/" & $daemonPeer.peer & "/p2p-circuit"
       let maddr = MultiAddress.init(maStr).tryGet()
       await src.connect(daemonPeer.peer, daemonPeer.addresses)
       await daemonNode.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-      let conn = await src.dial(dst.peerInfo.peerId, @[ maddr ], protos[0])
+      let conn = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
 
       await conn.writeLp("line1")
       check string.fromBytes(await conn.readLp(1024)) == "line2"

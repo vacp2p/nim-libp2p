@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,10 +9,7 @@
 
 ## This module implementes CID (Content IDentifier).
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import tables, hashes
 import multibase, multicodec, multihash, vbuffer, varint
@@ -22,10 +19,16 @@ export results
 
 type
   CidError* {.pure.} = enum
-    Error, Incorrect, Unsupported, Overrun
+    Error
+    Incorrect
+    Unsupported
+    Overrun
 
   CidVersion* = enum
-    CIDvIncorrect, CIDv0, CIDv1, CIDvReserved
+    CIDvIncorrect
+    CIDv0
+    CIDv1
+    CIDvReserved
 
   Cid* = object
     cidver*: CidVersion
@@ -33,54 +36,51 @@ type
     hpos*: int
     data*: VBuffer
 
-const
-  ContentIdsList = [
-    multiCodec("raw"),
-    multiCodec("dag-pb"),
-    multiCodec("dag-cbor"),
-    multiCodec("dag-json"),
-    multiCodec("git-raw"),
-    multiCodec("eth-block"),
-    multiCodec("eth-block-list"),
-    multiCodec("eth-tx-trie"),
-    multiCodec("eth-tx"),
-    multiCodec("eth-tx-receipt-trie"),
-    multiCodec("eth-tx-receipt"),
-    multiCodec("eth-state-trie"),
-    multiCodec("eth-account-snapshot"),
-    multiCodec("eth-storage-trie"),
-    multiCodec("bitcoin-block"),
-    multiCodec("bitcoin-tx"),
-    multiCodec("zcash-block"),
-    multiCodec("zcash-tx"),
-    multiCodec("stellar-block"),
-    multiCodec("stellar-tx"),
-    multiCodec("decred-block"),
-    multiCodec("decred-tx"),
-    multiCodec("dash-block"),
-    multiCodec("dash-tx"),
-    multiCodec("torrent-info"),
-    multiCodec("torrent-file"),
-    multiCodec("ed25519-pub")
-  ]
+const ContentIdsList = [
+  multiCodec("raw"),
+  multiCodec("dag-pb"),
+  multiCodec("dag-cbor"),
+  multiCodec("dag-json"),
+  multiCodec("git-raw"),
+  multiCodec("eth-block"),
+  multiCodec("eth-block-list"),
+  multiCodec("eth-tx-trie"),
+  multiCodec("eth-tx"),
+  multiCodec("eth-tx-receipt-trie"),
+  multiCodec("eth-tx-receipt"),
+  multiCodec("eth-state-trie"),
+  multiCodec("eth-account-snapshot"),
+  multiCodec("eth-storage-trie"),
+  multiCodec("bitcoin-block"),
+  multiCodec("bitcoin-tx"),
+  multiCodec("zcash-block"),
+  multiCodec("zcash-tx"),
+  multiCodec("stellar-block"),
+  multiCodec("stellar-tx"),
+  multiCodec("decred-block"),
+  multiCodec("decred-tx"),
+  multiCodec("dash-block"),
+  multiCodec("dash-tx"),
+  multiCodec("torrent-info"),
+  multiCodec("torrent-file"),
+  multiCodec("ed25519-pub"),
+]
 
 proc initCidCodeTable(): Table[int, MultiCodec] {.compileTime.} =
   for item in ContentIdsList:
     result[int(item)] = item
 
-const
-  CodeContentIds = initCidCodeTable()
+const CodeContentIds = initCidCodeTable()
 
 template orError*(exp: untyped, err: untyped): untyped =
-  (exp.mapErr do (_: auto) -> auto: err)
+  exp.mapErr do(_: auto) -> auto:
+    err
 
 proc decode(data: openArray[byte]): Result[Cid, CidError] =
   if len(data) == 34 and data[0] == 0x12'u8 and data[1] == 0x20'u8:
-    ok(Cid(
-        cidver: CIDv0,
-        mcodec: multiCodec("dag-pb"),
-        hpos: 0,
-        data: initVBuffer(data)))
+    ok(
+      Cid(cidver: CIDv0, mcodec: multiCodec("dag-pb"), hpos: 0, data: initVBuffer(data))
+    )
   else:
     var version, codec: uint64
     var res, offset: int
@@ -101,21 +101,18 @@ proc decode(data: openArray[byte]): Result[Cid, CidError] =
             err(CidError.Incorrect)
           else:
             offset += res
-            var mcodec = CodeContentIds.getOrDefault(cast[int](codec),
-                                                    InvalidMultiCodec)
+            var mcodec =
+              CodeContentIds.getOrDefault(cast[int](codec), InvalidMultiCodec)
             if mcodec == InvalidMultiCodec:
               err(CidError.Incorrect)
             else:
-              if not MultiHash.validate(vb.buffer.toOpenArray(vb.offset,
-                                                              vb.buffer.high)):
+              if not MultiHash.validate(
+                vb.buffer.toOpenArray(vb.offset, vb.buffer.high)
+              ):
                 err(CidError.Incorrect)
               else:
                 vb.finish()
-                ok(Cid(
-                    cidver: CIDv1,
-                    mcodec: mcodec,
-                    hpos: offset,
-                    data: vb))
+                ok(Cid(cidver: CIDv1, mcodec: mcodec, hpos: offset, data: vb))
 
 proc decode(data: openArray[char]): Result[Cid, CidError] =
   var buffer: seq[byte]
@@ -175,7 +172,9 @@ proc mhash*(cid: Cid): Result[MultiHash, CidError] =
   if cid.cidver notin {CIDv0, CIDv1}:
     err(CidError.Incorrect)
   else:
-    MultiHash.init(cid.data.buffer.toOpenArray(cid.hpos, cid.data.high)).orError(CidError.Incorrect)
+    MultiHash.init(cid.data.buffer.toOpenArray(cid.hpos, cid.data.high)).orError(
+      CidError.Incorrect
+    )
 
 proc contentType*(cid: Cid): Result[MultiCodec, CidError] =
   ## Returns content type part of CID
@@ -188,12 +187,15 @@ proc version*(cid: Cid): CidVersion =
   ## Returns CID version
   result = cid.cidver
 
-proc init*[T: char|byte](ctype: typedesc[Cid], data: openArray[T]): Result[Cid, CidError] =
+proc init*[T: char | byte](
+    ctype: typedesc[Cid], data: openArray[T]
+): Result[Cid, CidError] =
   ## Create new content identifier using array of bytes or string ``data``.
   decode(data)
 
-proc init*(ctype: typedesc[Cid], version: CidVersion, content: MultiCodec,
-           hash: MultiHash): Result[Cid, CidError] =
+proc init*(
+    ctype: typedesc[Cid], version: CidVersion, content: MultiCodec, hash: MultiHash
+): Result[Cid, CidError] =
   ## Create new content identifier using content type ``content`` and
   ## MultiHash ``hash`` using version ``version``.
   ##
@@ -216,8 +218,7 @@ proc init*(ctype: typedesc[Cid], version: CidVersion, content: MultiCodec,
     res.data.finish()
     return ok(res)
   elif version == CIDv1:
-    let mcodec = CodeContentIds.getOrDefault(cast[int](content),
-                                             InvalidMultiCodec)
+    let mcodec = CodeContentIds.getOrDefault(cast[int](content), InvalidMultiCodec)
     if mcodec == InvalidMultiCodec:
       return err(CidError.Incorrect)
     res.mcodec = mcodec
@@ -236,11 +237,9 @@ proc `==`*(a: Cid, b: Cid): bool =
   ## are equal, ``false`` otherwise.
   if a.mcodec == b.mcodec:
     var ah, bh: MultiHash
-    if MultiHash.decode(
-      a.data.buffer.toOpenArray(a.hpos, a.data.high), ah).isErr:
+    if MultiHash.decode(a.data.buffer.toOpenArray(a.hpos, a.data.high), ah).isErr:
       return false
-    if MultiHash.decode(
-      b.data.buffer.toOpenArray(b.hpos, b.data.high), bh).isErr:
+    if MultiHash.decode(b.data.buffer.toOpenArray(b.hpos, b.data.high), bh).isErr:
       return false
     result = (ah == bh)
 
@@ -264,12 +263,6 @@ proc write*(vb: var VBuffer, cid: Cid) {.inline.} =
   ## Write CID value ``cid`` to buffer ``vb``.
   vb.writeArray(cid.data.buffer)
 
-proc encode*(mbtype: typedesc[MultiBase], encoding: string,
-             cid: Cid): string {.inline.} =
-  ## Get MultiBase encoded representation of ``cid`` using encoding
-  ## ``encoding``.
-  result = MultiBase.encode(encoding, cid.data.buffer).tryGet()
-
 proc hash*(cid: Cid): Hash {.inline.} =
   hash(cid.data.buffer)
 
@@ -279,9 +272,6 @@ proc `$`*(cid: Cid): string =
     BTCBase58.encode(cid.data.buffer)
   elif cid.cidver == CIDv1:
     let res = MultiBase.encode("base58btc", cid.data.buffer)
-    if res.isOk():
-      res.get()
-    else:
-      ""
+    res.get("")
   else:
     ""

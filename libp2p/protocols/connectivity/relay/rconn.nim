@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,30 +7,27 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos
 
 import ../../../stream/connection
 
-type
-  RelayConnection* = ref object of Connection
-    conn*: Connection
-    limitDuration*: uint32
-    limitData*: uint64
-    dataSent*: uint64
+type RelayConnection* = ref object of Connection
+  conn*: Connection
+  limitDuration*: uint32
+  limitData*: uint64
+  dataSent*: uint64
 
 method readOnce*(
-    self: RelayConnection,
-    pbytes: pointer,
-    nbytes: int): Future[int] {.async.} =
+    self: RelayConnection, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   self.activity = true
-  return await self.conn.readOnce(pbytes, nbytes)
+  self.conn.readOnce(pbytes, nbytes)
 
-method write*(self: RelayConnection, msg: seq[byte]): Future[void] {.async.} =
+method write*(
+    self: RelayConnection, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   self.dataSent.inc(msg.len)
   if self.limitData != 0 and self.dataSent > self.limitData:
     await self.close()
@@ -38,24 +35,28 @@ method write*(self: RelayConnection, msg: seq[byte]): Future[void] {.async.} =
   self.activity = true
   await self.conn.write(msg)
 
-method closeImpl*(self: RelayConnection): Future[void] {.async.} =
+method closeImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
   await self.conn.close()
   await procCall Connection(self).closeImpl()
 
-method getWrapped*(self: RelayConnection): Connection = self.conn
+method getWrapped*(self: RelayConnection): Connection =
+  self.conn
 
 proc new*(
-  T: typedesc[RelayConnection],
-  conn: Connection,
-  limitDuration: uint32,
-  limitData: uint64): T =
+    T: typedesc[RelayConnection],
+    conn: Connection,
+    limitDuration: uint32,
+    limitData: uint64,
+): T =
   let rc = T(conn: conn, limitDuration: limitDuration, limitData: limitData)
+  rc.dir = conn.dir
   rc.initStream()
   if limitDuration > 0:
-    proc checkDurationConnection() {.async.} =
-      let sleep = sleepAsync(limitDuration.seconds())
-      await sleep or conn.join()
-      if sleep.finished: await conn.close()
-      else: sleep.cancel()
+    proc checkDurationConnection() {.async: (raises: []).} =
+      try:
+        await noCancel conn.join().wait(limitDuration.seconds())
+      except AsyncTimeoutError:
+        await conn.close()
+
     asyncSpawn checkDurationConnection()
   return rc

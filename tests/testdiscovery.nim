@@ -1,23 +1,35 @@
 {.used.}
 
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import options, chronos, sets
-import stew/byteutils
-import ../libp2p/[protocols/rendezvous,
-                  switch,
-                  builders,
-                  discovery/discoverymngr,
-                  discovery/rendezvousinterface,]
+import
+  ../libp2p/[
+    protocols/rendezvous,
+    switch,
+    builders,
+    discovery/discoverymngr,
+    discovery/rendezvousinterface,
+  ]
 import ./helpers
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder.new()
-    .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .withRendezVous(rdv)
-    .build()
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .withRendezVous(rdv)
+  .build()
 
 suite "Discovery":
   teardown:
