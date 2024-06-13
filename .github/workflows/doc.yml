@@ -103,6 +103,10 @@ jobs:
           else
             git config --global user.email "${{ github.actor }}@users.noreply.github.com"
             git config --global user.name "${{ github.actor }}"
+
+            # Pull the latest changes to avoid conflicts
+            git pull origin gh-pages --rebase
+ 
             git commit -m "update website"
             git push origin gh-pages
           fi
