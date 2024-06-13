@@ -18,14 +18,14 @@ type TestProto = ref object of LPProtocol
 
 ## We've set a [protocol ID](https://docs.libp2p.io/concepts/protocols/#protocol-ids), and created a custom `LPProtocol`. In a more complex protocol, we could use this structure to store interesting variables.
 ##
-## A protocol generally has two part: and handling/server part, and a dialing/client part.
-## Theses two parts can be identical, but in our trivial protocol, the server will wait for a message from the client, and the client will send a message, so we have to handle the two cases separately.
+## A protocol generally has two parts: a handling/server part, and a dialing/client part.
+## These two parts can be identical, but in our trivial protocol, the server will wait for a message from the client, and the client will send a message, so we have to handle the two cases separately.
 ##
 ## Let's start with the server part:
 
 proc new(T: typedesc[TestProto]): T =
   # every incoming connections will in be handled in this closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     # Read up to 1024 bytes from this connection, and transform them into
     # a string
     echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
@@ -41,29 +41,31 @@ proc new(T: typedesc[TestProto]): T =
 proc hello(p: TestProto, conn: Connection) {.async.} =
   await conn.writeLp("Hello p2p!")
 
-## Again, pretty straight-forward, we just send a message on the connection.
+## Again, pretty straightforward, we just send a message on the connection.
 ##
 ## We can now create our main procedure:
-proc main() {.async, gcsafe.} =
+proc main() {.async.} =
   let
     rng = newRng()
     testProto = TestProto.new()
-    switch1 = newStandardSwitch(rng=rng)
-    switch2 = newStandardSwitch(rng=rng)
+    switch1 = newStandardSwitch(rng = rng)
+    switch2 = newStandardSwitch(rng = rng)
 
   switch1.mount(testProto)
 
   await switch1.start()
   await switch2.start()
 
-  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+  let conn =
+    await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
   await testProto.hello(conn)
 
   # We must close the connection ourselves when we're done with it
   await conn.close()
 
-  await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
+  await allFutures(switch1.stop(), switch2.stop())
+    # close connections and shutdown all transports
 
 ## This is very similar to the first tutorial's `main`, the only noteworthy difference is that we use `newStandardSwitch`, which is similar to the `createSwitch` of the first tutorial, but is bundled directly in libp2p
 ##
