@@ -66,7 +66,7 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
 
   let hasBeenSetUp = await procCall Service(self).setup(switch)
   if hasBeenSetUp:
-    proc handlePeerJoined(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handlePeerIdentified(peerId: PeerId) {.async.} =
       trace "Peer Joined", peerId
       if self.relayPeers.len < self.maxNumRelays:
         self.peerAvailable.fire()
@@ -76,7 +76,7 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
       self.relayPeers.withValue(peerId, future):
         future[].cancel()
 
-    switch.addPeerEventHandler(handlePeerJoined, Joined)
+    switch.addPeerIdentifiedEventHandler(handlePeerIdentified)
     switch.addPeerEventHandler(handlePeerLeft, Left)
     switch.peerInfo.addressMappers.add(self.addressMapper)
     await self.run(switch)

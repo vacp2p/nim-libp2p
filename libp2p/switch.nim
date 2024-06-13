@@ -110,6 +110,20 @@ proc removePeerEventHandler*(
 ) {.public.} =
   s.connManager.removePeerEventHandler(handler, kind)
 
+proc addPeerIdentifiedEventHandler*(
+  s: Switch, handler: PeerIdentifiedEventHandler
+) {.public.} =
+  ## Adds a PeerIdentifiedEventHandler, which will be
+  ## triggered when a peer is identified.
+  ##
+  ## The handler should not raise.
+  s.connManager.addPeerIdentifiedEventHandler(handler)
+
+proc removePeerIdentifiedEventHandler*(
+    s: Switch, handler: PeerIdentifiedEventHandler
+) {.public.} =
+  s.connManager.removePeerIdentifiedEventHandler(handler)
+
 method addTransport*(s: Switch, t: Transport) =
   s.transports &= t
   s.dialer.addTransport(t)
@@ -204,6 +218,7 @@ proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
   let muxed = await trans.upgrade(conn, Opt.none(PeerId))
   switch.connManager.storeMuxer(muxed)
   await switch.peerStore.identify(muxed)
+  asyncSpawn switch.connManager.triggerPeerIdentifiedEvents(muxed.connection.peerId)
   trace "Connection upgrade succeeded"
 
 proc upgradeMonitor(

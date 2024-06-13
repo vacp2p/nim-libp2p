@@ -59,6 +59,9 @@ type
   PeerEventHandler* =
     proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [].}
 
+  PeerIdentifiedEventHandler* =
+    proc(peerId: PeerId): Future[void] {.gcsafe, raises: [].}
+
   ConnManager* = ref object of RootObj
     maxConnsPerPeer: int
     inSema*: AsyncSemaphore
@@ -66,6 +69,7 @@ type
     muxed: Table[PeerId, seq[Muxer]]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
+    peerIdentifiedEvents: OrderedSet[PeerIdentifiedEventHandler]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
 
@@ -163,6 +167,40 @@ proc triggerPeerEvents*(c: ConnManager, peerId: PeerId, event: PeerEvent) {.asyn
     var peerEvents: seq[Future[void]]
     for h in c.peerEvents[event.kind]:
       peerEvents.add(h(peerId, event))
+
+    checkFutures(await allFinished(peerEvents))
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc: # handlers should not raise!
+    warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
+
+proc addPeerIdentifiedEventHandler*(
+  c: ConnManager, handler: PeerIdentifiedEventHandler
+) {.public.} =
+  ## Adds a PeerIdentifiedEventHandler, which will be
+  ## triggered when a peer is identified.
+  ##
+  ## The handler should not raise.
+  if isNil(handler):
+    return
+  c.peerIdentifiedEvents.incl(handler)
+
+proc removePeerIdentifiedEventHandler*(
+    c: ConnManager, handler: PeerIdentifiedEventHandler
+) {.public.} =
+  c.peerIdentifiedEvents.excl(handler)
+
+proc triggerPeerIdentifiedEvents*(c: ConnManager, peerId: PeerId) {.async.} =
+  trace "About to trigger peer identified events", peer = peerId
+  if c.peerIdentifiedEvents.len == 0:
+    return
+
+  try:
+    trace "triggering peer identified events", peer = peerId
+
+    var peerEvents: seq[Future[void]]
+    for h in c.peerIdentifiedEvents:
+      peerEvents.add(h(peerId))
 
     checkFutures(await allFinished(peerEvents))
   except CancelledError as exc:
