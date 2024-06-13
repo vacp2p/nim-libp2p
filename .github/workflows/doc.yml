@@ -63,7 +63,7 @@ jobs:
           git push origin gh-pages
 
   update_site:
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docs'
+    #if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docs'
     name: 'Rebuild website'
     runs-on: ubuntu-latest
     steps:
@@ -97,7 +97,12 @@ jobs:
           mv ../site docs
 
           git add .
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
-          git commit -a -m "update website"
-          git push origin gh-pages
+
+          if git diff-index --quiet HEAD --; then
+            echo "No changes to commit"
+          else
+            git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+            git config --global user.name "${{ github.actor }}"
+            git commit -m "update website"
+            git push origin gh-pages
+          fi
