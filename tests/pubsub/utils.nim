@@ -70,6 +70,7 @@ proc generateNodes*(
     enablePX: bool = false,
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
+    gossipSubVersion: string = "",
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -100,6 +101,8 @@ proc generateNodes*(
         g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
         g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
         g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
+        if gossipSubVersion != "":
+          g.codecs = @[gossipSubVersion]
         g.PubSub
       else:
         FloodSub.init(

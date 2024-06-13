@@ -348,19 +348,22 @@ method onPubSubPeerEvent*(
     discard
 
 method getOrCreatePeer*(
-    p: PubSub, peerId: PeerId, protos: seq[string]
+    p: PubSub, peerId: PeerId, protosToDial: seq[string], protoNegotiated: string = ""
 ): PubSubPeer {.base, gcsafe.} =
   p.peers.withValue(peerId, peer):
+    if peer[].codec == "":
+      peer[].codec = protoNegotiated
     return peer[]
 
   proc getConn(): Future[Connection] {.async.} =
-    return await p.switch.dial(peerId, protos)
+    return await p.switch.dial(peerId, protosToDial)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, onEvent, protos[0], p.maxMessageSize)
+  let pubSubPeer =
+    PubSubPeer.new(peerId, getConn, onEvent, protoNegotiated, p.maxMessageSize)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -425,7 +428,7 @@ method handleConn*(p: PubSub, conn: Connection, proto: string) {.base, async.} =
     # call pubsub rpc handler
     p.rpcHandler(peer, data)
 
-  let peer = p.getOrCreatePeer(conn.peerId, @[proto])
+  let peer = p.getOrCreatePeer(conn.peerId, @[], proto)
 
   try:
     peer.handler = handler
