@@ -29,7 +29,7 @@ jobs:
           nimble --version
           nimble install_pinned
           # nim doc can "fail", but the doc is still generated
-          nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
+          nim doc --git.url:https://github.com/vacp2p/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 
           # check that the folder exists
           ls ${GITHUB_REF##*/}
@@ -37,7 +37,7 @@ jobs:
       - name: Clone the gh-pages branch
         uses: actions/checkout@v2
         with:
-          repository: status-im/nim-libp2p
+          repository: vacp2p/nim-libp2p
           ref: gh-pages
           path: subdoc
           submodules: true
