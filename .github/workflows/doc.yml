@@ -62,7 +62,6 @@ jobs:
           git push origin gh-pages
 
   update_site:
-    #if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docs'
     name: 'Rebuild website'
     runs-on: ubuntu-latest
     steps:
