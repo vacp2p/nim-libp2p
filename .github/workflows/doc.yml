@@ -47,9 +47,6 @@ jobs:
         run: |
           cd subdoc
 
-          # Delete merged branches doc's
-          for branch in $(git branch -vv | grep ': gone]' | awk '{print $1}'); do rm -rf $branch; done
-
           # Update / create this branch doc
           rm -rf ${GITHUB_REF##*/}
           mv ../${GITHUB_REF##*/} .
