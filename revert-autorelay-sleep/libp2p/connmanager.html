@@ -227,13 +227,12 @@ window.addEventListener("DOMContentLoaded", main2);
   muxed: Table[PeerId, seq[Muxer]]
   connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
   peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
-  peerIdentifiedEvents: OrderedSet[PeerIdentifiedEventHandler]
   expectedConnectionsOverLimit*: Table[Future[Muxer]]
   peerStore*: PeerStore">ConnManager</a></li>
   <li><a class="reference" href="#PeerEvent"
     title="PeerEvent = object
   case kind*: PeerEventKind
-  of PeerEventKind.Joined:
+  of PeerEventKind.Joined, PeerEventKind.Identified:
       initiator*: bool
 
   else:
@@ -243,10 +242,7 @@ window.addEventListener("DOMContentLoaded", main2);
     gcsafe, raises: [].}">PeerEventHandler</a></li>
   <li><a class="reference" href="#PeerEventKind"
     title="PeerEventKind {.pure.} = enum
-  Left, Joined">PeerEventKind</a></li>
-  <li><a class="reference" href="#PeerIdentifiedEventHandler"
-    title="PeerIdentifiedEventHandler = proc (peerId: PeerId): Future[void] {.gcsafe,
-    raises: [].}">PeerIdentifiedEventHandler</a></li>
+  Left, Joined, Identified">PeerEventKind</a></li>
   <li><a class="reference" href="#TooManyConnectionsError"
     title="TooManyConnectionsError = object of LPError">TooManyConnectionsError</a></li>
 
@@ -277,13 +273,6 @@ window.addEventListener("DOMContentLoaded", main2);
     title="addPeerEventHandler(c: ConnManager; handler: PeerEventHandler;
                     kind: PeerEventKind)">addPeerEventHandler(c: ConnManager; handler: PeerEventHandler;
                     kind: PeerEventKind)</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">addPeerIdentifiedEventHandler
-      <li><a class="reference" href="#addPeerIdentifiedEventHandler%2CConnManager%2CPeerIdentifiedEventHandler"
-    title="addPeerIdentifiedEventHandler(c: ConnManager;
-                              handler: PeerIdentifiedEventHandler)">addPeerIdentifiedEventHandler(c: ConnManager;
-                              handler: PeerIdentifiedEventHandler)</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">close
@@ -363,13 +352,6 @@ window.addEventListener("DOMContentLoaded", main2);
                        kind: PeerEventKind)</a></li>
 
   </ul>
-  <ul class="simple nested-toc-section">removePeerIdentifiedEventHandler
-      <li><a class="reference" href="#removePeerIdentifiedEventHandler%2CConnManager%2CPeerIdentifiedEventHandler"
-    title="removePeerIdentifiedEventHandler(c: ConnManager;
-                                 handler: PeerIdentifiedEventHandler)">removePeerIdentifiedEventHandler(c: ConnManager;
-                                 handler: PeerIdentifiedEventHandler)</a></li>
-
-  </ul>
   <ul class="simple nested-toc-section">selectMuxer
       <li><a class="reference" href="#selectMuxer%2CConnManager%2CPeerId"
     title="selectMuxer(c: ConnManager; peerId: PeerId): Muxer">selectMuxer(c: ConnManager; peerId: PeerId): Muxer</a></li>
@@ -388,11 +370,6 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple nested-toc-section">triggerPeerEvents
       <li><a class="reference" href="#triggerPeerEvents%2CConnManager%2CPeerId%2CPeerEvent"
     title="triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): Future[void]">triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): Future[void]</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">triggerPeerIdentifiedEvents
-      <li><a class="reference" href="#triggerPeerIdentifiedEvents%2CConnManager%2CPeerId"
-    title="triggerPeerIdentifiedEvents(c: ConnManager; peerId: PeerId): Future[void]">triggerPeerIdentifiedEvents(c: ConnManager; peerId: PeerId): Future[void]</a></li>
 
   </ul>
 
@@ -435,9 +412,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L76"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L73"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L76" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L73" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -495,7 +472,6 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">muxed</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">,</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">Muxer</span><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">connEvents</span><span class="Other">:</span> <span class="Identifier">array</span><span class="Other">[</span><span class="Identifier">ConnEventKind</span><span class="Other">,</span> <span class="Identifier">OrderedSet</span><span class="Other">[</span><a href="peerstore.html#ConnEventHandler"><span class="Identifier">ConnEventHandler</span></a><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">peerEvents</span><span class="Other">:</span> <span class="Identifier">array</span><span class="Other">[</span><span class="Identifier">PeerEventKind</span><span class="Other">,</span> <span class="Identifier">OrderedSet</span><span class="Other">[</span><a href="peerstore.html#PeerEventHandler"><span class="Identifier">PeerEventHandler</span></a><span class="Other">]</span><span class="Other">]</span>
-  <span class="Identifier">peerIdentifiedEvents</span><span class="Other">:</span> <span class="Identifier">OrderedSet</span><span class="Other">[</span><a href="peerstore.html#PeerIdentifiedEventHandler"><span class="Identifier">PeerIdentifiedEventHandler</span></a><span class="Other">]</span>
   <span class="Identifier">expectedConnectionsOverLimit</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Muxer</span><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">peerStore</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">PeerStore</span>
 </pre></dt>
@@ -503,16 +479,16 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L65"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L63"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L65" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L63" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="PeerEvent" class="tohide">
 <dt><pre><a href="peerstore.html#PeerEvent"><span class="Identifier">PeerEvent</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
   <span class="Keyword">case</span> <span class="Identifier">kind</span><span class="Operator">*</span><span class="Other">:</span> <a href="peerstore.html#PeerEventKind"><span class="Identifier">PeerEventKind</span></a>
-  <span class="Keyword">of</span> <span class="Identifier">PeerEventKind</span><span class="Other">.</span><span class="Identifier">Joined</span><span class="Other">:</span>
+  <span class="Keyword">of</span> <span class="Identifier">PeerEventKind</span><span class="Other">.</span><span class="Identifier">Joined</span><span class="Other">,</span> <span class="Identifier">PeerEventKind</span><span class="Other">.</span><span class="Identifier">Identified</span><span class="Other">:</span>
       <span class="Identifier">initiator</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
 
   <span class="Keyword">else</span><span class="Other">:</span>
@@ -523,9 +499,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L52"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L53"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L52" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -536,15 +512,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L59"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L60"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L60" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="PeerEventKind" class="tohide">
 <dt><pre><a href="peerstore.html#PeerEventKind"><span class="Identifier">PeerEventKind</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">Left</span><span class="Other">,</span> <span class="Identifier">Joined</span></pre></dt>
+  <span class="Identifier">Left</span><span class="Other">,</span> <span class="Identifier">Joined</span><span class="Other">,</span> <span class="Identifier">Identified</span></pre></dt>
 <dd>
 
 
@@ -552,19 +528,6 @@ class="link-seesrc" target="_blank">Source</a>
 href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L48"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="PeerIdentifiedEventHandler" class="tohide">
-<dt><pre><a href="peerstore.html#PeerIdentifiedEventHandler"><span class="Identifier">PeerIdentifiedEventHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L62"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L62" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -621,9 +584,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Add peer event handler - handlers must not raise exceptions! 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L115"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L112"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L115" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L112" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -634,25 +597,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Add peer event handler - handlers must not raise exceptions! 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L144"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L141"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L144" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="addPeerIdentifiedEventHandler,ConnManager,PeerIdentifiedEventHandler" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#addPeerIdentifiedEventHandler%2CConnManager%2CPeerIdentifiedEventHandler"><span class="Identifier">addPeerIdentifiedEventHandler</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span>
-                                   <span class="Identifier">handler</span><span class="Other">:</span> <a href="peerstore.html#PeerIdentifiedEventHandler"><span class="Identifier">PeerIdentifiedEventHandler</span></a><span class="Other">)</span> {.
-    <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-<p>Adds a PeerIdentifiedEventHandler, which will be triggered when a peer is identified.</p>
-<p>The handler should not raise.</p>
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L177"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L177" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -663,9 +610,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 cleanup resources for the connection manager 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L442"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L405"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L442" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L405" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -675,9 +622,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L102"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L99"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L102" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L99" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -687,9 +634,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 checks if a muxer is being tracked by the connection manager 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L233"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L196"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L233" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L196" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -699,9 +646,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L230"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L193"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L230" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L193" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -712,9 +659,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 drop connections and cleanup resources for peer 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L431"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L394"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L431" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L394" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -726,9 +673,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Wait for a peer to connect to us. This will bypass the <tt class="docutils literal"><span class="pre"><span class="Identifier">MaxConnectionsPerPeer</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L213"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L176"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L213" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L176" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -739,9 +686,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L112"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L109"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L112" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L109" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -753,9 +700,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L361"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L324"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L361" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L324" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -766,9 +713,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L365"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L328"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L365" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L328" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -780,9 +727,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 get a muxed stream for the passed muxer 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L410"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L373"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L410" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L373" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -794,9 +741,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 get a muxed stream for the passed peer from any connection 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L417"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L380"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L417" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L380" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -808,9 +755,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 get a muxed stream for the passed peer from a connection with <tt class="docutils literal"><span class="pre"><span class="Identifier">dir</span></span></tt> 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L425"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L388"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L425" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L388" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -822,9 +769,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L83"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L80"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -834,9 +781,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L383"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L346"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L383" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L346" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -847,9 +794,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L124"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L121"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L124" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L121" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -860,23 +807,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L154"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L151"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="removePeerIdentifiedEventHandler,ConnManager,PeerIdentifiedEventHandler" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#removePeerIdentifiedEventHandler%2CConnManager%2CPeerIdentifiedEventHandler"><span class="Identifier">removePeerIdentifiedEventHandler</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span>
-                                      <span class="Identifier">handler</span><span class="Other">:</span> <a href="peerstore.html#PeerIdentifiedEventHandler"><span class="Identifier">PeerIdentifiedEventHandler</span></a><span class="Other">)</span> {.
-    <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L188"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L188" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L151" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -886,9 +819,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Select a connection for the provided giving priority to outgoing connections 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L298"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L261"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L298" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L261" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -899,9 +832,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L389"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L352"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L389" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L352" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -911,9 +844,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L404"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L367"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L404" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L367" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -925,23 +858,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L159"
+href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L156"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L159" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="triggerPeerIdentifiedEvents,ConnManager,PeerId" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#triggerPeerIdentifiedEvents%2CConnManager%2CPeerId"><span class="Identifier">triggerPeerIdentifiedEvents</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/revert-autorelay-sleep/libp2p/connmanager.nim#L193"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L193" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/connmanager.nim#L156" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -955,7 +874,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-13 14:56:19 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-14 11:07:15 UTC</small>
       </div>
     </div>
   </div>
