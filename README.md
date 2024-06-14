@@ -5,8 +5,8 @@
 <h3 align="center">The <a href="https://nim-lang.org/">Nim</a> implementation of the <a href="https://libp2p.io/">libp2p</a> Networking Stack.</h3>
 
 <p align="center">
-<a href="https://github.com/status-im/nim-libp2p/actions"><img src="https://github.com/status-im/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
-<a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
+<a href="https://github.com/vacp2p/nim-libp2p/actions"><img src="https://github.com/vacp2p/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
+<a href="https://codecov.io/gh/vacp2p/nim-libp2p"><img src="https://codecov.io/gh/vacp2p/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
 
 </p>
 
@@ -48,7 +48,7 @@ nimble install libp2p
 ```
 
 ## Getting Started
-You'll find the nim-libp2p documentation [here](https://status-im.github.io/nim-libp2p/docs/).
+You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/).
 
 ### Testing
 Remember you'll need to build the `go-libp2p-daemon` binary to run the `nim-libp2p` tests.
@@ -95,8 +95,8 @@ List of packages modules implemented in nim-libp2p:
 
 nim-libp2p is used by:
 - [Nimbus](https://github.com/status-im/nimbus-eth2), an Ethereum client
-- [nwaku](https://github.com/status-im/nwaku), a decentralized messaging application
-- [nim-codex](https://github.com/status-im/nim-codex), a decentralized storage application
+- [nwaku](https://github.com/waku-org/nwaku), a decentralized messaging application
+- [nim-codex](https://github.com/codex-storage/nim-codex), a decentralized storage application
 - (open a pull request if you want to be included here)
 
 ## Stability
@@ -112,7 +112,7 @@ We aim to be compatible at all time with at least 2 Nim `MINOR` versions, curren
 ## Development
 Clone and Install dependencies:
 ```sh
-git clone https://github.com/status-im/nim-libp2p
+git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
 # to use dependencies computed by nimble
 nimble install -dy
@@ -139,7 +139,7 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
 
 ### Contributors
-<a href="https://github.com/status-im/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=status-im/nim-libp2p" alt="nim-libp2p contributors"></a>
+<a href="https://github.com/vacp2p/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=vacp2p/nim-libp2p" alt="nim-libp2p contributors"></a>
 
 ### Core Maintainers
 <table>
