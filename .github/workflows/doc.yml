@@ -1,6 +1,8 @@
 name: Docgen
 on:
   push:
+    branches:
+      - master
   workflow_dispatch:
 
 
