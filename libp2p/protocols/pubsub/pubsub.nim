@@ -143,6 +143,12 @@ type
     ## we have to store it, which may be an attack vector.
     ## This callback can be used to reject topic we're not interested in
 
+  MsgHashProvider* {.public.} = proc(
+    topic: string, messageData: seq[byte]
+  ): Result[string, string] {.noSideEffect, raises: [], gcsafe.}
+    ## Computes the message hash based on its topic and message data, and then returns it
+    ## in hex format
+
   PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
@@ -174,6 +180,7 @@ type
     rng*: ref HmacDrbgContext
 
     knownTopics*: HashSet[string]
+    msgHashProvider*: MsgHashProvider
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
@@ -621,6 +628,7 @@ proc init*[PubParams: object | bool](
     maxMessageSize: int = 1024 * 1024,
     rng: ref HmacDrbgContext = newRng(),
     parameters: PubParams = false,
+    msgHashProvider: MsgHashProvider = nil,
 ): P {.raises: [InitializationError], public.} =
   let pubsub =
     when PubParams is bool:
@@ -636,6 +644,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
+        msgHashProvider: msgHashProvider,
       )
     else:
       P(
@@ -651,6 +660,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
+        msgHashProvider: msgHashProvider,
       )
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
