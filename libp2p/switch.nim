@@ -204,7 +204,7 @@ proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
   let muxed = await trans.upgrade(conn, Opt.none(PeerId))
   switch.connManager.storeMuxer(muxed)
   await switch.peerStore.identify(muxed)
-  asyncSpawn switch.connManager.triggerPeerEvents(
+  await switch.connManager.triggerPeerEvents(
     muxed.connection.peerId, PeerEvent(kind: PeerEventKind.Identified, initiator: false)
   )
   trace "Connection upgrade succeeded"
