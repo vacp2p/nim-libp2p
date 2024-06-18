@@ -302,6 +302,11 @@ window.addEventListener("DOMContentLoaded", main2);
     title="publish(g: GossipSub; topic: string; data: seq[byte]): Future[int]">publish(g: GossipSub; topic: string; data: seq[byte]): Future[int]</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">rpcHandler
+      <li><a class="reference" href="#rpcHandler.e%2CGossipSub%2CPubSubPeer%2Cseq%5Bbyte%5D"
+    title="rpcHandler(g: GossipSub; peer: PubSubPeer; data: seq[byte]): Future[void]">rpcHandler(g: GossipSub; peer: PubSubPeer; data: seq[byte]): Future[void]</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">start
       <li><a class="reference" href="#start.e%2CGossipSub"
     title="start(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]">start(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]</a></li>
@@ -527,6 +532,20 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="rpcHandler.e,GossipSub,PubSubPeer,seq[byte]" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#rpcHandler.e%2CGossipSub%2CPubSubPeer%2Cseq%5Bbyte%5D"><span class="Identifier">rpcHandler</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="gossipsub/types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/gossipsub.nim#L541"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub.nim#L541" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="start.e,GossipSub" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#start.e%2CGossipSub"><span class="Identifier">start</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="gossipsub/types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.
     <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
@@ -583,7 +602,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-17 16:25:49 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-18 08:15:51 UTC</small>
       </div>
     </div>
   </div>
