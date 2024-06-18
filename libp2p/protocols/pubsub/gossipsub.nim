@@ -484,7 +484,7 @@ proc validateAndRelay(
         msg_hash = msg_hash,
         msg_id = shortLog(msgId),
         sender_peer_id = peer.peerId,
-        pubsub_topics = msg.topicIds,
+        pubsub_topic = msg.topic,
         num_peers = toSendPeers.len,
         target_peer_ids = toSeq(toSendPeers.mapIt(shortLog(it.peerId)))
     else:
@@ -492,7 +492,7 @@ proc validateAndRelay(
         msg_hash = msg_hash,
         msg_id = shortLog(msgId),
         sender_peer_id = peer.peerId,
-        pubsub_topics = msg.topicIds
+        pubsub_topic = msg.topic
 
     if g.knownTopics.contains(topic):
       libp2p_pubsub_messages_rebroadcasted.inc(
@@ -636,7 +636,7 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
       await g.punishInvalidMessage(peer, msg)
       continue
 
-    let msg_hash = g.msgHashProvider(msg.topicIds[0], msg.data).valueOr:
+    let msg_hash = g.msgHashProvider(msg.topic, msg.data).valueOr:
       debug "Dropping message due to failed message hash generation", msg_id = msgId
       continue
 
