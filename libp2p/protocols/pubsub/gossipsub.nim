@@ -636,9 +636,14 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
       await g.punishInvalidMessage(peer, msg)
       continue
 
-    let msg_hash = g.msgHashProvider(msg.topic, msg.data).valueOr:
-      debug "Dropping message due to failed message hash generation", msg_id = msgId
-      continue
+    var msg_hash: string
+
+    if g.msgHashProvider != nil:
+      msg_hash = g.msgHashProvider(msg.topic, msg.data).valueOr:
+        debug "Dropping message due to failed message hash generation", msg_id = msgId
+        continue
+    else:
+      debug "msgHashProvider is nil, skipping hash generation"
 
     trace "received msg",
       msg_hash = msg_hash, msg_id = shortLog(msgId), sender_peer_id = peer.peerId
@@ -788,10 +793,15 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
       trace "Error generating message id, skipping publish", error = error
       libp2p_gossipsub_failed_publish.inc()
       return 0
+
+  var msg_hash: string
+  if g.msgHashProvider != nil:
     msg_hash = g.msgHashProvider(topic, data).valueOr:
       trace "Error generating message hash, skipping publish", error = error
       libp2p_gossipsub_failed_publish.inc()
       return 0
+  else:
+    debug "msgHashProvider is nil, skipping hash generation"
 
   logScope:
     msg_id = shortLog(msgId)
