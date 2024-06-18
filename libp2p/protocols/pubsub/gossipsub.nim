@@ -784,7 +784,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
       else:
         inc g.msgSeqno
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msg_id = g.msgIdProvider(msg).valueOr:
+    msgId = g.msgIdProvider(msg).valueOr:
       trace "Error generating message id, skipping publish", error = error
       libp2p_gossipsub_failed_publish.inc()
       return 0
@@ -794,7 +794,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
       return 0
 
   logScope:
-    msg_id = shortLog(msg_id)
+    msg_id = shortLog(msgId)
     msg_hash = msg_hash
 
   trace "Created new message", msg = shortLog(msg), peers = peers.len
