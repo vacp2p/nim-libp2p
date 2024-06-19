@@ -480,7 +480,7 @@ proc validateAndRelay(
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     if toSendPeers.len > 0:
-      trace "forwarded message to peers",
+      notice "forwarded message to peers",
         msg_hash = msg_hash,
         msg_id = shortLog(msgId),
         sender_peer_id = peer.peerId,
@@ -488,7 +488,7 @@ proc validateAndRelay(
         num_peers = toSendPeers.len,
         target_peer_ids = toSeq(toSendPeers.mapIt(shortLog(it.peerId)))
     else:
-      trace "no peers to forward message",
+      notice "no peers to forward message",
         msg_hash = msg_hash,
         msg_id = shortLog(msgId),
         sender_peer_id = peer.peerId,
@@ -640,12 +640,12 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
 
     if g.msgHashProvider != nil:
       msg_hash = g.msgHashProvider(msg.topic, msg.data).valueOr:
-        debug "Dropping message due to failed message hash generation", msg_id = msgId
+        warn "Dropping message due to failed message hash generation", msg_id = msgId
         continue
     else:
       debug "msgHashProvider is nil, skipping hash generation"
 
-    trace "received msg",
+    notice "received msg",
       msg_hash = msg_hash, msg_id = shortLog(msgId), sender_peer_id = peer.peerId
 
     # g.anonymize needs no evaluation when receiving messages
@@ -797,7 +797,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   var msg_hash: string
   if g.msgHashProvider != nil:
     msg_hash = g.msgHashProvider(topic, data).valueOr:
-      trace "Error generating message hash, skipping publish", error = error
+      warn "Error generating message hash, skipping publish", error = error
       libp2p_gossipsub_failed_publish.inc()
       return 0
   else:
@@ -818,7 +818,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
 
   g.mcache.put(msgId, msg)
 
-  trace "publish message to peers",
+  notice "publish message to peers",
     num_peers = peers.len, target_peer_ids = toSeq(peers.mapIt(shortLog(it.peerId)))
 
   g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
