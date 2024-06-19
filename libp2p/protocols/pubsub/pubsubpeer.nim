@@ -19,7 +19,9 @@ import rpc/[messages, message, protobuf],
        ../../stream/connection,
        ../../crypto/crypto,
        ../../protobuf/minprotobuf,
-       ../../utility
+       ../../utility,
+       ../../utils/semaphore
+import atomics
 
 export peerid, connection, deques
 
@@ -36,6 +38,12 @@ when defined(pubsubpeer_queue_metrics):
   declareGauge(libp2p_gossipsub_non_priority_queue_size, "the number of messages in the non-priority queue", labels = ["id"])
 
 declareCounter(libp2p_pubsub_disconnects_over_non_priority_queue_limit, "number of peers disconnected due to over non-prio queue capacity")
+
+var 
+  libp2p_gossipsub_staggerDontWantSave2: Atomic[int]
+  libp2p_gossipsub_staggerDontWantSave3: Atomic[int]
+
+export libp2p_gossipsub_staggerDontWantSave2, libp2p_gossipsub_staggerDontWantSave3
 
 const
   DefaultMaxNumElementsInNonPriorityQueue* = 1024
@@ -59,11 +67,15 @@ type
   DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [].} # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
 
+  MessageWithSaltedId = object
+    message: seq[byte]
+    sid: SaltedId
+
   RpcMessageQueue* = ref object
     # Tracks async tasks for sending high-priority peer-published messages.
     sendPriorityQueue: Deque[Future[void]]
     # Queue for lower-priority messages, like "IWANT" replies and relay messages.
-    nonPriorityQueue: AsyncQueue[seq[byte]]
+    nonPriorityQueue: AsyncQueue[MessageWithSaltedId]
     # Task for processing non-priority message queue.
     sendNonPriorityTask: Future[void]
 
@@ -91,6 +103,7 @@ type
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
 
+    semTxLimit: ptr AsyncSemaphore             #Control Max simultaneous transmissions to speed up indivisual receptions
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int # The max number of elements allowed in the non-priority queue.
     disconnected: bool
@@ -106,6 +119,10 @@ when defined(libp2p_agents_metrics):
       #TODO the sendConn is setup before identify,
       #so we have to read the parents short agent..
       p.sendConn.getWrapped().shortAgent
+
+proc newMessageWithSaltedId(msg: seq[byte], saltedId: SaltedId): MessageWithSaltedId =
+  result.message = msg
+  result.sid = saltedId
 
 proc getAgent*(peer: PubSubPeer): string =
   return
@@ -311,24 +328,49 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
     debug "No send connection", p, msg = shortLog(msg)
     return
 
-  trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-  await sendMsgContinue(conn, conn.writeLp(msg))
-
-proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
+proc sendMsg(p: PubSubPeer, msg: seq[byte], saltedId: Option[SaltedId] = none(SaltedId)): Future[void] {.async.}=
+  if p.sendConn == nil or p.sendConn.closed():
+    await sendMsgSlow(p, msg)
+  
   if p.sendConn != nil and not p.sendConn.closed():
-    # Fast path that avoids copying msg (which happens for {.async.})
     let conn = p.sendConn
-
     trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-    let f = conn.writeLp(msg)
-    if not f.completed():
-      sendMsgContinue(conn, f)
-    else:
-      f
-  else:
-    sendMsgSlow(p, msg)
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[void] =
+    if msg.len < 2000:
+      try:
+        let f = conn.writeLp(msg)
+        await f
+      except:
+        await conn.close()
+    else:
+      await p.semTxLimit[].acquire()
+      #We may have received DontWant for the message
+      if saltedId.isSome:
+        for heDontWant in p.heDontWants:
+          if saltedId.get in heDontWant:
+            p.semTxLimit[].release()
+            atomicInc(libp2p_gossipsub_staggerDontWantSave2)
+            return
+      try:
+        let f = conn.writeLp(msg)
+        let turns = (msg.len div 100_000) + 1
+        for i in 1..turns:
+          await f or sleepAsync(200.milliseconds)   #sleep time should be adaptive to the peer bandwidth
+          if not f.completed and saltedId.isSome:
+            for heDontWant in p.heDontWants:
+              if saltedId.get in heDontWant:
+                atomicInc(libp2p_gossipsub_staggerDontWantSave3)
+                break
+        if not f.completed:
+          await f.cancelAndWait()
+          #asyncSpawn sendMsgContinue(conn, f)
+        p.semTxLimit[].release()
+      
+      except LPStreamError as exc:
+        p.semTxLimit[].release()
+        await conn.close()
+    
+proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool, saltedId: Option[SaltedId] = none(SaltedId)): Future[void] =
   ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
   ##
   ## Parameters:
@@ -354,7 +396,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     info "trying to send a msg too big for pubsub", maxSize=p.maxMessageSize, msgSize=msg.len
     Future[void].completed()
   elif isHighPriority or emptyQueues:
-    let f = p.sendMsg(msg)
+    let f = p.sendMsg(msg, saltedId)
     if not f.finished:
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
       when defined(pubsubpeer_queue_metrics):
@@ -369,10 +411,13 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
       else:
         Future[void].completed()
     else:
-      let f = p.rpcmessagequeue.nonPriorityQueue.addLast(msg)
-      when defined(pubsubpeer_queue_metrics):
-        libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
-      f
+      if not saltedId.isSome:
+        Future[void].completed()
+      else:
+        let f = p.rpcmessagequeue.nonPriorityQueue.addLast(newMessageWithSaltedId(msg, saltedId.get))
+        when defined(pubsubpeer_queue_metrics):
+          libp2p_gossipsub_non_priority_queue_size.inc(labelValues = [$p.peerId])
+        f
 
 iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool): seq[byte] =
   ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
@@ -409,7 +454,7 @@ iterator splitRPCMsg(peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: 
   else:
     trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
-proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.raises: [].} =
+proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool, saltedId: Option[SaltedId] = none(SaltedId)) {.raises: [].} =
   ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
   ##
   ## Parameters:
@@ -438,11 +483,11 @@ proc send*(p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool) {.
 
   if encoded.len > p.maxMessageSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
-      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority)
+      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority, saltedId)
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    asyncSpawn p.sendEncoded(encoded, isHighPriority)
+    asyncSpawn p.sendEncoded(encoded, isHighPriority, saltedId)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -467,7 +512,8 @@ proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
         discard await race(p.rpcmessagequeue.sendPriorityQueue[^1])
      when defined(pubsubpeer_queue_metrics):
        libp2p_gossipsub_non_priority_queue_size.dec(labelValues = [$p.peerId])
-     await p.sendMsg(msg)
+     await p.sendMsg(msg.message, some(msg.sid))
+     #asyncSpawn p.sendMsg(msg.message, some(msg.sid))
 
 proc startSendNonPriorityTask(p: PubSubPeer) =
   debug "starting sendNonPriorityTask", p
@@ -489,7 +535,7 @@ proc stopSendNonPriorityTask*(p: PubSubPeer) =
 proc new(T: typedesc[RpcMessageQueue]): T =
   return T(
     sendPriorityQueue: initDeque[Future[void]](),
-    nonPriorityQueue: newAsyncQueue[seq[byte]]()
+    nonPriorityQueue: newAsyncQueue[MessageWithSaltedId]()
   )
 
 proc new*(
@@ -499,6 +545,7 @@ proc new*(
   onEvent: OnEvent,
   codec: string,
   maxMessageSize: int,
+  sem: ptr AsyncSemaphore,
   maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
   overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T =
 
@@ -516,3 +563,4 @@ proc new*(
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.heDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()
+  result.semTxLimit = sem

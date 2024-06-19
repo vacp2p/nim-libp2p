@@ -432,10 +432,19 @@ proc validateAndRelay(g: GossipSub,
           break
     toSendPeers.excl(peersWhoSentIdontwant) # avoids len(s) == length` the length of the HashSet changed while iterating over it [AssertionDefect]
 
+    #We first send to the outbound peers to avoid peers sending same message to each other
+    var outboundPeers: seq[PubSubPeer]
+    for mpeer in toSendPeers:
+      if mpeer.outbound():
+        outboundPeers.add(mpeer)
+    if outboundPeers.len > 0:
+      g.broadcast(outboundPeers, RPCMsg(messages: @[msg]), isHighPriority = false, some(saltedId))
+      toSendPeers.excl(outboundPeers.toHashSet)
+
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
-    trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
+    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false, some(saltedId))
+    trace "forwarded message to peers", peers = toSendPeers.len + outboundPeers.len, msgId, peer
 
     if g.knownTopics.contains(topic):
       libp2p_pubsub_messages_rebroadcasted.inc(toSendPeers.len.int64, labelValues = [topic])
@@ -543,6 +552,11 @@ method rpcHandler*(g: GossipSub,
         g.rewardDelivered(peer, topic, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
+
+      #Dont relay to the peers from which we already received 
+      #We do it for large messages only
+      if msg.data.len > msgId.len * 10:     
+        peer.heDontWants[^1].incl(msgIdSalted)
 
       # onto the next message
       continue
@@ -715,15 +729,23 @@ method publish*(g: GossipSub,
 
   g.mcache.put(msgId, msg)
 
+  #We first send to the outbound peers
+  var outboundPeers: seq[PubSubPeer]
+  for mpeer in peers:
+    if mpeer.outbound():
+      outboundPeers.add(mpeer)
+  if outboundPeers.len > 0:
+    g.broadcast(outboundPeers, RPCMsg(messages: @[msg]), isHighPriority = true)
+    peers.excl(outboundPeers.toHashSet)
   g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
 
   if g.knownTopics.contains(topic):
-    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
+    libp2p_pubsub_messages_published.inc( (peers.len + outboundPeers.len).int64, labelValues = [topic])
   else:
-    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
+    libp2p_pubsub_messages_published.inc( (peers.len + outboundPeers.len).int64, labelValues = ["generic"])
 
-  trace "Published message to peers", peers=peers.len
-  return peers.len
+  trace "Published message to peers", peers=peers.len + outboundPeers.len
+  return (peers.len + outboundPeers.len)
 
 proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
   if id notin g.peers:
