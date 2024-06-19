@@ -854,16 +854,16 @@ suite "GossipSub":
       isHighPriority = true,
     )
     checkUntilTimeout:
-      gossip2.mesh.getOrDefault("foobar").anyIt(it.heDontWants[^1].len == 1)
+      gossip2.mesh.getOrDefault("foobar").anyIt(it.iDontWants[^1].len == 1)
 
     tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
 
     await bFinished
 
     checkUntilTimeout:
-      toSeq(gossip3.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 1)
+      toSeq(gossip3.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 1)
     check:
-      toSeq(gossip1.mesh.getOrDefault("foobar")).anyIt(it.heDontWants[^1].len == 0)
+      toSeq(gossip1.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
@@ -1038,3 +1038,39 @@ suite "GossipSub":
     check currentRateLimitHits() == rateLimitHits + 2
 
     await stopNodes(nodes)
+
+  asyncTest "Peer must send right gosspipsub version":
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let node0 = generateNodes(1, gossip = true, msgIdProvider = dumbMsgIdProvider)[0]
+    let node1 = generateNodes(
+      1,
+      gossip = true,
+      msgIdProvider = dumbMsgIdProvider,
+      gossipSubVersion = GossipSubCodec_10,
+    )[0]
+
+    let nodesFut = await allFinished(node0.switch.start(), node1.switch.start())
+
+    await node0.switch.connect(
+      node1.switch.peerInfo.peerId, node1.switch.peerInfo.addrs
+    )
+
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    node0.subscribe("foobar", handler)
+    node1.subscribe("foobar", handler)
+    await waitSubGraph(@[node0, node1], "foobar")
+
+    var gossip0: GossipSub = GossipSub(node0)
+    var gossip1: GossipSub = GossipSub(node1)
+
+    checkUntilTimeout:
+      gossip0.mesh.getOrDefault("foobar").toSeq[0].codec == GossipSubCodec_10
+    checkUntilTimeout:
+      gossip1.mesh.getOrDefault("foobar").toSeq[0].codec == GossipSubCodec_10
+
+    await allFuturesThrowing(node0.switch.stop(), node1.switch.stop())
+
+    await allFuturesThrowing(nodesFut.concat())

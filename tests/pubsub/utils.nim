@@ -28,9 +28,9 @@ type TestGossipSub* = ref object of GossipSub
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, GossipSubCodec)
+    p.switch.dial(peerId, GossipSubCodec_12)
 
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec, 1024 * 1024)
+  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -70,6 +70,7 @@ proc generateNodes*(
     enablePX: bool = false,
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
+    gossipSubVersion: string = "",
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -100,6 +101,8 @@ proc generateNodes*(
         g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
         g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
         g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
+        if gossipSubVersion != "":
+          g.codecs = @[gossipSubVersion]
         g.PubSub
       else:
         FloodSub.init(

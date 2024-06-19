@@ -28,29 +28,3 @@ template asyncTest*(name: string, body: untyped): untyped =
           body
       )()
     )
-
-template flakyAsyncTest*(name: string, attempts: int, body: untyped): untyped =
-  test name:
-    var attemptNumber = 0
-    while attemptNumber < attempts:
-      let isLastAttempt = attemptNumber == attempts - 1
-      inc attemptNumber
-      try:
-        waitFor(
-          (
-            proc() {.async.} =
-              body
-          )()
-        )
-      except Exception as e:
-        if isLastAttempt:
-          raise e
-        else:
-          testStatusIMPL = TestStatus.FAILED
-      finally:
-        if not isLastAttempt:
-          if testStatusIMPL == TestStatus.FAILED:
-            # Retry
-            testStatusIMPL = TestStatus.OK
-          else:
-            break
