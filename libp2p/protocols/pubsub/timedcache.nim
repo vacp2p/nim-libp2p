@@ -29,6 +29,7 @@ type
     head, tail: TimedEntry[K] # nim linked list doesn't allow inserting at pos
     entries: HashSet[TimedEntry[K]]
     timeout: Duration
+    maxSize: int # Optional max size of the cache, 0 means unlimited
 
 func `==`*[E](a, b: TimedEntry[E]): bool =
   if isNil(a) == isNil(b):
@@ -49,6 +50,16 @@ func expire*(t: var TimedCache, now: Moment = Moment.now()) =
     t.head = t.head.next
     if t.head == nil:
       t.tail = nil
+
+func evictIfNeeded[K](t: var TimedCache, k: K) =
+  if t.maxSize > 0 and t.entries.len() >= t.maxSize and k notin t:
+    if t.head != nil:
+      t.entries.excl(t.head)
+      t.head = t.head.next
+      if t.head != nil:
+        t.head.prev = nil
+      else:
+        t.tail = nil
 
 func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
   # Removes existing key from cache, returning the previous value if present
@@ -79,6 +90,7 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   # otherwise. If the item was already present, its expiry timer will be
   # refreshed.
   t.expire(now)
+  t.evictIfNeeded(k)
 
   let
     previous = t.del(k) # Refresh existing item
@@ -128,5 +140,5 @@ func addedAt*[K](t: var TimedCache[K], k: K): Moment =
 
   default(Moment)
 
-func init*[K](T: type TimedCache[K], timeout: Duration = Timeout): T =
-  T(timeout: timeout)
+func init*[K](T: type TimedCache[K], timeout: Duration = Timeout, maxSize: int = 0): T =
+  T(timeout: timeout, maxSize: maxSize)
