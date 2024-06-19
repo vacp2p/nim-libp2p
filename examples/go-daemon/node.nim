@@ -1,26 +1,25 @@
 import chronos, nimcrypto, strutils, os
 import ../../libp2p/daemon/daemonapi
 
-const
-  PubSubTopic = "test-net"
+const PubSubTopic = "test-net"
 
 proc main(bn: string) {.async.} =
   echo "= Starting P2P node"
   var bootnodes = bn.split(",")
-  var api = await newDaemonApi({DHTFull, PSGossipSub, WaitBootstrap},
-                               bootstrapNodes = bootnodes,
-                               peersRequired = 1)
+  var api = await newDaemonApi(
+    {DHTFull, PSGossipSub, WaitBootstrap}, bootstrapNodes = bootnodes, peersRequired = 1
+  )
   var id = await api.identity()
   echo "= P2P node ", id.peer.pretty(), " started:"
   for item in id.addresses:
     echo item
 
-  proc pubsubLogger(api: DaemonAPI,
-                    ticket: PubsubTicket,
-                    message: PubSubMessage): Future[bool] {.async.} =
+  proc pubsubLogger(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async.} =
     let msglen = len(message.data)
-    echo "= Recieved pubsub message with length ", msglen,
-         " bytes from peer ", message.peer.pretty(), ": "
+    echo "= Recieved pubsub message with length ",
+      msglen, " bytes from peer ", message.peer.pretty(), ": "
     var strdata = cast[string](message.data)
     echo strdata
     result = true

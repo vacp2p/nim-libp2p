@@ -1,20 +1,28 @@
 import ../config.nims
 import strutils, os
 
---threads:on
---d:metrics
---d:withoutPCRE
---d:libp2p_agents_metrics
---d:libp2p_protobuf_metrics
---d:libp2p_network_protocols_metrics
---d:libp2p_mplex_metrics
---d:unittestPrintTime
+--threads:
+  on
+--d:
+  metrics
+--d:
+  withoutPCRE
+--d:
+  libp2p_agents_metrics
+--d:
+  libp2p_protobuf_metrics
+--d:
+  libp2p_network_protocols_metrics
+--d:
+  libp2p_mplex_metrics
+--d:
+  unittestPrintTime
 --skipParentCfg
 
 # Only add chronicles param if the
 # user didn't specify any
 var hasChroniclesParam = false
-for param in 0..<system.paramCount():
+for param in 0 ..< system.paramCount():
   if "chronicles" in system.paramStr(param):
     hasChroniclesParam = true
 

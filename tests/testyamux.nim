@@ -11,12 +11,7 @@
 
 import sugar
 import chronos
-import
-  ../libp2p/[
-    stream/connection,
-    muxers/yamux/yamux
-  ],
-  ./helpers
+import ../libp2p/[stream/connection, muxers/yamux/yamux], ./helpers
 
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()
@@ -25,21 +20,24 @@ suite "Yamux":
   teardown:
     checkTrackers()
 
-  template mSetup(ws: int = YamuxDefaultWindowSize,
-                  inTo: Duration = 5.minutes,
-                  outTo: Duration = 5.minutes) {.inject.} =
+  template mSetup(
+      ws: int = YamuxDefaultWindowSize,
+      inTo: Duration = 5.minutes,
+      outTo: Duration = 5.minutes,
+  ) {.inject.} =
     #TODO in a template to avoid threadvar
     let
       (conna {.inject.}, connb {.inject.}) = bridgedConnections()
-      yamuxa {.inject.} = Yamux.new(conna, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
-      yamuxb {.inject.} = Yamux.new(connb, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
+      yamuxa {.inject.} =
+        Yamux.new(conna, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
+      yamuxb {.inject.} =
+        Yamux.new(connb, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
       (handlera, handlerb) = (yamuxa.handle(), yamuxb.handle())
 
     defer:
       await allFutures(
-        conna.close(), connb.close(),
-        yamuxa.close(), yamuxb.close(),
-        handlera, handlerb)
+        conna.close(), connb.close(), yamuxa.close(), yamuxb.close(), handlera, handlerb
+      )
 
   suite "Simple Reading/Writing yamux messages":
     asyncTest "Roundtrip of small messages":
@@ -86,7 +84,8 @@ suite "Yamux":
       await streamA.close()
       readerBlocker.complete()
       await handlerBlocker
-      check: numberOfRead == 10
+      check:
+        numberOfRead == 10
 
   suite "Window exhaustion":
     asyncTest "Basic exhaustion blocking":
@@ -109,7 +108,8 @@ suite "Yamux":
 
       let secondWriter = streamA.write(newSeq[byte](20))
       await sleepAsync(10.milliseconds)
-      check: not secondWriter.finished()
+      check:
+        not secondWriter.finished()
 
       readerBlocker.complete()
       await wait(secondWriter, 1.seconds)
@@ -151,7 +151,8 @@ suite "Yamux":
       let streamB = await yamuxa.newStream()
       await streamB.writeLp(fromHex("1234"))
       check (await streamB.readLp(100)) == fromHex("5678")
-      check: not secondWriter.finished()
+      check:
+        not secondWriter.finished()
       readerBlocker.complete()
 
       await wait(secondWriter, 1.seconds)
@@ -195,7 +196,8 @@ suite "Yamux":
         await writerBlocker
         try:
           var buffer: array[256, byte]
-          check: (await conn.readOnce(addr buffer[0], 256)) == 0
+          check:
+            (await conn.readOnce(addr buffer[0], 256)) == 0
         except CancelledError, LPStreamError:
           return
         finally:
@@ -206,10 +208,11 @@ suite "Yamux":
 
       await streamA.write(newSeq[byte](256000))
       let wrFut = collect(newSeq):
-        for _ in 0..3:
+        for _ in 0 .. 3:
           streamA.write(newSeq[byte](100000))
-      for i in 0..3:
-        expect(LPStreamEOFError): await wrFut[i]
+      for i in 0 .. 3:
+        expect(LPStreamEOFError):
+          await wrFut[i]
       writerBlocker.complete()
       await streamA.close()
 
@@ -233,7 +236,8 @@ suite "Yamux":
 
       let secondWriter = streamA.write(newSeq[byte](10000))
       await sleepAsync(10.milliseconds)
-      check: not secondWriter.finished()
+      check:
+        not secondWriter.finished()
 
       readerBlocker.complete()
       await wait(secondWriter, 1.seconds)
@@ -264,14 +268,16 @@ suite "Yamux":
 
       let secondWriter = streamA.write(newSeq[byte](64000))
       await sleepAsync(10.milliseconds)
-      check: not secondWriter.finished()
+      check:
+        not secondWriter.finished()
 
       readerBlocker1.complete()
       await wait(secondWriter, 1.seconds)
 
       let thirdWriter = streamA.write(newSeq[byte](10))
       await sleepAsync(10.milliseconds)
-      check: not thirdWriter.finished()
+      check:
+        not thirdWriter.finished()
 
       readerBlocker2.complete()
       await wait(thirdWriter, 1.seconds)
@@ -341,7 +347,8 @@ suite "Yamux":
           return
         finally:
           await conn.close()
-        expect LPStreamClosedError: await conn.writeLp(fromHex("102030"))
+        expect LPStreamClosedError:
+          await conn.writeLp(fromHex("102030"))
         try:
           check (await conn.readLp(100)) == fromHex("5678")
         except CancelledError, LPStreamError:
@@ -351,7 +358,8 @@ suite "Yamux":
       check streamA == yamuxa.getStreams()[0]
 
       await streamA.writeLp(fromHex("1234"))
-      expect LPStreamRemoteClosedError: discard await streamA.readLp(100)
+      expect LPStreamRemoteClosedError:
+        discard await streamA.readLp(100)
       await streamA.writeLp(fromHex("5678"))
       await streamA.close()
 
@@ -362,8 +370,10 @@ suite "Yamux":
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await blocker
         try:
-          expect LPStreamResetError: discard await conn.readLp(100)
-          expect LPStreamResetError: await conn.writeLp(fromHex("1234"))
+          expect LPStreamResetError:
+            discard await conn.readLp(100)
+          expect LPStreamResetError:
+            await conn.writeLp(fromHex("1234"))
         except CancelledError, LPStreamError:
           return
         finally:
@@ -373,8 +383,10 @@ suite "Yamux":
       check streamA == yamuxa.getStreams()[0]
 
       await yamuxa.close()
-      expect LPStreamClosedError: await streamA.writeLp(fromHex("1234"))
-      expect LPStreamClosedError: discard await streamA.readLp(100)
+      expect LPStreamClosedError:
+        await streamA.writeLp(fromHex("1234"))
+      expect LPStreamClosedError:
+        discard await streamA.readLp(100)
       blocker.complete()
       await streamA.close()
 

@@ -13,10 +13,9 @@
 
 import varint, strutils
 
-type
-  VBuffer* = object
-    buffer*: seq[byte]
-    offset*: int
+type VBuffer* = object
+  buffer*: seq[byte]
+  offset*: int
 
 template isEmpty*(vb: VBuffer): bool =
   ## Returns ``true`` if buffer ``vb`` is empty.
@@ -57,8 +56,7 @@ proc writePBVarint*(vb: var VBuffer, value: PBSomeUVarint) =
   var length = 0
   var v = value and cast[type(value)](0xFFFF_FFFF_FFFF_FFFF)
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
-  let res = PB.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
-                          length, v)
+  let res = PB.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, v)
   doAssert(res.isOk())
   vb.offset += length
 
@@ -68,28 +66,28 @@ proc writeLPVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   # LibP2P varint supports only 63 bits.
   var v = value and cast[type(value)](0x7FFF_FFFF_FFFF_FFFF)
   vb.buffer.setLen(len(vb.buffer) + vsizeof(v))
-  let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
-                          length, v)
+  let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, v)
   doAssert(res.isOk())
   vb.offset += length
 
 proc writeVarint*(vb: var VBuffer, value: LPSomeUVarint) =
   writeLPVarint(vb, value)
 
-proc writeSeq*[T: byte|char](vb: var VBuffer, value: openArray[T]) =
+proc writeSeq*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
   ## Write array ``value`` to buffer ``vb``, value will be prefixed with
   ## varint length of the array.
   var length = 0
   vb.buffer.setLen(len(vb.buffer) + vsizeof(uint(len(value))) + len(value))
-  let res = LP.putUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high),
-                          length, uint(len(value)))
+  let res = LP.putUVarint(
+    toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, uint(len(value))
+  )
   doAssert(res.isOk())
   vb.offset += length
   if len(value) > 0:
     copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))
     vb.offset += len(value)
 
-proc writeArray*[T: byte|char](vb: var VBuffer, value: openArray[T]) =
+proc writeArray*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
   ## Write array ``value`` to buffer ``vb``, value will NOT be prefixed with
   ## varint length of the array.
   if len(value) > 0:
@@ -111,12 +109,12 @@ proc peekVarint*(vb: var VBuffer, value: var LPSomeUVarint): int =
   value = cast[type(value)](0)
   var length = 0
   if not vb.isEmpty():
-    let res = LP.getUVarint(
-      toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, value)
+    let res =
+      LP.getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, value)
     if res.isOk():
       result = length
 
-proc peekSeq*[T: string|seq[byte]](vb: var VBuffer, value: var T): int =
+proc peekSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int =
   ## Peek length prefixed array from buffer ``vb`` and store result to
   ## ``value``.
   ##
@@ -128,7 +126,9 @@ proc peekSeq*[T: string|seq[byte]](vb: var VBuffer, value: var T): int =
   var length = 0
   var size = 0'u64
   if not vb.isEmpty() and
-     LP.getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, size).isOk():
+      LP
+      .getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, size)
+      .isOk():
     vb.offset += length
     result = length
     if vb.isEnough(int(size)):
@@ -138,8 +138,7 @@ proc peekSeq*[T: string|seq[byte]](vb: var VBuffer, value: var T): int =
       result += int(size)
     vb.offset -= length
 
-proc peekArray*[T: char|byte](vb: var VBuffer,
-                              value: var openArray[T]): int =
+proc peekArray*[T: char | byte](vb: var VBuffer, value: var openArray[T]): int =
   ## Peek array from buffer ``vb`` and store result to ``value``.
   ##
   ## This procedure will not adjust internal offset.
@@ -160,8 +159,7 @@ proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): int {.inline.} =
   if result != -1:
     vb.offset += result
 
-proc readSeq*[T: string|seq[byte]](vb: var VBuffer,
-                                   value: var T): int {.inline.} =
+proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int {.inline.} =
   ## Read length prefixed array from buffer ``vb`` and store result to
   ## ``value``.
   ##
@@ -170,8 +168,9 @@ proc readSeq*[T: string|seq[byte]](vb: var VBuffer,
   if result != -1:
     vb.offset += result
 
-proc readArray*[T: char|byte](vb: var VBuffer,
-                              value: var openArray[T]): int {.inline.} =
+proc readArray*[T: char | byte](
+    vb: var VBuffer, value: var openArray[T]
+): int {.inline.} =
   ## Read array from buffer ``vb`` and store result to ``value``.
   ##
   ## Returns number of bytes consumed from ``vb`` or ``-1`` on error.
@@ -183,5 +182,5 @@ proc `$`*(vb: VBuffer): string =
   ## Return hexadecimal string representation of buffer ``vb``.
   let length = (len(vb.buffer) - vb.offset) * 2
   result = newStringOfCap(length)
-  for i in 0..<len(vb.buffer):
+  for i in 0 ..< len(vb.buffer):
     result.add(toHex(vb.buffer[i]))

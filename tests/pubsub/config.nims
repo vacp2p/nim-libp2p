@@ -1,7 +1,7 @@
 import strutils
 
-proc hasSkipParentCfg: bool =
-  for param in 0..<paramCount():
+proc hasSkipParentCfg(): bool =
+  for param in 0 ..< paramCount():
     if "skipParent" in paramStr(param):
       return true
 

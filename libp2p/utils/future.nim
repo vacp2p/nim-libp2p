@@ -11,8 +11,7 @@
 
 import chronos
 
-type
-  AllFuturesFailedError* = object of CatchableError
+type AllFuturesFailedError* = object of CatchableError
 
 proc anyCompleted*[T](futs: seq[Future[T]]): Future[Future[T]] {.async.} =
   ## Returns a future that will complete with the first future that completes.
@@ -22,7 +21,9 @@ proc anyCompleted*[T](futs: seq[Future[T]]): Future[Future[T]] {.async.} =
 
   while true:
     if requests.len == 0:
-      raise newException(AllFuturesFailedError, "None of the futures completed successfully")
+      raise newException(
+        AllFuturesFailedError, "None of the futures completed successfully"
+      )
 
     var raceFut = await one(requests)
     if raceFut.completed:

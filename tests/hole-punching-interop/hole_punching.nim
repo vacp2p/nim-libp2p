@@ -1,24 +1,29 @@
-import std/[os, options, strformat]
+import std/[os, options, strformat, sequtils]
 import redis
 import chronos, chronicles
-import ../../libp2p/[builders,
-                  switch,
-                  observedaddrmanager,
-                  services/hpservice,
-                  services/autorelayservice,
-                  protocols/connectivity/autonat/client as aclient,
-                  protocols/connectivity/relay/client as rclient,
-                  protocols/connectivity/relay/relay,
-                  protocols/connectivity/autonat/service,
-                  protocols/ping]
+import
+  ../../libp2p/[
+    builders,
+    switch,
+    multicodec,
+    observedaddrmanager,
+    services/hpservice,
+    services/autorelayservice,
+    protocols/connectivity/autonat/client as aclient,
+    protocols/connectivity/relay/client as rclient,
+    protocols/connectivity/relay/relay,
+    protocols/connectivity/autonat/service,
+    protocols/ping,
+  ]
 import ../stubs/autonatclientstub
 import ../errorhelpers
 
 proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   let rng = newRng()
-  var builder = SwitchBuilder.new()
+  var builder = SwitchBuilder
+    .new()
     .withRng(rng)
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withObservedAddrManager(ObservedAddrManager.new(maxSize = 1, minCount = 1))
     .withTcpTransport({ServerFlags.TcpNoDelay})
     .withYamux()
@@ -31,8 +36,8 @@ proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   if r != nil:
     builder = builder.withCircuitRelay(r)
 
-  let s =  builder.build()
-  s.mount(Ping.new(rng=rng))
+  let s = builder.build()
+  s.mount(Ping.new(rng = rng))
   return s
 
 proc main() {.async.} =
@@ -41,7 +46,8 @@ proc main() {.async.} =
     let autoRelayService = AutoRelayService.new(1, relayClient, nil, newRng())
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
-    let autonatService = AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
+    let autonatService =
+      AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
     let hpservice = HPService.new(autonatService, autoRelayService)
 
     let
@@ -76,7 +82,10 @@ proc main() {.async.} =
     debug "Connected to relay", relayId
 
     # Wait for our relay address to be published
-    while switch.peerInfo.addrs.len == 0:
+    while not switch.peerInfo.addrs.anyIt(
+      it.contains(multiCodec("p2p-circuit")).tryGet()
+    )
+    :
       await sleepAsync(100.milliseconds)
 
     if isListener:
@@ -105,7 +114,9 @@ proc main() {.async.} =
       let conn = switch.connManager.selectMuxer(listenerId).connection
       let channel = await switch.dial(listenerId, @[listenerRelayAddr], PingCodec)
       let delay = await Ping.new().ping(channel)
-      await allFuturesThrowing(channel.close(), conn.close(), switch.stop(), auxSwitch.stop())
+      await allFuturesThrowing(
+        channel.close(), conn.close(), switch.stop(), auxSwitch.stop()
+      )
       echo &"""{{"rtt_to_holepunched_peer_millis":{delay.millis}}}"""
       quit(0)
   except CatchableError as e:

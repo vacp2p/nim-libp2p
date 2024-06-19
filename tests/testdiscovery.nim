@@ -10,22 +10,26 @@
 # those terms.
 
 import options, chronos, sets
-import ../libp2p/[protocols/rendezvous,
-                  switch,
-                  builders,
-                  discovery/discoverymngr,
-                  discovery/rendezvousinterface,]
+import
+  ../libp2p/[
+    protocols/rendezvous,
+    switch,
+    builders,
+    discovery/discoverymngr,
+    discovery/rendezvousinterface,
+  ]
 import ./helpers
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder.new()
-    .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .withRendezVous(rdv)
-    .build()
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .withRendezVous(rdv)
+  .build()
 
 suite "Discovery":
   teardown:

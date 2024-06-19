@@ -227,7 +227,7 @@ const
        DAA3C8C35515BDBBCBB73C023814531D5D880017DEF1D79EA68C66774009396A
        226A426A5BFCC35CB5D2C4718229AC2367BF7D4FB2379093D3607A2EBFBA778C
        C40489622820A790E236BBB62BEAE9961D165D0784FFBA77A2999638D5AA7313
-       2BF2E6C334598283CFFA28CD"""
+       2BF2E6C334598283CFFA28CD""",
   ]
 
   PublicKeys = [
@@ -272,12 +272,10 @@ const
        4DF9B17DFED8B01CCE57F78DD3EB1A408C900024CDB1C5C909F55DC9D8C9E1F3
        8DD52A3DB9287276D556FC1E5CADB7F727A0C74108CF0F8D88948331E024FA6E
        BBB064302E58B4FD3EAD0135CA0BAE5BEB2DC6DD5CAC02EF7A59743F5415109D
-       750203010001"""
+       750203010001""",
   ]
 
-  Messages = [
-    "sample", "test", "sample", "test", "sample", "test"
-  ]
+  Messages = ["sample", "test", "sample", "test", "sample", "test"]
 
   Signatures = [
     """30768DB2A850D5F3F9044D2C7545C3E3D30B03B6F8159D305F19B1CF939C1336
@@ -351,7 +349,7 @@ const
        29E98C648410A8107EEADA3FAFD32B5AEF12D4E991EAA8364FDFF5AE1C9F34ED
        28B120B402C92717B0D480B5DE8D53CADC0903296614158F0DFC38505762C829
        9DC529573BBF8C149D5E1E8745F9B72D4E68607C859327AF54D0013F37542236
-       ACB51807206B8332127E3692269013B96F0CABD95D7431805E48176ADC5D1366"""
+       ACB51807206B8332127E3692269013B96F0CABD95D7431805E48176ADC5D1366""",
   ]
 
 let rng = newRng()
@@ -482,7 +480,7 @@ suite "RSA 2048/3072/4096 test suite":
     var csig = RsaSignature.init(sersig).expect("key initialization")
     check csig.verify(message, pubkey) == true
     let error = csig.buffer.high
-    csig.buffer[error] = not(csig.buffer[error])
+    csig.buffer[error] = not (csig.buffer[error])
     check csig.verify(message, pubkey) == false
 
   test "[rsa3072] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -497,7 +495,7 @@ suite "RSA 2048/3072/4096 test suite":
     var csig = RsaSignature.init(sersig).expect("key initialization")
     check csig.verify(message, pubkey) == true
     let error = csig.buffer.high
-    csig.buffer[error] = not(csig.buffer[error])
+    csig.buffer[error] = not (csig.buffer[error])
     check csig.verify(message, pubkey) == false
 
   test "[rsa4096] Generate/Sign/Serialize/Deserialize/Verify test":
@@ -513,7 +511,7 @@ suite "RSA 2048/3072/4096 test suite":
       var csig = RsaSignature.init(sersig).expect("key initialization")
       check csig.verify(message, pubkey) == true
       let error = csig.buffer.high
-      csig.buffer[error] = not(csig.buffer[error])
+      csig.buffer[error] = not (csig.buffer[error])
       check csig.verify(message, pubkey) == false
     else:
       skip()
@@ -531,7 +529,7 @@ suite "RSA 2048/3072/4096 test suite":
       pubkey.getBytes().expect("bytes") == cpubkey.getBytes().expect("bytes")
       pubkey.getBytes().expect("bytes") == pubser
 
-    for i in 0..1:
+    for i in 0 .. 1:
       var sigser = fromHex(stripSpaces(Signatures[i]))
       var sig = RsaSignature.init(sigser).expect("key initialization")
       var csig = seckey.sign(Messages[i]).expect("signature")
@@ -554,7 +552,7 @@ suite "RSA 2048/3072/4096 test suite":
       pubkey.getBytes().expect("bytes") == cpubkey.getBytes().expect("bytes")
       pubkey.getBytes().expect("bytes") == pubser
 
-    for i in 0..1:
+    for i in 0 .. 1:
       var sigser = fromHex(stripSpaces(Signatures[2 + i]))
       var sig = RsaSignature.init(sigser).expect("key initialization")
       var csig = seckey.sign(Messages[2 + i]).expect("signature")
@@ -577,7 +575,7 @@ suite "RSA 2048/3072/4096 test suite":
       pubkey.getBytes().expect("bytes") == cpubkey.getBytes().expect("bytes")
       pubkey.getBytes().expect("bytes") == pubser
 
-    for i in 0..1:
+    for i in 0 .. 1:
       var sigser = fromHex(stripSpaces(Signatures[4 + i]))
       var sig = RsaSignature.init(sigser).expect("key initialization")
       var csig = seckey.sign(Messages[4 + i]).expect("signature")

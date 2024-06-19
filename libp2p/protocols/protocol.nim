@@ -14,24 +14,21 @@ import ../stream/connection
 
 export results
 
-const
-  DefaultMaxIncomingStreams* = 10
+const DefaultMaxIncomingStreams* = 10
 
 type
-  LPProtoHandler* = proc (
-      conn: Connection,
-      proto: string): Future[void] {.async.}
+  LPProtoHandler* = proc(conn: Connection, proto: string): Future[void] {.async.}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
-    handlerImpl: LPProtoHandler  ## invoked by the protocol negotiator
+    handlerImpl: LPProtoHandler ## invoked by the protocol negotiator
     started*: bool
     maxIncomingStreams: Opt[int]
 
-method init*(p: LPProtocol) {.base, gcsafe.} = discard
+method init*(p: LPProtocol) {.base, gcsafe.} =
+  discard
 
-method start*(
-    p: LPProtocol) {.async: (raises: [CancelledError], raw: true), base.} =
+method start*(p: LPProtocol) {.async: (raises: [CancelledError], raw: true), base.} =
   let fut = newFuture[void]()
   fut.complete()
   p.started = true
@@ -61,8 +58,7 @@ func `codec=`*(p: LPProtocol, codec: string) =
 template `handler`*(p: LPProtocol): LPProtoHandler =
   p.handlerImpl
 
-template `handler`*(
-    p: LPProtocol, conn: Connection, proto: string): Future[void] =
+template `handler`*(p: LPProtocol, conn: Connection, proto: string): Future[void] =
   p.handlerImpl(conn, proto)
 
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
@@ -76,33 +72,37 @@ func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
 # https://github.com/nim-lang/Nim/issues/23432
 func `handler=`*[E](
     p: LPProtocol,
-    handler: proc (
-      conn: Connection,
-      proto: string): InternalRaisesFuture[void, E]) =
+    handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
+) =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)
+
   p.handlerImpl = wrap
 
 proc new*(
     T: type LPProtocol,
     codecs: seq[string],
     handler: LPProtoHandler,
-    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
+    maxIncomingStreams: Opt[int] | int = Opt.none(int),
+): T =
   T(
     codecs: codecs,
     handlerImpl: handler,
     maxIncomingStreams:
-      when maxIncomingStreams is int: Opt.some(maxIncomingStreams)
-      else: maxIncomingStreams
+      when maxIncomingStreams is int:
+        Opt.some(maxIncomingStreams)
+      else:
+        maxIncomingStreams
+    ,
   )
 
 proc new*[E](
     T: type LPProtocol,
     codecs: seq[string],
-    handler: proc (
-      conn: Connection,
-      proto: string): InternalRaisesFuture[void, E],
-    maxIncomingStreams: Opt[int] | int = Opt.none(int)): T =
+    handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
+    maxIncomingStreams: Opt[int] | int = Opt.none(int),
+): T =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)
+
   T.new(codec, wrap, maxIncomingStreams)

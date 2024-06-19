@@ -35,26 +35,24 @@ proc dumpHex*(pbytes: pointer, nbytes: int, items = 1, ascii = true): string =
   var asciiText = ""
   while i < nbytes:
     if i %% 16 == 0:
-      result = result & toHex(cast[BiggestInt](slider),
-                              sizeof(BiggestInt) * 2) & ":  "
+      result = result & toHex(cast[BiggestInt](slider), sizeof(BiggestInt) * 2) & ":  "
     var k = 0
     while k < items:
       var ch = cast[ptr char](cast[uint](slider) + k.uint)[]
-      if ord(ch) > 31 and ord(ch) < 127: asciiText &= ch else: asciiText &= "."
+      if ord(ch) > 31 and ord(ch) < 127:
+        asciiText &= ch
+      else:
+        asciiText &= "."
       inc(k)
-    case items:
+    case items
     of 1:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint8](slider)[]),
-                              hexSize)
+      result = result & toHex(cast[BiggestInt](cast[ptr uint8](slider)[]), hexSize)
     of 2:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint16](slider)[]),
-                              hexSize)
+      result = result & toHex(cast[BiggestInt](cast[ptr uint16](slider)[]), hexSize)
     of 4:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint32](slider)[]),
-                              hexSize)
+      result = result & toHex(cast[BiggestInt](cast[ptr uint32](slider)[]), hexSize)
     of 8:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint64](slider)[]),
-                              hexSize)
+      result = result & toHex(cast[BiggestInt](cast[ptr uint64](slider)[]), hexSize)
     else:
       raise newException(ValueError, "Wrong items size!")
     result = result & " "

@@ -12,7 +12,8 @@ const startDelim = "```nim\n"
 const endDelim = "\n```"
 while true:
   let startOfBlock = contents.find(startDelim, start = index)
-  if startOfBlock == -1: break
+  if startOfBlock == -1:
+    break
 
   let endOfBlock = contents.find(endDelim, start = startOfBlock + startDelim.len)
   if endOfBlock == -1:

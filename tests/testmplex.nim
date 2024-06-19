@@ -11,18 +11,21 @@
 
 import strformat, random, sequtils
 import chronos, nimcrypto/utils, chronicles, stew/byteutils
-import ../libp2p/[errors,
-                  stream/connection,
-                  stream/bufferstream,
-                  transports/tcptransport,
-                  transports/transport,
-                  multiaddress,
-                  muxers/mplex/mplex,
-                  muxers/mplex/coder,
-                  muxers/mplex/lpchannel,
-                  upgrademngrs/upgrade,
-                  vbuffer,
-                  varint]
+import
+  ../libp2p/[
+    errors,
+    stream/connection,
+    stream/bufferstream,
+    transports/tcptransport,
+    transports/transport,
+    multiaddress,
+    muxers/mplex/mplex,
+    muxers/mplex/coder,
+    muxers/mplex/lpchannel,
+    upgrademngrs/upgrade,
+    vbuffer,
+    varint,
+  ]
 
 import ./helpers
 
@@ -33,7 +36,8 @@ suite "Mplex":
   suite "channel encoding":
     asyncTest "encode header with channel id 0":
       proc encHandler(
-          msg: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+          msg: seq[byte]
+      ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("000873747265616d2031")
 
       let conn = TestBufferStream.new(encHandler)
@@ -42,7 +46,8 @@ suite "Mplex":
 
     asyncTest "encode header with channel id other than 0":
       proc encHandler(
-          msg: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+          msg: seq[byte]
+      ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("88010873747265616d2031")
 
       let conn = TestBufferStream.new(encHandler)
@@ -51,7 +56,8 @@ suite "Mplex":
 
     asyncTest "encode header and body with channel id 0":
       proc encHandler(
-          msg: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+          msg: seq[byte]
+      ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("020873747265616d2031")
 
       let conn = TestBufferStream.new(encHandler)
@@ -60,7 +66,8 @@ suite "Mplex":
 
     asyncTest "encode header and body with channel id other than 0":
       proc encHandler(
-          msg: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+          msg: seq[byte]
+      ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("8a010873747265616d2031")
 
       let conn = TestBufferStream.new(encHandler)
@@ -91,7 +98,9 @@ suite "Mplex":
     asyncTest "decode header and body with channel id other than 0":
       let stream = BufferStream.new()
       let conn = stream
-      await stream.pushData(fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121"))
+      await stream.pushData(
+        fromHex("8a011668656C6C6F2066726F6D206368616E6E656C20302121")
+      )
       let msg = await conn.readMsg()
 
       check msg.id == 17
@@ -105,6 +114,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -119,10 +129,8 @@ suite "Mplex":
     asyncTest "(local close) - should allow reads until remote closes":
       let
         conn = TestBufferStream.new(
-          proc (
-              data: seq[byte]
-          ) {.async: (raises: [CancelledError, LPStreamError]).} =
-            discard,
+          proc(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+            discard
         )
         chann = LPChannel.init(1, conn, true)
 
@@ -148,10 +156,8 @@ suite "Mplex":
     asyncTest "(remote close) - channel should close for reading by remote":
       let
         conn = TestBufferStream.new(
-          proc (
-              data: seq[byte]
-          ) {.async: (raises: [CancelledError, LPStreamError]).} =
-            discard,
+          proc(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+            discard
         )
         chann = LPChannel.init(1, conn, true)
 
@@ -173,9 +179,7 @@ suite "Mplex":
       let
         testData = "Hello!".toBytes
         conn = TestBufferStream.new(
-          proc (
-              data: seq[byte]
-          ) {.async: (raises: [CancelledError, LPStreamError]).} =
+          proc(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
             discard
         )
         chann = LPChannel.init(1, conn, true)
@@ -192,12 +196,15 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
       await chann.pushEof()
       var buf: array[1, byte]
-      check: (await chann.readOnce(addr buf[0], 1)) == 0 # EOF marker read
+      check:
+        (await chann.readOnce(addr buf[0], 1)) == 0
+        # EOF marker read
 
       expect LPStreamClosedError:
         await chann.pushData(@[byte(1)])
@@ -206,12 +213,12 @@ suite "Mplex":
       await conn.close()
 
   suite "channel reset":
-
     asyncTest "channel should fail reading":
       proc writeHandler(
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -228,6 +235,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -246,6 +254,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -268,15 +277,13 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
-      let futs = [
-        chann.readExactly(addr data[0], 1),
-        chann.pushData(@[0'u8]),
-      ]
+      let futs = [chann.readExactly(addr data[0], 1), chann.pushData(@[0'u8])]
       await chann.reset()
       check await allFutures(futs).withTimeout(100.millis)
       await conn.close()
@@ -286,6 +293,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -314,6 +322,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -331,6 +340,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -352,6 +362,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -367,6 +378,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -382,6 +394,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -400,12 +413,11 @@ suite "Mplex":
       let rw = @[writer(), reader()]
 
       await chann.close()
-      check await chann.reset() # this would hang
+      check await chann.reset()
+      # this would hang
       .withTimeout(100.millis)
 
-      check await allFuturesThrowing(
-        allFinished(rw))
-        .withTimeout(100.millis)
+      check await allFuturesThrowing(allFinished(rw)).withTimeout(100.millis)
 
       await conn.close()
 
@@ -414,6 +426,7 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
         chann = LPChannel.init(1, conn, true)
@@ -429,10 +442,10 @@ suite "Mplex":
           data: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         discard
+
       let
         conn = TestBufferStream.new(writeHandler)
-        chann = LPChannel.init(
-          1, conn, true, timeout = 100.millis)
+        chann = LPChannel.init(1, conn, true, timeout = 100.millis)
 
       check await chann.join().withTimeout(1.minutes)
       await conn.close()
@@ -447,15 +460,14 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            try:
-              let msg = await stream.readLp(1024)
-              check string.fromBytes(msg) == "HELLO"
-            except CancelledError, LPStreamError:
-              return
-            finally:
-              await stream.close()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          try:
+            let msg = await stream.readLp(1024)
+            check string.fromBytes(msg) == "HELLO"
+          except CancelledError, LPStreamError:
+            return
+          finally:
+            await stream.close()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -474,9 +486,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut.wait(1.seconds)
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "read/write receiver lazy":
@@ -488,15 +498,14 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            try:
-              let msg = await stream.readLp(1024)
-              check string.fromBytes(msg) == "HELLO"
-            except CancelledError, LPStreamError:
-              return
-            finally:
-              await stream.close()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          try:
+            let msg = await stream.readLp(1024)
+            check string.fromBytes(msg) == "HELLO"
+          except CancelledError, LPStreamError:
+            return
+          finally:
+            await stream.close()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -516,9 +525,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "write fragmented":
@@ -527,8 +534,8 @@ suite "Mplex":
         listenJob = newFuture[void]()
 
       var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
-      for _ in 0..<MaxMsgSize:
-        bigseq.add(uint8(rand(uint('A')..uint('z'))))
+      for _ in 0 ..< MaxMsgSize:
+        bigseq.add(uint8(rand(uint('A') .. uint('z'))))
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(ma)
@@ -537,17 +544,16 @@ suite "Mplex":
         try:
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
-          mplexListen.streamHandler =
-            proc(stream: Connection) {.async: (raises: []).} =
-              try:
-                let msg = await stream.readLp(MaxMsgSize)
-                check msg == bigseq
-                trace "Bigseq check passed!"
-              except CancelledError, LPStreamError:
-                return
-              finally:
-                await stream.close()
-              listenJob.complete()
+          mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+            try:
+              let msg = await stream.readLp(MaxMsgSize)
+              check msg == bigseq
+              trace "Bigseq check passed!"
+            except CancelledError, LPStreamError:
+              return
+            finally:
+              await stream.close()
+            listenJob.complete()
 
           await mplexListen.handle()
           await sleepAsync(1.seconds) # give chronos some slack to process things
@@ -563,7 +569,7 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      let stream  = await mplexDial.newStream()
+      let stream = await mplexDial.newStream()
 
       await stream.writeLp(bigseq)
       await listenJob.wait(10.seconds)
@@ -572,9 +578,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
 
       await listenFut
 
@@ -587,14 +591,13 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            try:
-              await stream.writeLp("Hello from stream!")
-            except CancelledError, LPStreamError:
-              return
-            finally:
-              await stream.close()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          try:
+            await stream.writeLp("Hello from stream!")
+          except CancelledError, LPStreamError:
+            return
+          finally:
+            await stream.close()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -605,7 +608,7 @@ suite "Mplex":
       let acceptFut = acceptHandler()
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      let stream  = await mplexDial.newStream("DIALER")
+      let stream = await mplexDial.newStream("DIALER")
       let msg = string.fromBytes(await stream.readLp(1024))
       await stream.close()
       check msg == "Hello from stream!"
@@ -613,9 +616,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "multiple streams":
@@ -629,21 +630,20 @@ suite "Mplex":
         var count = 1
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          try:
+            let msg = await stream.readLp(1024)
             try:
-              let msg = await stream.readLp(1024)
-              try:
-                check string.fromBytes(msg) == &"stream {count}!"
-              except ValueError as exc:
-                raiseAssert(exc.msg)
-              count.inc
-              if count == 11:
-                done.complete()
-            except CancelledError, LPStreamError:
-              return
-            finally:
-              await stream.close()
+              check string.fromBytes(msg) == &"stream {count}!"
+            except ValueError as exc:
+              raiseAssert(exc.msg)
+            count.inc
+            if count == 11:
+              done.complete()
+          except CancelledError, LPStreamError:
+            return
+          finally:
+            await stream.close()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -655,8 +655,8 @@ suite "Mplex":
       let mplexDial = Mplex.new(conn)
       # TODO: Reenable once half-closed is working properly
       let mplexDialFut = mplexDial.handle()
-      for i in 1..10:
-        let stream  = await mplexDial.newStream()
+      for i in 1 .. 10:
+        let stream = await mplexDial.newStream()
         await stream.writeLp(&"stream {i}!")
         await stream.close()
 
@@ -664,9 +664,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "multiple read/write streams":
@@ -680,22 +678,21 @@ suite "Mplex":
         var count = 1
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          try:
+            let msg = await stream.readLp(1024)
             try:
-              let msg = await stream.readLp(1024)
-              try:
-                check string.fromBytes(msg) == &"stream {count} from dialer!"
-                await stream.writeLp(&"stream {count} from listener!")
-              except ValueError as exc:
-                raiseAssert(exc.msg)
-              count.inc
-              if count == 11:
-                done.complete()
-            except CancelledError, LPStreamError:
-              return
-            finally:
-              await stream.close()
+              check string.fromBytes(msg) == &"stream {count} from dialer!"
+              await stream.writeLp(&"stream {count} from listener!")
+            except ValueError as exc:
+              raiseAssert(exc.msg)
+            count.inc
+            if count == 11:
+              done.complete()
+          except CancelledError, LPStreamError:
+            return
+          finally:
+            await stream.close()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -706,8 +703,8 @@ suite "Mplex":
       let acceptFut = acceptHandler()
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      for i in 1..10:
-        let stream  = await mplexDial.newStream("dialer stream")
+      for i in 1 .. 10:
+        let stream = await mplexDial.newStream("dialer stream")
         await stream.writeLp(&"stream {i} from dialer!")
         let msg = await stream.readLp(1024)
         check string.fromBytes(msg) == &"stream {i} from listener!"
@@ -718,9 +715,7 @@ suite "Mplex":
       await acceptFut.wait(1.seconds)
       await mplexDialFut
       await mplexDial.close()
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "channel closes listener with EOF":
@@ -732,19 +727,18 @@ suite "Mplex":
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
 
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            listenStreams.add(stream)
-            try:
-              discard await stream.readLp(1024)
-            except LPStreamEOFError:
-              return
-            except CancelledError, LPStreamError:
-              return
-            finally:
-              await stream.close()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          listenStreams.add(stream)
+          try:
+            discard await stream.readLp(1024)
+          except LPStreamEOFError:
+            return
+          except CancelledError, LPStreamError:
+            return
+          finally:
+            await stream.close()
 
-            check false
+          check false
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -756,7 +750,7 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+      var dialStreams = toSeq(0 .. 9).mapIt(await mplexDial.newStream())
 
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
@@ -770,9 +764,7 @@ suite "Mplex":
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "channel closes dialer with EOF":
@@ -785,14 +777,13 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            listenStreams.add(stream)
-            count.inc()
-            if count == 10:
-              done.complete()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          listenStreams.add(stream)
+          count.inc()
+          if count == 10:
+            done.complete()
 
-            await noCancel stream.join()
+          await noCancel stream.join()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -805,7 +796,7 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+      var dialStreams = toSeq(0 .. 9).mapIt(await mplexDial.newStream())
 
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
@@ -828,17 +819,13 @@ suite "Mplex":
         check s.closed
 
       await readLoop
-      await allFuturesThrowing(
-          (dialStreams & listenStreams)
-          .mapIt( it.join() ))
+      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "dialing mplex closes both ends":
@@ -849,10 +836,9 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            listenStreams.add(stream)
-            await noCancel stream.join()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          listenStreams.add(stream)
+          await noCancel stream.join()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -865,23 +851,19 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+      var dialStreams = toSeq(0 .. 9).mapIt(await mplexDial.newStream())
 
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
       await mplexDial.close()
-      await allFuturesThrowing(
-          (dialStreams & listenStreams)
-          .mapIt( it.join() ))
+      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "listening mplex closes both ends":
@@ -893,10 +875,9 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            listenStreams.add(stream)
-            await noCancel stream.join()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          listenStreams.add(stream)
+          await noCancel stream.join()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -909,25 +890,22 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+      var dialStreams = toSeq(0 .. 9).mapIt(await mplexDial.newStream())
 
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout:
+        listenStreams.len == 10 and dialStreams.len == 10
 
       await mplexListen.close()
-      await allFuturesThrowing(
-          (dialStreams & listenStreams)
-          .mapIt( it.join() ))
+      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "canceling mplex handler closes both ends":
@@ -939,10 +917,9 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            listenStreams.add(stream)
-            await noCancel stream.join()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          listenStreams.add(stream)
+          await noCancel stream.join()
 
         mplexHandle = mplexListen.handle()
         await mplexHandle
@@ -956,25 +933,22 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+      var dialStreams = toSeq(0 .. 9).mapIt(await mplexDial.newStream())
 
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout:
+        listenStreams.len == 10 and dialStreams.len == 10
 
       mplexHandle.cancel()
-      await allFuturesThrowing(
-          (dialStreams & listenStreams)
-          .mapIt( it.join() ))
+      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
 
     asyncTest "closing dialing connection should close both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
@@ -984,10 +958,9 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            listenStreams.add(stream)
-            await noCancel stream.join()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          listenStreams.add(stream)
+          await noCancel stream.join()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -1000,26 +973,22 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+      var dialStreams = toSeq(0 .. 9).mapIt(await mplexDial.newStream())
 
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout:
+        listenStreams.len == 10 and dialStreams.len == 10
 
       await conn.close()
-      await allFuturesThrowing(
-          (dialStreams & listenStreams)
-          .mapIt( it.join() ))
-
+      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.closeWithEOF()
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "canceling listening connection should close both ends":
@@ -1031,10 +1000,9 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         listenConn = await transport1.accept()
         let mplexListen = Mplex.new(listenConn)
-        mplexListen.streamHandler =
-          proc(stream: Connection) {.async: (raises: []).} =
-            listenStreams.add(stream)
-            await noCancel stream.join()
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          listenStreams.add(stream)
+          await noCancel stream.join()
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -1047,25 +1015,22 @@ suite "Mplex":
 
       let mplexDial = Mplex.new(conn)
       let mplexDialFut = mplexDial.handle()
-      var dialStreams = toSeq(0..9).mapIt(await mplexDial.newStream())
+      var dialStreams = toSeq(0 .. 9).mapIt(await mplexDial.newStream())
 
       check:
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
-      checkUntilTimeout: listenStreams.len == 10 and dialStreams.len == 10
+      checkUntilTimeout:
+        listenStreams.len == 10 and dialStreams.len == 10
 
       await listenConn.closeWithEOF()
-      await allFuturesThrowing(
-          (dialStreams & listenStreams)
-          .mapIt( it.join() ))
+      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(
-        transport1.stop(),
-        transport2.stop())
+      await allFuturesThrowing(transport1.stop(), transport2.stop())
       await acceptFut
 
     suite "jitter":
@@ -1080,17 +1045,16 @@ suite "Mplex":
         proc acceptHandler() {.async.} =
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
-          mplexListen.streamHandler =
-            proc(stream: Connection) {.async: (raises: []).} =
-              try:
-                let msg = await stream.readLp(MsgSize)
-                check msg.len == MsgSize
-              except CancelledError as e:
-                echo e.msg
-              except LPStreamError as e:
-                echo e.msg
-              await stream.close()
-              complete.complete()
+          mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+            try:
+              let msg = await stream.readLp(MsgSize)
+              check msg.len == MsgSize
+            except CancelledError as e:
+              echo e.msg
+            except LPStreamError as e:
+              echo e.msg
+            await stream.close()
+            complete.complete()
 
           await mplexListen.handle()
           await mplexListen.close()
@@ -1103,8 +1067,8 @@ suite "Mplex":
         let mplexDialFut = mplexDial.handle()
         let stream = await mplexDial.newStream()
         var bigseq = newSeqOfCap[uint8](MaxMsgSize + 1)
-        for _ in 0..<MsgSize: # write one less than max size
-          bigseq.add(uint8(rand(uint('A')..uint('z'))))
+        for _ in 0 ..< MsgSize: # write one less than max size
+          bigseq.add(uint8(rand(uint('A') .. uint('z'))))
 
         ## create length prefixed libp2p frame
         var buf = initVBuffer()
@@ -1124,12 +1088,12 @@ suite "Mplex":
           const min = 20
           const max = 50
           while sent < total:
-            var size = rand(min..max)
+            var size = rand(min .. max)
             size = if size > buf.buffer.len: buf.buffer.len else: size
-            var send = buf.buffer[0..<size]
+            var send = buf.buffer[0 ..< size]
             await conn.write(send)
             sent += size
-            buf.buffer = buf.buffer[size..^1]
+            buf.buffer = buf.buffer[size ..^ 1]
 
         await writer()
         await complete.wait(1.seconds)
@@ -1138,9 +1102,7 @@ suite "Mplex":
         await acceptFut
         await mplexDialFut
 
-        await allFuturesThrowing(
-          transport1.stop(),
-          transport2.stop())
+        await allFuturesThrowing(transport1.stop(), transport2.stop())
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
@@ -1154,16 +1116,15 @@ suite "Mplex":
         proc acceptHandler() {.async.} =
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
-          mplexListen.streamHandler =
-            proc(stream: Connection) {.async: (raises: []).} =
-              try:
-                let msg = await stream.readLp(MsgSize)
-                check msg.len == MsgSize
-              except CancelledError, LPStreamError:
-                return
-              finally:
-                await stream.close()
-              complete.complete()
+          mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+            try:
+              let msg = await stream.readLp(MsgSize)
+              check msg.len == MsgSize
+            except CancelledError, LPStreamError:
+              return
+            finally:
+              await stream.close()
+            complete.complete()
 
           await mplexListen.handle()
           await mplexListen.close()
@@ -1176,8 +1137,8 @@ suite "Mplex":
         let stream = await mplexDial.newStream()
         let mplexDialFut = mplexDial.handle()
         var bigseq = newSeqOfCap[uint8](MsgSize + 1)
-        for _ in 0..<MsgSize: # write one less than max size
-          bigseq.add(uint8(rand(uint('A')..uint('z'))))
+        for _ in 0 ..< MsgSize: # write one less than max size
+          bigseq.add(uint8(rand(uint('A') .. uint('z'))))
 
         ## create length prefixed libp2p frame
         var buf = initVBuffer()
@@ -1201,7 +1162,5 @@ suite "Mplex":
         await conn.close()
         await acceptFut
         await mplexDialFut
-        await allFuturesThrowing(
-          transport1.stop(),
-          transport2.stop())
+        await allFuturesThrowing(transport1.stop(), transport2.stop())
         await listenFut

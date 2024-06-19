@@ -24,23 +24,25 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
   let nexclude = exclude.len
   case nexclude
   of 0:
-    quote do:
+    quote:
       for res in `futs`:
         if res.failed:
           let exc = res.readError()
           # We still don't abort but warn
-          debug "A future has failed, enable trace logging for details", error = exc.name
-          trace "Exception message", msg= exc.msg, stack = getStackTrace()
+          debug "A future has failed, enable trace logging for details",
+            error = exc.name
+          trace "Exception message", msg = exc.msg, stack = getStackTrace()
   else:
-    quote do:
+    quote:
       for res in `futs`:
         block check:
           if res.failed:
             let exc = res.readError()
-            for i in 0..<`nexclude`:
+            for i in 0 ..< `nexclude`:
               if exc of `exclude`[i]:
-                trace "A future has failed", error=exc.name, msg=exc.msg
+                trace "A future has failed", error = exc.name, msg = exc.msg
                 break check
             # We still don't abort but warn
-            debug "A future has failed, enable trace logging for details", error=exc.name
-            trace "Exception details", msg=exc.msg
+            debug "A future has failed, enable trace logging for details",
+              error = exc.name
+            trace "Exception details", msg = exc.msg

@@ -12,7 +12,6 @@
 import ./helpers
 
 suite "Helpers":
-
   asyncTest "checkUntilTimeout should pass if the condition is true":
     let a = 2
     let b = 2

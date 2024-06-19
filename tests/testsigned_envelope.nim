@@ -18,7 +18,8 @@ suite "Signed envelope":
     let
       rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
-      envelope = Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
+      envelope =
+        Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
       buffer = envelope.encode().tryGet()
       decodedEnvelope = Envelope.decode(buffer, "domain").tryGet()
       wrongDomain = Envelope.decode(buffer, "wdomain")
@@ -50,20 +51,29 @@ suite "Signed envelope":
 type
   DummyPayload* = object
     awesome: byte
+
   SignedDummy = SignedPayload[DummyPayload]
 
-proc decode*(T: typedesc[DummyPayload], buffer: seq[byte]): Result[DummyPayload, cstring] =
+proc decode*(
+    T: typedesc[DummyPayload], buffer: seq[byte]
+): Result[DummyPayload, cstring] =
   ok(DummyPayload(awesome: buffer[0]))
 
 proc encode*(pd: DummyPayload): seq[byte] =
   @[pd.awesome]
 
 proc checkValid*(pd: SignedDummy): Result[void, EnvelopeError] =
-  if pd.data.awesome == 12.byte: ok()
-  else: err(EnvelopeInvalidSignature)
+  if pd.data.awesome == 12.byte:
+    ok()
+  else:
+    err(EnvelopeInvalidSignature)
 
-proc payloadDomain*(T: typedesc[DummyPayload]): string = "dummy"
-proc payloadType*(T: typedesc[DummyPayload]): seq[byte] = @[(byte) 0x00, (byte) 0x00]
+proc payloadDomain*(T: typedesc[DummyPayload]): string =
+  "dummy"
+
+proc payloadType*(T: typedesc[DummyPayload]): seq[byte] =
+  @[(byte) 0x00, (byte) 0x00]
+
 suite "Signed payload":
   test "Simple encode -> decode":
     let
@@ -95,6 +105,8 @@ suite "Signed payload":
       privKey = PrivateKey.random(rng[]).tryGet()
 
       dummyPayload = DummyPayload(awesome: 30.byte)
-      signed = Envelope.init(privKey, @[55.byte], dummyPayload.encode(), DummyPayload.payloadDomain).tryGet()
+      signed = Envelope
+        .init(privKey, @[55.byte], dummyPayload.encode(), DummyPayload.payloadDomain)
+        .tryGet()
       encoded = signed.encode().tryGet()
     check SignedDummy.decode(encoded).error == EnvelopeWrongType

@@ -11,18 +11,16 @@
 
 import stew/bitops2
 
-type
-  StreamSeq* = object
-    # Seq adapted to the stream use case where we add data at the back and
-    # consume at the front in chunks. A bit like a deque but contiguous memory
-    # area - will try to avoid moving data unless it has to, subject to buffer
-    # space. The assumption is that data is typically consumed fully.
-    #
-    # See also asio::stream_buf
-
-    buf: seq[byte] # Data store
-    rpos: int # Reading position - valid data starts here
-    wpos: int # Writing position - valid data ends here
+type StreamSeq* = object
+  # Seq adapted to the stream use case where we add data at the back and
+  # consume at the front in chunks. A bit like a deque but contiguous memory
+  # area - will try to avoid moving data unless it has to, subject to buffer
+  # space. The assumption is that data is typically consumed fully.
+  #
+  # See also asio::stream_buf
+  buf: seq[byte] # Data store
+  rpos: int # Reading position - valid data starts here
+  wpos: int # Writing position - valid data ends here
 
 template len*(v: StreamSeq): int =
   v.wpos - v.rpos

@@ -11,28 +11,29 @@
 
 import stew/results
 import chronos, chronicles
-import ../../../switch,
-       ../../../multiaddress,
-       ../../../peerid
+import ../../../switch, ../../../multiaddress, ../../../peerid
 import core
 
 logScope:
   topics = "libp2p autonat"
 
-type
-  AutonatClient* = ref object of RootObj
+type AutonatClient* = ref object of RootObj
 
 proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
-  let pb = AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(
-                         id: Opt.some(pid),
-                         addrs: addrs
-                       ))).encode()
+  let pb = AutonatDial(
+    peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
+  ).encode()
   await conn.writeLp(pb.buffer)
 
-method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[MultiAddress] = newSeq[MultiAddress]()):
-    Future[MultiAddress] {.base, async.} =
-
-  proc getResponseOrRaise(autonatMsg: Opt[AutonatMsg]): AutonatDialResponse {.raises: [AutonatError].} =
+method dialMe*(
+    self: AutonatClient,
+    switch: Switch,
+    pid: PeerId,
+    addrs: seq[MultiAddress] = newSeq[MultiAddress](),
+): Future[MultiAddress] {.base, async.} =
+  proc getResponseOrRaise(
+      autonatMsg: Opt[AutonatMsg]
+  ): AutonatDialResponse {.raises: [AutonatError].} =
     autonatMsg.withValue(msg):
       if msg.msgType == DialResponse:
         msg.response.withValue(res):
@@ -47,24 +48,32 @@ method dialMe*(self: AutonatClient, switch: Switch, pid: PeerId, addrs: seq[Mult
       else:
         await switch.dial(pid, addrs, AutonatCodec)
     except CatchableError as err:
-      raise newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
+      raise
+        newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
 
   # To bypass maxConnectionsPerPeer
   let incomingConnection = switch.connManager.expectConnection(pid, In)
-  if incomingConnection.failed() and incomingConnection.error of AlreadyExpectingConnectionError:
+  if incomingConnection.failed() and
+      incomingConnection.error of AlreadyExpectingConnectionError:
     raise newException(AutonatError, incomingConnection.error.msg)
   defer:
     await conn.close()
-    incomingConnection.cancel() # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
+    incomingConnection.cancel()
+      # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
     if incomingConnection.completed():
       await (await incomingConnection).connection.close()
   trace "sending Dial", addrs = switch.peerInfo.addrs
   await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
-  return case response.status:
+  return
+    case response.status
     of ResponseStatus.Ok:
       response.ma.tryGet()
     of ResponseStatus.DialError:
-      raise newException(AutonatUnreachableError, "Peer could not dial us back: " & response.text.get(""))
+      raise newException(
+        AutonatUnreachableError, "Peer could not dial us back: " & response.text.get("")
+      )
     else:
-      raise newException(AutonatError, "Bad status " & $response.status & " " & response.text.get(""))
+      raise newException(
+        AutonatError, "Bad status " & $response.status & " " & response.text.get("")
+      )

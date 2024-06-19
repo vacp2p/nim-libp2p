@@ -12,12 +12,13 @@
 
 import sequtils
 import chronos, chronicles
-import ../stream/connection,
-       ../multiaddress,
-       ../multicodec,
-       ../muxers/muxer,
-       ../upgrademngrs/upgrade,
-       ../protocols/connectivity/autonat/core
+import
+  ../stream/connection,
+  ../multiaddress,
+  ../multicodec,
+  ../muxers/muxer,
+  ../upgrademngrs/upgrade,
+  ../protocols/connectivity/autonat/core
 
 export core.NetworkReachability
 
@@ -36,12 +37,9 @@ type
     networkReachability*: NetworkReachability
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
-  newException(TransportClosedError,
-    "Transport closed, no more connections!", parent)
+  newException(TransportClosedError, "Transport closed, no more connections!", parent)
 
-method start*(
-  self: Transport,
-  addrs: seq[MultiAddress]) {.base, async.} =
+method start*(self: Transport, addrs: seq[MultiAddress]) {.base, async.} =
   ## start the transport
   ##
 
@@ -57,49 +55,42 @@ method stop*(self: Transport) {.base, async.} =
   trace "stopping transport", address = $self.addrs
   self.running = false
 
-method accept*(self: Transport): Future[Connection]
-               {.base, gcsafe.} =
+method accept*(self: Transport): Future[Connection] {.base, gcsafe.} =
   ## accept incoming connections
   ##
 
   doAssert(false, "Not implemented!")
 
 method dial*(
-  self: Transport,
-  hostname: string,
-  address: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.base, gcsafe.} =
+    self: Transport,
+    hostname: string,
+    address: MultiAddress,
+    peerId: Opt[PeerId] = Opt.none(PeerId),
+): Future[Connection] {.base, gcsafe.} =
   ## dial a peer
   ##
 
   doAssert(false, "Not implemented!")
 
 proc dial*(
-  self: Transport,
-  address: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.gcsafe.} =
+    self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
+): Future[Connection] {.gcsafe.} =
   self.dial("", address)
 
 method upgrade*(
-    self: Transport,
-    conn: Connection,
-    peerId: Opt[PeerId]
-): Future[Muxer] {.base, async: (raises: [
-    CancelledError, LPError], raw: true).} =
+    self: Transport, conn: Connection, peerId: Opt[PeerId]
+): Future[Muxer] {.base, async: (raises: [CancelledError, LPError], raw: true).} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
   self.upgrader.upgrade(conn, peerId)
 
-method handles*(
-    self: Transport,
-    address: MultiAddress): bool {.base, gcsafe.} =
+method handles*(self: Transport, address: MultiAddress): bool {.base, gcsafe.} =
   ## check if transport supports the multiaddress
   ##
   # by default we skip circuit addresses to avoid
   # having to repeat the check in every transport
-  let protocols = address.protocols.valueOr: return false
-  protocols
-    .filterIt(
-      it == multiCodec("p2p-circuit")
-    ).len == 0
+  let protocols = address.protocols.valueOr:
+    return false
+
+  protocols.filterIt(it == multiCodec("p2p-circuit")).len == 0

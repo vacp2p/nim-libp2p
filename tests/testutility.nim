@@ -1,3 +1,4 @@
+#!fmt: off Disable formatting for this file https://github.com/arnetheduck/nph/issues/69
 {.used.}
 
 # Nim-Libp2p

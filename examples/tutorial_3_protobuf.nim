@@ -57,8 +57,8 @@ proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   #
   # We are just checking the error, and ignoring whether the value
   # is present or not (default values are valid).
-  discard ? pb.getField(1, res.name)
-  discard ? pb.getField(2, res.value)
+  discard ?pb.getField(1, res.name)
+  discard ?pb.getField(2, res.value)
   ok(res)
 
 proc encode(m: MetricList): ProtoBuffer =
@@ -72,10 +72,10 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
     res: MetricList
     metrics: seq[seq[byte]]
   let pb = initProtoBuffer(buf)
-  discard ? pb.getRepeatedField(1, metrics)
+  discard ?pb.getRepeatedField(1, metrics)
 
   for metric in metrics:
-    res.metrics &= ? Metric.decode(metric)
+    res.metrics &= ?Metric.decode(metric)
   ok(res)
 
 ## ## Results instead of exceptions
@@ -102,7 +102,7 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
 ## ## Creating the protocol
 ## We'll next create a protocol, like in the last tutorial, to request these metrics from our host
 type
-  MetricCallback = proc: Future[MetricList] {.raises: [], gcsafe.}
+  MetricCallback = proc(): Future[MetricList] {.raises: [], gcsafe.}
   MetricProto = ref object of LPProtocol
     metricGetter: MetricCallback
 
@@ -128,19 +128,19 @@ proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
 ## We can now create our main procedure:
 proc main() {.async.} =
   let rng = newRng()
-  proc randomMetricGenerator: Future[MetricList] {.async.} =
+  proc randomMetricGenerator(): Future[MetricList] {.async.} =
     let metricCount = rng[].generate(uint32) mod 16
     for i in 0 ..< metricCount + 1:
-      result.metrics.add(Metric(
-        name: "metric_" & $i,
-        value: float(rng[].generate(uint16)) / 1000.0
-      ))
+      result.metrics.add(
+        Metric(name: "metric_" & $i, value: float(rng[].generate(uint16)) / 1000.0)
+      )
     return result
+
   let
     metricProto1 = MetricProto.new(randomMetricGenerator)
     metricProto2 = MetricProto.new(randomMetricGenerator)
-    switch1 = newStandardSwitch(rng=rng)
-    switch2 = newStandardSwitch(rng=rng)
+    switch1 = newStandardSwitch(rng = rng)
+    switch2 = newStandardSwitch(rng = rng)
 
   switch1.mount(metricProto1)
 
@@ -148,14 +148,17 @@ proc main() {.async.} =
   await switch2.start()
 
   let
-    conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, metricProto2.codecs)
+    conn = await switch2.dial(
+      switch1.peerInfo.peerId, switch1.peerInfo.addrs, metricProto2.codecs
+    )
     metrics = await metricProto2.fetch(conn)
   await conn.close()
 
   for metric in metrics.metrics:
     echo metric.name, " = ", metric.value
 
-  await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
+  await allFutures(switch1.stop(), switch2.stop())
+    # close connections and shutdown all transports
 
 waitFor(main())
 
