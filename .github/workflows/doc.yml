@@ -1,6 +1,8 @@
 name: Docgen
 on:
   push:
+    branches:
+      - master
   workflow_dispatch:
 
 
@@ -27,7 +29,7 @@ jobs:
           nimble --version
           nimble install_pinned
           # nim doc can "fail", but the doc is still generated
-          nim doc --git.url:https://github.com/status-im/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
+          nim doc --git.url:https://github.com/vacp2p/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 
           # check that the folder exists
           ls ${GITHUB_REF##*/}
@@ -35,7 +37,7 @@ jobs:
       - name: Clone the gh-pages branch
         uses: actions/checkout@v2
         with:
-          repository: status-im/nim-libp2p
+          repository: vacp2p/nim-libp2p
           ref: gh-pages
           path: subdoc
           submodules: true
@@ -44,9 +46,6 @@ jobs:
       - name: Commit & push
         run: |
           cd subdoc
-
-          # Delete merged branches doc's
-          for branch in $(git branch -vv | grep ': gone]' | awk '{print $1}'); do rm -rf $branch; done
 
           # Update / create this branch doc
           rm -rf ${GITHUB_REF##*/}
@@ -63,7 +62,6 @@ jobs:
           git push origin gh-pages
 
   update_site:
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docs'
     name: 'Rebuild website'
     runs-on: ubuntu-latest
     steps:
@@ -93,11 +91,21 @@ jobs:
         run: |
           cd subdoc
 
+          # Ensure the latest changes are fetched and reset to the remote branch
+          git fetch origin gh-pages
+          git reset --hard origin/gh-pages
+
           rm -rf docs
           mv ../site docs
 
           git add .
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
-          git commit -a -m "update website"
-          git push origin gh-pages
+ 
+          if git diff-index --quiet HEAD --; then
+            echo "No changes to commit"
+          else
+            git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+            git config --global user.name "${{ github.actor }}"
+
+            git commit -m "update website"
+            git push origin gh-pages
+          fi
