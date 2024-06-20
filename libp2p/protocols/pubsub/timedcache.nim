@@ -51,16 +51,6 @@ func expire*(t: var TimedCache, now: Moment = Moment.now()) =
     if t.head == nil:
       t.tail = nil
 
-func evictIfNeeded[K](t: var TimedCache, k: K) =
-  if t.maxSize > 0 and t.entries.len() >= t.maxSize and k notin t:
-    if t.head != nil:
-      t.entries.excl(t.head)
-      t.head = t.head.next
-      if t.head != nil:
-        t.head.prev = nil
-      else:
-        t.tail = nil
-
 func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
   # Removes existing key from cache, returning the previous value if present
   let tmp = TimedEntry[K](key: key)
@@ -89,8 +79,18 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   # Puts k in cache, returning true if the item was already present and false
   # otherwise. If the item was already present, its expiry timer will be
   # refreshed.
+  func ensureSizeBound(t: var TimedCache[K]) =
+    if t.maxSize > 0 and t.entries.len() >= t.maxSize and k notin t:
+      if t.head != nil:
+        t.entries.excl(t.head)
+        t.head = t.head.next
+        if t.head != nil:
+          t.head.prev = nil
+        else:
+          t.tail = nil
+
   t.expire(now)
-  t.evictIfNeeded(k)
+  t.ensureSizeBound()
 
   let
     previous = t.del(k) # Refresh existing item
