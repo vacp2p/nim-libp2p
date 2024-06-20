@@ -486,13 +486,15 @@ proc validateAndRelay(
         sender_peer_id = peer.peerId,
         pubsub_topic = msg.topic,
         num_peers = toSendPeers.len,
-        target_peer_ids = toSeq(toSendPeers.mapIt(shortLog(it.peerId)))
+        target_peer_ids = toSeq(toSendPeers.mapIt(shortLog(it.peerId))),
+        my_peer_id = g.peerInfo.peerId
     else:
       notice "no peers to forward message",
         msg_hash = msg_hash,
         msg_id = shortLog(msgId),
         sender_peer_id = peer.peerId,
-        pubsub_topic = msg.topic
+        pubsub_topic = msg.topic,
+        my_peer_id = g.peerInfo.peerId
 
     if g.knownTopics.contains(topic):
       libp2p_pubsub_messages_rebroadcasted.inc(
@@ -646,7 +648,10 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
       debug "msgHashProvider is nil, skipping hash generation"
 
     notice "received msg",
-      msg_hash = msg_hash, msg_id = shortLog(msgId), sender_peer_id = peer.peerId
+      msg_hash = msg_hash,
+      msg_id = shortLog(msgId),
+      sender_peer_id = peer.peerId,
+      my_peer_id = g.peerInfo.peerId
 
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
@@ -819,7 +824,9 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   g.mcache.put(msgId, msg)
 
   notice "publish message to peers",
-    num_peers = peers.len, target_peer_ids = toSeq(peers.mapIt(shortLog(it.peerId)))
+    num_peers = peers.len,
+    target_peer_ids = toSeq(peers.mapIt(shortLog(it.peerId))),
+    my_peer_id = g.peerInfo.peerId
 
   g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
 
