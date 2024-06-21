@@ -195,6 +195,10 @@ proc internalConnect(
     try:
       self.connManager.storeMuxer(muxed)
       await self.peerStore.identify(muxed)
+      await self.connManager.triggerPeerEvents(
+        muxed.connection.peerId,
+        PeerEvent(kind: PeerEventKind.Identified, initiator: true),
+      )
     except CatchableError as exc:
       trace "Failed to finish outgoung upgrade", err = exc.msg
       await muxed.close()

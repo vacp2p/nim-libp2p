@@ -48,10 +48,11 @@ type
   PeerEventKind* {.pure.} = enum
     Left
     Joined
+    Identified
 
   PeerEvent* = object
     case kind*: PeerEventKind
-    of PeerEventKind.Joined:
+    of PeerEventKind.Joined, PeerEventKind.Identified:
       initiator*: bool
     else:
       discard
