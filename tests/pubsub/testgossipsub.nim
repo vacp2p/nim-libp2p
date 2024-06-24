@@ -871,6 +871,71 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "e2e - iDontWant is sent only for 1.2":
+    # 3 nodes: A <=> B <=> C
+    # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
+    # and check that B doesn't relay the message to C.
+    # We also check that B sends IDONTWANT to C, but not A
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let
+      nodeA = generateNodes(1, gossip = true, msgIdProvider = dumbMsgIdProvider)[0]
+      nodeB = generateNodes(1, gossip = true, msgIdProvider = dumbMsgIdProvider)[0]
+      nodeC = generateNodes(
+        1,
+        gossip = true,
+        msgIdProvider = dumbMsgIdProvider,
+        gossipSubVersion = GossipSubCodec_11,
+      )[0]
+
+    let nodesFut = await allFinished(
+      nodeA.switch.start(), nodeB.switch.start(), nodeC.switch.start()
+    )
+
+    await nodeA.switch.connect(
+      nodeB.switch.peerInfo.peerId, nodeB.switch.peerInfo.addrs
+    )
+    await nodeB.switch.connect(
+      nodeC.switch.peerInfo.peerId, nodeC.switch.peerInfo.addrs
+    )
+
+    let bFinished = newFuture[void]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+      echo "handlerB ", topic, data.len
+      bFinished.complete()
+
+    nodeA.subscribe("foobar", handler)
+    nodeB.subscribe("foobar", handlerB)
+    nodeC.subscribe("foobar", handler)
+    await waitSubGraph(@[nodeA, nodeB, nodeC], "foobar")
+
+    var gossipA: GossipSub = GossipSub(nodeA)
+    var gossipB: GossipSub = GossipSub(nodeB)
+    var gossipC: GossipSub = GossipSub(nodeC)
+
+    check:
+      gossipC.mesh.peers("foobar") == 1
+
+    tryPublish await nodeA.publish("foobar", newSeq[byte](10000)), 1
+
+    await bFinished
+
+    # "check" alone isn't suitable for testing that a condition is true after some time has passed. Below we verify that
+    # peers A and C haven't received an IDONTWANT message from B, but we need wait some time for potential in flight messages to arrive.
+    await sleepAsync(500.millis)
+    check:
+      toSeq(gossipC.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
+      toSeq(gossipA.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
+
+    await allFuturesThrowing(
+      nodeA.switch.stop(), nodeB.switch.stop(), nodeC.switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
   proc initializeGossipTest(): Future[(seq[PubSub], GossipSub, GossipSub)] {.async.} =
     let nodes =
       generateNodes(2, gossip = true, overheadRateLimit = Opt.some((20, 1.millis)))
