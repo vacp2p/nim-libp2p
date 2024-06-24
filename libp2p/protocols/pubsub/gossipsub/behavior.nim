@@ -334,6 +334,9 @@ proc handleIWant*(
         let msg = g.mcache.get(mid).valueOr:
           libp2p_gossipsub_received_iwants.inc(1, labelValues = ["unknown"])
           continue
+        if isMsgInIdontWant(peer, g.salt(mid), msg.data.len):
+          libp2p_gossipsub_received_iwants.inc(1, labelValues = ["idontwant"])
+          continue
         libp2p_gossipsub_received_iwants.inc(1, labelValues = ["correct"])
         messages.add(msg)
   return messages

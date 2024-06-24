@@ -48,9 +48,7 @@ declareCounter(
   libp2p_gossipsub_duplicate_during_validation,
   "number of duplicates received during message validation",
 )
-declareCounter(
-  libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant"
-)
+
 declareCounter(
   libp2p_gossipsub_saved_bytes,
   "bytes saved by gossipsub optimizations",
@@ -457,18 +455,12 @@ proc validateAndRelay(
     addToSendPeers(toSendPeers)
     # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
-
-    proc isMsgInIdontWant(it: PubSubPeer): bool =
-      for iDontWant in it.iDontWants:
-        if saltedId in iDontWant:
-          libp2p_gossipsub_idontwant_saved_messages.inc
-          libp2p_gossipsub_saved_bytes.inc(
-            msg.data.len.int64, labelValues = ["idontwant"]
-          )
-          return true
-      return false
-
-    toSendPeers.exclIfIt(isMsgInIdontWant(it))
+    var peersThatSentIdontWant = HashSet[PubSubPeer]()
+    for peer in toSendPeers:
+      if isMsgInIdontWant(peer, saltedId, msg.data.len):
+        peersThatSentIdontWant.incl(peer)
+        libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
+    toSendPeers.excl(peersThatSentIdontWant)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
