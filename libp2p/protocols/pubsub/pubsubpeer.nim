@@ -59,10 +59,6 @@ declareCounter(
   "number of peers disconnected due to over non-prio queue capacity",
 )
 
-declareCounter(
-  libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant"
-)
-
 const DefaultMaxNumElementsInNonPriorityQueue* = 1024
 
 type
@@ -107,7 +103,7 @@ type
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
-    `iDontWants`*: Deque[HashSet[SaltedId]]
+    iDontWants*: Deque[HashSet[SaltedId]]
       ## IDONTWANT contains unvalidated message id:s which may be long and/or
       ## expensive to look up, so we apply the same salting to them as during
       ## unvalidated message processing
@@ -134,13 +130,6 @@ when defined(libp2p_agents_metrics):
       #TODO the sendConn is setup before identify,
       #so we have to read the parents short agent..
       p.sendConn.getWrapped().shortAgent
-
-proc isMsgInIdontWant*(peer: PubSubPeer, saltedId: SaltedId, msgSize: int): bool =
-  for iDontWant in peer.iDontWants:
-    if saltedId in iDontWant:
-      libp2p_gossipsub_idontwant_saved_messages.inc
-      return true
-  return false
 
 proc getAgent*(peer: PubSubPeer): string =
   return
