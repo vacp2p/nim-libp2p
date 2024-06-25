@@ -411,6 +411,9 @@ proc validateAndRelay(
       # small).
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
+      peersToSendIDontWant.exclIfIt(
+        it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
+      )
       g.broadcast(
         peersToSendIDontWant,
         RPCMsg(
