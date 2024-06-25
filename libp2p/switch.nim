@@ -284,9 +284,6 @@ proc stop*(s: Switch) {.async, public.} =
   except CatchableError as exc:
     debug "Cannot cancel accepts", error = exc.msg
 
-  for service in s.services:
-    discard await service.stop(s)
-
   # close and cleanup all connections
   await s.connManager.close()
 
@@ -297,6 +294,9 @@ proc stop*(s: Switch) {.async, public.} =
       raise exc
     except CatchableError as exc:
       warn "error cleaning up transports", msg = exc.msg
+
+  for service in s.services:
+    discard await service.stop(s)
 
   await s.ms.stop()
 
