@@ -904,7 +904,6 @@ suite "GossipSub":
       discard
 
     proc handlerB(topic: string, data: seq[byte]) {.async.} =
-      echo "handlerB ", topic, data.len
       bFinished.complete()
 
     nodeA.subscribe("foobar", handler)
