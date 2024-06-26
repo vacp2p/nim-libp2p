@@ -20,7 +20,11 @@ when defined(windows): import winlean else: import posix
 const
   RTRANSPMA* = mapOr(TCP, WebSockets, UNIX)
 
-  TRANSPMA* = mapOr(RTRANSPMA, UDP)
+  TRANSPMA* = mapOr(
+    RTRANSPMA,
+    QUIC,
+    UDP
+  )
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.

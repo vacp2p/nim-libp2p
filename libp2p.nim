@@ -52,6 +52,7 @@ else:
       stream/connection,
       transports/transport,
       transports/tcptransport,
+      transports/quictransport,
       protocols/secure/noise,
       cid,
       multihash,
