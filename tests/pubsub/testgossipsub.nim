@@ -9,7 +9,7 @@
 
 {.used.}
 
-import sequtils, options, tables, sets, sugar
+import sequtils, options, tables, sets, sugar, random
 import chronos, stew/byteutils, chronos/ratelimit
 import chronicles
 import metrics
@@ -1138,3 +1138,60 @@ suite "GossipSub":
     await allFuturesThrowing(node0.switch.stop(), node1.switch.stop())
 
     await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "spamming peer is disconnected and seen cache doesn't grow indefinitely":
+    proc dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(m.data)
+    let nodes =
+      generateNodes(2, gossip = true, msgIdProvider = dumbMsgIdProvider)
+
+    discard await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+
+    await subscribeNodes(nodes)
+
+    proc handle(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    let gossip0 = GossipSub(nodes[0])
+    let gossip1 = GossipSub(nodes[1])
+
+    gossip0.subscribe("foobar", handle)
+    gossip1.subscribe("foobar", handle)
+    await waitSubGraph(nodes, "foobar")
+
+    # Avoid being disconnected by failing signature verification
+    gossip0.verifySignature = false
+    gossip1.verifySignature = false
+
+    let topic = "foobar"
+    proc execValidator(
+        topic: string, message: messages.Message
+    ): Future[ValidationResult] {.raises: [].} =
+      let res = newFuture[ValidationResult]()
+      res.complete(ValidationResult.Reject)
+      res
+
+    gossip0.addValidator(topic, execValidator)
+    gossip1.addValidator(topic, execValidator)
+
+    randomize()
+    let peer = gossip0.mesh[topic].toSeq[0]
+    while gossip0.switch.isConnected(peer.peerId):
+      var data = newSeq[byte](32)
+      for i in 0..<data.len:
+        data[i] = rand(256).uint8
+      # creating a random message and returning it in dumbMsgIdProvider will make the id unique
+      let msg = RPCMsg(messages: @[Message(topic: topic, data: data)])
+      gossip0.broadcast(@[peer], msg, isHighPriority = true)
+      await sleepAsync(1.milliseconds)
+
+    # we also check that the spamming peer can't connect to us again
+    expect(DialFailedError):
+      await nodes[0].switch.connect(
+            nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
+          )
+
+    check gossip0.switch.isConnected(peer.peerId) == false
+    check gossip1.seen.len < 1000
+
+    await stopNodes(nodes)

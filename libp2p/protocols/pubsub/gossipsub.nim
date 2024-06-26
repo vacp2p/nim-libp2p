@@ -96,7 +96,7 @@ proc init*(
     behaviourPenaltyWeight = -1.0,
     behaviourPenaltyDecay = 0.999,
     directPeers = initTable[PeerId, seq[MultiAddress]](),
-    disconnectBadPeers = false,
+    disconnectBadPeers = true,
     enablePX = false,
     bandwidthEstimatebps = 100_000_000, # 100 Mbps or 12.5 MBps
     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),

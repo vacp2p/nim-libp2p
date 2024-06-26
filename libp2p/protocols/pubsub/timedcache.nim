@@ -128,5 +128,8 @@ func addedAt*[K](t: var TimedCache[K], k: K): Moment =
 
   default(Moment)
 
+func len*(t: TimedCache): int =
+  t.entries.len
+
 func init*[K](T: type TimedCache[K], timeout: Duration = Timeout): T =
   T(timeout: timeout)
