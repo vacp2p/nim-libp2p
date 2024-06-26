@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,31 +7,29 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 ## This module implements Pool of StreamTransport.
 import chronos
 
-const
-  DefaultPoolSize* = 8
-    ## Default pool size
+const DefaultPoolSize* = 8 ## Default pool size
 
 type
   ConnectionFlags = enum
-    None, Busy
+    None
+    Busy
 
   PoolItem = object
     transp*: StreamTransport
     flags*: set[ConnectionFlags]
 
   PoolState = enum
-    Connecting, Connected, Closing, Closed
+    Connecting
+    Connected
+    Closing
+    Closed
 
-  TransportPool* = ref object
-    ## Transports pool object
+  TransportPool* = ref object ## Transports pool object
     transports: seq[PoolItem]
     busyCount: int
     state: PoolState
@@ -48,13 +46,16 @@ proc waitAll[T](futs: seq[Future[T]]): Future[void] =
     dec(counter)
     if counter == 0:
       retFuture.complete()
+
   for fut in futs:
     fut.addCallback(cb)
   return retFuture
 
-proc newPool*(address: TransportAddress, poolsize: int = DefaultPoolSize,
-              bufferSize = DefaultStreamBufferSize,
-             ): Future[TransportPool] {.async.} =
+proc newPool*(
+    address: TransportAddress,
+    poolsize: int = DefaultPoolSize,
+    bufferSize = DefaultStreamBufferSize,
+): Future[TransportPool] {.async.} =
   ## Establish pool of connections to address ``address`` with size
   ## ``poolsize``.
   var pool = new TransportPool
@@ -62,12 +63,12 @@ proc newPool*(address: TransportAddress, poolsize: int = DefaultPoolSize,
   pool.transports = newSeq[PoolItem](poolsize)
   var conns = newSeq[Future[StreamTransport]](poolsize)
   pool.state = Connecting
-  for i in 0..<poolsize:
+  for i in 0 ..< poolsize:
     conns[i] = connect(address, bufferSize)
   # Waiting for all connections to be established.
   await waitAll(conns)
   # Checking connections and preparing pool.
-  for i in 0..<poolsize:
+  for i in 0 ..< poolsize:
     if conns[i].failed:
       raise conns[i].error
     else:
@@ -137,7 +138,7 @@ proc close*(pool: TransportPool) {.async.} =
     await pool.join()
     # Closing all transports
     var pending = newSeq[Future[void]](len(pool.transports))
-    for i in 0..<len(pool.transports):
+    for i in 0 ..< len(pool.transports):
       let transp = pool.transports[i].transp
       transp.close()
       pending[i] = transp.join()

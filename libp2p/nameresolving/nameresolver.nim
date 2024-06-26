@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,37 +7,28 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[sugar, sets, sequtils, strutils]
-import
-  chronos,
-  chronicles,
-  stew/[endians2, byteutils]
+import chronos, chronicles, stew/endians2
 import ".."/[multiaddress, multicodec]
 
 logScope:
   topics = "libp2p nameresolver"
 
-type
-  NameResolver* = ref object of RootObj
+type NameResolver* = ref object of RootObj
 
 method resolveTxt*(
-  self: NameResolver,
-  address: string): Future[seq[string]] {.async, base.} =
+    self: NameResolver, address: string
+): Future[seq[string]] {.async, base.} =
   ## Get TXT record
   ##
 
   doAssert(false, "Not implemented!")
 
 method resolveIp*(
-  self: NameResolver,
-  address: string,
-  port: Port,
-  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async, base.} =
+    self: NameResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
+): Future[seq[TransportAddress]] {.async, base.} =
   ## Resolve the specified address
   ##
 
@@ -45,17 +36,17 @@ method resolveIp*(
 
 proc getHostname*(ma: MultiAddress): string =
   let
-    firstPart = ma[0].valueOr: return ""
+    firstPart = ma[0].valueOr:
+      return ""
     fpSplitted = ($firstPart).split('/', 2)
-  if fpSplitted.len > 2: fpSplitted[2]
-  else: ""
+  if fpSplitted.len > 2:
+    fpSplitted[2]
+  else:
+    ""
 
 proc resolveOneAddress(
-  self: NameResolver,
-  ma: MultiAddress,
-  domain: Domain = Domain.AF_UNSPEC,
-  prefix = ""): Future[seq[MultiAddress]]
-  {.async, raises: [Defect, MaError, TransportAddressError].} =
+    self: NameResolver, ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix = ""
+): Future[seq[MultiAddress]] {.async.} =
   #Resolve a single address
   var pbuf: array[2, byte]
 
@@ -71,15 +62,14 @@ proc resolveOneAddress(
     for address in resolvedAddresses:
       var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
       for part in ma:
-        if DNS.match(part.tryGet()): continue
+        if DNS.match(part.tryGet()):
+          continue
         createdAddress &= part.tryGet()
       createdAddress
 
 proc resolveDnsAddr*(
-  self: NameResolver,
-  ma: MultiAddress,
-  depth: int = 0): Future[seq[MultiAddress]] {.async.} =
-
+    self: NameResolver, ma: MultiAddress, depth: int = 0
+): Future[seq[MultiAddress]] {.async.} =
   if not DNSADDR.matchPartial(ma):
     return @[ma]
 
@@ -96,10 +86,12 @@ proc resolveDnsAddr*(
 
   var result: seq[MultiAddress]
   for entry in txt:
-    if not entry.startsWith("dnsaddr="): continue
-    let entryValue = MultiAddress.init(entry[8..^1]).tryGet()
+    if not entry.startsWith("dnsaddr="):
+      continue
+    let entryValue = MultiAddress.init(entry[8 ..^ 1]).tryGet()
 
-    if entryValue.contains(multiCodec("p2p")).tryGet() and ma.contains(multiCodec("p2p")).tryGet():
+    if entryValue.contains(multiCodec("p2p")).tryGet() and
+        ma.contains(multiCodec("p2p")).tryGet():
       if entryValue[multiCodec("p2p")] != ma[multiCodec("p2p")]:
         continue
 
@@ -112,17 +104,17 @@ proc resolveDnsAddr*(
     return @[]
   return result
 
-
 proc resolveMAddress*(
-  self: NameResolver,
-  address: MultiAddress): Future[seq[MultiAddress]] {.async.} =
+    self: NameResolver, address: MultiAddress
+): Future[seq[MultiAddress]] {.async.} =
   var res = initOrderedSet[MultiAddress]()
 
   if not DNS.matchPartial(address):
     res.incl(address)
   else:
-    let code = address[0].get().protoCode().get()
-    let seq = case code:
+    let code = address[0].tryGet().protoCode().tryGet()
+    let seq =
+      case code
       of multiCodec("dns"):
         await self.resolveOneAddress(address)
       of multiCodec("dns4"):
@@ -132,7 +124,7 @@ proc resolveMAddress*(
       of multiCodec("dnsaddr"):
         await self.resolveDnsAddr(address)
       else:
-        doAssert false
+        assert false
         @[address]
     for ad in seq:
       res.incl(ad)

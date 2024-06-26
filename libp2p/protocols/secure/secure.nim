@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -8,28 +8,25 @@
 # those terms.
 
 {.push gcsafe.}
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/[strformat]
 import stew/results
 import chronos, chronicles
-import ../protocol,
-       ../../stream/streamseq,
-       ../../stream/connection,
-       ../../multiaddress,
-       ../../peerinfo,
-       ../../errors
+import
+  ../protocol,
+  ../../stream/streamseq,
+  ../../stream/connection,
+  ../../multiaddress,
+  ../../peerinfo,
+  ../../errors
 
 export protocol, results
 
 logScope:
   topics = "libp2p secure"
 
-const
-  SecureConnTrackerName* = "SecureConn"
+const SecureConnTrackerName* = "SecureConn"
 
 type
   Secure* = ref object of LPProtocol # base type for secure managers
@@ -40,25 +37,31 @@ type
 
 func shortLog*(conn: SecureConn): auto =
   try:
-    if conn.isNil: "SecureConn(nil)"
-    else: &"{shortLog(conn.peerId)}:{conn.oid}"
+    if conn == nil:
+      "SecureConn(nil)"
+    else:
+      &"{shortLog(conn.peerId)}:{conn.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
-chronicles.formatIt(SecureConn): shortLog(it)
+chronicles.formatIt(SecureConn):
+  shortLog(it)
 
-proc new*(T: type SecureConn,
-           conn: Connection,
-           peerId: PeerId,
-           observedAddr: Opt[MultiAddress],
-           timeout: Duration = DefaultConnectionTimeout): T =
-  result = T(stream: conn,
-             peerId: peerId,
-             observedAddr: observedAddr,
-             closeEvent: conn.closeEvent,
-             upgraded: conn.upgraded,
-             timeout: timeout,
-             dir: conn.dir)
+proc new*(
+    T: type SecureConn,
+    conn: Connection,
+    peerId: PeerId,
+    observedAddr: Opt[MultiAddress],
+    timeout: Duration = DefaultConnectionTimeout,
+): T =
+  result = T(
+    stream: conn,
+    peerId: peerId,
+    observedAddr: observedAddr,
+    closeEvent: conn.closeEvent,
+    timeout: timeout,
+    dir: conn.dir,
+  )
   result.initStream()
 
 method initStream*(s: SecureConn) =
@@ -67,55 +70,75 @@ method initStream*(s: SecureConn) =
 
   procCall Connection(s).initStream()
 
-method closeImpl*(s: SecureConn) {.async.} =
+method closeImpl*(s: SecureConn) {.async: (raises: []).} =
   trace "Closing secure conn", s, dir = s.dir
-  if not(isNil(s.stream)):
+  if s.stream != nil:
     await s.stream.close()
 
   await procCall Connection(s).closeImpl()
 
-method readMessage*(c: SecureConn): Future[seq[byte]] {.async, base.} =
-  doAssert(false, "Not implemented!")
+method readMessage*(
+    c: SecureConn
+): Future[seq[byte]] {.
+    async: (raises: [CancelledError, LPStreamError], raw: true), base
+.} =
+  raiseAssert("Not implemented!")
 
-method getWrapped*(s: SecureConn): Connection = s.stream
+method getWrapped*(s: SecureConn): Connection =
+  s.stream
 
-method handshake*(s: Secure,
-                  conn: Connection,
-                  initiator: bool,
-                  peerId: Opt[PeerId]): Future[SecureConn] {.async, base.} =
-  doAssert(false, "Not implemented!")
+method handshake*(
+    s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
+): Future[SecureConn] {.
+    async: (raises: [CancelledError, LPStreamError], raw: true), base
+.} =
+  raiseAssert("Not implemented!")
 
-proc handleConn(s: Secure,
-                 conn: Connection,
-                 initiator: bool,
-                 peerId: Opt[PeerId]): Future[Connection] {.async.} =
+proc handleConn(
+    s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
+): Future[Connection] {.async: (raises: [CancelledError, LPStreamError]).} =
   var sconn = await s.handshake(conn, initiator, peerId)
   # mark connection bottom level transport direction
   # this is the safest place to do this
   # we require this information in for example gossipsub
   sconn.transportDir = if initiator: Direction.Out else: Direction.In
 
-  proc cleanup() {.async.} =
+  proc cleanup() {.async: (raises: []).} =
     try:
-      let futs = [conn.join(), sconn.join()]
-      await futs[0] or futs[1]
-      for f in futs:
-        if not f.finished: await f.cancelAndWait() # cancel outstanding join()
-
-      await allFuturesThrowing(
-        sconn.close(), conn.close())
+      block:
+        let
+          fut1 = conn.join()
+          fut2 = sconn.join()
+        try: # https://github.com/status-im/nim-chronos/issues/516
+          discard await race(fut1, fut2)
+        except ValueError:
+          raiseAssert("Futures list is not empty")
+        # at least one join() completed, cancel pending one, if any
+        if not fut1.finished:
+          await fut1.cancelAndWait()
+        if not fut2.finished:
+          await fut2.cancelAndWait()
+      block:
+        let
+          fut1 = sconn.close()
+          fut2 = conn.close()
+        await allFutures(fut1, fut2)
+        static:
+          doAssert typeof(fut1).E is void
+          # Cannot fail
+        static:
+          doAssert typeof(fut2).E is void
+          # Cannot fail
     except CancelledError:
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
       discard
-    except CatchableError as exc:
-      debug "error cleaning up secure connection", err = exc.msg, sconn
 
-  if not isNil(sconn):
+  if sconn != nil:
     # All the errors are handled inside `cleanup()` procedure.
     asyncSpawn cleanup()
 
-  return sconn
+  sconn
 
 method init*(s: Secure) =
   procCall LPProtocol(s).init()
@@ -131,23 +154,22 @@ method init*(s: Secure) =
       warn "securing connection canceled", conn
       await conn.close()
       raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       warn "securing connection failed", err = exc.msg, conn
       await conn.close()
 
   s.handler = handle
 
-method secure*(s: Secure,
-               conn: Connection,
-               initiator: bool,
-               peerId: Opt[PeerId]):
-               Future[Connection] {.base.} =
-  s.handleConn(conn, initiator, peerId)
+method secure*(
+    s: Secure, conn: Connection, peerId: Opt[PeerId]
+): Future[Connection] {.
+    async: (raises: [CancelledError, LPStreamError], raw: true), base
+.} =
+  s.handleConn(conn, conn.dir == Direction.Out, peerId)
 
-method readOnce*(s: SecureConn,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: SecureConn, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
 
   if s.isEof:
@@ -164,11 +186,9 @@ method readOnce*(s: SecureConn,
       raise err
     except CancelledError as exc:
       raise exc
-    except CatchableError as err:
+    except LPStreamError as err:
       debug "Error while reading message from secure connection, closing.",
-        error = err.name,
-        message = err.msg,
-        connection = s
+        error = err.name, message = err.msg, connection = s
       await s.close()
       raise err
 

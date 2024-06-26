@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -8,26 +8,29 @@
 # those terms.
 
 {.push gcsafe.}
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
-import std/[options, sequtils, strutils]
+import std/[sequtils, strutils]
 import pkg/[chronos, chronicles, metrics]
 
-import ../stream/connection,
-       ../protocols/secure/secure,
-       ../protocols/identify,
-       ../multistream,
-       ../peerstore,
-       ../connmanager,
-       ../errors,
-       ../utility
+import
+  ../stream/connection,
+  ../protocols/secure/secure,
+  ../protocols/identify,
+  ../muxers/muxer,
+  ../multistream,
+  ../connmanager,
+  ../errors,
+  ../utility
 
 export connmanager, connection, identify, secure, multistream
 
-declarePublicCounter(libp2p_failed_upgrade, "peers failed upgrade")
+declarePublicCounter(
+  libp2p_failed_upgrades_incoming, "incoming connections failed upgrades"
+)
+declarePublicCounter(
+  libp2p_failed_upgrades_outgoing, "outgoing connections failed upgrades"
+)
 
 logScope:
   topics = "libp2p upgrade"
@@ -37,31 +40,26 @@ type
 
   Upgrade* = ref object of RootObj
     ms*: MultistreamSelect
-    identity*: Identify
-    connManager*: ConnManager
     secureManagers*: seq[Secure]
 
-method upgradeIncoming*(
-  self: Upgrade,
-  conn: Connection): Future[void] {.base.} =
-  doAssert(false, "Not implemented!")
-
-method upgradeOutgoing*(
-  self: Upgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Connection] {.base.} =
-  doAssert(false, "Not implemented!")
+method upgrade*(
+    self: Upgrade, conn: Connection, peerId: Opt[PeerId]
+): Future[Muxer] {.async: (raises: [CancelledError, LPError], raw: true), base.} =
+  raiseAssert("Not implemented!")
 
 proc secure*(
-  self: Upgrade,
-  conn: Connection,
-  peerId: Opt[PeerId]): Future[Connection] {.async, gcsafe.} =
+    self: Upgrade, conn: Connection, peerId: Opt[PeerId]
+): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
   if self.secureManagers.len <= 0:
-    raise newException(UpgradeFailedError, "No secure managers registered!")
+    raise (ref UpgradeFailedError)(msg: "No secure managers registered!")
 
-  let codec = await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
+  let codec =
+    if conn.dir == Out:
+      await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
+    else:
+      await MultistreamSelect.handle(conn, self.secureManagers.mapIt(it.codec))
   if codec.len == 0:
-    raise newException(UpgradeFailedError, "Unable to negotiate a secure channel!")
+    raise (ref UpgradeFailedError)(msg: "Unable to negotiate a secure channel!")
 
   trace "Securing connection", conn, codec
   let secureProtocol = self.secureManagers.filterIt(it.codec == codec)
@@ -70,30 +68,4 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
-  return await secureProtocol[0].secure(conn, true, peerId)
-
-proc identify*(
-  self: Upgrade,
-  conn: Connection) {.async, gcsafe.} =
-  ## identify the connection
-
-  if (await self.ms.select(conn, self.identity.codec)):
-    let
-      info = await self.identity.identify(conn, conn.peerId)
-      peerStore = self.connManager.peerStore
-
-    if info.pubkey.isNone and isNil(conn):
-      raise newException(UpgradeFailedError,
-        "no public key provided and no existing peer identity found")
-
-    conn.peerId = info.peerId
-
-    when defined(libp2p_agents_metrics):
-      conn.shortAgent = "unknown"
-      if info.agentVersion.isSome and info.agentVersion.get().len > 0:
-        let shortAgent = info.agentVersion.get().split("/")[0].safeToLowerAscii()
-        if shortAgent.isOk() and KnownLibP2PAgentsSeq.contains(shortAgent.get()):
-          conn.shortAgent = shortAgent.get()
-
-    peerStore.updatePeerInfo(info)
-    trace "identified remote peer", conn, peerId = shortLog(conn.peerId)
+  await secureProtocol[0].secure(conn, peerId)

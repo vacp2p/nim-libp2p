@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -13,23 +13,19 @@ import ../libp2p/debugutils
 const
   PBCapParserName* = "PBCapParser"
   ## project name string
-
   PBCapParserMajor*: int = 0
   ## is the major number of PBCapParser' version.
-
   PBCapParserMinor*: int = 0
   ## is the minor number of PBCapParser' version.
-
   PBCapParserPatch*: int = 1
   ## is the patch number of PBCapParser' version.
-
-  PBCapParserVersion* = $PBCapParserMajor & "." & $PBCapParserMinor & "." &
-                        $PBCapParserPatch
+  PBCapParserVersion* =
+    $PBCapParserMajor & "." & $PBCapParserMinor & "." & $PBCapParserPatch
   ## is the version of Nimbus as a string.
-
   GitRevision = staticExec("git rev-parse --short HEAD").replace("\n") # remove CR
 
-  PBCapParserUsage = """
+  PBCapParserUsage =
+    """
 
 USAGE:
   pbcap_parser <command> <filename>
@@ -40,11 +36,13 @@ COMMANDS:
 """
 
 let
-  PBCapParserCopyright* = "Copyright (c) 2020-" & $(now().utc.year) &
-                          " Status Research & Development GmbH"
-  PBCapParserHeader* = "$# Version $# [$#: $#, $#]\p$#\p" %
-    [PBCapParserName, PBCapParserVersion, hostOS, hostCPU, GitRevision,
-     PBCapParserCopyright]
+  PBCapParserCopyright* =
+    "Copyright (c) 2020-" & $(now().utc.year) & " Status Research & Development GmbH"
+  PBCapParserHeader* =
+    "$# Version $# [$#: $#, $#]\p$#\p" % [
+      PBCapParserName, PBCapParserVersion, hostOS, hostCPU, GitRevision,
+      PBCapParserCopyright,
+    ]
 
 proc parseFile*(pathName: string, dump: bool): string =
   ## Parse `pbcap` file ``pathName``, and return decoded output as string dump.
@@ -82,7 +80,7 @@ when isMainModule:
       else:
         getHomeDir() / libp2p_dump_dir / paramStr(2)
 
-    if not(fileExists(path)):
+    if not (fileExists(path)):
       fatal "Could not find pbcap file", filename = path
       quit 1
 

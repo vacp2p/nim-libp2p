@@ -1,16 +1,16 @@
+{.used.}
+
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
 import unittest2
 import ../libp2p/crypto/[crypto, secp]
-import nimcrypto/utils
-
-when defined(nimHasUsed): {.used.}
 
 let rng = newRng()
 
@@ -18,7 +18,7 @@ suite "Secp256k1 testing suite":
   const TestsCount = 20
 
   test "Private key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: SkPrivateKey
       var skey2 = newSeq[byte](256)
       var key = SkPrivateKey.random(rng[])
@@ -36,7 +36,7 @@ suite "Secp256k1 testing suite":
         rkey3 == key
         rkey4 == key
   test "Public key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: SkPublicKey
       var skey2 = newSeq[byte](256)
       var pair = SkKeyPair.random(rng[])
@@ -54,7 +54,7 @@ suite "Secp256k1 testing suite":
         rkey4 == pair.pubkey
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp = SkKeyPair.random(rng[])
       var sig = kp.seckey.sign(message)
       var sersk = kp.seckey.getBytes()

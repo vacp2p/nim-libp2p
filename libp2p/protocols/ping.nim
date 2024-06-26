@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,22 +9,20 @@
 
 ## `Ping <https://docs.libp2p.io/concepts/protocols/#ping>`_ protocol implementation
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos, chronicles
-import bearssl/[rand, hash]
-import ../protobuf/minprotobuf,
-       ../peerinfo,
-       ../stream/connection,
-       ../peerid,
-       ../crypto/crypto,
-       ../multiaddress,
-       ../protocols/protocol,
-       ../utility,
-       ../errors
+import bearssl/rand
+import
+  ../protobuf/minprotobuf,
+  ../peerinfo,
+  ../stream/connection,
+  ../peerid,
+  ../crypto/crypto,
+  ../multiaddress,
+  ../protocols/protocol,
+  ../utility,
+  ../errors
 
 export chronicles, rand, connection
 
@@ -39,27 +37,26 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of PingError
 
-  PingHandler* {.public.} = proc (
-    peer: PeerId):
-    Future[void]
-    {.gcsafe, raises: [Defect].}
+  PingHandler* {.public.} = proc(peer: PeerId): Future[void] {.gcsafe, raises: [].}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
     rng: ref HmacDrbgContext
 
-proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()): T {.public.} =
+proc new*(
+    T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()
+): T {.public.} =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     try:
       trace "handling ping", conn
       var buf: array[PingSize, byte]
       await conn.readExactly(addr buf[0], PingSize)
-      trace "echoing ping", conn
+      trace "echoing ping", conn, pingData = @buf
       await conn.write(@buf)
       if not isNil(p.pingHandler):
         await p.pingHandler(conn.peerId)
@@ -71,10 +68,7 @@ method init*(p: Ping) =
   p.handler = handle
   p.codec = PingCodec
 
-proc ping*(
-  p: Ping,
-  conn: Connection,
-  ): Future[Duration] {.async, gcsafe, public.} =
+proc ping*(p: Ping, conn: Connection): Future[Duration] {.async, public.} =
   ## Sends ping to `conn`, returns the delay
 
   trace "initiating ping", conn
@@ -96,7 +90,7 @@ proc ping*(
 
   trace "got ping response", conn, responseDur
 
-  for i in 0..<randomBuf.len:
+  for i in 0 ..< randomBuf.len:
     if randomBuf[i] != resultBuf[i]:
       raise newException(WrongPingAckError, "Incorrect ping data from peer!")
 

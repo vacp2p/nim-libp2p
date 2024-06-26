@@ -1,6 +1,17 @@
+{.used.}
+
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import
   unittest2,
-  std/[tables, sequtils, sets],
+  std/[tables, sequtils],
   ../libp2p/crypto/crypto,
   ../libp2p/multiaddress,
   ../libp2p/peerid,
@@ -13,20 +24,21 @@ suite "PeerStore":
     # Peer 1
     keyPair1 = KeyPair.random(ECDSA, rng[]).get()
     peerId1 = PeerId.init(keyPair1.seckey).get()
-    multiaddrStr1 = "/ip4/127.0.0.1/udp/1234/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+    multiaddrStr1 =
+      "/ip4/127.0.0.1/udp/1234/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr1 = MultiAddress.init(multiaddrStr1).get()
     testcodec1 = "/nim/libp2p/test/0.0.1-beta1"
     # Peer 2
     keyPair2 = KeyPair.random(ECDSA, rng[]).get()
     peerId2 = PeerId.init(keyPair2.seckey).get()
-    multiaddrStr2 = "/ip4/0.0.0.0/tcp/1234/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+    multiaddrStr2 =
+      "/ip4/0.0.0.0/tcp/1234/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr2 = MultiAddress.init(multiaddrStr2).get()
     testcodec2 = "/nim/libp2p/test/0.0.2-beta1"
 
   test "PeerStore API":
     # Set up peer store
-    var
-      peerStore = PeerStore.new()
+    var peerStore = PeerStore.new()
 
     peerStore[AddressBook][peerId1] = @[multiaddr1]
     peerStore[AddressBook][peerId2] = @[multiaddr2]
@@ -42,7 +54,6 @@ suite "PeerStore":
     # Now try and del it again
     peerStore.del(peerId1)
 
-
   test "PeerStore listeners":
     # Set up peer store with listener
     var
@@ -56,7 +67,8 @@ suite "PeerStore":
 
     # Test listener triggered on adding multiaddr
     peerStore[AddressBook][peerId1] = @[multiaddr1]
-    check: addrChanged == true
+    check:
+      addrChanged == true
 
     addrChanged = false
     check:
@@ -96,7 +108,7 @@ suite "PeerStore":
       toSeq(values(addressBook.book))[0] == @[multiaddr1, multiaddr2]
 
   test "Pruner - no capacity":
-    let peerStore = PeerStore.new(capacity = 0)
+    let peerStore = PeerStore.new(nil, capacity = 0)
     peerStore[AgentBook][peerId1] = "gds"
 
     peerStore.cleanup(peerId1)
@@ -104,7 +116,7 @@ suite "PeerStore":
     check peerId1 notin peerStore[AgentBook]
 
   test "Pruner - FIFO":
-    let peerStore = PeerStore.new(capacity = 1)
+    let peerStore = PeerStore.new(nil, capacity = 1)
     peerStore[AgentBook][peerId1] = "gds"
     peerStore[AgentBook][peerId2] = "gds"
     peerStore.cleanup(peerId2)
@@ -114,9 +126,9 @@ suite "PeerStore":
       peerId2 notin peerStore[AgentBook]
 
   test "Pruner - regular capacity":
-    var peerStore = PeerStore.new(capacity = 20)
+    var peerStore = PeerStore.new(nil, capacity = 20)
 
-    for i in 0..<30:
+    for i in 0 ..< 30:
       let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
       peerStore[AgentBook][randomPeerId] = "gds"
       peerStore.cleanup(randomPeerId)
@@ -124,9 +136,9 @@ suite "PeerStore":
     check peerStore[AgentBook].len == 20
 
   test "Pruner - infinite capacity":
-    var peerStore = PeerStore.new(capacity = -1)
+    var peerStore = PeerStore.new(nil, capacity = -1)
 
-    for i in 0..<30:
+    for i in 0 ..< 30:
       let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
       peerStore[AgentBook][randomPeerId] = "gds"
       peerStore.cleanup(randomPeerId)

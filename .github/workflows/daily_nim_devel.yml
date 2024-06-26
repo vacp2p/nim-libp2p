@@ -1,0 +1,12 @@
+name: Daily Nim Devel
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  call-multi-nim-common:
+    uses: ./.github/workflows/daily_common.yml
+    with:
+      nim-branch: "['devel']"
+      cpu: "['amd64']"

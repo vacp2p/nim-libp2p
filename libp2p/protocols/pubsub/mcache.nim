@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,60 +7,60 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
-import std/[sets, tables, options]
+import std/[sets, tables]
 import rpc/[messages]
+import results
 
-export sets, tables, messages, options
+export sets, tables, messages, results
 
 type
   CacheEntry* = object
-    mid*: MessageId
-    topicIds*: seq[string]
+    msgId*: MessageId
+    topic*: string
 
   MCache* = object of RootObj
     msgs*: Table[MessageId, Message]
     history*: seq[seq[CacheEntry]]
+    pos*: int
     windowSize*: Natural
 
-func get*(c: MCache, mid: MessageId): Option[Message] =
-  if mid in c.msgs:
-    try: some(c.msgs[mid])
-    except KeyError: raiseAssert "checked"
+func get*(c: MCache, msgId: MessageId): Opt[Message] =
+  if msgId in c.msgs:
+    try:
+      Opt.some(c.msgs[msgId])
+    except KeyError:
+      raiseAssert "checked"
   else:
-    none(Message)
+    Opt.none(Message)
 
-func contains*(c: MCache, mid: MessageId): bool =
-  mid in c.msgs
+func contains*(c: MCache, msgId: MessageId): bool =
+  msgId in c.msgs
 
 func put*(c: var MCache, msgId: MessageId, msg: Message) =
   if not c.msgs.hasKeyOrPut(msgId, msg):
     # Only add cache entry if the message was not already in the cache
-    c.history[0].add(CacheEntry(mid: msgId, topicIds: msg.topicIds))
+    c.history[c.pos].add(CacheEntry(msgId: msgId, topic: msg.topic))
 
 func window*(c: MCache, topic: string): HashSet[MessageId] =
-  let
-    len = min(c.windowSize, c.history.len)
+  let len = min(c.windowSize, c.history.len)
 
-  for i in 0..<len:
-    for entry in c.history[i]:
-      for t in entry.topicIds:
-        if t == topic:
-          result.incl(entry.mid)
-          break
+  for i in 0 ..< len:
+    # Work backwards from `pos` in the circular buffer
+    for entry in c.history[(c.pos + c.history.len - i) mod c.history.len]:
+      if entry.topic == topic:
+        result.incl(entry.msgId)
 
 func shift*(c: var MCache) =
-  for entry in c.history.pop():
-    c.msgs.del(entry.mid)
+  # Shift circular buffer to write to a new position, clearing it from past
+  # iterations
+  c.pos = (c.pos + 1) mod c.history.len
 
-  c.history.insert(@[])
+  for entry in c.history[c.pos]:
+    c.msgs.del(entry.msgId)
+
+  reset(c.history[c.pos])
 
 func init*(T: type MCache, window, history: Natural): T =
-  T(
-    history: newSeq[seq[CacheEntry]](history),
-    windowSize: window
-  )
+  T(history: newSeq[seq[CacheEntry]](history), windowSize: window)

@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -11,41 +11,29 @@
 ## transports, the connection manager, the upgrader and other
 ## parts to allow programs to use libp2p
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
-import std/[tables,
-            options,
-            sequtils,
-            sets,
-            oids,
-            sugar,
-            math]
+import std/[tables, options, sequtils, sets, oids]
 
-import chronos,
-       chronicles,
-       metrics
+import chronos, chronicles, metrics
 
-import stream/connection,
-       transports/transport,
-       upgrademngrs/[upgrade, muxedupgrade],
-       multistream,
-       multiaddress,
-       protocols/protocol,
-       protocols/secure/secure,
-       peerinfo,
-       protocols/identify,
-       muxers/muxer,
-       utils/semaphore,
-       connmanager,
-       nameresolving/nameresolver,
-       peerid,
-       peerstore,
-       errors,
-       utility,
-       dialer
+import
+  stream/connection,
+  transports/transport,
+  upgrademngrs/upgrade,
+  multistream,
+  multiaddress,
+  protocols/protocol,
+  protocols/secure/secure,
+  peerinfo,
+  utils/semaphore,
+  connmanager,
+  nameresolving/nameresolver,
+  peerid,
+  peerstore,
+  errors,
+  utility,
+  dialer
 
 export connmanager, upgrade, dialer, peerstore
 
@@ -58,48 +46,44 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-declareCounter(libp2p_failed_upgrades_incoming, "incoming connections failed upgrades")
-
-const
-  ConcurrentUpgrades* = 4
+const ConcurrentUpgrades* = 4
 
 type
-    Switch* {.public.} = ref object of Dial
-      peerInfo*: PeerInfo
-      connManager*: ConnManager
-      transports*: seq[Transport]
-      ms*: MultistreamSelect
-      acceptFuts: seq[Future[void]]
-      dialer*: Dial
-      peerStore*: PeerStore
-      nameResolver*: NameResolver
-      started: bool
-      services*: seq[Service]
+  Switch* {.public.} = ref object of Dial
+    peerInfo*: PeerInfo
+    connManager*: ConnManager
+    transports*: seq[Transport]
+    ms*: MultistreamSelect
+    acceptFuts: seq[Future[void]]
+    dialer*: Dial
+    peerStore*: PeerStore
+    nameResolver*: NameResolver
+    started: bool
+    services*: seq[Service]
 
-    Service* = ref object of RootObj
-      inUse: bool
+  Service* = ref object of RootObj
+    inUse: bool
 
-
-method setup*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+method setup*(self: Service, switch: Switch): Future[bool] {.base, async.} =
   if self.inUse:
     warn "service setup has already been called"
     return false
   self.inUse = true
   return true
 
-method run*(self: Service, switch: Switch) {.base, async, gcsafe.} =
+method run*(self: Service, switch: Switch) {.base, async.} =
   doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch): Future[bool] {.base, async, gcsafe.} =
+method stop*(self: Service, switch: Switch): Future[bool] {.base, async.} =
   if not self.inUse:
     warn "service is already stopped"
     return false
   self.inUse = false
   return true
 
-proc addConnEventHandler*(s: Switch,
-                          handler: ConnEventHandler,
-                          kind: ConnEventKind) {.public.} =
+proc addConnEventHandler*(
+    s: Switch, handler: ConnEventHandler, kind: ConnEventKind
+) {.public.} =
   ## Adds a ConnEventHandler, which will be triggered when
   ## a connection to a peer is created or dropped.
   ## There may be multiple connections per peer.
@@ -107,23 +91,23 @@ proc addConnEventHandler*(s: Switch,
   ## The handler should not raise.
   s.connManager.addConnEventHandler(handler, kind)
 
-proc removeConnEventHandler*(s: Switch,
-                             handler: ConnEventHandler,
-                             kind: ConnEventKind) {.public.} =
+proc removeConnEventHandler*(
+    s: Switch, handler: ConnEventHandler, kind: ConnEventKind
+) {.public.} =
   s.connManager.removeConnEventHandler(handler, kind)
 
-proc addPeerEventHandler*(s: Switch,
-                          handler: PeerEventHandler,
-                          kind: PeerEventKind) {.public.} =
+proc addPeerEventHandler*(
+    s: Switch, handler: PeerEventHandler, kind: PeerEventKind
+) {.public.} =
   ## Adds a PeerEventHandler, which will be triggered when
   ## a peer connects or disconnects from us.
   ##
   ## The handler should not raise.
   s.connManager.addPeerEventHandler(handler, kind)
 
-proc removePeerEventHandler*(s: Switch,
-                             handler: PeerEventHandler,
-                             kind: PeerEventKind) {.public.} =
+proc removePeerEventHandler*(
+    s: Switch, handler: PeerEventHandler, kind: PeerEventKind
+) {.public.} =
   s.connManager.removePeerEventHandler(handler, kind)
 
 method addTransport*(s: Switch, t: Transport) =
@@ -145,18 +129,20 @@ proc disconnect*(s: Switch, peerId: PeerId): Future[void] {.gcsafe, public.} =
   s.connManager.dropPeer(peerId)
 
 method connect*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  forceDial = false): Future[void] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out,
+): Future[void] {.public.} =
   ## Connects to a peer without opening a stream to it
 
-  s.dialer.connect(peerId, addrs, forceDial)
+  s.dialer.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
 method connect*(
-  s: Switch,
-  address: MultiAddress,
-  allowUnknownPeerId = false): Future[PeerId] =
+    s: Switch, address: MultiAddress, allowUnknownPeerId = false
+): Future[PeerId] =
   ## Connects to a peer and retrieve its PeerId
   ##
   ## If the P2P part is missing from the MA and `allowUnknownPeerId` is set
@@ -166,52 +152,47 @@ method connect*(
   s.dialer.connect(address, allowUnknownPeerId)
 
 method dial*(
-  s: Switch,
-  peerId: PeerId,
-  protos: seq[string]): Future[Connection] {.public.} =
+    s: Switch, peerId: PeerId, protos: seq[string]
+): Future[Connection] {.public.} =
   ## Open a stream to a connected peer with the specified `protos`
 
   s.dialer.dial(peerId, protos)
 
-proc dial*(s: Switch,
-           peerId: PeerId,
-           proto: string): Future[Connection] {.public.} =
+proc dial*(s: Switch, peerId: PeerId, proto: string): Future[Connection] {.public.} =
   ## Open a stream to a connected peer with the specified `proto`
 
   dial(s, peerId, @[proto])
 
 method dial*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  protos: seq[string],
-  forceDial = false): Future[Connection] {.public.} =
+    s: Switch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false,
+): Future[Connection] {.public.} =
   ## Connected to a peer and open a stream
   ## with the specified `protos`
 
   s.dialer.dial(peerId, addrs, protos, forceDial)
 
 proc dial*(
-  s: Switch,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  proto: string): Future[Connection] {.public.} =
+    s: Switch, peerId: PeerId, addrs: seq[MultiAddress], proto: string
+): Future[Connection] {.public.} =
   ## Connected to a peer and open a stream
   ## with the specified `proto`
 
   dial(s, peerId, addrs, @[proto])
 
-proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
-  {.gcsafe, raises: [Defect, LPError], public.} =
+proc mount*[T: LPProtocol](
+    s: Switch, proto: T, matcher: Matcher = nil
+) {.gcsafe, raises: [LPError], public.} =
   ## mount a protocol to the switch
 
   if isNil(proto.handler):
-    raise newException(LPError,
-      "Protocol has to define a handle method or proc")
+    raise newException(LPError, "Protocol has to define a handle method or proc")
 
   if proto.codec.len == 0:
-    raise newException(LPError,
-      "Protocol has to define a codec string")
+    raise newException(LPError, "Protocol has to define a codec string")
 
   if s.started and not proto.started:
     raise newException(LPError, "Protocol not started")
@@ -219,24 +200,28 @@ proc mount*[T: LPProtocol](s: Switch, proto: T, matcher: Matcher = nil)
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
 
-proc upgradeMonitor(conn: Connection, upgrades: AsyncSemaphore) {.async.} =
-  ## monitor connection for upgrades
-  ##
+proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
+  let muxed = await trans.upgrade(conn, Opt.none(PeerId))
+  switch.connManager.storeMuxer(muxed)
+  await switch.peerStore.identify(muxed)
+  await switch.connManager.triggerPeerEvents(
+    muxed.connection.peerId, PeerEvent(kind: PeerEventKind.Identified, initiator: false)
+  )
+  trace "Connection upgrade succeeded"
+
+proc upgradeMonitor(
+    switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
+) {.async.} =
   try:
-    # Since we don't control the flow of the
-    # upgrade, this timeout guarantees that a
-    # "hanged" remote doesn't hold the upgrade
-    # forever
-    await conn.onUpgrade.wait(30.seconds) # wait for connection to be upgraded
-    trace "Connection upgrade succeeded"
+    await switch.upgrader(trans, conn).wait(30.seconds)
   except CatchableError as exc:
-    libp2p_failed_upgrades_incoming.inc()
+    if exc isnot CancelledError:
+      libp2p_failed_upgrades_incoming.inc()
     if not isNil(conn):
       await conn.close()
-
     trace "Exception awaiting connection upgrade", exc = exc.msg, conn
   finally:
-    upgrades.release() # don't forget to release the slot!
+    upgrades.release()
 
 proc accept(s: Switch, transport: Transport) {.async.} = # noraises
   ## switch accept loop, ran for every transport
@@ -250,7 +235,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       # remember to always release the slot when
       # the upgrade succeeds or fails, this is
       # currently done by the `upgradeMonitor`
-      await upgrades.acquire()    # first wait for an upgrade slot to become available
+      await upgrades.acquire() # first wait for an upgrade slot to become available
       let slot = await s.connManager.getIncomingSlot()
       conn =
         try:
@@ -262,12 +247,8 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
-        # we can get one on the next try, but we should
-        # be careful to not end up in a thigh loop that
-        # will starve the main event loop, thus we sleep
-        # here before retrying.
-        trace "Unable to get a connection, sleeping"
-        await sleepAsync(100.millis) # TODO: should be configurable?
+        # we can get one on the next try
+        debug "Unable to get a connection"
         upgrades.release()
         continue
 
@@ -277,13 +258,13 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       conn.transportDir = Direction.In
 
       debug "Accepted an incoming connection", conn
-      asyncSpawn upgradeMonitor(conn, upgrades)
-      asyncSpawn transport.upgradeIncoming(conn)
+      asyncSpawn s.upgradeMonitor(transport, conn, upgrades)
     except CancelledError as exc:
       trace "releasing semaphore on cancellation"
       upgrades.release() # always release the slot
+      return
     except CatchableError as exc:
-      debug "Exception in accept loop, exiting", exc = exc.msg
+      error "Exception in accept loop, exiting", exc = exc.msg
       upgrades.release() # always release the slot
       if not isNil(conn):
         await conn.close()
@@ -296,6 +277,12 @@ proc stop*(s: Switch) {.async, public.} =
   trace "Stopping switch"
 
   s.started = false
+
+  try:
+    # Stop accepting incoming connections
+    await allFutures(s.acceptFuts.mapIt(it.cancelAndWait())).wait(1.seconds)
+  except CatchableError as exc:
+    debug "Cannot cancel accepts", error = exc.msg
 
   for service in s.services:
     discard await service.stop(s)
@@ -311,42 +298,23 @@ proc stop*(s: Switch) {.async, public.} =
     except CatchableError as exc:
       warn "error cleaning up transports", msg = exc.msg
 
-  try:
-    await allFutures(s.acceptFuts)
-      .wait(1.seconds)
-  except CatchableError as exc:
-    trace "Exception while stopping accept loops", exc = exc.msg
-
-  # check that all futures were properly
-  # stopped and otherwise cancel them
-  for a in s.acceptFuts:
-    if not a.finished:
-      a.cancel()
-
-  for service in s.services:
-    discard await service.stop(s)
-
   await s.ms.stop()
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.async, gcsafe, public.} =
+proc start*(s: Switch) {.async, public.} =
   ## Start listening on every transport
 
   if s.started:
     warn "Switch has already been started"
     return
 
-  trace "starting switch for peer", peerInfo = s.peerInfo
+  debug "starting switch for peer", peerInfo = s.peerInfo
   var startFuts: seq[Future[void]]
   for t in s.transports:
-    let addrs = s.peerInfo.listenAddrs.filterIt(
-      t.handles(it)
-    )
+    let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
 
-    s.peerInfo.listenAddrs.keepItIf(
-      it notin addrs
-    )
+    s.peerInfo.listenAddrs.keepItIf(it notin addrs)
 
     if addrs.len > 0 or t.running:
       startFuts.add(t.start(addrs))
@@ -363,27 +331,25 @@ proc start*(s: Switch) {.async, gcsafe, public.} =
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.listenAddrs &= t.addrs
 
-  await s.peerInfo.update()
-
-  await s.ms.start()
-
   for service in s.services:
     discard await service.setup(s)
 
+  await s.peerInfo.update()
+  await s.ms.start()
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
 
-proc newSwitch*(peerInfo: PeerInfo,
-                transports: seq[Transport],
-                identity: Identify,
-                secureManagers: openArray[Secure] = [],
-                connManager: ConnManager,
-                ms: MultistreamSelect,
-                nameResolver: NameResolver = nil,
-                peerStore = PeerStore.new(),
-                services = newSeq[Service]()): Switch
-                {.raises: [Defect, LPError], public.} =
+proc newSwitch*(
+    peerInfo: PeerInfo,
+    transports: seq[Transport],
+    secureManagers: openArray[Secure] = [],
+    connManager: ConnManager,
+    ms: MultistreamSelect,
+    peerStore: PeerStore,
+    nameResolver: NameResolver = nil,
+    services = newSeq[Service](),
+): Switch {.raises: [LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
 
@@ -393,11 +359,11 @@ proc newSwitch*(peerInfo: PeerInfo,
     transports: transports,
     connManager: connManager,
     peerStore: peerStore,
-    dialer: Dialer.new(peerInfo.peerId, connManager, transports, ms, nameResolver),
+    dialer:
+      Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nameResolver),
     nameResolver: nameResolver,
-    services: services)
+    services: services,
+  )
 
   switch.connManager.peerStore = peerStore
-  switch.mount(identity)
-
   return switch

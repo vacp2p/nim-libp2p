@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,10 +9,7 @@
 
 ## This module implements minimal Google's ProtoBuf primitives.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import ../varint, ../utility, stew/[endians2, results]
 export results, utility
@@ -24,14 +21,20 @@ const MaxMessageSize = 1'u shl 22
 type
   ProtoFieldKind* = enum
     ## Protobuf's field types enum
-    Varint, Fixed64, Length, StartGroup, EndGroup, Fixed32
+    Varint
+    Fixed64
+    Length
+    StartGroup
+    EndGroup
+    Fixed32
 
   ProtoFlags* = enum
     ## Protobuf's encoding types
-    WithVarintLength, WithUint32BeLength, WithUint32LeLength
+    WithVarintLength
+    WithUint32BeLength
+    WithUint32LeLength
 
-  ProtoBuffer* = object
-    ## Protobuf's message representation object
+  ProtoBuffer* = object ## Protobuf's message representation object
     options: set[ProtoFlags]
     buffer*: seq[byte]
     offset*: int
@@ -42,8 +45,7 @@ type
     wire*: ProtoFieldKind
     index*: uint64
 
-  ProtoField* = object
-    ## Protobuf's message field representation object
+  ProtoField* = object ## Protobuf's message field representation object
     index*: int
     case kind*: ProtoFieldKind
     of Varint:
@@ -58,30 +60,33 @@ type
       discard
 
   ProtoError* {.pure.} = enum
-    VarintDecode,
-    MessageIncomplete,
-    BufferOverflow,
-    MessageTooBig,
-    BadWireType,
-    IncorrectBlob,
+    VarintDecode
+    MessageIncomplete
+    BufferOverflow
+    MessageTooBig
+    BadWireType
+    IncorrectBlob
     RequiredFieldMissing
 
   ProtoResult*[T] = Result[T, ProtoError]
 
-  ProtoScalar* = uint | uint32 | uint64 | zint | zint32 | zint64 |
-                 hint | hint32 | hint64 | float32 | float64
+  ProtoScalar* =
+    uint | uint32 | uint64 | zint | zint32 | zint64 | hint | hint32 | hint64 | float32 |
+    float64
 
-const
-  SupportedWireTypes* = {
-    int(ProtoFieldKind.Varint),
-    int(ProtoFieldKind.Fixed64),
-    int(ProtoFieldKind.Length),
-    int(ProtoFieldKind.Fixed32)
-  }
+const SupportedWireTypes* =
+  @[
+    uint64(ProtoFieldKind.Varint),
+    uint64(ProtoFieldKind.Fixed64),
+    uint64(ProtoFieldKind.Length),
+    uint64(ProtoFieldKind.Fixed32),
+  ]
 
 template checkFieldNumber*(i: int) =
-  doAssert((i > 0 and i < (1 shl 29)) and not(i >= 19000 and i <= 19999),
-           "Incorrect or reserved field number")
+  doAssert(
+    (i > 0 and i < (1 shl 29)) and not (i >= 19000 and i <= 19999),
+    "Incorrect or reserved field number",
+  )
 
 template getProtoHeader*(index: int, wire: ProtoFieldKind): uint64 =
   ## Get protobuf's field header integer for ``index`` and ``wire``.
@@ -117,29 +122,34 @@ proc vsizeof*(field: ProtoField): int {.inline.} =
     vsizeof(getProtoHeader(field)) + sizeof(field.vfloat32)
   of ProtoFieldKind.Length:
     vsizeof(getProtoHeader(field)) + vsizeof(uint64(len(field.vbuffer))) +
-    len(field.vbuffer)
+      len(field.vbuffer)
   else:
     0
 
-proc initProtoBuffer*(data: seq[byte], offset = 0,
-                      options: set[ProtoFlags] = {},
-                      maxSize = MaxMessageSize): ProtoBuffer =
+proc initProtoBuffer*(
+    data: seq[byte], offset = 0, options: set[ProtoFlags] = {}, maxSize = MaxMessageSize
+): ProtoBuffer =
   ## Initialize ProtoBuffer with shallow copy of ``data``.
   result.buffer = data
   result.offset = offset
   result.options = options
   result.maxSize = maxSize
 
-proc initProtoBuffer*(data: openArray[byte], offset = 0,
-                      options: set[ProtoFlags] = {},
-                      maxSize = MaxMessageSize): ProtoBuffer =
+proc initProtoBuffer*(
+    data: openArray[byte],
+    offset = 0,
+    options: set[ProtoFlags] = {},
+    maxSize = MaxMessageSize,
+): ProtoBuffer =
   ## Initialize ProtoBuffer with copy of ``data``.
   result.buffer = @data
   result.offset = offset
   result.options = options
   result.maxSize = maxSize
 
-proc initProtoBuffer*(options: set[ProtoFlags] = {}, maxSize = MaxMessageSize): ProtoBuffer =
+proc initProtoBuffer*(
+    options: set[ProtoFlags] = {}, maxSize = MaxMessageSize
+): ProtoBuffer =
   ## Initialize ProtoBuffer with new sequence of capacity ``cap``.
   result.buffer = newSeq[byte]()
   result.options = options
@@ -155,37 +165,31 @@ proc initProtoBuffer*(options: set[ProtoFlags] = {}, maxSize = MaxMessageSize): 
     result.buffer.setLen(4)
     result.offset = 4
 
-proc write*[T: ProtoScalar](pb: var ProtoBuffer,
-                            field: int, value: T) =
+proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
   checkFieldNumber(field)
   var length = 0
-  when (T is uint64) or (T is uint32) or (T is uint) or
-       (T is zint64) or (T is zint32) or (T is zint) or
-       (T is hint64) or (T is hint32) or (T is hint):
-    let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Varint)) +
-                  vsizeof(value)
+  when (T is uint64) or (T is uint32) or (T is uint) or (T is zint64) or (T is zint32) or
+      (T is zint) or (T is hint64) or (T is hint32) or (T is hint):
+    let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Varint)) + vsizeof(value)
     let header = ProtoFieldKind.Varint
   elif T is float32:
-    let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Fixed32)) +
-                  sizeof(T)
+    let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Fixed32)) + sizeof(T)
     let header = ProtoFieldKind.Fixed32
   elif T is float64:
-    let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Fixed64)) +
-                  sizeof(T)
+    let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Fixed64)) + sizeof(T)
     let header = ProtoFieldKind.Fixed64
 
   pb.buffer.setLen(len(pb.buffer) + flength)
 
-  let hres = PB.putUVarint(pb.toOpenArray(), length,
-                           getProtoHeader(field, header))
+  let hres = PB.putUVarint(pb.toOpenArray(), length, getProtoHeader(field, header))
   doAssert(hres.isOk())
   pb.offset += length
   when (T is uint64) or (T is uint32) or (T is uint):
     let vres = PB.putUVarint(pb.toOpenArray(), length, value)
     doAssert(vres.isOk())
     pb.offset += length
-  elif (T is zint64) or (T is zint32) or (T is zint) or
-       (T is hint64) or (T is hint32) or (T is hint):
+  elif (T is zint64) or (T is zint32) or (T is zint) or (T is hint64) or (T is hint32) or
+      (T is hint):
     let vres = putSVarint(pb.toOpenArray(), length, value)
     doAssert(vres.isOk())
     pb.offset += length
@@ -200,14 +204,14 @@ proc write*[T: ProtoScalar](pb: var ProtoBuffer,
     pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u64.toBytesLE()
     pb.offset += sizeof(T)
 
-proc writePacked*[T: ProtoScalar](pb: var ProtoBuffer, field: int,
-                                  value: openArray[T]) =
+proc writePacked*[T: ProtoScalar](
+    pb: var ProtoBuffer, field: int, value: openArray[T]
+) =
   checkFieldNumber(field)
   var length = 0
   let dlength =
-    when (T is uint64) or (T is uint32) or (T is uint) or
-         (T is zint64) or (T is zint32) or (T is zint) or
-         (T is hint64) or (T is hint32) or (T is hint):
+    when (T is uint64) or (T is uint32) or (T is uint) or (T is zint64) or (T is zint32) or
+        (T is zint) or (T is hint64) or (T is hint32) or (T is hint):
       var res = 0
       for item in value:
         res += vsizeof(item)
@@ -231,8 +235,8 @@ proc writePacked*[T: ProtoScalar](pb: var ProtoBuffer, field: int,
       let vres = PB.putUVarint(pb.toOpenArray(), length, item)
       doAssert(vres.isOk())
       pb.offset += length
-    elif (T is zint64) or (T is zint32) or (T is zint) or
-         (T is hint64) or (T is hint32) or (T is hint):
+    elif (T is zint64) or (T is zint32) or (T is zint) or (T is hint64) or (T is hint32) or
+        (T is hint):
       length = 0
       let vres = PB.putSVarint(pb.toOpenArray(), length, item)
       doAssert(vres.isOk())
@@ -248,19 +252,19 @@ proc writePacked*[T: ProtoScalar](pb: var ProtoBuffer, field: int,
       pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u64.toBytesLE()
       pb.offset += sizeof(T)
 
-proc write*[T: byte|char](pb: var ProtoBuffer, field: int,
-                          value: openArray[T]) =
+proc write*[T: byte | char](pb: var ProtoBuffer, field: int, value: openArray[T]) =
   checkFieldNumber(field)
   var length = 0
-  let flength = vsizeof(getProtoHeader(field, ProtoFieldKind.Length)) +
-                vsizeof(uint64(len(value))) + len(value)
+  let flength =
+    vsizeof(getProtoHeader(field, ProtoFieldKind.Length)) + vsizeof(uint64(len(value))) +
+    len(value)
   pb.buffer.setLen(len(pb.buffer) + flength)
-  let hres = PB.putUVarint(pb.toOpenArray(), length,
-                           getProtoHeader(field, ProtoFieldKind.Length))
+  let hres = PB.putUVarint(
+    pb.toOpenArray(), length, getProtoHeader(field, ProtoFieldKind.Length)
+  )
   doAssert(hres.isOk())
   pb.offset += length
-  let lres = PB.putUVarint(pb.toOpenArray(), length,
-                           uint64(len(value)))
+  let lres = PB.putUVarint(pb.toOpenArray(), length, uint64(len(value)))
   doAssert(lres.isOk())
   pb.offset += length
   if len(value) > 0:
@@ -297,8 +301,7 @@ proc finish*(pb: var ProtoBuffer) =
     doAssert(len(pb.buffer) > 0)
     pb.offset = 0
 
-proc getHeader(data: var ProtoBuffer,
-               header: var ProtoHeader): ProtoResult[void] =
+proc getHeader(data: var ProtoBuffer, header: var ProtoHeader): ProtoResult[void] =
   var length = 0
   var hdr = 0'u64
   if PB.getUVarint(data.toOpenArray(), length, hdr).isOk():
@@ -353,9 +356,9 @@ proc skipValue(data: var ProtoBuffer, header: ProtoHeader): ProtoResult[void] =
   of ProtoFieldKind.StartGroup, ProtoFieldKind.EndGroup:
     err(ProtoError.BadWireType)
 
-proc getValue[T: ProtoScalar](data: var ProtoBuffer,
-                              header: ProtoHeader,
-                              outval: var T): ProtoResult[void] =
+proc getValue[T: ProtoScalar](
+    data: var ProtoBuffer, header: ProtoHeader, outval: var T
+): ProtoResult[void] =
   when (T is uint64) or (T is uint32) or (T is uint):
     doAssert(header.wire == ProtoFieldKind.Varint)
     var length = 0
@@ -366,8 +369,8 @@ proc getValue[T: ProtoScalar](data: var ProtoBuffer,
       ok()
     else:
       err(ProtoError.VarintDecode)
-  elif (T is zint64) or (T is zint32) or (T is zint) or
-       (T is hint64) or (T is hint32) or (T is hint):
+  elif (T is zint64) or (T is zint32) or (T is zint) or (T is hint64) or (T is hint32) or
+      (T is hint):
     doAssert(header.wire == ProtoFieldKind.Varint)
     var length = 0
     var value = T(0)
@@ -394,9 +397,12 @@ proc getValue[T: ProtoScalar](data: var ProtoBuffer,
     else:
       err(ProtoError.MessageIncomplete)
 
-proc getValue[T:byte|char](data: var ProtoBuffer, header: ProtoHeader,
-                           outBytes: var openArray[T],
-                           outLength: var int): ProtoResult[void] =
+proc getValue[T: byte | char](
+    data: var ProtoBuffer,
+    header: ProtoHeader,
+    outBytes: var openArray[T],
+    outLength: var int,
+): ProtoResult[void] =
   doAssert(header.wire == ProtoFieldKind.Length)
   var length = 0
   var bsize = 0'u64
@@ -423,8 +429,9 @@ proc getValue[T:byte|char](data: var ProtoBuffer, header: ProtoHeader,
   else:
     err(ProtoError.VarintDecode)
 
-proc getValue[T:seq[byte]|string](data: var ProtoBuffer, header: ProtoHeader,
-                                  outBytes: var T): ProtoResult[void] =
+proc getValue[T: seq[byte] | string](
+    data: var ProtoBuffer, header: ProtoHeader, outBytes: var T
+): ProtoResult[void] =
   doAssert(header.wire == ProtoFieldKind.Length)
   var length = 0
   var bsize = 0'u64
@@ -446,20 +453,20 @@ proc getValue[T:seq[byte]|string](data: var ProtoBuffer, header: ProtoHeader,
   else:
     err(ProtoError.VarintDecode)
 
-proc getField*[T: ProtoScalar](data: ProtoBuffer, field: int,
-                               output: var T): ProtoResult[bool] =
+proc getField*[T: ProtoScalar](
+    data: ProtoBuffer, field: int, output: var T
+): ProtoResult[bool] =
   checkFieldNumber(field)
   var current: T
   var res = false
   var pb = data
 
-  while not(pb.isEmpty()):
+  while not (pb.isEmpty()):
     var header: ProtoHeader
-    ? pb.getHeader(header)
+    ?pb.getHeader(header)
     let wireCheck =
-      when (T is uint64) or (T is uint32) or (T is uint) or
-           (T is zint64) or (T is zint32) or (T is zint) or
-           (T is hint64) or (T is hint32) or (T is hint):
+      when (T is uint64) or (T is uint32) or (T is uint) or (T is zint64) or
+          (T is zint32) or (T is zint) or (T is hint64) or (T is hint32) or (T is hint):
         header.wire == ProtoFieldKind.Varint
       elif T is float32:
         header.wire == ProtoFieldKind.Fixed32
@@ -477,9 +484,9 @@ proc getField*[T: ProtoScalar](data: ProtoBuffer, field: int,
       else:
         # We are ignoring wire types different from what we expect, because it
         # is how `protoc` is working.
-        ? pb.skipValue(header)
+        ?pb.skipValue(header)
     else:
-      ? pb.skipValue(header)
+      ?pb.skipValue(header)
 
   if res:
     output = current
@@ -487,16 +494,16 @@ proc getField*[T: ProtoScalar](data: ProtoBuffer, field: int,
   else:
     ok(false)
 
-proc getField*[T: byte|char](data: ProtoBuffer, field: int,
-                             output: var openArray[T],
-                             outlen: var int): ProtoResult[bool] =
+proc getField*[T: byte | char](
+    data: ProtoBuffer, field: int, output: var openArray[T], outlen: var int
+): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   var res = false
 
   outlen = 0
 
-  while not(pb.isEmpty()):
+  while not (pb.isEmpty()):
     var header: ProtoHeader
     let hres = pb.getHeader(header)
     if hres.isErr():
@@ -539,13 +546,14 @@ proc getField*[T: byte|char](data: ProtoBuffer, field: int,
   else:
     ok(false)
 
-proc getField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
-                                    output: var T): ProtoResult[bool] =
+proc getField*[T: seq[byte] | string](
+    data: ProtoBuffer, field: int, output: var T
+): ProtoResult[bool] =
   checkFieldNumber(field)
   var res = false
   var pb = data
 
-  while not(pb.isEmpty()):
+  while not (pb.isEmpty()):
     var header: ProtoHeader
     let hres = pb.getHeader(header)
     if hres.isErr():
@@ -576,37 +584,32 @@ proc getField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
   else:
     ok(false)
 
-proc getField*(pb: ProtoBuffer, field: int,
-               output: var ProtoBuffer): ProtoResult[bool] {.inline.} =
+proc getField*(
+    pb: ProtoBuffer, field: int, output: var ProtoBuffer
+): ProtoResult[bool] {.inline.} =
   var buffer: seq[byte]
-  let res = pb.getField(field, buffer)
-  if res.isOk():
-    if res.get():
-      output = initProtoBuffer(buffer)
-      ok(true)
-    else:
-      ok(false)
+  if ?pb.getField(field, buffer):
+    output = initProtoBuffer(buffer)
+    ok(true)
   else:
-    err(res.error)
+    ok(false)
 
-proc getRequiredField*[T](pb: ProtoBuffer, field: int,
-               output: var T): ProtoResult[void] {.inline.} =
-  let res = pb.getField(field, output)
-  if res.isOk():
-    if res.get():
-      ok()
-    else:
-      err(RequiredFieldMissing)
+proc getRequiredField*[T](
+    pb: ProtoBuffer, field: int, output: var T
+): ProtoResult[void] {.inline.} =
+  if ?pb.getField(field, output):
+    ok()
   else:
-    err(res.error)
+    err(RequiredFieldMissing)
 
-proc getRepeatedField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
-                                        output: var seq[T]): ProtoResult[bool] =
+proc getRepeatedField*[T: seq[byte] | string](
+    data: ProtoBuffer, field: int, output: var seq[T]
+): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   output.setLen(0)
 
-  while not(pb.isEmpty()):
+  while not (pb.isEmpty()):
     var header: ProtoHeader
     let hres = pb.getHeader(header)
     if hres.isErr():
@@ -637,13 +640,14 @@ proc getRepeatedField*[T: seq[byte]|string](data: ProtoBuffer, field: int,
   else:
     ok(false)
 
-proc getRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
-                                       output: var seq[T]): ProtoResult[bool] =
+proc getRepeatedField*[T: ProtoScalar](
+    data: ProtoBuffer, field: int, output: var seq[T]
+): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   output.setLen(0)
 
-  while not(pb.isEmpty()):
+  while not (pb.isEmpty()):
     var header: ProtoHeader
     let hres = pb.getHeader(header)
     if hres.isErr():
@@ -651,8 +655,8 @@ proc getRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
       return err(hres.error)
 
     if header.index == uint64(field):
-      if header.wire in {ProtoFieldKind.Varint, ProtoFieldKind.Fixed32,
-                         ProtoFieldKind.Fixed64}:
+      if header.wire in
+          {ProtoFieldKind.Varint, ProtoFieldKind.Fixed32, ProtoFieldKind.Fixed64}:
         var item: T
         let vres = getValue(pb, header, item)
         if vres.isOk():
@@ -676,24 +680,22 @@ proc getRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
   else:
     ok(false)
 
-proc getRequiredRepeatedField*[T](pb: ProtoBuffer, field: int,
-               output: var seq[T]): ProtoResult[void] {.inline.} =
-  let res = pb.getRepeatedField(field, output)
-  if res.isOk():
-    if res.get():
-      ok()
-    else:
-      err(RequiredFieldMissing)
+proc getRequiredRepeatedField*[T](
+    pb: ProtoBuffer, field: int, output: var seq[T]
+): ProtoResult[void] {.inline.} =
+  if ?pb.getRepeatedField(field, output):
+    ok()
   else:
-    err(res.error)
+    err(RequiredFieldMissing)
 
-proc getPackedRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
-                                        output: var seq[T]): ProtoResult[bool] =
+proc getPackedRepeatedField*[T: ProtoScalar](
+    data: ProtoBuffer, field: int, output: var seq[T]
+): ProtoResult[bool] =
   checkFieldNumber(field)
   var pb = data
   output.setLen(0)
 
-  while not(pb.isEmpty()):
+  while not (pb.isEmpty()):
     var header: ProtoHeader
     let hres = pb.getHeader(header)
     if hres.isErr():
@@ -707,15 +709,15 @@ proc getPackedRepeatedField*[T: ProtoScalar](data: ProtoBuffer, field: int,
         if ares.isOk():
           var pbarr = initProtoBuffer(arritem)
           let itemHeader =
-            when (T is uint64) or (T is uint32) or (T is uint) or
-                 (T is zint64) or (T is zint32) or (T is zint) or
-                 (T is hint64) or (T is hint32) or (T is hint):
+            when (T is uint64) or (T is uint32) or (T is uint) or (T is zint64) or
+                (T is zint32) or (T is zint) or (T is hint64) or (T is hint32) or
+                (T is hint):
               ProtoHeader(wire: ProtoFieldKind.Varint)
             elif T is float32:
               ProtoHeader(wire: ProtoFieldKind.Fixed32)
             elif T is float64:
               ProtoHeader(wire: ProtoFieldKind.Fixed64)
-          while not(pbarr.isEmpty()):
+          while not (pbarr.isEmpty()):
             var item: T
             let vres = getValue(pbarr, itemHeader, item)
             if vres.isOk():

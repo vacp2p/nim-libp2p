@@ -2,19 +2,19 @@ name: Bumper
 on:
   push:
     branches:
-      - unstable
-      - bumper
+      - master
   workflow_dispatch:
 
 jobs:
   bumpProjects:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target: [
           { repo: status-im/nimbus-eth2, branch: unstable },
-          { repo: status-im/nwaku, branch: master },
-          { repo: status-im/nim-codex, branch: main }
+          { repo: waku-org/nwaku, branch: master },
+          { repo: codex-storage/nim-codex, branch: master }
         ]
     steps:
       - name: Clone repo
@@ -23,13 +23,14 @@ jobs:
           repository: ${{ matrix.target.repo }}
           ref: ${{ matrix.target.branch }}
           path: nbc
-          submodules: true
           fetch-depth: 0
           token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
 
       - name: Checkout this ref
         run: |
-          cd nbc/vendor/nim-libp2p
+          cd nbc
+          git submodule update --init vendor/nim-libp2p
+          cd vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
       - name: Commit this bump
@@ -37,7 +38,7 @@ jobs:
           cd nbc
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
           git config --global user.name = "${{ github.actor }}"
-          git commit -a -m "auto-bump nim-libp2p"
+          git commit --allow-empty -a -m "auto-bump nim-libp2p"
           git branch -D nim-libp2p-auto-bump-${GITHUB_REF##*/} || true
           git switch -c nim-libp2p-auto-bump-${GITHUB_REF##*/}
           git push -f origin nim-libp2p-auto-bump-${GITHUB_REF##*/}

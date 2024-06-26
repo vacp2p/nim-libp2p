@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,86 +7,65 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import chronos, chronicles
-import ../protocols/protocol,
-       ../stream/connection,
-       ../errors
+import ../stream/connection, ../errors
 
 logScope:
   topics = "libp2p muxer"
 
-const
-  DefaultChanTimeout* = 5.minutes
+const DefaultChanTimeout* = 5.minutes
 
 type
   MuxerError* = object of LPError
   TooManyChannels* = object of MuxerError
 
-  StreamHandler* = proc(conn: Connection): Future[void] {.gcsafe, raises: [Defect].}
-  MuxerHandler* = proc(muxer: Muxer): Future[void] {.gcsafe, raises: [Defect].}
+  StreamHandler* = proc(conn: Connection): Future[void] {.async: (raises: []).}
+  MuxerHandler* = proc(muxer: Muxer): Future[void] {.async: (raises: []).}
 
   Muxer* = ref object of RootObj
     streamHandler*: StreamHandler
+    handler*: Future[void].Raising([])
     connection*: Connection
 
   # user provider proc that returns a constructed Muxer
-  MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [Defect].}
+  MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [].}
 
   # this wraps a creator proc that knows how to make muxers
-  MuxerProvider* = ref object of LPProtocol
+  MuxerProvider* = object
     newMuxer*: MuxerConstructor
-    streamHandler*: StreamHandler # triggered every time there is a new stream, called for any muxer instance
-    muxerHandler*: MuxerHandler # triggered every time there is a new muxed connection created
+    codec*: string
 
-func shortLog*(m: Muxer): auto = shortLog(m.connection)
-chronicles.formatIt(Muxer): shortLog(it)
+func shortLog*(m: Muxer): auto =
+  if m == nil:
+    "nil"
+  else:
+    shortLog(m.connection)
+
+chronicles.formatIt(Muxer):
+  shortLog(it)
 
 # muxer interface
-method newStream*(m: Muxer, name: string = "", lazy: bool = false):
-  Future[Connection] {.base, async, gcsafe.} = discard
-method close*(m: Muxer) {.base, async, gcsafe.} = discard
-method handle*(m: Muxer): Future[void] {.base, async, gcsafe.} = discard
+method newStream*(
+    m: Muxer, name: string = "", lazy: bool = false
+): Future[Connection] {.
+    base, async: (raises: [CancelledError, LPStreamError, MuxerError], raw: true)
+.} =
+  raiseAssert("Not implemented!")
+
+method close*(m: Muxer) {.base, async: (raises: []).} =
+  if m.connection != nil:
+    await m.connection.close()
+
+method handle*(m: Muxer): Future[void] {.base, async: (raises: []).} =
+  discard
 
 proc new*(
-  T: typedesc[MuxerProvider],
-  creator: MuxerConstructor,
-  codec: string): T {.gcsafe.} =
-
-  let muxerProvider = T(newMuxer: creator)
-  muxerProvider.codec = codec
-  muxerProvider.init()
+    T: typedesc[MuxerProvider], creator: MuxerConstructor, codec: string
+): T {.gcsafe.} =
+  let muxerProvider = T(newMuxer: creator, codec: codec)
   muxerProvider
 
-method init(c: MuxerProvider) =
-  proc handler(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    trace "starting muxer handler", proto=proto, conn
-    try:
-      let
-        muxer = c.newMuxer(conn)
-
-      if not isNil(c.streamHandler):
-        muxer.streamHandler = c.streamHandler
-
-      var futs = newSeq[Future[void]]()
-      futs &= muxer.handle()
-
-      # finally await both the futures
-      if not isNil(c.muxerHandler):
-        await c.muxerHandler(muxer)
-        when defined(libp2p_agents_metrics):
-          conn.shortAgent = muxer.connection.shortAgent
-
-      checkFutures(await allFinished(futs))
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception in muxer handler", exc = exc.msg, conn, proto
-    finally:
-      await conn.close()
-
-  c.handler = handler
+method getStreams*(m: Muxer): seq[Connection] {.base.} =
+  raiseAssert("Not implemented!")

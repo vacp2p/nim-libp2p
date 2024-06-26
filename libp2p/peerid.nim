@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,10 +9,7 @@
 
 ## This module implementes API for libp2p peer.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 {.push public.}
 
 import
@@ -21,17 +18,18 @@ import
   chronicles,
   nimcrypto/utils,
   utility,
-  ./crypto/crypto, ./multicodec, ./multihash, ./vbuffer,
+  ./crypto/crypto,
+  ./multicodec,
+  ./multihash,
+  ./vbuffer,
   ./protobuf/minprotobuf
 
 export results, utility
 
-const
-  maxInlineKeyLength* = 42
+const maxInlineKeyLength* = 42
 
-type
-  PeerId* = object
-    data*: seq[byte]
+type PeerId* = object
+  data*: seq[byte]
 
 func `$`*(pid: PeerId): string =
   ## Return base58 encoded ``pid`` representation.
@@ -44,14 +42,12 @@ func shortLog*(pid: PeerId): string =
   if len(spid) > 10:
     spid[3] = '*'
 
-    when (NimMajor, NimMinor) > (1, 4):
-      spid.delete(4 .. spid.high - 6)
-    else:
-      spid.delete(4, spid.high - 6)
+    spid.delete(4 .. spid.high - 6)
 
   spid
 
-chronicles.formatIt(PeerId): shortLog(it)
+chronicles.formatIt(PeerId):
+  shortLog(it)
 
 func toBytes*(pid: PeerId, data: var openArray[byte]): int =
   ## Store PeerId ``pid`` to array of bytes ``data``.
@@ -84,7 +80,8 @@ func cmp*(a, b: PeerId): int =
   var m = min(len(a.data), len(b.data))
   while i < m:
     result = ord(a.data[i]) - ord(b.data[i])
-    if result != 0: return
+    if result != 0:
+      return
     inc(i)
   result = len(a.data) - len(b.data)
 
@@ -171,18 +168,18 @@ func init*(t: typedesc[PeerId], data: string): Result[PeerId, cstring] =
 
 func init*(t: typedesc[PeerId], pubkey: PublicKey): Result[PeerId, cstring] =
   ## Create new peer id from public key ``pubkey``.
-  var pubraw = ? pubkey.getBytes().orError(
-    cstring("peerid: failed to get bytes from given key"))
+  var pubraw =
+    ?pubkey.getBytes().orError(cstring("peerid: failed to get bytes from given key"))
   var mh: MultiHash
   if len(pubraw) <= maxInlineKeyLength:
-    mh = ? MultiHash.digest("identity", pubraw)
+    mh = ?MultiHash.digest("identity", pubraw)
   else:
-    mh = ? MultiHash.digest("sha2-256", pubraw)
+    mh = ?MultiHash.digest("sha2-256", pubraw)
   ok(PeerId(data: mh.data.buffer))
 
 func init*(t: typedesc[PeerId], seckey: PrivateKey): Result[PeerId, cstring] =
   ## Create new peer id from private key ``seckey``.
-  PeerId.init(? seckey.getPublicKey().orError(cstring("invalid private key")))
+  PeerId.init(?seckey.getPublicKey().orError(cstring("invalid private key")))
 
 proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
   ## Create new peer id with random public key.
@@ -191,19 +188,11 @@ proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
 
 func match*(pid: PeerId, pubkey: PublicKey): bool =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.
-  let p = PeerId.init(pubkey)
-  if p.isErr:
-    false
-  else:
-    pid == p.get()
+  PeerId.init(pubkey) == Result[PeerId, cstring].ok(pid)
 
 func match*(pid: PeerId, seckey: PrivateKey): bool =
   ## Returns ``true`` if ``pid`` matches private key ``seckey``.
-  let p = PeerId.init(seckey)
-  if p.isErr:
-    false
-  else:
-    pid == p.get()
+  PeerId.init(seckey) == Result[PeerId, cstring].ok(pid)
 
 ## Serialization/Deserialization helpers
 
@@ -215,12 +204,13 @@ func write*(pb: var ProtoBuffer, field: int, pid: PeerId) =
   ## Write PeerId value ``peerid`` to object ``pb`` using ProtoBuf's encoding.
   write(pb, field, pid.data)
 
-func getField*(pb: ProtoBuffer, field: int,
-               pid: var PeerId): ProtoResult[bool] {.inline.} =
+func getField*(
+    pb: ProtoBuffer, field: int, pid: var PeerId
+): ProtoResult[bool] {.inline.} =
   ## Read ``PeerId`` from ProtoBuf's message and validate it
   var buffer: seq[byte]
-  let res = ? pb.getField(field, buffer)
-  if not(res):
+  let res = ?pb.getField(field, buffer)
+  if not (res):
     ok(false)
   else:
     var peerId: PeerId

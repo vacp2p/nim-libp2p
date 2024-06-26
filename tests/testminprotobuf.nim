@@ -1,5 +1,7 @@
+{.used.}
+
 # Nim-Libp2p
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -11,46 +13,38 @@ import unittest2
 import ../libp2p/protobuf/minprotobuf
 import stew/byteutils, strutils
 
-when defined(nimHasUsed): {.used.}
-
 suite "MinProtobuf test suite":
   const VarintVectors = [
     "0800", "0801", "08ffffffff07", "08ffffffff0f", "08ffffffffffffffff7f",
-    "08ffffffffffffffffff01"
+    "08ffffffffffffffffff01",
   ]
 
   const VarintValues = [
-    0x0'u64, 0x1'u64, 0x7FFF_FFFF'u64, 0xFFFF_FFFF'u64,
-    0x7FFF_FFFF_FFFF_FFFF'u64, 0xFFFF_FFFF_FFFF_FFFF'u64
+    0x0'u64, 0x1'u64, 0x7FFF_FFFF'u64, 0xFFFF_FFFF'u64, 0x7FFF_FFFF_FFFF_FFFF'u64,
+    0xFFFF_FFFF_FFFF_FFFF'u64,
   ]
 
-  const Fixed32Vectors = [
-    "0d00000000", "0d01000000", "0dffffff7f", "0dddccbbaa", "0dffffffff"
-  ]
+  const Fixed32Vectors =
+    ["0d00000000", "0d01000000", "0dffffff7f", "0dddccbbaa", "0dffffffff"]
 
-  const Fixed32Values = [
-    0x0'u32, 0x1'u32, 0x7FFF_FFFF'u32, 0xAABB_CCDD'u32, 0xFFFF_FFFF'u32
-  ]
+  const Fixed32Values =
+    [0x0'u32, 0x1'u32, 0x7FFF_FFFF'u32, 0xAABB_CCDD'u32, 0xFFFF_FFFF'u32]
 
   const Fixed64Vectors = [
     "090000000000000000", "090100000000000000", "09ffffff7f00000000",
     "09ddccbbaa00000000", "09ffffffff00000000", "09ffffffffffffff7f",
-    "099988ffeeddccbbaa", "09ffffffffffffffff"
+    "099988ffeeddccbbaa", "09ffffffffffffffff",
   ]
 
   const Fixed64Values = [
     0x0'u64, 0x1'u64, 0x7FFF_FFFF'u64, 0xAABB_CCDD'u64, 0xFFFF_FFFF'u64,
-    0x7FFF_FFFF_FFFF_FFFF'u64, 0xAABB_CCDD_EEFF_8899'u64,
-    0xFFFF_FFFF_FFFF_FFFF'u64
+    0x7FFF_FFFF_FFFF_FFFF'u64, 0xAABB_CCDD_EEFF_8899'u64, 0xFFFF_FFFF_FFFF_FFFF'u64,
   ]
 
-  const LengthVectors = [
-   "0a00", "0a0161", "0a026162", "0a0461626364", "0a086162636465666768"
-  ]
+  const LengthVectors =
+    ["0a00", "0a0161", "0a026162", "0a0461626364", "0a086162636465666768"]
 
-  const LengthValues = [
-    "", "a", "ab", "abcd", "abcdefgh"
-  ]
+  const LengthValues = ["", "a", "ab", "abcd", "abcdefgh"]
 
   ## This vector values was tested with `protoc` and related proto file.
 
@@ -138,7 +132,7 @@ suite "MinProtobuf test suite":
     value.setLen(valueLen)
     value
 
-  proc isFullZero[T: byte|char](data: openArray[T]): bool =
+  proc isFullZero[T: byte | char](data: openArray[T]): bool =
     for ch in data:
       if int(ch) != 0:
         return false

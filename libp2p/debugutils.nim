@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -25,34 +25,40 @@
 ##   5. LocalAddress: optional bytes
 ##   6. RemoteAddress: optional bytes
 ##   7. Message: required bytes
-import os, options
+import os
 import nimcrypto/utils, stew/endians2
-import protobuf/minprotobuf, stream/connection, protocols/secure/secure,
-       multiaddress, peerid, varint, muxers/mplex/coder
+import
+  protobuf/minprotobuf,
+  stream/connection,
+  protocols/secure/secure,
+  multiaddress,
+  peerid,
+  varint,
+  muxers/mplex/coder
 
-from times import getTime, toUnix, fromUnix, nanosecond, format, Time,
-                  NanosecondRange, initTime
+from times import
+  getTime, toUnix, fromUnix, nanosecond, format, Time, NanosecondRange, initTime
 from strutils import toHex, repeat
-export peerid, options, multiaddress
+export peerid, multiaddress
 
 type
   FlowDirection* = enum
-    Outgoing, Incoming
+    Outgoing
+    Incoming
 
   ProtoMessage* = object
     timestamp*: uint64
     direction*: FlowDirection
     message*: seq[byte]
-    seqID*: Option[uint64]
-    mtype*: Option[uint64]
-    local*: Option[MultiAddress]
-    remote*: Option[MultiAddress]
+    seqID*: Opt[uint64]
+    mtype*: Opt[uint64]
+    local*: Opt[MultiAddress]
+    remote*: Opt[MultiAddress]
 
-const
-  libp2p_dump_dir* {.strdefine.} = "nim-libp2p"
-    ## default directory where all the dumps will be stored, if the path
-    ## relative it will be created in home directory. You can overload this path
-    ## using ``-d:libp2p_dump_dir=<otherpath>``.
+const libp2p_dump_dir* {.strdefine.} = "nim-libp2p"
+  ## default directory where all the dumps will be stored, if the path
+  ## relative it will be created in home directory. You can overload this path
+  ## using ``-d:libp2p_dump_dir=<otherpath>``.
 
 proc getTimestamp(): uint64 =
   ## This procedure is present because `stdlib.times` missing it.
@@ -65,14 +71,14 @@ proc getTimedate(value: uint64): string =
   let time = initTime(int64(value div 1_000_000_000), value mod 1_000_000_000)
   time.format("yyyy-MM-dd HH:mm:ss'.'fffzzz")
 
-proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
-                  data: openArray[byte]) =
+proc dumpMessage*(conn: SecureConn, direction: FlowDirection, data: openArray[byte]) =
   ## Store unencrypted message ``data`` to dump file, all the metadata will be
   ## extracted from ``conn`` instance.
   var pb = initProtoBuffer(options = {WithVarintLength})
   pb.write(2, getTimestamp())
   pb.write(4, uint64(direction))
-  pb.write(6, conn.observedAddr)
+  conn.observedAddr.withValue(oaddr):
+    pb.write(6, oaddr)
   pb.write(7, data)
   pb.finish()
 
@@ -86,7 +92,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
 
   # This is debugging procedure so it should not generate any exceptions,
   # and we going to return at every possible OS error.
-  if not(dirExists(dirName)):
+  if not (dirExists(dirName)):
     try:
       createDir(dirName)
     except CatchableError:
@@ -100,7 +106,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection,
   finally:
     close(handle)
 
-proc decodeDumpMessage*(data: openArray[byte]): Option[ProtoMessage] =
+proc decodeDumpMessage*(data: openArray[byte]): Opt[ProtoMessage] =
   ## Decode protobuf's message ProtoMessage from array of bytes ``data``.
   var
     pb = initProtoBuffer(data)
@@ -108,13 +114,12 @@ proc decodeDumpMessage*(data: openArray[byte]): Option[ProtoMessage] =
     ma1, ma2: MultiAddress
     pmsg: ProtoMessage
 
-  let res2 = pb.getField(2, pmsg.timestamp)
-  if res2.isErr() or not(res2.get()):
-    return none[ProtoMessage]()
-
-  let res4 = pb.getField(4, value)
-  if res4.isErr() or not(res4.get()):
-    return none[ProtoMessage]()
+  let
+    r2 = pb.getField(2, pmsg.timestamp)
+    r4 = pb.getField(4, value)
+    r7 = pb.getField(7, pmsg.message)
+  if not r2.get(false) or not r4.get(false) or not r7.get(false):
+    return Opt.none(ProtoMessage)
 
   # `case` statement could not work here with an error "selector must be of an
   # ordinal type, float or string"
@@ -124,30 +129,27 @@ proc decodeDumpMessage*(data: openArray[byte]): Option[ProtoMessage] =
     elif value == uint64(Incoming):
       Incoming
     else:
-      return none[ProtoMessage]()
+      return Opt.none(ProtoMessage)
 
-  let res7 = pb.getField(7, pmsg.message)
-  if res7.isErr() or not(res7.get()):
-    return none[ProtoMessage]()
+  let r1 = pb.getField(1, value)
+  if r1.get(false):
+    pmsg.seqID = Opt.some(value)
 
-  value = 0'u64
-  let res1 = pb.getField(1, value)
-  if res1.isOk() and res1.get():
-    pmsg.seqID = some(value)
-  value = 0'u64
-  let res3 = pb.getField(3, value)
-  if res3.isOk() and res3.get():
-    pmsg.mtype = some(value)
-  let res5 = pb.getField(5, ma1)
-  if res5.isOk() and res5.get():
-    pmsg.local = some(ma1)
-  let res6 = pb.getField(6, ma2)
-  if res6.isOk() and res6.get():
-    pmsg.remote = some(ma2)
+  let r3 = pb.getField(3, value)
+  if r3.get(false):
+    pmsg.mtype = Opt.some(value)
 
-  some(pmsg)
+  let
+    r5 = pb.getField(5, ma1)
+    r6 = pb.getField(6, ma2)
+  if r5.get(false):
+    pmsg.local = Opt.some(ma1)
+  if r6.get(false):
+    pmsg.remote = Opt.some(ma2)
 
-iterator messages*(data: seq[byte]): Option[ProtoMessage] =
+  Opt.some(pmsg)
+
+iterator messages*(data: seq[byte]): Opt[ProtoMessage] =
   ## Iterate over sequence of bytes and decode all the ``ProtoMessage``
   ## messages we found.
   var value: uint64
@@ -156,13 +158,11 @@ iterator messages*(data: seq[byte]): Option[ProtoMessage] =
   while offset < len(data):
     value = 0
     size = 0
-    let res = PB.getUVarint(data.toOpenArray(offset, len(data) - 1),
-                            size, value)
+    let res = PB.getUVarint(data.toOpenArray(offset, len(data) - 1), size, value)
     if res.isOk():
       if (value > 0'u64) and (value < uint64(len(data) - offset)):
         offset += size
-        yield decodeDumpMessage(data.toOpenArray(offset,
-                                                 offset + int(value) - 1))
+        yield decodeDumpMessage(data.toOpenArray(offset, offset + int(value) - 1))
         # value is previously checked to be less then len(data) which is `int`.
         offset += int(value)
       else:
@@ -182,10 +182,15 @@ proc dumpHex*(pbytes: openArray[byte], groupBy = 1, ascii = true): string =
 
     for k in 0 ..< groupBy:
       let ch = pbytes[offset + k]
-      ascii.add(if ord(ch) > 31 and ord(ch) < 127: char(ch) else: '.')
+      ascii.add(
+        if ord(ch) > 31 and ord(ch) < 127:
+          char(ch)
+        else:
+          '.'
+      )
 
     let item =
-      case groupBy:
+      case groupBy
       of 1:
         toHex(pbytes[offset])
       of 2:
@@ -207,8 +212,7 @@ proc dumpHex*(pbytes: openArray[byte], groupBy = 1, ascii = true): string =
       res.add("\p")
 
   if (offset mod 16) != 0:
-    let spacesCount = ((16 - (offset mod 16)) div groupBy) *
-                        (groupBy * 2 + 1) + 1
+    let spacesCount = ((16 - (offset mod 16)) div groupBy) * (groupBy * 2 + 1) + 1
     res = res & repeat(' ', spacesCount)
     res = res & ascii
 
@@ -236,31 +240,28 @@ proc toString*(msg: ProtoMessage, dump = true): string =
   var res = getTimedate(msg.timestamp)
   let direction =
     case msg.direction
-    of Incoming:
-      " << "
-    of Outgoing:
-      " >> "
-  let address =
-    block:
-      let local =
-        if msg.local.isSome():
-          "[" & $(msg.local.get()) & "]"
-        else:
-          "[LOCAL]"
-      let remote =
-        if msg.remote.isSome():
-          "[" & $(msg.remote.get()) & "]"
-        else:
-          "[REMOTE]"
-      local & direction & remote
-  let seqid =
-    if msg.seqID.isSome():
-      "seqID = " & $(msg.seqID.get()) & " "
+    of Incoming: " << "
+    of Outgoing: " >> "
+  let address = block:
+    let local = block:
+      msg.local.withValue(loc):
+        "[" & $loc & "]"
+      else:
+        "[LOCAL]"
+    let remote = block:
+      msg.remote.withValue(rem):
+        "[" & $rem & "]"
+      else:
+        "[REMOTE]"
+    local & direction & remote
+  let seqid = block:
+    msg.seqID.withValue(seqid):
+      "seqID = " & $seqid & " "
     else:
       ""
-  let mtype =
-    if msg.mtype.isSome():
-      "type = " & $(msg.mtype.get()) & " "
+  let mtype = block:
+    msg.mtype.withValue(typ):
+      "type = " & $typ & " "
     else:
       ""
   res.add(" ")

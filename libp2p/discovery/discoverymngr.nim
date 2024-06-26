@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -7,10 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
+{.push raises: [].}
 
 import std/sequtils
 import chronos, chronicles, stew/results
@@ -18,7 +15,7 @@ import ../errors
 
 type
   BaseAttr = ref object of RootObj
-    comparator: proc(f, c: BaseAttr): bool {.gcsafe, raises: [Defect].}
+    comparator: proc(f, c: BaseAttr): bool {.gcsafe, raises: [].}
 
   Attribute[T] = ref object of BaseAttr
     value: T
@@ -36,12 +33,13 @@ proc ofType*[T](f: BaseAttr, _: type[T]): bool =
 proc to*[T](f: BaseAttr, _: type[T]): T =
   Attribute[T](f).value
 
-proc add*[T](pa: var PeerAttributes,
-             value: T) =
-  pa.attributes.add(Attribute[T](
+proc add*[T](pa: var PeerAttributes, value: T) =
+  pa.attributes.add(
+    Attribute[T](
       value: value,
       comparator: proc(f: BaseAttr, c: BaseAttr): bool =
         f.ofType(T) and c.ofType(T) and f.to(T) == c.to(T)
+      ,
     )
   )
 
@@ -60,8 +58,9 @@ proc `{}`*[T](pa: PeerAttributes, t: typedesc[T]): Opt[T] =
       return Opt.some(f.to(T))
   Opt.none(T)
 
-proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [Defect, KeyError].} =
-  pa{T}.valueOr: raise newException(KeyError, "Attritute not found")
+proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [KeyError].} =
+  pa{T}.valueOr:
+    raise newException(KeyError, "Attritute not found")
 
 proc match*(pa, candidate: PeerAttributes): bool =
   for f in pa.attributes:
@@ -73,7 +72,7 @@ proc match*(pa, candidate: PeerAttributes): bool =
   return true
 
 type
-  PeerFoundCallback* = proc(pa: PeerAttributes) {.raises: [Defect], gcsafe.}
+  PeerFoundCallback* = proc(pa: PeerAttributes) {.raises: [], gcsafe.}
 
   DiscoveryInterface* = ref object of RootObj
     onPeerFound*: PeerFoundCallback
@@ -104,7 +103,7 @@ type
 proc add*(dm: DiscoveryManager, di: DiscoveryInterface) =
   dm.interfaces &= di
 
-  di.onPeerFound = proc (pa: PeerAttributes) =
+  di.onPeerFound = proc(pa: PeerAttributes) =
     for query in dm.queries:
       if query.attr.match(pa):
         try:
@@ -125,19 +124,14 @@ proc request*[T](dm: DiscoveryManager, value: T): DiscoveryQuery =
   pa.add(value)
   return dm.request(pa)
 
-proc advertise*(dm: DiscoveryManager, pa: PeerAttributes) =
+proc advertise*[T](dm: DiscoveryManager, value: T) =
   for i in dm.interfaces:
-    i.toAdvertise = pa
+    i.toAdvertise.add(value)
     if i.advertiseLoop.isNil:
       i.advertisementUpdated = newAsyncEvent()
       i.advertiseLoop = i.advertise()
     else:
       i.advertisementUpdated.fire()
-
-proc advertise*[T](dm: DiscoveryManager, value: T) =
-  var pa: PeerAttributes
-  pa.add(value)
-  dm.advertise(pa)
 
 template forEach*(query: DiscoveryQuery, code: untyped) =
   ## Will execute `code` for each discovered peer. The
@@ -147,8 +141,10 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
   proc forEachInternal(q: DiscoveryQuery) {.async.} =
     while true:
       let peer {.inject.} =
-        try: await q.getPeer()
-        except DiscoveryFinished: return
+        try:
+          await q.getPeer()
+        except DiscoveryFinished:
+          return
       code
 
   asyncSpawn forEachInternal(query)
@@ -156,13 +152,15 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
 proc stop*(query: DiscoveryQuery) =
   query.finished = true
   for r in query.futs:
-    if not r.finished(): r.cancel()
+    if not r.finished():
+      r.cancel()
 
 proc stop*(dm: DiscoveryManager) =
   for q in dm.queries:
     q.stop()
   for i in dm.interfaces:
-    if isNil(i.advertiseLoop): continue
+    if isNil(i.advertiseLoop):
+      continue
     i.advertiseLoop.cancel()
 
 proc getPeer*(query: DiscoveryQuery): Future[PeerAttributes] {.async.} =
