@@ -1142,8 +1142,8 @@ suite "GossipSub":
   asyncTest "spamming peer is disconnected and seen cache doesn't grow indefinitely":
     proc dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
       ok(m.data)
-    let nodes =
-      generateNodes(2, gossip = true, msgIdProvider = dumbMsgIdProvider)
+
+    let nodes = generateNodes(2, gossip = true, msgIdProvider = dumbMsgIdProvider)
 
     discard await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
@@ -1178,7 +1178,7 @@ suite "GossipSub":
     let peer = gossip0.mesh[topic].toSeq[0]
     while gossip0.switch.isConnected(peer.peerId):
       var data = newSeq[byte](32)
-      for i in 0..<data.len:
+      for i in 0 ..< data.len:
         data[i] = rand(256).uint8
       # creating a random message and returning it in dumbMsgIdProvider will make the id unique
       let msg = RPCMsg(messages: @[Message(topic: topic, data: data)])
@@ -1188,8 +1188,8 @@ suite "GossipSub":
     # we also check that the spamming peer can't connect to us again
     expect(DialFailedError):
       await nodes[0].switch.connect(
-            nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
-          )
+        nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
+      )
 
     check gossip0.switch.isConnected(peer.peerId) == false
     check gossip1.seen.len < 1000
