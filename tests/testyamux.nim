@@ -192,6 +192,7 @@ suite "Yamux":
     asyncTest "Saturate until reset":
       mSetup()
       let writerBlocker = newBlockerFut()
+      let readerBlocker = newBlockerFut()
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
         await writerBlocker
         try:
@@ -201,6 +202,7 @@ suite "Yamux":
         except CancelledError, LPStreamError:
           return
         finally:
+          readerBlocker.complete()
           await conn.close()
 
       let streamA = await yamuxa.newStream()
@@ -213,7 +215,9 @@ suite "Yamux":
       for i in 0 .. 3:
         expect(LPStreamEOFError):
           await wrFut[i]
+      await sleepAsync(50.millis) # waiting for reset to be send
       writerBlocker.complete()
+      await readerBlocker
       await streamA.close()
 
     asyncTest "Increase window size":
