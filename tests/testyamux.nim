@@ -39,6 +39,7 @@ suite "Yamux":
         conna.close(), connb.close(), yamuxa.close(), yamuxb.close(), handlera, handlerb
       )
 
+
   suite "Simple Reading/Writing yamux messages":
     asyncTest "Roundtrip of small messages":
       mSetup()
@@ -197,13 +198,14 @@ suite "Yamux":
         await writerBlocker
         try:
           var buffer: array[256, byte]
-          check:
-            (await conn.readOnce(addr buffer[0], 256)) == 0
+          while true:
+            # will crash when reset is received
+            discard await conn.readOnce(addr buffer[0], 256)
         except CancelledError, LPStreamError:
           return
         finally:
-          readerBlocker.complete()
           await conn.close()
+          readerBlocker.complete()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
@@ -215,7 +217,6 @@ suite "Yamux":
       for i in 0 .. 3:
         expect(LPStreamEOFError):
           await wrFut[i]
-      await sleepAsync(50.millis) # waiting for reset to be send
       writerBlocker.complete()
       await readerBlocker
       await streamA.close()
