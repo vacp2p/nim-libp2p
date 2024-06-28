@@ -258,9 +258,9 @@ suite "Circuit Relay V2":
         await allFutures(src.stop(), dst.stop(), rel.stop())
 
       asyncTest "Connection data exceeded":
-        ldata = 1000
+        ldata = 1500
         proto.handler = proc(conn: Connection, proto: string) {.async.} =
-          check "count me the better story you know" ==
+          check "count me the best story you know" ==
             string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("do you expect a lorem ipsum or...?")
           check "surprise me!" == string.fromBytes(await conn.readLp(1024))
@@ -281,6 +281,7 @@ suite "Circuit Relay V2":
   philosophical flourish Cato throws himself upon his sword; I quietly
   take to the ship."""
           )
+          await conn.close()
         rv2 = Relay.new(
           reservationTTL = initDuration(seconds = ttl),
           limitDuration = ldur,
@@ -305,7 +306,7 @@ suite "Circuit Relay V2":
 
         rsvp = await dstCl.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
         conn = await src.dial(dst.peerInfo.peerId, @[addrs], customProtoCodec)
-        await conn.writeLp("count me the better story you know")
+        await conn.writeLp("count me the best story you know")
         check:
           "do you expect a lorem ipsum or...?" ==
             string.fromBytes(await conn.readLp(1024))
