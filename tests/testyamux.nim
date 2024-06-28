@@ -39,7 +39,6 @@ suite "Yamux":
         conna.close(), connb.close(), yamuxa.close(), yamuxb.close(), handlera, handlerb
       )
 
-
   suite "Simple Reading/Writing yamux messages":
     asyncTest "Roundtrip of small messages":
       mSetup()
