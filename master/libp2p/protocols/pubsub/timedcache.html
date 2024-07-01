@@ -209,7 +209,8 @@ window.addEventListener("DOMContentLoaded", main2);
     title="TimedCache[K] = object of RootObj
   head, tail: TimedEntry[K]
   entries: HashSet[TimedEntry[K]]
-  timeout: Duration">TimedCache</a></li>
+  timeout: Duration
+  maxSize: int">TimedCache</a></li>
   <li><a class="reference" href="#TimedEntry"
     title="TimedEntry[K] = ref object of RootObj
   key: K
@@ -261,8 +262,8 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">init
-      <li><a class="reference" href="#init%2CtypeTimedCache%5BK%5D%2CDuration"
-    title="init[K](T: type TimedCache[K]; timeout: Duration = Timeout): T:type">init[K](T: type TimedCache[K]; timeout: Duration = Timeout): T:type</a></li>
+      <li><a class="reference" href="#init%2CtypeTimedCache%5BK%5D%2CDuration%2Cint"
+    title="init[K](T: type TimedCache[K]; timeout: Duration = Timeout; maxSize: int = 0): T:type">init[K](T: type TimedCache[K]; timeout: Duration = Timeout; maxSize: int = 0): T:type</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">put
@@ -299,6 +300,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">head</span><span class="Other">,</span> <span class="Identifier">tail</span><span class="Other">:</span> <a href="timedcache.html#TimedEntry"><span class="Identifier">TimedEntry</span></a><span class="Other">[</span><span class="Identifier">K</span><span class="Other">]</span>
   <span class="Identifier">entries</span><span class="Other">:</span> <span class="Identifier">HashSet</span><span class="Other">[</span><a href="timedcache.html#TimedEntry"><span class="Identifier">TimedEntry</span></a><span class="Other">[</span><span class="Identifier">K</span><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">timeout</span><span class="Other">:</span> <span class="Identifier">Duration</span>
+  <span class="Identifier">maxSize</span><span class="Other">:</span> <span class="Identifier">int</span>
 </pre></dt>
 <dd>
 
@@ -355,9 +357,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L33"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L34"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L33" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L34" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -367,9 +369,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L120"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L132"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L120" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L132" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -379,9 +381,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L116"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L128"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L116" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -391,9 +393,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L53"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L54"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L54" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -403,9 +405,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L45"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L46"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L45" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L46" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -415,22 +417,22 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L39"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L40"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L39" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L40" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="init,typeTimedCache[K],Duration" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#init%2CtypeTimedCache%5BK%5D%2CDuration"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">K</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Keyword">type</span> <a href="timedcache.html#TimedCache"><span class="Identifier">TimedCache</span></a><span class="Other">[</span><span class="Identifier">K</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">timeout</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">Timeout</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="init,typeTimedCache[K],Duration,int" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#init%2CtypeTimedCache%5BK%5D%2CDuration%2Cint"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">K</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Keyword">type</span> <a href="timedcache.html#TimedCache"><span class="Identifier">TimedCache</span></a><span class="Other">[</span><span class="Identifier">K</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">timeout</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">Timeout</span><span class="Other">;</span>
+             <span class="Identifier">maxSize</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L131"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L143"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L131" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L143" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -440,9 +442,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L77"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/timedcache.nim#L78"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L77" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/timedcache.nim#L78" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -456,7 +458,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-25 17:40:07 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-07-01 20:02:16 UTC</small>
       </div>
     </div>
   </div>
