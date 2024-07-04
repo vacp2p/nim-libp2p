@@ -71,6 +71,9 @@ type
     tcpProtocol
     udpProtocol
 
+func maErr*(msg: string): ref MaError =
+  (ref MaError)(msg: msg)
+
 const
   # These are needed in order to avoid an ambiguity error stemming from
   # some cint constants with the same name defined in the posix modules
@@ -970,23 +973,19 @@ proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
   else:
     ok()
 
-proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [LPError].} =
+proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  ##
+  concat(m1, m2).mapErr(maErr).tryGet()
 
-  concat(m1, m2).tryGet()
-
-proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [LPError].} =
+proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  ##
-
-  m1.append(m2).tryGet()
+  m1.append(m2).mapErr(maErr).tryGet()
 
 proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
   ## Check of two MultiAddress are equal
