@@ -89,7 +89,7 @@ jobs:
         run: |
           nim --version
           nimble --version
-          nimble test
+          NIMFLAGS="${NIMFLAGS} --mm:refc" nimble test
 
   lint:
     name: "Lint"
