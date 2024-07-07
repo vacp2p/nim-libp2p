@@ -200,6 +200,9 @@ method stop*(
   debug "Stopping WildcardAddressResolverService"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-    await switch.peerInfo.update()
+    if not switch.peerInfo.isNil():
+      switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+      await switch.peerInfo.update()
+    else:
+      warn "switch.peerInfo is nil while stopping WildcardAddressResolverService"
   return hasBeenStopped
