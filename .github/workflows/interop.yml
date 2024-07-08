@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
     branches:
-      - unstable
+      - master
   workflow_dispatch:
 
 concurrency:
