@@ -18,6 +18,9 @@ import strutils, os
 --d:
   unittestPrintTime
 --skipParentCfg
+--mm:
+  refc
+  # reconsider when there's a version-2-2 branch worth testing with as we might switch to orc
 
 # Only add chronicles param if the
 # user didn't specify any
