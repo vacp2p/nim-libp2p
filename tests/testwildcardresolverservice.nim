@@ -62,7 +62,7 @@ suite "WildcardAddressResolverService":
         MultiAddress.init("/ip4/127.0.0.1/tcp/0/").tryGet(),
         MultiAddress.init("/ip4/0.0.0.0/tcp/0/").tryGet(),
         MultiAddress.init("/ip6/::/tcp/0/").tryGet(),
-      ]
+      ],
     )
     await switch.start()
     let tcpIp4Locahost = switch.peerInfo.addrs[0][multiCodec("tcp")].get
