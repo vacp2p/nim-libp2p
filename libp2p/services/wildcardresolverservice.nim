@@ -97,52 +97,50 @@ proc getWildcardMultiAddresses(
 
 proc getWildcardAddress(
     maddress: MultiAddress,
-    multiCodec: MultiCodec,
-    anyAddr: openArray[uint8],
     addrFamily: AddressFamily,
     port: Port,
     networkInterfaceProvider: NetworkInterfaceProvider,
 ): seq[MultiAddress] =
-  var addresses: seq[MultiAddress]
-  maddress.getProtocolArgument(multiCodec).withValue(address):
-    if address == anyAddr:
-      let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
-      addresses.add(
-        getWildcardMultiAddresses(filteredInterfaceAddresses, IPPROTO_TCP, port)
-      )
-    else:
-      addresses.add(maddress)
-  return addresses
+  let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
+  getWildcardMultiAddresses(filteredInterfaceAddresses, IPPROTO_TCP, port)
 
 proc expandWildcardAddresses(
     networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
+
   # In this loop we expand bound addresses like `0.0.0.0` and `::` to list of interface addresses.
   for listenAddr in listenAddrs:
     if TCP_IP.matchPartial(listenAddr):
       listenAddr.getProtocolArgument(multiCodec("tcp")).withValue(portArg):
         let port = Port(uint16.fromBytesBE(portArg))
         if IP4.matchPartial(listenAddr):
-          let wildcardAddresses = getWildcardAddress(
-            listenAddr,
-            multiCodec("ip4"),
-            AnyAddress.address_v4,
-            AddressFamily.IPv4,
-            port,
-            networkInterfaceProvider,
-          )
-          addresses.add(wildcardAddresses)
+          listenAddr.getProtocolArgument(multiCodec("ip4")).withValue(ip4):
+            if ip4 == AnyAddress.address_v4:
+              addresses.add(
+                getWildcardAddress(
+                  listenAddr, AddressFamily.IPv4, port, networkInterfaceProvider
+                )
+              )
+            else:
+              addresses.add(listenAddr)
         elif IP6.matchPartial(listenAddr):
-          let wildcardAddresses = getWildcardAddress(
-            listenAddr,
-            multiCodec("ip6"),
-            AnyAddress6.address_v6,
-            AddressFamily.IPv6,
-            port,
-            networkInterfaceProvider,
-          )
-          addresses.add(wildcardAddresses)
+          echo listenAddr
+          listenAddr.getProtocolArgument(multiCodec("ip6")).withValue(ip6):
+            if ip6 == AnyAddress6.address_v6:
+              addresses.add(
+                getWildcardAddress(
+                  listenAddr, AddressFamily.IPv6, port, networkInterfaceProvider
+                )
+              )
+              # IPv6 dual stack
+              addresses.add(
+                getWildcardAddress(
+                  listenAddr, AddressFamily.IPv4, port, networkInterfaceProvider
+                )
+              )
+            else:
+              addresses.add(listenAddr)
         else:
           addresses.add(listenAddr)
     else:

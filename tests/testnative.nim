@@ -24,4 +24,4 @@ import
   testbufferstream, testidentify, testobservedaddrmanager, testconnmngr, testswitch,
   testnoise, testpeerinfo, testpeerstore, testping, testmplex, testrelayv1, testrelayv2,
   testrendezvous, testdiscovery, testyamux, testautonat, testautonatservice,
-  testautorelay, testdcutr, testhpservice, testutility, testhelpers
+  testautorelay, testdcutr, testhpservice, testutility, testhelpers, testwildcardresolverservice
