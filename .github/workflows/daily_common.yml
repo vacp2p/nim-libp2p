@@ -31,13 +31,13 @@ jobs:
       matrix:
         platform:
           - os: linux
-            builder: ubuntu-20
+            builder: ubuntu-22.04
             shell: bash
           - os: macos
-            builder: macos-12
+            builder: macos-14-large
             shell: bash
           - os: windows
-            builder: windows-2019
+            builder: windows-2022
             shell: msys2 {0}
         branch: ${{ fromJSON(inputs.nim-branch) }}
         cpu: ${{ fromJSON(inputs.cpu) }}
