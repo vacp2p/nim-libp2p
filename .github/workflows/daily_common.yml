@@ -34,7 +34,7 @@ jobs:
             builder: ubuntu-22.04
             shell: bash
           - os: macos
-            builder: macos-14-large
+            builder: macos-13
             shell: bash
           - os: windows
             builder: windows-2022
