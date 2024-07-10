@@ -144,7 +144,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(addrs)
 
-      proc acceptHandler() {.async.} =
+      proc acceptHandler() {.async, gensym.} =
         while true:
           let conn = await transport1.accept()
           await conn.write(newSeq[byte](0))
@@ -208,7 +208,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(ma)
 
-      proc acceptHandler() {.async.} =
+      proc acceptHandler() {.async, gensym.} =
         let conn = await transport1.accept()
         await conn.close()
 
