@@ -125,7 +125,6 @@ proc expandWildcardAddresses(
             else:
               addresses.add(listenAddr)
         elif IP6.matchPartial(listenAddr):
-          echo listenAddr
           listenAddr.getProtocolArgument(multiCodec("ip6")).withValue(ip6):
             if ip6 == AnyAddress6.address_v6:
               addresses.add(
