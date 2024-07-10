@@ -9,14 +9,13 @@ jobs:
     name: Daily amd64
     uses: ./.github/workflows/base_tests.yml
     with:
-      include: "[{'nim_branch': {'version': 'version-2-0', 'memory_management': 'orc'}}]"
       exclude: "[{'platform': {'cpu': 'i386'}}]"
 
   test_i386:
     name: Daily i386
     uses: ./.github/workflows/base_tests.yml
     with:
-      exclude: "[{'platform': {'cpu': 'amd64'}}]"
+      exclude: "[{'platform': {'cpu': 'amd64'}, 'nim_branch': {'version': 'version-2-0'}}]"
 
   test_nim_devel:
     name: Daily 
