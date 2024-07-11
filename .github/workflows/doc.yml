@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 20
 
     name: 'Generate & upload documentation'
-    runs-on: 'ubuntu-20.04'
+    runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - name: Checkout
