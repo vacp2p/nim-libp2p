@@ -86,11 +86,14 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Install gcc 14
+      - name: Use gcc 14
         if : ${{ matrix.target.os == 'linux' }}
         run: |
-          sudo add-apt-repository universe
-          sudo apt install gcc-14
+          # Add GCC-14 to alternatives
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+
+          # Set GCC-14 as the default
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
 
       - name: Run tests
         run: |
