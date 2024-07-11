@@ -31,7 +31,7 @@ jobs:
         include:
           - target:
               os: linux
-            builder: ubuntu-22.04
+            builder: ubuntu-24.04
             shell: bash
           - target:
               os: macos
