@@ -71,6 +71,13 @@ jobs:
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+        
+      - name: PRE packages info
+        run: |
+          ls -la ~/.nimble/pkgs2
+          cat install_pinned
+          nimble setup
+          cat nimble.paths
 
       - name: Restore deps from cache
         id: deps-cache
@@ -78,6 +85,13 @@ jobs:
         with:
           path: nimbledeps
           key: nimbledeps-${{ hashFiles('.pinned') }}
+      
+      - name: POST packages info
+        run: |
+          ls -la ~/.nimble/pkgs2
+          cat install_pinned
+          nimble setup
+          cat nimble.paths
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
