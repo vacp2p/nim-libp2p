@@ -80,7 +80,7 @@ jobs:
           cat install_pinned || true
           nimble setup || true
           cat nimble.paths || true
-          ls -la nimbledeps
+          ls -la nimbledeps || true
 
       - name: Restore deps from cache
         id: deps-cache
@@ -97,7 +97,7 @@ jobs:
           cat install_pinned || true
           nimble setup || true
           cat nimble.paths || true
-          ls -la nimbledeps
+          ls -la nimbledeps || true
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
@@ -112,7 +112,7 @@ jobs:
           cat install_pinned || true
           nimble setup || true
           cat nimble.paths || true
-          ls -la nimbledeps
+          ls -la nimbledeps || true
 
       # - name: Run tests
       #   run: |
