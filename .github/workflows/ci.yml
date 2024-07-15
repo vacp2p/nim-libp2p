@@ -76,9 +76,11 @@ jobs:
         run: |
           ls -la / || true
           pwd || true
+          sha256sum .pinned || true
           cat install_pinned || true
           nimble setup || true
           cat nimble.paths || true
+          ls -la nimbledeps
 
       - name: Restore deps from cache
         id: deps-cache
@@ -91,20 +93,32 @@ jobs:
         run: |
           ls -la / || true
           pwd || true
+          sha256sum .pinned || true
           cat install_pinned || true
           nimble setup || true
           cat nimble.paths || true
+          ls -la nimbledeps
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
-
-      - name: Run tests
+      
+      - name: POST POST packages info
         run: |
-          nim --version
-          nimble --version
-          nimble test
+          ls -la / || true
+          pwd || true
+          sha256sum .pinned || true
+          cat install_pinned || true
+          nimble setup || true
+          cat nimble.paths || true
+          ls -la nimbledeps
+
+      # - name: Run tests
+      #   run: |
+      #     nim --version
+      #     nimble --version
+      #     nimble test
 
   lint:
     name: "Lint"
