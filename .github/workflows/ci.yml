@@ -74,10 +74,11 @@ jobs:
         
       - name: PRE packages info
         run: |
-          ls -la /
-          cat install_pinned
-          nimble setup
-          cat nimble.paths
+          ls -la / || true
+          pwd || true
+          cat install_pinned || true
+          nimble setup || true
+          cat nimble.paths || true
 
       - name: Restore deps from cache
         id: deps-cache
@@ -88,10 +89,11 @@ jobs:
       
       - name: POST packages info
         run: |
-          ls -la /
-          cat install_pinned
-          nimble setup
-          cat nimble.paths
+          ls -la / || true
+          pwd || true
+          cat install_pinned || true
+          nimble setup || true
+          cat nimble.paths || true
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
