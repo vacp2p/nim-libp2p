@@ -74,7 +74,7 @@ jobs:
         
       - name: PRE packages info
         run: |
-          ls -la ~/.nimble/pkgs2
+          ls -la /
           cat install_pinned
           nimble setup
           cat nimble.paths
@@ -88,7 +88,7 @@ jobs:
       
       - name: POST packages info
         run: |
-          ls -la ~/.nimble/pkgs2
+          ls -la /
           cat install_pinned
           nimble setup
           cat nimble.paths
