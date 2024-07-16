@@ -2422,16 +2422,14 @@ window.addEventListener('DOMContentLoaded', main);
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false;
-                               msgHashProvider: MsgHashProvider = nil): P:type" href="libp2p/protocols/pubsub/pubsub.html#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams%2CMsgHashProvider">pubsub: init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
+                               parameters: PubParams = false): P:type" href="libp2p/protocols/pubsub/pubsub.html#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams">pubsub: init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
                                triggerSelf: bool = false;
                                anonymize: bool = false;
                                verifySignature: bool = true; sign: bool = true;
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false;
-                               msgHashProvider: MsgHashProvider = nil): P:type</a></li>
+                               parameters: PubParams = false): P:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="message: init(T: type Message; peer: Option[PeerInfo]; data: seq[byte]; topic: string;
      seqno: Option[uint64]; sign: bool = true): Message" href="libp2p/protocols/pubsub/rpc/message.html#init%2CtypeMessage%2COption%5BPeerInfo%5D%2Cseq%5Bbyte%5D%2Cstring%2COption%5Buint64%5D%2Cbool">message: init(T: type Message; peer: Option[PeerInfo]; data: seq[byte]; topic: string;
@@ -3018,10 +3016,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="Msg" href="#Msg"><span>Msg:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="coder: Msg" href="libp2p/muxers/mplex/coder.html#Msg">coder: Msg</a></li>
-          </ul></dd>
-<dt><a name="MsgHashProvider" href="#MsgHashProvider"><span>MsgHashProvider:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="pubsub: MsgHashProvider" href="libp2p/protocols/pubsub/pubsub.html#MsgHashProvider">pubsub: MsgHashProvider</a></li>
           </ul></dd>
 <dt><a name="MsgIdProvider" href="#MsgIdProvider"><span>MsgIdProvider:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3918,6 +3912,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="rebalanceMesh" href="#rebalanceMesh"><span>rebalanceMesh:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="behavior: rebalanceMesh(g: GossipSub; topic: string; metrics: ptr MeshMetrics = nil)" href="libp2p/protocols/pubsub/gossipsub/behavior.html#rebalanceMesh%2CGossipSub%2Cstring%2Cptr.MeshMetrics">behavior: rebalanceMesh(g: GossipSub; topic: string; metrics: ptr MeshMetrics = nil)</a></li>
+          </ul></dd>
+<dt><a name="recvAndValidatedObservers" href="#recvAndValidatedObservers"><span>recvAndValidatedObservers:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: recvAndValidatedObservers(p: PubSubPeer; msg: Message; msgId: MessageId)" href="libp2p/protocols/pubsub/pubsubpeer.html#recvAndValidatedObservers%2CPubSubPeer%2CMessage%2CMessageId">pubsubpeer: recvAndValidatedObservers(p: PubSubPeer; msg: Message; msgId: MessageId)</a></li>
           </ul></dd>
 <dt><a name="recvObservers" href="#recvObservers"><span>recvObservers:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5442,7 +5440,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-19 12:59:23 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-07-16 13:29:14 UTC</small>
       </div>
     </div>
   </div>

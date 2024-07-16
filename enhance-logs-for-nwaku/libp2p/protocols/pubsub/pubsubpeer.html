@@ -216,7 +216,9 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#PubSubObserver"
     title="PubSubObserver = ref object
   onRecv*: proc (peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
-  onSend*: proc (peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}">PubSubObserver</a></li>
+  onSend*: proc (peer: PubSubPeer; msgs: var RPCMsg) {.gcsafe, raises: [].}
+  onRecvAndValidated*: proc (peer: PubSubPeer; msg: Message; msgId: MessageId) {.
+      gcsafe, raises: [].}">PubSubObserver</a></li>
   <li><a class="reference" href="#PubSubPeer"
     title="PubSubPeer = ref object of RootObj
   getConn*: GetConn
@@ -329,6 +331,11 @@ window.addEventListener("DOMContentLoaded", main2);
     title="outbound(p: PubSubPeer): bool">outbound(p: PubSubPeer): bool</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">recvAndValidatedObservers
+      <li><a class="reference" href="#recvAndValidatedObservers%2CPubSubPeer%2CMessage%2CMessageId"
+    title="recvAndValidatedObservers(p: PubSubPeer; msg: Message; msgId: MessageId)">recvAndValidatedObservers(p: PubSubPeer; msg: Message; msgId: MessageId)</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">recvObservers
       <li><a class="reference" href="#recvObservers%2CPubSubPeer%2CRPCMsg"
     title="recvObservers(p: PubSubPeer; msg: var RPCMsg)">recvObservers(p: PubSubPeer; msg: var RPCMsg)</a></li>
@@ -401,9 +408,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L81"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L83"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L81" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -413,9 +420,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L80"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L82"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L82" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -425,9 +432,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L83"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L85"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L85" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -447,6 +454,8 @@ class="link-seesrc" target="_blank">Source</a>
 <dt><pre><a href="pubsubpeer.html#PubSubObserver"><span class="Identifier">PubSubObserver</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">onRecv</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msgs</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}
   <span class="Identifier">onSend</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msgs</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}
+  <span class="Identifier">onRecvAndValidated</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#Message"><span class="Identifier">Message</span></a><span class="Other">;</span> <span class="Identifier">msgId</span><span class="Other">:</span> <a href="rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">)</span> {.
+      <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}
 </pre></dt>
 <dd>
 
@@ -488,9 +497,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L93"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L95"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L95" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -502,9 +511,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L77"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L79"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L77" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L79" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -515,9 +524,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L71"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L73"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L71" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L73" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -528,9 +537,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L122"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L124"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L122" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L124" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -544,9 +553,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L85"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L87"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L85" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -578,9 +587,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L144"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L146"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L144" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L146" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -590,9 +599,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L478"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L487"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L478" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L487" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -602,9 +611,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L277"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L286"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L277" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L286" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -614,9 +623,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L155"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L157"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L157" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -626,9 +635,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L134"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L136"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L134" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L136" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -639,9 +648,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L182"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L191"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L182" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L191" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -651,9 +660,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L141"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L143"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L141" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L143" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -663,9 +672,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L158"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L160"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L158" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L160" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -675,9 +684,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L283"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L292"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L283" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L292" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -691,9 +700,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L526"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L535"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L526" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L535" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -703,9 +712,22 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L161"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L163"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L163" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="recvAndValidatedObservers,PubSubPeer,Message,MessageId" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#recvAndValidatedObservers%2CPubSubPeer%2CMessage%2CMessageId"><span class="Identifier">recvAndValidatedObservers</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#Message"><span class="Identifier">Message</span></a><span class="Other">;</span> <span class="Identifier">msgId</span><span class="Other">:</span> <a href="rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">)</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L177"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L177" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -716,9 +738,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L168"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L170"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L168" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L170" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -737,9 +759,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L440"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L449"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L440" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L449" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -757,9 +779,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L353"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L362"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L353" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L362" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -769,9 +791,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L147"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L149"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L147" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L149" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -782,9 +804,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L508"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L517"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L508" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L517" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -799,9 +821,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L152"
+href="https://github.com/status-im/nim-libp2p/tree/enhance-logs-for-nwaku/libp2p/protocols/pubsub/pubsubpeer.nim#L154"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/status-im/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -820,7 +842,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-06-19 12:59:22 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-07-16 13:29:13 UTC</small>
       </div>
     </div>
   </div>
