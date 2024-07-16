@@ -67,6 +67,8 @@ type
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
     onSend*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+    onRecvAndValidated*:
+      proc(peer: PubSubPeer, msg: Message, msgId: MessageId) {.gcsafe, raises: [].}
 
   PubSubPeerEventKind* {.pure.} = enum
     StreamOpened
@@ -171,6 +173,13 @@ proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
     for obs in p.observers[]:
       if not (isNil(obs)): # TODO: should never be nil, but...
         obs.onRecv(p, msg)
+
+proc recvAndValidatedObservers*(p: PubSubPeer, msg: Message, msgId: MessageId) =
+  # trigger hooks
+  if not (isNil(p.observers)) and p.observers[].len > 0:
+    for obs in p.observers[]:
+      if not (isNil(obs)): # TODO: should never be nil, but...
+        obs.onRecvAndValidated(p, msg, msgId)
 
 proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
