@@ -1,4 +1,4 @@
-name: Update this project's version where it servers as a dependency
+name: Update libp2p's version where it serves as a dependency
 on:
   push:
     branches:
@@ -7,9 +7,9 @@ on:
 
 jobs:
   update_version:
-    # Pushes new refs to interested external repositorysitories, so they can do early testing against them.
+    # Pushes new refs to interested external repositories, so they can do early testing against them.
     runs-on: ubuntu-latest
-    name: Update libp2p's version for ${{ matrix.target.repository }} from ${{ matrix.target.ref }}
+    name: Update libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
     strategy:
       fail-fast: false
       matrix:
@@ -19,23 +19,23 @@ jobs:
           { repository: codex-storage/nim-codex, ref: master }
         ]
     steps:
-      - name: Clone repository
+      - name: Clone target repository
         uses: actions/checkout@v4
         with:
-          repositorysitory: ${{ matrix.target.repository }}
+          repository: ${{ matrix.target.repository }}
           ref: ${{ matrix.target.ref}}
           path: nbc
           fetch-depth: 0
           token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
 
-      - name: Checkout this ref
+      - name: Checkout this ref in target repository
         run: |
           cd nbc
           git submodule update --init vendor/nim-libp2p
           cd vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
-      - name: Commit this ref
+      - name: Push this ref to target repository
         run: |
           cd nbc
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
