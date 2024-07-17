@@ -7,23 +7,23 @@ on:
 
 jobs:
   update_version:
-    # Is this job necessary?
+    # Pushes new refs to interested external repositories, so they can do early testing against them.
     runs-on: ubuntu-latest
-    name: Updating version on ${{ matrix.target.repo }}:${{ matrix.target.branch }}
+    name: Update libp2p's version for ${{ matrix.target.repo }} from ${{ matrix.target.source_ref }}
     strategy:
       fail-fast: false
       matrix:
         target: [
-          { repo: status-im/nimbus-eth2, branch: unstable },
-          { repo: waku-org/nwaku, branch: master },
-          { repo: codex-storage/nim-codex, branch: master }
+          { repo: status-im/nimbus-eth2, source_ref: master },
+          { repo: waku-org/nwaku, source_ref: master },
+          { repo: codex-storage/nim-codex, source_ref: master }
         ]
     steps:
       - name: Clone repo
         uses: actions/checkout@v4
         with:
           repository: ${{ matrix.target.repo }}
-          ref: ${{ matrix.target.branch }}
+          ref: ${{ matrix.target.source_ref}}
           path: nbc
           fetch-depth: 0
           token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
@@ -35,8 +35,7 @@ jobs:
           cd vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
-      - name: Commit this bump
-        # Is it mandatory to create a new commit? Or does it exist as a way to communicate why the version was updated.
+      - name: Commit this ref
         run: |
           cd nbc
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
@@ -45,3 +44,4 @@ jobs:
           git branch -D nim-libp2p-auto-bump-${GITHUB_REF##*/} || true
           git switch -c nim-libp2p-auto-bump-${GITHUB_REF##*/}
           git push -f origin nim-libp2p-auto-bump-${GITHUB_REF##*/}
+
