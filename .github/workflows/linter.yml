@@ -1,4 +1,4 @@
-name: Code Formatter
+name: Linter
 
 on:
   push:
@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  formatter:
-    name: "Format Codebase"
+  nph:
+    name: "NPH Linter"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
 
-      - name: Format with NPH
+      - name: Lint style
         # Pin nph to a specific version to avoid sudden style differences.
         # Updating nph version should be accompanied with running the new
         # version on the fluffy directory.
