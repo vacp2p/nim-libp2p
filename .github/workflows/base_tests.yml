@@ -57,9 +57,11 @@ jobs:
             memory_management: refc
           - version: version-2-0
             memory_management: refc
+          # This last combination is injected via "include" in the "test_nim_devel" daily test. Also written here for clarity.
           # - version: devel
           #   memory_management: orc
-        # If exclude or include are defined use their value, otherwise default to empty list (as declared on workflow_call.inputs).
+
+        # If exclude or include are defined then use their value, otherwise default to empty list (as declared on workflow_call.inputs).
         # Reason for above is when workflow is not initiated by workflow_call, the parameters are not defined. Their value is 0 or '' (empty string).
         # This relies on the value 0 meaning the parameter was not filled in.
         include: ${{ inputs.include != 0 && fromJSON(inputs.include) || fromJSON('[]') }}
