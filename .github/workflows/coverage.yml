@@ -69,8 +69,3 @@ jobs:
         run: |
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
 
-        # Alternatively, use the upload artifact action
-        # - uses: actions/upload-artifact@master
-        #  with:
-        #    name: coverage
-        #    path: coverage
