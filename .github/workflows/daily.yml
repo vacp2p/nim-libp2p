@@ -5,9 +5,6 @@ on:
   workflow_dispatch:
   pull_request:
 
-concurrency:
-  group: daily
-
 jobs:
   test_amd64:
     name: Daily amd64
