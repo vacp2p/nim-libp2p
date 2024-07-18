@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
   pull_request:
 
+concurrency:
+  group: daily
+
 jobs:
   test_amd64:
     name: Daily amd64
@@ -23,7 +26,7 @@ jobs:
       exclude: "[{'platform': {'cpu': 'amd64'}, 'nim_branch': {'version': 'version-2-0'}}]"
 
   test_nim_devel:
-    name: Daily 
+    name: Daily devel
     uses: ./.github/workflows/base_tests.yml
     concurrency:
       group: devel

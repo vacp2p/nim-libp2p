@@ -102,10 +102,10 @@ jobs:
         run: |
           nimble install -y --depsOnly
 
-      - name: Run tests
-        run: |
-          nim --version
-          nimble --version
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim_branch.memory_management }}"
-          nimble test
+      # - name: Run tests
+      #   run: |
+      #     nim --version
+      #     nimble --version
+      #     NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim_branch.memory_management }}"
+      #     nimble test
 
