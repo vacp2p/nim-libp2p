@@ -72,35 +72,51 @@ jobs:
         shell: ${{ matrix.platform.shell }}
 
     name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim_branch.version }})'
-    runs-on: ${{ matrix.platform.builder }}
+    runs-on: ubuntu-22.04
     continue-on-error: ${{ matrix.nim_branch.version == 'version-2-0' || matrix.nim_branch.version == 'devel' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup Nim
-        uses: "./.github/actions/install_nim"
+      - name: Matrix info
         with:
           os: ${{ matrix.platform.os }}
+          builder: ${{ matrix.platform.builder }}
+          cpu: ${{ matrix.platform.cpu }}
           shell: ${{ matrix.platform.shell }}
           nim_branch: ${{ matrix.nim_branch.version }}
-          cpu: ${{ matrix.platform.cpu }}
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '~1.15.5'
-          cache: false
-
-      - name: Install p2pd
+          memory_management: ${{ matrix.nim_branch.memory_management }}
         run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+          echo $os
+          echo $builder
+          echo $cpu
+          echo $shell
+          echo $nim_branch
+          echo $memory_management
+
+      # - name: Checkout
+      #   uses: actions/checkout@v4
+      #   with:
+      #     submodules: true
+
+      # - name: Setup Nim
+      #   uses: "./.github/actions/install_nim"
+      #   with:
+      #     os: ${{ matrix.platform.os }}
+      #     shell: ${{ matrix.platform.shell }}
+      #     nim_branch: ${{ matrix.nim_branch.version }}
+      #     cpu: ${{ matrix.platform.cpu }}
+
+      # - name: Setup Go
+      #   uses: actions/setup-go@v5
+      #   with:
+      #     go-version: '~1.15.5'
+      #     cache: false
+
+      # - name: Install p2pd
+      #   run: |
+      #     V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
       
-      - name: Install deps
-        run: |
-          nimble install -y --depsOnly
+      # - name: Install deps
+      #   run: |
+      #     nimble install -y --depsOnly
 
       # - name: Run tests
       #   run: |
