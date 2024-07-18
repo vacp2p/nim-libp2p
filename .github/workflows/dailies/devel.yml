@@ -1,0 +1,14 @@
+name: Daily Tests
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  test_nim_devel:
+    name: Daily devel
+    uses: ./.github/workflows/base_tests.yml
+    with:
+      include: "[{'nim_branch': {'version': 'devel', 'memory_management': 'orc'}}]"
+      exclude: "[{'platform': {'os': 'windows'}}, {'platform': {'os': 'macos'}}, {'platform': {'cpu': 'i386'}}]"

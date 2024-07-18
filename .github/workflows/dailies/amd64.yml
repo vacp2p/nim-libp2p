@@ -1,0 +1,13 @@
+name: Daily Tests
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  test_amd64:
+    name: Daily amd64
+    uses: ./.github/workflows/base_tests.yml
+    with:
+      exclude: "[{'platform': {'cpu': 'i386'}}]"
