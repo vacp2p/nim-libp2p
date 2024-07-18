@@ -1,4 +1,4 @@
-name: Linter
+name: Linters
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   nph:
-    name: "NPH Linter"
+    name: NPH
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
