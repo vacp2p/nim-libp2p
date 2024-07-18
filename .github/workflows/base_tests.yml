@@ -7,9 +7,9 @@ on:
   pull_request:
   workflow_call:
     inputs:
-      include:
-        description: 'Include matrix configurations'
-        required: false
+      nim_branch:
+        description: 'Nim branch configurations'
+        required: true
         type: string
         default: "[]"
       exclude:
@@ -37,52 +37,54 @@ jobs:
       matrix:
         platform:
           - os: linux
-            builder: ubuntu-22.04
             cpu: amd64
-            shell: bash
           - os: linux
-            builder: ubuntu-22.04
             cpu: i386
-            shell: bash
           - os: macos
-            builder: macos-13
             cpu: amd64
-            shell: bash
           - os: windows
-            builder: windows-2022
             cpu: amd64
-            shell: msys2 {0}
-        nim_branch:
-          - version: version-1-6
-            memory_management: refc
-          - version: version-2-0
-            memory_management: refc
-          # This last combination is injected via "include" in the "test_nim_devel" daily test. Also written here for clarity.
-          # - version: devel
-          #   memory_management: orc
+        nim_branch: ${{ inputs.exclude != 0 && fromJSON(inputs.nim_branch) || fromJSON("[{'version': 'version-1-6'}, {'version': 'version-2-0'}]") }}
+        include:
+          - platform:
+              os: linux
+              builder: ubuntu-22.04
+              shell: bash
+          - platform:
+              os: macos
+              builder: macos-13
+              shell: bash
+          - platform:
+              os: windows
+              builder: windows-2022
+              shell: msys2 {0}ve
+          - nim_branch:
+              version: version-1-6
+              memory_management: refc
+          - nim_branch:
+              version: version-2-0
+              memory_management: refc
+          - nim_branch:
+              version: devel
+              memory_management: orc
 
-        # If exclude or include are defined then use their value, otherwise default to empty list (as declared on workflow_call.inputs).
+        # If exclude is defined then use its value, otherwise default to empty list (as declared on workflow_call.inputs).
         # Reason for above is when workflow is not initiated by workflow_call, the parameters are not defined. Their value is 0 or '' (empty string).
         # This relies on the value 0 meaning the parameter was not filled in.
-        include: ${{ inputs.include != 0 && fromJSON(inputs.include) || fromJSON('[]') }}
+        # exclude: ${{ inputs.exclude != 0 && fromJSON(inputs.exclude) || fromJSON('[]') }}
         exclude: ${{ inputs.exclude != 0 && fromJSON(inputs.exclude) || fromJSON('[]') }}
 
     defaults:
       run:
         shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim_branch.version }})'
+    # name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim_branch.version }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.builder }}-${{ matrix.platform.shell }} (Nim ${{ matrix.nim_branch.version }}-${{ matrix.nim_branch.memory_management }})'
     runs-on: ubuntu-22.04
     continue-on-error: ${{ matrix.nim_branch.version == 'version-2-0' || matrix.nim_branch.version == 'devel' }}
     steps:
       - name: Matrix info
-        run: |
-          echo ${{ matrix.platform.os }}
-          echo ${{ matrix.platform.builder }}
-          echo ${{ matrix.platform.cpu }}
-          echo ${{ matrix.platform.shell }}
-          echo ${{ matrix.nim_branch.version }}
-          echo ${{ matrix.nim_branch.memory_management }}
+        run: ""
 
       # - name: Checkout
       #   uses: actions/checkout@v4
