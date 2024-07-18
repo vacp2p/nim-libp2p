@@ -1,4 +1,4 @@
-name: Daily Tests
+name: Daily Nim Devel
 on:
   schedule:
     - cron: "30 6 * * *"
@@ -7,7 +7,7 @@ on:
 
 jobs:
   test_nim_devel:
-    name: Daily devel
+    name: Daily Nim Devel
     uses: ./.github/workflows/base_tests.yml
     with:
       include: "[{'nim_branch': {'version': 'devel', 'memory_management': 'orc'}}]"
