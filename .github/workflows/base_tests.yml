@@ -50,7 +50,7 @@ jobs:
           - platform:
               os: windows
             builder: windows-2022
-            shell: msys {0}
+            shell: msys2 {0}
 
     defaults:
       run:
