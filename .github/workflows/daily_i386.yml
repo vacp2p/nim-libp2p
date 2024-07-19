@@ -1,15 +1,15 @@
-# name: Daily i386
-# on:
-#   schedule:
-#     - cron: "30 6 * * *"
-#   workflow_dispatch:
-#   pull_request:
+name: Daily i386
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+  pull_request:
 
-# jobs:
-#   test_i386:
-#     name: Daily i386 (Linux)
-#     uses: ./.github/workflows/base_daily_tests.yml
-#     with:
-#       nim: "[{'branch': 'version-1-6', 'memory_management': 'refc'}, {'branch': 'version-2-0', 'memory_management': 'refc'}, {'branch': 'devel', 'memory_management': 'orc'}]"
-#       cpu: "['i386']"
-#       exclude: "[{'platform': {'os':'macos'}}, {'platform': {'os':'windows'}}]"
+jobs:
+  test_i386:
+    name: Daily i386 (Linux)
+    uses: ./.github/workflows/base_daily_tests.yml
+    with:
+      nim: "[{'branch': 'version-1-6', 'memory_management': 'refc'}, {'branch': 'version-2-0', 'memory_management': 'refc'}, {'branch': 'devel', 'memory_management': 'orc'}]"
+      cpu: "['i386']"
+      exclude: "[{'platform': {'os':'macos'}}, {'platform': {'os':'windows'}}]"

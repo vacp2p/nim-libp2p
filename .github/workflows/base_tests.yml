@@ -61,7 +61,6 @@ jobs:
         shell: ${{ matrix.shell }}
 
     name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
-    # name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.builder }}-${{ matrix.shell }} (Nim ${{ matrix.nim.branch }}-${{ matrix.nim.memory_management }})'
     runs-on: ${{ matrix.builder }}
     continue-on-error: ${{ matrix.nim.branch == 'version-2-0' || matrix.nim.branch == 'devel' }}
     steps:
@@ -78,24 +77,23 @@ jobs:
           nim_branch: ${{ matrix.nim.branch }}
           cpu: ${{ matrix.platform.cpu }}
 
-      # - name: Setup Go
-      #   uses: actions/setup-go@v5
-      #   with:
-      #     go-version: '~1.15.5'
-      #     cache: false
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '~1.15.5'
+          cache: false
 
-      # - name: Install p2pd
-      #   run: |
-      #     V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+      - name: Install p2pd
+        run: |
+          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
       
-      # - name: Install deps
-      #   run: |
-      #     nimble install -y --depsOnly
+      - name: Install deps
+        run: |
+          nimble install -y --depsOnly
 
-      # - name: Run tests
-      #   run: |
-      #     nim --version
-      #     nimble --version
-      #     NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-      #     nimble test
-
+      - name: Run tests
+        run: |
+          nim --version
+          nimble --version
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          nimble test

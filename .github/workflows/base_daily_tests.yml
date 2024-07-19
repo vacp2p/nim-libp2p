@@ -68,7 +68,7 @@ jobs:
           cpu: ${{ matrix.cpu }}
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '~1.15.5'
           cache: false
