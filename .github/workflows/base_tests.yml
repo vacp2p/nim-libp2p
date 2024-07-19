@@ -58,7 +58,7 @@ jobs:
 
     defaults:
       run:
-        shell: ${{ matrix.platform.shell }}
+        shell: ${{ matrix.shell }}
 
     name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
     # name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.builder }}-${{ matrix.shell }} (Nim ${{ matrix.nim.branch }}-${{ matrix.nim.memory_management }})'
@@ -74,7 +74,7 @@ jobs:
         uses: "./.github/actions/install_nim"
         with:
           os: ${{ matrix.platform.os }}
-          shell: ${{ matrix.platform.shell }}
+          shell: ${{ matrix.shell }}
           nim_branch: ${{ matrix.nim.branch }}
           cpu: ${{ matrix.platform.cpu }}
 
