@@ -57,7 +57,7 @@ jobs:
         shell: ${{ matrix.platform.shell }}
 
     # name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim_branch.version }})'
-    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.builder }}-${{ matrix.platform.shell }} (Nim ${{ matrix.nim_branch.version }}-${{ matrix.nim_branch.memory_management }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.builder }}-${{ matrix.shell }} (Nim ${{ matrix.nim_branch.version }}-${{ matrix.nim_branch.memory_management }})'
     runs-on: ubuntu-22.04
     continue-on-error: ${{ matrix.nim_branch.version == 'version-2-0' || matrix.nim_branch.version == 'devel' }}
     steps:
