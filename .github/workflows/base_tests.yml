@@ -27,12 +27,16 @@ jobs:
         platform:
           - os: linux
             cpu: amd64
+            shell: bash
           - os: linux
             cpu: i386
+            shell: bash
           - os: macos
             cpu: amd64
+            shell: bash
           - os: windows
             cpu: amd64
+            shell: msys {0}
         nim: 
           - branch: version-1-6
             memory_management: refc
@@ -54,7 +58,7 @@ jobs:
 
     defaults:
       run:
-        shell: msys2 {0}
+        shell: ${{ matrix.platform.shell }}
 
     name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
     # name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.builder }}-${{ matrix.shell }} (Nim ${{ matrix.nim.branch }}-${{ matrix.nim.memory_management }})'
