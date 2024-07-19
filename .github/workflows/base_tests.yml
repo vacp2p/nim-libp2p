@@ -75,7 +75,7 @@ jobs:
         with:
           os: ${{ matrix.platform.os }}
           shell: ${{ matrix.platform.shell }}
-          nim: ${{ matrix.nim.branch }}
+          nim_branch: ${{ matrix.nim.branch }}
           cpu: ${{ matrix.platform.cpu }}
 
       # - name: Setup Go
