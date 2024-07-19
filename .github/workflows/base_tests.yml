@@ -65,21 +65,18 @@ jobs:
     runs-on: ${{ matrix.builder }}
     continue-on-error: ${{ matrix.nim.branch == 'version-2-0' || matrix.nim.branch == 'devel' }}
     steps:
-      - name: Matrix info
-        run: ""
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
 
-      # - name: Checkout
-      #   uses: actions/checkout@v4
-      #   with:
-      #     submodules: true
-
-      # - name: Setup Nim
-      #   uses: "./.github/actions/install_nim"
-      #   with:
-      #     os: ${{ matrix.platform.os }}
-      #     shell: ${{ matrix.platform.shell }}
-      #     nim: ${{ matrix.nim.branch }}
-      #     cpu: ${{ matrix.platform.cpu }}
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ matrix.platform.os }}
+          shell: ${{ matrix.platform.shell }}
+          nim: ${{ matrix.nim.branch }}
+          cpu: ${{ matrix.platform.cpu }}
 
       # - name: Setup Go
       #   uses: actions/setup-go@v5
