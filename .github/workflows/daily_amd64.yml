@@ -10,5 +10,5 @@ jobs:
     name: Daily amd64
     uses: ./.github/workflows/base_daily_tests.yml
     with:
-      nim: "[{'version': 'version-1-6', 'memory_management': 'refc'}, {'version': 'version-2-0', 'memory_management': 'refc'}]"
+      nim: "[{'branch': 'version-1-6', 'memory_management': 'refc'}, {'branch': 'version-2-0', 'memory_management': 'refc'}]"
       cpu: "['amd64']"
