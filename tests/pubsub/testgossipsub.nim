@@ -357,6 +357,8 @@ suite "GossipSub":
     let
       obs1 = PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          inc observed,
+        onRecvAndValidated: proc(peer: PubSubPeer, msg: Message, msgId: MessageId) =
           inc observed
       )
       obs2 = PubSubObserver(
@@ -382,7 +384,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
     await allFuturesThrowing(nodesFut.concat())
-    check observed == 2
+    check observed == 3
 
   asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
     var passed = newFuture[void]()
