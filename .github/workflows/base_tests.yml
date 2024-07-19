@@ -9,7 +9,7 @@ on:
     inputs:
       nim_branch:
         description: 'Nim branch configurations'
-        required: true
+        required: false
         type: string
         default: "[]"
       exclude:

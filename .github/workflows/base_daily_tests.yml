@@ -1,0 +1,84 @@
+name: Base Daily Tests
+
+on:
+  workflow_call:
+    inputs:
+      nim:
+        description: 'Nim Branch'
+        required: true
+        type: string # Following this format: [{"branch": ..., "memory_management": ...}, ...]
+      cpu:
+        description: 'CPU'
+        required: true
+        type: string
+      exclude:
+        description: 'Exclude matrix configurations'
+        required: false
+        type: string
+        default: "[]"
+
+jobs:
+  delete_cache:
+    name: Delete github action's branch cache
+    runs-on: ubuntu-latest
+    steps:
+      - uses: snnaplab/delete-branch-cache-action@v1
+
+  test:
+    needs: delete_cache
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - os: macos
+            builder: macos-13
+            shell: bash
+          - os: windows
+            builder: windows-2022
+            shell: msys2 {0}
+        nim: ${{ fromJSON(inputs.nim) }}
+        cpu: ${{ fromJSON(inputs.cpu) }}
+        exclude: ${{ fromJSON(inputs.exclude) }}
+
+    defaults:
+      run:
+        shell: ${{ matrix.platform.shell }}
+
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.version }})'
+    runs-on: ${{ matrix.platform.builder }}
+    continue-on-error: ${{ matrix.branch == 'devel' || matrix.branch == 'version-2-0' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ matrix.platform.os }}
+          shell: ${{ matrix.platform.shell }}
+          nim_branch: ${{ matrix.nim.branch }}
+          cpu: ${{ matrix.cpu }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '~1.15.5'
+          cache: false
+
+      - name: Install p2pd
+        run: |
+          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+        
+      - name: Install dependencies
+        run: |
+          nimble install -y --depsOnly
+
+      - name: Run tests
+        run: |
+          nim --version
+          nimble --version
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" nimble test
