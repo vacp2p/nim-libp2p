@@ -36,7 +36,7 @@ jobs:
             shell: bash
           - os: windows
             cpu: amd64
-            shell: msys {0}
+            shell: msys2 {0}
         nim: 
           - branch: version-1-6
             memory_management: refc
