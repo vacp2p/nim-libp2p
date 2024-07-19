@@ -10,6 +10,6 @@ jobs:
     name: Daily i386 (Linux)
     uses: ./.github/workflows/base_daily_tests.yml
     with:
-      nim_branch: "[{'version': 'version-1-6', 'memory_management': 'refc'}, {'version': 'version-2-0', 'memory_management': 'refc'}, {'version': 'devel', 'memory_management': 'orc'}]"
+      nim: "[{'branch': 'version-1-6', 'memory_management': 'refc'}, {'branch': 'version-2-0', 'memory_management': 'refc'}, {'branch': 'devel', 'memory_management': 'orc'}]"
       cpu: "['i386']"
       exclude: "[{'platform': {'os':'macos'}}, {'platform': {'os':'windows'}}]"

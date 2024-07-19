@@ -10,5 +10,5 @@ jobs:
     name: Daily Nim Devel
     uses: ./.github/workflows/base_daily_tests.yml
     with:
-      nim_branch: "[{'version': 'devel', 'memory_management': 'orc'}]"
+      nim: "[{'version': 'devel', 'memory_management': 'orc'}]"
       cpu: "['amd64']"
