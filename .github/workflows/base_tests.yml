@@ -6,17 +6,6 @@ on:
       - master
   pull_request:
   workflow_call:
-    inputs:
-      nim_branch:
-        description: 'Nim branch configurations'
-        required: false
-        type: string
-        default: "[]"
-      exclude:
-        description: 'Exclude matrix configurations'
-        required: false
-        type: string
-        default: "[]"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -38,32 +27,27 @@ jobs:
         platform:
           - os: linux
             cpu: amd64
-            builder: ubuntu-22.04
-            shell: bash
           - os: linux
             cpu: i386
-            builder: ubuntu-22.04
-            shell: bash
           - os: macos
             cpu: amd64
-            builder: macos-13
-            shell: bash
           - os: windows
             cpu: amd64
-            builder: windows-2022
-            shell: msys2 {0}
         nim_branch: 
           - version: version-1-6
             memory_management: refc
           - version: version-2-0
             memory_management: refc
-          - ${{ fromJson(inputs.nim_branch) }}
-
-        # If exclude is defined then use its value, otherwise default to empty list (as declared on workflow_call.inputs).
-        # Reason for above is when workflow is not initiated by workflow_call, the parameters are not defined. Their value is 0 or '' (empty string).
-        # This relies on the value 0 meaning the parameter was not filled in.
-        # exclude: ${{ inputs.exclude != 0 && fromJSON(inputs.exclude) || fromJSON('[]') }}
-        exclude: ${{ inputs.exclude != 0 && fromJSON(inputs.exclude) || fromJSON('[]') }}
+        include:
+          - os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - os: macos
+            builder: macos-13
+            shell: bash
+          - os: windows
+            builder: windows-2022
+            shell: msys {0}
 
     defaults:
       run:

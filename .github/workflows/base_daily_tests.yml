@@ -17,6 +17,10 @@ on:
         type: string
         default: "[]"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.job }}
+  cancel-in-progress: true
+
 jobs:
   delete_cache:
     name: Delete github action's branch cache
