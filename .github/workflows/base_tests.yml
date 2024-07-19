@@ -54,7 +54,7 @@ jobs:
 
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: msys2 {0}
 
     name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
     # name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.builder }}-${{ matrix.shell }} (Nim ${{ matrix.nim.branch }}-${{ matrix.nim.memory_management }})'
