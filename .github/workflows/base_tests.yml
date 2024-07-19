@@ -43,9 +43,11 @@ jobs:
             - os: linux
               builder: ubuntu-22.04
               shell: bash
+          - platform:
             - os: macos
               builder: macos-13
               shell: bash
+          - platform:
             - os: windows
               builder: windows-2022
               shell: msys {0}
