@@ -38,35 +38,26 @@ jobs:
         platform:
           - os: linux
             cpu: amd64
+            builder: ubuntu-22.04
+            shell: bash
           - os: linux
             cpu: i386
+            builder: ubuntu-22.04
+            shell: bash
           - os: macos
             cpu: amd64
+            builder: macos-13
+            shell: bash
           - os: windows
             cpu: amd64
-        nim_branch: ${{ inputs.exclude != 0 && fromJSON(inputs.nim_branch) || fromJSON("[{'version': 'version-1-6'}, {'version': 'version-2-0'}]") }}
-        include:
-          - platform:
-              os: linux
-              builder: ubuntu-22.04
-              shell: bash
-          - platform:
-              os: macos
-              builder: macos-13
-              shell: bash
-          - platform:
-              os: windows
-              builder: windows-2022
-              shell: msys2 {0}ve
-          - nim_branch:
-              version: version-1-6
-              memory_management: refc
-          - nim_branch:
-              version: version-2-0
-              memory_management: refc
-          - nim_branch:
-              version: devel
-              memory_management: orc
+            builder: windows-2022
+            shell: msys2 {0}
+        nim_branch: 
+          - version: version-1-6
+            memory_management: refc
+          - version: version-2-0
+            memory_management: refc
+          - ${{ fromJson(inputs.nim_branch) }}
 
         # If exclude is defined then use its value, otherwise default to empty list (as declared on workflow_call.inputs).
         # Reason for above is when workflow is not initiated by workflow_call, the parameters are not defined. Their value is 0 or '' (empty string).
