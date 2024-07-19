@@ -357,17 +357,20 @@ suite "GossipSub":
     let
       obs1 = PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) =
-          inc observed,
-        onRecvAndValidated: proc(peer: PubSubPeer, msg: Message, msgId: MessageId) =
           inc observed
       )
       obs2 = PubSubObserver(
+        onRecvAndValidated: proc(peer: PubSubPeer, msg: Message, msgId: MessageId) =
+          inc observed
+      )
+      obs3 = PubSubObserver(
         onSend: proc(peer: PubSubPeer, msgs: var RPCMsg) =
           inc observed
       )
 
     nodes[1].addObserver(obs1)
-    nodes[0].addObserver(obs2)
+    nodes[1].addObserver(obs2)
+    nodes[0].addObserver(obs3)
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
