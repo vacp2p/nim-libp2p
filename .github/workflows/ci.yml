@@ -20,16 +20,12 @@ jobs:
         platform:
           - os: linux
             cpu: amd64
-            shell: bash
           - os: linux
             cpu: i386
-            shell: bash
           - os: macos
             cpu: amd64
-            shell: bash
           - os: windows
             cpu: amd64
-            shell: msys2 {0}
         nim: 
           - branch: version-1-6
             memory_management: refc

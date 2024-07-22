@@ -1,7 +1,7 @@
 name: Coverage
 
 on:
-  # On push to common branches, this computes the coverage PRs will compared against
+  # On push to common branches, this computes the coverage that PRs will use for diff
   push:
     branches:
       - master
@@ -41,7 +41,7 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
-      
+
       - name: Setup coverage
         run: |
           sudo apt-get update
@@ -54,7 +54,7 @@ jobs:
           nimble testnative
           nimble testpubsub
           nimble testfilter
-      
+
       - name: Run coverage
         run: |
           find nimcache -name *.c -delete
@@ -63,7 +63,7 @@ jobs:
           ls `pwd`/libp2p/{*,**/*}.nim
           lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --output-directory coverage/output
-      
+
       - name: Upload coverage to codecov
         run: |
           bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"

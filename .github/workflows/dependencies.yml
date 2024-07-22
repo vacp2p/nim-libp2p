@@ -8,17 +8,19 @@ on:
 
 jobs:
   update_version:
-    # Pushes new refs to interested external repositories, so they can do early testing against them.
+    # Pushes new refs to interested external repositories, so they can do early testing against libp2p's newer versions
     runs-on: ubuntu-latest
     name: Update libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
     strategy:
       fail-fast: false
       matrix:
-        target: [
-          { repository: status-im/nimbus-eth2, ref: unstable },
-          { repository: waku-org/nwaku, ref: master },
-          { repository: codex-storage/nim-codex, ref: master }
-        ]
+        target:
+          - repository: status-im/nimbus-eth2
+            ref: unstable
+          - repository: waku-org/nwaku
+            ref: master
+          - repository: codex-storage/nim-codex
+            ref: master
     steps:
       - name: Clone target repository
         uses: actions/checkout@v4
@@ -27,7 +29,7 @@ jobs:
           ref: ${{ matrix.target.ref}}
           path: nbc
           fetch-depth: 0
-          token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+          token: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
 
       - name: Checkout this ref in target repository
         run: |
