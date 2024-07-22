@@ -5,7 +5,7 @@ on:
     branches:
       - master
   pull_request:
-  workflow_call:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform:
+        target:
           - os: linux
             cpu: amd64
             shell: bash
@@ -36,15 +36,15 @@ jobs:
           - branch: version-2-0
             memory_management: refc
         include:
-          - platform:
+          - target:
               os: linux
             builder: ubuntu-22.04
             shell: bash
-          - platform:
+          - target:
               os: macos
             builder: macos-13
             shell: bash
-          - platform:
+          - target:
               os: windows
             builder: windows-latest
             shell: msys2 {0}
@@ -53,7 +53,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.nim.branch }})'
     runs-on: ${{ matrix.builder }}
     continue-on-error: ${{ matrix.nim.branch == 'version-2-0' || matrix.nim.branch == 'devel' }}
     steps:
@@ -65,10 +65,10 @@ jobs:
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: ${{ matrix.platform.os }}
+          os: ${{ matrix.target.os }}
           shell: ${{ matrix.shell }}
           nim_branch: ${{ matrix.nim.branch }}
-          cpu: ${{ matrix.platform.cpu }}
+          cpu: ${{ matrix.target.cpu }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
