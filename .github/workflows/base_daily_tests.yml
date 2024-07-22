@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       nim:
-        description: 'Nim Branch'
+        description: 'Nim Configuration'
         required: true
         type: string # Following this format: [{"branch": ..., "memory_management": ...}, ...]
       cpu:
@@ -18,7 +18,7 @@ on:
         default: "[]"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.job }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

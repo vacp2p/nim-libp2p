@@ -14,7 +14,6 @@ concurrency:
 
 jobs:
   codecov:
-    # Improvement: Split single job into run tests, generate coverage, and upload to codecov.
     name: Run coverage and upload to codecov
     runs-on: ubuntu-22.04
     env:
@@ -43,13 +42,13 @@ jobs:
         run: |
           nimble install_pinned
       
-      - name: Install coverage tools and setup
+      - name: Setup coverage
         run: |
           sudo apt-get update
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
 
-      - name: Run coverage-enabled test suite
+      - name: Run test suite with coverage flags
         run: |
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
           nimble testnative

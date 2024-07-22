@@ -1,4 +1,4 @@
-name: Base Tests
+name: Continuous Integration
 
 on:
   push:
@@ -12,12 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  delete_cache:
-    name: Delete github action's branch cache
-    runs-on: ubuntu-latest
-    steps:
-      - uses: snnaplab/delete-branch-cache-action@v1
-
   test:
     needs: delete_cache
     timeout-minutes: 90
