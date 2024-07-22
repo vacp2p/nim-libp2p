@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
+        platform:
           - os: linux
             builder: ubuntu-22.04
             shell: bash
@@ -50,10 +50,10 @@ jobs:
 
     defaults:
       run:
-        shell: ${{ matrix.target.shell }}
+        shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.target.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.branch }})'
-    runs-on: ${{ matrix.target.builder }}
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.branch }})'
+    runs-on: ${{ matrix.platform.builder }}
     continue-on-error: ${{ matrix.nim.branch == 'devel' || matrix.nim.branch == 'version-2-0' }}
     steps:
       - name: Checkout
@@ -62,8 +62,8 @@ jobs:
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: ${{ matrix.target.os }}
-          shell: ${{ matrix.target.shell }}
+          os: ${{ matrix.platform.os }}
+          shell: ${{ matrix.platform.shell }}
           nim_branch: ${{ matrix.nim.branch }}
           cpu: ${{ matrix.cpu }}
 
