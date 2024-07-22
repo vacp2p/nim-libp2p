@@ -1,4 +1,5 @@
 name: Update libp2p's version where it serves as a dependency
+
 on:
   push:
     branches:

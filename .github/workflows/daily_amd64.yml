@@ -1,4 +1,5 @@
 name: Daily amd64
+
 on:
   schedule:
     - cron: "30 6 * * *"

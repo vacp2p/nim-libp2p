@@ -1,4 +1,5 @@
 name: Daily i386
+
 on:
   schedule:
     - cron: "30 6 * * *"
