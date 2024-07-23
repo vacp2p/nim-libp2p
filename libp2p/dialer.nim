@@ -62,7 +62,7 @@ proc dialAndUpgrade(
           libp2p_total_dial_attempts.inc()
           await transport.dial(hostname, address, peerId)
         except CancelledError as exc:
-          debug "Dialing canceled", err = exc.msg, peerId = peerId.get(default(PeerId))
+          trace "Dialing canceled", err = exc.msg, peerId = peerId.get(default(PeerId))
           raise exc
         except CatchableError as exc:
           debug "Dialing failed", err = exc.msg, peerId = peerId.get(default(PeerId))
