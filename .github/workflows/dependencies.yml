@@ -1,4 +1,4 @@
-name: Update libp2p's version where it serves as a dependency
+name: Dependencies
 
 on:
   push:
@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  update_version:
+  bumper:
     # Pushes new refs to interested external repositories, so they can do early testing against libp2p's newer versions
     runs-on: ubuntu-latest
-    name: Update libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
+    name: Bump libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
     strategy:
       fail-fast: false
       matrix:
