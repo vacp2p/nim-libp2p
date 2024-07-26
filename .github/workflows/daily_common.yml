@@ -1,4 +1,5 @@
-name: Base Daily Tests
+name: Daily Common
+# Serves as base workflow for daily tasks, it's not run by itself.
 
 on:
   workflow_call:

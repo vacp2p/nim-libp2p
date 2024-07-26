@@ -1,4 +1,4 @@
-name: Documentation generation and publishing
+name: Documentation Generation And Publishing
 
 on:
   push:
