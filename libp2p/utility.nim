@@ -10,8 +10,9 @@
 {.push raises: [].}
 
 import std/[sets, options, macros]
-import stew/[byteutils, results]
+import stew/byteutils
 
+import results
 export results
 
 template public*() {.pragma.}
@@ -123,13 +124,6 @@ macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): u
       `body`
     else:
       `elseBody`
-
-template valueOr*[T](self: Option[T], body: untyped): untyped =
-  let temp = (self)
-  if temp.isSome:
-    temp.get()
-  else:
-    body
 
 template toOpt*[T, E](self: Result[T, E]): Opt[T] =
   let temp = (self)
