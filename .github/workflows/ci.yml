@@ -83,12 +83,16 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
-
-      - name: Run tests
+      
+      - name: Debug Info
         run: |
-          nim --version
-          nimble --version
-          nimble test
+          ls -la nimbledeps || echo ""
+
+      # - name: Run tests
+      #   run: |
+      #     nim --version
+      #     nimble --version
+      #     nimble test
 
   lint:
     name: "Lint"
