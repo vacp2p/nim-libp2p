@@ -88,11 +88,11 @@ jobs:
         run: |
           ls -la nimbledeps || echo ""
 
-      # - name: Run tests
-      #   run: |
-      #     nim --version
-      #     nimble --version
-      #     nimble test
+      - name: Run tests
+        run: |
+          nim --version
+          nimble --version
+          nimble test
 
   lint:
     name: "Lint"
