@@ -360,7 +360,7 @@ suite "GossipSub":
           inc observed
       )
       obs2 = PubSubObserver(
-        onRecvAndValidated: proc(peer: PubSubPeer, msg: Message, msgId: MessageId) =
+        onValidated: proc(peer: PubSubPeer, msg: Message, msgId: MessageId) =
           inc observed
       )
       obs3 = PubSubObserver(
