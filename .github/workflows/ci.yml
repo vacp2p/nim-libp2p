@@ -94,6 +94,7 @@ jobs:
         run: |
           nim --version
           nimble --version
+          gcc --version
           nimble test
       
       - name: Post Debug Info
