@@ -265,20 +265,15 @@ suite "GossipSub":
     # Send message that will be accepted by the receiver's validator
     tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
 
-    check await handlerFut
-
     check:
       recvCounter == 1
       validatedCounter == 1
       sendCounter == 1
 
-    # Reset future
-    handlerFut = newFuture[bool]()
+    check await handlerFut
 
     # Send message that will be rejected by the receiver's validator
     tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
-
-    check await handlerFut
 
     check:
       recvCounter == 2
