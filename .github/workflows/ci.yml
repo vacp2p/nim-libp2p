@@ -76,7 +76,7 @@ jobs:
         id: deps-cache
         uses: actions/cache@v3
         with:
-          path: nimbledep
+          path: nimbledeps
           # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
           # The change happened on Nimble v0.14.0.
           key: nimbledeps-${{ matrix.branch }}-${{ hashFiles('.pinned') }}
