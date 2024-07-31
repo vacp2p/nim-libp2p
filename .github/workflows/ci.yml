@@ -84,16 +84,27 @@ jobs:
         run: |
           nimble install_pinned
       
-      - name: Debug Info
+      - name: Pre Debug Info
         run: |
           ls -la nimbledeps || echo ""
+      
+      - name: Pre Debug Info
+        run: |
+          ls -la nimbledeps || echo ""
+          ls -la nimbledeps/pkgs || echo ""
+          ls -la nimbledeps/pkgs2 || echo ""
 
       - name: Run tests
         run: |
           nim --version
           nimble --version
-          gcc --version
           nimble test
+      
+      - name: Post Debug Info
+        run: |
+          ls -la nimbledeps || echo ""
+          ls -la nimbledeps/pkgs || echo ""
+          ls -la nimbledeps/pkgs2 || echo ""
 
   lint:
     name: "Lint"
