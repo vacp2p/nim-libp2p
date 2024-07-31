@@ -39,7 +39,7 @@ jobs:
             shell: bash
           - target:
               os: windows
-            builder: windows-2022
+            builder: windows-2018
             shell: msys2 {0}
 
     defaults:
@@ -83,10 +83,6 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
-      
-      - name: Pre Debug Info
-        run: |
-          ls -la nimbledeps || echo ""
       
       - name: Pre Debug Info
         run: |
