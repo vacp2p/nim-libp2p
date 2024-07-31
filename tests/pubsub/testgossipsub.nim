@@ -220,6 +220,75 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "GossipSub's observers should run after message is sent, received and validated":
+    var
+      handlerFut = newFuture[bool]()
+      recvCounter = 0
+      sendCounter = 0
+      validatedCounter = 0
+
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foo"
+      handlerFut.complete(true)
+
+    proc onRecv(peer: PubSubPeer, msgs: var RPCMsg) =
+      inc recvCounter
+
+    proc onSend(peer: PubSubPeer, msgs: var RPCMsg) =
+      inc sendCounter
+
+    proc onValidated(peer: PubSubPeer, msgs: var RPCMsg) =
+      inc validatedCounter
+
+    let obs0 = PubSubObserver(onSend: onSend)
+    let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
+
+    let
+      nodes = generateNodes(2, gossip = true)
+      # start switches
+      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+
+    await subscribeNodes(nodes)
+
+    nodes[0].addObserver(obs0)
+    nodes[1].addObserver(obs1)
+    nodes[1].subscribe("foo", handler)
+    nodes[1].subscribe("bar", handler)
+
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      result = if topic == "foo": ValidationResult.Accept else: ValidationResult.Reject
+
+    nodes[1].addValidator("foo", "bar", validator)
+
+    # Send message that will be accepted by the receiver's validator
+    tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
+
+    check await handlerFut
+
+    check:
+      recvCounter == 1
+      validatedCounter == 1
+      sendCounter == 1
+
+    # Reset future
+    handlerFut = newFuture[bool]()
+
+    # Send message that will be rejected by the receiver's validator
+    tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
+
+    check await handlerFut
+
+    check:
+      recvCounter == 2
+      validatedCounter == 1
+      sendCounter == 2
+
+    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
+
+    await allFuturesThrowing(nodesFut.concat())
+
   asyncTest "GossipSub unsub - resub faster than backoff":
     var handlerFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -360,17 +429,12 @@ suite "GossipSub":
           inc observed
       )
       obs2 = PubSubObserver(
-        onValidated: proc(peer: PubSubPeer, msg: Message, msgId: MessageId) =
-          inc observed
-      )
-      obs3 = PubSubObserver(
         onSend: proc(peer: PubSubPeer, msgs: var RPCMsg) =
           inc observed
       )
 
     nodes[1].addObserver(obs1)
-    nodes[1].addObserver(obs2)
-    nodes[0].addObserver(obs3)
+    nodes[0].addObserver(obs2)
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
@@ -387,7 +451,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
     await allFuturesThrowing(nodesFut.concat())
-    check observed == 3
+    check observed == 2
 
   asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
     var passed = newFuture[void]()
