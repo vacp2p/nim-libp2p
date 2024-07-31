@@ -79,7 +79,7 @@ jobs:
           path: nimbledeps
           # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
           # The change happened on Nimble v0.14.0.
-          key: nimbledeps-${{ matrix.branch }}-${{ hashFiles('.pinned') }}
+          key: nimbledeps-${{ matrix.branch }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
