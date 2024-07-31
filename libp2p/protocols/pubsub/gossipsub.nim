@@ -454,7 +454,7 @@ proc validateAndRelay(
     g.rewardDelivered(peer, topic, true)
 
     # trigger hooks
-    peer.recvAndValidatedObservers(msg, msgId)
+    peer.validatedObservers(msg, msgId)
 
     # The send list typically matches the idontwant list from above, but
     # might differ if validation takes time

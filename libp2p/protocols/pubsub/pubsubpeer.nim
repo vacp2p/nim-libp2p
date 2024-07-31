@@ -175,13 +175,12 @@ proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
         if not (isNil(obs.onRecv)):
           obs.onRecv(p, msg)
 
-proc recvAndValidatedObservers*(p: PubSubPeer, msg: Message, msgId: MessageId) =
+proc validatedObservers*(p: PubSubPeer, msg: Message, msgId: MessageId) =
   # trigger hooks
   if not (isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
-      if not (isNil(obs)): # TODO: should never be nil, but...
-        if not (isNil(obs.onValidated)):
-          obs.onValidated(p, msg, msgId)
+      if not (isNil(obs.onValidated)):
+        obs.onValidated(p, msg, msgId)
 
 proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
