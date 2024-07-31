@@ -237,7 +237,7 @@ suite "GossipSub":
     proc onSend(peer: PubSubPeer, msgs: var RPCMsg) =
       inc sendCounter
 
-    proc onValidated(peer: PubSubPeer, msgs: var RPCMsg) =
+    proc onValidated(peer: PubSubPeer, msg: Message, msgId: MessageId) =
       inc validatedCounter
 
     let obs0 = PubSubObserver(onSend: onSend)
