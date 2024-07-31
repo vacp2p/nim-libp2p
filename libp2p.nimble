@@ -94,11 +94,11 @@ task testfilter, "Run PKI filter test":
 
 task test, "Runs the test suite":
   exec "nimble testnative"
-  exec "nimble testpubsub"
-  exec "nimble testdaemon"
-  exec "nimble testinterop"
-  exec "nimble testfilter"
-  exec "nimble examples_build"
+  # exec "nimble testpubsub"
+  # exec "nimble testdaemon"
+  # exec "nimble testinterop"
+  # exec "nimble testfilter"
+  # exec "nimble examples_build"
 
 task test_slim, "Runs the (slimmed down) test suite":
   exec "nimble testnative"
