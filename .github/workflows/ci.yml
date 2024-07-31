@@ -84,6 +84,14 @@ jobs:
         run: |
           nimble install_pinned
       
+      - name: Use gcc 14
+        if : ${{ matrix.target.os == 'windows'}}
+        run: |
+          # Add GCC-14 to alternatives
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 1
+          # Set GCC-14 as the default
+          sudo update-alternatives --set gcc /usr/bin/gcc-11
+      
       - name: Pre Debug Info
         run: |
           ls -la nimbledeps || echo ""
