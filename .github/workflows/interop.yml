@@ -26,7 +26,7 @@ jobs:
       - name: Build image
         run: docker buildx build --load -t nim-libp2p-head -f tests/transport-interop/Dockerfile .
       - name: Run tests
-        uses: diegomrsantos/test-plans/.github/actions/run-transport-interop-test@fix-buildx-buildkit-versions
+        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
