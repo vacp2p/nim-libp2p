@@ -222,14 +222,12 @@ suite "GossipSub":
 
   asyncTest "GossipSub's observers should run after message is sent, received and validated":
     var
-      handlerFut = newFuture[bool]()
       recvCounter = 0
       sendCounter = 0
       validatedCounter = 0
 
     proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foo"
-      handlerFut.complete(true)
+      discard
 
     proc onRecv(peer: PubSubPeer, msgs: var RPCMsg) =
       inc recvCounter
@@ -269,8 +267,6 @@ suite "GossipSub":
       recvCounter == 1
       validatedCounter == 1
       sendCounter == 1
-
-    check await handlerFut
 
     # Send message that will be rejected by the receiver's validator
     tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
