@@ -22,6 +22,8 @@ jobs:
             cpu: amd64
           - os: linux
             cpu: i386
+          - os: linux-gcc-14
+            cpu: amd64
           - os: macos
             cpu: amd64
           - os: windows
@@ -34,9 +36,13 @@ jobs:
         include:
           - platform:
               os: linux
-            builder: ubuntu-22.04
+            builder: ubuntu-24.04
             shell: bash
           - platform:
+              os: linux-gcc-14
+            builder: ubuntu-24.04
+            shell: bash
+          - target:
               os: macos
             builder: macos-13
             shell: bash
@@ -79,16 +85,28 @@ jobs:
         uses: actions/cache@v3
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
+          # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
+          # The change happened on Nimble v0.14.0.
+          key: nimbledeps-${{ matrix.nim.branch }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 
+      - name: Use gcc 14
+        if : ${{ matrix.target.os == 'linux-gcc-14'}}
+        run: |
+          # Add GCC-14 to alternatives
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+
+          # Set GCC-14 as the default
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
       - name: Run tests
         run: |
           nim --version
           nimble --version
+          gcc --version
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
