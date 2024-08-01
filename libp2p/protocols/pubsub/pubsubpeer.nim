@@ -67,6 +67,8 @@ type
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
     onSend*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+    onValidated*:
+      proc(peer: PubSubPeer, msg: Message, msgId: MessageId) {.gcsafe, raises: [].}
 
   PubSubPeerEventKind* {.pure.} = enum
     StreamOpened
@@ -170,14 +172,23 @@ proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
   if not (isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
       if not (isNil(obs)): # TODO: should never be nil, but...
-        obs.onRecv(p, msg)
+        if not (isNil(obs.onRecv)):
+          obs.onRecv(p, msg)
+
+proc validatedObservers*(p: PubSubPeer, msg: Message, msgId: MessageId) =
+  # trigger hooks
+  if not (isNil(p.observers)) and p.observers[].len > 0:
+    for obs in p.observers[]:
+      if not (isNil(obs.onValidated)):
+        obs.onValidated(p, msg, msgId)
 
 proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not (isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
       if not (isNil(obs)): # TODO: should never be nil, but...
-        obs.onSend(p, msg)
+        if not (isNil(obs.onSend)):
+          obs.onSend(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
   debug "starting pubsub read loop", conn, peer = p, closed = conn.closed

@@ -453,6 +453,9 @@ proc validateAndRelay(
 
     g.rewardDelivered(peer, topic, true)
 
+    # trigger hooks
+    peer.validatedObservers(msg, msgId)
+
     # The send list typically matches the idontwant list from above, but
     # might differ if validation takes time
     var toSendPeers = HashSet[PubSubPeer]()
