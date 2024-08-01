@@ -21,17 +21,21 @@ jobs:
             cpu: amd64
           - os: linux
             cpu: i386
+          - os: ubuntu-24-gcc-14
+            cpu: amd64
           - os: macos
             cpu: amd64
           - os: windows
             cpu: amd64
-          #- os: windows
-            #cpu: i386
         branch: [version-1-6, version-2-0]
         include:
           - target:
               os: linux
             builder: ubuntu-22.04
+            shell: bash
+          - target:
+              os: ubuntu-24-gcc-14
+            builder: ubuntu-24.04
             shell: bash
           - target:
               os: macos
@@ -86,10 +90,20 @@ jobs:
         run: |
           nimble install_pinned
 
+      - name: Use gcc 14
+        if : ${{ matrix.target.os == 'ubuntu-24-gcc-14'}}
+        run: |
+          # Add GCC-14 to alternatives
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+
+          # Set GCC-14 as the default
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
       - name: Run tests
         run: |
           nim --version
           nimble --version
+          gcc --version
           nimble test
 
   lint:
