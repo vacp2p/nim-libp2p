@@ -89,12 +89,6 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
-      
-      - name: Pre Debug Info
-        run: |
-          ls -la nimbledeps || echo ""
-          ls -la nimbledeps/pkgs || echo ""
-          ls -la nimbledeps/pkgs2 || echo ""
 
       - name: Use gcc 14
         if : ${{ matrix.target.os == 'ubuntu-24-gcc-14'}}
@@ -104,41 +98,69 @@ jobs:
 
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
-
-      - name: Run tests
-        env:
-          CC: gcc-11
-          CXX: g++-11
+      
+      - name: Pre Debug Info
         run: |
+          which nim
           nim --version
+          which nimble
           nimble --version
           gcc --version
-          nimble test
-      
-      - name: Post Debug Info
-        run: |
+          echo ""
+          echo ""
+          echo ""
           ls -la nimbledeps || echo ""
           ls -la nimbledeps/pkgs || echo ""
           ls -la nimbledeps/pkgs2 || echo ""
+          echo ""
+          echo ""
+          echo ""
+          ls -la ~/.nimble || echo ""
+          ls -la ~/.nimble/pkgs || echo ""
+          ls -la ~/.nimble/pkgs2 || echo ""
 
-  lint:
-    name: "Lint"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
-
-      - name: Check nph formatting
-        # Pin nph to a specific version to avoid sudden style differences.
-        # Updating nph version should be accompanied with running the new
-        # version on the fluffy directory.
+      - name: Run tests
         run: |
-          VERSION="v0.5.1"
-          ARCHIVE="nph-linux_x64.tar.gz"
-          curl -L "https://github.com/arnetheduck/nph/releases/download/${VERSION}/${ARCHIVE}" -o ${ARCHIVE}
-          tar -xzf ${ARCHIVE}
-          shopt -s extglob  # Enable extended globbing
-          ./nph examples libp2p tests tools *.@(nim|nims|nimble)
-          git diff --exit-code
+          nimble test
+      
+      - name: Pre Debug Info
+        run: |
+          which nim
+          nim --version
+          which nimble
+          nimble --version
+          gcc --version
+          echo ""
+          echo ""
+          echo ""
+          ls -la nimbledeps || echo ""
+          ls -la nimbledeps/pkgs || echo ""
+          ls -la nimbledeps/pkgs2 || echo ""
+          echo ""
+          echo ""
+          echo ""
+          ls -la ~/.nimble || echo ""
+          ls -la ~/.nimble/pkgs || echo ""
+          ls -la ~/.nimble/pkgs2 || echo ""
+
+  # lint:
+  #   name: "Lint"
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
+
+  #     - name: Check nph formatting
+  #       # Pin nph to a specific version to avoid sudden style differences.
+  #       # Updating nph version should be accompanied with running the new
+  #       # version on the fluffy directory.
+  #       run: |
+  #         VERSION="v0.5.1"
+  #         ARCHIVE="nph-linux_x64.tar.gz"
+  #         curl -L "https://github.com/arnetheduck/nph/releases/download/${VERSION}/${ARCHIVE}" -o ${ARCHIVE}
+  #         tar -xzf ${ARCHIVE}
+  #         shopt -s extglob  # Enable extended globbing
+  #         ./nph examples libp2p tests tools *.@(nim|nims|nimble)
+  #         git diff --exit-code

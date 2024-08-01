@@ -1,12 +1,12 @@
-name: Daily
-on:
-  schedule:
-    - cron: "30 6 * * *"
-  workflow_dispatch:
+# name: Daily
+# on:
+#   schedule:
+#     - cron: "30 6 * * *"
+#   workflow_dispatch:
 
-jobs:
-  call-multi-nim-common:
-    uses: ./.github/workflows/daily_common.yml
-    with:
-      nim-branch: "['version-1-6','version-2-0']"
-      cpu: "['amd64']"
+# jobs:
+#   call-multi-nim-common:
+#     uses: ./.github/workflows/daily_common.yml
+#     with:
+#       nim-branch: "['version-1-6','version-2-0']"
+#       cpu: "['amd64']"

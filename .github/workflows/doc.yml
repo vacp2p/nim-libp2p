@@ -1,110 +1,110 @@
-name: Docgen
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
+# name: Docgen
+# on:
+#   push:
+#     branches:
+#       - master
+#   workflow_dispatch:
 
-jobs:
-  build:
-    timeout-minutes: 20
+# jobs:
+#   build:
+#     timeout-minutes: 20
 
-    name: 'Generate & upload documentation'
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          submodules: true
+#     name: 'Generate & upload documentation'
+#     runs-on: ubuntu-latest
+#     continue-on-error: true
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v2
+#         with:
+#           submodules: true
 
-      - uses: jiro4989/setup-nim-action@v1
-        with:
-          nim-version: '1.6.x'
+#       - uses: jiro4989/setup-nim-action@v1
+#         with:
+#           nim-version: '1.6.x'
 
-      - name: Generate doc
-        run: |
-          nim --version
-          nimble --version
-          nimble install_pinned
-          # nim doc can "fail", but the doc is still generated
-          nim doc --git.url:https://github.com/vacp2p/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
+#       - name: Generate doc
+#         run: |
+#           nim --version
+#           nimble --version
+#           nimble install_pinned
+#           # nim doc can "fail", but the doc is still generated
+#           nim doc --git.url:https://github.com/vacp2p/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 
-          # check that the folder exists
-          ls ${GITHUB_REF##*/}
+#           # check that the folder exists
+#           ls ${GITHUB_REF##*/}
 
-      - name: Clone the gh-pages branch
-        uses: actions/checkout@v2
-        with:
-          repository: vacp2p/nim-libp2p
-          ref: gh-pages
-          path: subdoc
-          submodules: true
-          fetch-depth: 0
+#       - name: Clone the gh-pages branch
+#         uses: actions/checkout@v2
+#         with:
+#           repository: vacp2p/nim-libp2p
+#           ref: gh-pages
+#           path: subdoc
+#           submodules: true
+#           fetch-depth: 0
 
-      - name: Commit & push
-        run: |
-          cd subdoc
+#       - name: Commit & push
+#         run: |
+#           cd subdoc
 
-          # Update / create this branch doc
-          rm -rf ${GITHUB_REF##*/}
-          mv ../${GITHUB_REF##*/} .
+#           # Update / create this branch doc
+#           rm -rf ${GITHUB_REF##*/}
+#           mv ../${GITHUB_REF##*/} .
 
-          # Remove .idx files
-          # NOTE: git also uses idx files in his
-          # internal folder, hence the `*` instead of `.`
-          find * -name "*.idx" -delete
-          git add .
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
-          git commit -a -m "update docs for ${GITHUB_REF##*/}"
-          git push origin gh-pages
+#           # Remove .idx files
+#           # NOTE: git also uses idx files in his
+#           # internal folder, hence the `*` instead of `.`
+#           find * -name "*.idx" -delete
+#           git add .
+#           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+#           git config --global user.name = "${{ github.actor }}"
+#           git commit -a -m "update docs for ${GITHUB_REF##*/}"
+#           git push origin gh-pages
 
-  update_site:
-    name: 'Rebuild website'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+#   update_site:
+#     name: 'Rebuild website'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v2
 
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.x
+#       - uses: actions/setup-python@v2
+#         with:
+#           python-version: 3.x
 
-      - uses: jiro4989/setup-nim-action@v1
-        with:
-          nim-version: 'stable'
+#       - uses: jiro4989/setup-nim-action@v1
+#         with:
+#           nim-version: 'stable'
 
-      - name: Generate website
-        run: pip install mkdocs-material && nimble -y website
+#       - name: Generate website
+#         run: pip install mkdocs-material && nimble -y website
 
-      - name: Clone the gh-pages branch
-        uses: actions/checkout@v2
-        with:
-          repository: vacp2p/nim-libp2p
-          ref: gh-pages
-          path: subdoc
-          fetch-depth: 0
+#       - name: Clone the gh-pages branch
+#         uses: actions/checkout@v2
+#         with:
+#           repository: vacp2p/nim-libp2p
+#           ref: gh-pages
+#           path: subdoc
+#           fetch-depth: 0
 
-      - name: Commit & push
-        run: |
-          cd subdoc
+#       - name: Commit & push
+#         run: |
+#           cd subdoc
 
-          # Ensure the latest changes are fetched and reset to the remote branch
-          git fetch origin gh-pages
-          git reset --hard origin/gh-pages
+#           # Ensure the latest changes are fetched and reset to the remote branch
+#           git fetch origin gh-pages
+#           git reset --hard origin/gh-pages
 
-          rm -rf docs
-          mv ../site docs
+#           rm -rf docs
+#           mv ../site docs
 
-          git add .
+#           git add .
  
-          if git diff-index --quiet HEAD --; then
-            echo "No changes to commit"
-          else
-            git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-            git config --global user.name "${{ github.actor }}"
+#           if git diff-index --quiet HEAD --; then
+#             echo "No changes to commit"
+#           else
+#             git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+#             git config --global user.name "${{ github.actor }}"
 
-            git commit -m "update website"
-            git push origin gh-pages
-          fi
+#             git commit -m "update website"
+#             git push origin gh-pages
+#           fi

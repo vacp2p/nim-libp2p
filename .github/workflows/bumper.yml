@@ -1,44 +1,44 @@
-name: Bumper
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
+# name: Bumper
+# on:
+#   push:
+#     branches:
+#       - master
+#   workflow_dispatch:
 
-jobs:
-  bumpProjects:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [
-          { repo: status-im/nimbus-eth2, branch: unstable },
-          { repo: waku-org/nwaku, branch: master },
-          { repo: codex-storage/nim-codex, branch: master }
-        ]
-    steps:
-      - name: Clone repo
-        uses: actions/checkout@v2
-        with:
-          repository: ${{ matrix.target.repo }}
-          ref: ${{ matrix.target.branch }}
-          path: nbc
-          fetch-depth: 0
-          token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+# jobs:
+#   bumpProjects:
+#     runs-on: ubuntu-latest
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         target: [
+#           { repo: status-im/nimbus-eth2, branch: unstable },
+#           { repo: waku-org/nwaku, branch: master },
+#           { repo: codex-storage/nim-codex, branch: master }
+#         ]
+#     steps:
+#       - name: Clone repo
+#         uses: actions/checkout@v2
+#         with:
+#           repository: ${{ matrix.target.repo }}
+#           ref: ${{ matrix.target.branch }}
+#           path: nbc
+#           fetch-depth: 0
+#           token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
 
-      - name: Checkout this ref
-        run: |
-          cd nbc
-          git submodule update --init vendor/nim-libp2p
-          cd vendor/nim-libp2p
-          git checkout $GITHUB_SHA
+#       - name: Checkout this ref
+#         run: |
+#           cd nbc
+#           git submodule update --init vendor/nim-libp2p
+#           cd vendor/nim-libp2p
+#           git checkout $GITHUB_SHA
 
-      - name: Commit this bump
-        run: |
-          cd nbc
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
-          git commit --allow-empty -a -m "auto-bump nim-libp2p"
-          git branch -D nim-libp2p-auto-bump-${GITHUB_REF##*/} || true
-          git switch -c nim-libp2p-auto-bump-${GITHUB_REF##*/}
-          git push -f origin nim-libp2p-auto-bump-${GITHUB_REF##*/}
+#       - name: Commit this bump
+#         run: |
+#           cd nbc
+#           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+#           git config --global user.name = "${{ github.actor }}"
+#           git commit --allow-empty -a -m "auto-bump nim-libp2p"
+#           git branch -D nim-libp2p-auto-bump-${GITHUB_REF##*/} || true
+#           git switch -c nim-libp2p-auto-bump-${GITHUB_REF##*/}
+#           git push -f origin nim-libp2p-auto-bump-${GITHUB_REF##*/}
