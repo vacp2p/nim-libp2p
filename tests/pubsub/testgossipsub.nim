@@ -241,10 +241,9 @@ suite "GossipSub":
     let obs0 = PubSubObserver(onSend: onSend)
     let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
 
-    let
-      nodes = generateNodes(2, gossip = true)
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+    let nodes = generateNodes(2, gossip = true)
+    # start switches
+    discard await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
     await subscribeNodes(nodes)
 
@@ -277,8 +276,6 @@ suite "GossipSub":
       sendCounter == 2
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub unsub - resub faster than backoff":
     var handlerFut = newFuture[bool]()
