@@ -36,7 +36,7 @@ jobs:
         include:
           - platform:
               os: linux
-            builder: ubuntu-24.04
+            builder: ubuntu-22.04
             shell: bash
           - platform:
               os: linux-gcc-14
