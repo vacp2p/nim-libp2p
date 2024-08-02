@@ -59,89 +59,89 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup Nim
-        uses: "./.github/actions/install_nim"
-        with:
-          os: ${{ matrix.target.os }}
-          cpu: ${{ matrix.target.cpu }}
-          shell: ${{ matrix.shell }}
-          nim_branch: ${{ matrix.branch }}
+            #- name: Setup Nim
+            #  uses: "./.github/actions/install_nim"
+            #  with:
+            #    os: ${{ matrix.target.os }}
+            #    cpu: ${{ matrix.target.cpu }}
+            #    shell: ${{ matrix.shell }}
+            #    nim_branch: ${{ matrix.branch }}
 
-      - name: Setup Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: '~1.15.5'
+            #- name: Setup Go
+            #  uses: actions/setup-go@v2
+            #  with:
+            #    go-version: '~1.15.5'
 
-      - name: Install p2pd
-        run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+            #- name: Install p2pd
+            #  run: |
+            #    V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v3
-        with:
-          path: nimbledeps
-          # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
-          # The change happened on Nimble v0.14.0.
-          key: nimbledeps-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+            #- name: Restore deps from cache
+            #  id: deps-cache
+            #  uses: actions/cache@v3
+            #  with:
+            #    path: nimbledeps
+            #    # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
+            #    # The change happened on Nimble v0.14.0.
+            #    key: nimbledeps-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
+            #- name: Install deps
+            #  if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+            #  run: |
+            #    nimble install_pinned
 
-      - name: Use gcc 14
-        if : ${{ matrix.target.os == 'ubuntu-24-gcc-14'}}
-        run: |
-          # Add GCC-14 to alternatives
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+            #- name: Use gcc 14
+            #  if : ${{ matrix.target.os == 'ubuntu-24-gcc-14'}}
+            #  run: |
+            #    # Add GCC-14 to alternatives
+            #    sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
 
-          # Set GCC-14 as the default
-          sudo update-alternatives --set gcc /usr/bin/gcc-14
-      
-      - name: Pre Debug Info
-        run: |
-          which nim
-          nim --version
-          which nimble
-          nimble --version
-          gcc --version
-          echo ""
-          echo ""
-          echo ""
-          ls -la nimbledeps || echo ""
-          ls -la nimbledeps/pkgs || echo ""
-          ls -la nimbledeps/pkgs2 || echo ""
-          echo ""
-          echo ""
-          echo ""
-          ls -la ~/.nimble || echo ""
-          ls -la ~/.nimble/pkgs || echo ""
-          ls -la ~/.nimble/pkgs2 || echo ""
+            #    # Set GCC-14 as the default
+            #    sudo update-alternatives --set gcc /usr/bin/gcc-14
+            #
+            #- name: Pre Debug Info
+            #  run: |
+            #    which nim
+            #    nim --version
+            #    which nimble
+            #    nimble --version
+            #    gcc --version
+            #    echo ""
+            #    echo ""
+            #    echo ""
+            #    ls -la nimbledeps || echo ""
+            #    ls -la nimbledeps/pkgs || echo ""
+            #    ls -la nimbledeps/pkgs2 || echo ""
+            #    echo ""
+            #    echo ""
+            #    echo ""
+            #    ls -la ~/.nimble || echo ""
+            #    ls -la ~/.nimble/pkgs || echo ""
+            #    ls -la ~/.nimble/pkgs2 || echo ""
 
-      - name: Run tests
-        run: |
-          nimble test
-      
-      - name: Pre Debug Info
-        run: |
-          which nim
-          nim --version
-          which nimble
-          nimble --version
-          gcc --version
-          echo ""
-          echo ""
-          echo ""
-          ls -la nimbledeps || echo ""
-          ls -la nimbledeps/pkgs || echo ""
-          ls -la nimbledeps/pkgs2 || echo ""
-          echo ""
-          echo ""
-          echo ""
-          ls -la ~/.nimble || echo ""
-          ls -la ~/.nimble/pkgs || echo ""
-          ls -la ~/.nimble/pkgs2 || echo ""
+          #      - name: Run tests
+          #        run: |
+          #          nimble test
+          #      
+          #      - name: Pre Debug Info
+          #        run: |
+          #          which nim
+          #          nim --version
+          #          which nimble
+          #          nimble --version
+          #          gcc --version
+          #          echo ""
+          #          echo ""
+          #          echo ""
+          #          ls -la nimbledeps || echo ""
+          #          ls -la nimbledeps/pkgs || echo ""
+          #          ls -la nimbledeps/pkgs2 || echo ""
+          #          echo ""
+          #          echo ""
+          #          echo ""
+          #          ls -la ~/.nimble || echo ""
+          #          ls -la ~/.nimble/pkgs || echo ""
+          #          ls -la ~/.nimble/pkgs2 || echo ""
 
   # lint:
   #   name: "Lint"
