@@ -42,7 +42,7 @@ jobs:
               os: linux-gcc-14
             builder: ubuntu-24.04
             shell: bash
-          - target:
+          - platform:
               os: macos
             builder: macos-13
             shell: bash
@@ -95,7 +95,7 @@ jobs:
           nimble install_pinned
 
       - name: Use gcc 14
-        if : ${{ matrix.target.os == 'linux-gcc-14'}}
+        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
         run: |
           # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
