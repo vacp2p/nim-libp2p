@@ -238,11 +238,11 @@ method accept*(self: TcpTransport): Future[Connection] =
           await one(self.acceptFuts)
         except ValueError:
           raise (ref TcpTransportError)(msg: "No listeners configured")
-
       index = self.acceptFuts.find(finished)
-      transp =
+
+    self.acceptFuts[index] = self.servers[index].accept()
+    let transp =
         try:
-          raise newException(TransportAbortedError, "")
           await finished
         except TransportTooManyError as exc:
           debug "Too many files opened", exc = exc.msg
@@ -262,8 +262,6 @@ method accept*(self: TcpTransport): Future[Connection] =
     if not self.running: # Stopped while waiting
       await transp.closeWait()
       raise newTransportClosedError()
-
-    self.acceptFuts[index] = self.servers[index].accept()
 
     let remote =
       try:
