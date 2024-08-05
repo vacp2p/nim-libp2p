@@ -242,6 +242,7 @@ method accept*(self: TcpTransport): Future[Connection] =
       index = self.acceptFuts.find(finished)
       transp =
         try:
+          raise newException(TransportAbortedError, "")
           await finished
         except TransportTooManyError as exc:
           debug "Too many files opened", exc = exc.msg
