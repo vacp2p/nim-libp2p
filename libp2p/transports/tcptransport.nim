@@ -242,22 +242,22 @@ method accept*(self: TcpTransport): Future[Connection] =
 
     self.acceptFuts[index] = self.servers[index].accept()
     let transp =
-        try:
-          await finished
-        except TransportTooManyError as exc:
-          debug "Too many files opened", exc = exc.msg
-          return nil
-        except TransportAbortedError as exc:
-          debug "Connection aborted", exc = exc.msg
-          return nil
-        except TransportUseClosedError as exc:
-          raise newTransportClosedError(exc)
-        except TransportOsError as exc:
-          raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
-        except common.TransportError as exc: # Needed for chronos 4.0.0 support
-          raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
-        except CancelledError as exc:
-          raise exc
+      try:
+        await finished
+      except TransportTooManyError as exc:
+        debug "Too many files opened", exc = exc.msg
+        return nil
+      except TransportAbortedError as exc:
+        debug "Connection aborted", exc = exc.msg
+        return nil
+      except TransportUseClosedError as exc:
+        raise newTransportClosedError(exc)
+      except TransportOsError as exc:
+        raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      except common.TransportError as exc: # Needed for chronos 4.0.0 support
+        raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      except CancelledError as exc:
+        raise exc
 
     if not self.running: # Stopped while waiting
       await transp.closeWait()
