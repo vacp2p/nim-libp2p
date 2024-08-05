@@ -230,16 +230,20 @@ method accept*(self: TcpTransport): Future[Connection] =
       raise newTransportClosedError()
 
     if self.acceptFuts.len <= 0:
+      # Holds futures representing ongoing accept calls on multiple servers.
       self.acceptFuts = self.servers.mapIt(it.accept())
 
     let
       finished =
         try:
+          # Waits for any one of these futures to complete, indicating that a new connection has been accepted on one of the servers.
           await one(self.acceptFuts)
         except ValueError:
           raise (ref TcpTransportError)(msg: "No listeners configured")
       index = self.acceptFuts.find(finished)
 
+    # A new connection has been accepted. The corresponding server should immediately start accepting another connection.
+    # Thus we replace the completed future with a new one by calling accept on the same server again.
     self.acceptFuts[index] = self.servers[index].accept()
     let transp =
       try:
