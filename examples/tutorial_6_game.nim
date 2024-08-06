@@ -51,7 +51,7 @@ proc new(_: type[Game]): Game =
     tickTime: -3.0, # 3 seconds of "warm-up" time
     localPlayer: Player(x: 4, y: 16, currentDir: 3, nextDir: 3, color: 8),
     remotePlayer: Player(x: 27, y: 16, currentDir: 1, nextDir: 1, color: 12),
-    peerFound: newFuture[Connection]()
+    peerFound: newFuture[Connection](),
   )
   for pos in 0 .. result.gameMap.high:
     if pos mod mapSize in [0, mapSize - 1] or pos div mapSize in [0, mapSize - 1]:
@@ -81,7 +81,8 @@ proc update(g: Game, dt: float32) =
   # This is a hacky way to make this happen
   waitFor(sleepAsync(1.milliseconds))
   # Don't do anything if we are still waiting for an opponent
-  if not(g.peerFound.finished()) or isNil(g.tickFinished): return
+  if not (g.peerFound.finished()) or isNil(g.tickFinished):
+    return
   g.tickTime += dt
 
   # Update the wanted direction, making sure we can't go backward
@@ -98,7 +99,8 @@ proc tick(g: Game, p: Player) =
   # Move player and check if he lost
   p.x += directions[p.currentDir][1]
   p.y += directions[p.currentDir][2]
-  if g.gameMap[p.y * mapSize + p.x] != 0: p.lost = true
+  if g.gameMap[p.y * mapSize + p.x] != 0:
+    p.lost = true
   g.gameMap[p.y * mapSize + p.x] = p.color
 
 proc mainLoop(g: Game, peer: Connection) {.async.} =
@@ -123,15 +125,22 @@ proc draw(g: Game) =
   for pos, color in g.gameMap:
     setColor(color)
     boxFill(pos mod 32 * 4, pos div 32 * 4, 4, 4)
-  let text = if not(g.peerFound.finished()): "Matchmaking.."
-             elif g.tickTime < -1.5: "Welcome to Etron"
-             elif g.tickTime < 0.0: "- " & $(int(abs(g.tickTime) / 0.5) + 1) & " -"
-             elif g.remotePlayer.lost and g.localPlayer.lost: "DEUCE"
-             elif g.localPlayer.lost: "YOU LOOSE"
-             elif g.remotePlayer.lost: "YOU WON"
-             else: ""
+  let text =
+    if not (g.peerFound.finished()):
+      "Matchmaking.."
+    elif g.tickTime < -1.5:
+      "Welcome to Etron"
+    elif g.tickTime < 0.0:
+      "- " & $(int(abs(g.tickTime) / 0.5) + 1) & " -"
+    elif g.remotePlayer.lost and g.localPlayer.lost:
+      "DEUCE"
+    elif g.localPlayer.lost:
+      "YOU LOOSE"
+    elif g.remotePlayer.lost:
+      "YOU WON"
+    else:
+      ""
   printc(text, screenWidth div 2, screenHeight div 2)
-
 
 ## ## Matchmaking
 ## To find an opponent, we will broadcast our address on a
@@ -144,7 +153,8 @@ proc draw(g: Game) =
 ## and launch the game.
 proc new(T: typedesc[GameProto], g: Game): T =
   proc handle(conn: Connection, proto: string) {.async.} =
-    defer: await conn.closeWithEof()
+    defer:
+      await conn.closeWithEof()
     if g.peerFound.finished or g.hasCandidate:
       await conn.close()
       return
@@ -157,6 +167,7 @@ proc new(T: typedesc[GameProto], g: Game): T =
     # The handler of a protocol must wait for the stream to
     # be finished before returning
     await conn.join()
+
   return T.new(codecs = @["/tron/1.0.0"], handler = handle)
 
 proc networking(g: Game) {.async.} =
@@ -164,9 +175,10 @@ proc networking(g: Game) {.async.} =
   # the Discovery examples combined
   let
     rdv = RendezVous.new()
-    switch = SwitchBuilder.new()
+    switch = SwitchBuilder
+      .new()
       .withRng(newRng())
-      .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
+      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withYamux()
       .withNoise()
@@ -174,9 +186,7 @@ proc networking(g: Game) {.async.} =
       .build()
     dm = DiscoveryManager()
     gameProto = GameProto.new(g)
-    gossip = GossipSub.init(
-      switch = switch,
-      triggerSelf = false)
+    gossip = GossipSub.init(switch = switch, triggerSelf = false)
   dm.add(RendezVousInterface.new(rdv))
 
   switch.mount(gossip)
@@ -184,10 +194,11 @@ proc networking(g: Game) {.async.} =
 
   gossip.subscribe(
     "/tron/matchmaking",
-    proc (topic: string, data: seq[byte]) {.async.} =
+    proc(topic: string, data: seq[byte]) {.async.} =
       # If we are still looking for an opponent,
-      # try to match anyone broadcasting it's address
-      if g.peerFound.finished or g.hasCandidate: return
+      # try to match anyone broadcasting its address
+      if g.peerFound.finished or g.hasCandidate:
+        return
       g.hasCandidate = true
 
       try:
@@ -204,10 +215,12 @@ proc networking(g: Game) {.async.} =
         swap(g.localPlayer, g.remotePlayer)
       except CatchableError as exc:
         discard
+    ,
   )
 
   await switch.start()
-  defer: await switch.stop()
+  defer:
+    await switch.stop()
 
   # As explained in the last tutorial, we need a bootnode to be able
   # to find peers. We could use any libp2p running rendezvous (or any
@@ -243,7 +256,8 @@ proc networking(g: Game) {.async.} =
 
   # We now wait for someone to connect to us (or for us to connect to someone)
   let peerConn = await g.peerFound
-  defer: await peerConn.closeWithEof()
+  defer:
+    await peerConn.closeWithEof()
 
   await g.mainLoop(peerConn)
 
@@ -252,7 +266,17 @@ let
   netFut = networking(game)
 nico.init("Status", "Tron")
 nico.createWindow("Tron", mapSize * 4, mapSize * 4, 4, false)
-nico.run(proc = discard, proc(dt: float32) = game.update(dt), proc = game.draw())
+nico.run(
+  proc() =
+    discard
+  ,
+  proc(dt: float32) =
+    game.update(dt)
+  ,
+  proc() =
+    game.draw()
+  ,
+)
 waitFor(netFut.cancelAndWait())
 
 ## And that's it! If you want to run this code locally, the simplest way is to use the

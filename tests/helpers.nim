@@ -1,6 +1,7 @@
 {.push raises: [].}
 
 import chronos
+import macros
 import algorithm
 
 import ../libp2p/transports/tcptransport
@@ -13,8 +14,8 @@ import ../libp2p/protocols/secure/secure
 import ../libp2p/switch
 import ../libp2p/nameresolving/[nameresolver, mockresolver]
 
-import ./asyncunit
-export asyncunit, mockresolver
+import "."/[asyncunit, errorhelpers]
+export asyncunit, errorhelpers, mockresolver
 
 const
   StreamTransportTrackerName = "stream.transport"
@@ -22,40 +23,28 @@ const
   DgramTransportTrackerName = "datagram.transport"
 
   trackerNames = [
-    LPStreamTrackerName,
-    ConnectionTrackerName,
-    LPChannelTrackerName,
-    SecureConnTrackerName,
-    BufferStreamTrackerName,
-    TcpTransportTrackerName,
-    StreamTransportTrackerName,
-    StreamServerTrackerName,
-    DgramTransportTrackerName,
-    ChronosStreamTrackerName
+    LPStreamTrackerName, ConnectionTrackerName, LPChannelTrackerName,
+    SecureConnTrackerName, BufferStreamTrackerName, TcpTransportTrackerName,
+    StreamTransportTrackerName, StreamServerTrackerName, DgramTransportTrackerName,
+    ChronosStreamTrackerName,
   ]
 
-iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
-  for name in trackerNames:
-    let t = getTracker(name)
-    if not isNil(t): yield t
-  for name in extras:
-    let t = getTracker(name)
-    if not isNil(t): yield t
-
 template checkTracker*(name: string) =
-  var tracker = getTracker(name)
-  if tracker.isLeaked():
-    checkpoint tracker.dump()
+  if isCounterLeaked(name):
+    let
+      tracker = getTrackerCounter(name)
+      trackerDescription =
+        "Opened " & name & ": " & $tracker.opened & "\n" & "Closed " & name & ": " &
+        $tracker.closed
+    checkpoint trackerDescription
     fail()
 
 template checkTrackers*() =
-  for tracker in testTrackers():
-    if tracker.isLeaked():
-      checkpoint tracker.dump()
-      fail()
+  for name in trackerNames:
+    checkTracker(name)
   # Also test the GC is not fooling with us
   when defined(nimHasWarnBareExcept):
-    {.push warning[BareExcept]:off.}
+    {.push warning[BareExcept]: off.}
   try:
     GC_fullCollect()
   except:
@@ -81,21 +70,27 @@ template rng*(): ref HmacDrbgContext =
   getRng()
 
 type
-  WriteHandler* = proc(data: seq[byte]): Future[void] {.gcsafe, raises: [].}
+  WriteHandler* = proc(data: seq[byte]): Future[void] {.
+    async: (raises: [CancelledError, LPStreamError])
+  .}
+
   TestBufferStream* = ref object of BufferStream
     writeHandler*: WriteHandler
 
-method write*(s: TestBufferStream, msg: seq[byte]): Future[void] =
+method write*(
+    s: TestBufferStream, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   s.writeHandler(msg)
 
-method getWrapped*(s: TestBufferStream): Connection = nil
+method getWrapped*(s: TestBufferStream): Connection =
+  nil
 
 proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
   testBufferStream
 
-proc bridgedConnections*: (Connection, Connection) =
+proc bridgedConnections*(): (Connection, Connection) =
   let
     connA = TestBufferStream()
     connB = TestBufferStream()
@@ -103,26 +98,97 @@ proc bridgedConnections*: (Connection, Connection) =
   connB.dir = Direction.In
   connA.initStream()
   connB.initStream()
-  connA.writeHandler = proc(data: seq[byte]) {.async.} =
-    await connB.pushData(data)
+  connA.writeHandler = proc(
+      data: seq[byte]
+  ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+    connB.pushData(data)
 
-  connB.writeHandler = proc(data: seq[byte]) {.async.} =
-    await connA.pushData(data)
+  connB.writeHandler = proc(
+      data: seq[byte]
+  ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+    connA.pushData(data)
   return (connA, connB)
 
-
-proc checkExpiringInternal(cond: proc(): bool {.raises: [], gcsafe.} ): Future[bool] {.async.} =
-  let start = Moment.now()
-  while true:
-    if Moment.now() > (start + chronos.seconds(5)):
-      return false
-    elif cond():
-      return true
+macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
+  ## Periodically checks a given condition until it is true or a timeout occurs.
+  ##
+  ## `code`: untyped - A condition expression that should eventually evaluate to true.
+  ## `timeout`: Duration - The maximum duration to wait for the condition to be true.
+  ##
+  ## Examples:
+  ##   ```nim
+  ##   # Example 1:
+  ##   asyncTest "checkUntilCustomTimeout should pass if the condition is true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkUntilCustomTimeout(2.seconds):
+  ##       a == b
+  ##
+  ##   # Example 2: Multiple conditions
+  ##   asyncTest "checkUntilCustomTimeout should pass if the conditions are true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkUntilCustomTimeout(5.seconds)::
+  ##       a == b
+  ##       a == 2
+  ##       b == 1
+  ##   ```
+  # Helper proc to recursively build a combined boolean expression
+  proc buildAndExpr(n: NimNode): NimNode =
+    if n.kind == nnkStmtList and n.len > 0:
+      var combinedExpr = n[0] # Start with the first expression
+      for i in 1 ..< n.len:
+        # Combine the current expression with the next using 'and'
+        combinedExpr = newCall("and", combinedExpr, n[i])
+      return combinedExpr
     else:
-      await sleepAsync(1.millis)
+      return n
 
-template checkExpiring*(code: untyped): untyped =
-  check await checkExpiringInternal(proc(): bool = code)
+  # Build the combined expression
+  let combinedBoolExpr = buildAndExpr(code)
+
+  result = quote:
+    proc checkExpiringInternal(): Future[void] {.gensym, async.} =
+      let start = Moment.now()
+      while true:
+        if Moment.now() > (start + `timeout`):
+          checkpoint(
+            "[TIMEOUT] Timeout was reached and the conditions were not true. Check if the code is working as " &
+              "expected or consider increasing the timeout param."
+          )
+          check `code`
+          return
+        else:
+          if `combinedBoolExpr`:
+            return
+          else:
+            await sleepAsync(100.millis)
+
+    await checkExpiringInternal()
+
+macro checkUntilTimeout*(code: untyped): untyped =
+  ## Same as `checkUntilCustomTimeout` but with a default timeout of 10 seconds.
+  ##
+  ## Examples:
+  ##   ```nim
+  ##   # Example 1:
+  ##   asyncTest "checkUntilTimeout should pass if the condition is true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkUntilTimeout:
+  ##       a == b
+  ##
+  ##   # Example 2: Multiple conditions
+  ##   asyncTest "checkUntilTimeout should pass if the conditions are true":
+  ##     let a = 2
+  ##     let b = 2
+  ##     checkUntilTimeout:
+  ##       a == b
+  ##       a == 2
+  ##       b == 1
+  ##   ```
+  result = quote:
+    checkUntilCustomTimeout(10.seconds, `code`)
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:
@@ -145,9 +211,3 @@ proc default*(T: typedesc[MockResolver]): T =
   resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
   resolver.ipResponses[("localhost", true)] = @["::1"]
   resolver
-
-proc setDNSAddr*(switch: Switch) {.async.} =
-  proc addressMapper(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
-      return @[MultiAddress.init("/dns4/localhost/").tryGet() & listenAddrs[0][1].tryGet()]
-  switch.peerInfo.addressMappers.add(addressMapper)
-  await switch.peerInfo.update()

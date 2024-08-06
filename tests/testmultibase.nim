@@ -14,11 +14,7 @@ import ../libp2p/multibase
 import stew/results
 
 const GoTestVectors = [
-  [
-    "identity",
-    "\x00Decentralize everything!!!",
-    "Decentralize everything!!!"
-  ],
+  ["identity", "\x00Decentralize everything!!!", "Decentralize everything!!!"],
   # [
   #   "base16",
   #   "f446563656e7472616c697a652065766572797468696e67212121",
@@ -30,69 +26,44 @@ const GoTestVectors = [
   #   "Decentralize everything!!!"
   # ],
   [
-    "base32",
-    "birswgzloorzgc3djpjssazlwmvzhs5dinfxgoijbee",
-    "Decentralize everything!!!"
+    "base32", "birswgzloorzgc3djpjssazlwmvzhs5dinfxgoijbee",
+    "Decentralize everything!!!",
   ],
   [
-    "base32upper",
-    "BIRSWGZLOORZGC3DJPJSSAZLWMVZHS5DINFXGOIJBEE",
-    "Decentralize everything!!!"
+    "base32upper", "BIRSWGZLOORZGC3DJPJSSAZLWMVZHS5DINFXGOIJBEE",
+    "Decentralize everything!!!",
   ],
   [
-    "base32pad",
-    "cirswgzloorzgc3djpjssazlwmvzhs5dinfxgoijbee======",
-    "Decentralize everything!!!"
+    "base32pad", "cirswgzloorzgc3djpjssazlwmvzhs5dinfxgoijbee======",
+    "Decentralize everything!!!",
   ],
   [
-    "base32padupper",
-    "CIRSWGZLOORZGC3DJPJSSAZLWMVZHS5DINFXGOIJBEE======",
-    "Decentralize everything!!!"
+    "base32padupper", "CIRSWGZLOORZGC3DJPJSSAZLWMVZHS5DINFXGOIJBEE======",
+    "Decentralize everything!!!",
   ],
   [
-    "base32hex",
-    "v8him6pbeehp62r39f9ii0pbmclp7it38d5n6e89144",
-    "Decentralize everything!!!"
+    "base32hex", "v8him6pbeehp62r39f9ii0pbmclp7it38d5n6e89144",
+    "Decentralize everything!!!",
   ],
   [
-    "base32hexupper",
-    "V8HIM6PBEEHP62R39F9II0PBMCLP7IT38D5N6E89144",
-    "Decentralize everything!!!"
+    "base32hexupper", "V8HIM6PBEEHP62R39F9II0PBMCLP7IT38D5N6E89144",
+    "Decentralize everything!!!",
   ],
   [
-    "base32hexpad",
-    "t8him6pbeehp62r39f9ii0pbmclp7it38d5n6e89144======",
-    "Decentralize everything!!!"
+    "base32hexpad", "t8him6pbeehp62r39f9ii0pbmclp7it38d5n6e89144======",
+    "Decentralize everything!!!",
   ],
   [
-    "base32hexpadupper",
-    "T8HIM6PBEEHP62R39F9II0PBMCLP7IT38D5N6E89144======",
-    "Decentralize everything!!!"
+    "base32hexpadupper", "T8HIM6PBEEHP62R39F9II0PBMCLP7IT38D5N6E89144======",
+    "Decentralize everything!!!",
   ],
+  ["base58btc", "z36UQrhJq9fNDS7DiAHM9YXqDHMPfr4EMArvt", "Decentralize everything!!!"],
+  ["base64", "mRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE", "Decentralize everything!!!"],
+  ["base64url", "uRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE", "Decentralize everything!!!"],
+  ["base64pad", "MRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=", "Decentralize everything!!!"],
   [
-    "base58btc",
-    "z36UQrhJq9fNDS7DiAHM9YXqDHMPfr4EMArvt",
-    "Decentralize everything!!!"
-  ],
-  [
-    "base64",
-    "mRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE",
-    "Decentralize everything!!!"
-  ],
-  [
-    "base64url",
-    "uRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE",
-    "Decentralize everything!!!"
-  ],
-  [
-    "base64pad",
-    "MRGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=",
-    "Decentralize everything!!!"
-  ],
-  [
-    "base64urlpad",
-    "URGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=",
-    "Decentralize everything!!!"
+    "base64urlpad", "URGVjZW50cmFsaXplIGV2ZXJ5dGhpbmchISE=",
+    "Decentralize everything!!!",
   ],
 ]
 
@@ -151,8 +122,7 @@ suite "MultiBase test suite":
       len(MultiBase.decode("u").get()) == 0
       len(MultiBase.decode("U").get()) == 0
     check:
-      MultiBase.encode("identity", plain, enc,
-                       olens[0]) == MultiBaseStatus.Success
+      MultiBase.encode("identity", plain, enc, olens[0]) == MultiBaseStatus.Success
       enc == "\x00"
       olens[0] == 1
       # MultiBase.encode("base1", plain, enc,
@@ -179,44 +149,36 @@ suite "MultiBase test suite":
       #                  olens[6]) == MultiBaseStatus.Success
       # enc == "F"
       # olens[6] == 1
-      MultiBase.encode("base32hex", plain, enc,
-                       olens[7]) == MultiBaseStatus.Success
+      MultiBase.encode("base32hex", plain, enc, olens[7]) == MultiBaseStatus.Success
       enc == "v"
       olens[7] == 1
-      MultiBase.encode("base32hexupper", plain, enc,
-                       olens[8]) == MultiBaseStatus.Success
+      MultiBase.encode("base32hexupper", plain, enc, olens[8]) == MultiBaseStatus.Success
       enc == "V"
       olens[8] == 1
-      MultiBase.encode("base32hexpad", plain, enc,
-                       olens[9]) == MultiBaseStatus.Success
+      MultiBase.encode("base32hexpad", plain, enc, olens[9]) == MultiBaseStatus.Success
       enc == "t"
       olens[9] == 1
-      MultiBase.encode("base32hexpadupper", plain, enc,
-                       olens[10]) == MultiBaseStatus.Success
+      MultiBase.encode("base32hexpadupper", plain, enc, olens[10]) ==
+        MultiBaseStatus.Success
       enc == "T"
       olens[10] == 1
-      MultiBase.encode("base32", plain, enc,
-                       olens[11]) == MultiBaseStatus.Success
+      MultiBase.encode("base32", plain, enc, olens[11]) == MultiBaseStatus.Success
       enc == "b"
       olens[11] == 1
-      MultiBase.encode("base32upper", plain, enc,
-                       olens[12]) == MultiBaseStatus.Success
+      MultiBase.encode("base32upper", plain, enc, olens[12]) == MultiBaseStatus.Success
       enc == "B"
       olens[12] == 1
-      MultiBase.encode("base32pad", plain, enc,
-                       olens[13]) == MultiBaseStatus.Success
+      MultiBase.encode("base32pad", plain, enc, olens[13]) == MultiBaseStatus.Success
       enc == "c"
       olens[13] == 1
-      MultiBase.encode("base32padupper", plain, enc,
-                       olens[14]) == MultiBaseStatus.Success
+      MultiBase.encode("base32padupper", plain, enc, olens[14]) ==
+        MultiBaseStatus.Success
       enc == "C"
       olens[14] == 1
-      MultiBase.encode("base58btc", plain, enc,
-                       olens[15]) == MultiBaseStatus.Success
+      MultiBase.encode("base58btc", plain, enc, olens[15]) == MultiBaseStatus.Success
       enc == "z"
       olens[15] == 1
-      MultiBase.encode("base58flickr", plain, enc,
-                       olens[16]) == MultiBaseStatus.Success
+      MultiBase.encode("base58flickr", plain, enc, olens[16]) == MultiBaseStatus.Success
       enc == "Z"
       olens[16] == 1
     check:
@@ -278,8 +240,7 @@ suite "MultiBase test suite":
       var ebuffer = newString(elength)
       outlen = 0
       check:
-        MultiBase.encode(encoding, bexpect, ebuffer,
-                         outlen) == MultiBaseStatus.Success
+        MultiBase.encode(encoding, bexpect, ebuffer, outlen) == MultiBaseStatus.Success
       ebuffer.setLen(outlen)
       check:
         encoded == ebuffer
@@ -298,8 +259,7 @@ suite "MultiBase test suite":
     var dbuffer = newSeq[byte](100)
     var outlen = 0
     check:
-      MultiBase.encode("unknown", data, ebuffer,
-                       outlen) == MultiBaseStatus.BadCodec
+      MultiBase.encode("unknown", data, ebuffer, outlen) == MultiBaseStatus.BadCodec
       MultiBase.decode("\x01\x00", dbuffer, outlen) == MultiBaseStatus.BadCodec
       MultiBase.encode("unknwon", data).isErr()
       MultiBase.decode("\x01\x00").isErr()

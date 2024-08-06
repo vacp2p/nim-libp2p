@@ -5,8 +5,8 @@
 <h3 align="center">The <a href="https://nim-lang.org/">Nim</a> implementation of the <a href="https://libp2p.io/">libp2p</a> Networking Stack.</h3>
 
 <p align="center">
-<a href="https://github.com/status-im/nim-libp2p/actions"><img src="https://github.com/status-im/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
-<a href="https://codecov.io/gh/status-im/nim-libp2p"><img src="https://codecov.io/gh/status-im/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
+<a href="https://github.com/vacp2p/nim-libp2p/actions"><img src="https://github.com/vacp2p/nim-libp2p/actions/workflows/ci.yml/badge.svg" /></a>
+<a href="https://codecov.io/gh/vacp2p/nim-libp2p"><img src="https://codecov.io/gh/vacp2p/nim-libp2p/branch/master/graph/badge.svg?token=UR5JRQ249W"/></a>
 
 </p>
 
@@ -20,6 +20,7 @@
 - [Background](#background)
 - [Install](#install)
 - [Getting Started](#getting-started)
+  - [Go-libp2p-daemon](#go-libp2p-daemon)
 - [Modules](#modules)
 - [Users](#users)
 - [Stability](#stability)
@@ -40,18 +41,20 @@ Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p'
 ## Install
 **Prerequisite**
 - [Nim](https://nim-lang.org/install.html)
+> The currently supported Nim version is 1.6.18.
+
 ```
 nimble install libp2p
 ```
 
 ## Getting Started
-You'll find the nim-libp2p documentation [here](https://status-im.github.io/nim-libp2p/docs/).
+You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/).
 
-**Go Daemon:**
-Please find the installation and usage intructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
+### Testing
+Remember you'll need to build the `go-libp2p-daemon` binary to run the `nim-libp2p` tests.
+To do so, please follow the installation instructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
 
 ## Modules
-
 List of packages modules implemented in nim-libp2p:
 
 | Name                                                       | Description                                                                                                      |
@@ -68,7 +71,6 @@ List of packages modules implemented in nim-libp2p:
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |
 | [libp2p-tor](libp2p/transports/tortransport.nim)           | Tor Transport                                                                                                    |
 | **Secure Channels**                                        |                                                                                                                  |
-| [libp2p-secio](libp2p/protocols/secure/secio.nim)          | Secio secure channel                                                                                             |
 | [libp2p-noise](libp2p/protocols/secure/noise.nim)          | [Noise](https://docs.libp2p.io/concepts/secure-comm/noise/) secure channel                                       |
 | [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim)  | Plain Text for development purposes                                                                              |
 | **Stream Multiplexers**                                    |                                                                                                                  |
@@ -93,8 +95,8 @@ List of packages modules implemented in nim-libp2p:
 
 nim-libp2p is used by:
 - [Nimbus](https://github.com/status-im/nimbus-eth2), an Ethereum client
-- [nwaku](https://github.com/status-im/nwaku), a decentralized messaging application
-- [nim-codex](https://github.com/status-im/nim-codex), a decentralized storage application
+- [nwaku](https://github.com/waku-org/nwaku), a decentralized messaging application
+- [nim-codex](https://github.com/codex-storage/nim-codex), a decentralized storage application
 - (open a pull request if you want to be included here)
 
 ## Stability
@@ -110,7 +112,7 @@ We aim to be compatible at all time with at least 2 Nim `MINOR` versions, curren
 ## Development
 Clone and Install dependencies:
 ```sh
-git clone https://github.com/status-im/nim-libp2p
+git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
 # to use dependencies computed by nimble
 nimble install -dy
@@ -132,11 +134,12 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 - Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it.
 - **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
 - **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](tests/).
-
+- **Small PRs**. Try to keep PRs atomic and digestible. This makes the review process and pinpointing bugs easier.
+- **Code format**. Please format code using [nph](https://github.com/arnetheduck/nph) v0.5.1. This will ensure a consistent codebase and make PRs easier to review. A CI rule has been added to ensure that future commits are all formatted using the same nph version.
 The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
 
 ### Contributors
-<a href="https://github.com/status-im/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=status-im/nim-libp2p" alt="nim-libp2p contributors"></a>
+<a href="https://github.com/vacp2p/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=vacp2p/nim-libp2p" alt="nim-libp2p contributors"></a>
 
 ### Core Maintainers
 <table>

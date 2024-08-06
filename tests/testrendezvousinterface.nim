@@ -11,21 +11,20 @@
 
 import sequtils, strutils
 import chronos
-import ../libp2p/[protocols/rendezvous,
-                  switch,
-                  builders,]
+import ../libp2p/[protocols/rendezvous, switch, builders]
 import ../libp2p/discovery/[rendezvousinterface, discoverymngr]
 import ./helpers
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder.new()
-    .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .withRendezVous(rdv)
-    .build()
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .withRendezVous(rdv)
+  .build()
 
 type
   MockRendezVous = ref object of RendezVous
@@ -42,7 +41,9 @@ method advertise*(self: MockRendezVous, namespace: string, ttl: Duration) {.asyn
   # Forward the call to the actual implementation
   await procCall RendezVous(self).advertise(namespace, ttl)
 
-method advertise*(self: MockErrorRendezVous, namespace: string, ttl: Duration) {.async.} =
+method advertise*(
+    self: MockErrorRendezVous, namespace: string, ttl: Duration
+) {.async.} =
   await procCall MockRendezVous(self).advertise(namespace, ttl)
   raise newException(CatchableError, "MockErrorRendezVous.advertise")
 
@@ -62,8 +63,10 @@ suite "RendezVous Interface":
     dm.advertise(RdvNamespace("ns1"))
     dm.advertise(RdvNamespace("ns2"))
 
-    checkExpiring: rdv.numAdvertiseNs1 >= 5
-    checkExpiring: rdv.numAdvertiseNs2 >= 5
+    checkUntilTimeout:
+      rdv.numAdvertiseNs1 >= 5
+    checkUntilTimeout:
+      rdv.numAdvertiseNs2 >= 5
     await client.stop()
 
   asyncTest "Check timeToAdvertise interval":

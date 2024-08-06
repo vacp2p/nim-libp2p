@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -11,17 +11,15 @@
 
 import tables, sequtils, sugar, sets
 import metrics except collect
-import chronos,
-       chronicles,
-       bearssl/rand,
-       stew/[byteutils, objects, results]
-import ./protocol,
-       ../switch,
-       ../routing_record,
-       ../utils/heartbeat,
-       ../stream/connection,
-       ../utils/offsettedseq,
-       ../utils/semaphore
+import chronos, chronicles, bearssl/rand, stew/[byteutils, objects, results]
+import
+  ./protocol,
+  ../switch,
+  ../routing_record,
+  ../utils/heartbeat,
+  ../stream/connection,
+  ../utils/offsettedseq,
+  ../utils/semaphore
 
 export chronicles
 
@@ -62,11 +60,11 @@ type
     Unavailable = 400
 
   Cookie = object
-    offset : uint64
-    ns : string
+    offset: uint64
+    ns: string
 
   Register = object
-    ns : string
+    ns: string
     signedPeerRecord: seq[byte]
     ttl: Opt[uint64] # in seconds
 
@@ -166,7 +164,8 @@ proc decode(_: typedesc[Cookie], buf: seq[byte]): Opt[Cookie] =
     pb = initProtoBuffer(buf)
     r1 = pb.getRequiredField(1, c.offset)
     r2 = pb.getRequiredField(2, c.ns)
-  if r1.isErr() or r2.isErr(): return Opt.none(Cookie)
+  if r1.isErr() or r2.isErr():
+    return Opt.none(Cookie)
   Opt.some(c)
 
 proc decode(_: typedesc[Register], buf: seq[byte]): Opt[Register] =
@@ -178,8 +177,10 @@ proc decode(_: typedesc[Register], buf: seq[byte]): Opt[Register] =
     r1 = pb.getRequiredField(1, r.ns)
     r2 = pb.getRequiredField(2, r.signedPeerRecord)
     r3 = pb.getField(3, ttl)
-  if r1.isErr() or r2.isErr() or r3.isErr(): return Opt.none(Register)
-  if r3.get(false): r.ttl = Opt.some(ttl)
+  if r1.isErr() or r2.isErr() or r3.isErr():
+    return Opt.none(Register)
+  if r3.get(false):
+    r.ttl = Opt.some(ttl)
   Opt.some(r)
 
 proc decode(_: typedesc[RegisterResponse], buf: seq[byte]): Opt[RegisterResponse] =
@@ -194,9 +195,12 @@ proc decode(_: typedesc[RegisterResponse], buf: seq[byte]): Opt[RegisterResponse
     r2 = pb.getField(2, text)
     r3 = pb.getField(3, ttl)
   if r1.isErr() or r2.isErr() or r3.isErr() or
-     not checkedEnumAssign(rr.status, statusOrd): return Opt.none(RegisterResponse)
-  if r2.get(false): rr.text = Opt.some(text)
-  if r3.get(false): rr.ttl = Opt.some(ttl)
+      not checkedEnumAssign(rr.status, statusOrd):
+    return Opt.none(RegisterResponse)
+  if r2.get(false):
+    rr.text = Opt.some(text)
+  if r3.get(false):
+    rr.ttl = Opt.some(ttl)
   Opt.some(rr)
 
 proc decode(_: typedesc[Unregister], buf: seq[byte]): Opt[Unregister] =
@@ -204,7 +208,8 @@ proc decode(_: typedesc[Unregister], buf: seq[byte]): Opt[Unregister] =
   let
     pb = initProtoBuffer(buf)
     r1 = pb.getRequiredField(1, u.ns)
-  if r1.isErr(): return Opt.none(Unregister)
+  if r1.isErr():
+    return Opt.none(Unregister)
   Opt.some(u)
 
 proc decode(_: typedesc[Discover], buf: seq[byte]): Opt[Discover] =
@@ -217,9 +222,12 @@ proc decode(_: typedesc[Discover], buf: seq[byte]): Opt[Discover] =
     r1 = pb.getRequiredField(1, d.ns)
     r2 = pb.getField(2, limit)
     r3 = pb.getField(3, cookie)
-  if r1.isErr() or r2.isErr() or r3.isErr: return Opt.none(Discover)
-  if r2.get(false): d.limit = Opt.some(limit)
-  if r3.get(false): d.cookie = Opt.some(cookie)
+  if r1.isErr() or r2.isErr() or r3.isErr:
+    return Opt.none(Discover)
+  if r2.get(false):
+    d.limit = Opt.some(limit)
+  if r3.get(false):
+    d.cookie = Opt.some(cookie)
   Opt.some(d)
 
 proc decode(_: typedesc[DiscoverResponse], buf: seq[byte]): Opt[DiscoverResponse] =
@@ -236,14 +244,17 @@ proc decode(_: typedesc[DiscoverResponse], buf: seq[byte]): Opt[DiscoverResponse
     r3 = pb.getRequiredField(3, statusOrd)
     r4 = pb.getField(4, text)
   if r1.isErr() or r2.isErr() or r3.isErr or r4.isErr() or
-     not checkedEnumAssign(dr.status, statusOrd): return Opt.none(DiscoverResponse)
+      not checkedEnumAssign(dr.status, statusOrd):
+    return Opt.none(DiscoverResponse)
   for reg in registrations:
     var r: Register
     let regOpt = Register.decode(reg).valueOr:
       return
     dr.registrations.add(regOpt)
-  if r2.get(false): dr.cookie = Opt.some(cookie)
-  if r4.get(false): dr.text = Opt.some(text)
+  if r2.get(false):
+    dr.cookie = Opt.some(cookie)
+  if r4.get(false):
+    dr.text = Opt.some(text)
   Opt.some(dr)
 
 proc decode(_: typedesc[Message], buf: seq[byte]): Opt[Message] =
@@ -253,31 +264,36 @@ proc decode(_: typedesc[Message], buf: seq[byte]): Opt[Message] =
     pbr, pbrr, pbu, pbd, pbdr: ProtoBuffer
   let pb = initProtoBuffer(buf)
 
-  ? pb.getRequiredField(1, statusOrd).toOpt
-  if not checkedEnumAssign(msg.msgType, statusOrd): return Opt.none(Message)
+  ?pb.getRequiredField(1, statusOrd).toOpt
+  if not checkedEnumAssign(msg.msgType, statusOrd):
+    return Opt.none(Message)
 
-  if ? pb.getField(2, pbr).optValue:
+  if ?pb.getField(2, pbr).optValue:
     msg.register = Register.decode(pbr.buffer)
-    if msg.register.isNone(): return Opt.none(Message)
+    if msg.register.isNone():
+      return Opt.none(Message)
 
-  if ? pb.getField(3, pbrr).optValue:
+  if ?pb.getField(3, pbrr).optValue:
     msg.registerResponse = RegisterResponse.decode(pbrr.buffer)
-    if msg.registerResponse.isNone(): return Opt.none(Message)
+    if msg.registerResponse.isNone():
+      return Opt.none(Message)
 
-  if ? pb.getField(4, pbu).optValue:
+  if ?pb.getField(4, pbu).optValue:
     msg.unregister = Unregister.decode(pbu.buffer)
-    if msg.unregister.isNone(): return Opt.none(Message)
+    if msg.unregister.isNone():
+      return Opt.none(Message)
 
-  if ? pb.getField(5, pbd).optValue:
+  if ?pb.getField(5, pbd).optValue:
     msg.discover = Discover.decode(pbd.buffer)
-    if msg.discover.isNone(): return Opt.none(Message)
+    if msg.discover.isNone():
+      return Opt.none(Message)
 
-  if ? pb.getField(6, pbdr).optValue:
+  if ?pb.getField(6, pbdr).optValue:
     msg.discoverResponse = DiscoverResponse.decode(pbdr.buffer)
-    if msg.discoverResponse.isNone(): return Opt.none(Message)
+    if msg.discoverResponse.isNone():
+      return Opt.none(Message)
 
   Opt.some(msg)
-
 
 type
   RendezVousError* = object of LPError
@@ -306,46 +322,57 @@ type
     switch: Switch
 
 proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
-  if spr.len == 0: return err("Empty peer record")
-  let signedEnv = ? SignedPeerRecord.decode(spr).mapErr(x => $x)
+  if spr.len == 0:
+    return err("Empty peer record")
+  let signedEnv = ?SignedPeerRecord.decode(spr).mapErr(x => $x)
   if signedEnv.data.peerId != peerId:
     return err("Bad Peer ID")
   return ok()
 
-proc sendRegisterResponse(conn: Connection,
-                          ttl: uint64) {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.RegisterResponse,
-        registerResponse: Opt.some(RegisterResponse(status: Ok, ttl: Opt.some(ttl)))))
+proc sendRegisterResponse(conn: Connection, ttl: uint64) {.async.} =
+  let msg = encode(
+    Message(
+      msgType: MessageType.RegisterResponse,
+      registerResponse: Opt.some(RegisterResponse(status: Ok, ttl: Opt.some(ttl))),
+    )
+  )
   await conn.writeLp(msg.buffer)
 
-proc sendRegisterResponseError(conn: Connection,
-                               status: ResponseStatus,
-                               text: string = "") {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.RegisterResponse,
-        registerResponse: Opt.some(RegisterResponse(status: status, text: Opt.some(text)))))
+proc sendRegisterResponseError(
+    conn: Connection, status: ResponseStatus, text: string = ""
+) {.async.} =
+  let msg = encode(
+    Message(
+      msgType: MessageType.RegisterResponse,
+      registerResponse: Opt.some(RegisterResponse(status: status, text: Opt.some(text))),
+    )
+  )
   await conn.writeLp(msg.buffer)
 
-proc sendDiscoverResponse(conn: Connection,
-                          s: seq[Register],
-                          cookie: Cookie) {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.DiscoverResponse,
-        discoverResponse: Opt.some(DiscoverResponse(
-            status: Ok,
-            registrations: s,
-            cookie: Opt.some(cookie.encode().buffer)
-          ))
-        ))
+proc sendDiscoverResponse(
+    conn: Connection, s: seq[Register], cookie: Cookie
+) {.async.} =
+  let msg = encode(
+    Message(
+      msgType: MessageType.DiscoverResponse,
+      discoverResponse: Opt.some(
+        DiscoverResponse(
+          status: Ok, registrations: s, cookie: Opt.some(cookie.encode().buffer)
+        )
+      ),
+    )
+  )
   await conn.writeLp(msg.buffer)
 
-proc sendDiscoverResponseError(conn: Connection,
-                               status: ResponseStatus,
-                               text: string = "") {.async.} =
-  let msg = encode(Message(
-        msgType: MessageType.DiscoverResponse,
-        discoverResponse: Opt.some(DiscoverResponse(status: status, text: Opt.some(text)))))
+proc sendDiscoverResponseError(
+    conn: Connection, status: ResponseStatus, text: string = ""
+) {.async.} =
+  let msg = encode(
+    Message(
+      msgType: MessageType.DiscoverResponse,
+      discoverResponse: Opt.some(DiscoverResponse(status: status, text: Opt.some(text))),
+    )
+  )
   await conn.writeLp(msg.buffer)
 
 proc countRegister(rdv: RendezVous, peerId: PeerId): int =
@@ -354,37 +381,36 @@ proc countRegister(rdv: RendezVous, peerId: PeerId): int =
     if data.peerId == peerId and data.expiration > n:
       result.inc()
 
-proc save(rdv: RendezVous,
-          ns: string,
-          peerId: PeerId,
-          r: Register,
-          update: bool = true) =
+proc save(
+    rdv: RendezVous, ns: string, peerId: PeerId, r: Register, update: bool = true
+) =
   let nsSalted = ns & rdv.salt
   discard rdv.namespaces.hasKeyOrPut(nsSalted, newSeq[int]())
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == peerId:
-        if update == false: return
+        if update == false:
+          return
         rdv.registered[index].expiration = rdv.defaultDT
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
         expiration: Moment.now() + r.ttl.get(MinimumTTL).int64.seconds,
-        data: r
+        data: r,
       )
     )
     rdv.namespaces[nsSalted].add(rdv.registered.high)
-#    rdv.registerEvent.fire()
+  #    rdv.registerEvent.fire()
   except KeyError:
     doAssert false, "Should have key"
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   trace "Received Register", peerId = conn.peerId, ns = r.ns
   libp2p_rendezvous_register.inc()
-  if r.ns.len notin 1..255:
+  if r.ns.len notin 1 .. 255:
     return conn.sendRegisterResponseError(InvalidNamespace)
   let ttl = r.ttl.get(MinimumTTL)
-  if ttl notin MinimumTTL..MaximumTTL:
+  if ttl notin MinimumTTL .. MaximumTTL:
     return conn.sendRegisterResponseError(InvalidTTL)
   let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
   if pr.isErr():
@@ -410,21 +436,21 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
 proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
   libp2p_rendezvous_discover.inc()
-  if d.ns.len notin 0..255:
+  if d.ns.len notin 0 .. 255:
     await conn.sendDiscoverResponseError(InvalidNamespace)
     return
   var limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
-  var
-    cookie =
-      if d.cookie.isSome():
-        try:
-          Cookie.decode(d.cookie.tryGet()).tryGet()
-        except CatchableError:
-          await conn.sendDiscoverResponseError(InvalidCookie)
-          return
-      else: Cookie(offset: rdv.registered.low().uint64 - 1)
+  var cookie =
+    if d.cookie.isSome():
+      try:
+        Cookie.decode(d.cookie.tryGet()).tryGet()
+      except CatchableError:
+        await conn.sendDiscoverResponseError(InvalidCookie)
+        return
+    else:
+      Cookie(offset: rdv.registered.low().uint64 - 1)
   if cookie.ns != d.ns or
-      cookie.offset notin rdv.registered.low().uint64..rdv.registered.high().uint64:
+      cookie.offset notin rdv.registered.low().uint64 .. rdv.registered.high().uint64:
     cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
   let
     nsSalted = d.ns & rdv.salt
@@ -435,32 +461,33 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
         except KeyError:
           await conn.sendDiscoverResponseError(InvalidNamespace)
           return
-      else: toSeq(cookie.offset.int..rdv.registered.high())
+      else:
+        toSeq(cookie.offset.int .. rdv.registered.high())
   if namespaces.len() == 0:
     await conn.sendDiscoverResponse(@[], Cookie())
     return
   var offset = namespaces[^1]
   let n = Moment.now()
   var s = collect(newSeq()):
-      for index in namespaces:
-        var reg = rdv.registered[index]
-        if limit == 0:
-          offset = index
-          break
-        if reg.expiration < n or index.uint64 <= cookie.offset: continue
-        limit.dec()
-        reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
-        reg.data
+    for index in namespaces:
+      var reg = rdv.registered[index]
+      if limit == 0:
+        offset = index
+        break
+      if reg.expiration < n or index.uint64 <= cookie.offset:
+        continue
+      limit.dec()
+      reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
+      reg.data
   rdv.rng.shuffle(s)
   await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
 
-proc advertisePeer(rdv: RendezVous,
-                   peer: PeerId,
-                   msg: seq[byte]) {.async.} =
+proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
   proc advertiseWrap() {.async.} =
     try:
       let conn = await rdv.switch.dial(peer, RendezVousCodec)
-      defer: await conn.close()
+      defer:
+        await conn.close()
       await conn.writeLp(msg)
       let
         buf = await conn.readLp(4096)
@@ -475,17 +502,18 @@ proc advertisePeer(rdv: RendezVous,
       trace "exception in the advertise", error = exc.msg
     finally:
       rdv.sema.release()
+
   await rdv.sema.acquire()
   discard await advertiseWrap().withTimeout(5.seconds)
 
-method advertise*(rdv: RendezVous,
-                ns: string,
-                ttl: Duration = MinimumDuration) {.async, base.} =
+method advertise*(
+    rdv: RendezVous, ns: string, ttl: Duration = MinimumDuration
+) {.async, base.} =
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
     raise newException(RendezVousError, "Wrong Signed Peer Record")
-  if ns.len notin 1..255:
+  if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
-  if ttl notin MinimumDuration..MaximumDuration:
+  if ttl notin MinimumDuration .. MaximumDuration:
     raise newException(RendezVousError, "Invalid time to live")
   let
     r = Register(ns: ns, signedPeerRecord: sprBuff, ttl: Opt.some(ttl.seconds.uint64))
@@ -511,9 +539,9 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   except KeyError as exc:
     @[]
 
-proc request*(rdv: RendezVous,
-              ns: string,
-              l: int = DiscoverLimit.int): Future[seq[PeerRecord]] {.async.} =
+proc request*(
+    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int
+): Future[seq[PeerRecord]] {.async.} =
   let nsSalted = ns & rdv.salt
   var
     s: Table[PeerId, (PeerRecord, Register)]
@@ -522,21 +550,22 @@ proc request*(rdv: RendezVous,
 
   if l <= 0 or l > DiscoverLimit.int:
     raise newException(RendezVousError, "Invalid limit")
-  if ns.len notin 0..255:
+  if ns.len notin 0 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
   limit = l.uint64
   proc requestPeer(peer: PeerId) {.async.} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
-    defer: await conn.close()
+    defer:
+      await conn.close()
     d.limit = Opt.some(limit)
     d.cookie =
       try:
         Opt.some(rdv.cookiesSaved[peer][ns])
       except KeyError as exc:
         Opt.none(seq[byte])
-    await conn.writeLp(encode(Message(
-      msgType: MessageType.Discover,
-      discover: Opt.some(d))).buffer)
+    await conn.writeLp(
+      encode(Message(msgType: MessageType.Discover, discover: Opt.some(d))).buffer
+    )
     let
       buf = await conn.readLp(65536)
       msgRcv = Message.decode(buf).valueOr:
@@ -552,19 +581,23 @@ proc request*(rdv: RendezVous,
       trace "Cannot discover", ns, status = resp.status, text = resp.text
       return
     resp.cookie.withValue(cookie):
-      if  cookie.len() < 1000 and rdv.cookiesSaved.hasKeyOrPut(peer, {ns: cookie}.toTable()):
+      if cookie.len() < 1000 and
+          rdv.cookiesSaved.hasKeyOrPut(peer, {ns: cookie}.toTable()):
         rdv.cookiesSaved[peer][ns] = cookie
     for r in resp.registrations:
-      if limit == 0: return
+      if limit == 0:
+        return
       let ttl = r.ttl.get(MaximumTTL + 1)
-      if ttl > MaximumTTL: continue
+      if ttl > MaximumTTL:
+        continue
       let
-        spr = SignedPeerRecord.decode(r.signedPeerRecord).valueOr: continue
+        spr = SignedPeerRecord.decode(r.signedPeerRecord).valueOr:
+          continue
         pr = spr.data
       if s.hasKey(pr.peerId):
         let (prSaved, rSaved) = s[pr.peerId]
         if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(MaximumTTL) < ttl) or
-          prSaved.seqNo < pr.seqNo:
+            prSaved.seqNo < pr.seqNo:
           s[pr.peerId] = (pr, r)
       else:
         s[pr.peerId] = (pr, r)
@@ -575,8 +608,10 @@ proc request*(rdv: RendezVous,
   # copy to avoid resizes during the loop
   let peers = rdv.peers
   for peer in peers:
-    if limit == 0: break
-    if RendezVousCodec notin rdv.switch.peerStore[ProtoBook][peer]: continue
+    if limit == 0:
+      break
+    if RendezVousCodec notin rdv.switch.peerStore[ProtoBook][peer]:
+      continue
     try:
       trace "Send Request", peerId = peer, ns
       await peer.requestPeer()
@@ -597,17 +632,18 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
 
 proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
   # TODO: find a way to improve this, maybe something similar to the advertise
-  if ns.len notin 1..255:
+  if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
   rdv.unsubscribeLocally(ns)
-  let msg = encode(Message(
-    msgType: MessageType.Unregister,
-    unregister: Opt.some(Unregister(ns: ns))))
+  let msg = encode(
+    Message(msgType: MessageType.Unregister, unregister: Opt.some(Unregister(ns: ns)))
+  )
 
   proc unsubscribePeer(rdv: RendezVous, peerId: PeerId) {.async.} =
     try:
       let conn = await rdv.switch.dial(peerId, RendezVousCodec)
-      defer: await conn.close()
+      defer:
+        await conn.close()
       await conn.writeLp(msg.buffer)
     except CatchableError as exc:
       trace "exception while unsubscribing", error = exc.msg
@@ -622,33 +658,37 @@ proc setup*(rdv: RendezVous, switch: Switch) =
       rdv.peers.add(peerId)
     elif event.kind == PeerEventKind.Left:
       rdv.peers.keepItIf(it != peerId)
+
   rdv.switch.addPeerEventHandler(handlePeer, Joined)
   rdv.switch.addPeerEventHandler(handlePeer, Left)
 
-proc new*(T: typedesc[RendezVous],
-          rng: ref HmacDrbgContext = newRng()): T =
+proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
   let rdv = T(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](1),
     defaultDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
-    sema: newAsyncSemaphore(SemaphoreDefaultSize)
+    sema: newAsyncSemaphore(SemaphoreDefaultSize),
   )
-  logScope: topics = "libp2p discovery rendezvous"
+  logScope:
+    topics = "libp2p discovery rendezvous"
   proc handleStream(conn: Connection, proto: string) {.async.} =
     try:
       let
         buf = await conn.readLp(4096)
         msg = Message.decode(buf).tryGet()
-      case msg.msgType:
-        of MessageType.Register: await rdv.register(conn, msg.register.tryGet())
-        of MessageType.RegisterResponse:
-          trace "Got an unexpected Register Response", response = msg.registerResponse
-        of MessageType.Unregister: rdv.unregister(conn, msg.unregister.tryGet())
-        of MessageType.Discover: await rdv.discover(conn, msg.discover.tryGet())
-        of MessageType.DiscoverResponse:
-          trace "Got an unexpected Discover Response", response = msg.discoverResponse
+      case msg.msgType
+      of MessageType.Register:
+        await rdv.register(conn, msg.register.tryGet())
+      of MessageType.RegisterResponse:
+        trace "Got an unexpected Register Response", response = msg.registerResponse
+      of MessageType.Unregister:
+        rdv.unregister(conn, msg.unregister.tryGet())
+      of MessageType.Discover:
+        await rdv.discover(conn, msg.discover.tryGet())
+      of MessageType.DiscoverResponse:
+        trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -660,9 +700,9 @@ proc new*(T: typedesc[RendezVous],
   rdv.codec = RendezVousCodec
   return rdv
 
-proc new*(T: typedesc[RendezVous],
-         switch: Switch,
-         rng: ref HmacDrbgContext = newRng()): T =
+proc new*(
+    T: typedesc[RendezVous], switch: Switch, rng: ref HmacDrbgContext = newRng()
+): T =
   let rdv = T.new(rng)
   rdv.setup(switch)
   return rdv
@@ -678,17 +718,25 @@ proc deletesRegister(rdv: RendezVous) {.async.} =
     libp2p_rendezvous_registered.set(int64(total))
     libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
 
-method start*(rdv: RendezVous) {.async.} =
+method start*(
+    rdv: RendezVous
+): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
   if not rdv.registerDeletionLoop.isNil:
     warn "Starting rendezvous twice"
-    return
+    return fut
   rdv.registerDeletionLoop = rdv.deletesRegister()
   rdv.started = true
+  fut
 
-method stop*(rdv: RendezVous) {.async.} =
+method stop*(rdv: RendezVous): Future[void] {.async: (raises: [], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
   if rdv.registerDeletionLoop.isNil:
     warn "Stopping rendezvous without starting it"
-    return
+    return fut
   rdv.started = false
   rdv.registerDeletionLoop.cancel()
   rdv.registerDeletionLoop = nil
+  fut

@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -20,29 +20,32 @@ export connection
 logScope:
   topics = "libp2p bufferstream"
 
-const
-  BufferStreamTrackerName* = "BufferStream"
+const BufferStreamTrackerName* = "BufferStream"
 
-type
-  BufferStream* = ref object of Connection
-    readQueue*: AsyncQueue[seq[byte]] # read queue for managing backpressure
-    readBuf*: StreamSeq               # overflow buffer for readOnce
-    pushing*: bool                    # number of ongoing push operations
-    reading*: bool                    # is there an ongoing read? (only allow one)
-    pushedEof*: bool                  # eof marker has been put on readQueue
-    returnedEof*: bool                # 0-byte readOnce has been completed
+type BufferStream* = ref object of Connection
+  readQueue*: AsyncQueue[seq[byte]] # read queue for managing backpressure
+  readBuf*: StreamSeq # overflow buffer for readOnce
+  pushing*: bool # number of ongoing push operations
+  reading*: bool # is there an ongoing read? (only allow one)
+  pushedEof*: bool # eof marker has been put on readQueue
+  returnedEof*: bool # 0-byte readOnce has been completed
 
 func shortLog*(s: BufferStream): auto =
   try:
-    if s.isNil: "BufferStream(nil)"
-    else: &"{shortLog(s.peerId)}:{s.oid}"
+    if s == nil:
+      "BufferStream(nil)"
+    else:
+      &"{shortLog(s.peerId)}:{s.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
-chronicles.formatIt(BufferStream): shortLog(it)
+chronicles.formatIt(BufferStream):
+  shortLog(it)
 
 proc len*(s: BufferStream): int =
-  s.readBuf.len + (if s.readQueue.len > 0: s.readQueue[0].len() else: 0)
+  s.readBuf.len + (if s.readQueue.len > 0: s.readQueue[0].len()
+  else: 0
+  )
 
 method initStream*(s: BufferStream) =
   if s.objName.len == 0:
@@ -54,23 +57,21 @@ method initStream*(s: BufferStream) =
 
   trace "BufferStream created", s
 
-proc new*(
-  T: typedesc[BufferStream],
-  timeout: Duration = DefaultConnectionTimeout): T =
-
+proc new*(T: typedesc[BufferStream], timeout: Duration = DefaultConnectionTimeout): T =
   let bufferStream = T(timeout: timeout)
   bufferStream.initStream()
   bufferStream
 
-method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
+method pushData*(
+    s: BufferStream, data: seq[byte]
+) {.base, async: (raises: [CancelledError, LPStreamError]).} =
   ## Write bytes to internal read buffer, use this to fill up the
   ## buffer with data.
   ##
   ## `pushTo` will block if the queue is full, thus maintaining backpressure.
   ##
 
-  doAssert(not s.pushing,
-    &"Only one concurrent push allowed for stream {s.shortLog()}")
+  doAssert(not s.pushing, "Only one concurrent push allowed for stream " & s.shortLog())
 
   if s.isClosed or s.pushedEof:
     raise newLPStreamClosedError()
@@ -87,12 +88,13 @@ method pushData*(s: BufferStream, data: seq[byte]) {.base, async.} =
   finally:
     s.pushing = false
 
-method pushEof*(s: BufferStream) {.base, async.} =
+method pushEof*(
+    s: BufferStream
+) {.base, async: (raises: [CancelledError, LPStreamError]).} =
   if s.pushedEof:
     return
 
-  doAssert(not s.pushing,
-    &"Only one concurrent push allowed for stream {s.shortLog()}")
+  doAssert(not s.pushing, "Only one concurrent push allowed for stream " & s.shortLog())
 
   s.pushedEof = true
 
@@ -108,19 +110,16 @@ method pushEof*(s: BufferStream) {.base, async.} =
 method atEof*(s: BufferStream): bool =
   s.isEof and s.readBuf.len == 0
 
-method readOnce*(s: BufferStream,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: BufferStream, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   doAssert(nbytes > 0, "nbytes must be positive integer")
-  doAssert(not s.reading,
-    &"Only one concurrent read allowed for stream {s.shortLog()}")
+  doAssert(not s.reading, "Only one concurrent read allowed for stream " & s.shortLog())
 
   if s.returnedEof:
     raise newLPStreamEOFError()
 
-  var
-    p = cast[ptr UncheckedArray[byte]](pbytes)
+  var p = cast[ptr UncheckedArray[byte]](pbytes)
 
   # First consume leftovers from previous read
   var rbytes = s.readBuf.consumeTo(toOpenArray(p, 0, nbytes - 1))
@@ -135,13 +134,6 @@ method readOnce*(s: BufferStream,
         # Not very efficient, but shouldn't happen often
         s.readBuf.assign(@(p.toOpenArray(0, rbytes - 1)) & @(s.readBuf.data))
         raise exc
-      except CatchableError as exc:
-        # When an exception happens here, the Bufferstream is effectively
-        # broken and no more reads will be valid - for now, return EOF if it's
-        # called again, though this is not completely true - EOF represents an
-        # "orderly" shutdown and that's not what happened here..
-        s.returnedEof = true
-        raise exc
       finally:
         s.reading = false
 
@@ -151,7 +143,7 @@ method readOnce*(s: BufferStream,
       s.isEof = true
     else:
       let remaining = min(buf.len, nbytes - rbytes)
-      toOpenArray(p, rbytes, nbytes - 1)[0..<remaining] =
+      toOpenArray(p, rbytes, nbytes - 1)[0 ..< remaining] =
         buf.toOpenArray(0, remaining - 1)
       rbytes += remaining
 
@@ -173,7 +165,7 @@ method readOnce*(s: BufferStream,
 
   return rbytes
 
-method closeImpl*(s: BufferStream): Future[void] =
+method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true).} =
   ## close the stream and clear the buffer
   trace "Closing BufferStream", s, len = s.len
 
@@ -200,7 +192,7 @@ method closeImpl*(s: BufferStream): Future[void] =
   # Reading     | Push Eof | Na
   # Pushing     | Na       | Pop
   try:
-    if not(s.reading and s.pushing):
+    if not (s.reading and s.pushing):
       if s.reading:
         if s.readQueue.empty():
           # There is an active reader
@@ -209,8 +201,8 @@ method closeImpl*(s: BufferStream): Future[void] =
         if not s.readQueue.empty():
           discard s.readQueue.popFirstNoWait()
   except AsyncQueueFullError, AsyncQueueEmptyError:
-    raise newException(Defect, getCurrentExceptionMsg())
+    raiseAssert(getCurrentExceptionMsg())
 
   trace "Closed BufferStream", s
 
-  procCall Connection(s).closeImpl() # noraises, nocancels
+  procCall Connection(s).closeImpl()

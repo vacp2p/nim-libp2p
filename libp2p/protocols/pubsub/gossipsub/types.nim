@@ -18,7 +18,8 @@ import "../../.."/[peerid, multiaddress, utility]
 export options, tables, sets
 
 const
-  GossipSubCodec* = "/meshsub/1.1.0"
+  GossipSubCodec_12* = "/meshsub/1.2.0"
+  GossipSubCodec_11* = "/meshsub/1.1.0"
   GossipSubCodec_10* = "/meshsub/1.0.0"
 
 # overlay parameters
@@ -32,16 +33,14 @@ const
   GossipSubHistoryLength* = 5
   GossipSubHistoryGossip* = 3
 
-# heartbeat interval
+  # heartbeat interval
   GossipSubHeartbeatInterval* = 1.seconds
 
 # fanout ttl
-const
-  GossipSubFanoutTTL* = 1.minutes
+const GossipSubFanoutTTL* = 1.minutes
 
 # gossip parameters
-const
-  GossipBackoffPeriod* = 1.minutes
+const GossipBackoffPeriod* = 1.minutes
 
 const
   BackoffSlackTime* = 2 # seconds
@@ -53,8 +52,7 @@ const
   IHaveMaxLength* = 5000
 
 type
-  TopicInfo* = object
-    # gossip 1.1 related
+  TopicInfo* = object # gossip 1.1 related
     graftTime*: Moment
     meshTime*: Duration
     inMesh*: bool
@@ -102,6 +100,11 @@ type
     behaviourPenalty*: float64 # the eventual penalty score
 
   GossipSubParams* {.public.} = object
+    # explicit is used to check if the GossipSubParams instance was created by the user either passing params to GossipSubParams(...)
+    # or GossipSubParams.init(...). In the first case explicit should be set to true when calling the Nim constructor.
+    # In the second case, the param isn't necessary and should be always be set to true by init.
+    # If none of those options were used, it means the instance was created using Nim default values.
+    # In this case, GossipSubParams.init() should be called when initing GossipSub to set the values to their default value defined by nim-libp2p.
     explicit*: bool
     pruneBackoff*: Duration
     unsubscribeBackoff*: Duration
@@ -142,34 +145,38 @@ type
     disconnectBadPeers*: bool
     enablePX*: bool
 
-    bandwidthEstimatebps*: int # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
+    bandwidthEstimatebps*: int
+      # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
 
     overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
     disconnectPeerAboveRateLimit*: bool
 
+    # Max number of elements allowed in the non-priority queue. When this limit has been reached, the peer will be disconnected.
+    maxNumElementsInNonPriorityQueue*: int
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
-  ValidationSeenTable* = Table[MessageId, HashSet[PubSubPeer]]
+  ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
-  RoutingRecordsHandler* =
-    proc(peer: PeerId,
+  RoutingRecordsHandler* = proc(
+    peer: PeerId,
     tag: string, # For gossipsub, the topic
-    peers: seq[RoutingRecordsPair])
-    {.gcsafe, raises: [].}
+    peers: seq[RoutingRecordsPair],
+  ) {.gcsafe, raises: [].}
 
   GossipSub* = ref object of FloodSub
-    mesh*: PeerTable                           # peers that we send messages to when we are subscribed to the topic
-    fanout*: PeerTable                         # peers that we send messages to when we're not subscribed to the topic
-    gossipsub*: PeerTable                      # peers that are subscribed to a topic
-    subscribedDirectPeers*: PeerTable          # directpeers that we keep alive
-    backingOff*: BackoffTable                  # peers to backoff from when replenishing the mesh
-    lastFanoutPubSub*: Table[string, Moment]   # last publish time for fanout topics
-    gossip*: Table[string, seq[ControlIHave]]  # pending gossip
-    control*: Table[string, ControlMessage]    # pending control messages
-    mcache*: MCache                            # messages cache
-    validationSeen*: ValidationSeenTable       # peers who sent us message in validation
-    heartbeatFut*: Future[void]                # cancellation future for heartbeat interval
-    scoringHeartbeatFut*: Future[void]         # cancellation future for scoring heartbeat interval
+    mesh*: PeerTable # peers that we send messages to when we are subscribed to the topic
+    fanout*: PeerTable
+      # peers that we send messages to when we're not subscribed to the topic
+    gossipsub*: PeerTable # peers that are subscribed to a topic
+    subscribedDirectPeers*: PeerTable # directpeers that we keep alive
+    backingOff*: BackoffTable # peers to backoff from when replenishing the mesh
+    lastFanoutPubSub*: Table[string, Moment] # last publish time for fanout topics
+    mcache*: MCache # messages cache
+    validationSeen*: ValidationSeenTable # peers who sent us message in validation
+    heartbeatFut*: Future[void] # cancellation future for heartbeat interval
+    scoringHeartbeatFut*: Future[void]
+      # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
 
     peerStats*: Table[PeerId, PeerStats]
@@ -181,8 +188,7 @@ type
 
     heartbeatEvents*: seq[AsyncEvent]
 
-  MeshMetrics* = object
-    # scratch buffers for metrics
+  MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64
     otherPeersPerTopicFanout*: int64
     otherPeersPerTopicGossipsub*: int64

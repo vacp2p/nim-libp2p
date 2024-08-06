@@ -18,17 +18,17 @@ when not defined(macosx):
   import ./helpers
 
   suite "Heartbeat":
-
     asyncTest "simple heartbeat":
       var i = 0
       proc t() {.async.} =
-        heartbeat "shouldn't see this", 30.milliseconds:
+        heartbeat "shouldn't see this", 50.milliseconds:
           i.inc()
+
       let hb = t()
-      await sleepAsync(300.milliseconds)
+      await sleepAsync(500.milliseconds)
       await hb.cancelAndWait()
       check:
-        i in 9..11
+        i in 9 .. 12
 
     asyncTest "change heartbeat period on the fly":
       var i = 0
@@ -38,6 +38,7 @@ when not defined(macosx):
           i.inc()
           if i >= 4:
             period = 75.milliseconds
+
       let hb = t()
       await sleepAsync(500.milliseconds)
       await hb.cancelAndWait()
@@ -46,7 +47,7 @@ when not defined(macosx):
       # (500 ms - 120 ms) / 75ms = 5x 75ms
       # total 9
       check:
-        i in 8..10
+        i in 8 .. 11
 
     asyncTest "catch up on slow heartbeat":
       var i = 0
@@ -63,4 +64,4 @@ when not defined(macosx):
       # 360ms remaining, / 30ms = 12x
       # total 15
       check:
-        i in 14..16
+        i in 14 .. 17

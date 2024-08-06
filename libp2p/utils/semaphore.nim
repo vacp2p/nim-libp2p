@@ -17,16 +17,16 @@ import chronos, chronicles
 logScope:
   topics = "libp2p semaphore"
 
-type
-  AsyncSemaphore* = ref object of RootObj
-    size*: int
-    count: int
-    queue: seq[Future[void]]
+type AsyncSemaphore* = ref object of RootObj
+  size*: int
+  count: int
+  queue: seq[Future[void]]
 
 proc newAsyncSemaphore*(size: int): AsyncSemaphore =
   AsyncSemaphore(size: size, count: size)
 
-proc `count`*(s: AsyncSemaphore): int = s.count
+proc `count`*(s: AsyncSemaphore): int =
+  s.count
 
 proc tryAcquire*(s: AsyncSemaphore): bool =
   ## Attempts to acquire a resource, if successful
@@ -53,7 +53,7 @@ proc acquire*(s: AsyncSemaphore): Future[void] =
   proc cancellation(udata: pointer) {.gcsafe.} =
     fut.cancelCallback = nil
     if not fut.finished:
-      s.queue.keepItIf( it != fut )
+      s.queue.keepItIf(it != fut)
 
   fut.cancelCallback = cancellation
 
@@ -79,8 +79,7 @@ proc release*(s: AsyncSemaphore) =
   doAssert(s.count <= s.size)
 
   if s.count < s.size:
-    trace "Releasing slot", available = s.count,
-                            queue = s.queue.len
+    trace "Releasing slot", available = s.count, queue = s.queue.len
 
     s.count.inc
     while s.queue.len > 0:
@@ -91,6 +90,5 @@ proc release*(s: AsyncSemaphore) =
         fut.complete()
         break
 
-    trace "Released slot", available = s.count,
-                           queue = s.queue.len
+    trace "Released slot", available = s.count, queue = s.queue.len
     return

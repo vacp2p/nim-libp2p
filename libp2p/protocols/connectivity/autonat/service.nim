@@ -23,7 +23,11 @@ export core.NetworkReachability
 logScope:
   topics = "libp2p autonatservice"
 
-declarePublicGauge(libp2p_autonat_reachability_confidence, "autonat reachability confidence", labels = ["reachability"])
+declarePublicGauge(
+  libp2p_autonat_reachability_confidence,
+  "autonat reachability confidence",
+  labels = ["reachability"],
+)
 
 type
   AutonatService* = ref object of Service
@@ -44,19 +48,22 @@ type
     dialTimeout: Duration
     enableAddressMapper: bool
 
-  StatusAndConfidenceHandler* = proc (networkReachability: NetworkReachability, confidence: Opt[float]): Future[void]  {.gcsafe, raises: [].}
+  StatusAndConfidenceHandler* = proc(
+    networkReachability: NetworkReachability, confidence: Opt[float]
+  ): Future[void] {.gcsafe, raises: [].}
 
 proc new*(
-  T: typedesc[AutonatService],
-  autonatClient: AutonatClient,
-  rng: ref HmacDrbgContext,
-  scheduleInterval: Opt[Duration] = Opt.none(Duration),
-  askNewConnectedPeers = true,
-  numPeersToAsk: int = 5,
-  maxQueueSize: int = 10,
-  minConfidence: float = 0.3,
-  dialTimeout = 30.seconds,
-  enableAddressMapper = true): T =
+    T: typedesc[AutonatService],
+    autonatClient: AutonatClient,
+    rng: ref HmacDrbgContext,
+    scheduleInterval: Opt[Duration] = Opt.none(Duration),
+    askNewConnectedPeers = true,
+    numPeersToAsk: int = 5,
+    maxQueueSize: int = 10,
+    minConfidence: float = 0.3,
+    dialTimeout = 30.seconds,
+    enableAddressMapper = true,
+): T =
   return T(
     scheduleInterval: scheduleInterval,
     networkReachability: Unknown,
@@ -69,7 +76,8 @@ proc new*(
     maxQueueSize: maxQueueSize,
     minConfidence: minConfidence,
     dialTimeout: dialTimeout,
-    enableAddressMapper: enableAddressMapper)
+    enableAddressMapper: enableAddressMapper,
+  )
 
 proc callHandler(self: AutonatService) {.async.} =
   if not isNil(self.statusAndConfidenceHandler):
@@ -82,8 +90,9 @@ proc hasEnoughIncomingSlots(switch: Switch): bool =
 proc doesPeerHaveIncomingConn(switch: Switch, peerId: PeerId): bool =
   return switch.connManager.selectMuxer(peerId, In) != nil
 
-proc handleAnswer(self: AutonatService, ans: NetworkReachability): Future[bool] {.async.} =
-
+proc handleAnswer(
+    self: AutonatService, ans: NetworkReachability
+): Future[bool] {.async.} =
   if ans == Unknown:
     return
 
@@ -99,17 +108,26 @@ proc handleAnswer(self: AutonatService, ans: NetworkReachability): Future[bool] 
   const reachabilityPriority = [Reachable, NotReachable]
   for reachability in reachabilityPriority:
     let confidence = self.answers.countIt(it == reachability) / self.maxQueueSize
-    libp2p_autonat_reachability_confidence.set(value = confidence, labelValues = [$reachability])
+    libp2p_autonat_reachability_confidence.set(
+      value = confidence, labelValues = [$reachability]
+    )
     if self.confidence.isNone and confidence >= self.minConfidence:
       self.networkReachability = reachability
       self.confidence = Opt.some(confidence)
 
-  debug "Current status", currentStats = $self.networkReachability, confidence = $self.confidence, answers = self.answers
+  debug "Current status",
+    currentStats = $self.networkReachability,
+    confidence = $self.confidence,
+    answers = self.answers
 
   # Return whether anything has changed
-  return self.networkReachability != oldNetworkReachability or self.confidence != oldConfidence
+  return
+    self.networkReachability != oldNetworkReachability or
+    self.confidence != oldConfidence
 
-proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[NetworkReachability] {.async.} =
+proc askPeer(
+    self: AutonatService, switch: Switch, peerId: PeerId
+): Future[NetworkReachability] {.async.} =
   logScope:
     peerId = $peerId
 
@@ -117,7 +135,8 @@ proc askPeer(self: AutonatService, switch: Switch, peerId: PeerId): Future[Netwo
     return Unknown
 
   if not hasEnoughIncomingSlots(switch):
-    debug "No incoming slots available, not asking peer", incomingSlotsAvailable=switch.connManager.slotsAvailable(In)
+    debug "No incoming slots available, not asking peer",
+      incomingSlotsAvailable = switch.connManager.slotsAvailable(In)
     return Unknown
 
   trace "Asking peer for reachability"
@@ -150,7 +169,8 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
     if answersFromPeers >= self.numPeersToAsk:
       break
     if not hasEnoughIncomingSlots(switch):
-      debug "No incoming slots available, not asking peers", incomingSlotsAvailable=switch.connManager.slotsAvailable(In)
+      debug "No incoming slots available, not asking peers",
+        incomingSlotsAvailable = switch.connManager.slotsAvailable(In)
       break
     if (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
@@ -160,10 +180,8 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
     await service.run(switch)
 
 proc addressMapper(
-  self: AutonatService,
-  peerStore: PeerStore,
-  listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
-
+    self: AutonatService, peerStore: PeerStore, listenAddrs: seq[MultiAddress]
+): Future[seq[MultiAddress]] {.async.} =
   if self.networkReachability != NetworkReachability.Reachable:
     return listenAddrs
 
@@ -171,24 +189,32 @@ proc addressMapper(
   for listenAddr in listenAddrs:
     var processedMA = listenAddr
     try:
-      if not listenAddr.isPublicMA() and self.networkReachability == NetworkReachability.Reachable:
-        processedMA = peerStore.guessDialableAddr(listenAddr) # handle manual port forwarding
+      if not listenAddr.isPublicMA() and
+          self.networkReachability == NetworkReachability.Reachable:
+        processedMA = peerStore.guessDialableAddr(listenAddr)
+          # handle manual port forwarding
     except CatchableError as exc:
       debug "Error while handling address mapper", msg = exc.msg
     addrs.add(processedMA)
   return addrs
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
-  self.addressMapper = proc (listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
+  self.addressMapper = proc(
+      listenAddrs: seq[MultiAddress]
+  ): Future[seq[MultiAddress]] {.async.} =
     return await addressMapper(self, switch.peerStore, listenAddrs)
 
   info "Setting up AutonatService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if hasBeenSetup:
     if self.askNewConnectedPeers:
-      self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent): Future[void] {.async.} =
+      self.newConnectedPeerHandler = proc(
+          peerId: PeerId, event: PeerEvent
+      ): Future[void] {.async.} =
         discard askPeer(self, switch, peerId)
-      switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
+      switch.connManager.addPeerEventHandler(
+        self.newConnectedPeerHandler, PeerEventKind.Joined
+      )
     self.scheduleInterval.withValue(interval):
       self.scheduleHandle = schedule(self, switch, interval)
     if self.enableAddressMapper:
@@ -207,11 +233,15 @@ method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public
       self.scheduleHandle.cancel()
       self.scheduleHandle = nil
     if not isNil(self.newConnectedPeerHandler):
-      switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
+      switch.connManager.removePeerEventHandler(
+        self.newConnectedPeerHandler, PeerEventKind.Joined
+      )
     if self.enableAddressMapper:
       switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
     await switch.peerInfo.update()
   return hasBeenStopped
 
-proc statusAndConfidenceHandler*(self: AutonatService, statusAndConfidenceHandler: StatusAndConfidenceHandler) =
+proc statusAndConfidenceHandler*(
+    self: AutonatService, statusAndConfidenceHandler: StatusAndConfidenceHandler
+) =
   self.statusAndConfidenceHandler = statusAndConfidenceHandler

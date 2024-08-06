@@ -34,15 +34,20 @@ import libp2p/protocols/ping
 
 ## [chronos](https://github.com/status-im/nim-chronos) the asynchronous framework used by `nim-libp2p`
 ##
-## Next, we'll create an helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
+## Next, we'll create a helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
 proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
   var switch = SwitchBuilder
     .new()
-    .withRng(rng)       # Give the application RNG
-    .withAddress(ma)    # Our local address(es)
-    .withTcpTransport() # Use TCP as transport
-    .withMplex()        # Use Mplex as muxer
-    .withNoise()        # Use Noise as secure manager
+    .withRng(rng)
+    # Give the application RNG
+    .withAddress(ma)
+    # Our local address(es)
+    .withTcpTransport()
+    # Use TCP as transport
+    .withMplex()
+    # Use Mplex as muxer
+    .withNoise()
+    # Use Noise as secure manager
     .build()
 
   return switch
@@ -57,7 +62,7 @@ proc main() {.async.} =
   let
     rng = newRng()
     localAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    pingProtocol = Ping.new(rng=rng)
+    pingProtocol = Ping.new(rng = rng)
   ## We created some variables that we'll need for the rest of the application: the global `rng` instance, our `localAddress`, and an instance of the `Ping` protocol.
   ## The address is in the [MultiAddress](https://github.com/multiformats/multiaddr) format. The port `0` means "take any port available".
   ##
@@ -77,8 +82,9 @@ proc main() {.async.} =
   ## Now that we've started the nodes, they are listening for incoming peers.
   ## We can find out which port was attributed, and the resulting local addresses, by using `switch1.peerInfo.addrs`.
   ##
-  ## We'll **dial** the first switch from the second one, by specifying it's **Peer ID**, it's **MultiAddress** and the **`Ping` protocol codec**:
-  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
+  ## We'll **dial** the first switch from the second one, by specifying its **Peer ID**, its **MultiAddress** and the **`Ping` protocol codec**:
+  let conn =
+    await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
   ## We now have a `Ping` connection setup between the second and the first switch, we can use it to actually ping the node:
   # ping the other node and echo the ping duration
   echo "ping: ", await pingProtocol.ping(conn)
@@ -86,7 +92,8 @@ proc main() {.async.} =
   # We must close the connection ourselves when we're done with it
   await conn.close()
   ## And that's it! Just a little bit of cleanup: shutting down the switches, waiting for them to stop, and we'll call our `main` procedure:
-  await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
+  await allFutures(switch1.stop(), switch2.stop())
+    # close connections and shutdown all transports
 
 waitFor(main())
 

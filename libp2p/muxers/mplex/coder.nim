@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -10,29 +10,22 @@
 {.push raises: [].}
 
 import pkg/[chronos, chronicles, stew/byteutils]
-import ../../stream/connection,
-       ../../utility,
-       ../../varint,
-       ../../vbuffer,
-       ../muxer
+import ../../stream/connection, ../../utility, ../../varint, ../../vbuffer, ../muxer
 
 logScope:
   topics = "libp2p mplexcoder"
 
 type
   MessageType* {.pure.} = enum
-    New,
-    MsgIn,
-    MsgOut,
-    CloseIn,
-    CloseOut,
-    ResetIn,
+    New
+    MsgIn
+    MsgOut
+    CloseIn
+    CloseOut
+    ResetIn
     ResetOut
 
-  Msg* = tuple
-    id: uint64
-    msgType: MessageType
-    data: seq[byte]
+  Msg* = tuple[id: uint64, msgType: MessageType, data: seq[byte]]
 
   InvalidMplexMsgType* = object of MuxerError
 
@@ -42,7 +35,9 @@ const MaxMsgSize* = 1 shl 20 # 1mb
 proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
   newException(InvalidMplexMsgType, "invalid message type")
 
-proc readMsg*(conn: Connection): Future[Msg] {.async.} =
+proc readMsg*(
+    conn: Connection
+): Future[Msg] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   let header = await conn.readVarint()
   trace "read header varint", varint = header, conn
 
@@ -55,10 +50,9 @@ proc readMsg*(conn: Connection): Future[Msg] {.async.} =
 
   return (header shr 3, MessageType(msgType), data)
 
-proc writeMsg*(conn: Connection,
-               id: uint64,
-               msgType: MessageType,
-               data: seq[byte] = @[]): Future[void] =
+proc writeMsg*(
+    conn: Connection, id: uint64, msgType: MessageType, data: seq[byte] = @[]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   var
     left = data.len
     offset = 0
@@ -66,8 +60,11 @@ proc writeMsg*(conn: Connection,
 
   # Split message into length-prefixed chunks
   while left > 0 or data.len == 0:
-    let
-      chunkSize = if left > MaxMsgSize: MaxMsgSize - 64 else: left
+    let chunkSize =
+      if left > MaxMsgSize:
+        MaxMsgSize - 64
+      else:
+        left
 
     buf.writePBVarint(id shl 3 or ord(msgType).uint64)
     buf.writeSeq(data.toOpenArray(offset, offset + chunkSize - 1))
@@ -84,8 +81,7 @@ proc writeMsg*(conn: Connection,
   # message gets written before some of the chunks
   conn.write(buf.buffer)
 
-proc writeMsg*(conn: Connection,
-               id: uint64,
-               msgType: MessageType,
-               data: string): Future[void] =
+proc writeMsg*(
+    conn: Connection, id: uint64, msgType: MessageType, data: string
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   conn.writeMsg(id, msgType, data.toBytes())

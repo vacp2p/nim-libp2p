@@ -18,9 +18,12 @@ logScope:
 
 type PerfClient* = ref object of RootObj
 
-proc perf*(_: typedesc[PerfClient], conn: Connection,
-           sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0):
-           Future[Duration] {.async, public.} =
+proc perf*(
+    _: typedesc[PerfClient],
+    conn: Connection,
+    sizeToWrite: uint64 = 0,
+    sizeToRead: uint64 = 0,
+): Future[Duration] {.async, public.} =
   var
     size = sizeToWrite
     buf: array[PerfSize, byte]
@@ -30,7 +33,7 @@ proc perf*(_: typedesc[PerfClient], conn: Connection,
   await conn.write(toSeq(toBytesBE(sizeToRead)))
   while size > 0:
     let toWrite = min(size, PerfSize)
-    await conn.write(buf[0..<toWrite])
+    await conn.write(buf[0 ..< toWrite])
     size -= toWrite
 
   await conn.close()

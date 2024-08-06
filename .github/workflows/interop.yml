@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
     branches:
-      - unstable
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -11,47 +11,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  run-multidim-interop:
-    name: Run multidimensional interoperability tests
+  run-transport-interop:
+    name: Run transport interoperability tests
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Free Disk Space (Ubuntu)
+        # For some reason the original job (libp2p/test-plans) has enough disk space, but this one doesn't.
+        uses: jlumbroso/free-disk-space@v1.3.1
         with:
-          repository: libp2p/test-plans
-          submodules: true
-          fetch-depth: 0
+          tool-cache: true
 
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - name: Build image
-        run: >
-          cd transport-interop/impl/nim/v1.0 &&
-          make commitSha=$GITHUB_SHA image_name=nim-libp2p-head
-
-      - name: Create ping-version.json
-        run: >
-          (cat << EOF
-            {
-                "id": "nim-libp2p-head",
-                "containerImageID": "nim-libp2p-head",
-                "transports": [
-                    "tcp",
-                    "ws"
-                ],
-                "secureChannels": [
-                    "noise"
-                ],
-                "muxers": [
-                    "mplex",
-                    "yamux"
-                ]
-            }
-          EOF
-
-          ) > ${{ github.workspace }}/test_head.json
-
-      - uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
+        run: docker buildx build --load -t nim-libp2p-head -f tests/transport-interop/Dockerfile .
+      - name: Run tests
+        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-head
-          extra-versions: ${{ github.workspace }}/test_head.json
+          extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
 
   run-hole-punching-interop:
     name: Run hole-punching interoperability tests

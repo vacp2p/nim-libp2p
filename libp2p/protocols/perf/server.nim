@@ -13,10 +13,7 @@
 
 import chronos, chronicles
 import stew/endians2
-import ./core,
-       ../protocol,
-       ../../stream/connection,
-       ../../utility
+import ./core, ../protocol, ../../stream/connection, ../../utility
 
 export chronicles, connection
 
@@ -47,7 +44,7 @@ proc new*(T: typedesc[Perf]): T {.public.} =
       var buf: array[PerfSize, byte]
       while size > 0:
         let toWrite = min(size, PerfSize)
-        await conn.write(buf[0..<toWrite])
+        await conn.write(buf[0 ..< toWrite])
         size -= toWrite
     except CancelledError as exc:
       raise exc

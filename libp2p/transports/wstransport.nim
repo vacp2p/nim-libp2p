@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -14,29 +14,28 @@
 import std/[sequtils]
 import stew/results
 import chronos, chronicles
-import transport,
-       ../errors,
-       ../wire,
-       ../multicodec,
-       ../multistream,
-       ../connmanager,
-       ../multiaddress,
-       ../utility,
-       ../stream/connection,
-       ../upgrademngrs/upgrade,
-       websock/websock
+import
+  transport,
+  ../errors,
+  ../wire,
+  ../multicodec,
+  ../multistream,
+  ../connmanager,
+  ../multiaddress,
+  ../utility,
+  ../stream/connection,
+  ../upgrademngrs/upgrade,
+  websock/websock
 
 logScope:
   topics = "libp2p wstransport"
 
 export transport, websock, results
 
-const
-  DefaultHeadersTimeout = 3.seconds
+const DefaultHeadersTimeout = 3.seconds
 
-type
-  WsStream = ref object of Connection
-    session: WSSession
+type WsStream = ref object of Connection
+  session: WSSession
 
 method initStream*(s: WsStream) =
   if s.objName.len == 0:
@@ -44,17 +43,15 @@ method initStream*(s: WsStream) =
 
   procCall Connection(s).initStream()
 
-proc new*(T: type WsStream,
-           session: WSSession,
-           dir: Direction,
-           observedAddr: Opt[MultiAddress],
-           timeout = 10.minutes): T =
-
-  let stream = T(
-    session: session,
-    timeout: timeout,
-    dir: dir,
-    observedAddr: observedAddr)
+proc new*(
+    T: type WsStream,
+    session: WSSession,
+    dir: Direction,
+    observedAddr: Opt[MultiAddress],
+    timeout = 10.minutes,
+): T =
+  let stream =
+    T(session: session, timeout: timeout, dir: dir, observedAddr: observedAddr)
 
   stream.initStream()
   return stream
@@ -63,18 +60,21 @@ template mapExceptions(body: untyped) =
   try:
     body
   except AsyncStreamIncompleteError:
-    raise newLPStreamEOFError()
+    raise newLPStreamIncompleteError()
+  except AsyncStreamLimitError:
+    raise newLPStreamLimitError()
   except AsyncStreamUseClosedError:
     raise newLPStreamEOFError()
   except WSClosedError:
     raise newLPStreamEOFError()
-  except AsyncStreamLimitError:
-    raise newLPStreamLimitError()
+  except WebSocketError:
+    raise newLPStreamEOFError()
+  except CatchableError:
+    raise newLPStreamEOFError()
 
 method readOnce*(
-  s: WsStream,
-  pbytes: pointer,
-  nbytes: int): Future[int] {.async.} =
+    s: WsStream, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   let res = mapExceptions(await s.session.recv(pbytes, nbytes))
 
   if res == 0 and s.session.readyState == ReadyState.Closed:
@@ -83,39 +83,40 @@ method readOnce*(
   return res
 
 method write*(
-  s: WsStream,
-  msg: seq[byte]): Future[void] {.async.} =
+    s: WsStream, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   mapExceptions(await s.session.send(msg, Opcode.Binary))
   s.activity = true # reset activity flag
 
-method closeImpl*(s: WsStream): Future[void] {.async.} =
-  await s.session.close()
+method closeImpl*(s: WsStream): Future[void] {.async: (raises: []).} =
+  try:
+    await s.session.close()
+  except CatchableError:
+    discard
   await procCall Connection(s).closeImpl()
 
-method getWrapped*(s: WsStream): Connection = nil
+method getWrapped*(s: WsStream): Connection =
+  nil
 
-type
-  WsTransport* = ref object of Transport
-    httpservers: seq[HttpServer]
-    wsserver: WSServer
-    connections: array[Direction, seq[WsStream]]
+type WsTransport* = ref object of Transport
+  httpservers: seq[HttpServer]
+  wsserver: WSServer
+  connections: array[Direction, seq[WsStream]]
 
-    acceptFuts: seq[Future[HttpRequest]]
+  acceptFuts: seq[Future[HttpRequest]]
 
-    tlsPrivateKey: TLSPrivateKey
-    tlsCertificate: TLSCertificate
-    tlsFlags: set[TLSFlags]
-    flags: set[ServerFlags]
-    handshakeTimeout: Duration
-    factories: seq[ExtFactory]
-    rng: ref HmacDrbgContext
+  tlsPrivateKey: TLSPrivateKey
+  tlsCertificate: TLSCertificate
+  tlsFlags: set[TLSFlags]
+  flags: set[ServerFlags]
+  handshakeTimeout: Duration
+  factories: seq[ExtFactory]
+  rng: ref HmacDrbgContext
 
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
 
-method start*(
-  self: WsTransport,
-  addrs: seq[MultiAddress]) {.async.} =
+method start*(self: WsTransport, addrs: seq[MultiAddress]) {.async.} =
   ## listen on the transport
   ##
 
@@ -126,19 +127,18 @@ method start*(
   await procCall Transport(self).start(addrs)
   trace "Starting WS transport"
 
-  self.wsserver = WSServer.new(
-    factories = self.factories,
-    rng = self.rng)
-
+  self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)
 
   for i, ma in addrs:
     let isWss =
       if WSS.match(ma):
-        if self.secure: true
+        if self.secure:
+          true
         else:
-          warn "Trying to listen on a WSS address without setting the certificate!"
+          warn "Trying to listen on a WSS address without setting certificate!"
           false
-      else: false
+      else:
+        false
 
     let httpserver =
       if isWss:
@@ -147,11 +147,11 @@ method start*(
           tlsPrivateKey = self.tlsPrivateKey,
           tlsCertificate = self.tlsCertificate,
           flags = self.flags,
-          handshakeTimeout = self.handshakeTimeout)
+          handshakeTimeout = self.handshakeTimeout,
+        )
       else:
         HttpServer.create(
-          ma.initTAddress().tryGet(),
-          handshakeTimeout = self.handshakeTimeout
+          ma.initTAddress().tryGet(), handshakeTimeout = self.handshakeTimeout
         )
 
     self.httpservers &= httpserver
@@ -166,8 +166,8 @@ method start*(
         MultiAddress.init("/ws")
 
     # always get the resolved address in case we're bound to 0.0.0.0:0
-    self.addrs[i] = MultiAddress.init(
-      httpserver.localAddress()).tryGet() & codec.tryGet()
+    self.addrs[i] =
+      MultiAddress.init(httpserver.localAddress()).tryGet() & codec.tryGet()
 
   trace "Listening on", addresses = self.addrs
 
@@ -186,7 +186,9 @@ method stop*(self: WsTransport) {.async.} =
     checkFutures(
       await allFinished(
         self.connections[Direction.In].mapIt(it.close()) &
-        self.connections[Direction.Out].mapIt(it.close())))
+          self.connections[Direction.Out].mapIt(it.close())
+      )
+    )
 
     var toWait: seq[Future[void]]
     for fut in self.acceptFuts:
@@ -206,10 +208,9 @@ method stop*(self: WsTransport) {.async.} =
   except CatchableError as exc:
     trace "Error shutting down ws transport", exc = exc.msg
 
-proc connHandler(self: WsTransport,
-                 stream: WSSession,
-                 secure: bool,
-                 dir: Direction): Future[Connection] {.async.} =
+proc connHandler(
+    self: WsTransport, stream: WSSession, secure: bool, dir: Direction
+): Future[Connection] {.async.} =
   let observedAddr =
     try:
       let
@@ -223,7 +224,7 @@ proc connHandler(self: WsTransport,
       MultiAddress.init(remoteAddr).tryGet() & codec.tryGet()
     except CatchableError as exc:
       trace "Failed to create observedAddr", exc = exc.msg
-      if not(isNil(stream) and stream.stream.reader.closed):
+      if not (isNil(stream) and stream.stream.reader.closed):
         await stream.close()
       raise exc
 
@@ -234,6 +235,7 @@ proc connHandler(self: WsTransport,
     await conn.session.stream.reader.join()
     self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
+
   asyncSpawn onClose()
   return conn
 
@@ -292,10 +294,11 @@ method accept*(self: WsTransport): Future[Connection] {.async.} =
     raise exc
 
 method dial*(
-  self: WsTransport,
-  hostname: string,
-  address: MultiAddress,
-  peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection] {.async.} =
+    self: WsTransport,
+    hostname: string,
+    address: MultiAddress,
+    peerId: Opt[PeerId] = Opt.none(PeerId),
+): Future[Connection] {.async.} =
   ## dial a peer
   ##
 
@@ -308,7 +311,8 @@ method dial*(
       "",
       secure = secure,
       hostName = hostname,
-      flags = self.tlsFlags)
+      flags = self.tlsFlags,
+    )
 
   try:
     return await self.connHandler(transp, secure, Direction.Out)
@@ -322,15 +326,16 @@ method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
       return WebSockets.match(address)
 
 proc new*(
-  T: typedesc[WsTransport],
-  upgrade: Upgrade,
-  tlsPrivateKey: TLSPrivateKey,
-  tlsCertificate: TLSCertificate,
-  tlsFlags: set[TLSFlags] = {},
-  flags: set[ServerFlags] = {},
-  factories: openArray[ExtFactory] = [],
-  rng: ref HmacDrbgContext = nil,
-  handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
+    T: typedesc[WsTransport],
+    upgrade: Upgrade,
+    tlsPrivateKey: TLSPrivateKey,
+    tlsCertificate: TLSCertificate,
+    tlsFlags: set[TLSFlags] = {},
+    flags: set[ServerFlags] = {},
+    factories: openArray[ExtFactory] = [],
+    rng: ref HmacDrbgContext = nil,
+    handshakeTimeout = DefaultHeadersTimeout,
+): T {.public.} =
   ## Creates a secure WebSocket transport
 
   T(
@@ -341,15 +346,17 @@ proc new*(
     flags: flags,
     factories: @factories,
     rng: rng,
-    handshakeTimeout: handshakeTimeout)
+    handshakeTimeout: handshakeTimeout,
+  )
 
 proc new*(
-  T: typedesc[WsTransport],
-  upgrade: Upgrade,
-  flags: set[ServerFlags] = {},
-  factories: openArray[ExtFactory] = [],
-  rng: ref HmacDrbgContext = nil,
-  handshakeTimeout = DefaultHeadersTimeout): T {.public.} =
+    T: typedesc[WsTransport],
+    upgrade: Upgrade,
+    flags: set[ServerFlags] = {},
+    factories: openArray[ExtFactory] = [],
+    rng: ref HmacDrbgContext = nil,
+    handshakeTimeout = DefaultHeadersTimeout,
+): T {.public.} =
   ## Creates a clear-text WebSocket transport
 
   T.new(
@@ -359,4 +366,5 @@ proc new*(
     flags = flags,
     factories = @factories,
     rng = rng,
-    handshakeTimeout = handshakeTimeout)
+    handshakeTimeout = handshakeTimeout,
+  )
