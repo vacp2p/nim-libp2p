@@ -18,7 +18,7 @@ import
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ./helpers, ./asyncunit
+import ./helpers, ./asyncunit, ./utils/async, ./utils/assertions
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
@@ -78,3 +78,36 @@ suite "Discovery":
       res[PeerId] == clientB.peerInfo.peerId
       res.getAll(PeerId) == @[clientB.peerInfo.peerId]
       toHashSet(res.getAll(MultiAddress)) == toHashSet(clientB.peerInfo.addrs)
+
+  asyncTest "Subscribe and unsubscribe":
+    dmB.advertise(rdvNamespace)
+    let
+      query1 = dmA.request(rdvNamespace)
+      res1 = await query1.getPeer().waitForResult(1.seconds)
+
+    res1.assertIsOk()
+    check res1.value{PeerId}.get() == clientB.peerInfo.peerId
+
+    await rdvB.unsubscribe(namespace)
+    var
+      query2 = dmA.request(rdvNamespace)
+      res2 = await query2.getPeer().waitForResult(1.seconds)
+
+    res2.assertIsErr()
+
+  asyncTest "Frequent sub/desub":
+    for i in 0 ..< 10:
+      dmB.advertise(rdvNamespace)
+      let
+        query1 = dmA.request(rdvNamespace)
+        res1 = await query1.getPeer().waitForResult(1.seconds)
+
+      res1.assertIsOk()
+      check res1.value{PeerId}.get() == clientB.peerInfo.peerId
+
+      await rdvB.unsubscribe(namespace)
+      var
+        query2 = dmA.request(rdvNamespace)
+        res2 = await query2.getPeer().waitForResult(1.seconds)
+
+      res2.assertIsErr()
