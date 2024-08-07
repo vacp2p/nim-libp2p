@@ -1,12 +1,13 @@
-name: daily-common
+name: Daily Common
+# Serves as base workflow for daily tasks, it's not run by itself.
 
 on:
   workflow_call:
     inputs:
-      nim-branch:
-        description: 'Nim branch'
+      nim:
+        description: 'Nim Configuration'
         required: true
-        type: string
+        type: string # Following this format: [{"branch": ..., "memory_management": ...}, ...]
       cpu:
         description: 'CPU'
         required: true
@@ -17,15 +18,20 @@ on:
         type: string
         default: "[]"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  delete-cache:
+  delete_cache:
+    name: Delete github action's branch cache
     runs-on: ubuntu-latest
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
-  build:
-    needs: delete-cache
-    timeout-minutes: 120
+  test:
+    needs: delete_cache
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -39,7 +45,7 @@ jobs:
           - os: windows
             builder: windows-2022
             shell: msys2 {0}
-        branch: ${{ fromJSON(inputs.nim-branch) }}
+        nim: ${{ fromJSON(inputs.nim) }}
         cpu: ${{ fromJSON(inputs.cpu) }}
         exclude: ${{ fromJSON(inputs.exclude) }}
 
@@ -47,9 +53,9 @@ jobs:
       run:
         shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.branch }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.branch }})'
     runs-on: ${{ matrix.platform.builder }}
-    continue-on-error: ${{ matrix.branch == 'devel' || matrix.branch == 'version-2-0' }}
+    continue-on-error: ${{ matrix.nim.branch == 'devel' || matrix.nim.branch == 'version-2-0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,11 +65,11 @@ jobs:
         with:
           os: ${{ matrix.platform.os }}
           shell: ${{ matrix.platform.shell }}
-          nim_branch: ${{ matrix.branch }}
+          nim_branch: ${{ matrix.nim.branch }}
           cpu: ${{ matrix.cpu }}
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '~1.15.5'
           cache: false
@@ -71,14 +77,13 @@ jobs:
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+        
+      - name: Install dependencies
+        run: |
+          nimble install -y --depsOnly
 
       - name: Run tests
         run: |
           nim --version
           nimble --version
-          nimble install -y --depsOnly
-          NIMFLAGS="${NIMFLAGS} --mm:refc" nimble test
-          if [[ "${{ matrix.branch }}" == "devel" ]]; then
-            echo -e "\nTesting with '--mm:orc':\n"
-            NIMFLAGS="${NIMFLAGS} --mm:orc" nimble test
-          fi
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" nimble test

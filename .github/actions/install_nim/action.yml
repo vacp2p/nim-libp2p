@@ -61,7 +61,7 @@ runs:
     - name: Restore Nim DLLs dependencies (Windows) from cache
       if: inputs.os == 'Windows'
       id: windows-dlls-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: external/dlls
         key: 'dlls'
@@ -114,7 +114,7 @@ runs:
 
     - name: Restore Nim from cache
       id: nim-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: '${{ github.workspace }}/nim'
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}

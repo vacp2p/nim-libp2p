@@ -1,0 +1,14 @@
+name: Daily amd64
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  test_amd64:
+    name: Daily amd64
+    uses: ./.github/workflows/base_daily_tests.yml
+    with:
+      nim: "[{'branch': 'version-1-6', 'memory_management': 'refc'}, {'branch': 'version-2-0', 'memory_management': 'refc'}]"
+      cpu: "['amd64']"
