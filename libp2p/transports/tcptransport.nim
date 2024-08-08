@@ -226,10 +226,17 @@ method accept*(self: TcpTransport): Future[Connection] =
   proc impl(
       self: TcpTransport
   ): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+    proc cancelAcceptFuts() =
+      for fut in self.acceptFuts:
+        if not fut.completed():
+          fut.cancel()
+
     if not self.running:
       raise newTransportClosedError()
 
-    if self.acceptFuts.len <= 0:
+    if self.servers.len == 0:
+      raise (ref TcpTransportError)(msg: "No listeners configured")
+    elif self.acceptFuts.len == 0:
       # Holds futures representing ongoing accept calls on multiple servers.
       self.acceptFuts = self.servers.mapIt(it.accept())
 
@@ -239,7 +246,10 @@ method accept*(self: TcpTransport): Future[Connection] =
           # Waits for any one of these futures to complete, indicating that a new connection has been accepted on one of the servers.
           await one(self.acceptFuts)
         except ValueError:
-          raise (ref TcpTransportError)(msg: "No listeners configured")
+          raiseAssert "Accept futures should not be empty"
+        except CancelledError as exc:
+          cancelAcceptFuts()
+          raise exc
       index = self.acceptFuts.find(finished)
 
     # A new connection has been accepted. The corresponding server should immediately start accepting another connection.
@@ -261,6 +271,7 @@ method accept*(self: TcpTransport): Future[Connection] =
       except common.TransportError as exc: # Needed for chronos 4.0.0 support
         raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
       except CancelledError as exc:
+        cancelAcceptFuts()
         raise exc
 
     if not self.running: # Stopped while waiting
