@@ -9,8 +9,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import std/importutils
 import unittest2
 import ../libp2p/[cid, multihash, multicodec]
+
+privateAccess(CodeHashes) # enable access to private fields
+
+const MultiHashCodecsList* = HashesList.mapIt( it.mcodec )
 
 suite "Content identifier CID test suite":
   test "CIDv0 test vector":
