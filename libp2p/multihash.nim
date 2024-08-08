@@ -237,7 +237,7 @@ proc poseidon2_merkle_2kb_sponge(data: openArray[byte], output: var openArray[by
     var digest = poseidon2.SpongeMerkle.digest(data, 2048).toBytes()
     copyMem(addr output[0], addr digest[0], uint(len(output)))
 
-const HashesList = [
+const HashesList* = [
   MHash(mcodec: multiCodec("identity"), size: 0, coder: identhash),
   MHash(mcodec: multiCodec("sha1"), size: sha1.sizeDigest, coder: sha1hash),
   MHash(
