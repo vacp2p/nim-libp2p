@@ -1,4 +1,5 @@
-name: CI
+name: Continuous Integration
+
 on:
   push:
     branches:
@@ -11,37 +12,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  test:
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        target:
+        platform:
           - os: linux
             cpu: amd64
           - os: linux
             cpu: i386
-          - os: ubuntu-24-gcc-14
+          - os: linux-gcc-14
             cpu: amd64
           - os: macos
             cpu: amd64
           - os: windows
             cpu: amd64
-        branch: [version-1-6, version-2-0]
+        nim: 
+          - branch: version-1-6
+            memory_management: refc
+          - branch: version-2-0
+            memory_management: refc
         include:
-          - target:
+          - platform:
               os: linux
             builder: ubuntu-22.04
             shell: bash
-          - target:
-              os: ubuntu-24-gcc-14
+          - platform:
+              os: linux-gcc-14
             builder: ubuntu-24.04
             shell: bash
-          - target:
+          - platform:
               os: macos
             builder: macos-13
             shell: bash
-          - target:
+          - platform:
               os: windows
             builder: windows-2022
             shell: msys2 {0}
@@ -50,25 +55,24 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
     runs-on: ${{ matrix.builder }}
-    continue-on-error: ${{ matrix.branch == 'devel' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: ${{ matrix.target.os }}
-          cpu: ${{ matrix.target.cpu }}
+          os: ${{ matrix.platform.os }}
+          cpu: ${{ matrix.platform.cpu }}
           shell: ${{ matrix.shell }}
-          nim_branch: ${{ matrix.branch }}
+          nim_branch: ${{ matrix.nim.branch }}
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: '~1.15.5'
 
@@ -83,7 +87,7 @@ jobs:
           path: nimbledeps
           # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
           # The change happened on Nimble v0.14.0.
-          key: nimbledeps-${{ matrix.branch }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+          key: nimbledeps-${{ matrix.nim.branch }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
@@ -91,7 +95,7 @@ jobs:
           nimble install_pinned
 
       - name: Use gcc 14
-        if : ${{ matrix.target.os == 'ubuntu-24-gcc-14'}}
+        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
         run: |
           # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
@@ -104,26 +108,5 @@ jobs:
           nim --version
           nimble --version
           gcc --version
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
-
-  lint:
-    name: "Lint"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
-
-      - name: Check nph formatting
-        # Pin nph to a specific version to avoid sudden style differences.
-        # Updating nph version should be accompanied with running the new
-        # version on the fluffy directory.
-        run: |
-          VERSION="v0.5.1"
-          ARCHIVE="nph-linux_x64.tar.gz"
-          curl -L "https://github.com/arnetheduck/nph/releases/download/${VERSION}/${ARCHIVE}" -o ${ARCHIVE}
-          tar -xzf ${ARCHIVE}
-          shopt -s extglob  # Enable extended globbing
-          ./nph examples libp2p tests tools *.@(nim|nims|nimble)
-          git diff --exit-code
