@@ -91,6 +91,6 @@ suite "MultiHash test suite":
       hex(mh1) == hex(mh2)
       mh1 == mh2
 
-  test "multihash test vectors":
-    for item in TestVectors:
+  test "rust-multihash test vectors":
+    for item in RustTestVectors:
       checkTestVector(item)
