@@ -282,11 +282,12 @@ method readOnce*(
     let
       closedRemotelyFut = channel.closedRemotely.wait()
       receivedDataFut = channel.receivedData.wait()
+    defer:
+      if not closedRemotelyFut.finished():
+        await closedRemotelyFut.cancelAndWait()
+      if not receivedDataFut.finished():
+        await receivedDataFut.cancelAndWait()
     await closedRemotelyFut or receivedDataFut
-    if not closedRemotelyFut.finished():
-      await closedRemotelyFut.cancelAndWait()
-    if not receivedDataFut.finished():
-      await receivedDataFut.cancelAndWait()
     if channel.closedRemotely.isSet() and channel.recvQueue.len == 0:
       channel.isEof = true
       return
