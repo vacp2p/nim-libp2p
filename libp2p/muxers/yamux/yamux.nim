@@ -279,10 +279,14 @@ method readOnce*(
     raise newLPStreamRemoteClosedError()
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
-    try: # https://github.com/status-im/nim-chronos/issues/516
-      discard await race(channel.closedRemotely.wait(), channel.receivedData.wait())
-    except ValueError:
-      raiseAssert("Futures list is not empty")
+    let
+      closedRemotelyFut = channel.closedRemotely.wait()
+      receivedDataFut = channel.receivedData.wait()
+    await closedRemotelyFut or receivedDataFut
+    if not closedRemotelyFut.finished():
+      await closedRemotelyFut.cancelAndWait()
+    if not receivedDataFut.finished():
+      await receivedDataFut.cancelAndWait()
     if channel.closedRemotely.isSet() and channel.recvQueue.len == 0:
       channel.isEof = true
       return
