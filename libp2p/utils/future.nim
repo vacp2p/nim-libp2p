@@ -9,6 +9,7 @@
 
 {.push raises: [].}
 
+import sequtils
 import chronos
 
 type AllFuturesFailedError* = object of CatchableError
@@ -31,3 +32,11 @@ proc anyCompleted*[T](futs: seq[Future[T]]): Future[Future[T]] {.async.} =
 
     let index = requests.find(raceFut)
     requests.del(index)
+
+proc raceCancel*[T](
+    futs: seq[Future[T]]
+): Future[void] {.async: (raises: [ValueError, CancelledError]).} =
+  try:
+    discard await race(futs)
+  finally:
+    await noCancel allFutures(futs.filterIt(not it.finished).mapIt(it.cancelAndWait))
