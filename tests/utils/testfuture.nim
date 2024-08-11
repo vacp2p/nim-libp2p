@@ -13,7 +13,6 @@ import ../helpers
 import ../../libp2p/utils/future
 
 suite "Utils Future":
-
   asyncTest "All Pending Tasks are canceled when returned future is canceled":
     proc longRunningTaskA() {.async.} =
       await sleepAsync(10.seconds)
