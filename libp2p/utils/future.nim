@@ -33,8 +33,8 @@ proc anyCompleted*[T](futs: seq[Future[T]]): Future[Future[T]] {.async.} =
     let index = requests.find(raceFut)
     requests.del(index)
 
-proc raceCancel*[T](
-    futs: seq[Future[T]]
+proc raceCancel*(
+    futs: seq[Future | InternalRaisesFuture]
 ): Future[void] {.async: (raises: [ValueError, CancelledError]).} =
   try:
     discard await race(futs)

@@ -48,5 +48,10 @@ suite "Utils Future":
 
   asyncTest "raceCancel with AsyncEvent":
     let asyncEvent = newAsyncEvent()
+    let fut1 = asyncEvent.wait()
+    let fut2 = newAsyncEvent().wait()
+    asyncEvent.fire()
+    await raceCancel(@[fut1, fut2])
 
-    await raceCancel(@[asyncEvent.wait()])
+    check fut1.finished
+    check fut2.cancelled
