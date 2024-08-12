@@ -12,7 +12,6 @@
 import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
-import ../../utils/future
 
 export muxer
 
@@ -281,7 +280,7 @@ method readOnce*(
   if channel.recvQueue.len == 0:
     channel.receivedData.clear()
     try: # https://github.com/status-im/nim-chronos/issues/516
-      discard await raceCancel(@[channel.closedRemotely.wait(), channel.receivedData.wait()])
+      discard await race(channel.closedRemotely.wait(), channel.receivedData.wait())
     except ValueError:
       raiseAssert("Futures list is not empty")
     if channel.closedRemotely.isSet() and channel.recvQueue.len == 0:
