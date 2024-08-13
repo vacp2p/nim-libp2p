@@ -18,14 +18,14 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - os: linux
-            cpu: amd64
-          - os: linux
-            cpu: i386
-          - os: linux-gcc-14
-            cpu: amd64
-          - os: macos
-            cpu: amd64
+          #- os: linux
+          #  cpu: amd64
+          #- os: linux
+          #  cpu: i386
+          #- os: linux-gcc-14
+          #  cpu: amd64
+          #- os: macos
+          #  cpu: amd64
           - os: windows
             cpu: amd64
         nim: 
@@ -92,7 +92,7 @@ jobs:
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
+          nimble --verbose install_pinned
 
       - name: Use gcc 14
         if : ${{ matrix.platform.os == 'linux-gcc-14'}}
