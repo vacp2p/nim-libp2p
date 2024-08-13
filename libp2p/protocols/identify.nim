@@ -156,7 +156,7 @@ method init*(p: Identify) =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in identify handler", exc = exc.msg, conn
+      trace "exception in identify handler", errMsg = exc.msg, conn
     finally:
       trace "exiting identify handler", conn
       await conn.closeWithEOF()
@@ -226,7 +226,7 @@ proc init*(p: IdentifyPush) =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      info "exception in identify push handler", exc = exc.msg, conn
+      info "exception in identify push handler", errMsg = exc.msg, conn
     finally:
       trace "exiting identify push handler", conn
       await conn.closeWithEOF()

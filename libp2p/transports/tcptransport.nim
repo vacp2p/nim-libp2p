@@ -99,8 +99,7 @@ proc new*(
       if ServerFlags.TcpNoDelay in flags:
         {SocketFlags.TcpNoDelay}
       else:
-        default(set[SocketFlags])
-    ,
+        default(set[SocketFlags]),
     upgrader: upgrade,
     networkReachability: NetworkReachability.Unknown,
     connectionsTimeout: connectionsTimeout,
@@ -249,10 +248,10 @@ method accept*(self: TcpTransport): Future[Connection] =
       try:
         await finished
       except TransportTooManyError as exc:
-        debug "Too many files opened", exc = exc.msg
+        debug "Too many files opened", errMsg = exc.msg
         return nil
       except TransportAbortedError as exc:
-        debug "Connection aborted", exc = exc.msg
+        debug "Connection aborted", errMsg = exc.msg
         return nil
       except TransportUseClosedError as exc:
         raise newTransportClosedError(exc)
@@ -273,7 +272,7 @@ method accept*(self: TcpTransport): Future[Connection] =
       except TransportOsError as exc:
         # The connection had errors / was closed before `await` returned control
         await transp.closeWait()
-        debug "Cannot read remote address", exc = exc.msg
+        debug "Cannot read remote address", errMsg = exc.msg
         return nil
 
     let observedAddr =

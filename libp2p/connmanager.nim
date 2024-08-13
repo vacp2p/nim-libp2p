@@ -136,7 +136,8 @@ proc triggerConnEvent*(c: ConnManager, peerId: PeerId, event: ConnEvent) {.async
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    warn "Exception in triggerConnEvents", msg = exc.msg, peer = peerId, event = $event
+    warn "Exception in triggerConnEvents",
+      errMsg = exc.msg, peer = peerId, event = $event
 
 proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
@@ -169,7 +170,7 @@ proc triggerPeerEvents*(c: ConnManager, peerId: PeerId, event: PeerEvent) {.asyn
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "Exception in triggerPeerEvents", exc = exc.msg, peer = peerId
+    warn "Exception in triggerPeerEvents", errMsg = exc.msg, peer = peerId
 
 proc expectConnection*(
     c: ConnManager, p: PeerId, dir: Direction
@@ -212,7 +213,7 @@ proc closeMuxer(muxer: Muxer) {.async.} =
     try:
       await muxer.handler # TODO noraises?
     except CatchableError as exc:
-      trace "Exception in close muxer handler", exc = exc.msg
+      trace "Exception in close muxer handler", errMsg = exc.msg
   trace "Cleaned up muxer", m = muxer
 
 proc muxCleanup(c: ConnManager, mux: Muxer) {.async.} =
@@ -235,7 +236,7 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async.} =
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
-    warn "Unexpected exception peer cleanup handler", mux, msg = exc.msg
+    warn "Unexpected exception peer cleanup handler", mux, errMsg = exc.msg
 
 proc onClose(c: ConnManager, mux: Muxer) {.async.} =
   ## connection close even handler
@@ -358,7 +359,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
     try:
       await conn.join()
     except CatchableError as exc:
-      trace "Exception in semaphore monitor, ignoring", exc = exc.msg
+      trace "Exception in semaphore monitor, ignoring", errMsg = exc.msg
 
     cs.release()
 

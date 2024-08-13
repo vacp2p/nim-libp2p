@@ -31,7 +31,7 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
           # We still don't abort but warn
           debug "A future has failed, enable trace logging for details",
             error = exc.name
-          trace "Exception message", msg = exc.msg, stack = getStackTrace()
+          trace "Exception message", errMsg = exc.msg, stack = getStackTrace()
   else:
     quote:
       for res in `futs`:
@@ -40,9 +40,9 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
             let exc = res.readError()
             for i in 0 ..< `nexclude`:
               if exc of `exclude`[i]:
-                trace "A future has failed", error = exc.name, msg = exc.msg
+                trace "A future has failed", error = exc.name, errMsg = exc.msg
                 break check
             # We still don't abort but warn
             debug "A future has failed, enable trace logging for details",
               error = exc.name
-            trace "Exception details", msg = exc.msg
+            trace "Exception details", errMsg = exc.msg

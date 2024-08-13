@@ -62,10 +62,11 @@ proc dialAndUpgrade(
           libp2p_total_dial_attempts.inc()
           await transport.dial(hostname, address, peerId)
         except CancelledError as exc:
-          trace "Dialing canceled", err = exc.msg, peerId = peerId.get(default(PeerId))
+          trace "Dialing canceled",
+            errMsg = exc.msg, peerId = peerId.get(default(PeerId))
           raise exc
         except CatchableError as exc:
-          debug "Dialing failed", err = exc.msg, peerId = peerId.get(default(PeerId))
+          debug "Dialing failed", errMsg = exc.msg, peerId = peerId.get(default(PeerId))
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
@@ -87,7 +88,7 @@ proc dialAndUpgrade(
           # we won't succeeded through another - no use in trying again
           await dialed.close()
           debug "Connection upgrade failed",
-            err = exc.msg, peerId = peerId.get(default(PeerId))
+            errMsg = exc.msg, peerId = peerId.get(default(PeerId))
           if dialed.dir == Direction.Out:
             libp2p_failed_upgrades_outgoing.inc()
           else:
@@ -200,7 +201,7 @@ proc internalConnect(
         PeerEvent(kind: PeerEventKind.Identified, initiator: true),
       )
     except CatchableError as exc:
-      trace "Failed to finish outgoung upgrade", err = exc.msg
+      trace "Failed to finish outgoung upgrade", errMsg = exc.msg
       await muxed.close()
       raise exc
 
@@ -327,7 +328,7 @@ method dial*(
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, err = exc.msg
+    debug "Error dialing", conn, errMsg = exc.msg
     await cleanup()
     raise exc
 

@@ -146,13 +146,13 @@ proc askPeer(
       debug "dialMe answer is reachable"
       Reachable
     except AutonatUnreachableError as error:
-      debug "dialMe answer is not reachable", msg = error.msg
+      debug "dialMe answer is not reachable", errMsg = error.msg
       NotReachable
     except AsyncTimeoutError as error:
-      debug "dialMe timed out", msg = error.msg
+      debug "dialMe timed out", errMsg = error.msg
       Unknown
     except CatchableError as error:
-      debug "dialMe unexpected error", msg = error.msg
+      debug "dialMe unexpected error", errMsg = error.msg
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
@@ -194,7 +194,7 @@ proc addressMapper(
         processedMA = peerStore.guessDialableAddr(listenAddr)
           # handle manual port forwarding
     except CatchableError as exc:
-      debug "Error while handling address mapper", msg = exc.msg
+      debug "Error while handling address mapper", errMsg = exc.msg
     addrs.add(processedMA)
   return addrs
 
