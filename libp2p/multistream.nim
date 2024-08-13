@@ -212,7 +212,7 @@ proc handle*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "Exception in multistream", conn, msg = exc.msg
+    trace "Exception in multistream", conn, exc = exc.msg
   finally:
     await conn.close()
 

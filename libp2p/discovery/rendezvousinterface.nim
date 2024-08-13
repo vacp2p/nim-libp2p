@@ -64,7 +64,7 @@ method advertise*(self: RendezVousInterface) {.async.} =
       try:
         await self.rdv.advertise(toAdv, self.ttl)
       except CatchableError as error:
-        debug "RendezVous advertise error: ", msg = error.msg
+        debug "RendezVous advertise error: ", error = error.msg
 
     await sleepAsync(self.timeToAdvertise) or self.advertisementUpdated.wait()
 

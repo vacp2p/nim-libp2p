@@ -196,7 +196,7 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error sending stop message", msg = exc.msg
+    trace "error sending stop message", exc = exc.msg
     await sendHopStatus(connSrc, ConnectionFailed)
     return
 
@@ -213,7 +213,7 @@ proc handleHopStreamV2*(r: Relay, conn: Connection) {.async.} =
   let msg = HopMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return
-  trace "relayv2 handle stream", msg = msg
+  trace "relayv2 handle stream", message = msg
   case msg.msgType
   of HopMessageType.Reserve:
     await r.handleReserve(conn)
@@ -294,7 +294,7 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
       return
 
   let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
-    trace "error reading stop response", msg = msgRcvFromDstOpt
+    trace "error reading stop response", msgRcvFromDstOpt
     await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
     return
 
@@ -312,7 +312,7 @@ proc handleStreamV1(r: Relay, conn: Connection) {.async.} =
   let msg = RelayMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
-  trace "relay handle stream", msg
+  trace "relay handle stream", message = msg
 
   let typ = msg.msgType.valueOr:
     trace "Message type not set"

@@ -296,7 +296,7 @@ proc stop*(s: Switch) {.async, public.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "error cleaning up transports", msg = exc.msg
+      warn "error cleaning up transports", exc = exc.msg
 
   await s.ms.stop()
 

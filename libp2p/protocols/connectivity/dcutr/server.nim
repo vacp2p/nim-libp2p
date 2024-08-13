@@ -80,13 +80,13 @@ proc new*(
       raise err
     except AllFuturesFailedError as err:
       debug "Dcutr receiver could not connect to the remote peer, " &
-        "all connect attempts failed", peerDialableAddrs, msg = err.msg
+        "all connect attempts failed", peerDialableAddrs, error = err.msg
     except AsyncTimeoutError as err:
       debug "Dcutr receiver could not connect to the remote peer, " &
-        "all connect attempts timed out", peerDialableAddrs, msg = err.msg
+        "all connect attempts timed out", peerDialableAddrs, error = err.msg
     except CatchableError as err:
       warn "Unexpected error when Dcutr receiver tried to connect " &
-        "to the remote peer", msg = err.msg
+        "to the remote peer", error = err.msg
 
   let self = T()
   self.handler = handleStream

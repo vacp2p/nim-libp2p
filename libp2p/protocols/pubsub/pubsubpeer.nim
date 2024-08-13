@@ -283,7 +283,7 @@ proc connectImpl(p: PubSubPeer) {.async.} =
         return
       await connectOnce(p)
   except CatchableError as exc: # never cancelled
-    debug "Could not establish send connection", msg = exc.msg
+    debug "Could not establish send connection", exc = exc.msg
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
@@ -325,7 +325,7 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
   except CatchableError as exc: # never cancelled
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, msg = exc.msg
+    trace "Unable to send to remote", conn, exc = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
 
@@ -341,7 +341,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection", p, msg = shortLog(msg)
+    debug "No send connection", p, message = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
@@ -383,7 +383,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     ) == 0
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, msg = shortLog(msg)
+    debug "empty message, skipping", p, message = shortLog(msg)
     Future[void].completed()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub",

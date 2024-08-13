@@ -196,7 +196,7 @@ proc dialPeerV2*(
   if msgRcvFromRelay.msgType != HopMessageType.Status:
     raise newException(RelayV2DialError, "Unexpected stop response")
   if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
-    trace "Relay stop failed", msg = msgRcvFromRelay.status
+    trace "Relay stop failed", msgStatus = msgRcvFromRelay.status
     raise newException(RelayV2DialError, "Relay stop failure")
   conn.limitDuration = msgRcvFromRelay.limit.duration
   conn.limitData = msgRcvFromRelay.limit.data
@@ -206,7 +206,7 @@ proc handleStopStreamV2(cl: RelayClient, conn: Connection) {.async.} =
   let msg = StopMessage.decode(await conn.readLp(RelayClientMsgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return
-  trace "client circuit relay v2 handle stream", msg
+  trace "client circuit relay v2 handle stream", message = msg
 
   if msg.msgType == StopMessageType.Connect:
     await cl.handleRelayedConnect(conn, msg)
@@ -245,7 +245,7 @@ proc handleStreamV1(cl: RelayClient, conn: Connection) {.async.} =
   let msg = RelayMessage.decode(await conn.readLp(RelayClientMsgSize)).valueOr:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
-  trace "client circuit relay v1 handle stream", msg
+  trace "client circuit relay v1 handle stream", message = msg
 
   let typ = msg.msgType.valueOr:
     trace "Message type not set"

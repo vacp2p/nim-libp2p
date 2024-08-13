@@ -310,7 +310,7 @@ proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] {.inline.} =
   ok(msgs)
 
 proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
-  trace "encodeRpcMsg: encoding message", msg = msg.shortLog()
+  trace "encodeRpcMsg: encoding message", message = msg.shortLog()
   var pb = initProtoBuffer(maxSize = uint.high)
   for item in msg.subscriptions:
     pb.write(1, item)
@@ -329,7 +329,7 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   pb.buffer
 
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
-  trace "decodeRpcMsg: decoding message", msg = msg.shortLog()
+  trace "decodeRpcMsg: decoding message", message = msg.shortLog()
   var pb = initProtoBuffer(msg, maxSize = uint.high)
   var rpcMsg = RPCMsg()
   assign(rpcMsg.messages, ?pb.decodeMessages())

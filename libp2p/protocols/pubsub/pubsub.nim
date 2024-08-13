@@ -197,7 +197,7 @@ proc send*(
   ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
   ## priority messages have been sent.
 
-  trace "sending pubsub message to peer", peer, msg = shortLog(msg)
+  trace "sending pubsub message to peer", peer, message = shortLog(msg)
   peer.send(msg, p.anonymize, isHighPriority)
 
 proc broadcast*(
@@ -255,7 +255,7 @@ proc broadcast*(
       else:
         libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
 
-  trace "broadcasting messages to peers", peers = sendPeers.len, msg = shortLog(msg)
+  trace "broadcasting messages to peers", peers = sendPeers.len, message = shortLog(msg)
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
@@ -403,7 +403,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
         for fut in futs:
           if fut.failed:
             let err = fut.readError()
-            warn "Error in topic handler", msg = err.msg
+            warn "Error in topic handler", error = err.msg
 
       return waiter()
 

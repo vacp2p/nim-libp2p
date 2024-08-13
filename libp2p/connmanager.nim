@@ -136,7 +136,7 @@ proc triggerConnEvent*(c: ConnManager, peerId: PeerId, event: ConnEvent) {.async
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    warn "Exception in triggerConnEvents", msg = exc.msg, peer = peerId, event = $event
+    warn "Exception in triggerConnEvents", exc = exc.msg, peer = peerId, event = $event
 
 proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
@@ -235,7 +235,7 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async.} =
   except CatchableError as exc:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError and should handle other errors
-    warn "Unexpected exception peer cleanup handler", mux, msg = exc.msg
+    warn "Unexpected exception peer cleanup handler", mux, exc = exc.msg
 
 proc onClose(c: ConnManager, mux: Muxer) {.async.} =
   ## connection close even handler
