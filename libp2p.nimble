@@ -168,8 +168,8 @@ task install_pinned, "Reads the lockfile":
         fileName.endsWith(it[1].split('#')[^1]) # nimble for nim 1.X
       )
     ) == false or fileName.split('-')[^1].len < 20: # safegard for nimble for nim 1.X
-      echo "Removing: " & dependency
-      # rmDir(dependency)
+      echo "\n\nRemoving: " & dependency & "\n
+      rmDir(dependency)
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")
