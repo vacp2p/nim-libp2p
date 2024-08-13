@@ -17,6 +17,11 @@ on:
         required: false
         type: string
         default: "[]"
+      use_sat:
+        description: 'Install dependencies with SAT Solver'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -86,4 +91,7 @@ jobs:
         run: |
           nim --version
           nimble --version
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" nimble test
+          [[ ${{ inputs.use_sat }} ]] && dependency_solver="sat" || dependency_solver="legacy"
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:$dependency_solver" 
+          echo "NIMFLAGS: $NIMFLAGS"
+          nimble test
