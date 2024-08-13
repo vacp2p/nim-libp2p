@@ -82,7 +82,8 @@ proc `$`(header: YamuxHeader): string =
       if a != "":
         a & ", " & $b
       else:
-        $b,
+        $b
+      ,
       "",
     ) & "}, " & "streamId: " & $header.streamId & ", " & "length: " & $header.length &
     "}"
@@ -175,7 +176,8 @@ proc `$`(channel: YamuxChannel): string =
         if a != "":
           a & ", " & b
         else:
-          b,
+          b
+        ,
         "",
       ) & "}"
 

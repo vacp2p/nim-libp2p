@@ -99,7 +99,8 @@ proc new*(
       if ServerFlags.TcpNoDelay in flags:
         {SocketFlags.TcpNoDelay}
       else:
-        default(set[SocketFlags]),
+        default(set[SocketFlags])
+    ,
     upgrader: upgrade,
     networkReachability: NetworkReachability.Unknown,
     connectionsTimeout: connectionsTimeout,
