@@ -49,7 +49,7 @@ proc new*(T: typedesc[Perf]): T {.public.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in perf handler", exc = exc.msg, conn
+      trace "exception in perf handler", description = exc.msg, conn
     await conn.close()
 
   p.handler = handle

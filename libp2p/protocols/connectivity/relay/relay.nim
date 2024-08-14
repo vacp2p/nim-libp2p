@@ -167,7 +167,7 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error opening relay stream", dst, exc = exc.msg
+      trace "error opening relay stream", dst, description = exc.msg
       await sendHopStatus(connSrc, ConnectionFailed)
       return
   defer:
@@ -196,7 +196,7 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error sending stop message", msg = exc.msg
+    trace "error sending stop message", description = exc.msg
     await sendHopStatus(connSrc, ConnectionFailed)
     return
 
@@ -213,7 +213,7 @@ proc handleHopStreamV2*(r: Relay, conn: Connection) {.async.} =
   let msg = HopMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return
-  trace "relayv2 handle stream", msg = msg
+  trace "relayv2 handle stream", hopMsg = msg
   case msg.msgType
   of HopMessageType.Reserve:
     await r.handleReserve(conn)
@@ -272,7 +272,7 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error opening relay stream", dst, exc = exc.msg
+      trace "error opening relay stream", dst, description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantDialDst)
       return
   defer:
@@ -289,12 +289,13 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error writing stop handshake or reading stop response", exc = exc.msg
+      trace "error writing stop handshake or reading stop response",
+        description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
       return
 
   let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
-    trace "error reading stop response", msg = msgRcvFromDstOpt
+    trace "error reading stop response", response = msgRcvFromDstOpt
     await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
     return
 
@@ -369,7 +370,7 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "exception in relayv2 handler", exc = exc.msg, conn
+      debug "exception in relayv2 handler", description = exc.msg, conn
     finally:
       trace "exiting relayv2 handler", conn
       await conn.close()

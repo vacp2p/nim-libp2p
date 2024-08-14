@@ -41,7 +41,7 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
     discard requestStream.readData(addr buf[0], dataLen)
     return buf
   except CatchableError as exc:
-    info "Failed to created DNS buffer", msg = exc.msg
+    info "Failed to created DNS buffer", description = exc.msg
     return newSeq[byte](0)
 
 proc getDnsResponse(

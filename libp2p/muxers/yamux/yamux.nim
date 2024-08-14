@@ -513,9 +513,9 @@ method close*(m: Yamux) {.async: (raises: []).} =
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
   except CancelledError as exc:
-    trace "cancelled sending goAway", msg = exc.msg
+    trace "cancelled sending goAway", description = exc.msg
   except LPStreamError as exc:
-    trace "failed to send goAway", msg = exc.msg
+    trace "failed to send goAway", description = exc.msg
   await m.connection.close()
   trace "Closed yamux"
 
@@ -601,7 +601,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           if header.length > 0:
             var buffer = newSeqUninitialized[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
-            trace "Msg Rcv", msg = shortLog(buffer)
+            trace "Msg Rcv", description = shortLog(buffer)
             await channel.gotDataFromRemote(buffer)
 
         if MsgFlags.Fin in header.flags:
@@ -611,19 +611,19 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           trace "remote reset channel"
           await channel.reset()
   except CancelledError as exc:
-    debug "Unexpected cancellation in yamux handler", msg = exc.msg
+    debug "Unexpected cancellation in yamux handler", description = exc.msg
   except LPStreamEOFError as exc:
-    trace "Stream EOF", msg = exc.msg
+    trace "Stream EOF", description = exc.msg
   except LPStreamError as exc:
-    debug "Unexpected stream exception in yamux read loop", msg = exc.msg
+    debug "Unexpected stream exception in yamux read loop", description = exc.msg
   except YamuxError as exc:
-    trace "Closing yamux connection", error = exc.msg
+    trace "Closing yamux connection", description = exc.msg
     try:
       await m.connection.write(YamuxHeader.goAway(ProtocolError))
     except CancelledError, LPStreamError:
       discard
   except MuxerError as exc:
-    debug "Unexpected muxer exception in yamux read loop", msg = exc.msg
+    debug "Unexpected muxer exception in yamux read loop", description = exc.msg
     try:
       await m.connection.write(YamuxHeader.goAway(ProtocolError))
     except CancelledError, LPStreamError:

@@ -120,7 +120,7 @@ proc main() {.async.} =
       echo &"""{{"rtt_to_holepunched_peer_millis":{delay.millis}}}"""
       quit(0)
   except CatchableError as e:
-    error "Unexpected error", msg = e.msg
+    error "Unexpected error", description = e.msg
 
 discard waitFor(main().withTimeout(4.minutes))
 quit(1)

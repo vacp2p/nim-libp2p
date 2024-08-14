@@ -87,7 +87,7 @@ proc bridge*(
       trace "relay src closed connection", src = connSrc.peerId
     if connDst.closed() or connDst.atEof():
       trace "relay dst closed connection", dst = connDst.peerId
-    trace "relay error", exc = exc.msg
+    trace "relay error", description = exc.msg
   trace "end relaying", bytesSentFromSrcToDst, bytesSentFromDstToSrc
   await futSrc.cancelAndWait()
   await futDst.cancelAndWait()
