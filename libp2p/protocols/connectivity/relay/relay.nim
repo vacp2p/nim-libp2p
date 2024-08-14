@@ -167,7 +167,7 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error opening relay stream", dst, errMsg = exc.msg
+      trace "error opening relay stream", dst, description = exc.msg
       await sendHopStatus(connSrc, ConnectionFailed)
       return
   defer:
@@ -196,7 +196,7 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error sending stop message", errMsg = exc.msg
+    trace "error sending stop message", description = exc.msg
     await sendHopStatus(connSrc, ConnectionFailed)
     return
 
@@ -272,7 +272,7 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error opening relay stream", dst, errMsg = exc.msg
+      trace "error opening relay stream", dst, description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantDialDst)
       return
   defer:
@@ -289,7 +289,8 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error writing stop handshake or reading stop response", errMsg = exc.msg
+      trace "error writing stop handshake or reading stop response",
+        description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
       return
 
@@ -369,7 +370,7 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "exception in relayv2 handler", errMsg = exc.msg, conn
+      debug "exception in relayv2 handler", description = exc.msg, conn
     finally:
       trace "exiting relayv2 handler", conn
       await conn.close()

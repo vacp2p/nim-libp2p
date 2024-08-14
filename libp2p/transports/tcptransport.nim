@@ -249,10 +249,10 @@ method accept*(self: TcpTransport): Future[Connection] =
       try:
         await finished
       except TransportTooManyError as exc:
-        debug "Too many files opened", errMsg = exc.msg
+        debug "Too many files opened", description = exc.msg
         return nil
       except TransportAbortedError as exc:
-        debug "Connection aborted", errMsg = exc.msg
+        debug "Connection aborted", description = exc.msg
         return nil
       except TransportUseClosedError as exc:
         raise newTransportClosedError(exc)
@@ -273,7 +273,7 @@ method accept*(self: TcpTransport): Future[Connection] =
       except TransportOsError as exc:
         # The connection had errors / was closed before `await` returned control
         await transp.closeWait()
-        debug "Cannot read remote address", errMsg = exc.msg
+        debug "Cannot read remote address", description = exc.msg
         return nil
 
     let observedAddr =

@@ -403,7 +403,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
         for fut in futs:
           if fut.failed:
             let err = fut.readError()
-            warn "Error in topic handler", errMsg = err.msg
+            warn "Error in topic handler", description = err.msg
 
       return waiter()
 
@@ -437,7 +437,7 @@ method handleConn*(p: PubSub, conn: Connection, proto: string) {.base, async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "exception ocurred in pubsub handle", errMsg = exc.msg, conn
+    trace "exception ocurred in pubsub handle", description = exc.msg, conn
   finally:
     await conn.closeWithEOF()
 

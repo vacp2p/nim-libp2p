@@ -220,7 +220,7 @@ method init*(g: GossipSub) =
       # do not need to propogate CancelledError.
       trace "Unexpected cancellation in gossipsub handler", conn
     except CatchableError as exc:
-      trace "GossipSub handler leaks an error", errMsg = exc.msg, conn
+      trace "GossipSub handler leaks an error", description = exc.msg, conn
 
   g.handler = handler
   g.codecs &= GossipSubCodec_12
@@ -491,7 +491,7 @@ proc validateAndRelay(
 
     await handleData(g, topic, msg.data)
   except CatchableError as exc:
-    info "validateAndRelay failed", errMsg = exc.msg
+    info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
@@ -806,7 +806,7 @@ proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.as
       trace "Direct peer dial canceled"
       raise exc
     except CatchableError as exc:
-      debug "Direct peer error dialing", errMsg = exc.msg
+      debug "Direct peer error dialing", description = exc.msg
 
 proc addDirectPeer*(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
   g.parameters.directPeers[id] = addrs

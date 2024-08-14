@@ -205,10 +205,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         data = newSeq[byte]() # Release memory
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
-        conn, peer = p, errMsg = exc.msg
+        conn, peer = p, description = exc.msg
     except CatchableError as exc:
       debug "Exception occurred in PubSubPeer.handle",
-        conn, peer = p, closed = conn.closed, errMsg = exc.msg
+        conn, peer = p, closed = conn.closed, description = exc.msg
     finally:
       await conn.close()
   except CancelledError:
@@ -217,7 +217,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
     trace "Unexpected cancellation in PubSubPeer.handle"
   except CatchableError as exc:
     trace "Exception occurred in PubSubPeer.handle",
-      conn, peer = p, closed = conn.closed, errMsg = exc.msg
+      conn, peer = p, closed = conn.closed, description = exc.msg
   finally:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
 
@@ -236,7 +236,7 @@ proc closeSendConn(p: PubSubPeer, event: PubSubPeerEventKind) {.async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "Errors during diconnection events", errMsg = exc.msg
+    debug "Errors during diconnection events", description = exc.msg
   # don't cleanup p.address else we leak some gossip stat table
 
 proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
@@ -283,7 +283,7 @@ proc connectImpl(p: PubSubPeer) {.async.} =
         return
       await connectOnce(p)
   except CatchableError as exc: # never cancelled
-    debug "Could not establish send connection", errMsg = exc.msg
+    debug "Could not establish send connection", description = exc.msg
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
@@ -325,7 +325,7 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
   except CatchableError as exc: # never cancelled
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, errMsg = exc.msg
+    trace "Unable to send to remote", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
 

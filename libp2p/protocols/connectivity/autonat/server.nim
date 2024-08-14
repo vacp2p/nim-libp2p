@@ -84,13 +84,13 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
   except CancelledError as exc:
     raise exc
   except AllFuturesFailedError as exc:
-    debug "All dial attempts failed", addrs, errMsg = exc.msg
+    debug "All dial attempts failed", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
-    debug "Dial timeout", addrs, errMsg = exc.msg
+    debug "Dial timeout", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "Dial timeout")
   except CatchableError as exc:
-    debug "Unexpected error", addrs, errMsg = exc.msg
+    debug "Unexpected error", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "Unexpected error")
   finally:
     autonat.sem.release()
@@ -165,7 +165,7 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "exception in autonat handler", errMsg = exc.msg, conn
+      debug "exception in autonat handler", description = exc.msg, conn
     finally:
       trace "exiting autonat handler", conn
       await conn.close()

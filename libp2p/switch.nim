@@ -219,7 +219,7 @@ proc upgradeMonitor(
       libp2p_failed_upgrades_incoming.inc()
     if not isNil(conn):
       await conn.close()
-    trace "Exception awaiting connection upgrade", errMsg = exc.msg, conn
+    trace "Exception awaiting connection upgrade", description = exc.msg, conn
   finally:
     upgrades.release()
 
@@ -264,7 +264,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
       upgrades.release() # always release the slot
       return
     except CatchableError as exc:
-      error "Exception in accept loop, exiting", errMsg = exc.msg
+      error "Exception in accept loop, exiting", description = exc.msg
       upgrades.release() # always release the slot
       if not isNil(conn):
         await conn.close()
@@ -282,7 +282,7 @@ proc stop*(s: Switch) {.async, public.} =
     # Stop accepting incoming connections
     await allFutures(s.acceptFuts.mapIt(it.cancelAndWait())).wait(1.seconds)
   except CatchableError as exc:
-    debug "Cannot cancel accepts", errMsg = exc.msg
+    debug "Cannot cancel accepts", description = exc.msg
 
   for service in s.services:
     discard await service.stop(s)
@@ -296,7 +296,7 @@ proc stop*(s: Switch) {.async, public.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "error cleaning up transports", errMsg = exc.msg
+      warn "error cleaning up transports", description = exc.msg
 
   await s.ms.stop()
 
