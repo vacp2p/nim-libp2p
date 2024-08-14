@@ -18,7 +18,7 @@ import
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ./helpers, ./asyncunit, ./utils/async, ./utils/assertions
+import ./helpers, ./asyncunit, ./utils/[async, assertions, futures]
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
@@ -95,7 +95,7 @@ suite "Discovery":
 
     res2.assertIsErr()
 
-  asyncTest "Frequent sub/desub":
+  asyncTest "Frequent sub/unsub":
     for i in 0 ..< 10:
       dmB.advertise(rdvNamespace)
       let
@@ -106,8 +106,45 @@ suite "Discovery":
       check res1.value{PeerId}.get() == clientB.peerInfo.peerId
 
       await rdvB.unsubscribe(namespace)
+      await sleepAsync(TIMEOUT_EXTENDED)
       var
         query2 = dmA.request(rdvNamespace)
         res2 = await query2.getPeer().waitForResult(1.seconds)
 
       res2.assertIsErr()
+
+  asyncTest "Frequent sub/unsub with multiple clients":
+    let
+      rdvC = RendezVous.new()
+      clientC = createSwitch(rdvC)
+      dmC = DiscoveryManager()
+
+    dmC.add(RendezVousInterface.new(rdvC))
+    await clientC.start()
+
+    await clientC.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
+
+    for i in 0 ..< 10:
+      dmB.advertise(rdvNamespace)
+      dmC.advertise(rdvNamespace)
+      let peerIds =
+        @[clientB.peerInfo.peerId, clientC.peerInfo.peerId]
+          # peerIds = @[clientB.peerInfo.peerId]
+
+      let
+        query1 = dmA.request(rdvNamespace)
+        res1 = await query1.getPeer().waitForResult(1.seconds)
+
+      res1.assertIsOk()
+      check res1.value{PeerId}.get() in peerIds
+
+      await rdvB.unsubscribe(namespace)
+      await rdvC.unsubscribe(namespace)
+      await sleepAsync(TIMEOUT_EXTENDED)
+      var
+        query2 = dmA.request(rdvNamespace)
+        res2 = await query2.getPeer().waitForResult(1.seconds)
+
+      res2.assertIsErr()
+
+    await clientC.stop()
