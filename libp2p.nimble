@@ -145,21 +145,15 @@ import os
 task install_pinned, "Reads the lockfile":
   let toInstall = readFile(
       PinFile
-    ).splitWhitespace(
-    ).filterIt(
+    ).splitLines(
+    )
+    .filterIt(
       it.len > 0 and it[0] != '#'
     ).mapIt(
       (it.split(";", 1)[0], it.split(";", 1)[1])
     )
   # [('packageName', 'packageFullUri')]
 
-  echo "\n\n\n\n\n"
-
-  echo "Installing the following packages:"
-  for pkg in toInstall:
-    echo "  " & pkg[0] & " from " & pkg[1]
-
-  echo "\n\n\n\n\n"
   rmDir("nimbledeps")
   mkDir("nimbledeps")
   exec "nimble install -y " & toInstall.mapIt(it[1]).join(" ")
