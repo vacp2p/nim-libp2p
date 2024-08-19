@@ -153,6 +153,13 @@ task install_pinned, "Reads the lockfile":
     )
   # [('packageName', 'packageFullUri')]
 
+  echo "\n\n\n\n\n"
+
+  echo "Installing the following packages:"
+  for pkg in toInstall:
+    echo "  " & pkg[0] & " from " & pkg[1]
+
+  echo "\n\n\n\n\n"
   rmDir("nimbledeps")
   mkDir("nimbledeps")
   exec "nimble install -y " & toInstall.mapIt(it[1]).join(" ")
