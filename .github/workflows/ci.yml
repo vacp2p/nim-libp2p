@@ -48,7 +48,7 @@ jobs:
             shell: bash
           - platform:
               os: windows
-            builder: windows-2022
+            builder: windows-2019
             shell: msys2 {0}
 
     defaults:
