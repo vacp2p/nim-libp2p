@@ -135,7 +135,7 @@ proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async.} =
   try:
     await g.switch.disconnect(peer.peerId)
   except CatchableError as exc: # Never cancelled
-    trace "Failed to close connection", peer, error = exc.name, msg = exc.msg
+    trace "Failed to close connection", peer, errName = exc.name, description = exc.msg
 
 proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and

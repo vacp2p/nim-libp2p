@@ -63,7 +63,7 @@ method init*(p: Ping) =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in ping handler", exc = exc.msg, conn
+      trace "exception in ping handler", description = exc.msg, conn
 
   p.handler = handle
   p.codec = PingCodec

@@ -220,7 +220,7 @@ method init*(g: GossipSub) =
       # do not need to propogate CancelledError.
       trace "Unexpected cancellation in gossipsub handler", conn
     except CatchableError as exc:
-      trace "GossipSub handler leaks an error", exc = exc.msg, conn
+      trace "GossipSub handler leaks an error", description = exc.msg, conn
 
   g.handler = handler
   g.codecs &= GossipSubCodec_12
@@ -368,7 +368,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
-    trace "sending control message", msg = shortLog(respControl), peer
+    trace "sending control message", payload = shortLog(respControl), peer
     g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
 
   if messages.len > 0:
@@ -491,7 +491,7 @@ proc validateAndRelay(
 
     await handleData(g, topic, msg.data)
   except CatchableError as exc:
-    info "validateAndRelay failed", msg = exc.msg
+    info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
@@ -540,7 +540,7 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
     for m in rpcMsg.messages:
       libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
-  trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
   # trigger hooks - these may modify the message
@@ -771,7 +771,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   logScope:
     msgId = shortLog(msgId)
 
-  trace "Created new message", msg = shortLog(msg), peers = peers.len
+  trace "Created new message", payload = shortLog(msg), peers = peers.len
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
@@ -806,7 +806,7 @@ proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.as
       trace "Direct peer dial canceled"
       raise exc
     except CatchableError as exc:
-      debug "Direct peer error dialing", msg = exc.msg
+      debug "Direct peer error dialing", description = exc.msg
 
 proc addDirectPeer*(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
   g.parameters.directPeers[id] = addrs
