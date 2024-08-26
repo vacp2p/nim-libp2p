@@ -106,7 +106,7 @@ suite "Discovery":
       check res1.value{PeerId}.get() == clientB.peerInfo.peerId
 
       await rdvB.unsubscribe(namespace)
-      await sleepAsync(TIMEOUT_EXTENDED)
+      await sleepAsync(DURATION_TIMEOUT_EXTENDED)
       var
         query2 = dmA.request(rdvNamespace)
         res2 = await query2.getPeer().waitForResult(1.seconds)
@@ -140,7 +140,7 @@ suite "Discovery":
 
       await rdvB.unsubscribe(namespace)
       await rdvC.unsubscribe(namespace)
-      await sleepAsync(TIMEOUT_EXTENDED)
+      await sleepAsync(DURATION_TIMEOUT_EXTENDED)
       var
         query2 = dmA.request(rdvNamespace)
         res2 = await query2.getPeer().waitForResult(1.seconds)
