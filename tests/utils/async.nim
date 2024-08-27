@@ -1,19 +1,30 @@
 import chronos/futures, stew/results, chronos
+import ./futures
+
+proc toOk(future: Future[void]): Result[void, string] =
+  return results.ok()
+
+proc toOk[T](future: Future[T]): Result[T, string] =
+  return results.ok(future.read())
+
+proc toResult*[T](future: Future[T]): Result[T, string] =
+  if future.cancelled():
+    return results.err("Future cancelled/timed out.")
+  elif future.finished():
+    if not future.failed():
+      return future.toOk()
+    else:
+      return results.err("Future finished but failed.")
+  else:
+    return results.err("Future still not finished.")
 
 proc waitForResult*[T](
-    fut: Future[T], timeout: Duration = 1.seconds
+    future: Future[T], timeout = DURATION_TIMEOUT
 ): Future[Result[T, string]] {.async.} =
-  try:
-    let val = await fut.wait(timeout)
-    return Result[T, string].ok(val)
-  except Exception as e:
-    return Result[T, string].err(e.msg)
+  discard await future.withTimeout(timeout)
+  return future.toResult()
 
-proc waitForResult*(
-    fut: Future[void], timeout: Duration = 1.seconds
-): Future[Result[void, string]] {.async.} =
-  try:
-    await fut.wait(timeout)
-    return Result[void, string].ok()
-  except Exception as e:
-    return Result[void, string].err(e.msg)
+proc reset*[T](future: Future[T]): void =
+  # Likely an incomplete reset, but good enough for testing purposes (for now)
+  future.internalError = nil
+  future.internalState = FutureState.Pending
