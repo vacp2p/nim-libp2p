@@ -231,4 +231,3 @@ proc waitForMesh*(
   while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
     trace "waitForMesh sleeping..."
     await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
-  echo "waitForMesh done!"
