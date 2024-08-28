@@ -32,7 +32,7 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers, ../utils/[async, futures, async, mock, tests]
+import ../helpers, ../utils/[async, futures, async, tests]
 
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
