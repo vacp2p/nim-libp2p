@@ -73,6 +73,6 @@ proc new*(
     rdv: RendezVous,
     ttr: Duration = 1.minutes,
     tta: Duration = 1.minutes,
-    ttl: Duration = MinimumDuration,
+    ttl: Duration = 2.hours,
 ): RendezVousInterface =
   T(rdv: rdv, timeToRequest: ttr, timeToAdvertise: tta, ttl: ttl)

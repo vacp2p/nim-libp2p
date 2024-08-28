@@ -33,10 +33,6 @@ declareGauge(libp2p_rendezvous_namespaces, "number of registered namespaces")
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
-  MinimumDuration* = 2.hours
-  MaximumDuration = 72.hours
-  MinimumTTL = MinimumDuration.seconds.uint64
-  MaximumTTL = MaximumDuration.seconds.uint64
   RegistrationLimitPerPeer = 1000
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize = 5
@@ -320,6 +316,10 @@ type
     peers: seq[PeerId]
     cookiesSaved: Table[PeerId, Table[string, seq[byte]]]
     switch: Switch
+    minimumDuration: Duration
+    maximumDuration: Duration
+    minimumTTL: uint64
+    maximumTTL: uint64
 
 proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
   if spr.len == 0:
@@ -395,7 +395,7 @@ proc save(
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
-        expiration: Moment.now() + r.ttl.get(MinimumTTL).int64.seconds,
+        expiration: Moment.now() + r.ttl.get(rdv.minimumTTL).int64.seconds,
         data: r,
       )
     )
@@ -409,8 +409,8 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   libp2p_rendezvous_register.inc()
   if r.ns.len notin 1 .. 255:
     return conn.sendRegisterResponseError(InvalidNamespace)
-  let ttl = r.ttl.get(MinimumTTL)
-  if ttl notin MinimumTTL .. MaximumTTL:
+  let ttl = r.ttl.get(rdv.minimumTTL)
+  if ttl notin rdv.minimumTTL .. rdv.maximumTTL:
     return conn.sendRegisterResponseError(InvalidTTL)
   let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
   if pr.isErr():
@@ -506,24 +506,35 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
   await rdv.sema.acquire()
   discard await advertiseWrap().withTimeout(5.seconds)
 
-method advertise*(
-    rdv: RendezVous, ns: string, ttl: Duration = MinimumDuration
-) {.async, base.} =
-  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
-    raise newException(RendezVousError, "Wrong Signed Peer Record")
+proc batchAdvertise*(
+    rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
+) {.async.} =
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
-  if ttl notin MinimumDuration .. MaximumDuration:
+
+  if ttl notin rdv.minimumDuration .. rdv.maximumDuration:
     raise newException(RendezVousError, "Invalid time to live")
+
+  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
+    raise newException(RendezVousError, "Wrong Signed Peer Record")
+
   let
     r = Register(ns: ns, signedPeerRecord: sprBuff, ttl: Opt.some(ttl.seconds.uint64))
     msg = encode(Message(msgType: MessageType.Register, register: Opt.some(r)))
+
   rdv.save(ns, rdv.switch.peerInfo.peerId, r)
-  let fut = collect(newSeq()):
-    for peer in rdv.peers:
+
+  let futs = collect(newSeq()):
+    for peer in peers:
       trace "Send Advertise", peerId = peer, ns
       rdv.advertisePeer(peer, msg.buffer)
-  await allFutures(fut)
+
+  await allFutures(futs)
+
+method advertise*(
+    rdv: RendezVous, ns: string, ttl: Duration = rdv.minimumDuration
+) {.async, base.} =
+  await rdv.batchAdvertise(ns, ttl, rdv.peers)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   let
@@ -539,10 +550,9 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   except KeyError as exc:
     @[]
 
-proc request*(
-    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int
+proc batchRequest*(
+    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int, peers: seq[PeerId]
 ): Future[seq[PeerRecord]] {.async.} =
-  let nsSalted = ns & rdv.salt
   var
     s: Table[PeerId, (PeerRecord, Register)]
     limit: uint64
@@ -587,8 +597,8 @@ proc request*(
     for r in resp.registrations:
       if limit == 0:
         return
-      let ttl = r.ttl.get(MaximumTTL + 1)
-      if ttl > MaximumTTL:
+      let ttl = r.ttl.get(rdv.maximumTTL + 1)
+      if ttl > rdv.maximumTTL:
         continue
       let
         spr = SignedPeerRecord.decode(r.signedPeerRecord).valueOr:
@@ -596,7 +606,7 @@ proc request*(
         pr = spr.data
       if s.hasKey(pr.peerId):
         let (prSaved, rSaved) = s[pr.peerId]
-        if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(MaximumTTL) < ttl) or
+        if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maximumTTL) < ttl) or
             prSaved.seqNo < pr.seqNo:
           s[pr.peerId] = (pr, r)
       else:
@@ -605,8 +615,6 @@ proc request*(
     for (_, r) in s.values():
       rdv.save(ns, peer, r, false)
 
-  # copy to avoid resizes during the loop
-  let peers = rdv.peers
   for peer in peers:
     if limit == 0:
       break
@@ -621,6 +629,11 @@ proc request*(
       trace "exception catch in request", description = exc.msg
   return toSeq(s.values()).mapIt(it[0])
 
+proc request*(
+    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int
+): Future[seq[PeerRecord]] {.async.} =
+  await rdv.batchRequest(ns, l, rdv.peers)
+
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
   try:
@@ -630,16 +643,15 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   except KeyError:
     return
 
-proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
-  # TODO: find a way to improve this, maybe something similar to the advertise
+proc batchUnsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
-  rdv.unsubscribeLocally(ns)
+
   let msg = encode(
     Message(msgType: MessageType.Unregister, unregister: Opt.some(Unregister(ns: ns)))
   )
 
-  proc unsubscribePeer(rdv: RendezVous, peerId: PeerId) {.async.} =
+  proc unsubscribePeer(peerId: PeerId) {.async.} =
     try:
       let conn = await rdv.switch.dial(peerId, RendezVousCodec)
       defer:
@@ -648,8 +660,16 @@ proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
     except CatchableError as exc:
       trace "exception while unsubscribing", description = exc.msg
 
-  for peer in rdv.peers:
-    discard await rdv.unsubscribePeer(peer).withTimeout(5.seconds)
+  let futs = collect(newSeq()):
+    for peer in peerIds:
+      unsubscribePeer(peer)
+
+  discard await allFutures(futs).withTimeout(5.seconds)
+
+proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
+  rdv.unsubscribeLocally(ns)
+
+  await rdv.batchUnsubscribe(ns, rdv.peers)
 
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
@@ -662,7 +682,16 @@ proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch.addPeerEventHandler(handlePeer, Joined)
   rdv.switch.addPeerEventHandler(handlePeer, Left)
 
-proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
+proc new*(
+    T: typedesc[RendezVous],
+    rng: ref HmacDrbgContext = newRng(),
+    minimumDuration = 2.hours,
+    maximumDuration = 72.hours,
+): T =
+  let
+    minimumTTL = minimumDuration.seconds.uint64
+    maximumTTL = maximumDuration.seconds.uint64
+
   let rdv = T(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
@@ -670,6 +699,10 @@ proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
     defaultDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
+    minimumDuration: minimumDuration,
+    maximumDuration: maximumDuration,
+    minimumTTL: minimumTTL,
+    maximumTTL: maximumTTL,
   )
   logScope:
     topics = "libp2p discovery rendezvous"
@@ -701,9 +734,13 @@ proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
   return rdv
 
 proc new*(
-    T: typedesc[RendezVous], switch: Switch, rng: ref HmacDrbgContext = newRng()
+    T: typedesc[RendezVous],
+    switch: Switch,
+    rng: ref HmacDrbgContext = newRng(),
+    minimumDuration = 2.hours,
+    maximumDuration = 72.hours,
 ): T =
-  let rdv = T.new(rng)
+  let rdv = T.new(rng, minimumDuration, maximumDuration)
   rdv.setup(switch)
   return rdv
 
