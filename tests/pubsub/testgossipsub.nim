@@ -32,7 +32,7 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers, ../utils/[async, futures, async, mock]
+import ../helpers, ../utils/[async, futures, async, mock, tests]
 
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
@@ -278,14 +278,9 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-  asyncTest "GossipSub unsub - resub faster than backoff":
-    # Mock replenishFanout so it doesn't interfere with publishing, otherwise it's used as a backup mechanism during backoff period
-    let backup = behavior.replenishFanout
-    mock(behavior.replenishFanout):
-      proc mockedReplenishFanout(g: GossipSub) {.async.} =
-        discard
-
-      mockedReplenishFanout
+  xasyncTest "GossipSub unsub - resub faster than backoff":
+    # For this test to work we'd require a way to disable fanout.
+    # There's not a way to toggle it, and mocking it didn't work as there's not a reliable mock available.
 
     # Instantiate handlers and validators
     var handlerFut0 = newFuture[bool]()
@@ -362,9 +357,6 @@ suite "GossipSub":
       handlerFut1.toResult().isOk()
       handlerFut0.toResult().error() == "Future still not finished."
 
-    # Cleanup
-    mock(behavior.replenishFanout):
-      backup
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
     await allFuturesThrowing(nodesFut.concat())
 
