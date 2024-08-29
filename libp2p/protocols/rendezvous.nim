@@ -499,7 +499,7 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
       else:
         trace "Successfully registered", peer, response = msgRecv.registerResponse
     except CatchableError as exc:
-      trace "exception in the advertise", error = exc.msg
+      trace "exception in the advertise", description = exc.msg
     finally:
       rdv.sema.release()
 
@@ -618,7 +618,7 @@ proc request*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception catch in request", error = exc.msg
+      trace "exception catch in request", description = exc.msg
   return toSeq(s.values()).mapIt(it[0])
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
@@ -646,7 +646,7 @@ proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
         await conn.close()
       await conn.writeLp(msg.buffer)
     except CatchableError as exc:
-      trace "exception while unsubscribing", error = exc.msg
+      trace "exception while unsubscribing", description = exc.msg
 
   for peer in rdv.peers:
     discard await rdv.unsubscribePeer(peer).withTimeout(5.seconds)
@@ -692,7 +692,7 @@ proc new*(T: typedesc[RendezVous], rng: ref HmacDrbgContext = newRng()): T =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in rendezvous handler", error = exc.msg
+      trace "exception in rendezvous handler", description = exc.msg
     finally:
       await conn.close()
 

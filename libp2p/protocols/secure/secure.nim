@@ -155,7 +155,7 @@ method init*(s: Secure) =
       await conn.close()
       raise exc
     except LPStreamError as exc:
-      warn "securing connection failed", err = exc.msg, conn
+      warn "securing connection failed", description = exc.msg, conn
       await conn.close()
 
   s.handler = handle
