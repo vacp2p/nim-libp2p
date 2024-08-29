@@ -25,7 +25,7 @@ suite "Utils Future":
       futureB = longRunningTaskB()
 
     # Both futures should be canceled when raceCancel is called
-    await raceCancel(@[futureA, futureB]).cancelAndWait()
+    await raceAndCancelPending(@[futureA, futureB]).cancelAndWait()
     check futureA.cancelled
     check futureB.cancelled
 
@@ -42,16 +42,16 @@ suite "Utils Future":
       futureSlow = slowTask()
 
     # The quick task finishes, so the slow task should be canceled
-    await raceCancel(@[futureQuick, futureSlow])
+    await raceAndCancelPending(@[futureQuick, futureSlow])
     check futureQuick.finished
     check futureSlow.cancelled
 
-  asyncTest "raceCancel with AsyncEvent":
+  asyncTest "raceAndCancelPending with AsyncEvent":
     let asyncEvent = newAsyncEvent()
     let fut1 = asyncEvent.wait()
     let fut2 = newAsyncEvent().wait()
     asyncEvent.fire()
-    await raceCancel(@[fut1, fut2])
+    await raceAndCancelPending(@[fut1, fut2])
 
     check fut1.finished
     check fut2.cancelled
