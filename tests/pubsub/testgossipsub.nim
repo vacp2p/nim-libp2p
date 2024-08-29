@@ -37,6 +37,9 @@ import ../helpers, ../utils/[async, futures, async, tests]
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
 
+proc voidTopicHandler(topic: string, data: seq[byte]) {.async.} =
+  discard
+
 template tryPublish(
     call: untyped, require: int, wait = 10.milliseconds, timeout = 5.seconds
 ): untyped =
@@ -1252,3 +1255,70 @@ suite "GossipSub":
     await allFuturesThrowing(node0.switch.stop(), node1.switch.stop())
 
     await allFuturesThrowing(nodesFut.concat())
+
+suite "Gossipsub Parameters":
+  teardown:
+    checkTrackers()
+
+  asyncTest "dont prune peers if mesh len is less than d_high":
+    let
+      numberOfNodes = 5
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    await subscribeNodes(nodes)
+
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    for x in 0 ..< numberOfNodes:
+      for y in 0 ..< numberOfNodes:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], topic)
+
+    let expectedNumberOfPeers = numberOfNodes - 1
+    for i in 0 ..< numberOfNodes:
+      var gossip = GossipSub(nodes[i])
+      check:
+        gossip.gossipsub[topic].len == expectedNumberOfPeers
+        gossip.mesh[topic].len == expectedNumberOfPeers
+        gossip.fanout.len == 0
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "prune peers if mesh len is higher than d_high":
+    let
+      numberofNodes = 15
+      topic = "foobar"
+      nodes = generateNodes(numberofNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    await subscribeNodes(nodes)
+
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    for x in 0 ..< numberofNodes:
+      for y in 0 ..< numberofNodes:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], topic)
+
+    # Give it time for a heartbeat
+    await sleepAsync(DURATION_TIMEOUT)
+
+    let
+      expectedNumberOfPeers = numberofNodes - 1
+      dHigh = 12
+      d = 6
+      dLow = 4
+
+    for i in 0 ..< numberofNodes:
+      var gossip = GossipSub(nodes[i])
+
+      check:
+        gossip.gossipsub[topic].len == expectedNumberOfPeers
+        gossip.mesh[topic].len >= dLow and gossip.mesh[topic].len <= dHigh
+        gossip.fanout.len == 0
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
