@@ -13,4 +13,4 @@ jobs:
     with:
       nim: "[{'branch': 'version-2-0', 'memory_management': 'refc'}]"
       cpu: "['amd64']"
-      sat: true
+      use_sat_solver: true
