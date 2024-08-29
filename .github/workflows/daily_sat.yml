@@ -8,7 +8,7 @@ on:
 
 jobs:
   test_amd64:
-    name: Daily amd64
+    name: Daily SAT
     uses: ./.github/workflows/daily_common.yml
     with:
       nim: "[{'branch': 'version-2-0', 'memory_management': 'refc'}]"
