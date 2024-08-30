@@ -33,6 +33,8 @@ declareGauge(libp2p_rendezvous_namespaces, "number of registered namespaces")
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
+  MinimumDuration* = 2.hours
+  MaximumDuration = 72.hours
   RegistrationLimitPerPeer = 1000
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize = 5
@@ -316,10 +318,10 @@ type
     peers: seq[PeerId]
     cookiesSaved: Table[PeerId, Table[string, seq[byte]]]
     switch: Switch
-    minimumDuration: Duration
-    maximumDuration: Duration
-    minimumTTL: uint64
-    maximumTTL: uint64
+    minDuration: Duration
+    maxDuration: Duration
+    minTTL: uint64
+    maxTTL: uint64
 
 proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
   if spr.len == 0:
@@ -395,7 +397,7 @@ proc save(
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
-        expiration: Moment.now() + r.ttl.get(rdv.minimumTTL).int64.seconds,
+        expiration: Moment.now() + r.ttl.get(rdv.minTTL).int64.seconds,
         data: r,
       )
     )
@@ -409,8 +411,8 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   libp2p_rendezvous_register.inc()
   if r.ns.len notin 1 .. 255:
     return conn.sendRegisterResponseError(InvalidNamespace)
-  let ttl = r.ttl.get(rdv.minimumTTL)
-  if ttl notin rdv.minimumTTL .. rdv.maximumTTL:
+  let ttl = r.ttl.get(rdv.minTTL)
+  if ttl notin rdv.minTTL .. rdv.maxTTL:
     return conn.sendRegisterResponseError(InvalidTTL)
   let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
   if pr.isErr():
@@ -512,7 +514,7 @@ proc batchAdvertise*(
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
 
-  if ttl notin rdv.minimumDuration .. rdv.maximumDuration:
+  if ttl notin rdv.minDuration .. rdv.maxDuration:
     raise newException(RendezVousError, "Invalid time to live")
 
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
@@ -532,7 +534,7 @@ proc batchAdvertise*(
   await allFutures(futs)
 
 method advertise*(
-    rdv: RendezVous, ns: string, ttl: Duration = rdv.minimumDuration
+    rdv: RendezVous, ns: string, ttl: Duration = rdv.minDuration
 ) {.async, base.} =
   await rdv.batchAdvertise(ns, ttl, rdv.peers)
 
@@ -597,8 +599,8 @@ proc batchRequest*(
     for r in resp.registrations:
       if limit == 0:
         return
-      let ttl = r.ttl.get(rdv.maximumTTL + 1)
-      if ttl > rdv.maximumTTL:
+      let ttl = r.ttl.get(rdv.maxTTL + 1)
+      if ttl > rdv.maxTTL:
         continue
       let
         spr = SignedPeerRecord.decode(r.signedPeerRecord).valueOr:
@@ -606,7 +608,7 @@ proc batchRequest*(
         pr = spr.data
       if s.hasKey(pr.peerId):
         let (prSaved, rSaved) = s[pr.peerId]
-        if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maximumTTL) < ttl) or
+        if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
             prSaved.seqNo < pr.seqNo:
           s[pr.peerId] = (pr, r)
       else:
@@ -685,12 +687,12 @@ proc setup*(rdv: RendezVous, switch: Switch) =
 proc new*(
     T: typedesc[RendezVous],
     rng: ref HmacDrbgContext = newRng(),
-    minimumDuration = 2.hours,
-    maximumDuration = 72.hours,
+    minDuration = MinimumDuration,
+    maxDuration = MaximumDuration,
 ): T =
   let
-    minimumTTL = minimumDuration.seconds.uint64
-    maximumTTL = maximumDuration.seconds.uint64
+    minTTL = minDuration.seconds.uint64
+    maxTTL = maxDuration.seconds.uint64
 
   let rdv = T(
     rng: rng,
@@ -699,10 +701,10 @@ proc new*(
     defaultDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
-    minimumDuration: minimumDuration,
-    maximumDuration: maximumDuration,
-    minimumTTL: minimumTTL,
-    maximumTTL: maximumTTL,
+    minDuration: minDuration,
+    maxDuration: maxDuration,
+    minTTL: minTTL,
+    maxTTL: maxTTL,
   )
   logScope:
     topics = "libp2p discovery rendezvous"
@@ -737,10 +739,10 @@ proc new*(
     T: typedesc[RendezVous],
     switch: Switch,
     rng: ref HmacDrbgContext = newRng(),
-    minimumDuration = 2.hours,
-    maximumDuration = 72.hours,
+    minDuration = MinimumDuration,
+    maxDuration = MaximumDuration,
 ): T =
-  let rdv = T.new(rng, minimumDuration, maximumDuration)
+  let rdv = T.new(rng, minDuration, maxDuration)
   rdv.setup(switch)
   return rdv
 
