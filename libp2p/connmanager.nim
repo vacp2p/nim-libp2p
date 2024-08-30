@@ -296,7 +296,8 @@ proc storeMuxer*(c: ConnManager, muxer: Muxer) {.raises: [CatchableError].} =
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer", conns = c.muxed.getOrDefault(peerId).len
+      debug "Too many connections for peer",
+        conns = c.muxed.getOrDefault(peerId).len, peerId, dir
 
       raise newTooManyConnectionsError()
 
