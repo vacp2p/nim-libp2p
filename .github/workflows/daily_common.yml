@@ -92,6 +92,5 @@ jobs:
           nim --version
           nimble --version
           [[ ${{ inputs.use_sat_solver }} ]] && dependency_solver="sat" || dependency_solver="legacy"
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:$dependency_solver" 
-          echo "NIMFLAGS: $NIMFLAGS"
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:$dependency_solver"
           nimble test
