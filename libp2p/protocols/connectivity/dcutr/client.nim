@@ -88,7 +88,7 @@ proc startSync*(
     raise err
   except AllFuturesFailedError as err:
     debug "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
-      peerDialableAddrs, msg = err.msg
+      peerDialableAddrs, description = err.msg
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
@@ -96,7 +96,7 @@ proc startSync*(
     )
   except AsyncTimeoutError as err:
     debug "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
-      peerDialableAddrs, msg = err.msg
+      peerDialableAddrs, description = err.msg
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
@@ -104,7 +104,7 @@ proc startSync*(
     )
   except CatchableError as err:
     debug "Unexpected error when Dcutr initiator tried to connect to the remote peer",
-      err = err.msg
+      description = err.msg
     raise newException(
       DcutrError,
       "Unexpected error when Dcutr initiator tried to connect to the remote peer", err,

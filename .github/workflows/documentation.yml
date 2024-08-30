@@ -1,21 +1,21 @@
-name: Docgen
+name: Documentation Generation And Publishing
+
 on:
   push:
     branches:
       - master
   workflow_dispatch:
 
-
 jobs:
   build:
     timeout-minutes: 20
 
     name: 'Generate & upload documentation'
-    runs-on: 'ubuntu-20.04'
+    runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -35,7 +35,7 @@ jobs:
           ls ${GITHUB_REF##*/}
 
       - name: Clone the gh-pages branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: vacp2p/nim-libp2p
           ref: gh-pages
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - uses: actions/setup-python@v2
         with:
@@ -80,7 +80,7 @@ jobs:
         run: pip install mkdocs-material && nimble -y website
 
       - name: Clone the gh-pages branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: vacp2p/nim-libp2p
           ref: gh-pages

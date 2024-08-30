@@ -93,7 +93,7 @@ proc reserve*(
       except CancelledError as exc:
         raise exc
       except CatchableError as exc:
-        trace "error writing or reading reservation message", exc = exc.msg
+        trace "error writing or reading reservation message", description = exc.msg
         raise newException(ReservationError, exc.msg)
 
   if msg.msgType != HopMessageType.Status:
@@ -139,7 +139,7 @@ proc dialPeerV1*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error writing hop request", exc = exc.msg
+    trace "error writing hop request", description = exc.msg
     raise exc
 
   let msgRcvFromRelayOpt =
@@ -148,7 +148,7 @@ proc dialPeerV1*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error reading stop response", exc = exc.msg
+      trace "error reading stop response", description = exc.msg
       await sendStatus(conn, StatusV1.HopCantOpenDstStream)
       raise exc
 
@@ -190,13 +190,13 @@ proc dialPeerV2*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error reading stop response", exc = exc.msg
+      trace "error reading stop response", description = exc.msg
       raise newException(RelayV2DialError, exc.msg)
 
   if msgRcvFromRelay.msgType != HopMessageType.Status:
     raise newException(RelayV2DialError, "Unexpected stop response")
   if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
-    trace "Relay stop failed", msg = msgRcvFromRelay.status
+    trace "Relay stop failed", description = msgRcvFromRelay.status
     raise newException(RelayV2DialError, "Relay stop failure")
   conn.limitDuration = msgRcvFromRelay.limit.duration
   conn.limitData = msgRcvFromRelay.limit.data
@@ -302,7 +302,7 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in client handler", exc = exc.msg, conn
+      trace "exception in client handler", description = exc.msg, conn
     finally:
       trace "exiting client handler", conn
       await conn.close()

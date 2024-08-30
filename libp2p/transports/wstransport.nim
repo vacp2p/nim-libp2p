@@ -206,7 +206,7 @@ method stop*(self: WsTransport) {.async.} =
     self.httpservers = @[]
     trace "Transport stopped"
   except CatchableError as exc:
-    trace "Error shutting down ws transport", exc = exc.msg
+    trace "Error shutting down ws transport", description = exc.msg
 
 proc connHandler(
     self: WsTransport, stream: WSSession, secure: bool, dir: Direction
@@ -223,7 +223,7 @@ proc connHandler(
 
       MultiAddress.init(remoteAddr).tryGet() & codec.tryGet()
     except CatchableError as exc:
-      trace "Failed to create observedAddr", exc = exc.msg
+      trace "Failed to create observedAddr", description = exc.msg
       if not (isNil(stream) and stream.stream.reader.closed):
         await stream.close()
       raise exc
@@ -271,26 +271,26 @@ method accept*(self: WsTransport): Future[Connection] {.async.} =
       await req.stream.closeWait()
       raise exc
   except WebSocketError as exc:
-    debug "Websocket Error", exc = exc.msg
+    debug "Websocket Error", description = exc.msg
   except HttpError as exc:
-    debug "Http Error", exc = exc.msg
+    debug "Http Error", description = exc.msg
   except AsyncStreamError as exc:
-    debug "AsyncStream Error", exc = exc.msg
+    debug "AsyncStream Error", description = exc.msg
   except TransportTooManyError as exc:
-    debug "Too many files opened", exc = exc.msg
+    debug "Too many files opened", description = exc.msg
   except TransportAbortedError as exc:
-    debug "Connection aborted", exc = exc.msg
+    debug "Connection aborted", description = exc.msg
   except AsyncTimeoutError as exc:
-    debug "Timed out", exc = exc.msg
+    debug "Timed out", description = exc.msg
   except TransportUseClosedError as exc:
-    debug "Server was closed", exc = exc.msg
+    debug "Server was closed", description = exc.msg
     raise newTransportClosedError(exc)
   except CancelledError as exc:
     raise exc
   except TransportOsError as exc:
-    debug "OS Error", exc = exc.msg
+    debug "OS Error", description = exc.msg
   except CatchableError as exc:
-    info "Unexpected error accepting connection", exc = exc.msg
+    info "Unexpected error accepting connection", description = exc.msg
     raise exc
 
 method dial*(
