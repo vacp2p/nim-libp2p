@@ -56,7 +56,7 @@ proc new*(
   stream.initStream()
   return stream
 
-template mapExceptions(body: untyped) =
+template mapExceptions(body: untyped): untyped =
   try:
     body
   except AsyncStreamIncompleteError:
