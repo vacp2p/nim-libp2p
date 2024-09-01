@@ -12,7 +12,7 @@
 {.push raises: [].}
 {.push public.}
 
-import pkg/chronos, chronicles
+import pkg/[chronos, chronicles, results]
 import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
@@ -25,8 +25,8 @@ import
   protobuf/minprotobuf,
   errors,
   utility
-import stew/[base58, base32, endians2, results]
-export results, minprotobuf, vbuffer, utility
+import stew/[base58, base32, endians2]
+export results, minprotobuf, vbuffer, errors, utility
 
 logScope:
   topics = "libp2p multiaddress"
