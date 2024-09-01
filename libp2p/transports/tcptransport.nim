@@ -230,39 +230,42 @@ method accept*(self: TcpTransport): Future[Connection] =
       raise newTransportClosedError()
 
     if self.acceptFuts.len <= 0:
+      # Holds futures representing ongoing accept calls on multiple servers.
       self.acceptFuts = self.servers.mapIt(it.accept())
 
     let
       finished =
         try:
+          # Waits for any one of these futures to complete, indicating that a new connection has been accepted on one of the servers.
           await one(self.acceptFuts)
         except ValueError:
           raise (ref TcpTransportError)(msg: "No listeners configured")
-
       index = self.acceptFuts.find(finished)
-      transp =
-        try:
-          await finished
-        except TransportTooManyError as exc:
-          debug "Too many files opened", exc = exc.msg
-          return nil
-        except TransportAbortedError as exc:
-          debug "Connection aborted", exc = exc.msg
-          return nil
-        except TransportUseClosedError as exc:
-          raise newTransportClosedError(exc)
-        except TransportOsError as exc:
-          raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
-        except common.TransportError as exc: # Needed for chronos 4.0.0 support
-          raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
-        except CancelledError as exc:
-          raise exc
+
+    # A new connection has been accepted. The corresponding server should immediately start accepting another connection.
+    # Thus we replace the completed future with a new one by calling accept on the same server again.
+    self.acceptFuts[index] = self.servers[index].accept()
+    let transp =
+      try:
+        await finished
+      except TransportTooManyError as exc:
+        debug "Too many files opened", description = exc.msg
+        return nil
+      except TransportAbortedError as exc:
+        debug "Connection aborted", description = exc.msg
+        return nil
+      except TransportUseClosedError as exc:
+        raise newTransportClosedError(exc)
+      except TransportOsError as exc:
+        raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      except common.TransportError as exc: # Needed for chronos 4.0.0 support
+        raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      except CancelledError as exc:
+        raise exc
 
     if not self.running: # Stopped while waiting
       await transp.closeWait()
       raise newTransportClosedError()
-
-    self.acceptFuts[index] = self.servers[index].accept()
 
     let remote =
       try:
@@ -270,7 +273,7 @@ method accept*(self: TcpTransport): Future[Connection] =
       except TransportOsError as exc:
         # The connection had errors / was closed before `await` returned control
         await transp.closeWait()
-        debug "Cannot read remote address", exc = exc.msg
+        debug "Cannot read remote address", description = exc.msg
         return nil
 
     let observedAddr =

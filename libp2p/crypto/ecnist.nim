@@ -234,7 +234,11 @@ proc random*(
   var ecimp = ecGetDefault()
   var res = new EcPrivateKey
   if ecKeygen(
-    addr rng.vtable, ecimp, addr res.key, addr res.buffer[0], safeConvert[cint](kind)
+    PrngClassPointerConst(addr rng.vtable),
+    ecimp,
+    addr res.key,
+    addr res.buffer[0],
+    safeConvert[cint](kind),
   ) == 0:
     err(EcKeyGenError)
   else:

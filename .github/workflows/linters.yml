@@ -1,0 +1,32 @@
+name: Linters
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nph:
+    name: NPH
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
+
+      - name: Setup NPH
+        # Pin nph to a specific version to avoid sudden style differences.
+        # Updating nph version should be accompanied with running the new version on the fluffy directory.
+        run: |
+          VERSION="v0.5.1"
+          ARCHIVE="nph-linux_x64.tar.gz"
+          curl -L "https://github.com/arnetheduck/nph/releases/download/${VERSION}/${ARCHIVE}" -o ${ARCHIVE}
+          tar -xzf ${ARCHIVE}
+
+      - name: Check style
+        run: |
+          shopt -s extglob  # Enable extended globbing
+          ./nph --check examples libp2p tests tools *.@(nim|nims|nimble)

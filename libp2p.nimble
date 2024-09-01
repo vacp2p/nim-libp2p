@@ -1,15 +1,15 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.4.0"
+version = "1.5.0"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
 skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.6.0",
-  "nimcrypto >= 0.4.1", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.1.4",
-  "chronicles >= 0.10.2", "chronos >= 4.0.0", "metrics", "secp256k1", "stew#head",
+  "nimcrypto >= 0.4.1", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
+  "chronicles >= 0.10.2", "chronos >= 4.0.2", "metrics", "secp256k1", "stew#head",
   "websock", "unittest2"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
@@ -126,7 +126,7 @@ task examples_build, "Build the samples":
   buildSample("tutorial_5_discovery", true)
   exec "nimble install -y nimpng@#HEAD"
     # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
-  exec "nimble install -y nico"
+  exec "nimble install -y nico@#af99dd60bf2b395038ece815ea1012330a80d6e6"
   buildSample("tutorial_6_game", false, "--styleCheck:off")
 
 # pin system
