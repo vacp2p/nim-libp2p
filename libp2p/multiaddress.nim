@@ -978,14 +978,16 @@ proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [MaError].} =
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  concat(m1, m2).mapErr(maErr).tryGet()
+  concat(m1, m2).valueOr:
+    raise maErr error
 
 proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  m1.append(m2).mapErr(maErr).tryGet()
+  m1.append(m2).isOkOr:
+    raise maErr error
 
 proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
   ## Check of two MultiAddress are equal
