@@ -13,6 +13,7 @@ import sequtils, options, tables, sets, sugar
 import chronos, stew/byteutils, chronos/ratelimit
 import chronicles
 import metrics
+import std/options
 import ../../libp2p/protocols/pubsub/gossipsub/behavior
 import
   utils,
@@ -33,6 +34,8 @@ import
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../helpers, ../utils/[async, futures, async, tests]
+
+from ../../libp2p/protocols/pubsub/mcache import window
 
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
@@ -1320,5 +1323,37 @@ suite "Gossipsub Parameters":
         gossip.gossipsub[topic].len == expectedNumberOfPeers
         gossip.mesh[topic].len >= dLow and gossip.mesh[topic].len <= dHigh
         gossip.fanout.len == 0
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "messages sent to peers not in the mesh are propagated via gossip":
+    var validatorFut = newFuture[bool]()
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      check topic == "foobar"
+      validatorFut.complete(true)
+      result = ValidationResult.Accept
+
+    let
+      numberOfNodes = 5
+      topic = "foobar"
+      dValues = DValues(dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1))
+      nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    await subscribeNodes(nodes)
+
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    # await waitForMesh(nodes[0], nodes[1], topic)
+    await sleepAsync(1.seconds)
+
+    # try:
+    let mcache = GossipSub(nodes[0]).mcache
+
+    discard nodes[0].publish(topic, "Hello!".toBytes())
+    await sleepAsync(3.seconds)
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
