@@ -6,6 +6,7 @@ const
 
 import hashes, random, tables, sets, sequtils
 import chronos, stew/[byteutils, results], chronos/ratelimit
+import std/options
 import
   ../../libp2p/[
     builders,
@@ -24,7 +25,15 @@ export builders
 
 randomize()
 
-type TestGossipSub* = ref object of GossipSub
+type
+  TestGossipSub* = ref object of GossipSub
+  DValues* = object
+    d*: Option[int]
+    dLow*: Option[int]
+    dHigh*: Option[int]
+    dScore*: Option[int]
+    dOut*: Option[int]
+    dLazy*: Option[int]
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] {.
@@ -78,7 +87,7 @@ proc generateNodes*(
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
-    sendIDontWantOnPublish: bool = false,
+    dValues: Option[DValues] = DValues.none(),
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -102,7 +111,28 @@ proc generateNodes*(
             p.unsubscribeBackoff = unsubscribeBackoff
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
-            p.sendIDontWantOnPublish = sendIDontWantOnPublish
+
+            if dValues.isSome:
+              let dValuesSome = dValues.get
+
+              if dValuesSome.d.isSome:
+                p.d = dValuesSome.d.get
+
+              if dValuesSome.dLow.isSome:
+                p.dLow = dValuesSome.dLow.get
+
+              if dValuesSome.dHigh.isSome:
+                p.dHigh = dValuesSome.dHigh.get
+
+              if dValuesSome.dScore.isSome:
+                p.dScore = dValuesSome.dScore.get
+
+              if dValuesSome.dOut.isSome:
+                p.dOut = dValuesSome.dOut.get
+
+              if dValuesSome.dLazy.isSome:
+                p.dLazy = dValuesSome.dLazy.get
+
             p
           ),
         )
