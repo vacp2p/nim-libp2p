@@ -991,22 +991,28 @@ suite "Switch":
 
   asyncTest "e2e quic transport":
     let
-      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic").tryGet()
-      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic").tryGet()
+      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
 
-      srcSwitch =
-        SwitchBuilder.new()
+      srcSwitch = SwitchBuilder
+        .new()
         .withAddress(quicAddress1)
         .withRng(crypto.newRng())
-        .withTransport(proc (upgr: Upgrade): Transport = QuicTransport.new(upgr))
+        .withTransport(
+          proc(upgr: Upgrade): Transport =
+            QuicTransport.new(upgr)
+        )
         .withNoise()
         .build()
 
-      destSwitch =
-        SwitchBuilder.new()
+      destSwitch = SwitchBuilder
+        .new()
         .withAddress(quicAddress2)
         .withRng(crypto.newRng())
-        .withTransport(proc (upgr: Upgrade): Transport = QuicTransport.new(upgr))
+        .withTransport(
+          proc(upgr: Upgrade): Transport =
+            QuicTransport.new(upgr)
+        )
         .withNoise()
         .build()
 
