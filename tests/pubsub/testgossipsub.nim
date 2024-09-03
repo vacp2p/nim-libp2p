@@ -13,6 +13,7 @@ import sequtils, options, tables, sets, sugar
 import chronos, stew/byteutils, chronos/ratelimit
 import chronicles
 import metrics
+import results
 import std/options
 import ../../libp2p/protocols/pubsub/gossipsub/behavior
 import
@@ -1347,13 +1348,59 @@ suite "Gossipsub Parameters":
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
 
-    # await waitForMesh(nodes[0], nodes[1], topic)
     await sleepAsync(1.seconds)
-
-    # try:
-    let mcache = GossipSub(nodes[0]).mcache
 
     discard nodes[0].publish(topic, "Hello!".toBytes())
     await sleepAsync(3.seconds)
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "messages are not sent back to source or forwarding peer":
+    # Given 3 handlers, one for each node
+    var
+      handlerFuture0 = newFuture[bool]()
+      handlerFuture1 = newFuture[bool]()
+      handlerFuture2 = newFuture[bool]()
+
+    proc handler0(topic: string, data: seq[byte]) {.async.} =
+      handlerFuture0.complete(true)
+
+    proc handler1(topic: string, data: seq[byte]) {.async.} =
+      handlerFuture1.complete(true)
+
+    proc handler2(topic: string, data: seq[byte]) {.async.} =
+      handlerFuture2.complete(true)
+
+    # Instantiate 3 nodes
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      node0 = nodes[0]
+      node1 = nodes[1]
+      node2 = nodes[2]
+
+    # Connect them in a ring
+    await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
+    await node1.switch.connect(node2.peerInfo.peerId, node2.peerInfo.addrs)
+    await node2.switch.connect(node0.peerInfo.peerId, node0.peerInfo.addrs)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Subscribe them all to the same topic
+    nodes[0].subscribe(topic, handler0)
+    nodes[1].subscribe(topic, handler1)
+    nodes[2].subscribe(topic, handler2)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a message
+    discard nodes[0].publish(topic, "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
+    check:
+      (await handlerFuture0.waitForResult()).isErr
+      (await handlerFuture1.waitForResult()).isOk
+      (await handlerFuture2.waitForResult()).isOk
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
