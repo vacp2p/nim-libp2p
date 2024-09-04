@@ -82,6 +82,7 @@ proc generateNodes*(
     gossipSubVersion: string = "",
     floodPublish: bool = false,
     dValues: Option[DValues] = DValues.none(),
+    gossipFactor: Option[float] = float.none(),
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -105,6 +106,9 @@ proc generateNodes*(
             p.unsubscribeBackoff = unsubscribeBackoff
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
+
+            if gossipFactor.isSome:
+              p.gossipFactor = gossipFactor.get
 
             if dValues.isSome:
               let dValuesSome = dValues.get
