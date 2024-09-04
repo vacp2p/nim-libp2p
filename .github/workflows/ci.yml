@@ -103,23 +103,19 @@ jobs:
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
-#      - name: Run tests
-#        env:
-#          NIM_BRANCH: ${{ matrix.nim.branch }}
-#        run: |
-#          nim --version
-#          nimble --version
-#          gcc --version
-#
-#          echo "NIM_BRANCH is: $NIM_BRANCH"
-#
-#          if [[ "$NIM_BRANCH" == "version-2-0" ]]; then
-#            dependency_solver="sat"
-#          else
-#            dependency_solver="legacy"
-#          fi
-#
-#          echo "Using dependency solver: $dependency_solver"
-#
-#          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
-#          nimble test
+      - name: Run tests
+        env:
+          NIM_BRANCH: ${{ matrix.nim.branch }}
+        run: |
+          nim --version
+          nimble --version
+          gcc --version
+          
+          if [[ "$NIM_BRANCH" == "version-2-0" ]]; then
+            dependency_solver="sat"
+          else
+            dependency_solver="legacy"
+          fi
+          
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
+          nimble test
