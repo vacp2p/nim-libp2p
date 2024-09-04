@@ -80,6 +80,7 @@ proc generateNodes*(
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
+    floodPublish: bool = false,
     dValues: Option[DValues] = DValues.none(),
 ): seq[PubSub] =
   for i in 0 ..< num:
@@ -98,7 +99,7 @@ proc generateNodes*(
           maxMessageSize = maxMessageSize,
           parameters = (
             var p = GossipSubParams.init()
-            p.floodPublish = false
+            p.floodPublish = floodPublish
             p.historyLength = 20
             p.historyGossip = 20
             p.unsubscribeBackoff = unsubscribeBackoff
