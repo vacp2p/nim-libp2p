@@ -1328,14 +1328,7 @@ suite "Gossipsub Parameters":
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
   asyncTest "messages sent to peers not in the mesh are propagated via gossip":
-    var validatorFut = newFuture[bool]()
-    proc validator(
-        topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
-      check topic == "foobar"
-      validatorFut.complete(true)
-      result = ValidationResult.Accept
-
+    # Given 5 nodes
     let
       numberOfNodes = 5
       topic = "foobar"
@@ -1343,20 +1336,55 @@ suite "Gossipsub Parameters":
       nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
       nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
 
+    # All of them are checking for iHave messages
+    var receivedIHaves: seq[bool] = repeat(false, numberOfNodes)
+    for i in 0 ..< numberOfNodes:
+      var pubsubObserver: PubSubObserver
+      capture i:
+        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          if msgs.control.isSome:
+            let iHave = msgs.control.get.ihave
+            if iHave.len > 0:
+              for msg in iHave:
+                if msg.topicID == topic:
+                  receivedIHaves[i] = true
+                  break
+
+        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+
+      nodes[i].addObserver(pubsubObserver)
+
+    # All of them are interconnected
     await subscribeNodes(nodes)
 
+    # And subscribed to the same topic
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
 
-    await sleepAsync(1.seconds)
-
+    # When node 0 sends a message
     discard nodes[0].publish(topic, "Hello!".toBytes())
-    await sleepAsync(3.seconds)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # At least one of the nodes should have received an iHave message
+    # The check is made this way because the mesh structure changes from run to run
+    check:
+      anyIt(receivedIHaves, it == true)
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
   asyncTest "messages are not sent back to source or forwarding peer":
-    # Given 3 handlers, one for each node
+    # Instantiate 3 nodes
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      node0 = nodes[0]
+      node1 = nodes[1]
+      node2 = nodes[2]
+
+    # Each node with a handler
     var
       handlerFuture0 = newFuture[bool]()
       handlerFuture1 = newFuture[bool]()
@@ -1370,16 +1398,6 @@ suite "Gossipsub Parameters":
 
     proc handler2(topic: string, data: seq[byte]) {.async.} =
       handlerFuture2.complete(true)
-
-    # Instantiate 3 nodes
-    let
-      numberOfNodes = 3
-      topic = "foobar"
-      nodes = generateNodes(numberOfNodes, gossip = true)
-      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
-      node0 = nodes[0]
-      node1 = nodes[1]
-      node2 = nodes[2]
 
     # Connect them in a ring
     await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
