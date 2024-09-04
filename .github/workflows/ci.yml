@@ -104,9 +104,18 @@ jobs:
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
       - name: Run tests
+        env:
+          NIM_BRANCH: ${{ matrix.nim.branch }}
         run: |
           nim --version
           nimble --version
           gcc --version
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          
+          if [[ "$NIM_BRANCH" == "version-2-0" ]]; then
+            dependency_solver="sat"
+          else
+            dependency_solver="legacy"
+          fi
+          
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
           nimble test
