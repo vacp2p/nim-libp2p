@@ -118,4 +118,4 @@ jobs:
           fi
           
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
-          nimble test --solver:sat
+          nimble test
