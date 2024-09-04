@@ -11,7 +11,7 @@ requires "nim >= 1.6.0",
   "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.10.2", "chronos >= 4.0.2", "metrics", "secp256k1", "stew#head",
   "websock", "unittest2",
-  "https://github.com/status-im/nim-quic.git#d98c75dce82853b9833f6d5fe35bf0a1db1f920c"
+  "https://github.com/status-im/nim-quic.git#6bb5420fe1f2c85537db8d2df62ce487b6324439"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
