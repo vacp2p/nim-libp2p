@@ -25,8 +25,9 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/peertable,
     protocols/pubsub/rpc/messages,
-  ]
-import ../helpers
+  ],
+  ../utils/[futures, async_tests],
+  ../helpers
 
 template tryPublish(
     call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds

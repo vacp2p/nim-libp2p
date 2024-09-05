@@ -18,7 +18,7 @@ import
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ./helpers, ./asyncunit, ./utils/[async, assertions, futures]
+import ./helpers, ./utils/[futures, assertions, async_tests]
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder

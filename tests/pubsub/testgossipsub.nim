@@ -34,7 +34,7 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers, ../utils/[async, futures, async, tests]
+import ../helpers, ../utils/[futures, async_tests, xtests]
 
 from ../../libp2p/protocols/pubsub/mcache import window
 
