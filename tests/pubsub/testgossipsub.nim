@@ -1721,8 +1721,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a large message
-    # let largeMsg = newSeq[byte](1000)
-    let largeMsg = newSeq[byte](300)
+    let largeMsg = newSeq[byte](1000)
     discard nodes[0].publish(topic, largeMsg)
     await sleepAsync(DURATION_TIMEOUT)
 

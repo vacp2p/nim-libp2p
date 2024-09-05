@@ -257,6 +257,52 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "GossipSub directPeers: send message to unsubscribed direct peer":
+    # Given 2 nodes
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      node0 = nodes[0]
+      node1 = nodes[1]
+      g0 = GossipSub(node0)
+      g1 = GossipSub(node1)
+
+    # With message observers
+    var
+      messageReceived0 = newFuture[bool]()
+      messageReceived1 = newFuture[bool]()
+
+    proc observer0(peer: PubSubPeer, msgs: var RPCMsg) =
+      for message in msgs.messages:
+        if message.topic == "foobar":
+          messageReceived0.complete(true)
+
+    proc observer1(peer: PubSubPeer, msgs: var RPCMsg) =
+      for message in msgs.messages:
+        if message.topic == "foobar":
+          messageReceived1.complete(true)
+
+    node0.addObserver(PubSubObserver(onRecv: observer0))
+    node1.addObserver(PubSubObserver(onRecv: observer1))
+
+    # Connect them as direct peers
+    await g0.addDirectPeer(node1.peerInfo.peerId, node1.peerInfo.addrs)
+    await g1.addDirectPeer(node0.peerInfo.peerId, node0.peerInfo.addrs)
+
+    # When node 0 sends a message
+    let message = "Hello!".toBytes()
+    discard node0.publish("foobar", message)
+
+    # None should receive the message as they are not subscribed to the topic
+    check:
+      (await messageReceived0.waitForResult()).isErr
+      (await messageReceived1.waitForResult()).isErr
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+    await allFuturesThrowing(nodesFut)
+
   asyncTest "GossipSub peers disconnections mechanics":
     var runs = 10
 
