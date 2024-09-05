@@ -1669,3 +1669,67 @@ suite "Gossipsub Parameters":
       filterIt(receivedIHaves, it > 0).len == 6
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
+    # Given 3 nodes
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      node0 = nodes[0]
+      node1 = nodes[1]
+      node2 = nodes[2]
+
+    # And with iDontWant observers
+    var
+      iDontWantReceived0 = newFuture[bool]()
+      iDontWantReceived1 = newFuture[bool]()
+      iDontWantReceived2 = newFuture[bool]()
+
+    proc observer0(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iDontWant = msgs.control.get.idontwant
+        if iDontWant.len > 0:
+          iDontWantReceived0.complete(true)
+
+    proc observer1(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iDontWant = msgs.control.get.idontwant
+        if iDontWant.len > 0:
+          iDontWantReceived1.complete(true)
+
+    proc observer2(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iDontWant = msgs.control.get.idontwant
+        if iDontWant.len > 0:
+          iDontWantReceived2.complete(true)
+
+    node0.addObserver(PubSubObserver(onRecv: observer0))
+    node1.addObserver(PubSubObserver(onRecv: observer1))
+    node2.addObserver(PubSubObserver(onRecv: observer2))
+
+    # Connect them in a line
+    await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
+    await node1.switch.connect(node2.peerInfo.peerId, node2.peerInfo.addrs)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Subscribe them all to the same topic
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, voidTopicHandler)
+    nodes[2].subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a large message
+    # let largeMsg = newSeq[byte](1000)
+    let largeMsg = newSeq[byte](300)
+    discard nodes[0].publish(topic, largeMsg)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Only node 2 should have received the iDontWant message
+    check:
+      (await iDontWantReceived0.waitForResult()).isErr
+      (await iDontWantReceived1.waitForResult()).isErr
+      (await iDontWantReceived2.waitForResult()).isOk
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
