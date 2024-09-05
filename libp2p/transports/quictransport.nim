@@ -15,11 +15,6 @@ export multicodec
 export connection
 export transport
 
-when (NimMajor, NimMinor) < (1, 4):
-  {.push raises: [Defect].}
-else:
-  {.push raises: [].}
-
 logScope:
   topics = "libp2p quictransport"
 
