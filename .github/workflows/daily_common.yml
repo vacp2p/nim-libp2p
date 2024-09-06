@@ -85,18 +85,17 @@ jobs:
         
       - name: Install dependencies
         run: |
-          nimble install -y --depsOnly
+          if [[ "${{ inputs.use_sat_solver }}" == "true" ]]; then
+            dependency_solver_flag="--solver:sat"
+          else
+            dependency_solver_flag="--solver:legacy"
+          fi
+
+          nimble install ${dependency_solver_flag} -y --depsOnly
 
       - name: Run tests
         run: |
           nim --version
           nimble --version
 
-          if [[ "${{ inputs.use_sat_solver }}" == "true" ]]; then
-            dependency_solver="sat"
-          else
-            dependency_solver="legacy"
-          fi
-
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
-          nimble test
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" nimble test
