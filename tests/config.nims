@@ -17,7 +17,6 @@ import strutils, os
   libp2p_mplex_metrics
 --d:
   unittestPrintTime
---skipParentCfg
 
 # Only add chronicles param if the
 # user didn't specify any
