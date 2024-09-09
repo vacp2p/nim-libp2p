@@ -29,4 +29,5 @@ jobs:
       - name: Check style
         run: |
           shopt -s extglob  # Enable extended globbing
-          ./nph --check examples libp2p tests tools *.@(nim|nims|nimble)
+          ./nph examples libp2p tests tools *.@(nim|nims|nimble)
+          git diff --exit-code

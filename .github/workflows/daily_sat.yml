@@ -1,4 +1,4 @@
-name: Daily Nim Devel
+name: Daily SAT
 
 on:
   schedule:
@@ -6,9 +6,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  test_nim_devel:
-    name: Daily Nim Devel
+  test_amd64:
+    name: Daily SAT
     uses: ./.github/workflows/daily_common.yml
     with:
-      nim: "[{'branch': 'devel', 'memory_management': 'orc'}]"
+      nim: "[{'branch': 'version-2-0', 'memory_management': 'refc'}]"
       cpu: "['amd64']"
+      use_sat_solver: true
