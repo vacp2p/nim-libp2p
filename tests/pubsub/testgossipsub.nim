@@ -32,7 +32,7 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers, ../utils/[async, futures, async, tests]
+import ../helpers, ../utils/[async, futures, async]
 
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
@@ -277,88 +277,6 @@ suite "GossipSub":
       sendCounter == 2
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-  xasyncTest "GossipSub unsub - resub faster than backoff":
-    # For this test to work we'd require a way to disable fanout.
-    # There's not a way to toggle it, and mocking it didn't work as there's not a reliable mock available.
-
-    # Instantiate handlers and validators
-    var handlerFut0 = newFuture[bool]()
-    proc handler0(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      handlerFut0.complete(true)
-
-    var handlerFut1 = newFuture[bool]()
-    proc handler1(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      handlerFut1.complete(true)
-
-    var validatorFut = newFuture[bool]()
-    proc validator(
-        topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
-      check topic == "foobar"
-      validatorFut.complete(true)
-      result = ValidationResult.Accept
-
-    # Setup nodes and start switches
-    let
-      nodes = generateNodes(2, gossip = true, unsubscribeBackoff = 5.seconds)
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
-      topic = "foobar"
-
-    # Connect nodes
-    await subscribeNodes(nodes)
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Subscribe both nodes to the topic and node1 (receiver) to the validator
-    nodes[0].subscribe(topic, handler0)
-    nodes[1].subscribe(topic, handler1)
-    nodes[1].addValidator("foobar", validator)
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Wait for both nodes to verify others' subscription
-    var subs: seq[Future[void]]
-    subs &= waitSub(nodes[1], nodes[0], topic)
-    subs &= waitSub(nodes[0], nodes[1], topic)
-    await allFuturesThrowing(subs)
-
-    # When unsubscribing and resubscribing in a short time frame, the backoff period should be triggered
-    nodes[1].unsubscribe(topic, handler1)
-    await sleepAsync(DURATION_TIMEOUT)
-    nodes[1].subscribe(topic, handler1)
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Backoff is set to 5 seconds, and the amount of sleeping time since the unsubsribe until now is 3-4s~
-    # Meaning, the subscription shouldn't have been processed yet because it's still in backoff period
-    # When publishing under this condition
-    discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Then the message should not be received:
-    check:
-      validatorFut.toResult().error() == "Future still not finished."
-      handlerFut1.toResult().error() == "Future still not finished."
-      handlerFut0.toResult().error() == "Future still not finished."
-
-    validatorFut.reset()
-    handlerFut0.reset()
-    handlerFut1.reset()
-
-    # If we wait backoff period to end, around 1-2s
-    await waitForMesh(nodes[0], nodes[1], topic, 3.seconds)
-
-    discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Then the message should be received
-    check:
-      validatorFut.toResult().isOk()
-      handlerFut1.toResult().isOk()
-      handlerFut0.toResult().error() == "Future still not finished."
-
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =

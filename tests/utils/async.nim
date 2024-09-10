@@ -23,8 +23,3 @@ proc waitForResult*[T](
 ): Future[Result[T, string]] {.async.} =
   discard await future.withTimeout(timeout)
   return future.toResult()
-
-proc reset*[T](future: Future[T]): void =
-  # Likely an incomplete reset, but good enough for testing purposes (for now)
-  future.internalError = nil
-  future.internalState = FutureState.Pending
