@@ -1034,3 +1034,54 @@ suite "GossipSub internal":
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+  asyncTest "IHAVE messages correctly advertise message ID to peers":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      ihaveMessage =
+        ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+
+    discard await allFinished(nodesFut)
+
+    # Given node1 has an IHAVE observer
+    var receivedIHave = newFuture[(string, seq[MessageId])]()
+    let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iHave = msgs.control.get.ihave
+        if iHave.len > 0:
+          for msg in iHave:
+            receivedIHave.complete((msg.topicID, msg.messageIDs))
+
+    g1.addObserver(PubSubObserver(onRecv: checkForIhaves))
+
+    # And the nodes are connected
+    await subscribeNodes(nodes)
+
+    # And both subscribe to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    n1.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    check:
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
+
+    # Then the peer has the message ID
+    let r = await receivedIHave.waitForResult(DURATION_TIMEOUT)
+    check:
+      r.isOk and r.value == (topic, @[messageID])
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
