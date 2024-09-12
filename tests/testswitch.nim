@@ -34,6 +34,7 @@ import
     utils/semaphore,
     transports/tcptransport,
     transports/wstransport,
+    transports/quictransport,
   ]
 import ./helpers
 
@@ -987,6 +988,42 @@ suite "Switch":
     await destSwitch.stop()
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
+
+  asyncTest "e2e quic transport":
+    let
+      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+
+      srcSwitch = SwitchBuilder
+        .new()
+        .withAddress(quicAddress1)
+        .withRng(crypto.newRng())
+        .withTransport(
+          proc(upgr: Upgrade): Transport =
+            QuicTransport.new(upgr)
+        )
+        .withNoise()
+        .build()
+
+      destSwitch = SwitchBuilder
+        .new()
+        .withAddress(quicAddress2)
+        .withRng(crypto.newRng())
+        .withTransport(
+          proc(upgr: Upgrade): Transport =
+            QuicTransport.new(upgr)
+        )
+        .withNoise()
+        .build()
+
+    await destSwitch.start()
+    await srcSwitch.start()
+
+    await srcSwitch.connect(destSwitch.peerInfo.peerId, destSwitch.peerInfo.addrs)
+    check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    await destSwitch.stop()
+    await srcSwitch.stop()
 
   asyncTest "mount unstarted protocol":
     proc handle(conn: Connection, proto: string) {.async.} =
