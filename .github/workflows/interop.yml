@@ -32,6 +32,11 @@ jobs:
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
+        with:
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
 
   run-hole-punching-interop:
     name: Run hole-punching interoperability tests
@@ -46,3 +51,8 @@ jobs:
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/tests/hole-punching-interop/version.json
+        with:
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
