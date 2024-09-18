@@ -198,7 +198,7 @@ proc random*(
   case scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
-      let rsakey = ?RsaPrivateKey.random(rng, bits).orError(KeyError)
+      let rsakey = ?RsaPrivateKey.random(rng, bits).orError(CryptoError.KeyError)
       ok(PrivateKey(scheme: scheme, rsakey: rsakey))
     else:
       err(SchemeError)
@@ -210,7 +210,7 @@ proc random*(
       err(SchemeError)
   of PKScheme.ECDSA:
     when supported(PKScheme.ECDSA):
-      let eckey = ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
+      let eckey = ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(CryptoError.KeyError)
       ok(PrivateKey(scheme: scheme, eckey: eckey))
     else:
       err(SchemeError)
@@ -237,10 +237,10 @@ proc random*(
     let skkey = SkPrivateKey.random(rng)
     ok(PrivateKey(scheme: PKScheme.Secp256k1, skkey: skkey))
   elif supported(PKScheme.RSA):
-    let rsakey = ?RsaPrivateKey.random(rng, bits).orError(KeyError)
+    let rsakey = ?RsaPrivateKey.random(rng, bits).orError(CryptoError.KeyError)
     ok(PrivateKey(scheme: PKScheme.RSA, rsakey: rsakey))
   elif supported(PKScheme.ECDSA):
-    let eckey = ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(KeyError)
+    let eckey = ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(CryptoError.KeyError)
     ok(PrivateKey(scheme: PKScheme.ECDSA, eckey: eckey))
   else:
     err(SchemeError)
@@ -258,7 +258,7 @@ proc random*(
   case scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
-      let pair = ?RsaKeyPair.random(rng, bits).orError(KeyError)
+      let pair = ?RsaKeyPair.random(rng, bits).orError(CryptoError.KeyError)
       ok(
         KeyPair(
           seckey: PrivateKey(scheme: scheme, rsakey: pair.seckey),
@@ -280,7 +280,7 @@ proc random*(
       err(SchemeError)
   of PKScheme.ECDSA:
     when supported(PKScheme.ECDSA):
-      let pair = ?EcKeyPair.random(Secp256r1, rng).orError(KeyError)
+      let pair = ?EcKeyPair.random(Secp256r1, rng).orError(CryptoError.KeyError)
       ok(
         KeyPair(
           seckey: PrivateKey(scheme: scheme, eckey: pair.seckey),
@@ -583,7 +583,7 @@ proc init*(t: typedesc[PrivateKey], data: openArray[byte]): CryptoResult[Private
   ## Create new private key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
-    err(KeyError)
+    err(CryptoError.KeyError)
   else:
     ok(res)
 
@@ -591,7 +591,7 @@ proc init*(t: typedesc[PublicKey], data: openArray[byte]): CryptoResult[PublicKe
   ## Create new public key from libp2p's protobuf serialized binary form.
   var res: t
   if not res.init(data):
-    err(KeyError)
+    err(CryptoError.KeyError)
   else:
     ok(res)
 
