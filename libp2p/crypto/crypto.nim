@@ -210,7 +210,8 @@ proc random*(
       err(SchemeError)
   of PKScheme.ECDSA:
     when supported(PKScheme.ECDSA):
-      let eckey = ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(CryptoError.KeyError)
+      let eckey =
+        ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(CryptoError.KeyError)
       ok(PrivateKey(scheme: scheme, eckey: eckey))
     else:
       err(SchemeError)
@@ -240,7 +241,8 @@ proc random*(
     let rsakey = ?RsaPrivateKey.random(rng, bits).orError(CryptoError.KeyError)
     ok(PrivateKey(scheme: PKScheme.RSA, rsakey: rsakey))
   elif supported(PKScheme.ECDSA):
-    let eckey = ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(CryptoError.KeyError)
+    let eckey =
+      ?ecnist.EcPrivateKey.random(Secp256r1, rng).orError(CryptoError.KeyError)
     ok(PrivateKey(scheme: PKScheme.ECDSA, eckey: eckey))
   else:
     err(SchemeError)
