@@ -1059,7 +1059,7 @@ suite "GossipSub":
 
     # Simulate sending an undecodable message
     await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(
-      newSeqWith[byte](33, 1.byte), isHighPriority = true
+      newSeqWith(33, 1.byte), isHighPriority = true
     )
     await sleepAsync(300.millis)
 
@@ -1069,7 +1069,7 @@ suite "GossipSub":
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(
-      newSeqWith[byte](35, 1.byte), isHighPriority = true
+      newSeqWith(35, 1.byte), isHighPriority = true
     )
 
     checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
