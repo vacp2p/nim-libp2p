@@ -515,7 +515,7 @@ proc batchAdvertise*(
     raise newException(RendezVousError, "Invalid namespace")
 
   if ttl notin rdv.minDuration .. rdv.maxDuration:
-    raise newException(RendezVousError, "Invalid time to live")
+    raise newException(RendezVousError, "Invalid time to live: " & $ttl)
 
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
     raise newException(RendezVousError, "Wrong Signed Peer Record")
@@ -690,6 +690,15 @@ proc new*(
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
 ): T =
+  if minDuration < 1.minutes:
+    raiseAssert("TTL too short: 1 minute minimum")
+
+  if maxDuration > 72.hours:
+    raiseAssert("TTL too long: 72 hours maximum")
+
+  if minDuration >= maxDuration:
+    raiseAssert("Minimum TTL longer than maximum")
+
   let
     minTTL = minDuration.seconds.uint64
     maxTTL = maxDuration.seconds.uint64
