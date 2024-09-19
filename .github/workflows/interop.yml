@@ -2,6 +2,7 @@ name: Interoperability Tests
 
 on:
   pull_request:
+  merge_group:
   push:
     branches:
       - master

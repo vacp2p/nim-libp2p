@@ -773,7 +773,7 @@ suite "GossipSub internal":
     var sentMessages = initHashSet[seq[byte]]()
 
     for i, size in enumerate([size1, size2]):
-      let data = newSeqWith[byte](size, i.byte)
+      let data = newSeqWith(size, i.byte)
       sentMessages.incl(data)
 
       let msg =

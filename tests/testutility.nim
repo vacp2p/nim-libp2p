@@ -17,46 +17,42 @@ import ../libp2p/utility
 suite "Utility":
 
   test "successful safeConvert from int8 to int16":
-    let res = safeConvert[int16, int8]((-128).int8)
+    let res = safeConvert[int16]((-128).int8)
     check res == -128'i16
 
   test "unsuccessful safeConvert from int16 to int8":
     check not (compiles do:
-      result: int8 = safeConvert[int8, int16](32767'i16))
+      result: int8 = safeConvert[int8](32767'i16))
 
   test "successful safeConvert from uint8 to uint16":
-    let res: uint16 = safeConvert[uint16, uint8](255'u8)
+    let res: uint16 = safeConvert[uint16](255'u8)
     check res == 255'u16
 
   test "unsuccessful safeConvert from uint16 to uint8":
     check not (compiles do:
-      result: uint8 = safeConvert[uint8, uint16](256'u16))
-
-  test "successful safeConvert from char to int":
-    let res: int = safeConvert[int, char]('A')
-    check res == 65
+      result: uint8 = safeConvert[uint8](256'u16))
 
   test "unsuccessful safeConvert from int to char":
     check not (compiles do:
-      result: char = safeConvert[char, int](128))
+      result: char = safeConvert[char](128))
 
   test "successful safeConvert from bool to int":
-    let res: int = safeConvert[int, bool](true)
+    let res: int = safeConvert[int](true)
     check res == 1
 
   test "unsuccessful safeConvert from int to bool":
     check not (compiles do:
-      result: bool = safeConvert[bool, int](2))
+      result: bool = safeConvert[bool](2))
 
   test "successful safeConvert from enum to int":
     type Color = enum red, green, blue
-    let res: int = safeConvert[int, Color](green)
+    let res: int = safeConvert[int](green)
     check res == 1
 
   test "unsuccessful safeConvert from int to enum":
     type Color = enum red, green, blue
     check not (compiles do:
-      result: Color = safeConvert[Color, int](3))
+      result: Color = safeConvert[Color](3))
 
   test "successful safeConvert from range to int":
     let res: int = safeConvert[int, range[1..10]](5)
@@ -68,11 +64,11 @@ suite "Utility":
 
   test "unsuccessful safeConvert from int to uint":
     check not (compiles do:
-      result: uint = safeConvert[uint, int](11))
+      result: uint = safeConvert[uint](11))
 
   test "unsuccessful safeConvert from uint to int":
     check not (compiles do:
-      result: uint = safeConvert[int, uint](11.uint))
+      result: uint = safeConvert[int](11.uint))
 
 suite "withValue and valueOr templates":
   type

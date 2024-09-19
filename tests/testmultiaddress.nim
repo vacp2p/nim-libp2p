@@ -26,10 +26,11 @@ const
   SuccessVectors = [
     "/ip4/1.2.3.4", "/ip4/0.0.0.0", "/ip6/::1",
     "/ip6/2601:9:4f81:9700:803e:ca65:66e8:c21",
-    "/ip6/2601:9:4f81:9700:803e:ca65:66e8:c21/udp/1234/quic", "/ip6zone/x/ip6/fe80::1",
-    "/ip6zone/x%y/ip6/fe80::1", "/ip6zone/x%y/ip6/::",
-    "/ip6zone/x/ip6/fe80::1/udp/1234/quic", "/onion/timaq4ygg2iegci7:1234",
-    "/onion/timaq4ygg2iegci7:80/http",
+    "/ip6/2601:9:4f81:9700:803e:ca65:66e8:c21/udp/1234/quic",
+    "/ip6/2601:9:4f81:9700:803e:ca65:66e8:c21/udp/1234/quic-v1",
+    "/ip6zone/x/ip6/fe80::1", "/ip6zone/x%y/ip6/fe80::1", "/ip6zone/x%y/ip6/::",
+    "/ip6zone/x/ip6/fe80::1/udp/1234/quic", "/ip6zone/x/ip6/fe80::1/udp/1234/quic-v1",
+    "/onion/timaq4ygg2iegci7:1234", "/onion/timaq4ygg2iegci7:80/http",
     "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:1234",
     "/onion3/vww6ybal4bd7szmgncyruucpgfkqahzddi37ktceo3ah7ngmcopnpyyd:80/http",
     "/udp/0", "/tcp/0", "/sctp/0", "/udp/1234", "/tcp/1234", "/sctp/1234", "/udp/65535",
@@ -57,7 +58,7 @@ const
   FailureVectors = [
     "", "/", "/ip4", "/ip4/::1", "/ip4/fdpsofodsajfdoisa", "/ip6", "/ip6zone",
     "/ip6zone/", "/ip6zone//ip6/fe80::1", "/udp", "/tcp", "/sctp", "/udp/65536",
-    "/tcp/65536", "/quic/65536", "/onion/9imaq4ygg2iegci7:80",
+    "/tcp/65536", "/quic/65536", "/quic-v1/65536", "/onion/9imaq4ygg2iegci7:80",
     "/onion/aaimaq4ygg2iegci7:80", "/onion/timaq4ygg2iegci7:0",
     "/onion/timaq4ygg2iegci7:-1", "/onion/timaq4ygg2iegci7",
     "/onion/timaq4ygg2iegci@:666",
@@ -70,8 +71,8 @@ const
     "/udp/1234/sctp", "/udp/1234/udt/1234", "/udp/1234/utp/1234",
     "/ip4/127.0.0.1/udp/jfodsajfidosajfoidsa", "/ip4/127.0.0.1/udp",
     "/ip4/127.0.0.1/tcp/jfodsajfidosajfoidsa", "/ip4/127.0.0.1/tcp",
-    "/ip4/127.0.0.1/quic/1234", "/ip4/127.0.0.1/ipfs", "/ip4/127.0.0.1/ipfs/tcp",
-    "/ip4/127.0.0.1/p2p", "/ip4/127.0.0.1/p2p/tcp", "/unix",
+    "/ip4/127.0.0.1/quic/1234", "/ip4/127.0.0.1/quic-v1/1234", "/ip4/127.0.0.1/ipfs",
+    "/ip4/127.0.0.1/ipfs/tcp", "/ip4/127.0.0.1/p2p", "/ip4/127.0.0.1/p2p/tcp", "/unix",
   ]
 
   RustSuccessVectors = [
@@ -158,6 +159,15 @@ const
         @[
           "/ip4/0.0.0.0/tcp/12345/quic", "/ip6/fc00::/ip4/0.0.0.0/udp/1234/quic",
           "/quic",
+        ],
+    ),
+    PatternVector(
+      pattern: QUIC_V1,
+      good: @["/ip4/1.2.3.4/udp/1234/quic-v1", "/ip6/::/udp/1234/quic-v1"],
+      bad:
+        @[
+          "/ip4/0.0.0.0/tcp/12345/quic-v1", "/ip6/fc00::/ip4/0.0.0.0/udp/1234/quic-v1",
+          "/quic-v1",
         ],
     ),
     PatternVector(
