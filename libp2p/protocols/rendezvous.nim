@@ -689,15 +689,15 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
-): T =
+): T {.raises: [RendezVousError].} =
   if minDuration < 1.minutes:
-    raiseAssert("TTL too short: 1 minute minimum")
+    raise newException(RendezVousError, "TTL too short: 1 minute minimum")
 
   if maxDuration > 72.hours:
-    raiseAssert("TTL too long: 72 hours maximum")
+    raise newException(RendezVousError, "TTL too long: 72 hours maximum")
 
   if minDuration >= maxDuration:
-    raiseAssert("Minimum TTL longer than maximum")
+    raise newException(RendezVousError, "Minimum TTL longer than maximum")
 
   let
     minTTL = minDuration.seconds.uint64
