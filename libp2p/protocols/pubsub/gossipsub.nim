@@ -36,6 +36,25 @@ import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 
+import std/atomics
+var 
+  lma_idontwant_saves: Atomic[uint32]
+  lma_duplicate_count: Atomic[uint32]
+  lma_dup_during_validation: Atomic[uint32]
+  lma_iwants_sent: Atomic[uint32]
+  lma_iwants_replied: Atomic[uint32] 
+  lma_unique_receives: Atomic[uint32]
+
+lma_idontwant_saves.store(0)
+lma_duplicate_count.store(0)
+lma_dup_during_validation.store(0)
+lma_iwants_sent.store(0)
+lma_iwants_replied.store(0)
+lma_unique_receives.store(0)
+
+export lma_idontwant_saves, lma_duplicate_count, lma_dup_during_validation, 
+        lma_iwants_sent, lma_iwants_replied, lma_unique_receives
+
 logScope:
   topics = "libp2p gossipsub"
 
@@ -360,6 +379,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   if isPruneNotEmpty or isIWantNotEmpty:
     if isIWantNotEmpty:
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+      lma_iwants_sent.atomicInc(respControl.iwant.len.uint32)
 
     if isPruneNotEmpty:
       for prune in respControl.prune:
@@ -381,6 +401,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
+    lma_iwants_replied.atomicInc(messages.len.uint32)
     g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
 
 proc validateAndRelay(
@@ -428,6 +449,7 @@ proc validateAndRelay(
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(saltedId, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
+    lma_dup_during_validation.atomicInc()
     libp2p_gossipsub_saved_bytes.inc(
       (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]
     )
@@ -470,6 +492,7 @@ proc validateAndRelay(
           libp2p_gossipsub_saved_bytes.inc(
             msg.data.len.int64, labelValues = ["idontwant"]
           )
+          lma_idontwant_saves.atomicInc()
           return true
       return false
 
@@ -596,11 +619,13 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
         g.rewardDelivered(peer, topic, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
+      lma_duplicate_count.atomicInc()
 
       # onto the next message
       continue
 
     libp2p_gossipsub_received.inc()
+    lma_unique_receives.atomicInc()
 
     # avoid processing messages we are not interested in
     if topic notin g.topics:
