@@ -508,7 +508,7 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
   await rdv.sema.acquire()
   discard await advertiseWrap().withTimeout(5.seconds)
 
-proc batchAdvertise*(
+proc advertise*(
     rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
 ) {.async.} =
   if ns.len notin 1 .. 255:
@@ -536,7 +536,7 @@ proc batchAdvertise*(
 method advertise*(
     rdv: RendezVous, ns: string, ttl: Duration = rdv.minDuration
 ) {.async, base.} =
-  await rdv.batchAdvertise(ns, ttl, rdv.peers)
+  await rdv.advertise(ns, ttl, rdv.peers)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   let
@@ -552,7 +552,7 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   except KeyError as exc:
     @[]
 
-proc batchRequest*(
+proc request*(
     rdv: RendezVous, ns: string, l: int = DiscoverLimit.int, peers: seq[PeerId]
 ): Future[seq[PeerRecord]] {.async.} =
   var
@@ -634,7 +634,7 @@ proc batchRequest*(
 proc request*(
     rdv: RendezVous, ns: string, l: int = DiscoverLimit.int
 ): Future[seq[PeerRecord]] {.async.} =
-  await rdv.batchRequest(ns, l, rdv.peers)
+  await rdv.request(ns, l, rdv.peers)
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
@@ -645,7 +645,7 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   except KeyError:
     return
 
-proc batchUnsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
+proc unsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
 
@@ -671,7 +671,7 @@ proc batchUnsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.asyn
 proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
   rdv.unsubscribeLocally(ns)
 
-  await rdv.batchUnsubscribe(ns, rdv.peers)
+  await rdv.unsubscribe(ns, rdv.peers)
 
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
