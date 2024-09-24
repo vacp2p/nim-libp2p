@@ -37,23 +37,30 @@ import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 export types, scoring, behavior, pubsub
 
 import std/atomics
-var 
-  lma_idontwant_saves: Atomic[uint32]
-  lma_duplicate_count: Atomic[uint32]
-  lma_dup_during_validation: Atomic[uint32]
-  lma_iwants_sent: Atomic[uint32]
-  lma_iwants_replied: Atomic[uint32] 
-  lma_unique_receives: Atomic[uint32]
+const WARMUP_THRESHOLD = 2
+var
+  lma_dup_during_validation: Atomic[uint32]   # number of duplicates during 1st message validation
+  lma_idontwant_saves: Atomic[uint32]         # number of Txs saved due to idontwant
+  lma_duplicate_count: Atomic[uint32]         # number of duplicate  messages received
+  lma_iwants_sent: Atomic[uint32]             # number of iwant requests sent
+  lma_iwants_replied: Atomic[uint32]          # number of iwant messages that are replied
+  lma_imreceiving_saves: Atomic[uint32]       # number of messages saved due to imreceiving message
+  lma_unique_receives: Atomic[uint32]         # number of unique messages received
+  lma_mesh_recvs_aftar_iwant: Atomic[uint32]  # messages received from mesh, after sending iwant request
+  lma_warmup_messages: Atomic[uint32]         # dont issue idontwant during if < WARMUP_THRESHOLD
 
+lma_dup_during_validation.store(0)
 lma_idontwant_saves.store(0)
 lma_duplicate_count.store(0)
-lma_dup_during_validation.store(0)
 lma_iwants_sent.store(0)
 lma_iwants_replied.store(0)
+lma_imreceiving_saves.store(0)
 lma_unique_receives.store(0)
+lma_mesh_recvs_aftar_iwant.store(0)
+lma_warmup_messages.store(0)
 
-export lma_idontwant_saves, lma_duplicate_count, lma_dup_during_validation, 
-        lma_iwants_sent, lma_iwants_replied, lma_unique_receives
+export lma_dup_during_validation, lma_idontwant_saves, lma_duplicate_count, lma_iwants_sent, 
+        lma_iwants_replied, lma_imreceiving_saves, lma_unique_receives, lma_mesh_recvs_aftar_iwant
 
 logScope:
   topics = "libp2p gossipsub"
@@ -418,6 +425,8 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       g.subscribedDirectPeers.withValue(topic, peers):
         toSendPeers.incl(peers[])
+      if not (peer in toSendPeers):
+        lma_mesh_recvs_aftar_iwant.atomicInc()
       toSendPeers.excl(peer)
 
     if msg.data.len > max(512, msgId.len * 10):
@@ -430,19 +439,32 @@ proc validateAndRelay(
       # descored) and that the savings from honest peers are greater than the
       # cost a dishonest peer can incur in short time (since the IDONTWANT is
       # small).
-      var peersToSendIDontWant = HashSet[PubSubPeer]()
-      addToSendPeers(peersToSendIDontWant)
-      peersToSendIDontWant.exclIfIt(
-        it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
-      )
-      g.broadcast(
-        peersToSendIDontWant,
-        RPCMsg(
-          control:
-            some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
-        ),
-        isHighPriority = true,
-      )
+      if lma_warmup_messages.load() < WARMUP_THRESHOLD:
+        lma_warmup_messages.atomicInc()
+        if lma_warmup_messages.load() == WARMUP_THRESHOLD:
+          lma_dup_during_validation.store(0)
+          lma_idontwant_saves.store(0)
+          lma_duplicate_count.store(0)
+          lma_iwants_sent.store(0)
+          lma_iwants_replied.store(0)
+          lma_imreceiving_saves.store(0)
+          lma_unique_receives.store(0)
+          lma_mesh_recvs_aftar_iwant.store(0)
+          
+      else:
+        var peersToSendIDontWant = HashSet[PubSubPeer]() 
+        addToSendPeers(peersToSendIDontWant)
+        peersToSendIDontWant.exclIfIt(
+          it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
+        )
+        g.broadcast(
+          peersToSendIDontWant,
+          RPCMsg(
+            control:
+              some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+          ),
+          isHighPriority = true,
+        )
 
     let validation = await g.validate(msg)
 
