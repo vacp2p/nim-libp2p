@@ -1,6 +1,7 @@
 name: Daily SAT
 
 on:
+  pull_request:
   schedule:
     - cron: "30 6 * * *"
   workflow_dispatch:
