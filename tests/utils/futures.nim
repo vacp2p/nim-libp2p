@@ -1,6 +1,7 @@
 import chronos/futures, stew/results, chronos
 
 const
+  DURATION_TIMEOUT_SHORT* = 500.milliseconds
   DURATION_TIMEOUT* = 1.seconds
   DURATION_TIMEOUT_EXTENDED* = 1500.milliseconds
 

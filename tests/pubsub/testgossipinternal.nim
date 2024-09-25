@@ -1075,13 +1075,166 @@ suite "GossipSub internal":
       g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
       g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
 
+    # When an IHAVE message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
+    await sleepAsync(DURATION_TIMEOUT_SHORT)
 
     # Then the peer has the message ID
     let r = await receivedIHave.waitForResult(DURATION_TIMEOUT)
     check:
       r.isOk and r.value == (topic, @[messageID])
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+  asyncTest "IWANT messages correctly request messages by their IDs":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+
+    discard await allFinished(nodesFut)
+
+    # Given node1 has an IWANT observer
+    var receivedIWant = newFuture[seq[MessageId]]()
+    let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iWant = msgs.control.get.iwant
+        if iWant.len > 0:
+          for msg in iWant:
+            receivedIWant.complete(msg.messageIDs)
+
+    g1.addObserver(PubSubObserver(onRecv: checkForIwants))
+
+    # And the nodes are connected
+    await subscribeNodes(nodes)
+
+    # And both subscribe to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    n1.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    check:
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+
+    # When an IWANT message is sent
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
+    await sleepAsync(DURATION_TIMEOUT_SHORT)
+
+    # Then the peer has the message ID
+    let r = await receivedIWant.waitForResult(DURATION_TIMEOUT)
+    check:
+      r.isOk and r.value == @[messageID]
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+  asyncTest "Received GRAFT for non-subscribed topic":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+      tg0 = cast[TestGossipSub](g0)
+      tg1 = cast[TestGossipSub](g1)
+
+    discard await allFinished(nodesFut)
+
+    # And the nodes are connected
+    await subscribeNodes(nodes)
+
+    # And only node0 subscribes to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    check:
+      g0.topics.hasKey(topic) == true
+      g1.topics.hasKey(topic) == false
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
+
+    # When a GRAFT message is sent
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
+    await sleepAsync(DURATION_TIMEOUT_SHORT)
+
+    # Then the peer is not GRAFTed
+    check:
+      g0.topics.hasKey(topic) == true
+      g1.topics.hasKey(topic) == false
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+  asyncTest "Received PRUNE for non-subscribed topic":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      pruneMessage =
+        ControlMessage(prune: @[ControlPrune(topicID: topic, peers: @[], backoff: 1)])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+      tg0 = cast[TestGossipSub](g0)
+      tg1 = cast[TestGossipSub](g1)
+
+    discard await allFinished(nodesFut)
+
+    # And the nodes are connected
+    await subscribeNodes(nodes)
+
+    # And only node0 subscribes to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    check:
+      g0.topics.hasKey(topic) == true
+      g1.topics.hasKey(topic) == false
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
+
+    # When a PRUNE message is sent
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
+    await sleepAsync(DURATION_TIMEOUT_SHORT)
+
+    # Then the peer is not PRUNEd
+    check:
+      g0.topics.hasKey(topic) == true
+      g1.topics.hasKey(topic) == false
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
