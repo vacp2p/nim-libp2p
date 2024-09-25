@@ -20,10 +20,8 @@ jobs:
     strategy:
       matrix:
         test-type: 
-          - folder: transport-interop
-            action: run-transport-interop-test
-          - folder: hole-punching-interop
-            action: run-interop-hole-punch-test
+          - transport-interop
+          - hole-punching-interop
     
     steps:
       - name: Checkout Code
@@ -34,10 +32,10 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker buildx build --load -t nim-libp2p-head -f tests/${{ matrix.test-type.folder }}/Dockerfile .
+          docker buildx build --load -t nim-libp2p-head -f tests/${{ matrix.test-type }}/Dockerfile .
 
       - name: Run Tests
-        uses: libp2p/test-plans/.github/actions/${{ matrix.test-type.action }}@master
+        uses: libp2p/test-plans/.github/actions/run-${{ matrix.test-type == 'transport-interop' && 'transport-interop-test' || 'interop-hole-punch-test' }}@master
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/tests/${{ matrix.test-type }}/version.json
