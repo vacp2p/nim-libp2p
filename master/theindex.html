@@ -319,8 +319,12 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="advertise" href="#advertise"><span>advertise:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = MinimumDuration): Future[
-    void]" href="libp2p/protocols/rendezvous.html#advertise.e%2CRendezVous%2Cstring%2CDuration">rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = MinimumDuration): Future[
+          data-doc-search-tag="rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): Future[
+    void]" href="libp2p/protocols/rendezvous.html#advertise%2CRendezVous%2Cstring%2CDuration%2Cseq%5BPeerId%5D">rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): Future[
+    void]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): Future[
+    void]" href="libp2p/protocols/rendezvous.html#advertise.e%2CRendezVous%2Cstring%2CDuration">rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): Future[
     void]</a></li>
           </ul></dd>
 <dt><a name="AgentVersion" href="#AgentVersion"><span>AgentVersion:</span></a></dt><dd><ul class="simple">
@@ -3227,9 +3231,15 @@ window.addEventListener('DOMContentLoaded', main);
     codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng()): T:type</a></li>
+          data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng();
+    minDuration = MinimumDuration; maxDuration = MaximumDuration): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng();
+    minDuration = MinimumDuration; maxDuration = MaximumDuration): T:type</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; switch: Switch; rng: ref HmacDrbgContext = newRng()): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2CSwitch%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; switch: Switch; rng: ref HmacDrbgContext = newRng()): T:type</a></li>
+          data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; switch: Switch;
+    rng: ref HmacDrbgContext = newRng(); minDuration = MinimumDuration;
+    maxDuration = MaximumDuration): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2CSwitch%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; switch: Switch;
+    rng: ref HmacDrbgContext = newRng(); minDuration = MinimumDuration;
+    maxDuration = MaximumDuration): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="noise: new(T: typedesc[Noise]; rng: ref HmacDrbgContext; privateKey: PrivateKey;
     outgoing: bool = true; commonPrologue: seq[byte] = @[]): T:type" href="libp2p/protocols/secure/noise.html#new%2Ctypedesc%5BNoise%5D%2Cref.HmacDrbgContext%2CPrivateKey%2Cbool%2Cseq%5Bbyte%5D">noise: new(T: typedesc[Noise]; rng: ref HmacDrbgContext; privateKey: PrivateKey;
@@ -4075,6 +4085,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int): Future[
     seq[PeerRecord]]" href="libp2p/protocols/rendezvous.html#request%2CRendezVous%2Cstring%2Cint">rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int): Future[
+    seq[PeerRecord]]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int; peers: seq[PeerId]): Future[
+    seq[PeerRecord]]" href="libp2p/protocols/rendezvous.html#request%2CRendezVous%2Cstring%2Cint%2Cseq%5BPeerId%5D">rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int; peers: seq[PeerId]): Future[
     seq[PeerRecord]]</a></li>
           </ul></dd>
 <dt><a name="requestLocally" href="#requestLocally"><span>requestLocally:</span></a></dt><dd><ul class="simple">
@@ -4988,6 +5002,8 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="pubsub: unsubscribe(p: PubSub; topic: string; handler: TopicHandler)" href="libp2p/protocols/pubsub/pubsub.html#unsubscribe%2CPubSub%2Cstring%2CTopicHandler">pubsub: unsubscribe(p: PubSub; topic: string; handler: TopicHandler)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rendezvous: unsubscribe(rdv: RendezVous; ns: string): Future[void]" href="libp2p/protocols/rendezvous.html#unsubscribe%2CRendezVous%2Cstring">rendezvous: unsubscribe(rdv: RendezVous; ns: string): Future[void]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="rendezvous: unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): Future[void]" href="libp2p/protocols/rendezvous.html#unsubscribe%2CRendezVous%2Cstring%2Cseq%5BPeerId%5D">rendezvous: unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): Future[void]</a></li>
           </ul></dd>
 <dt><a name="unsubscribeAll" href="#unsubscribeAll"><span>unsubscribeAll:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5476,7 +5492,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-09-19 20:57:15 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-09-25 10:12:20 UTC</small>
       </div>
     </div>
   </div>
