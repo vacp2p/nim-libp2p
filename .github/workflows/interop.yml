@@ -13,32 +13,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  run-interop-tests:
-    name: Run ${{ matrix.test-type }} Tests
+  run-transport-interop:
+    name: Run transport interoperability tests
     runs-on: ubuntu-22.04
-    if: success() || failure()
-    strategy:
-      matrix:
-        test-type: 
-          - transport-interop
-          - hole-punching-interop
-    
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Free Disk Space (Ubuntu)
+        # For some reason the original job (libp2p/test-plans) has enough disk space, but this one doesn't.
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker Image
-        run: |
-          docker buildx build --load -t nim-libp2p-head -f tests/${{ matrix.test-type }}/Dockerfile .
-
-      - name: Run Tests
-        uses: libp2p/test-plans/.github/actions/run-${{ matrix.test-type == 'transport-interop' && 'transport-interop-test' || 'interop-hole-punch-test' }}@master
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: docker buildx build --load -t nim-libp2p-head -f tests/transport-interop/Dockerfile .
+      - name: Run tests
+        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-head
-          extra-versions: ${{ github.workspace }}/tests/${{ matrix.test-type }}/version.json
+          extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+
+  run-hole-punching-interop:
+    name: Run hole-punching interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: docker buildx build --load -t nim-libp2p-head -f tests/hole-punching-interop/Dockerfile .
+      - name: Run tests
+        uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+        with:
+          test-filter: nim-libp2p-head
+          extra-versions: ${{ github.workspace }}/tests/hole-punching-interop/version.json
           s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
           s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
           s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
