@@ -44,7 +44,8 @@ suite "GossipSub internal2":
     let topic = "test-topic"
     gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
     gossipSub.topicParams[topic] = TopicParams.init()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()  # Initialize gossipsub for the topic
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+      # Initialize gossipsub for the topic
 
     var conns = newSeq[Connection]()
     for i in 0 ..< 5:
@@ -54,13 +55,17 @@ suite "GossipSub internal2":
       conn.peerId = peerId
       let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
-      gossipSub.gossipsub[topic].incl(peer)  # Ensure the topic is added to gossipsub
+      gossipSub.gossipsub[topic].incl(peer) # Ensure the topic is added to gossipsub
 
     # Subscribe to the topic
-    gossipSub.PubSub.subscribe(topic, proc(topic: string, data: seq[byte]): Future[void] {.async.} = discard)
+    gossipSub.PubSub.subscribe(
+      topic,
+      proc(topic: string, data: seq[byte]): Future[void] {.async.} =
+        discard,
+    )
 
-    check gossipSub.topics.contains(topic)  # Check if the topic is in topics
-    check gossipSub.gossipsub[topic].len() > 0  # Check if topic added to gossipsub
+    check gossipSub.topics.contains(topic) # Check if the topic is in topics
+    check gossipSub.gossipsub[topic].len() > 0 # Check if topic added to gossipsub
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -73,7 +78,8 @@ suite "GossipSub internal2":
     let topic = "test-topic"
     gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
     gossipSub.topicParams[topic] = TopicParams.init()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()  # Initialize gossipsub for the topic
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+      # Initialize gossipsub for the topic
 
     var conns = newSeq[Connection]()
     for i in 0 ..< 5:
@@ -83,18 +89,24 @@ suite "GossipSub internal2":
       conn.peerId = peerId
       let peer = gossipSub.getPubSubPeer(peerId)
       peer.sendConn = conn
-      gossipSub.gossipsub[topic].incl(peer)  # Ensure peers are added to gossipsub for the topic
+      gossipSub.gossipsub[topic].incl(peer)
+        # Ensure peers are added to gossipsub for the topic
 
     # Subscribe to the topic first
-    gossipSub.PubSub.subscribe(topic, proc(topic: string, data: seq[byte]): Future[void] {.async.} = discard)
+    gossipSub.PubSub.subscribe(
+      topic,
+      proc(topic: string, data: seq[byte]): Future[void] {.async.} =
+        discard,
+    )
 
     # Now unsubscribe from the topic
     gossipSub.PubSub.unsubscribeAll(topic)
 
     # Verify the topic is removed from relevant structures
-    check topic notin gossipSub.topics  # The topic should not be in topics
-    check topic notin gossipSub.mesh  # The topic should be removed from the mesh
-    check topic in gossipSub.gossipsub  # The topic should remain in gossipsub (for fanout)
+    check topic notin gossipSub.topics # The topic should not be in topics
+    check topic notin gossipSub.mesh # The topic should be removed from the mesh
+    check topic in gossipSub.gossipsub
+      # The topic should remain in gossipsub (for fanout)
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -110,9 +122,14 @@ suite "GossipSub internal2":
       # Initialize all relevant structures before subscribing
       gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
       gossipSub.topicParams[topic] = TopicParams.init()
-      gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()  # Initialize gossipsub for each topic
+      gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+        # Initialize gossipsub for each topic
 
-      gossipSub.PubSub.subscribe(topic, proc(topic: string, data: seq[byte]): Future[void] {.async.} = discard)
+      gossipSub.PubSub.subscribe(
+        topic,
+        proc(topic: string, data: seq[byte]): Future[void] {.async.} =
+          discard,
+      )
 
     # Verify that all topics are added to the topics and gossipsub
     check gossipSub.topics.len == 3
@@ -135,7 +152,7 @@ suite "GossipSub internal2":
   # This test ensures that the number of subscriptions does not exceed the limit set in the GossipSub parameters
   asyncTest "subscription limit test":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
-    gossipSub.topicsHigh = 10  # Set a limit for the number of subscriptions
+    gossipSub.topicsHigh = 10 # Set a limit for the number of subscriptions
 
     var conns = newSeq[Connection]()
     for i in 0 .. gossipSub.topicsHigh + 5:
@@ -146,7 +163,11 @@ suite "GossipSub internal2":
       gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
 
       if gossipSub.topics.len < gossipSub.topicsHigh:
-        gossipSub.PubSub.subscribe(topic, proc(topic: string, data: seq[byte]): Future[void] {.async.} = discard)
+        gossipSub.PubSub.subscribe(
+          topic,
+          proc(topic: string, data: seq[byte]): Future[void] {.async.} =
+            discard,
+        )
       else:
         # Prevent subscription beyond the limit and log the error
         echo "Subscription limit reached for topic: ", topic
@@ -157,5 +178,3 @@ suite "GossipSub internal2":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
-
-
