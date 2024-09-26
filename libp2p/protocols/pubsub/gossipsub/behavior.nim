@@ -308,6 +308,35 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
       if peer.iDontWants[^1].len > 1000:
         break
       peer.iDontWants[^1].incl(g.salt(messageId))
+  
+      #Experimental change for quick performance evaluation only (Ideally for very large messages):
+      #[
+        1) IDontWant is followed by the message. IMReceiving informs peers that we are receiving this message
+        2) Prototype implementation for a single topic ("test"). Need topic ID in IDontWant
+
+        3) Better solution is to send Message detail in a message preamble, That can be used for IMReceiving
+      ]#
+      var toSendPeers = HashSet[PubSubPeer]()
+      g.floodsub.withValue("test", peers): toSendPeers.incl(peers[])
+      g.mesh.withValue("test", peers): toSendPeers.incl(peers[])
+
+      # add direct peers
+      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault("test"))
+
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
+          imreceiving: @[ControlIWant(messageIDs: @[messageId])]
+        ))), isHighPriority = true)
+  
+
+
+proc handleIMReceiving*(g: GossipSub,
+                      peer: PubSubPeer,
+                      imreceivings: seq[ControlIWant]) =
+  for imreceiving in imreceivings:
+    for messageId in imreceiving.messageIDs:
+      if peer.heIsReceivings[^1].len > 1000: break
+      if messageId.len > 100: continue
+      peer.heIsReceivings[^1].incl(messageId)
 
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
