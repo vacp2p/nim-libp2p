@@ -289,14 +289,27 @@ proc handleIHave*(
     for ihave in ihaves:
       trace "peer sent ihave", peer, topicID = ihave.topicID, msgs = ihave.messageIDs
       if ihave.topicID in g.topics:
+        #look here for receieved idontwants for the same message
+        var meshPeers: HashSet[PubSubPeer]
+        g.mesh.withValue(ihave.topicID, peers): meshPeers.incl(peers[])
+
         for msgId in ihave.messageIDs:
           if not g.hasSeen(g.salt(msgId)):
             if peer.iHaveBudget <= 0:
               break
             elif msgId notin res.messageIDs:
-              res.messageIDs.add(msgId)
-              dec peer.iHaveBudget
-              trace "requested message via ihave", messageID = msgId
+              #dont send IWANT if we have received (N number of) IDontWant(s) for a msgID
+              let saltedID = g.salt(msgId)
+              var numFinds: int = 0
+              for meshPeer in meshPeers:
+                for heDontWant in meshPeer.iDontWants:
+                  if saltedID in heDontWant: 
+                    numFinds = numFinds + 1
+                    #break;
+              if numFinds <= 1:  #We currently wait for 2 IDontWants  
+                res.messageIDs.add(msgId)
+                dec peer.iHaveBudget
+                trace "requested message via ihave", messageID = msgId
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIDs)
