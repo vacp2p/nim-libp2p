@@ -7,6 +7,12 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+    )
+    await GossipSub(nodes[1]).addDirectPeer(
+      nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs
+    )
+    await GossipSub(nodes[2]).addDirectPeer(
+      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
 {.used.}
 
 import sequtils, options, tables, sets
@@ -177,12 +183,6 @@ suite "GossipSub":
     )
     await GossipSub(nodes[1]).addDirectPeer(
       nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs
-    )
-    await GossipSub(nodes[1]).addDirectPeer(
-      nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs
-    )
-    await GossipSub(nodes[2]).addDirectPeer(
-      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
     )
 
     var handlerFut = newFuture[void]()
