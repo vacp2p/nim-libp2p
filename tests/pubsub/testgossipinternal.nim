@@ -1238,3 +1238,54 @@ suite "GossipSub internal":
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+  asyncTest "IHAVE for non-existent topic":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      ihaveMessage =
+        ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+      tg0 = cast[TestGossipSub](g0)
+      tg1 = cast[TestGossipSub](g1)
+
+    discard await allFinished(nodesFut)
+
+    # Given node1 has an IWANT observer
+    var receivedIWant = newFuture[seq[MessageId]]()
+    let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iWant = msgs.control.get.iwant
+        if iWant.len > 0:
+          for msg in iWant:
+            receivedIWant.complete(msg.messageIDs)
+
+    g0.addObserver(PubSubObserver(onRecv: checkForIwants))
+
+    # And the nodes are connected
+    await subscribeNodes(nodes)
+
+    # And both nodes subscribe to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    n1.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When an IHAVE message is sent from node0
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
+    await sleepAsync(DURATION_TIMEOUT_SHORT)
+
+    # Then node0 should receive an IWANT message from node1 (as node1 doesn't have the message)
+    let iWantResult = await receivedIWant.waitForResult(DURATION_TIMEOUT)
+    check:
+      iWantResult.isOk and iWantResult.value == @[messageID]
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
