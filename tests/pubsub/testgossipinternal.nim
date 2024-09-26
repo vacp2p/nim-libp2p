@@ -677,55 +677,76 @@ suite "GossipSub internal":
     gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
     gossipSub.subscribe(topic, handler2)
 
+    # Instantiates 30 peers and connects all of them to the previously defined `gossipSub`
     for i in 0 ..< 30:
+      # Define a new connection
       let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerId = randomPeerId()
       conn.peerId = peerId
       let peer = gossipSub.getPubSubPeer(peerId)
       peer.handler = handler
+      # Add the connection to `gossipSub`, to their `gossipSub.gossipsub` and `gossipSub.mesh` tables
       gossipSub.grafted(peer, topic)
       gossipSub.mesh[topic].incl(peer)
 
+    # Peers with no budget should not request messages
     block:
-      # should ignore no budget peer
+      # Define a new connection
       let conn = TestBufferStream.new(noop)
       conns &= conn
       let peerId = randomPeerId()
       conn.peerId = peerId
       let peer = gossipSub.getPubSubPeer(peerId)
-      let id = @[0'u8, 1, 2, 3]
-      let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-      peer.iHaveBudget = 0
-      let iwants = gossipSub.handleIHave(peer, @[msg])
-      check:
-        iwants.messageIDs.len == 0
-
-    block:
-      # given duplicate ihave should generate only one iwant
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      let id = @[0'u8, 1, 2, 3]
-      let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-      let iwants = gossipSub.handleIHave(peer, @[msg])
-      check:
-        iwants.messageIDs.len == 1
-
-    block:
-      # given duplicate iwant should generate only one message
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
+      # Add message to `gossipSub`'s message cache
       let id = @[0'u8, 1, 2, 3]
       gossipSub.mcache.put(id, Message())
       peer.sentIHaves[^1].incl(id)
+      # Build an IHAVE message that contains the same message ID three times
+      let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
+      # Given the peer has no budget to request messages
+      peer.iHaveBudget = 0
+      # When a peer makes an IHAVE request for the a message that `gossipSub` has
+      let iwants = gossipSub.handleIHave(peer, @[msg])
+      # Then `gossipSub` should not generate an IWant message for the message, 
+      check:
+        iwants.messageIDs.len == 0
+
+    # Peers with budget should request messages. If ids are repeated, only one request should be generated
+    block:
+      # Define a new connection
+      let conn = TestBufferStream.new(noop)
+      conns &= conn
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
+      let id = @[0'u8, 1, 2, 3]
+      # Build an IHAVE message that contains the same message ID three times
+      let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
+      # Given the budget is not 0 (because it's not been overridden)
+      # When a peer makes an IHAVE request for the a message that `gossipSub` does not have
+      let iwants = gossipSub.handleIHave(peer, @[msg])
+      # Then `gossipSub` should generate an IWant message for the message
+      check:
+        iwants.messageIDs.len == 1
+
+    # Peers with budget should request messages. If ids are repeated, only one request should be generated
+    block:
+      # Define a new connection
+      let conn = TestBufferStream.new(noop)
+      conns &= conn
+      let peerId = randomPeerId()
+      conn.peerId = peerId
+      let peer = gossipSub.getPubSubPeer(peerId)
+      # Add message to `gossipSub`'s message cache
+      let id = @[0'u8, 1, 2, 3]
+      gossipSub.mcache.put(id, Message())
+      peer.sentIHaves[^1].incl(id)
+      # Build an IWANT message that contains the same message ID three times
       let msg = ControlIWant(messageIDs: @[id, id, id])
+      # When a peer makes an IWANT request for the a message that `gossipSub` has
       let genmsg = gossipSub.handleIWant(peer, @[msg])
+      # Then `gossipSub` should return the message
       check:
         genmsg.len == 1
 
