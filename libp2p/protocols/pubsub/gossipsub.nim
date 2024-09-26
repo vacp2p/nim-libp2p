@@ -373,6 +373,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
+  g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
@@ -506,6 +507,17 @@ proc validateAndRelay(
     addToSendPeers(toSendPeers)
     # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
+
+    #We have received IMReceiving from these peers, We should not exclude them
+    #Ideally we should wait (TxTime + large safety cushion) before sending to these peers
+    var receivingPeers: HashSet[PubSubPeer]
+    for pr in toSendPeers:
+      for heIsReceiving in pr.heIsReceivings:
+        if msgId in heIsReceiving:
+          receivingPeers.incl(pr)
+          break
+    toSendPeers.excl(receivingPeers)
+    lma_imreceiving_saves.atomicInc(receivingPeers.len.uint32)
 
     proc isMsgInIdontWant(it: PubSubPeer): bool =
       for iDontWant in it.iDontWants:
