@@ -312,8 +312,6 @@ type
     salt: string
     defaultDT: Moment
     registerDeletionLoop: Future[void]
-    #registerEvent: AsyncEvent # TODO: to raise during the heartbeat
-    # + make the heartbeat sleep duration "smarter"
     sema: AsyncSemaphore
     peers: seq[PeerId]
     cookiesSaved: Table[PeerId, Table[string, seq[byte]]]
@@ -402,7 +400,6 @@ proc save(
       )
     )
     rdv.namespaces[nsSalted].add(rdv.registered.high)
-  #    rdv.registerEvent.fire()
   except KeyError:
     doAssert false, "Should have key"
 
@@ -708,7 +705,6 @@ proc new*(
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](1),
     defaultDT: Moment.now() - 1.days,
-    #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
     minDuration: minDuration,
     maxDuration: maxDuration,
