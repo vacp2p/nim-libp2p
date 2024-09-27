@@ -30,7 +30,7 @@ proc noop(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} 
 
 const MsgIdSuccess = "msg id gen success"
 
-suite "GossipSub internal2":
+suite "GossipSub Topic Membership Tests":
   teardown:
     checkTrackers()
 
@@ -61,7 +61,8 @@ suite "GossipSub internal2":
     gossipSub.PubSub.subscribe(
       topic,
       proc(topic: string, data: seq[byte]): Future[void] {.async.} =
-        discard,
+        discard
+      ,
     )
 
     check gossipSub.topics.contains(topic) # Check if the topic is in topics
@@ -96,7 +97,8 @@ suite "GossipSub internal2":
     gossipSub.PubSub.subscribe(
       topic,
       proc(topic: string, data: seq[byte]): Future[void] {.async.} =
-        discard,
+        discard
+      ,
     )
 
     # Now unsubscribe from the topic
@@ -128,7 +130,8 @@ suite "GossipSub internal2":
       gossipSub.PubSub.subscribe(
         topic,
         proc(topic: string, data: seq[byte]): Future[void] {.async.} =
-          discard,
+          discard
+        ,
       )
 
     # Verify that all topics are added to the topics and gossipsub
@@ -166,7 +169,8 @@ suite "GossipSub internal2":
         gossipSub.PubSub.subscribe(
           topic,
           proc(topic: string, data: seq[byte]): Future[void] {.async.} =
-            discard,
+            discard
+          ,
         )
       else:
         # Prevent subscription beyond the limit and log the error
