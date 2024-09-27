@@ -508,6 +508,11 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
 proc advertise*(
     rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
 ) {.async.} =
+  ## The advertise async procedure sends advertisements for a namespace
+  ## to a sequence of peers. It encodes and sends a signed peer record
+  ## along with a time-to-live value, validating the inputs. Advertisements
+  ## are sent concurrently to all specified peers.
+  ##
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
 
@@ -536,6 +541,10 @@ proc advertise*(
   await rdv.advertise(ns, ttl, rdv.peers)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
+  ## This procedure returns all the peers already registered on the
+  ## given namespace. This function is synchronous, no remote
+  ## request is done.
+  ##
   let
     nsSalted = ns & rdv.salt
     n = Moment.now()
@@ -552,6 +561,11 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
 proc request*(
     rdv: RendezVous, ns: string, l: int = DiscoverLimit.int, peers: seq[PeerId]
 ): Future[seq[PeerRecord]] {.async.} =
+  ## This async procedure request discovers peer records for a given namespace
+  ## by dialing peers, sending requests, and processing responses. It handles
+  ## response validation, cookie updates, and limits the number of peer records
+  ## retrieved based on the provided limit.
+  ##
   var
     s: Table[PeerId, (PeerRecord, Register)]
     limit: uint64
@@ -643,6 +657,11 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
     return
 
 proc unsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
+  ## The async unsubscribe procedure removes peers from a namespace by
+  ## sending an "Unregister" message to each peer. It validates the
+  ## namespace, dials the peers. The operation is bounded by a timeout
+  ## for unsubscribing from all peers.
+  ##
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
 
