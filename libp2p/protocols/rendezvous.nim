@@ -530,9 +530,9 @@ proc advertise*(
 
   await allFutures(futs)
 
-method advertise*(
+proc advertise*(
     rdv: RendezVous, ns: string, ttl: Duration = rdv.minDuration
-) {.async, base.} =
+) {.async.} =
   await rdv.advertise(ns, ttl, rdv.peers)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
