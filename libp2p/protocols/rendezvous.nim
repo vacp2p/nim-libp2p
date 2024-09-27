@@ -510,8 +510,8 @@ proc advertise*(
 ) {.async.} =
   ## The advertise async procedure sends advertisements for a namespace
   ## to a sequence of peers. It encodes and sends a signed peer record
-  ## along with a time-to-live value, validating the inputs. Advertisements
-  ## are sent concurrently to all specified peers.
+  ## along with a time-to-live value. Advertisements are sent
+  ## concurrently to all specified peers.
   ##
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
@@ -542,8 +542,7 @@ proc advertise*(
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   ## This procedure returns all the peers already registered on the
-  ## given namespace. This function is synchronous, no remote
-  ## request is done.
+  ## given namespace. This function is synchronous
   ##
   let
     nsSalted = ns & rdv.salt
@@ -561,10 +560,9 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
 proc request*(
     rdv: RendezVous, ns: string, l: int = DiscoverLimit.int, peers: seq[PeerId]
 ): Future[seq[PeerRecord]] {.async.} =
-  ## This async procedure request discovers peer records for a given namespace
-  ## by dialing peers, sending requests, and processing responses. It handles
-  ## response validation, cookie updates, and limits the number of peer records
-  ## retrieved based on the provided limit.
+  ## This async procedure request discovers and returns peers for
+  ## a given namespace by sending requests and processing responses.
+  ## It limits the number of peer records retrieved based on the provided limit.
   ##
   var
     s: Table[PeerId, (PeerRecord, Register)]
@@ -658,9 +656,8 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
 
 proc unsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
   ## The async unsubscribe procedure removes peers from a namespace by
-  ## sending an "Unregister" message to each peer. It validates the
-  ## namespace, dials the peers. The operation is bounded by a timeout
-  ## for unsubscribing from all peers.
+  ## sending an "Unregister" message to each connected peer. The operation
+  ## is bounded by a timeout for unsubscribing from all peers.
   ##
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
