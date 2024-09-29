@@ -293,6 +293,7 @@ proc handleIHave*(
         #look here for receieved idontwants for the same message
         var meshPeers: HashSet[PubSubPeer]
         g.mesh.withValue(ihave.topicID, peers): meshPeers.incl(peers[])
+        g.subscribedDirectPeers.withValue(ihave.topicID, peers): meshPeers.incl(peers[])
 
         for msgId in ihave.messageIDs:
           if not g.hasSeen(g.salt(msgId)):
@@ -307,7 +308,7 @@ proc handleIHave*(
                   if saltedID in heDontWant: 
                     numFinds = numFinds + 1
                     #break;
-              if numFinds <= 1:  #We currently wait for 2 IDontWants  
+              if numFinds == 0:  #We currently wait for 1 IDontWants  
                 res.messageIDs.add(msgId)
                 dec peer.iHaveBudget
                 trace "requested message via ihave", messageID = msgId
