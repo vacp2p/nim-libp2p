@@ -191,6 +191,8 @@ type
 
     heartbeatEvents*: seq[AsyncEvent]
 
+    iwantsRequested*: HashSet[MessageId]
+
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64
     otherPeersPerTopicFanout*: int64
