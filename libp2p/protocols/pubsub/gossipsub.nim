@@ -252,6 +252,7 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
+  g.iwantsRequested = initHashSet[MessageId]()
 
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):

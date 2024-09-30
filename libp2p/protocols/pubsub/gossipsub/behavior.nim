@@ -299,6 +299,8 @@ proc handleIHave*(
           if not g.hasSeen(g.salt(msgId)):
             if peer.iHaveBudget <= 0:
               break
+            elif msgId in g.iwantsRequested:
+              break
             elif msgId notin res.messageIDs:
               #dont send IWANT if we have received (N number of) IDontWant(s) for a msgID
               let saltedID = g.salt(msgId)
@@ -311,6 +313,7 @@ proc handleIHave*(
               if numFinds == 0:  #We currently wait for 1 IDontWants  
                 res.messageIDs.add(msgId)
                 dec peer.iHaveBudget
+                g.iwantsRequested.incl(msgId)
                 trace "requested message via ihave", messageID = msgId
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
