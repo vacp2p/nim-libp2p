@@ -1872,7 +1872,7 @@ suite "Gossipsub Parameters":
     )
 
     # Unsubscribe from the topic
-    nodes[1].unsubscribe(topic, handler)
+    nodes[1].unsubscribe(topic, voidTopicHandler)
 
     # Then verify what nodes receive the PX
     check:
@@ -1892,3 +1892,44 @@ suite "Gossipsub Parameters":
     )
 
     await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "GRAFT on direct peers are rejected":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      nodes = generateNodes(2, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+
+    # Connect them
+    await subscribeNodes(nodes)
+
+    # Set them as direct peers
+    await g0.addDirectPeer(n1.switch.peerInfo.peerId, n1.switch.peerInfo.addrs)
+    await g1.addDirectPeer(n0.switch.peerInfo.peerId, n0.switch.peerInfo.addrs)
+
+    # Get peers to check their behaviour penalty
+    let
+      p0 = g0.getOrCreatePeer(n1.switch.peerInfo.peerId, @[GossipSubCodec_12])
+      p1 = g1.getOrCreatePeer(n0.switch.peerInfo.peerId, @[GossipSubCodec_12])
+    check:
+      p0.behaviourPenalty == 0
+      p1.behaviourPenalty == 0
+
+    # When node 0 sends a GRAFT message to node 1
+    let controlMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+    g0.broadcast(@[p1], RPCMsg(control: some(controlMessage)), isHighPriority = true)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    echo p0.behaviourPenalty
+    # Then the peer should be penalized
+    check:
+      p0.behaviourPenalty >= 0.09 and p0.behaviourPenalty <= 0.1
+      p1.behaviourPenalty == 0
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+    await allFuturesThrowing(nodesFut)
