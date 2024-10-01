@@ -60,7 +60,7 @@ jobs:
 
     name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.branch }})'
     runs-on: ${{ matrix.platform.builder }}
-    continue-on-error: ${{ matrix.nim.branch == 'devel' || matrix.nim.branch == 'version-2-0' }}
+    # continue-on-error: ${{ matrix.nim.branch == 'devel' || matrix.nim.branch == 'version-2-0' }}
     # if: success() || failure() # Continue jobs even if previous jobs failed, but not if cancelled.
     steps:
       - name: Checkout
