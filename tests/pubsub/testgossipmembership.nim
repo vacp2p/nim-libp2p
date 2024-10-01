@@ -15,21 +15,17 @@ import ../../libp2p/builders
 import ../../libp2p/errors
 import ../../libp2p/crypto/crypto
 import ../../libp2p/stream/bufferstream
-import ../../libp2p/protocols/pubsub/[pubsub, gossipsub, mcache, mcache, peertable]
-import ../../libp2p/protocols/pubsub/rpc/[message, messages]
+import ../../libp2p/protocols/pubsub/[pubsub, gossipsub, mcache, peertable]
+import ../../libp2p/protocols/pubsub/rpc/[message, messages, protobuf]
 import ../../libp2p/switch
 import ../../libp2p/muxers/muxer
-import ../../libp2p/protocols/pubsub/rpc/protobuf
 import utils
 import chronos
-import unittest2, chronos, stew/byteutils, ../../libp2p/protocols/pubsub/gossipsub
+import unittest2
 import ../helpers
-
-import sequtils, options, tables, sets, sugar
-import chronos, chronicles # Added chronicles for logging (trace)
-import stew/byteutils
 import chronos/ratelimit
 import metrics
+import chronicles
 
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../helpers
