@@ -506,11 +506,11 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
   discard await advertiseWrap().withTimeout(5.seconds)
 
 proc advertise*(
-    rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
+    rdv: RendezVous, ns: string, ttl: Duration = rdv.minDuration, peers: seq[PeerId]
 ) {.async.} =
-  ## The advertise async procedure sends advertisements for a namespace
+  ## The advertise async procedure sends a registration for a namespace
   ## to a sequence of peers. It encodes and sends a signed peer record
-  ## along with a time-to-live value. Advertisements are sent
+  ## along with a time-to-live value. The registrations are sent
   ## concurrently to all specified peers.
   ##
   if ns.len notin 1 .. 255:
