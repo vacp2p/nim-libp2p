@@ -78,22 +78,37 @@ suite "GossipSub Topic Membership Tests":
     for topic in topics:
       gossipSub.PubSub.unsubscribeAll(topic)
 
-  # Simulate the `SUBSCRIBE` event and check proper handling in the mesh and gossipsub structures
-  asyncTest "handle SUBSCRIBE event":
+  # Simulate the `SUBSCRIBE` to the topic and check proper handling in the mesh and gossipsub structures
+  asyncTest "handle SUBSCRIBE to the topic and verify connection handling":
     let topic = "test-topic"
     let (gossipSub, conns) = setupGossipSub(topic, 5)
 
-    # Subscribe to the topic (ensure `@[topic]` is passed as a sequence)
+    # Subscribe to the topic
     subscribeToTopics(gossipSub, @[topic].toSeq()) # Pass topic as seq[string]
 
-    check gossipSub.topics.contains(topic) # Check if the topic is in topics
-    check gossipSub.gossipsub[topic].len() > 0 # Check if topic added to gossipsub
+    # Check if the topic is present in the list of subscribed topics
+    check gossipSub.topics.contains(topic)
 
+    # Check if the topic is added to gossipsub and the peers list is not empty
+    check gossipSub.gossipsub[topic].len() > 0
+
+    # Iterate over the peers and check connection handling
+    for peer in gossipSub.peers.values:
+      check peer.sendConn != nil
+      check not peer.sendConn.closed()
+
+    # Close all peer connections and verify that they are properly cleaned up
     await allFuturesThrowing(conns.mapIt(it.close()))
+
+    # Stop the gossipSub switch and wait for it to stop completely
     await gossipSub.switch.stop()
 
-  # Simulate an UNSUBSCRIBE event and check if the topic is removed from the relevant data structures but remains in gossipsub
-  asyncTest "handle UNSUBSCRIBE event":
+    # Verify that connections have been closed and cleaned up after shutdown
+    for peer in gossipSub.peers.values:
+      check peer.sendConn == nil or peer.sendConn.closed()
+
+  # Simulate an UNSUBSCRIBE to the topic and check if the topic is removed from the relevant data structures but remains in gossipsub
+  asyncTest "handle UNSUBSCRIBE to the topic":
     let topic = "test-topic"
     let (gossipSub, conns) = setupGossipSub(topic, 5)
 
@@ -113,7 +128,7 @@ suite "GossipSub Topic Membership Tests":
     await gossipSub.switch.stop()
 
   # Test subscribing and unsubscribing multiple topics
-  asyncTest "handle multiple SUBSCRIBE and UNSUBSCRIBE events":
+  asyncTest "handle SUBSCRIBE and UNSUBSCRIBE multiple topics":
     let topics = ["topic1", "topic2", "topic3"].toSeq()
     let (gossipSub, conns) = setupGossipSub(topics, 5) # Initialize all topics
 
