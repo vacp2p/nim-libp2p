@@ -83,20 +83,27 @@ suite "GossipSub Topic Membership Tests":
     let topic = "test-topic"
     let (gossipSub, conns) = setupGossipSub(topic, 5)
 
+    # Check if the topic is added to gossipsub and the peers list is not empty
+    check gossipSub.gossipsub[topic].len() > 0
+
     # Subscribe to the topic
     subscribeToTopics(gossipSub, @[topic])
 
     # Check if the topic is present in the list of subscribed topics
     check gossipSub.topics.contains(topic)
 
-    # Check if the topic is added to gossipsub and the peers list is not empty
-    check gossipSub.gossipsub[topic].len() > 0
-
     # Close all peer connections and verify that they are properly cleaned up
     await allFuturesThrowing(conns.mapIt(it.close()))
 
     # Stop the gossipSub switch and wait for it to stop completely
     await gossipSub.switch.stop()
+
+    # Verify that connections have been closed and cleaned up after shutdown
+    for peer in gossipSub.peers.values:
+      check peer.sendConn == nil or peer.sendConn.closed()
+
+    # Ensure that the topic is removed from the mesh after stopping
+    check gossipSub.mesh[topic].len() == 0
 
   # Simulate an UNSUBSCRIBE to the topic and check if the topic is removed from the relevant data structures but remains in gossipsub
   asyncTest "handle UNSUBSCRIBE to the topic":
