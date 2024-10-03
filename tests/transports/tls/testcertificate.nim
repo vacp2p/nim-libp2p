@@ -5,7 +5,6 @@ import ../../../libp2p/crypto/crypto
 import ../../../libp2p/peerid
 
 suite "Certificate Tests":
-
   test "sanity check":
     var rng = newRng()
 

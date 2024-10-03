@@ -36,9 +36,9 @@ const
   P2P_SIGNING_PREFIX = "libp2p-tls-handshake:"
   SIGNATURE_ALG = MBEDTLS_MD_SHA256
   EC_GROUP_ID = MBEDTLS_ECP_DP_SECP256R1
-  LIBP2P_EXT_OID_DER: array[10, byte] = [
-    0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0xA2, 0x5A, 0x01, 0x01
-  ]  # "1.3.6.1.4.1.53594.1.1"
+  LIBP2P_EXT_OID_DER: array[10, byte] =
+    [0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0xA2, 0x5A, 0x01, 0x01]
+    # "1.3.6.1.4.1.53594.1.1"
 
 # Exception types for TLS certificate errors
 type
@@ -64,7 +64,9 @@ proc ptrInc*(p: ptr byte, n: uint): ptr byte =
   ## Utility function to increment a pointer by n bytes.
   cast[ptr byte](cast[uint](p) + n)
 
-proc generateSignedKey(signature: seq[byte], pubKey: seq[byte]): seq[byte] {.raises: [ASN1EncodingError].} =
+proc generateSignedKey(
+    signature: seq[byte], pubKey: seq[byte]
+): seq[byte] {.raises: [ASN1EncodingError].} =
   ## Generates the ASN.1-encoded SignedKey structure.
   ##
   ## The SignedKey structure contains the public key and its signature,
@@ -79,8 +81,7 @@ proc generateSignedKey(signature: seq[byte], pubKey: seq[byte]): seq[byte] {.rai
   ##
   ## Raises:
   ## - `ASN1EncodingError` if ASN.1 encoding fails.
-  const
-    extValueSize = 256  # Buffer size for ASN.1 encoding
+  const extValueSize = 256 # Buffer size for ASN.1 encoding
   var
     extValue: array[extValueSize, byte]
     extPtr: ptr byte = addr extValue[extValueSize - 1] # Start at the end of the buffer
@@ -89,10 +90,7 @@ proc generateSignedKey(signature: seq[byte], pubKey: seq[byte]): seq[byte] {.rai
 
   # Write signature OCTET STRING
   let retSig = mbedtls_asn1_write_octet_string(
-    addr extPtr,
-    startPtr,
-    unsafeAddr signature[0],
-    signature.len.uint
+    addr extPtr, startPtr, unsafeAddr signature[0], signature.len.uint
   )
   if retSig < 0:
     raise newException(ASN1EncodingError, "Failed to write signature OCTET STRING")
@@ -100,10 +98,7 @@ proc generateSignedKey(signature: seq[byte], pubKey: seq[byte]): seq[byte] {.rai
 
   # Write publicKey OCTET STRING
   let retPub = mbedtls_asn1_write_octet_string(
-    addr extPtr,
-    startPtr,
-    unsafeAddr pubKey[0],
-    pubKey.len.uint
+    addr extPtr, startPtr, unsafeAddr pubKey[0], pubKey.len.uint
   )
   if retPub < 0:
     raise newException(ASN1EncodingError, "Failed to write publicKey OCTET STRING")
@@ -112,20 +107,14 @@ proc generateSignedKey(signature: seq[byte], pubKey: seq[byte]): seq[byte] {.rai
   # Total length of the SEQUENCE contents
   let contentLen = retSig + retPub
   # Write SEQUENCE length
-  let retLen = mbedtls_asn1_write_len(
-    addr extPtr,
-    startPtr,
-    contentLen.uint
-  )
+  let retLen = mbedtls_asn1_write_len(addr extPtr, startPtr, contentLen.uint)
   if retLen < 0:
     raise newException(ASN1EncodingError, "Failed to write SEQUENCE length")
   len += retLen
 
   # Write SEQUENCE tag
   let retTag = mbedtls_asn1_write_tag(
-    addr extPtr,
-    startPtr,
-    MBEDTLS_ASN1_CONSTRUCTED or MBEDTLS_ASN1_SEQUENCE
+    addr extPtr, startPtr, MBEDTLS_ASN1_CONSTRUCTED or MBEDTLS_ASN1_SEQUENCE
   )
   if retTag < 0:
     raise newException(ASN1EncodingError, "Failed to write SEQUENCE tag")
@@ -142,7 +131,12 @@ proc generateSignedKey(signature: seq[byte], pubKey: seq[byte]): seq[byte] {.rai
 
 proc makeLibp2pExtension(
     identityKeypair: KeyPair, certificateKeypair: mbedtls_pk_context
-): seq[byte] {.raises: [CertificateCreationError, IdentityPubKeySerializationError, IdentitySigningError, ASN1EncodingError, TLSCertificateError].} =
+): seq[byte] {.
+    raises: [
+      CertificateCreationError, IdentityPubKeySerializationError, IdentitySigningError,
+      ASN1EncodingError, TLSCertificateError,
+    ]
+.} =
   ## Creates the libp2p extension containing the SignedKey.
   ##
   ## The libp2p extension is an ASN.1-encoded structure that includes
@@ -167,16 +161,15 @@ proc makeLibp2pExtension(
     certPubKeyDerLen: cint
 
   certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
-    unsafeAddr certificateKeypair,
-    addr certPubKeyDer[0],
-    certPubKeyDer.len.uint
+    unsafeAddr certificateKeypair, addr certPubKeyDer[0], certPubKeyDer.len.uint
   )
   if certPubKeyDerLen < 0:
-    raise newException(CertificateCreationError, "Failed to write certificate public key in DER format")
+    raise newException(
+      CertificateCreationError, "Failed to write certificate public key in DER format"
+    )
 
   # Adjust pointer to the start of the data
-  let certPubKeyDerPtr =
-    addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
+  let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
 
   # Create the Message to Sign
   var msg = newSeq[byte](P2P_SIGNING_PREFIX.len + certPubKeyDerLen.int.int)
@@ -186,16 +179,12 @@ proc makeLibp2pExtension(
     msg[i] = byte(P2P_SIGNING_PREFIX[i])
 
   # Copy the public key DER into msg
-  copyMem(
-    addr msg[P2P_SIGNING_PREFIX.len],
-    certPubKeyDerPtr,
-    certPubKeyDerLen.int
-  )
+  copyMem(addr msg[P2P_SIGNING_PREFIX.len], certPubKeyDerPtr, certPubKeyDerLen.int)
 
   # Compute SHA-256 hash of the message
   var hash: array[32, byte]
   let hashRet = mbedtls_sha256(
-    msg[0].addr, msg.len.uint, addr hash[0], 0  # 0 for SHA-256
+    msg[0].addr, msg.len.uint, addr hash[0], 0 # 0 for SHA-256
   )
   if hashRet != 0:
     # Since hashing failure is critical and unlikely, we can raise a general exception
@@ -204,20 +193,30 @@ proc makeLibp2pExtension(
   # Sign the hash with the Identity Key
   let signatureResult = identityKeypair.seckey.sign(hash)
   if signatureResult.isErr:
-    raise newException(IdentitySigningError, "Failed to sign the hash with the identity key")
+    raise newException(
+      IdentitySigningError, "Failed to sign the hash with the identity key"
+    )
   let signature = signatureResult.get().data
 
   # Get the public key bytes
   let pubKeyBytesResult = identityKeypair.pubkey.getBytes()
   if pubKeyBytesResult.isErr:
-    raise newException(IdentityPubKeySerializationError, "Failed to get identity public key bytes")
+    raise newException(
+      IdentityPubKeySerializationError, "Failed to get identity public key bytes"
+    )
   let pubKeyBytes = pubKeyBytesResult.get()
 
   # Generate the SignedKey ASN.1 structure
   return generateSignedKey(signature, pubKeyBytes)
 
-proc generate*(identityKeyPair: KeyPair): (seq[byte], seq[byte])
-  {.raises: [KeyGenerationError, CertificateCreationError, ASN1EncodingError, IdentityPubKeySerializationError, IdentitySigningError, TLSCertificateError].} =
+proc generate*(
+    identityKeyPair: KeyPair
+): (seq[byte], seq[byte]) {.
+    raises: [
+      KeyGenerationError, CertificateCreationError, ASN1EncodingError,
+      IdentityPubKeySerializationError, IdentitySigningError, TLSCertificateError,
+    ]
+.} =
   ## Generates a self-signed X.509 certificate with the libp2p extension.
   ##
   ## Parameters:
@@ -258,29 +257,26 @@ proc generate*(identityKeyPair: KeyPair): (seq[byte], seq[byte])
     mbedtls_entropy_func,
     addr entropy,
     cast[ptr byte](personalization.cstring),
-    personalization.len.uint
+    personalization.len.uint,
   )
   if ret != 0:
     raise newException(KeyGenerationError, "Failed to seed CTR_DRBG")
 
   # Initialize certificate key
-  ret = mbedtls_pk_setup(
-    addr certKey,
-    mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)
-  )
+  ret = mbedtls_pk_setup(addr certKey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
   if ret != 0:
     raise newException(KeyGenerationError, "Failed to set up certificate key context")
 
   # Generate key pair for the certificate
-  let G = try:
-    mb_pk_ec(certKey)
-  except MbedTLSError as e:
-    raise newException(KeyGenerationError, e.msg)
-  ret = mbedtls_ecp_gen_key(
-    EC_GROUP_ID, G, mbedtls_ctr_drbg_random, addr ctrDrbg
-  )
+  let G =
+    try:
+      mb_pk_ec(certKey)
+    except MbedTLSError as e:
+      raise newException(KeyGenerationError, e.msg)
+  ret = mbedtls_ecp_gen_key(EC_GROUP_ID, G, mbedtls_ctr_drbg_random, addr ctrDrbg)
   if ret != 0:
-    raise newException(KeyGenerationError, "Failed to generate EC key pair for certificate")
+    raise
+      newException(KeyGenerationError, "Failed to generate EC key pair for certificate")
 
   ## Initialize libp2p extension
   let libp2pExtension = makeLibp2pExtension(identityKeyPair, certKey)
@@ -297,15 +293,16 @@ proc generate*(identityKeyPair: KeyPair): (seq[byte], seq[byte])
   # Set Validity Period
   let notBefore = "19750101000000"
   let notAfter = "40960101000000"
-  ret = mbedtls_x509write_crt_set_validity(
-    addr crt, notBefore.cstring, notAfter.cstring
-  )
+  ret =
+    mbedtls_x509write_crt_set_validity(addr crt, notBefore.cstring, notAfter.cstring)
   if ret != 0:
-    raise newException(CertificateCreationError, "Failed to set certificate validity period")
+    raise newException(
+      CertificateCreationError, "Failed to set certificate validity period"
+    )
 
   # Assign the Public Key to the Certificate
   mbedtls_x509write_crt_set_subject_key(addr crt, addr certKey)
-  mbedtls_x509write_crt_set_issuer_key(addr crt, addr certKey)  # Self-signed
+  mbedtls_x509write_crt_set_issuer_key(addr crt, addr certKey) # Self-signed
 
   # Add the libp2p Extension
   let oid = string.fromBytes(LIBP2P_EXT_OID_DER)
@@ -318,7 +315,9 @@ proc generate*(identityKeyPair: KeyPair): (seq[byte], seq[byte])
     libp2pExtension.len.uint, # Extension data length
   )
   if ret != 0:
-    raise newException(CertificateCreationError, "Failed to set libp2p extension in certificate")
+    raise newException(
+      CertificateCreationError, "Failed to set libp2p extension in certificate"
+    )
 
   # Set Basic Constraints (optional, e.g., CA:FALSE)
   ret = mbedtls_x509write_crt_set_basic_constraints(
@@ -351,15 +350,16 @@ proc generate*(identityKeyPair: KeyPair): (seq[byte], seq[byte])
     addr certBuffer[0],
     CERT_BUFFER_SIZE.uint,
     mbedtls_ctr_drbg_random,
-    addr ctrDrbg
+    addr ctrDrbg,
   )
   if certLen < 0:
-    raise newException(CertificateCreationError, "Failed to write certificate in DER format")
+    raise newException(
+      CertificateCreationError, "Failed to write certificate in DER format"
+    )
 
   # Adjust the buffer to contain only the DER data
-  let certificateDer = toSeq(certBuffer[
-    (CERT_BUFFER_SIZE - certLen) ..< CERT_BUFFER_SIZE
-  ])
+  let certificateDer =
+    toSeq(certBuffer[(CERT_BUFFER_SIZE - certLen) ..< CERT_BUFFER_SIZE])
 
   # Serialize the Private Key in DER Format (PKCS#8)
   var
@@ -370,21 +370,25 @@ proc generate*(identityKeyPair: KeyPair): (seq[byte], seq[byte])
     addr certKey, addr privKeyBuffer[0], privKeyBuffer.len.uint
   )
   if privKeyLen < 0:
-    raise newException(CertificateCreationError, "Failed to write private key in DER format")
+    raise newException(
+      CertificateCreationError, "Failed to write private key in DER format"
+    )
 
   # Adjust the buffer to contain only the DER data
-  let privateKeyDer = toSeq(privKeyBuffer[
-    (privKeyBuffer.len - privKeyLen) ..< privKeyBuffer.len
-  ])
+  let privateKeyDer =
+    toSeq(privKeyBuffer[(privKeyBuffer.len - privKeyLen) ..< privKeyBuffer.len])
 
   # Return the Serialized Certificate and Private Key
   return (certificateDer, privateKeyDer)
 
 proc libp2pext(
-    p_ctx: pointer; crt: ptr mbedtls_x509_crt;
-    oid: ptr mbedtls_x509_buf; critical: cint;
-    p: ptr byte; endPtr: ptr byte
-  ): cint {.cdecl.} =
+    p_ctx: pointer,
+    crt: ptr mbedtls_x509_crt,
+    oid: ptr mbedtls_x509_buf,
+    critical: cint,
+    p: ptr byte,
+    endPtr: ptr byte,
+): cint {.cdecl.} =
   ## Callback function to parse the libp2p extension.
   ##
   ## This function is used as a callback by mbedtls during certificate parsing
@@ -403,27 +407,26 @@ proc libp2pext(
 
   # Check if the OID matches the libp2p extension
   if oid.len != LIBP2P_EXT_OID_DER.len:
-    return MBEDTLS_ERR_OID_NOT_FOUND  # Extension not handled by this callback
+    return MBEDTLS_ERR_OID_NOT_FOUND # Extension not handled by this callback
   for i in 0 ..< LIBP2P_EXT_OID_DER.len:
     if ptrInc(oid.p, i.uint)[] != LIBP2P_EXT_OID_DER[i]:
-      return MBEDTLS_ERR_OID_NOT_FOUND  # Extension not handled by this callback
+      return MBEDTLS_ERR_OID_NOT_FOUND # Extension not handled by this callback
 
   var parsePtr = p
 
   # Parse SEQUENCE tag and length
   var len: uint
   if mbedtls_asn1_get_tag(
-      addr parsePtr, endPtr, addr len,
-      MBEDTLS_ASN1_CONSTRUCTED or MBEDTLS_ASN1_SEQUENCE
-    ) != 0:
+    addr parsePtr, endPtr, addr len, MBEDTLS_ASN1_CONSTRUCTED or MBEDTLS_ASN1_SEQUENCE
+  ) != 0:
     debug "Failed to parse SEQUENCE in libp2p extension"
     return MBEDTLS_ERR_ASN1_UNEXPECTED_TAG
 
   # Parse publicKey OCTET STRING
   var pubKeyLen: uint
   if mbedtls_asn1_get_tag(
-      addr parsePtr, endPtr, addr pubKeyLen, MBEDTLS_ASN1_OCTET_STRING
-    ) != 0:
+    addr parsePtr, endPtr, addr pubKeyLen, MBEDTLS_ASN1_OCTET_STRING
+  ) != 0:
     debug "Failed to parse publicKey OCTET STRING in libp2p extension"
     return MBEDTLS_ERR_ASN1_UNEXPECTED_TAG
 
@@ -432,12 +435,11 @@ proc libp2pext(
   copyMem(addr publicKey[0], parsePtr, int(pubKeyLen))
   parsePtr = ptrInc(parsePtr, pubKeyLen)
 
-
   # Parse signature OCTET STRING
   var signatureLen: uint
   if mbedtls_asn1_get_tag(
-      addr parsePtr, endPtr, addr signatureLen, MBEDTLS_ASN1_OCTET_STRING
-    ) != 0:
+    addr parsePtr, endPtr, addr signatureLen, MBEDTLS_ASN1_OCTET_STRING
+  ) != 0:
     debug "Failed to parse signature OCTET STRING in libp2p extension"
     return MBEDTLS_ERR_ASN1_UNEXPECTED_TAG
 
@@ -450,9 +452,11 @@ proc libp2pext(
   extension[].publicKey = publicKey
   extension[].signature = signature
 
-  return 0  # Success
+  return 0 # Success
 
-proc parse*(certificateDer: seq[byte]): P2pCertificate {.raises: [CertificateParsingError].} =
+proc parse*(
+    certificateDer: seq[byte]
+): P2pCertificate {.raises: [CertificateParsingError].} =
   ## Parses a DER-encoded certificate and extracts the P2pCertificate.
   ##
   ## Parameters:
@@ -475,9 +479,11 @@ proc parse*(certificateDer: seq[byte]): P2pCertificate {.raises: [CertificatePar
     certificateDer.len.uint,
     0,
     libp2pext,
-    addr extension
+    addr extension,
   )
   if ret != 0:
-    raise newException(CertificateParsingError, "Failed to parse certificate, error code: " & $ret)
+    raise newException(
+      CertificateParsingError, "Failed to parse certificate, error code: " & $ret
+    )
 
   return P2pCertificate(certificate: crt, extension: extension)
