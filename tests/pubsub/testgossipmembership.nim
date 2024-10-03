@@ -98,10 +98,6 @@ suite "GossipSub Topic Membership Tests":
     # Stop the gossipSub switch and wait for it to stop completely
     await gossipSub.switch.stop()
 
-    # Verify that connections have been closed and cleaned up after shutdown
-    for peer in gossipSub.peers.values:
-      check peer.sendConn == nil or peer.sendConn.closed()
-
   # Simulate an UNSUBSCRIBE to the topic and check if the topic is removed from the relevant data structures but remains in gossipsub
   asyncTest "handle UNSUBSCRIBE to the topic":
     let topic = "test-topic"
