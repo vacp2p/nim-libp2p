@@ -558,7 +558,7 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
     @[]
 
 proc request*(
-    rdv: RendezVous, ns: string, limit: uint64 = DiscoverLimit, peers: seq[PeerId]
+    rdv: RendezVous, ns: string, peerLimit: uint64 = DiscoverLimit, peers: seq[PeerId]
 ): Future[seq[PeerRecord]] {.async.} =
   ## This async procedure discovers and returns peers for a given namespace
   ## by sending requests and processing responses. It limits the number of
@@ -566,6 +566,7 @@ proc request*(
   ##
   var
     s: Table[PeerId, (PeerRecord, Register)]
+    limit = peerLimit
     d = Discover(ns: ns)
 
   if limit > DiscoverLimit:
