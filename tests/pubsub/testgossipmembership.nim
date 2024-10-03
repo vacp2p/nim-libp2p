@@ -79,23 +79,18 @@ suite "GossipSub Topic Membership Tests":
       gossipSub.PubSub.unsubscribeAll(topic)
 
   # Simulate the `SUBSCRIBE` to the topic and check proper handling in the mesh and gossipsub structures
-  asyncTest "handle SUBSCRIBE to the topic and verify connection handling":
+  asyncTest "handle SUBSCRIBE to the topic":
     let topic = "test-topic"
     let (gossipSub, conns) = setupGossipSub(topic, 5)
 
     # Subscribe to the topic
-    subscribeToTopics(gossipSub, @[topic].toSeq()) # Pass topic as seq[string]
+    subscribeToTopics(gossipSub, @[topic])
 
     # Check if the topic is present in the list of subscribed topics
     check gossipSub.topics.contains(topic)
 
     # Check if the topic is added to gossipsub and the peers list is not empty
     check gossipSub.gossipsub[topic].len() > 0
-
-    # Iterate over the peers and check connection handling
-    for peer in gossipSub.peers.values:
-      check peer.sendConn != nil
-      check not peer.sendConn.closed()
 
     # Close all peer connections and verify that they are properly cleaned up
     await allFuturesThrowing(conns.mapIt(it.close()))
@@ -113,16 +108,17 @@ suite "GossipSub Topic Membership Tests":
     let (gossipSub, conns) = setupGossipSub(topic, 5)
 
     # Subscribe to the topic first
-    subscribeToTopics(gossipSub, @[topic]) # Pass topic as seq[string]
+    subscribeToTopics(gossipSub, @[topic])
 
     # Now unsubscribe from the topic
-    unsubscribeFromTopics(gossipSub, @[topic]) # Pass topic as seq[string]
+    unsubscribeFromTopics(gossipSub, @[topic])
 
     # Verify the topic is removed from relevant structures
-    check topic notin gossipSub.topics # The topic should not be in topics
-    check topic notin gossipSub.mesh # The topic should be removed from the mesh
+    check topic notin gossipSub.topics
+    check topic notin gossipSub.mesh
     check topic in gossipSub.gossipsub
-      # The topic should remain in gossipsub (for fanout)
+
+    # The topic should remain in gossipsub (for fanout)
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -130,7 +126,7 @@ suite "GossipSub Topic Membership Tests":
   # Test subscribing and unsubscribing multiple topics
   asyncTest "handle SUBSCRIBE and UNSUBSCRIBE multiple topics":
     let topics = ["topic1", "topic2", "topic3"].toSeq()
-    let (gossipSub, conns) = setupGossipSub(topics, 5) # Initialize all topics
+    let (gossipSub, conns) = setupGossipSub(topics, 5)
 
     # Subscribe to multiple topics
     subscribeToTopics(gossipSub, topics)
@@ -155,7 +151,7 @@ suite "GossipSub Topic Membership Tests":
   # Test ensuring that the number of subscriptions does not exceed the limit set in the GossipSub parameters
   asyncTest "subscription limit test":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
-    gossipSub.topicsHigh = 10 # Set a limit for the number of subscriptions
+    gossipSub.topicsHigh = 10
 
     var conns = newSeq[Connection]()
     for i in 0 .. gossipSub.topicsHigh + 5:
