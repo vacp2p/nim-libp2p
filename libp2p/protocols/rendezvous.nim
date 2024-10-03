@@ -568,7 +568,7 @@ proc request*(
     s: Table[PeerId, (PeerRecord, Register)]
     d = Discover(ns: ns)
 
-  if limit > DiscoverLimit.int:
+  if limit > DiscoverLimit:
     raise newException(RendezVousError, "Invalid limit")
   if ns.len notin 0 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
