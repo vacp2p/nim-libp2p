@@ -542,7 +542,7 @@ proc advertise*(
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   ## This procedure returns all the peers already registered on the
-  ## given namespace. This function is synchronous
+  ## given namespace.
   ##
   let
     nsSalted = ns & rdv.salt
@@ -558,22 +558,22 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
     @[]
 
 proc request*(
-    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int, peers: seq[PeerId]
+    rdv: RendezVous, ns: string, limit: int = DiscoverLimit.int, peers: seq[PeerId]
 ): Future[seq[PeerRecord]] {.async.} =
-  ## This async procedure request discovers and returns peers for
-  ## a given namespace by sending requests and processing responses.
-  ## It limits the number of peer records retrieved based on the provided limit.
+  ## This async procedure discovers and returns peers for a given namespace
+  ## by sending requests and processing responses. It limits the number of
+  ## peer records retrieved based on the provided limit.
   ##
   var
     s: Table[PeerId, (PeerRecord, Register)]
     limit: uint64
     d = Discover(ns: ns)
 
-  if l <= 0 or l > DiscoverLimit.int:
+  if limit <= 0 or limit > DiscoverLimit.int:
     raise newException(RendezVousError, "Invalid limit")
   if ns.len notin 0 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
-  limit = l.uint64
+  limit = limit.uint64
   proc requestPeer(peer: PeerId) {.async.} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
     defer:
@@ -641,9 +641,9 @@ proc request*(
   return toSeq(s.values()).mapIt(it[0])
 
 proc request*(
-    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int
+    rdv: RendezVous, ns: string, limit: int = DiscoverLimit.int
 ): Future[seq[PeerRecord]] {.async.} =
-  await rdv.request(ns, l, rdv.peers)
+  await rdv.request(ns, limit, rdv.peers)
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
