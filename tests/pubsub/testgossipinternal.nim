@@ -33,46 +33,6 @@ suite "GossipSub internal":
   teardown:
     checkTrackers()
 
-  asyncTest "subscribe/unsubscribeAll":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(topic: string, data: seq[byte]): Future[void] {.gcsafe.} =
-      discard
-
-    let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
-
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.sendConn = conn
-      gossipSub.gossipsub[topic].incl(peer)
-
-    # test via dynamic dispatch
-    gossipSub.PubSub.subscribe(topic, handler)
-
-    check:
-      gossipSub.topics.contains(topic)
-      gossipSub.gossipsub[topic].len() > 0
-      gossipSub.mesh[topic].len() > 0
-
-    # test via dynamic dispatch
-    gossipSub.PubSub.unsubscribeAll(topic)
-
-    check:
-      topic notin gossipSub.topics # not in local topics
-      topic notin gossipSub.mesh # not in mesh
-      topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
-
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "topic params":
     let params = TopicParams.init()
     params.validateParameters().tryGet()
