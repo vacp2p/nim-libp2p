@@ -66,7 +66,7 @@ suite "GossipSub Topic Membership Tests":
   # Helper function to subscribe to topics
   proc subscribeToTopics(gossipSub: TestGossipSub, topics: seq[string]) =
     for topic in topics:
-      gossipSub.PubSub.subscribe(
+      gossipSub.subscribe(
         topic,
         proc(topic: string, data: seq[byte]): Future[void] {.async.} =
           discard
@@ -114,7 +114,7 @@ suite "GossipSub Topic Membership Tests":
     check topic notin gossipSub.mesh
     check topic in gossipSub.gossipsub
 
-    # The topic should remain in gossipsub (for fanout)
+    # The topic should remain in gossipsub
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -209,6 +209,39 @@ suite "GossipSub Topic Membership Tests":
     # Check that peers are removed from the mesh but the topic remains in gossipsub
     check topic notin gossipSub.mesh
     check topic in gossipSub.gossipsub
+
+    # Clean up by closing connections and stopping the gossipSub switch
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
+
+  # Test the behavior when multiple peers join and leave a topic simultaneously.
+  asyncTest "multiple peers join and leave topic simultaneously":
+    let topic = "test-multi-join-leave"
+
+    # Initialize the GossipSub system and simulate peer connections for 6 peers
+    let (gossipSub, conns) = setupGossipSub(@[topic], 6)
+
+    # Ensure the topic is correctly initialized in mesh and gossipsub
+    doAssert gossipSub.mesh.contains(topic), "Topic not found in mesh"
+    doAssert gossipSub.gossipsub.contains(topic), "Topic not found in gossipsub"
+
+    # Simulate 6 peers joining the topic
+    subscribeToTopics(gossipSub, @[topic])
+
+    # Check that 6 peers have joined the mesh
+    check gossipSub.mesh[topic].len == 6 # Mesh should have 6 peers
+
+    # Simulate 3 peers leaving the topic by unsubscribing them
+    var peersToUnsubscribe = gossipSub.mesh[topic].toSeq()[0 .. 2]
+      # Select the first 3 peers to unsubscribe
+    for peer in peersToUnsubscribe:
+      gossipSub.PubSub.unsubscribeAll(topic) # Unsubscribing from the topic
+
+    # Validate that 3 peers are still subscribed and 3 peers have been unsubscribed
+    check gossipSub.mesh[topic].len == 3 # Ensure 3 peers are still subscribed
+    for peer in peersToUnsubscribe:
+      check not gossipSub.mesh[topic].contains(peer)
+        # Ensure the first 3 peers are unsubscribed
 
     # Clean up by closing connections and stopping the gossipSub switch
     await allFuturesThrowing(conns.mapIt(it.close()))
