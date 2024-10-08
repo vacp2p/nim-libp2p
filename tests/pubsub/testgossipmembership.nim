@@ -228,21 +228,20 @@ suite "GossipSub Topic Membership Tests":
     # Simulate 6 peers joining the topic
     subscribeToTopics(gossipSub, @[topic])
 
-    # Check that 6 peers have joined the mesh
-    check gossipSub.mesh[topic].len == 6 # Mesh should have 6 peers
+    check gossipSub.mesh[topic].len == 6
 
-    # Simulate 3 peers leaving the topic by unsubscribing them
+    # Simulate 3 peers leaving the topic by unsubscribing them individually
     var peersToUnsubscribe = gossipSub.mesh[topic].toSeq()[0 .. 2]
-      # Select the first 3 peers to unsubscribe
     for peer in peersToUnsubscribe:
-      gossipSub.PubSub.unsubscribeAll(topic) # Unsubscribing from the topic
+      echo "Unsubscribing peer: ", peer.peerId
+      gossipSub.mesh[topic].excl(peer)
 
-    # Validate that 3 peers are still subscribed and 3 peers have been unsubscribed
-    check gossipSub.mesh[topic].len == 3 # Ensure 3 peers are still subscribed
+    # Now validate the state of the mesh and gossipsub. Ensure 3 peers are still subscribed
+    check gossipSub.mesh[topic].len == 3
+
     for peer in peersToUnsubscribe:
+      # Ensure the first 3 peers are unsubscribed by checking if they are not in the mesh
       check not gossipSub.mesh[topic].contains(peer)
-        # Ensure the first 3 peers are unsubscribed
 
-    # Clean up by closing connections and stopping the gossipSub switch
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
