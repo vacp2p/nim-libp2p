@@ -18,7 +18,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Free Disk Space
-        # For some reason the original job (libp2p/test-plans) has enough disk space, but this one doesn't.
+        # For some reason we have space issues while running this action. Likely while building the image.
+        # This action will free up some space to avoid the issue.
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: true
@@ -42,7 +43,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Free Disk Space
-        # For some reason the original job (libp2p/test-plans) has enough disk space, but this one doesn't.
+        # For some reason we have space issues while running this action. Likely while building the image.
+        # This action will free up some space to avoid the issue.
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: true
