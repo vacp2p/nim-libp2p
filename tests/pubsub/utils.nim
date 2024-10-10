@@ -6,6 +6,7 @@ const
 
 import hashes, random, tables, sets, sequtils
 import chronos, stew/[byteutils, results], chronos/ratelimit
+import std/options
 import
   ../../libp2p/[
     builders,
@@ -24,7 +25,15 @@ export builders
 
 randomize()
 
-type TestGossipSub* = ref object of GossipSub
+type
+  TestGossipSub* = ref object of GossipSub
+  DValues* = object
+    d*: Option[int]
+    dLow*: Option[int]
+    dHigh*: Option[int]
+    dScore*: Option[int]
+    dOut*: Option[int]
+    dLazy*: Option[int]
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] =
@@ -71,6 +80,9 @@ proc generateNodes*(
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
+    floodPublish: bool = false,
+    dValues: Option[DValues] = DValues.none(),
+    gossipFactor: Option[float] = float.none(),
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -88,12 +100,37 @@ proc generateNodes*(
           maxMessageSize = maxMessageSize,
           parameters = (
             var p = GossipSubParams.init()
-            p.floodPublish = false
+            p.floodPublish = floodPublish
             p.historyLength = 20
             p.historyGossip = 20
             p.unsubscribeBackoff = unsubscribeBackoff
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
+
+            if gossipFactor.isSome:
+              p.gossipFactor = gossipFactor.get
+
+            if dValues.isSome:
+              let dValuesSome = dValues.get
+
+              if dValuesSome.d.isSome:
+                p.d = dValuesSome.d.get
+
+              if dValuesSome.dLow.isSome:
+                p.dLow = dValuesSome.dLow.get
+
+              if dValuesSome.dHigh.isSome:
+                p.dHigh = dValuesSome.dHigh.get
+
+              if dValuesSome.dScore.isSome:
+                p.dScore = dValuesSome.dScore.get
+
+              if dValuesSome.dOut.isSome:
+                p.dOut = dValuesSome.dOut.get
+
+              if dValuesSome.dLazy.isSome:
+                p.dLazy = dValuesSome.dLazy.get
+
             p
           ),
         )
@@ -146,6 +183,12 @@ proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
         if dialer.peerInfo.peerId != node.peerInfo.peerId:
           await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
           dialed.add(node.peerInfo.peerId)
+
+proc activeWait(
+    interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
+) {.async.} =
+  await sleepAsync(interval)
+  doAssert Moment.now() < maximum, timeoutErrorMessage
 
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
@@ -201,3 +244,18 @@ proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
 
     await sleepAsync(5.milliseconds)
     doAssert Moment.now() < timeout, "waitSubGraph timeout!"
+
+proc waitForMesh*(
+    sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
+) {.async.} =
+  if sender == receiver:
+    return
+
+  let
+    timeoutMoment = Moment.now() + timeoutDuration
+    gossipsubSender = GossipSub(sender)
+    receiverPeerId = receiver.peerInfo.peerId
+
+  while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
+    trace "waitForMesh sleeping..."
+    await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
