@@ -237,7 +237,7 @@ suite "GossipSub Topic Membership Tests":
     var peersToUnsubscribe = gossipSub.mesh[topic].toSeq()[0 .. 2]
     for peer in peersToUnsubscribe:
       echo "Unsubscribing peer: ", peer.peerId
-      gossipSub.PubSub.unsubscribe(topic, dummyHandler)
+      gossipSub.unsubscribe(topic, dummyHandler)
 
     # Now assert that 6 peers still remain in the mesh because the mesh retains peers
     doAssert gossipSub.mesh[topic].len == 6,
