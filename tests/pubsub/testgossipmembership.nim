@@ -114,7 +114,7 @@ suite "GossipSub Topic Membership Tests":
     check topic notin gossipSub.mesh
     check topic in gossipSub.gossipsub
 
-    # The topic should remain in gossipsub (for fanout)
+    # The topic should remain in gossipsub
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
@@ -171,6 +171,82 @@ suite "GossipSub Topic Membership Tests":
     # Ensure that the number of subscribed topics does not exceed the limit
     doAssert gossipSub.topics.len <= gossipSub.topicsHigh
     doAssert gossipSub.topics.len == gossipSub.topicsHigh
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
+
+  # Test for verifying peers joining a topic using `JOIN(topic)`
+  asyncTest "handle JOIN topic and mesh is updated":
+    let topic = "test-join-topic"
+
+    # Initialize the GossipSub system and simulate peer connections
+    let (gossipSub, conns) = setupGossipSub(topic, 5)
+
+    # Simulate peer joining the topic
+    subscribeToTopics(gossipSub, @[topic])
+
+    # Check that peers are added to the mesh and the topic is tracked
+    check gossipSub.mesh[topic].len == 5
+    check gossipSub.topics.contains(topic)
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
+
+  # Test for verifying peers leaving a topic using `LEAVE(topic)`
+  asyncTest "handle LEAVE topic and mesh is updated":
+    let topic = "test-leave-topic"
+
+    # Initialize the GossipSub system and simulate peer connections
+    let (gossipSub, conns) = setupGossipSub(topic, 5)
+
+    # Simulate peer joining the topic first
+    subscribeToTopics(gossipSub, @[topic])
+
+    # Now simulate peer leaving the topic
+    unsubscribeFromTopics(gossipSub, @[topic])
+
+    # Check that peers are removed from the mesh but the topic remains in gossipsub
+    check topic notin gossipSub.mesh
+    check topic in gossipSub.gossipsub
+
+    await allFuturesThrowing(conns.mapIt(it.close()))
+    await gossipSub.switch.stop()
+
+  # Test the behavior when multiple peers join and leave a topic simultaneously.
+  asyncTest "multiple peers join and leave topic simultaneously":
+    let topic = "test-multi-join-leave"
+
+    # Initialize the GossipSub system and simulate peer connections for 6 peers
+    let (gossipSub, conns) = setupGossipSub(@[topic], 6)
+
+    # Ensure the topic is correctly initialized in mesh and gossipsub
+    doAssert gossipSub.mesh.contains(topic), "Topic not found in mesh"
+    doAssert gossipSub.gossipsub.contains(topic), "Topic not found in gossipsub"
+
+    # Simulate 6 peers joining the topic
+    subscribeToTopics(gossipSub, @[topic])
+
+    # Assert that 6 peers have joined the mesh
+    doAssert gossipSub.mesh[topic].len == 6, "Expected 6 peers to join the mesh"
+
+    # Define a simple handler for unsubscribing the peers
+    proc dummyHandler(topic: string, data: seq[byte]): Future[void] {.async.} =
+      discard
+
+    # Simulate 3 peers leaving the topic by unsubscribing them
+    var peersToUnsubscribe = gossipSub.mesh[topic].toSeq()[0 .. 2]
+    for peer in peersToUnsubscribe:
+      echo "Unsubscribing peer: ", peer.peerId
+      gossipSub.unsubscribe(topic, dummyHandler)
+
+    # Now assert that 6 peers still remain in the mesh because the mesh retains peers
+    doAssert gossipSub.mesh[topic].len == 6,
+      "Expected 6 peers to still be in mesh after unsubscription"
+
+    # Assert that unsubscribed peers should remain in the mesh but should no longer receive messages
+    for peer in peersToUnsubscribe:
+      doAssert gossipSub.mesh[topic].contains(peer),
+        "Peer should still be in mesh even after unsubscription"
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
