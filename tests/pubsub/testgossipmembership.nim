@@ -66,7 +66,7 @@ suite "GossipSub Topic Membership Tests":
   # Helper function to subscribe to topics
   proc subscribeToTopics(gossipSub: TestGossipSub, topics: seq[string]) =
     for topic in topics:
-      gossipSub.PubSub.subscribe(
+      gossipSub.subscribe(
         topic,
         proc(topic: string, data: seq[byte]): Future[void] {.async.} =
           discard
@@ -76,7 +76,7 @@ suite "GossipSub Topic Membership Tests":
   # Helper function to unsubscribe to topics
   proc unsubscribeFromTopics(gossipSub: TestGossipSub, topics: seq[string]) =
     for topic in topics:
-      gossipSub.PubSub.unsubscribeAll(topic)
+      gossipSub.unsubscribeAll(topic)
 
   # Simulate the `SUBSCRIBE` to the topic and check proper handling in the mesh and gossipsub structures
   asyncTest "handle SUBSCRIBE to the topic":
@@ -90,7 +90,7 @@ suite "GossipSub Topic Membership Tests":
     check gossipSub.topics.contains(topic)
 
     # Check if the topic is added to gossipsub and the peers list is not empty
-    check gossipSub.gossipsub[topic].len() > 0
+    check gossipSub.gossipsub[topic].len() == 5
 
     # Close all peer connections and verify that they are properly cleaned up
     await allFuturesThrowing(conns.mapIt(it.close()))
@@ -130,7 +130,7 @@ suite "GossipSub Topic Membership Tests":
     # Verify that all topics are added to the topics and gossipsub
     check gossipSub.topics.len == 3
     for topic in topics:
-      check gossipSub.gossipsub[topic].len() >= 0
+      check gossipSub.gossipsub[topic].len() == 5
 
     # Unsubscribe from all topics
     unsubscribeFromTopics(gossipSub, topics)
@@ -146,17 +146,16 @@ suite "GossipSub Topic Membership Tests":
 
   # Test ensuring that the number of subscriptions does not exceed the limit set in the GossipSub parameters
   asyncTest "subscription limit test":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-    gossipSub.topicsHigh = 10
+    let topicCount = 15 # Total number of topics to be tested
+    let gossipSubParams = 10 # Subscription limit for the topics
+    let topicNames = toSeq(mapIt(0 .. topicCount - 1, "topic" & $it))
 
-    var conns = newSeq[Connection]()
-    for i in 0 .. gossipSub.topicsHigh + 5:
-      let topic = "topic" & $i
-      # Ensure all topics are properly initialized before subscribing
-      gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-      gossipSub.topicParams[topic] = TopicParams.init()
-      gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    # Use setupGossipSub to initialize the GossipSub system with connections
+    let (gossipSub, conns) = setupGossipSub(topicNames, 0) # No peers for now
 
+    gossipSub.topicsHigh = gossipSubParams # Set the subscription limit
+
+    for topic in topicNames:
       if gossipSub.topics.len < gossipSub.topicsHigh:
         gossipSub.PubSub.subscribe(
           topic,
@@ -165,12 +164,14 @@ suite "GossipSub Topic Membership Tests":
           ,
         )
       else:
-        # Prevent subscription beyond the limit and log the error
-        echo "Subscription limit reached for topic: ", topic
+        # Assert that no subscription happens beyond the limit with custom message
+        doAssert gossipSub.topics.len == gossipSub.topicsHigh,
+          "Subscription limit exceeded for topic: " & topic
 
     # Ensure that the number of subscribed topics does not exceed the limit
-    check gossipSub.topics.len <= gossipSub.topicsHigh
-    check gossipSub.topics.len == gossipSub.topicsHigh
+    doAssert gossipSub.topics.len <= gossipSub.topicsHigh
+    doAssert gossipSub.topics.len == gossipSub.topicsHigh
 
+    # Clean up by closing connections and stopping the GossipSub switch
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
