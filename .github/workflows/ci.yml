@@ -81,7 +81,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.16.0'
+          go-version: '~1.16.0' # That's the minimum Go version that works with arm.
 
       - name: Install p2pd
         run: |
@@ -92,8 +92,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: nimbledeps
-          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
-          # The change happened on Nimble v0.14.0.
+          # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
+          # The change happened on Nimble v0.14.0. ALso forcing the deps to be reinstalled on each os abd cpu.
           key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Install deps
