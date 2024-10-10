@@ -1,7 +1,6 @@
 name: Daily Nim Devel
 
 on:
-  pull_request:
   schedule:
     - cron: "30 6 * * *"
   workflow_dispatch:
