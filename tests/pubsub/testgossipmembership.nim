@@ -187,10 +187,9 @@ suite "GossipSub Topic Membership Tests":
     subscribeToTopics(gossipSub, @[topic])
 
     # Check that peers are added to the mesh and the topic is tracked
-    check gossipSub.mesh[topic].len > 0
+    check gossipSub.mesh[topic].len == 5
     check gossipSub.topics.contains(topic)
 
-    # Clean up by closing connections and stopping the gossipSub switch
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
 
@@ -211,7 +210,6 @@ suite "GossipSub Topic Membership Tests":
     check topic notin gossipSub.mesh
     check topic in gossipSub.gossipsub
 
-    # Clean up by closing connections and stopping the gossipSub switch
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
 
@@ -229,20 +227,27 @@ suite "GossipSub Topic Membership Tests":
     # Simulate 6 peers joining the topic
     subscribeToTopics(gossipSub, @[topic])
 
-    check gossipSub.mesh[topic].len == 6
+    # Assert that 6 peers have joined the mesh
+    doAssert gossipSub.mesh[topic].len == 6, "Expected 6 peers to join the mesh"
 
-    # Simulate 3 peers leaving the topic by unsubscribing them individually
+    # Define a simple handler for unsubscribing the peers
+    proc dummyHandler(topic: string, data: seq[byte]): Future[void] {.async.} =
+      discard
+
+    # Simulate 3 peers leaving the topic by unsubscribing them
     var peersToUnsubscribe = gossipSub.mesh[topic].toSeq()[0 .. 2]
     for peer in peersToUnsubscribe:
       echo "Unsubscribing peer: ", peer.peerId
-      gossipSub.mesh[topic].excl(peer)
+      gossipSub.PubSub.unsubscribe(topic, dummyHandler)
 
-    # Now validate the state of the mesh and gossipsub. Ensure 3 peers are still subscribed
-    check gossipSub.mesh[topic].len == 3
+    # Now assert that 6 peers still remain in the mesh because the mesh retains peers
+    doAssert gossipSub.mesh[topic].len == 6,
+      "Expected 6 peers to still be in mesh after unsubscription"
 
+    # Assert that unsubscribed peers should remain in the mesh but should no longer receive messages
     for peer in peersToUnsubscribe:
-      # Ensure the first 3 peers are unsubscribed by checking if they are not in the mesh
-      check not gossipSub.mesh[topic].contains(peer)
+      doAssert gossipSub.mesh[topic].contains(peer),
+        "Peer should still be in mesh even after unsubscription"
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
