@@ -157,7 +157,7 @@ suite "GossipSub Topic Membership Tests":
 
     for topic in topicNames:
       if gossipSub.topics.len < gossipSub.topicsHigh:
-        gossipSub.PubSub.subscribe(
+        gossipSub.subscribe(
           topic,
           proc(topic: string, data: seq[byte]): Future[void] {.async.} =
             discard
@@ -172,6 +172,5 @@ suite "GossipSub Topic Membership Tests":
     doAssert gossipSub.topics.len <= gossipSub.topicsHigh
     doAssert gossipSub.topics.len == gossipSub.topicsHigh
 
-    # Clean up by closing connections and stopping the GossipSub switch
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
