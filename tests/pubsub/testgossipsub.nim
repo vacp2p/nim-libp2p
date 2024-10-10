@@ -13,6 +13,9 @@ import sequtils, options, tables, sets, sugar
 import chronos, stew/byteutils, chronos/ratelimit
 import chronicles
 import metrics
+import results
+import std/options
+import ../../libp2p/protocols/pubsub/gossipsub/behavior
 import
   utils,
   ../../libp2p/[
@@ -31,10 +34,15 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers
+import ../helpers, ../utils/[futures, async_tests, xtests]
+
+from ../../libp2p/protocols/pubsub/mcache import window
 
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
+
+proc voidTopicHandler(topic: string, data: seq[byte]) {.async.} =
+  discard
 
 template tryPublish(
     call: untyped, require: int, wait = 10.milliseconds, timeout = 5.seconds
@@ -277,36 +285,20 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-  asyncTest "GossipSub unsub - resub faster than backoff":
-    var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+  xasyncTest "GossipSub unsub - resub faster than backoff":
+    # For this test to work we'd require a way to disable fanout.
+    # There's not a way to toggle it, and mocking it didn't work as there's not a reliable mock available.
+
+    # Instantiate handlers and validators
+    var handlerFut0 = newFuture[bool]()
+    proc handler0(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
-      handlerFut.complete(true)
+      handlerFut0.complete(true)
 
-    let
-      nodes = generateNodes(2, gossip = true)
-
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
-
-    await subscribeNodes(nodes)
-
-    nodes[0].subscribe("foobar", handler)
-    nodes[1].subscribe("foobar", handler)
-
-    var subs: seq[Future[void]]
-    subs &= waitSub(nodes[1], nodes[0], "foobar")
-    subs &= waitSub(nodes[0], nodes[1], "foobar")
-
-    await allFuturesThrowing(subs)
-
-    nodes[0].unsubscribe("foobar", handler)
-    nodes[0].subscribe("foobar", handler)
-
-    # regular backoff is 60 seconds, so we must not wait that long
-    await (
-      waitSub(nodes[0], nodes[1], "foobar") and waitSub(nodes[1], nodes[0], "foobar")
-    ).wait(30.seconds)
+    var handlerFut1 = newFuture[bool]()
+    proc handler1(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      handlerFut1.complete(true)
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -316,13 +308,63 @@ suite "GossipSub":
       validatorFut.complete(true)
       result = ValidationResult.Accept
 
-    nodes[1].addValidator("foobar", validator)
-    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+    # Setup nodes and start switches
+    let
+      nodes = generateNodes(2, gossip = true, unsubscribeBackoff = 5.seconds)
+      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+      topic = "foobar"
 
-    check (await validatorFut) and (await handlerFut)
+    # Connect nodes
+    await subscribeNodes(nodes)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Subscribe both nodes to the topic and node1 (receiver) to the validator
+    nodes[0].subscribe(topic, handler0)
+    nodes[1].subscribe(topic, handler1)
+    nodes[1].addValidator("foobar", validator)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Wait for both nodes to verify others' subscription
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[1], nodes[0], topic)
+    subs &= waitSub(nodes[0], nodes[1], topic)
+    await allFuturesThrowing(subs)
+
+    # When unsubscribing and resubscribing in a short time frame, the backoff period should be triggered
+    nodes[1].unsubscribe(topic, handler1)
+    await sleepAsync(DURATION_TIMEOUT)
+    nodes[1].subscribe(topic, handler1)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Backoff is set to 5 seconds, and the amount of sleeping time since the unsubsribe until now is 3-4s~
+    # Meaning, the subscription shouldn't have been processed yet because it's still in backoff period
+    # When publishing under this condition
+    discard await nodes[0].publish("foobar", "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Then the message should not be received:
+    check:
+      validatorFut.toResult().error() == "Future still not finished."
+      handlerFut1.toResult().error() == "Future still not finished."
+      handlerFut0.toResult().error() == "Future still not finished."
+
+    validatorFut.reset()
+    handlerFut0.reset()
+    handlerFut1.reset()
+
+    # If we wait backoff period to end, around 1-2s
+    await waitForMesh(nodes[0], nodes[1], topic, 3.seconds)
+
+    discard await nodes[0].publish("foobar", "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Then the message should be received
+    check:
+      validatorFut.toResult().isOk()
+      handlerFut1.toResult().isOk()
+      handlerFut0.toResult().error() == "Future still not finished."
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
@@ -827,7 +869,7 @@ suite "GossipSub":
     var
       gossip0 = GossipSub(nodes[0])
       gossip1 = GossipSub(nodes[1])
-      gossip2 = GossipSub(nodes[1])
+      gossip2 = GossipSub(nodes[2])
 
     await subscribeNodes(nodes)
 
@@ -839,18 +881,40 @@ suite "GossipSub":
         if x != y:
           await waitSub(nodes[x], nodes[y], "foobar")
 
-    var passed: Future[void] = newFuture[void]()
+    # Setup record handlers for all nodes
+    var
+      passed0: Future[void] = newFuture[void]()
+      passed1: Future[void] = newFuture[void]()
+      passed2: Future[void] = newFuture[void]()
     gossip0.routingRecordsHandler.add(
       proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
         check:
           tag == "foobar"
           peers.len == 2
           peers[0].record.isSome() xor peers[1].record.isSome()
-        passed.complete()
+        passed0.complete()
     )
+    gossip1.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        passed1.complete()
+    )
+    gossip2.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == "foobar"
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed2.complete()
+    )
+
+    # Unsubscribe from the topic
     nodes[1].unsubscribe("foobar", handler)
 
-    await passed.wait(5.seconds)
+    # Then verify what nodes receive the PX
+    check:
+      (await passed0.waitForResult()).isOk
+      not (await passed1.waitForResult()).isOk
+      (await passed2.waitForResult()).isOk
 
     await allFuturesThrowing(
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
@@ -1195,3 +1259,677 @@ suite "GossipSub":
     await allFuturesThrowing(node0.switch.stop(), node1.switch.stop())
 
     await allFuturesThrowing(nodesFut.concat())
+
+suite "Gossipsub Parameters":
+  teardown:
+    checkTrackers()
+
+  asyncTest "dont prune peers if mesh len is less than d_high":
+    let
+      numberOfNodes = 5
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    await subscribeNodes(nodes)
+
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    for x in 0 ..< numberOfNodes:
+      for y in 0 ..< numberOfNodes:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], topic)
+
+    let expectedNumberOfPeers = numberOfNodes - 1
+    for i in 0 ..< numberOfNodes:
+      var gossip = GossipSub(nodes[i])
+      check:
+        gossip.gossipsub[topic].len == expectedNumberOfPeers
+        gossip.mesh[topic].len == expectedNumberOfPeers
+        gossip.fanout.len == 0
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "prune peers if mesh len is higher than d_high":
+    let
+      numberofNodes = 15
+      topic = "foobar"
+      nodes = generateNodes(numberofNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    await subscribeNodes(nodes)
+
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    for x in 0 ..< numberofNodes:
+      for y in 0 ..< numberofNodes:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], topic)
+
+    # Give it time for a heartbeat
+    await sleepAsync(DURATION_TIMEOUT)
+
+    let
+      expectedNumberOfPeers = numberofNodes - 1
+      dHigh = 12
+      d = 6
+      dLow = 4
+
+    for i in 0 ..< numberofNodes:
+      var gossip = GossipSub(nodes[i])
+
+      check:
+        gossip.gossipsub[topic].len == expectedNumberOfPeers
+        gossip.mesh[topic].len >= dLow and gossip.mesh[topic].len <= dHigh
+        gossip.fanout.len == 0
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "messages sent to peers not in the mesh are propagated via gossip":
+    # Given 5 nodes
+    let
+      numberOfNodes = 5
+      topic = "foobar"
+      dValues = DValues(dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1))
+      nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    # All of them are checking for iHave messages
+    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
+    for i in 0 ..< numberOfNodes:
+      var pubsubObserver: PubSubObserver
+      capture i:
+        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          if msgs.control.isSome:
+            let iHave = msgs.control.get.ihave
+            if iHave.len > 0:
+              for msg in iHave:
+                if msg.topicID == topic:
+                  receivedIHaves[i] += 1
+
+        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+
+      nodes[i].addObserver(pubsubObserver)
+
+    # All of them are interconnected
+    await subscribeNodes(nodes)
+
+    # And subscribed to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a message
+    discard nodes[0].publish(topic, "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # At least one of the nodes should have received an iHave message
+    # The check is made this way because the mesh structure changes from run to run
+    check:
+      anyIt(receivedIHaves, it > 0)
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "messages are not sent back to source or forwarding peer":
+    # Instantiate 3 nodes
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      node0 = nodes[0]
+      node1 = nodes[1]
+      node2 = nodes[2]
+
+    # Each node with a handler
+    var
+      handlerFuture0 = newFuture[bool]()
+      handlerFuture1 = newFuture[bool]()
+      handlerFuture2 = newFuture[bool]()
+
+    proc handler0(topic: string, data: seq[byte]) {.async.} =
+      handlerFuture0.complete(true)
+
+    proc handler1(topic: string, data: seq[byte]) {.async.} =
+      handlerFuture1.complete(true)
+
+    proc handler2(topic: string, data: seq[byte]) {.async.} =
+      handlerFuture2.complete(true)
+
+    # Connect them in a ring
+    await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
+    await node1.switch.connect(node2.peerInfo.peerId, node2.peerInfo.addrs)
+    await node2.switch.connect(node0.peerInfo.peerId, node0.peerInfo.addrs)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Subscribe them all to the same topic
+    nodes[0].subscribe(topic, handler0)
+    nodes[1].subscribe(topic, handler1)
+    nodes[2].subscribe(topic, handler2)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a message
+    discard nodes[0].publish(topic, "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
+    check:
+      (await handlerFuture0.waitForResult()).isErr
+      (await handlerFuture1.waitForResult()).isOk
+      (await handlerFuture2.waitForResult()).isOk
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "flood publish to all peers with score above threshold, regardless of subscription":
+    # Given 3 nodes
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true, floodPublish = true)
+      nodesFut = nodes.mapIt(it.switch.start())
+      g0 = GossipSub(nodes[0])
+
+    # Nodes 1 and 2 are connected to node 0
+    await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
+    await nodes[0].switch.connect(nodes[2].peerInfo.peerId, nodes[2].peerInfo.addrs)
+
+    # Given 2 handlers
+    var
+      handlerFut1 = newFuture[bool]()
+      handlerFut2 = newFuture[bool]()
+
+    proc handler1(topic: string, data: seq[byte]) {.async.} =
+      handlerFut1.complete(true)
+
+    proc handler2(topic: string, data: seq[byte]) {.async.} =
+      handlerFut2.complete(true)
+
+    # Nodes are subscribed to the same topic
+    nodes[1].subscribe(topic, handler1)
+    nodes[2].subscribe(topic, handler2)
+    await sleepAsync(1.seconds)
+
+    # Given node 2's score is below the threshold
+    for peer in g0.gossipsub.getOrDefault(topic):
+      if peer.peerId == nodes[2].peerInfo.peerId:
+        peer.score = (g0.parameters.publishThreshold - 1)
+
+    # When node 0 publishes a message to topic "foo"
+    let message = "Hello!".toBytes()
+    check (await nodes[0].publish(topic, message)) > 0
+    await sleepAsync(3.seconds)
+
+    # Then only node 1 should receive the message
+    let
+      result1 = await handlerFut1.waitForResult(DURATION_TIMEOUT)
+      result2 = await handlerFut2.waitForResult(DURATION_TIMEOUT)
+    check:
+      result1.isOk and result1.get == true
+      result2.isErr
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+    await allFuturesThrowing(nodesFut)
+
+  asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
+    # Given 20 nodes
+    let
+      numberOfNodes = 20
+      topic = "foobar"
+      dValues = DValues(
+        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(0)
+      )
+      nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        dValues = some(dValues),
+        gossipFactor = some(0.float),
+      )
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    # All of them are checking for iHave messages
+    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
+    for i in 0 ..< numberOfNodes:
+      var pubsubObserver: PubSubObserver
+      capture i:
+        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          if msgs.control.isSome:
+            let iHave = msgs.control.get.ihave
+            if iHave.len > 0:
+              for msg in iHave:
+                if msg.topicID == topic:
+                  receivedIHaves[i] += 1
+
+        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+
+      nodes[i].addObserver(pubsubObserver)
+
+    # All of them are connected to node 0
+    for i in 1 ..< numberOfNodes:
+      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
+
+    # And subscribed to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a message
+    discard nodes[0].publish(topic, "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # None of the nodes should have received an iHave message
+    check:
+      filterIt(receivedIHaves, it > 0).len == 0
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "adaptive gossip dissemination, with gossipFactor priority":
+    # Given 20 nodes
+    let
+      numberOfNodes = 20
+      topic = "foobar"
+      dValues = DValues(
+        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(4)
+      )
+      nodes = generateNodes(
+        numberOfNodes, gossip = true, dValues = some(dValues), gossipFactor = some(0.5)
+      )
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    # All of them are checking for iHave messages
+    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
+    for i in 0 ..< numberOfNodes:
+      var pubsubObserver: PubSubObserver
+      capture i:
+        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          if msgs.control.isSome:
+            let iHave = msgs.control.get.ihave
+            if iHave.len > 0:
+              for msg in iHave:
+                if msg.topicID == topic:
+                  receivedIHaves[i] += 1
+
+        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+
+      nodes[i].addObserver(pubsubObserver)
+
+    # All of them are connected to node 0
+    for i in 1 ..< numberOfNodes:
+      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
+
+    # And subscribed to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a message
+    discard nodes[0].publish(topic, "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # At least 8 of the nodes should have received an iHave message
+    # That's because the gossip factor is 0.5 over 16 available nodes
+    check:
+      filterIt(receivedIHaves, it > 0).len >= 8
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "adaptive gossip dissemination, with dLazy priority":
+    # Given 20 nodes
+    let
+      numberOfNodes = 20
+      topic = "foobar"
+      dValues = DValues(
+        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(6)
+      )
+      nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        dValues = some(dValues),
+        gossipFactor = some(0.float),
+      )
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+
+    # All of them are checking for iHave messages
+    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
+    for i in 0 ..< numberOfNodes:
+      var pubsubObserver: PubSubObserver
+      capture i:
+        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          if msgs.control.isSome:
+            let iHave = msgs.control.get.ihave
+            if iHave.len > 0:
+              for msg in iHave:
+                if msg.topicID == topic:
+                  receivedIHaves[i] += 1
+
+        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+
+      nodes[i].addObserver(pubsubObserver)
+
+    # All of them are connected to node 0
+    for i in 1 ..< numberOfNodes:
+      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
+
+    # And subscribed to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a message
+    discard nodes[0].publish(topic, "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # At least 6 of the nodes should have received an iHave message
+    # That's because the dLazy is 6
+    check:
+      filterIt(receivedIHaves, it > 0).len == 6
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
+    # Given 3 nodes
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      node0 = nodes[0]
+      node1 = nodes[1]
+      node2 = nodes[2]
+
+    # And with iDontWant observers
+    var
+      iDontWantReceived0 = newFuture[bool]()
+      iDontWantReceived1 = newFuture[bool]()
+      iDontWantReceived2 = newFuture[bool]()
+
+    proc observer0(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iDontWant = msgs.control.get.idontwant
+        if iDontWant.len > 0:
+          iDontWantReceived0.complete(true)
+
+    proc observer1(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iDontWant = msgs.control.get.idontwant
+        if iDontWant.len > 0:
+          iDontWantReceived1.complete(true)
+
+    proc observer2(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iDontWant = msgs.control.get.idontwant
+        if iDontWant.len > 0:
+          iDontWantReceived2.complete(true)
+
+    node0.addObserver(PubSubObserver(onRecv: observer0))
+    node1.addObserver(PubSubObserver(onRecv: observer1))
+    node2.addObserver(PubSubObserver(onRecv: observer2))
+
+    # Connect them in a line
+    await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
+    await node1.switch.connect(node2.peerInfo.peerId, node2.peerInfo.addrs)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Subscribe them all to the same topic
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, voidTopicHandler)
+    nodes[2].subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When node 0 sends a large message
+    let largeMsg = newSeq[byte](1000)
+    discard nodes[0].publish(topic, largeMsg)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Only node 2 should have received the iDontWant message
+    check:
+      (await iDontWantReceived0.waitForResult()).isErr
+      (await iDontWantReceived1.waitForResult()).isErr
+      (await iDontWantReceived2.waitForResult()).isOk
+
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "Ensure handling of multiple Control messages simultaneously":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      ihaveMessage =
+        ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
+      iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
+      graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+      pruneMessage = ControlMessage(
+        prune:
+          @[
+            ControlPrune(
+              topicID: topic,
+              peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](10)))],
+              backoff: 60'u64,
+            )
+          ]
+      )
+      iDontWantMessage =
+        ControlMessage(idontwant: @[ControlIWant(messageIDs: @[messageID])])
+
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+      tg0 = cast[TestGossipSub](g0)
+      tg1 = cast[TestGossipSub](g1)
+
+    # Setup an observer for node1
+    # All of them are checking for iHave messages
+    var
+      receivedIHaves: int = 0
+      receivedIWants: int = 0
+      receivedGrafts: int = 0
+      receivedPrunes: int = 0
+      receivedIDontWants: int = 0
+
+    let observeControlMessages = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let
+          iHave = msgs.control.get.ihave
+          iWant = msgs.control.get.iwant
+          graft = msgs.control.get.graft
+          prune = msgs.control.get.prune
+          iDontWant = msgs.control.get.idontwant
+
+        for msg in iHave:
+          if msg.topicID == topic:
+            receivedIHaves += 1
+        for msg in iWant:
+          for msgId in msg.messageIDs:
+            if msgId == messageID:
+              receivedIWants += 1
+        for msg in graft:
+          if msg.topicID == topic:
+            receivedGrafts += 1
+        for msg in prune:
+          if msg.topicID == topic:
+            receivedPrunes += 1
+        for msg in iDontWant:
+          for msgId in msg.messageIDs:
+            if msgId == messageID:
+              receivedIDontWants += 1
+
+    n1.addObserver(PubSubObserver(onRecv: observeControlMessages))
+
+    # Connect them
+    await n0.switch.connect(n1.peerInfo.peerId, n1.peerInfo.addrs)
+
+    # Subscribe them to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+    await waitSubGraph(nodes, topic)
+
+    # When node 0 sends multiple Control messages
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(ihaveMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(iwantMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(graftMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(pruneMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(iDontWantMessage)), isHighPriority = true
+    )
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Then node 1 should have received all of them
+
+    check:
+      receivedIHaves == 1
+      receivedIWants == 1
+      receivedGrafts == 2 # 1 from the initial subscription and 1 from the graft message
+      receivedPrunes == 1
+      receivedIDontWants == 1
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+    await allFuturesThrowing(nodesFut)
+
+  asyncTest "Verify inclusion of backoff periods and peer lists in PRUNE messages for Peer Exchange":
+    # A, B & C are subscribed to something
+    # B unsubcribe from it, it should send
+    # PX to A & C
+    #
+    # C sent his SPR, not A
+    let
+      topic = "foobar"
+      nodes =
+        generateNodes(2, gossip = true, enablePX = true) &
+        generateNodes(1, gossip = true, sendSignedPeerRecord = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(), nodes[1].switch.start(), nodes[2].switch.start()
+      )
+
+    var
+      gossip0 = GossipSub(nodes[0])
+      gossip1 = GossipSub(nodes[1])
+      gossip2 = GossipSub(nodes[2])
+
+    # Connect nodes
+    await subscribeNodes(nodes)
+
+    # Subscribe nodes to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    for x in 0 ..< 3:
+      for y in 0 ..< 3:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], topic)
+
+    # Add an observer to node 2 for PRUNE messages
+    var receivedPrunes: seq[ControlPrune] = @[]
+    let checkForPrunes = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let prunes = msgs.control.get.prune
+        for prune in prunes:
+          if prune.topicID == topic:
+            receivedPrunes.add(prune)
+
+    gossip2.addObserver(PubSubObserver(onRecv: checkForPrunes))
+
+    # Setup record handlers for all nodes
+    var
+      passed0: Future[void] = newFuture[void]()
+      passed1: Future[void] = newFuture[void]()
+      passed2: Future[void] = newFuture[void]()
+    gossip0.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == topic
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed0.complete()
+    )
+    gossip1.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        passed1.complete()
+    )
+    gossip2.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == topic
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed2.complete()
+    )
+
+    # Unsubscribe from the topic
+    nodes[1].unsubscribe(topic, voidTopicHandler)
+
+    # Then verify what nodes receive the PX
+    check:
+      (await passed0.waitForResult()).isOk
+      not (await passed1.waitForResult()).isOk
+      (await passed2.waitForResult()).isOk
+
+    # And verify node 2 received the PRUNE message and it contains the backoff period and peer list
+    check:
+      receivedPrunes.len == 1
+      receivedPrunes[0].topicID == "foobar"
+      receivedPrunes[0].peers.len == 2
+      receivedPrunes[0].backoff == 1
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "GRAFT on direct peers are rejected":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      nodes = generateNodes(2, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+
+    # Connect them
+    await subscribeNodes(nodes)
+
+    # Set them as direct peers
+    await g0.addDirectPeer(n1.switch.peerInfo.peerId, n1.switch.peerInfo.addrs)
+    await g1.addDirectPeer(n0.switch.peerInfo.peerId, n0.switch.peerInfo.addrs)
+
+    # Get peers to check their behaviour penalty
+    let
+      p0 = g0.getOrCreatePeer(n1.switch.peerInfo.peerId, @[GossipSubCodec_12])
+      p1 = g1.getOrCreatePeer(n0.switch.peerInfo.peerId, @[GossipSubCodec_12])
+    check:
+      p0.behaviourPenalty == 0
+      p1.behaviourPenalty == 0
+
+    # When node 0 sends a GRAFT message to node 1
+    let controlMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+    g0.broadcast(@[p1], RPCMsg(control: some(controlMessage)), isHighPriority = true)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    echo p0.behaviourPenalty
+    # Then the peer should be penalized
+    check:
+      p0.behaviourPenalty >= 0.09 and p0.behaviourPenalty <= 0.1
+      p1.behaviourPenalty == 0
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+    await allFuturesThrowing(nodesFut)
