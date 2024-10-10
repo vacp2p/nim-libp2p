@@ -27,6 +27,8 @@ jobs:
             cpu: amd64
           - os: macos
             cpu: amd64
+          - os: macos-arm64
+            cpu: arm64
           - os: windows
             cpu: amd64
         nim:
@@ -46,6 +48,10 @@ jobs:
           - platform:
               os: macos
             builder: macos-13
+            shell: bash
+          - platform:
+              os: macos-arm64
+            builder: macos-14
             shell: bash
           - platform:
               os: windows

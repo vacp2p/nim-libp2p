@@ -88,6 +88,8 @@ runs:
       run: |
         if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
           PLATFORM=x64
+        elif [[ '${{ inputs.cpu }}' == 'arm64' ]]; then
+          PLATFORM=arm64
         else
           PLATFORM=x86
         fi
