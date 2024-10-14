@@ -84,7 +84,8 @@ proc generateSignedKey(
   const extValueSize = 256 # Buffer size for ASN.1 encoding
   var
     extValue: array[extValueSize, byte]
-    extPtr: ptr byte = addr extValue[extValueSize - 1] # Start at the end of the buffer
+    extPtr: ptr byte = addr extValue[extValueSize - 1]
+      # Start at the end of the buffer as mbedtls_asn1_write_octet_string works backwards in data buffer.
     startPtr: ptr byte = addr extValue[0]
     len = 0
 
