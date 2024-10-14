@@ -27,6 +27,7 @@ import mbedtls/debug
 import mbedtls/error
 import nimcrypto/utils
 import ../../crypto/crypto
+import ../../errors
 
 logScope:
   topics = "libp2p tls certificate"
@@ -42,7 +43,7 @@ const
 
 # Exception types for TLS certificate errors
 type
-  TLSCertificateError* = object of Exception
+  TLSCertificateError* = object of LPError
   ASN1EncodingError* = object of TLSCertificateError
   KeyGenerationError* = object of TLSCertificateError
   CertificateCreationError* = object of TLSCertificateError
