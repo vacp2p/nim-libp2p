@@ -130,15 +130,18 @@ proc handleAnswer(
 proc askPeer(
     self: AutonatService, switch: Switch, peerId: PeerId
 ): Future[NetworkReachability] {.async.} =
+  info "HHHHHHHHHHHHHHHH askPeer"
   logScope:
     peerId = $peerId
 
   if doesPeerHaveIncomingConn(switch, peerId):
+    info "HHHHHHHHHHHHHHHH askPeer"
     return Unknown
 
   if not hasEnoughIncomingSlots(switch):
     debug "No incoming slots available, not asking peer",
       incomingSlotsAvailable = switch.connManager.slotsAvailable(In)
+    info "HHHHHHHHHHHHHHHH askPeer"
     return Unknown
 
   trace "Asking peer for reachability"
@@ -149,28 +152,35 @@ proc askPeer(
       Reachable
     except AutonatUnreachableError as error:
       debug "dialMe answer is not reachable", msg = error.msg
+      info "HHHHHHHHHHHHHHHH askPeer"
       NotReachable
     except AsyncTimeoutError as error:
       debug "dialMe timed out", msg = error.msg
+      info "HHHHHHHHHHHHHHHH askPeer"
       Unknown
     except CatchableError as error:
       debug "dialMe unexpected error", msg = error.msg
+      info "HHHHHHHHHHHHHHHH askPeer"
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
+    info "HHHHHHHHHHHHHHHH askPeer"
     await self.callHandler()
+  info "HHHHHHHHHHHHHHHH askPeer"
   await switch.peerInfo.update()
   return ans
 
 proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
-  trace "Asking peers for reachability"
+  debug "Asking peers for reachability"
   var peers = switch.connectedPeers(Direction.Out)
   self.rng.shuffle(peers)
   var answersFromPeers = 0
   for peer in peers:
     if answersFromPeers >= self.numPeersToAsk:
+      info "HHHHHHHHHHHHHHHH askConnectedPeers"
       break
     if not hasEnoughIncomingSlots(switch):
+      info "HHHHHHHHHHHHHHHH askConnectedPeers"
       debug "No incoming slots available, not asking peers",
         incomingSlotsAvailable = switch.connManager.slotsAvailable(In)
       break
@@ -184,11 +194,14 @@ proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.asy
 proc addressMapper(
     self: AutonatService, peerStore: PeerStore, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async.} =
+  debug "JJJJJJJJJJJJJJJ addressMapper"
   if self.networkReachability != NetworkReachability.Reachable:
+    debug "JJJJJJJJJJJJJJJ addressMapper"
     return listenAddrs
 
   var addrs = newSeq[MultiAddress]()
   for listenAddr in listenAddrs:
+    debug "JJJJJJJJJJJJJJJ addressMapper"
     var processedMA = listenAddr
     try:
       if not listenAddr.isPublicMA() and
@@ -198,6 +211,7 @@ proc addressMapper(
     except CatchableError as exc:
       debug "Error while handling address mapper", msg = exc.msg
     addrs.add(processedMA)
+  debug "JJJJJJJJJJJJJJJ addressMapper"
   return addrs
 
 method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
@@ -208,27 +222,33 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
 
   info "Setting up AutonatService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
+  info "Setting up AutonatService jamon", hasBeenSetup
   if hasBeenSetup:
+    info "Setting up AutonatService"
     if self.askNewConnectedPeers:
+      info "Setting up AutonatService"
       self.newConnectedPeerHandler = proc(
           peerId: PeerId, event: PeerEvent
       ): Future[void] {.async.} =
+        info "Setting up AutonatService"
         discard askPeer(self, switch, peerId)
       switch.connManager.addPeerEventHandler(
         self.newConnectedPeerHandler, PeerEventKind.Joined
       )
     self.scheduleInterval.withValue(interval):
+      info "Setting up AutonatService", interval
       self.scheduleHandle = schedule(self, switch, interval)
     if self.enableAddressMapper:
+      info "Setting up AutonatService"
       switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
 method run*(self: AutonatService, switch: Switch) {.async, public.} =
-  trace "Running AutonatService"
+  debug "Running AutonatService"
   await askConnectedPeers(self, switch)
 
 method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
-  info "Stopping AutonatService"
+  debug "Stopping AutonatService"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     if not isNil(self.scheduleHandle):

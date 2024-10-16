@@ -43,10 +43,13 @@ proc reserveAndUpdate(
     self: AutoRelayService, relayPid: PeerId, switch: Switch
 ) {.async.} =
   while self.running:
+    debug "JJJJJJJJJJJJJ"
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
       relayedAddr = rsvp.addrs.mapIt(MultiAddress.init($it & "/p2p-circuit").tryGet())
       ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
+
+    debug "JJJJJJJJJJJJJ after reserve operation", rsvp, relayedAddr, ttl
     if ttl <= 60:
       # A reservation under a minute is basically useless
       break
@@ -59,6 +62,7 @@ proc reserveAndUpdate(
     await sleepAsync chronos.seconds(ttl - 30)
 
 method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
+  debug "JJJJJJJJJJJJJ"
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async.} =
@@ -67,12 +71,13 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
   let hasBeenSetUp = await procCall Service(self).setup(switch)
   if hasBeenSetUp:
     proc handlePeerIdentified(peerId: PeerId, event: PeerEvent) {.async.} =
-      trace "Peer Identified", peerId
+      debug "Peer Identified", peerId
       if self.relayPeers.len < self.maxNumRelays:
+        debug "JJJJJJJJJJJJJ"
         self.peerAvailable.fire()
 
     proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async.} =
-      trace "Peer Left", peerId
+      debug "Peer Left", peerId
       self.relayPeers.withValue(peerId, future):
         future[].cancel()
 
@@ -83,6 +88,7 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
   return hasBeenSetUp
 
 proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
+  debug "JJJJJJJJJJJJJ"
   await sleepAsync(chronos.seconds(5))
   self.backingOff.keepItIf(it != pid)
   self.peerAvailable.fire()
@@ -90,6 +96,7 @@ proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
 proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
   while true:
     # Remove relayPeers that failed
+    debug "JJJJJJJJJJJJJ"
     let peers = toSeq(self.relayPeers.keys())
     for k in peers:
       if self.relayPeers[k].finished():
@@ -111,16 +118,22 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
     self.rng.shuffle(connectedPeers)
 
     for relayPid in connectedPeers:
+      debug "JJJJJJJJJJJJJ"
       if self.relayPeers.len() >= self.maxNumRelays:
+        debug "JJJJJJJJJJJJJ"
         break
+      debug "JJJJJJJJJJJJJ"
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch)
 
     if self.relayPeers.len() > 0:
+      debug "JJJJJJJJJJJJJ"
       await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
     else:
+      debug "JJJJJJJJJJJJJ"
       await self.peerAvailable.wait()
 
 method run*(self: AutoRelayService, switch: Switch) {.async.} =
+  debug "JJJJJJJJJJJJJ"
   if self.running:
     trace "Autorelay is already running"
     return
@@ -128,6 +141,7 @@ method run*(self: AutoRelayService, switch: Switch) {.async.} =
   self.runner = self.innerRun(switch)
 
 method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
+  debug "JJJJJJJJJJJJJ"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     self.running = false
@@ -137,6 +151,7 @@ method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
   return hasBeenStopped
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
+  debug "JJJJJJJJJJJJJ"
   result = concat(toSeq(self.relayAddresses.values))
 
 proc new*(
@@ -146,6 +161,7 @@ proc new*(
     onReservation: OnReservationHandler,
     rng: ref HmacDrbgContext,
 ): T =
+  debug "JJJJJJJJJJJJJ"
   T(
     maxNumRelays: maxNumRelays,
     client: client,

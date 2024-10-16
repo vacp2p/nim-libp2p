@@ -90,7 +90,9 @@ proc newConnectedPeerHandler(
     debug "Hole punching failed during dcutr", err = err.msg
 
 method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
+  debug "JJJJJJJJJJJJJJJ"
   var hasBeenSetup = await procCall Service(self).setup(switch)
+  debug "JJJJJJJJJJJJJJJ hasBeenSetup", hasBeenSetup
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 
   if hasBeenSetup:
@@ -107,6 +109,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     self.onNewStatusHandler = proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async.} =
+      debug "JJJJJJJJJJJJJJJ REACHABILITY status", networkReachability
       if networkReachability == NetworkReachability.NotReachable and
           not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)

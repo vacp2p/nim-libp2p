@@ -53,6 +53,7 @@ proc sendStopError(conn: Connection, code: StatusV2) {.async.} =
 proc handleRelayedConnect(
     cl: RelayClient, conn: Connection, msg: StopMessage
 ) {.async.} =
+  debug "AAAAA  handleRelayedConnect"
   let
     # TODO: check the go version to see in which way this could fail
     # it's unclear in the spec
