@@ -52,8 +52,9 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
 
 proc getDnsResponse(
     dnsServer: TransportAddress, address: string, kind: QKind
-): Future[Response] {.async: (raises: [
-    CancelledError, IOError, OSError, TransportError, ValueError]).} =
+): Future[Response] {.
+    async: (raises: [CancelledError, IOError, OSError, TransportError, ValueError])
+.} =
   var sendBuf = questionToBuf(address, kind)
 
   if sendBuf.len == 0:
@@ -98,18 +99,18 @@ proc getDnsResponse(
     await sock.closeWait()
 
 method resolveIp*(
-    self: DnsResolver,
-    address: string,
-    port: Port,
-    domain: Domain = Domain.AF_UNSPEC
+    self: DnsResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
 ): Future[seq[TransportAddress]] {.
-    async: (raises: [CancelledError, TransportAddressError]).} =
-  trace "Resolving IP using DNS",
-    address, servers = self.nameServers.mapIt($it), domain
+    async: (raises: [CancelledError, TransportAddressError])
+.} =
+  trace "Resolving IP using DNS", address, servers = self.nameServers.mapIt($it), domain
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
-    var responseFutures: seq[Future[Response].Raising([
-      CancelledError, IOError, OSError, TransportError, ValueError])]
+    var responseFutures: seq[
+      Future[Response].Raising(
+        [CancelledError, IOError, OSError, TransportError, ValueError]
+      )
+    ]
     if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
       responseFutures.add(getDnsResponse(server, address, A))
 
@@ -128,6 +129,7 @@ method resolveIp*(
       info "Failed to query DNS", address, error = e.msg
       resolveFailed = true
       break
+
     for fut in responseFutures:
       try:
         let resp = await fut
@@ -172,6 +174,7 @@ method resolveTxt*(
       self.nameServers.add(self.nameServers[0])
       self.nameServers.delete(0)
       continue
+
     try:
       let response = await getDnsResponse(server, address, TXT)
       trace "Got TXT response",

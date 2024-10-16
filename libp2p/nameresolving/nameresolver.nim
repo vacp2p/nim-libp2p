@@ -25,12 +25,10 @@ method resolveTxt*(
   raiseAssert "Not implemented!"
 
 method resolveIp*(
-    self: NameResolver,
-    address: string,
-    port: Port,
-    domain: Domain = Domain.AF_UNSPEC
+    self: NameResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
 ): Future[seq[TransportAddress]] {.
-    async: (raises: [CancelledError, TransportAddressError]), base.} =
+    async: (raises: [CancelledError, TransportAddressError]), base
+.} =
   ## Resolve the specified address
   raiseAssert "Not implemented!"
 
@@ -45,12 +43,10 @@ proc getHostname*(ma: MultiAddress): string =
     ""
 
 proc resolveOneAddress(
-    self: NameResolver,
-    ma: MultiAddress,
-    domain: Domain = Domain.AF_UNSPEC,
-    prefix = ""
+    self: NameResolver, ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix = ""
 ): Future[seq[MultiAddress]] {.
-    async: (raises: [CancelledError, MaError, TransportAddressError]).} =
+    async: (raises: [CancelledError, MaError, TransportAddressError])
+.} =
   # Resolve a single address
   let portPart = ma[1].valueOr:
     raise maErr error
@@ -80,7 +76,8 @@ proc resolveOneAddress(
 proc resolveDnsAddr*(
     self: NameResolver, ma: MultiAddress, depth: int = 0
 ): Future[seq[MultiAddress]] {.
-    async: (raises: [CancelledError, MaError, TransportAddressError]).} =
+    async: (raises: [CancelledError, MaError, TransportAddressError])
+.} =
   if not DNSADDR.matchPartial(ma):
     return @[ma]
 
@@ -127,7 +124,8 @@ proc resolveDnsAddr*(
 proc resolveMAddress*(
     self: NameResolver, address: MultiAddress
 ): Future[seq[MultiAddress]] {.
-    async: (raises: [CancelledError, MaError, TransportAddressError]).} =
+    async: (raises: [CancelledError, MaError, TransportAddressError])
+.} =
   var res = initOrderedSet[MultiAddress]()
   if not DNS.matchPartial(address):
     res.incl(address)

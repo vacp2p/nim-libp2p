@@ -24,12 +24,10 @@ type MockResolver* = ref object of NameResolver
   ipResponses*: Table[(string, bool), seq[string]]
 
 method resolveIp*(
-    self: MockResolver,
-    address: string,
-    port: Port,
-    domain: Domain = Domain.AF_UNSPEC
+    self: MockResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
 ): Future[seq[TransportAddress]] {.
-    async: (raises: [CancelledError, TransportAddressError]).} =
+    async: (raises: [CancelledError, TransportAddressError])
+.} =
   var res: seq[TransportAddress]
 
   if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
