@@ -111,13 +111,15 @@ proc handleAnswer(
     libp2p_autonat_reachability_confidence.set(
       value = confidence, labelValues = [$reachability]
     )
-    if self.confidence.isNone and confidence >= self.minConfidence:
+    if self.confidence.isNone() and confidence >= self.minConfidence:
       self.networkReachability = reachability
       self.confidence = Opt.some(confidence)
 
   debug "Current status",
-    currentStats = $self.networkReachability,
+    networkReachability = $self.networkReachability,
+    oldNetworkReachability = $oldNetworkReachability,
     confidence = $self.confidence,
+    oldConfidence = $oldConfidence,
     answers = self.answers
 
   # Return whether anything has changed
