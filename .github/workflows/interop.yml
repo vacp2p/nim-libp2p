@@ -17,8 +17,9 @@ jobs:
     name: Run transport interoperability tests
     runs-on: ubuntu-22.04
     steps:
-      - name: Free Disk Space (Ubuntu)
-        # For some reason the original job (libp2p/test-plans) has enough disk space, but this one doesn't.
+      - name: Free Disk Space
+        # For some reason we have space issues while running this action. Likely while building the image.
+        # This action will free up some space to avoid the issue.
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: true
@@ -32,6 +33,10 @@ jobs:
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
 
   run-hole-punching-interop:
     name: Run hole-punching interoperability tests
@@ -46,3 +51,7 @@ jobs:
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/tests/hole-punching-interop/version.json
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
