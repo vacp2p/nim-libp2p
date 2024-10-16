@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[sugar, sets, sequtils, strutils]
+import std/[sets, sequtils, strutils]
 import chronos, chronicles, stew/endians2
 import ".."/[multiaddress, multicodec]
 
@@ -20,19 +20,19 @@ type NameResolver* = ref object of RootObj
 
 method resolveTxt*(
     self: NameResolver, address: string
-): Future[seq[string]] {.async, base.} =
+): Future[seq[string]] {.async: (raises: [CancelledError]), base.} =
   ## Get TXT record
-  ##
-
-  doAssert(false, "Not implemented!")
+  raiseAssert "Not implemented!"
 
 method resolveIp*(
-    self: NameResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
-): Future[seq[TransportAddress]] {.async, base.} =
+    self: NameResolver,
+    address: string,
+    port: Port,
+    domain: Domain = Domain.AF_UNSPEC
+): Future[seq[TransportAddress]] {.
+    async: (raises: [CancelledError, TransportAddressError]), base.} =
   ## Resolve the specified address
-  ##
-
-  doAssert(false, "Not implemented!")
+  raiseAssert "Not implemented!"
 
 proc getHostname*(ma: MultiAddress): string =
   let
@@ -45,31 +45,42 @@ proc getHostname*(ma: MultiAddress): string =
     ""
 
 proc resolveOneAddress(
-    self: NameResolver, ma: MultiAddress, domain: Domain = Domain.AF_UNSPEC, prefix = ""
-): Future[seq[MultiAddress]] {.async.} =
-  #Resolve a single address
+    self: NameResolver,
+    ma: MultiAddress,
+    domain: Domain = Domain.AF_UNSPEC,
+    prefix = ""
+): Future[seq[MultiAddress]] {.
+    async: (raises: [CancelledError, MaError, TransportAddressError]).} =
+  # Resolve a single address
+  let portPart = ma[1].valueOr:
+    raise maErr error
   var pbuf: array[2, byte]
-
-  var dnsval = getHostname(ma)
-
-  if ma[1].tryGet().protoArgument(pbuf).tryGet() == 0:
-    raise newException(MaError, "Incorrect port number")
+  let plen = portPart.protoArgument(pbuf).valueOr:
+    raise maErr error
+  if plen == 0:
+    raise maErr "Incorrect port number"
   let
     port = Port(fromBytesBE(uint16, pbuf))
+    dnsval = getHostname(ma)
     resolvedAddresses = await self.resolveIp(prefix & dnsval, port, domain)
 
-  return collect(newSeqOfCap(4)):
-    for address in resolvedAddresses:
-      var createdAddress = MultiAddress.init(address).tryGet()[0].tryGet()
-      for part in ma:
-        if DNS.match(part.tryGet()):
-          continue
-        createdAddress &= part.tryGet()
-      createdAddress
+  resolvedAddresses.mapIt:
+    let address = MultiAddress.init(it).valueOr:
+      raise maErr error
+    var createdAddress = address[0].valueOr:
+      raise maErr error
+    for part in ma:
+      let part = part.valueOr:
+        raise maErr error
+      if DNS.match(part):
+        continue
+      createdAddress &= part
+    createdAddress
 
 proc resolveDnsAddr*(
     self: NameResolver, ma: MultiAddress, depth: int = 0
-): Future[seq[MultiAddress]] {.async.} =
+): Future[seq[MultiAddress]] {.
+    async: (raises: [CancelledError, MaError, TransportAddressError]).} =
   if not DNSADDR.matchPartial(ma):
     return @[ma]
 
@@ -78,54 +89,66 @@ proc resolveDnsAddr*(
     info "Stopping DNSADDR recursion, probably malicious", ma
     return @[]
 
-  var dnsval = getHostname(ma)
-
-  let txt = await self.resolveTxt("_dnsaddr." & dnsval)
+  let
+    dnsval = getHostname(ma)
+    txt = await self.resolveTxt("_dnsaddr." & dnsval)
 
   trace "txt entries", txt
 
-  var result: seq[MultiAddress]
+  const codec = multiCodec("p2p")
+  let maCodec = block:
+    let hasCodec = ma.contains(codec).valueOr:
+      raise maErr error
+    if hasCodec:
+      ma[codec]
+    else:
+      (static(default(MaResult[MultiAddress])))
+
+  var res: seq[MultiAddress]
   for entry in txt:
     if not entry.startsWith("dnsaddr="):
       continue
-    let entryValue = MultiAddress.init(entry[8 ..^ 1]).tryGet()
-
-    if entryValue.contains(multiCodec("p2p")).tryGet() and
-        ma.contains(multiCodec("p2p")).tryGet():
-      if entryValue[multiCodec("p2p")] != ma[multiCodec("p2p")]:
-        continue
+    let
+      entryValue = MultiAddress.init(entry[8 ..^ 1]).valueOr:
+        raise maErr error
+      entryHasCodec = entryValue.contains(multiCodec("p2p")).valueOr:
+        raise maErr error
+    if entryHasCodec and maCodec.isOk and entryValue[codec] != maCodec:
+      continue
 
     let resolved = await self.resolveDnsAddr(entryValue, depth + 1)
     for r in resolved:
-      result.add(r)
+      res.add(r)
 
-  if result.len == 0:
+  if res.len == 0:
     debug "Failed to resolve a DNSADDR", ma
-    return @[]
-  return result
+  res
 
 proc resolveMAddress*(
     self: NameResolver, address: MultiAddress
-): Future[seq[MultiAddress]] {.async.} =
+): Future[seq[MultiAddress]] {.
+    async: (raises: [CancelledError, MaError, TransportAddressError]).} =
   var res = initOrderedSet[MultiAddress]()
-
   if not DNS.matchPartial(address):
     res.incl(address)
   else:
-    let code = address[0].tryGet().protoCode().tryGet()
-    let seq =
-      case code
-      of multiCodec("dns"):
-        await self.resolveOneAddress(address)
-      of multiCodec("dns4"):
-        await self.resolveOneAddress(address, Domain.AF_INET)
-      of multiCodec("dns6"):
-        await self.resolveOneAddress(address, Domain.AF_INET6)
-      of multiCodec("dnsaddr"):
-        await self.resolveDnsAddr(address)
-      else:
-        assert false
-        @[address]
-    for ad in seq:
+    let
+      firstPart = address[0].valueOr:
+        raise maErr error
+      code = firstPart.protoCode().valueOr:
+        raise maErr error
+      ads =
+        case code
+        of multiCodec("dns"):
+          await self.resolveOneAddress(address)
+        of multiCodec("dns4"):
+          await self.resolveOneAddress(address, Domain.AF_INET)
+        of multiCodec("dns6"):
+          await self.resolveOneAddress(address, Domain.AF_INET6)
+        of multiCodec("dnsaddr"):
+          await self.resolveDnsAddr(address)
+        else:
+          raise maErr("Unsupported codec " & $code)
+    for ad in ads:
       res.incl(ad)
-  return res.toSeq
+  res.toSeq

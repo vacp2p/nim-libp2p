@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -24,18 +24,28 @@ type MockResolver* = ref object of NameResolver
   ipResponses*: Table[(string, bool), seq[string]]
 
 method resolveIp*(
-    self: MockResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
-): Future[seq[TransportAddress]] {.async.} =
+    self: MockResolver,
+    address: string,
+    port: Port,
+    domain: Domain = Domain.AF_UNSPEC
+): Future[seq[TransportAddress]] {.
+    async: (raises: [CancelledError, TransportAddressError]).} =
+  var res: seq[TransportAddress]
+
   if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
     for resp in self.ipResponses.getOrDefault((address, false)):
-      result.add(initTAddress(resp, port))
+      res.add(initTAddress(resp, port))
 
   if domain == Domain.AF_INET6 or domain == Domain.AF_UNSPEC:
     for resp in self.ipResponses.getOrDefault((address, true)):
-      result.add(initTAddress(resp, port))
+      res.add(initTAddress(resp, port))
 
-method resolveTxt*(self: MockResolver, address: string): Future[seq[string]] {.async.} =
-  return self.txtResponses.getOrDefault(address)
+  res
+
+method resolveTxt*(
+    self: MockResolver, address: string
+): Future[seq[string]] {.async: (raises: [CancelledError]).} =
+  self.txtResponses.getOrDefault(address)
 
 proc new*(T: typedesc[MockResolver]): T =
   T()
