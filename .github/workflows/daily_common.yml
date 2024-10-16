@@ -7,7 +7,7 @@ on:
       nim:
         description: 'Nim Configuration'
         required: true
-        type: string # Following this format: [{"branch": ..., "memory_management": ...}, ...]
+        type: string # Following this format: [{"ref": ..., "memory_management": ...}, ...]
       cpu:
         description: 'CPU'
         required: true
@@ -58,7 +58,7 @@ jobs:
       run:
         shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.branch }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
     runs-on: ${{ matrix.platform.builder }}
     steps:
       - name: Checkout
@@ -69,7 +69,7 @@ jobs:
         with:
           os: ${{ matrix.platform.os }}
           shell: ${{ matrix.platform.shell }}
-          nim_branch: ${{ matrix.nim.branch }}
+          nim_ref: ${{ matrix.nim.ref }}
           cpu: ${{ matrix.cpu }}
 
       - name: Setup Go
