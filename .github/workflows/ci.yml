@@ -27,6 +27,8 @@ jobs:
             cpu: amd64
           - os: macos
             cpu: amd64
+          - os: macos-14
+            cpu: arm64
           - os: windows
             cpu: amd64
         nim: 
@@ -46,6 +48,10 @@ jobs:
           - platform:
               os: macos
             builder: macos-13
+            shell: bash
+          - platform:
+              os: macos-14
+            builder: macos-14
             shell: bash
           - platform:
               os: windows
@@ -75,7 +81,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.15.5'
+          go-version: '~1.16.0'
 
       - name: Install p2pd
         run: |
@@ -88,7 +94,7 @@ jobs:
           path: nimbledeps
           # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
           # The change happened on Nimble v0.14.0.
-          key: nimbledeps-${{ matrix.nim.branch }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+          key: nimbledeps-${{ matrix.nim.branch }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
