@@ -7,14 +7,14 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sequtils, strutils]
+import std/[sequtils, strutils, exitprocs]
 
 import stew/byteutils
 import chronicles
 
 import mbedtls/pk
-import mbedtls/ctr_drbg
-import mbedtls/entropy
+import mbedtls/ctr_drbg as ctr_drbg_module
+import mbedtls/entropy as entropy_module
 import mbedtls/ecp
 import mbedtls/sha256
 import mbedtls/md
@@ -64,6 +64,41 @@ type
 proc ptrInc*(p: ptr byte, n: uint): ptr byte =
   ## Utility function to increment a pointer by n bytes.
   cast[ptr byte](cast[uint](p) + n)
+
+# Initialize entropy and DRBG contexts at the module level
+var
+  entropy: mbedtls_entropy_context
+  ctrDrbg: mbedtls_ctr_drbg_context
+  drbgInitialized = false
+
+proc initializeDRBG() =
+  ## Function to initialize entropy and DRBG context if not already initialized.
+  if not drbgInitialized:
+    mbedtls_entropy_init(addr entropy)
+    mbedtls_ctr_drbg_init(addr ctrDrbg)
+
+    # Seed the random number generator
+    let personalization = "libp2p_tls"
+    let ret = mbedtls_ctr_drbg_seed(
+      addr ctrDrbg,
+      mbedtls_entropy_func,
+      addr entropy,
+      cast[ptr byte](personalization.cstring),
+      personalization.len.uint
+    )
+    if ret != 0:
+      raise newException(KeyGenerationError, "Failed to seed CTR_DRBG")
+    drbgInitialized = true
+
+proc cleanupDRBG() =
+  ## Function to free entropy and DRBG context.
+  if drbgInitialized:
+    mbedtls_ctr_drbg_free(addr ctrDrbg)
+    mbedtls_entropy_free(addr entropy)
+    drbgInitialized = false
+
+# Register cleanup function to free entropy and DRBG context
+addExitProc(cleanupDRBG)
 
 proc generateSignedKey(
     signature: seq[byte], pubKey: seq[byte]
@@ -233,10 +268,9 @@ proc generate*(
   ## - `KeyGenerationError` if key generation fails.
   ## - `CertificateCreationError` if certificate creation fails.
   ## - `ASN1EncodingError` if encoding fails.
-  # Initialize entropy and DRBG contexts
+  # Ensure DRBG contexts are initialized
+  initializeDRBG()
   var
-    entropy = mbedtls_entropy_context()
-    ctrDrbg = mbedtls_ctr_drbg_context()
     crt: mbedtls_x509write_cert
     certKey: mbedtls_pk_context
     ret: cint
