@@ -10,5 +10,5 @@ jobs:
     name: Daily amd64
     uses: ./.github/workflows/daily_common.yml
     with:
-      nim: "[{'branch': 'version-1-6', 'memory_management': 'refc'}, {'branch': 'version-2-0', 'memory_management': 'refc'}]"
+      nim: "[{'ref': 'version-1-6', 'memory_management': 'refc'}, {'ref': '8754469f4947844c5938f56e1fba846c349354b5', 'memory_management': 'refc'}]"
       cpu: "['amd64']"
