@@ -35,7 +35,7 @@ jobs:
           # The ref below corresponds to the branch "version-2-0".
           # Right before an update from Nimble 0.16.1 to 0.16.2.
           # That update breaks our dependency resolution.
-          - ref: 8754469f4947844c5938f56e1fba846c349354b5
+          - ref: version-2-0
             memory_management: refc
         include:
           - platform:
@@ -95,8 +95,9 @@ jobs:
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        # The reason for using solver:legacy is to avoid an error in Nimble 0.16.2 where SAT is not able to check the dependencies. 
         run: |
-          nimble install_pinned
+          nimble --nimbleDir:nimbledeps --solver:legacy install_pinned
 
       - name: Use gcc 14
         if : ${{ matrix.platform.os == 'linux-gcc-14'}}
