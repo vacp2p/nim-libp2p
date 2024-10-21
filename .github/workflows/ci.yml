@@ -97,7 +97,11 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         # The reason for using solver:legacy is to avoid an error in Nimble 0.16.2 where SAT is not able to check the dependencies.
         run: |
-          nimble --nimbleDir:nimbledeps --solver:legacy install_pinned
+          if [[ "${{ matrix.nim.ref }}" == "version-2-0" ]]; then
+            nimble --solver:legacy install_pinned
+          else
+            nimble install
+          fi
 
       - name: Use gcc 14
         if : ${{ matrix.platform.os == 'linux-gcc-14'}}
@@ -114,5 +118,10 @@ jobs:
           nim --version
           nimble --version
           gcc --version
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:legacy"
+
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          if [[ "${{ matrix.nim.ref }}" == "version-2-0" ]]; then
+            NIMFLAGS="${NIMFLAGS} --solver:legacy"
+          fi
+
           nimble test
