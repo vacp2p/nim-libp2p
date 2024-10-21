@@ -10,6 +10,6 @@ jobs:
     name: Daily i386 (Linux)
     uses: ./.github/workflows/daily_common.yml
     with:
-      nim: "[{'branch': 'version-1-6', 'memory_management': 'refc'}, {'branch': 'version-2-0', 'memory_management': 'refc'}, {'branch': 'devel', 'memory_management': 'orc'}]"
+      nim: "[{'ref': 'version-1-6', 'memory_management': 'refc'}, {'ref': '8754469f4947844c5938f56e1fba846c349354b5', 'memory_management': 'refc'}, {'ref': 'devel', 'memory_management': 'orc'}]"
       cpu: "['i386']"
       exclude: "[{'platform': {'os':'macos'}}, {'platform': {'os':'windows'}}]"
