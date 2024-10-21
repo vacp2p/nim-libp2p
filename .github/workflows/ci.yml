@@ -35,7 +35,7 @@ jobs:
           # The ref below corresponds to the branch "version-2-0".
           # Right before an update from Nimble 0.16.1 to 0.16.2.
           # That update breaks our dependency resolution.
-          - ref: cc4c9251f0fbf5e2c93e6815db402a0e27e1110d
+          - ref: 8754469f4947844c5938f56e1fba846c349354b5
             memory_management: refc
         include:
           - platform:
@@ -97,7 +97,7 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         # The reason for using solver:legacy is to avoid an error in Nimble 0.16.2 where SAT is not able to check the dependencies.
         run: |
-          if [[ "${{ matrix.nim.ref }}" == "cc4c9251f0fbf5e2c93e6815db402a0e27e1110d" ]]; then
+          if [[ "${{ matrix.nim.ref }}" == "8754469f4947844c5938f56e1fba846c349354b5" ]]; then
             nimble --solver:legacy install_pinned
           else
             nimble install_pinned
@@ -120,7 +120,7 @@ jobs:
           gcc --version
 
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          if [[ "${{ matrix.nim.ref }}" == "cc4c9251f0fbf5e2c93e6815db402a0e27e1110d" ]]; then
+          if [[ "${{ matrix.nim.ref }}" == "8754469f4947844c5938f56e1fba846c349354b5" ]]; then
             NIMFLAGS="${NIMFLAGS} --solver:legacy"
           fi
 
