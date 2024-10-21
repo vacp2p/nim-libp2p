@@ -100,7 +100,7 @@ jobs:
           if [[ "${{ matrix.nim.ref }}" == "version-2-0" ]]; then
             nimble --solver:legacy install_pinned
           else
-            nimble install
+            nimble install_pinned
           fi
 
       - name: Use gcc 14
