@@ -13,7 +13,7 @@ results;https://github.com/arnetheduck/nim-results@#f3c666a272c69d70cb41e7245e7f
 secp256k1;https://github.com/status-im/nim-secp256k1@#7246d91c667f4cc3759fdd50339caa45a2ecd8be
 serialization;https://github.com/status-im/nim-serialization@#4bdbc29e54fe54049950e352bb969aab97173b35
 stew;https://github.com/status-im/nim-stew@#3159137d9a3110edb4024145ce0ba778975de40e
-testutils;https://github.com/status-im/nim-testutils@#4d37244f9f5e1acd8592a4ceb5c3fc47bc160181
-unittest2;https://github.com/status-im/nim-unittest2@#845b6af28b9f68f02d320e03ad18eccccea7ddb9
+testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014de2b4bfb4dafc34
+unittest2;https://github.com/status-im/nim-unittest2@#2300fa9924a76e6c96bc4ea79d043e3a0f27120c
 websock;https://github.com/status-im/nim-websock@#f8ed9b40a5ff27ad02a3c237c4905b0924e3f982
 zlib;https://github.com/status-im/nim-zlib@#38b72eda9d70067df4a953f56b5ed59630f2a17b
