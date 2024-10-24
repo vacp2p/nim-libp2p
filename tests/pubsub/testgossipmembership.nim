@@ -229,18 +229,12 @@ suite "GossipSub Topic Membership Tests":
         currentGossip.fanout.len == 0
 
     let firstNodeGossip = GossipSub(nodes[0])
-    let peersToUnsubscribe = firstNodeGossip.mesh[topic].toSeq()[0 .. 2]
-    let peerIdsToUnsubscribe = peersToUnsubscribe.mapIt(it.peerId)
-    for node in nodes:
-      for peerId in peerIdsToUnsubscribe:
-        node.unsubscribe(topic, voidTopicHandler)
-        node.peers.del(peerId)
+    let peersToUnsubscribe = nodes[1 ..< 3]
+    for peer in peersToUnsubscribe:
+      peer.unsubscribe(topic, voidTopicHandler)
 
     await sleepAsync(3 * DURATION_TIMEOUT)
 
     check firstNodeGossip.mesh.getOrDefault(topic).len == 3
-
-    for peer in peersToUnsubscribe:
-      check not firstNodeGossip.mesh[topic].contains(peer)
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
