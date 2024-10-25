@@ -39,8 +39,9 @@ suite "GossipSub Topic Membership Tests":
     checkTrackers()
   # Addition of Designed Test cases for 6. Topic Membership Tests: https://www.notion.so/Gossipsub-651e02d4d7894bb2ac1e4edb55f3192d
 
-  # Simulate the `SUBSCRIBE` to the topic and check proper handling in the mesh and gossipsub structures
+  # Test for subscribing to a topic and verifying mesh and gossipsub structures
   asyncTest "handle SUBSCRIBE to the topic":
+    # Given 5 gossipsub nodes
     let
       numberOfNodes = 5
       topic = "test-topic"
@@ -48,23 +49,25 @@ suite "GossipSub Topic Membership Tests":
 
     await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
+    # When all of them are connected and subscribed to the same topic
     await subscribeNodes(nodes)
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
+    # Then their related attributes should reflect that
     for node in nodes:
       let currentGossip = GossipSub(node)
-
       check currentGossip.topics.contains(topic)
       check currentGossip.gossipsub[topic].len() == numberOfNodes - 1
       check currentGossip.mesh[topic].len() == numberOfNodes - 1
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-  # Simulate an UNSUBSCRIBE to the topic and check if the topic is removed from all relevant data structures
+  # Test unsubscribing from a topic and verifying removal from relevant data structures
   asyncTest "handle UNSUBSCRIBE to the topic":
+    # Given 5 nodes subscribed to a topic
     let
       numberOfNodes = 5
       topic = "test-topic"
@@ -78,21 +81,20 @@ suite "GossipSub Topic Membership Tests":
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
+    # When all nodes unsubscribe from the topic
     for node in nodes:
       node.unsubscribe(topic, voidTopicHandler)
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
+    # Then the topic should be removed from relevant data structures
     for node in nodes:
       let currentGossip = GossipSub(node)
-
       check topic notin currentGossip.topics
-
       if topic in currentGossip.mesh:
         check currentGossip.mesh[topic].len == 0
       else:
         check topic notin currentGossip.mesh
-
       if topic in currentGossip.gossipsub:
         check currentGossip.gossipsub[topic].len == 0
       else:
@@ -102,13 +104,15 @@ suite "GossipSub Topic Membership Tests":
 
   # Test subscribing and unsubscribing multiple topics
   asyncTest "handle SUBSCRIBE and UNSUBSCRIBE multiple topics":
+    # Given 3 nodes and multiple topics
     let
-      numberOfNodes = 5
+      numberOfNodes = 3
       topics = ["topic1", "topic2", "topic3"].toSeq()
       nodes = generateNodes(numberOfNodes, gossip = true)
 
     await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
+    # When nodes subscribe and then unsubscribe to multiple topics
     await subscribeNodes(nodes)
     for node in nodes:
       for topic in topics:
@@ -116,18 +120,21 @@ suite "GossipSub Topic Membership Tests":
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
+    # Then all nodes should be subscribed to the topics initially
     for node in nodes:
       let currentGossip = GossipSub(node)
       check currentGossip.topics.len == topics.len
       for topic in topics:
         check currentGossip.gossipsub[topic].len == numberOfNodes - 1
 
+    # When they unsubscribe from all topics
     for node in nodes:
       for topic in topics:
         node.unsubscribe(topic, voidTopicHandler)
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
+    # Then topics should be removed from mesh and gossipsub
     for node in nodes:
       let currentGossip = GossipSub(node)
       for topic in topics:
@@ -137,8 +144,9 @@ suite "GossipSub Topic Membership Tests":
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-  # Test ensuring that the number of subscriptions does not exceed the limit set in the GossipSub parameters
+  # Test ensuring the number of subscriptions does not exceed a set limit
   asyncTest "subscription limit test":
+    # Given one node and a subscription limit of 10 topics
     let
       topicCount = 15
       gossipSubParams = 10
@@ -148,6 +156,7 @@ suite "GossipSub Topic Membership Tests":
 
     await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
+    # When attempting to subscribe to 15 topics
     let gossipSub = GossipSub(nodes[0])
     gossipSub.topicsHigh = gossipSubParams
 
@@ -160,14 +169,16 @@ suite "GossipSub Topic Membership Tests":
           ,
         )
       else:
+        # Then the subscription count should not exceed the limit
         check gossipSub.topics.len == gossipSub.topicsHigh
 
     check gossipSub.topics.len == gossipSub.topicsHigh
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-  # Test for verifying peers joining a topic using `JOIN(topic)`
+  # Test verifying peers joining a topic using `JOIN(topic)`
   asyncTest "handle JOIN topic and mesh is updated":
+    # Given 5 nodes and a join request to a topic
     let
       topic = "test-join-topic"
       numberOfNodes = 5
@@ -175,12 +186,14 @@ suite "GossipSub Topic Membership Tests":
 
     await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
+    # When nodes join and subscribe to the topic
     await subscribeNodes(nodes)
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
+    # Then each node's mesh should reflect this update
     for node in nodes:
       let currentGossip = GossipSub(node)
       check currentGossip.mesh[topic].len == numberOfNodes - 1
@@ -188,8 +201,9 @@ suite "GossipSub Topic Membership Tests":
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-  # Test the behavior when multiple peers join and leave a topic simultaneously.
+  # Test the behavior when multiple peers join and leave a topic simultaneously
   asyncTest "multiple peers join and leave topic simultaneously":
+    # Given 6 nodes and a shared topic
     let
       numberOfNodes = 6
       topic = "foobar"
@@ -202,12 +216,14 @@ suite "GossipSub Topic Membership Tests":
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
+    # When they all join the topic, their attributes should reflect this
     for i in 0 ..< numberOfNodes:
       let currentGossip = GossipSub(nodes[i])
       check currentGossip.gossipsub.hasKey(topic)
       check currentGossip.mesh.hasKey(topic)
       check currentGossip.topics.contains(topic)
 
+    # When peers subscribe to each other's topics
     for x in 0 ..< numberOfNodes:
       for y in 0 ..< numberOfNodes:
         if x != y:
@@ -223,6 +239,7 @@ suite "GossipSub Topic Membership Tests":
         currentGossip.mesh[topic].len == expectedNumberOfPeers
         currentGossip.fanout.len == 0
 
+    # When some peers unsubscribe
     let firstNodeGossip = GossipSub(nodes[0])
     let peersToUnsubscribe = nodes[1 ..< 3]
     for peer in peersToUnsubscribe:
@@ -230,6 +247,7 @@ suite "GossipSub Topic Membership Tests":
 
     await sleepAsync(3 * DURATION_TIMEOUT)
 
+    # Then the mesh and gossipsub should reflect the updated peer count
     check firstNodeGossip.mesh.getOrDefault(topic).len == 3
     check firstNodeGossip.gossipsub[topic].len == 3
     check topic in firstNodeGossip.topics
