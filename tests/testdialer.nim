@@ -10,8 +10,7 @@
 import std/options
 import chronos
 import unittest2
-import ../libp2p/[builders,
-                  switch]
+import ../libp2p/[builders, switch]
 import ./helpers
 
 suite "Dialer":
@@ -19,7 +18,6 @@ suite "Dialer":
     checkTrackers()
 
   asyncTest "Connect forces a new connection":
-
     let
       src = newStandardSwitch()
       dst = newStandardSwitch()

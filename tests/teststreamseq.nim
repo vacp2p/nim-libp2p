@@ -25,7 +25,7 @@ suite "StreamSeq":
     check:
       @(s.data()) == [byte 0, 1, 2, 3]
 
-    s.prepare(10)[0..<3] = [byte 4, 5, 6]
+    s.prepare(10)[0 ..< 3] = [byte 4, 5, 6]
 
     check:
       @(s.data()) == [byte 0, 1, 2, 3]
@@ -42,14 +42,17 @@ suite "StreamSeq":
 
     s.consume(6)
 
-    check: @(s.data()) == []
+    check:
+      @(s.data()) == []
 
     s.add([])
-    check: @(s.data()) == []
+    check:
+      @(s.data()) == []
 
     var o: seq[byte]
 
-    check: 0 == s.consumeTo(o)
+    check:
+      0 == s.consumeTo(o)
 
     s.add([byte 1, 2, 3])
 

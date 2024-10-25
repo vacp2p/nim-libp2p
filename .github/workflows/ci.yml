@@ -1,10 +1,11 @@
-name: CI
+name: Continuous Integration
+
 on:
   push:
     branches:
       - master
-      - unstable
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -12,60 +13,67 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  test:
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        target:
+        platform:
           - os: linux
             cpu: amd64
           - os: linux
             cpu: i386
+          - os: linux-gcc-14
+            cpu: amd64
           - os: macos
             cpu: amd64
           - os: windows
             cpu: amd64
-          #- os: windows
-            #cpu: i386
-        branch: [version-1-6]
+        nim: 
+          - branch: version-1-6
+            memory_management: refc
+          - branch: version-2-0
+            memory_management: refc
         include:
-          - target:
+          - platform:
               os: linux
-            builder: ubuntu-20.04
+            builder: ubuntu-22.04
             shell: bash
-          - target:
+          - platform:
+              os: linux-gcc-14
+            builder: ubuntu-24.04
+            shell: bash
+          - platform:
               os: macos
-            builder: macos-12
+            builder: macos-13
             shell: bash
-          - target:
+          - platform:
               os: windows
-            builder: windows-2019
+            builder: windows-2022
             shell: msys2 {0}
 
     defaults:
       run:
         shell: ${{ matrix.shell }}
 
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
     runs-on: ${{ matrix.builder }}
-    continue-on-error: ${{ matrix.branch == 'devel' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: ${{ matrix.target.os }}
-          cpu: ${{ matrix.target.cpu }}
+          os: ${{ matrix.platform.os }}
+          cpu: ${{ matrix.platform.cpu }}
           shell: ${{ matrix.shell }}
-          nim_branch: ${{ matrix.branch }}
+          nim_branch: ${{ matrix.nim.branch }}
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: '~1.15.5'
 
@@ -78,15 +86,28 @@ jobs:
         uses: actions/cache@v3
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
+          # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
+          # The change happened on Nimble v0.14.0.
+          key: nimbledeps-${{ matrix.nim.branch }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 
+      - name: Use gcc 14
+        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
+        run: |
+          # Add GCC-14 to alternatives
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+
+          # Set GCC-14 as the default
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
       - name: Run tests
         run: |
           nim --version
           nimble --version
+          gcc --version
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test

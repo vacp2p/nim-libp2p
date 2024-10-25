@@ -14,14 +14,11 @@ import std/sequtils
 import chronos
 import stew/objects
 
-import ../../../multiaddress,
-       ../../../errors,
-       ../../../stream/connection
+import ../../../multiaddress, ../../../errors, ../../../stream/connection
 
 export multiaddress
 
-const
-  DcutrCodec* = "/libp2p/dcutr"
+const DcutrCodec* = "/libp2p/dcutr"
 
 type
   MsgType* = enum
@@ -56,5 +53,12 @@ proc send*(conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]) {.async
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
   await conn.writeLp(pb.buffer)
 
-proc getHolePunchableAddrs*(addrs: seq[MultiAddress]): seq[MultiAddress] =
-  addrs.filterIt(TCP.match(it))
+proc getHolePunchableAddrs*(
+    addrs: seq[MultiAddress]
+): seq[MultiAddress] {.raises: [LPError].} =
+  var result = newSeq[MultiAddress]()
+  for a in addrs:
+    # This is necessary to also accept addrs like /ip4/198.51.100/tcp/1234/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+    if [TCP, mapAnd(TCP_DNS, P2PPattern), mapAnd(TCP_IP, P2PPattern)].anyIt(it.match(a)):
+      result.add(a[0 .. 1].tryGet())
+  return result

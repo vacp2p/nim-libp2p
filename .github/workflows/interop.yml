@@ -1,9 +1,11 @@
-name: Interoperability Testing
+name: Interoperability Tests
+
 on:
   pull_request:
+  merge_group:
   push:
     branches:
-      - unstable
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -11,44 +13,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  run-multidim-interop:
-    name: Run multidimensional interoperability tests
+  run-transport-interop:
+    name: Run transport interoperability tests
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - name: Free Disk Space
+        # For some reason we have space issues while running this action. Likely while building the image.
+        # This action will free up some space to avoid the issue.
+        uses: jlumbroso/free-disk-space@v1.3.1
         with:
-          repository: libp2p/test-plans
-          submodules: true
-          fetch-depth: 0
+          tool-cache: true
 
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - name: Build image
-        run: >
-          cd multidim-interop/impl/nim/v1.0 &&
-          make commitSha=$GITHUB_SHA image_name=nim-libp2p-head
-
-      - name: Create ping-version.json
-        run: >
-          (cat << EOF
-            {
-                "id": "nim-libp2p-head",
-                "containerImageID": "nim-libp2p-head",
-                "transports": [
-                    "tcp",
-                    "ws"
-                ],
-                "secureChannels": [
-                    "noise"
-                ],
-                "muxers": [
-                    "mplex",
-                    "yamux"
-                ]
-            }
-          EOF
-          
-          ) > ${{ github.workspace }}/test_head.json
-
-      - uses: libp2p/test-plans/.github/actions/run-interop-ping-test@master
+        run: docker buildx build --load -t nim-libp2p-head -f tests/transport-interop/Dockerfile .
+      - name: Run tests
+        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-head
-          extra-versions: ${{ github.workspace }}/test_head.json
+          extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+
+  run-hole-punching-interop:
+    name: Run hole-punching interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: docker buildx build --load -t nim-libp2p-head -f tests/hole-punching-interop/Dockerfile .
+      - name: Run tests
+        uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+        with:
+          test-filter: nim-libp2p-head
+          extra-versions: ${{ github.workspace }}/tests/hole-punching-interop/version.json
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}

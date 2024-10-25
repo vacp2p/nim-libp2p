@@ -10,16 +10,19 @@
 # those terms.
 
 import chronos
-import ../libp2p/[protocols/ping,
-                  multiaddress,
-                  peerinfo,
-                  peerid,
-                  stream/connection,
-                  multistream,
-                  transports/transport,
-                  transports/tcptransport,
-                  crypto/crypto,
-                  upgrademngrs/upgrade]
+import
+  ../libp2p/[
+    protocols/ping,
+    multiaddress,
+    peerinfo,
+    peerid,
+    stream/connection,
+    multistream,
+    transports/transport,
+    transports/tcptransport,
+    crypto/crypto,
+    upgrademngrs/upgrade,
+  ]
 import ./helpers
 
 suite "Ping":
@@ -42,8 +45,9 @@ suite "Ping":
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())
 
-    proc handlePing(peer: PeerId) {.async, gcsafe, closure.} =
+    proc handlePing(peer: PeerId) {.async, closure.} =
       inc pingReceivedCount
+
     pingProto1 = Ping.new()
     pingProto2 = Ping.new(handlePing)
 
@@ -63,7 +67,7 @@ suite "Ping":
   asyncTest "simple ping":
     msListen.addHandler(PingCodec, pingProto1)
     serverFut = transport1.start(@[ma])
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+    proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       await msListen.handle(c)
 
@@ -78,7 +82,7 @@ suite "Ping":
   asyncTest "ping callback":
     msDial.addHandler(PingCodec, pingProto2)
     serverFut = transport1.start(@[ma])
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+    proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       discard await msListen.select(c, PingCodec)
       discard await pingProto1.ping(c)
@@ -92,18 +96,19 @@ suite "Ping":
   asyncTest "bad ping data ack":
     type FakePing = ref object of LPProtocol
     let fakePingProto = FakePing()
-    proc fakeHandle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+    proc fakeHandle(conn: Connection, proto: string) {.async, closure.} =
       var
         buf: array[32, byte]
         fakebuf: array[32, byte]
       await conn.readExactly(addr buf[0], 32)
       await conn.write(@fakebuf)
+
     fakePingProto.codec = PingCodec
     fakePingProto.handler = fakeHandle
 
     msListen.addHandler(PingCodec, fakePingProto)
     serverFut = transport1.start(@[ma])
-    proc acceptHandler(): Future[void] {.async, gcsafe.} =
+    proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       await msListen.handle(c)
 

@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -11,10 +11,8 @@
 
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics]
-import ./coder,
-       ../muxer,
-       ../../stream/[bufferstream, connection, streamseq],
-       ../../peerinfo
+import
+  ./coder, ../muxer, ../../stream/[bufferstream, connection, streamseq], ../../peerinfo
 
 export connection
 
@@ -22,13 +20,15 @@ logScope:
   topics = "libp2p mplexchannel"
 
 when defined(libp2p_mplex_metrics):
-  declareHistogram libp2p_mplex_qlen, "message queue length",
+  declareHistogram libp2p_mplex_qlen,
+    "message queue length",
     buckets = [0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0]
   declareCounter libp2p_mplex_qlenclose, "closed because of max queuelen"
   declareHistogram libp2p_mplex_qtime, "message queuing time"
 
 when defined(libp2p_network_protocols_metrics):
-  declareCounter libp2p_protocols_bytes, "total sent or received bytes", ["protocol", "direction"]
+  declareCounter libp2p_protocols_bytes,
+    "total sent or received bytes", ["protocol", "direction"]
 
 ## Channel half-closed states
 ##
@@ -42,38 +42,41 @@ when defined(libp2p_network_protocols_metrics):
 ## EOF marker
 
 const
-  MaxWrites = 1024 ##\
+  MaxWrites = 1024
+    ##\
     ## Maximum number of in-flight writes - after this, we disconnect the peer
 
   LPChannelTrackerName* = "LPChannel"
 
-type
-  LPChannel* = ref object of BufferStream
-    id*: uint64                   # channel id
-    name*: string                 # name of the channel (for debugging)
-    conn*: Connection             # wrapped connection used to for writing
-    initiator*: bool              # initiated remotely or locally flag
-    isOpen*: bool                 # has channel been opened
-    closedLocal*: bool            # has channel been closed locally
-    remoteReset*: bool            # has channel been remotely reset
-    localReset*: bool             # has channel been reset locally
-    msgCode*: MessageType         # cached in/out message code
-    closeCode*: MessageType       # cached in/out close code
-    resetCode*: MessageType       # cached in/out reset code
-    writes*: int                  # In-flight writes
+type LPChannel* = ref object of BufferStream
+  id*: uint64 # channel id
+  name*: string # name of the channel (for debugging)
+  conn*: Connection # wrapped connection used to for writing
+  initiator*: bool # initiated remotely or locally flag
+  isOpen*: bool # has channel been opened
+  closedLocal*: bool # has channel been closed locally
+  remoteReset*: bool # has channel been remotely reset
+  localReset*: bool # has channel been reset locally
+  msgCode*: MessageType # cached in/out message code
+  closeCode*: MessageType # cached in/out close code
+  resetCode*: MessageType # cached in/out reset code
+  writes*: int # In-flight writes
 
 func shortLog*(s: LPChannel): auto =
   try:
-    if s.isNil: "LPChannel(nil)"
+    if s == nil:
+      "LPChannel(nil)"
     elif s.name != $s.oid and s.name.len > 0:
       &"{shortLog(s.conn.peerId)}:{s.oid}:{s.name}"
-    else: &"{shortLog(s.conn.peerId)}:{s.oid}"
+    else:
+      &"{shortLog(s.conn.peerId)}:{s.oid}"
   except ValueError as exc:
-    raise newException(Defect, exc.msg)
+    raiseAssert(exc.msg)
 
-chronicles.formatIt(LPChannel): shortLog(it)
+chronicles.formatIt(LPChannel):
+  shortLog(it)
 
-proc open*(s: LPChannel) {.async, gcsafe.} =
+proc open*(s: LPChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Opening channel", s, conn = s.conn
   if s.conn.isClosed:
     return
@@ -82,20 +85,20 @@ proc open*(s: LPChannel) {.async, gcsafe.} =
     s.isOpen = true
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     await s.conn.close()
     raise exc
 
 method closed*(s: LPChannel): bool =
   s.closedLocal
 
-proc closeUnderlying(s: LPChannel): Future[void] {.async.} =
+proc closeUnderlying(s: LPChannel): Future[void] {.async: (raises: []).} =
   ## Channels may be closed for reading and writing in any order - we'll close
   ## the underlying bufferstream when both directions are closed
   if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
-proc reset*(s: LPChannel) {.async, gcsafe.} =
+proc reset*(s: LPChannel) {.async: (raises: []).} =
   if s.isClosed:
     trace "Already closed", s
     return
@@ -108,22 +111,21 @@ proc reset*(s: LPChannel) {.async, gcsafe.} =
 
   if s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
-    proc resetMessage() {.async.} =
+    proc resetMessage() {.async: (raises: []).} =
       try:
         trace "sending reset message", s, conn = s.conn
-        await s.conn.writeMsg(s.id, s.resetCode) # write reset
-      except CatchableError as exc:
-        # No cancellations
+        await noCancel s.conn.writeMsg(s.id, s.resetCode) # write reset
+      except LPStreamError as exc:
+        trace "Can't send reset message", s, conn = s.conn, description = exc.msg
         await s.conn.close()
-        trace "Can't send reset message", s, conn = s.conn, msg = exc.msg
 
     asyncSpawn resetMessage()
 
-  await s.closeImpl() # noraises, nocancels
+  await s.closeImpl()
 
   trace "Channel reset", s
 
-method close*(s: LPChannel) {.async, gcsafe.} =
+method close*(s: LPChannel) {.async: (raises: []).} =
   ## Close channel for writing - a message will be sent to the other peer
   ## informing them that the channel is closed and that we're waiting for
   ## their acknowledgement.
@@ -137,14 +139,13 @@ method close*(s: LPChannel) {.async, gcsafe.} =
   if s.isOpen and not s.conn.isClosed:
     try:
       await s.conn.writeMsg(s.id, s.closeCode) # write close
-    except CancelledError as exc:
+    except CancelledError:
       await s.conn.close()
-      raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       # It's harmless that close message cannot be sent - the connection is
       # likely down already
       await s.conn.close()
-      trace "Cannot send close message", s, id = s.id, msg = exc.msg
+      trace "Cannot send close message", s, id = s.id, description = exc.msg
 
   await s.closeUnderlying() # maybe already eofed
 
@@ -154,16 +155,15 @@ method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = LPChannelTrackerName
 
-  s.timeoutHandler = proc(): Future[void] {.gcsafe.} =
+  s.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
     trace "Idle timeout expired, resetting LPChannel", s
     s.reset()
 
   procCall BufferStream(s).initStream()
 
-method readOnce*(s: LPChannel,
-                 pbytes: pointer,
-                 nbytes: int):
-                 Future[int] {.async.} =
+method readOnce*(
+    s: LPChannel, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Mplex relies on reading being done regularly from every channel, or all
   ## channels are blocked - in particular, this means that reading from one
   ## channel must not be done from within a callback / read handler of another
@@ -180,21 +180,24 @@ method readOnce*(s: LPChannel,
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
     when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
-        libp2p_protocols_bytes.inc(bytes.int64, labelValues=[s.protocol, "in"])
+        libp2p_protocols_bytes.inc(bytes.int64, labelValues = [s.protocol, "in"])
 
     trace "readOnce", s, bytes
     if bytes == 0:
       await s.closeUnderlying()
     return bytes
-  except CatchableError as exc:
-    # readOnce in BufferStream generally raises on EOF or cancellation - for
-    # the former, resetting is harmless, for the latter it's necessary because
-    # data has been lost in s.readBuf and there's no way to gracefully recover /
-    # use the channel any more
+  except CancelledError as exc:
+    await s.reset()
+    raise exc
+  except LPStreamError as exc:
+    # Resetting is necessary because data has been lost in s.readBuf and
+    # there's no way to gracefully recover / use the channel any more
     await s.reset()
     raise newLPStreamConnDownError(exc)
 
-proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
+proc prepareWrite(
+    s: LPChannel, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
   if s.remoteReset:
@@ -211,7 +214,7 @@ proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
     debug "Closing connection, too many in-flight writes on channel",
       s, conn = s.conn, writes = s.writes
     when defined(libp2p_mplex_metrics):
-        libp2p_mplex_qlenclose.inc()
+      libp2p_mplex_qlenclose.inc()
     await s.reset()
     await s.conn.close()
     return
@@ -222,7 +225,10 @@ proc prepareWrite(s: LPChannel, msg: seq[byte]): Future[void] {.async.} =
   await s.conn.writeMsg(s.id, s.msgCode, msg)
 
 proc completeWrite(
-    s: LPChannel, fut: Future[void], msgLen: int): Future[void] {.async.} =
+    s: LPChannel,
+    fut: Future[void].Raising([CancelledError, LPStreamError]),
+    msgLen: int,
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   try:
     s.writes += 1
 
@@ -235,7 +241,9 @@ proc completeWrite(
 
     when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
-        libp2p_protocols_bytes.inc(msgLen.int64, labelValues=[s.protocol, "out"])
+        # This crashes on Nim 2.0.2 with `--mm:orc` during `nimble test`
+        # https://github.com/status-im/nim-metrics/issues/79
+        libp2p_protocols_bytes.inc(msgLen.int64, labelValues = [s.protocol, "out"])
 
     s.activity = true
   except CancelledError as exc:
@@ -247,20 +255,21 @@ proc completeWrite(
     raise exc
   except LPStreamEOFError as exc:
     raise exc
-  except CatchableError as exc:
-    trace "exception in lpchannel write handler", s, msg = exc.msg
+  except LPStreamError as exc:
+    trace "exception in lpchannel write handler", s, description = exc.msg
     await s.reset()
     await s.conn.close()
     raise newLPStreamConnDownError(exc)
   finally:
     s.writes -= 1
 
-method write*(s: LPChannel, msg: seq[byte]): Future[void] =
+method write*(
+    s: LPChannel, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Write to mplex channel - there may be up to MaxWrite concurrent writes
   ## pending after which the peer is disconnected
 
-  let
-    closed = s.closedLocal or s.conn.closed
+  let closed = s.closedLocal or s.conn.closed
 
   let fut =
     if (not closed) and msg.len > 0 and s.writes < MaxWrites and s.isOpen:
@@ -273,16 +282,17 @@ method write*(s: LPChannel, msg: seq[byte]): Future[void] =
 
   s.completeWrite(fut, msg.len)
 
-method getWrapped*(s: LPChannel): Connection = s.conn
+method getWrapped*(s: LPChannel): Connection =
+  s.conn
 
 proc init*(
-  L: type LPChannel,
-  id: uint64,
-  conn: Connection,
-  initiator: bool,
-  name: string = "",
-  timeout: Duration = DefaultChanTimeout): LPChannel =
-
+    L: type LPChannel,
+    id: uint64,
+    conn: Connection,
+    initiator: bool,
+    name: string = "",
+    timeout: Duration = DefaultChanTimeout,
+): LPChannel =
   let chann = L(
     id: id,
     name: name,
@@ -293,12 +303,17 @@ proc init*(
     msgCode: if initiator: MessageType.MsgOut else: MessageType.MsgIn,
     closeCode: if initiator: MessageType.CloseOut else: MessageType.CloseIn,
     resetCode: if initiator: MessageType.ResetOut else: MessageType.ResetIn,
-    dir: if initiator: Direction.Out else: Direction.In)
+    dir: if initiator: Direction.Out else: Direction.In,
+  )
 
   chann.initStream()
 
   when chronicles.enabledLogLevel == LogLevel.TRACE:
-    chann.name = if chann.name.len > 0: chann.name else: $chann.oid
+    chann.name =
+      if chann.name.len > 0:
+        chann.name
+      else:
+        $chann.oid
 
   trace "Created new lpchannel", s = chann, id, initiator
 

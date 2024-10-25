@@ -53,7 +53,7 @@ const
        785932E00EAA23B694F213F8C3121F86DC97A04E5A7167DB4E5BCD371123D46E
        45DB6B5D5370A7F20FB633155D38FFA16D2BD761DCAC474B9A2F5023A4004931
        01C962CD4D2FDDF782285E64584139C2F91B47F87FF82354D6630F746A28A0DB
-       25741B5B34A828008B22ACC23F924FAAFBD4D33F81EA66956DFEAA2BFDFCF5"""
+       25741B5B34A828008B22ACC23F924FAAFBD4D33F81EA66956DFEAA2BFDFCF5""",
   ]
 
   SignaturePubKeys = [
@@ -80,12 +80,10 @@ const
        5932E00EAA23B694F213F8C3121F86DC97A04E5A7167DB4E5BCD371123D46E45
        DB6B5D5370A7F20FB633155D38FFA16D2BD761DCAC474B9A2F5023A400493101
        C962CD4D2FDDF782285E64584139C2F91B47F87FF82354D6630F746A28A0DB25
-       741B5B34A828008B22ACC23F924FAAFBD4D33F81EA66956DFEAA2BFDFCF5"""
+       741B5B34A828008B22ACC23F924FAAFBD4D33F81EA66956DFEAA2BFDFCF5""",
   ]
 
-  SignatureMessages = [
-    "sample", "test", "sample", "test", "sample", "test"
-  ]
+  SignatureMessages = ["sample", "test", "sample", "test", "sample", "test"]
 
   SignatureVectors = [
     """3046022100EFD48B2AACB6A8FD1140DD9CD45E81D69D2C877B56AAF991C34D0E
@@ -111,12 +109,11 @@ const
        41D8071042EB28C4C250411D0CE08CD197E4188EA4876F279F90B3D8D74A3C76
        E6F1E4656AA8024200CD52DBAA33B063C3A6CD8058A1FB0A46A4754B034FCC64
        4766CA14DA8CA5CA9FDE00E88C1AD60CCBA759025299079D7A427EC3CC5B619B
-       FBC828E7769BCD694E86"""
+       FBC828E7769BCD694E86""",
   ]
 
   # This test vectors was generated using Go `crypto/ecdsa.go`.
   # Its non-deterministic ECDSA signatures.
-
   NDPrivateKeys = [
     """3077020101042068A2F6BCCA486C323C883328D890BA1C64A0B0CC9A8527D681
        0AE8FDBB1B695CA00A06082A8648CE3D030107A144034200048EA1E33E80527E
@@ -134,7 +131,7 @@ const
        48791B40C677D80E70F5DFE84B50F301C4067222BDF1EE75B805227287A309C2
        0C7E33E6FE93F651D6ABCE76E644DC16B220E34E68DCB5858262B00A07015923
        7B66B29CABBDC352420E3652F6DCF6EB4EC6E08B0957EDC9ACC35CD684B99A78
-       E638C7937608749855C98C147DD46EE776234BA781D31C4FB05BB1D3648027"""
+       E638C7937608749855C98C147DD46EE776234BA781D31C4FB05BB1D3648027""",
   ]
 
   NDPublicKeys = [
@@ -149,13 +146,12 @@ const
        791B40C677D80E70F5DFE84B50F301C4067222BDF1EE75B805227287A309C20C
        7E33E6FE93F651D6ABCE76E644DC16B220E34E68DCB5858262B00A070159237B
        66B29CABBDC352420E3652F6DCF6EB4EC6E08B0957EDC9ACC35CD684B99A78E6
-       38C7937608749855C98C147DD46EE776234BA781D31C4FB05BB1D3648027"""
+       38C7937608749855C98C147DD46EE776234BA781D31C4FB05BB1D3648027""",
   ]
 
   NDMessages = [
-    "sample", "sample", "sample", "test", "test", "test",
-    "sample", "sample", "sample", "test", "test", "test",
-    "sample", "sample", "sample", "test", "test", "test",
+    "sample", "sample", "sample", "test", "test", "test", "sample", "sample", "sample",
+    "test", "test", "test", "sample", "sample", "sample", "test", "test", "test",
   ]
 
   NDSignatures = [
@@ -230,11 +226,10 @@ const
        722D83D07D0ADFB3D33492F2645B15A19FFAF6424A03487CE2E099069006037956
        9972DC798A02412B6F169D23303B0C7764620514EF308F010EFB4E3A69912967EE
        303B177FA12B58C4602183BCB58D5DB30917584EDFE4BE4B42EC0EE3E3FB75BDA8
-       C05CB9C3A2DA"""
+       C05CB9C3A2DA""",
   ]
 
   # ECDHE test vectors was made using Go's elliptic/curve
-
   ECDHEPrivateKeys = [
     "978edaa0671f5a37ec5372b62689e9328af71b6fb4ac3be24d195ca082b0f2fa",
     "a849c80cb4f507ab24569473c2b94a84608088e7cb448816ba60d91ade3c8470",
@@ -271,7 +266,7 @@ const
        2f39""",
     """011b3b6ac868ae156c66b140d92092167193e88f04909be61b3592c7006296e3
        cc1dab37955fea9e5ab24047c2ef717e402a88bd616ef27c68cf6976e68b6c69
-       b326"""
+       b326""",
   ]
 
   ECDHESecrets = [
@@ -292,14 +287,14 @@ const
        3d25""",
     """018c54bd7cb4aab23b07760c48e563a1828ff521442e5388eb62f916c33a8db2
        ec8bc6a5c8c41b3ebb09f0cf66bbae602d355161c97597b088060bb8456a4458
-       35ab"""
+       35ab""",
   ]
 
 let rng = newRng()
 
 suite "EC NIST-P256/384/521 test suite":
   test "[secp256r1] Private key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EcPrivateKey
       var skey2 = newSeq[byte](256)
       var key = EcPrivateKey.random(Secp256r1, rng[]).expect("random key")
@@ -321,7 +316,7 @@ suite "EC NIST-P256/384/521 test suite":
         rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp256r1] Public key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EcPublicKey
       var skey2 = newSeq[byte](256)
       var pair = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
@@ -342,7 +337,7 @@ suite "EC NIST-P256/384/521 test suite":
         rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp256r1] ECDHE test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp1 = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
       var kp2 = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
       var shared1 = kp2.pubkey.scalarMul(kp1.seckey)
@@ -353,7 +348,7 @@ suite "EC NIST-P256/384/521 test suite":
         shared1 == shared2
 
   test "[secp256r1] ECDHE test vectors":
-    for i in 0..<3:
+    for i in 0 ..< 3:
       var key1 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2]))
       var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
       var seckey1 = EcPrivateKey.initRaw(key1).expect("initRaw key")
@@ -368,18 +363,20 @@ suite "EC NIST-P256/384/521 test suite":
         secret2 == expsecret
 
   test "[secp256r1] ECDSA test vectors":
-    for i in 0..<2:
+    for i in 0 ..< 2:
       var sk = EcPrivateKey.init(stripSpaces(SignatureSecKeys[i])).expect("private key")
-      var expectpk = EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("private key")
+      var expectpk =
+        EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("private key")
       var checkpk = sk.getPublicKey().expect("public key")
       check expectpk == checkpk
       var checksig = sk.sign(SignatureMessages[i]).expect("signature")
-      var expectsig = EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
+      var expectsig =
+        EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
       let error = checksig.buffer.high
-      checksig.buffer[error] = not(checksig.buffer[error])
+      checksig.buffer[error] = not (checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
   test "[secp256r1] ECDSA non-deterministic test vectors":
@@ -387,17 +384,17 @@ suite "EC NIST-P256/384/521 test suite":
     var pk = EcPublicKey.init(stripSpaces(NDPublicKeys[0])).expect("public key")
     var checkpk = sk.getPublicKey().expect("public key")
     check pk == checkpk
-    for i in 0..<6:
+    for i in 0 ..< 6:
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i])).expect("signature")
       check checksig.verify(message, pk) == true
       let error = checksig.buffer.high
-      checksig.buffer[error] = not(checksig.buffer[error])
+      checksig.buffer[error] = not (checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
   test "[secp256r1] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp = EcKeyPair.random(Secp256r1, rng[]).expect("random key")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")
@@ -408,11 +405,11 @@ suite "EC NIST-P256/384/521 test suite":
       var csig = EcSignature.init(sersig).expect("signature")
       check csig.verify(message, pubkey) == true
       let error = csig.buffer.high
-      csig.buffer[error] = not(csig.buffer[error])
+      csig.buffer[error] = not (csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
   test "[secp384r1] Private key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EcPrivateKey
       var skey2 = newSeq[byte](256)
       var key = EcPrivateKey.random(Secp384r1, rng[]).expect("random key")
@@ -434,7 +431,7 @@ suite "EC NIST-P256/384/521 test suite":
         rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp384r1] Public key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EcPublicKey
       var skey2 = newSeq[byte](256)
       var pair = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
@@ -455,7 +452,7 @@ suite "EC NIST-P256/384/521 test suite":
         rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp384r1] ECDHE test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp1 = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
       var kp2 = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
       var shared1 = kp2.pubkey.scalarMul(kp1.seckey)
@@ -466,7 +463,7 @@ suite "EC NIST-P256/384/521 test suite":
         shared1 == shared2
 
   test "[secp384r1] ECDHE test vectors":
-    for i in 3..<6:
+    for i in 3 ..< 6:
       var key1 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2]))
       var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
       var seckey1 = EcPrivateKey.initRaw(key1).expect("private key")
@@ -481,18 +478,20 @@ suite "EC NIST-P256/384/521 test suite":
         secret2 == expsecret
 
   test "[secp384r1] ECDSA test vectors":
-    for i in 2..<4:
+    for i in 2 ..< 4:
       var sk = EcPrivateKey.init(stripSpaces(SignatureSecKeys[i])).expect("private key")
-      var expectpk = EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("public key")
+      var expectpk =
+        EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("public key")
       var checkpk = sk.getPublicKey().expect("public key")
       check expectpk == checkpk
       var checksig = sk.sign(SignatureMessages[i]).expect("signature")
-      var expectsig = EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
+      var expectsig =
+        EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
       let error = checksig.buffer.high
-      checksig.buffer[error] = not(checksig.buffer[error])
+      checksig.buffer[error] = not (checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
   test "[secp384r1] ECDSA non-deterministic test vectors":
@@ -500,17 +499,17 @@ suite "EC NIST-P256/384/521 test suite":
     var pk = EcPublicKey.init(stripSpaces(NDPublicKeys[1])).expect("public key")
     var checkpk = sk.getPublicKey().expect("public key")
     check pk == checkpk
-    for i in 6..<12:
+    for i in 6 ..< 12:
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i])).expect("signature")
       check checksig.verify(message, pk) == true
       let error = checksig.buffer.high
-      checksig.buffer[error] = not(checksig.buffer[error])
+      checksig.buffer[error] = not (checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
   test "[secp384r1] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp = EcKeyPair.random(Secp384r1, rng[]).expect("random key")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")
@@ -521,11 +520,11 @@ suite "EC NIST-P256/384/521 test suite":
       var csig = EcSignature.init(sersig).expect("signature")
       check csig.verify(message, pubkey) == true
       let error = csig.buffer.high
-      csig.buffer[error] = not(csig.buffer[error])
+      csig.buffer[error] = not (csig.buffer[error])
       check csig.verify(message, pubkey) == false
 
   test "[secp521r1] Private key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EcPrivateKey
       var skey2 = newSeq[byte](256)
       var key = EcPrivateKey.random(Secp521r1, rng[]).expect("random key")
@@ -547,7 +546,7 @@ suite "EC NIST-P256/384/521 test suite":
         rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp521r1] Public key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EcPublicKey
       var skey2 = newSeq[byte](256)
       var pair = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
@@ -568,7 +567,7 @@ suite "EC NIST-P256/384/521 test suite":
         rkey1.getBytes == EcResult[seq[byte]].err(EcKeyIncorrectError)
 
   test "[secp521r1] ECDHE test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp1 = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
       var kp2 = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
       var shared1 = kp2.pubkey.scalarMul(kp1.seckey)
@@ -579,7 +578,7 @@ suite "EC NIST-P256/384/521 test suite":
         shared1 == shared2
 
   test "[secp521r1] ECDHE test vectors":
-    for i in 6..<9:
+    for i in 6 ..< 9:
       var key1 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2]))
       var key2 = fromHex(stripSpaces(ECDHEPrivateKeys[i * 2 + 1]))
       var seckey1 = EcPrivateKey.initRaw(key1).expect("private key")
@@ -594,18 +593,20 @@ suite "EC NIST-P256/384/521 test suite":
         secret2 == expsecret
 
   test "[secp521r1] ECDSA test vectors":
-    for i in 4..<6:
+    for i in 4 ..< 6:
       var sk = EcPrivateKey.init(stripSpaces(SignatureSecKeys[i])).expect("private key")
-      var expectpk = EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("public key")
+      var expectpk =
+        EcPublicKey.init(stripSpaces(SignaturePubKeys[i])).expect("public key")
       var checkpk = sk.getPublicKey().expect("public key")
       check expectpk == checkpk
       var checksig = sk.sign(SignatureMessages[i]).expect("signature")
-      var expectsig = EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
+      var expectsig =
+        EcSignature.init(stripSpaces(SignatureVectors[i])).expect("signature")
       check:
         checksig == expectsig
         checksig.verify(SignatureMessages[i], checkpk) == true
       let error = checksig.buffer.high
-      checksig.buffer[error] = not(checksig.buffer[error])
+      checksig.buffer[error] = not (checksig.buffer[error])
       check checksig.verify(SignatureMessages[i], checkpk) == false
 
   test "[secp521r1] ECDSA non-deterministic test vectors":
@@ -613,17 +614,17 @@ suite "EC NIST-P256/384/521 test suite":
     var pk = EcPublicKey.init(stripSpaces(NDPublicKeys[2])).expect("public key")
     var checkpk = sk.getPublicKey().expect("public key")
     check pk == checkpk
-    for i in 12..<18:
+    for i in 12 ..< 18:
       var message = NDMessages[i]
       var checksig = EcSignature.init(stripSpaces(NDSignatures[i])).expect("signature")
       check checksig.verify(message, pk) == true
       let error = checksig.buffer.high
-      checksig.buffer[error] = not(checksig.buffer[error])
+      checksig.buffer[error] = not (checksig.buffer[error])
       check checksig.verify(message, pk) == false
 
   test "[secp521r1] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp = EcKeyPair.random(Secp521r1, rng[]).expect("random key")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")
@@ -634,5 +635,5 @@ suite "EC NIST-P256/384/521 test suite":
       var csig = EcSignature.init(sersig).expect("signature")
       check csig.verify(message, pubkey) == true
       let error = csig.buffer.high
-      csig.buffer[error] = not(csig.buffer[error])
+      csig.buffer[error] = not (csig.buffer[error])
       check csig.verify(message, pubkey) == false

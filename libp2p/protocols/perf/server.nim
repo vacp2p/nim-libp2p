@@ -13,10 +13,7 @@
 
 import chronos, chronicles
 import stew/endians2
-import ./core,
-       ../protocol,
-       ../../stream/connection,
-       ../../utility
+import ./core, ../protocol, ../../stream/connection, ../../utility
 
 export chronicles, connection
 
@@ -27,7 +24,7 @@ type Perf* = ref object of LPProtocol
 
 proc new*(T: typedesc[Perf]): T {.public.} =
   var p = T()
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     var bytesRead = 0
     try:
       trace "Received benchmark performance check", conn
@@ -47,12 +44,12 @@ proc new*(T: typedesc[Perf]): T {.public.} =
       var buf: array[PerfSize, byte]
       while size > 0:
         let toWrite = min(size, PerfSize)
-        await conn.write(buf[0..<toWrite])
+        await conn.write(buf[0 ..< toWrite])
         size -= toWrite
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in perf handler", exc = exc.msg, conn
+      trace "exception in perf handler", description = exc.msg, conn
     await conn.close()
 
   p.handler = handle

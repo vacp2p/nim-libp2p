@@ -1,11 +1,15 @@
 {.used.}
 
 import chronos, stew/[byteutils, results]
-import ../libp2p/[stream/connection,
-                  transports/transport,
-                  upgrademngrs/upgrade,
-                  multiaddress,
-                  errors]
+import
+  ../libp2p/
+    [
+      stream/connection,
+      transports/transport,
+      upgrademngrs/upgrade,
+      multiaddress,
+      errors,
+    ]
 
 import ./helpers
 
@@ -30,7 +34,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
 
       let transport2 = transpProvider()
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         if conn.observedAddr.isSome():
           check transport1.handles(conn.observedAddr.get())
@@ -43,12 +47,10 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       if conn.observedAddr.isSome():
         check transport2.handles(conn.observedAddr.get())
 
-      await conn.close() #for some protocols, closing requires actively reading, so we must close here
+      await conn.close()
+        #for some protocols, closing requires actively reading, so we must close here
 
-      await allFuturesThrowing(
-        allFinished(
-          transport1.stop(),
-          transport2.stop()))
+      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
 
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
@@ -58,7 +60,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         await conn.write("Hello!")
         await conn.close()
@@ -70,12 +72,10 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
 
-      await conn.close() #for some protocols, closing requires actively reading, so we must close here
+      await conn.close()
+        #for some protocols, closing requires actively reading, so we must close here
 
-      await allFuturesThrowing(
-        allFinished(
-          transport1.stop(),
-          transport2.stop()))
+      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
 
       check string.fromBytes(msg) == "Hello!"
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
@@ -85,7 +85,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         var msg = newSeq[byte](6)
         await conn.readExactly(addr msg[0], 6)
@@ -98,13 +98,11 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let conn = await transport2.dial(transport1.addrs[0])
       await conn.write("Hello!")
 
-      await conn.close() #for some protocols, closing requires actively reading, so we must close here
+      await conn.close()
+        #for some protocols, closing requires actively reading, so we must close here
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
-      await allFuturesThrowing(
-        allFinished(
-          transport1.stop(),
-          transport2.stop()))
+      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
 
     asyncTest "e2e: handle dial cancellation":
       let ma = @[MultiAddress.init(ma1).tryGet()]
@@ -118,10 +116,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       await cancellation.cancelAndWait()
       check cancellation.cancelled
 
-      await allFuturesThrowing(
-        allFinished(
-          transport1.stop(),
-          transport2.stop()))
+      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
 
     asyncTest "e2e: handle accept cancellation":
       let ma = @[MultiAddress.init(ma1).tryGet()]
@@ -140,14 +135,16 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
         # this randomly locks the Windows CI job
         skip()
         return
-      let addrs = @[MultiAddress.init(ma1).tryGet(),
-                    MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet()]
-
+      let addrs =
+        @[
+          MultiAddress.init(ma1).tryGet(),
+          MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
+        ]
 
       let transport1 = transpProvider()
       await transport1.start(addrs)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async, gensym.} =
         while true:
           let conn = await transport1.accept()
           await conn.write(newSeq[byte](0))
@@ -201,10 +198,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let conn = await transport2.dial(transport1.addrs[0])
       let serverConn = await acceptHandler
 
-      await allFuturesThrowing(
-        allFinished(
-          transport1.stop(),
-          transport2.stop()))
+      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
 
       check serverConn.closed()
       check conn.closed()
@@ -214,7 +208,7 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let transport1 = transpProvider()
       await transport1.start(ma)
 
-      proc acceptHandler() {.async, gcsafe.} =
+      proc acceptHandler() {.async, gensym.} =
         let conn = await transport1.accept()
         await conn.close()
 
@@ -236,7 +230,8 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       except CatchableError as exc:
         check true
 
-      await conn.close() #for some protocols, closing requires actively reading, so we must close here
+      await conn.close()
+        #for some protocols, closing requires actively reading, so we must close here
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await transport1.stop()

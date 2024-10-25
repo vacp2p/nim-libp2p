@@ -10,17 +10,21 @@
 # those terms.
 
 import chronos, stew/byteutils
-import ../libp2p/[stream/connection,
-                  transports/transport,
-                  transports/wstransport,
-                  upgrademngrs/upgrade,
-                  multiaddress,
-                  errors]
+import
+  ../libp2p/[
+    stream/connection,
+    transports/transport,
+    transports/wstransport,
+    upgrademngrs/upgrade,
+    multiaddress,
+    errors,
+  ]
 
 import ./helpers, ./commontransport
 
 const
-  SecureKey = """
+  SecureKey =
+    """
 -----BEGIN PRIVATE KEY-----
 MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAP0yH7F7FtGunC91
 IPkU+u8B4gdxiwYW0J3PrixtB1Xz3e4dfjwQqhIJlG6BxQ4myCxmSPjxP/eOOYp+
@@ -39,7 +43,8 @@ NABr5ec1FxuJa/8=
 -----END PRIVATE KEY-----
 """
 
-  SecureCert = """
+  SecureCert =
+    """
 -----BEGIN CERTIFICATE-----
 MIICjDCCAfWgAwIBAgIURjeiJmkNbBVktqXvnXh44DKx364wDQYJKoZIhvcNAQEL
 BQAwVzELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoM
@@ -62,34 +67,37 @@ suite "WebSocket transport":
   teardown:
     checkTrackers()
 
-  proc wsTraspProvider(): Transport = WsTransport.new(Upgrade())
+  proc wsTraspProvider(): Transport =
+    WsTransport.new(Upgrade())
 
-  commonTransportTest(
-    wsTraspProvider,
-    "/ip4/0.0.0.0/tcp/0/ws")
+  commonTransportTest(wsTraspProvider, "/ip4/0.0.0.0/tcp/0/ws")
 
   proc wsSecureTranspProvider(): Transport {.gcsafe.} =
-      try:
-        return WsTransport.new(
-          Upgrade(),
-          TLSPrivateKey.init(SecureKey),
-          TLSCertificate.init(SecureCert),
-          {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName})
-      except CatchableError:
-        check(false)
+    try:
+      return WsTransport.new(
+        Upgrade(),
+        TLSPrivateKey.init(SecureKey),
+        TLSCertificate.init(SecureCert),
+        {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
+      )
+    except CatchableError:
+      check(false)
 
-  commonTransportTest(
-    wsSecureTranspProvider,
-    "/ip4/0.0.0.0/tcp/0/wss")
+  commonTransportTest(wsSecureTranspProvider, "/ip4/0.0.0.0/tcp/0/wss")
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
-    let transport1 = WsTransport.new(Upgrade(), TLSPrivateKey.init(SecureKey), TLSCertificate.init(SecureCert), {TLSFlags.NoVerifyHost})
+    let transport1 = WsTransport.new(
+      Upgrade(),
+      TLSPrivateKey.init(SecureKey),
+      TLSCertificate.init(SecureCert),
+      {TLSFlags.NoVerifyHost},
+    )
 
     const correctPattern = mapAnd(TCP, mapEq("wss"))
     await transport1.start(ma)
     check correctPattern.match(transport1.addrs[0])
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       while true:
         let conn = await transport1.accept()
         if not isNil(conn):

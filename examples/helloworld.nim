@@ -1,5 +1,5 @@
-import chronos         # an efficient library for async
-import stew/byteutils  # various utils
+import chronos # an efficient library for async
+import stew/byteutils # various utils
 import libp2p
 
 ##
@@ -7,20 +7,18 @@ import libp2p
 ##
 const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
 
-type
-  TestProto = ref object of LPProtocol # declare a custom protocol
+type TestProto = ref object of LPProtocol # declare a custom protocol
 
 proc new(T: typedesc[TestProto]): T =
-
   # every incoming connections will be in handled in this closure
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.async.} =
     echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
     await conn.writeLp("Roger p2p!")
 
     # We must close the connections ourselves when we're done with it
     await conn.close()
 
-  return T(codecs: @[TestCodec], handler: handle)
+  return T.new(codecs = @[TestCodec], handler = handle)
 
 ##
 # Helper to create a switch/node
@@ -28,11 +26,16 @@ proc new(T: typedesc[TestProto]): T =
 proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
   var switch = SwitchBuilder
     .new()
-    .withRng(rng)       # Give the application RNG
-    .withAddress(ma)    # Our local address(es)
-    .withTcpTransport() # Use TCP as transport
-    .withMplex()        # Use Mplex as muxer
-    .withNoise()        # Use Noise as secure manager
+    .withRng(rng)
+    # Give the application RNG
+    .withAddress(ma)
+    # Our local address(es)
+    .withTcpTransport()
+    # Use TCP as transport
+    .withMplex()
+    # Use Mplex as muxer
+    .withNoise()
+    # Use Noise as secure manager
     .build()
 
   result = switch
@@ -40,7 +43,7 @@ proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
 ##
 # The actual application
 ##
-proc main() {.async, gcsafe.} =
+proc main() {.async.} =
   let
     rng = newRng() # Single random number source for the whole application
     # port 0 will take a random available port
@@ -73,7 +76,8 @@ proc main() {.async, gcsafe.} =
   # use the second node to dial the first node
   # using the first node peerid and address
   # and specify our custom protocol codec
-  let conn = await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+  let conn =
+    await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
   # conn is now a fully setup connection, we talk directly to the node1 custom protocol handler
   await conn.writeLp("Hello p2p!") # writeLp send a length prefixed buffer over the wire
@@ -84,6 +88,7 @@ proc main() {.async, gcsafe.} =
   # We must close the connection ourselves when we're done with it
   await conn.close()
 
-  await allFutures(switch1.stop(), switch2.stop()) # close connections and shutdown all transports
+  await allFutures(switch1.stop(), switch2.stop())
+    # close connections and shutdown all transports
 
 waitFor(main())

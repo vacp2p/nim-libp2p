@@ -18,8 +18,12 @@ for line in contents.splitLines(true):
       echo code.strip(leading = false)
       echo "```"
       code = ""
-    echo(if stripped.len > 3: stripped[3..^1]
-         else: "")
+    echo(
+      if stripped.len > 3:
+        stripped[3 ..^ 1]
+      else:
+        ""
+    )
   else:
     code &= line
 if code.strip.len > 0:

@@ -1,24 +1,17 @@
 mode = ScriptMode.Verbose
 
-packageName   = "libp2p"
-version       = "1.1.0"
-author        = "Status Research & Development GmbH"
-description   = "LibP2P implementation"
-license       = "MIT"
-skipDirs      = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
+packageName = "libp2p"
+version = "1.6.0"
+author = "Status Research & Development GmbH"
+description = "LibP2P implementation"
+license = "MIT"
+skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.6.0",
-         "nimcrypto >= 0.4.1",
-         "dnsclient >= 0.3.0 & < 0.4.0",
-         "bearssl >= 0.1.4",
-         "chronicles >= 0.10.2",
-         "chronos >= 3.0.6",
-         "metrics",
-         "secp256k1",
-         "stew#head",
-         "websock",
-         "https://github.com/status-im/nim-webrtc.git",
-         "unittest2 >= 0.0.5 & <= 0.1.0"
+  "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
+  "chronicles >= 0.10.2", "chronos >= 4.0.3", "metrics", "secp256k1", "stew#head",
+  "websock", "unittest2",
+  "https://github.com/status-im/nim-quic.git#ddcb31ffb74b5460ab37fd13547eca90594248bc"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
@@ -27,14 +20,14 @@ let verbose = getEnv("V", "") notin ["", "0"]
 
 let cfg =
   " --styleCheck:usages --styleCheck:error" &
-  (if verbose: "" else: " --verbosity:0 --hints:off") &
-  " --skipParentCfg --skipUserCfg -f" &
+  (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
   " --threads:on --opt:speed"
 
 import hashes, strutils
 
-proc runTest(filename: string, verify: bool = true, sign: bool = true,
-             moreoptions: string = "") =
+proc runTest(
+    filename: string, verify: bool = true, sign: bool = true, moreoptions: string = ""
+) =
   var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
   excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
   excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
@@ -53,7 +46,8 @@ proc buildSample(filename: string, run = false, extraFlags = "") =
   rmFile "examples/" & filename.toExe
 
 proc tutorialToMd(filename: string) =
-  let markdown = gorge "cat " & filename & " | " & nimc & " " & lang & " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
+  let markdown = gorge "cat " & filename & " | " & nimc & " " & lang &
+    " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
   writeFile(filename.replace(".nim", ".md"), markdown)
 
 task testnative, "Runs libp2p native tests":
@@ -66,24 +60,37 @@ task testinterop, "Runs interop tests":
   runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
-  runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
+  runTest(
+    "pubsub/testgossipinternal",
+    sign = false,
+    verify = false,
+    moreoptions = "-d:pubsub_internal_testing",
+  )
   runTest("pubsub/testpubsub")
   runTest("pubsub/testpubsub", sign = false, verify = false)
-  runTest("pubsub/testpubsub", sign = false, verify = false, moreoptions = "-d:libp2p_pubsub_anonymize=true")
+  runTest(
+    "pubsub/testpubsub",
+    sign = false,
+    verify = false,
+    moreoptions = "-d:libp2p_pubsub_anonymize=true",
+  )
 
 task testpubsub_slim, "Runs pubsub tests":
-  runTest("pubsub/testgossipinternal", sign = false, verify = false, moreoptions = "-d:pubsub_internal_testing")
+  runTest(
+    "pubsub/testgossipinternal",
+    sign = false,
+    verify = false,
+    moreoptions = "-d:pubsub_internal_testing",
+  )
   runTest("pubsub/testpubsub")
 
 task testfilter, "Run PKI filter test":
-  runTest("testpkifilter",
-           moreoptions = "-d:libp2p_pki_schemes=\"secp256k1\"")
-  runTest("testpkifilter",
-           moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519\"")
-  runTest("testpkifilter",
-           moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519;ecnist\"")
-  runTest("testpkifilter",
-           moreoptions = "-d:libp2p_pki_schemes=")
+  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1\"")
+  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519\"")
+  runTest(
+    "testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519;ecnist\""
+  )
+  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
 task test, "Runs the test suite":
   exec "nimble testnative"
@@ -118,8 +125,9 @@ task examples_build, "Build the samples":
   buildSample("tutorial_3_protobuf", true)
   buildSample("tutorial_4_gossipsub", true)
   buildSample("tutorial_5_discovery", true)
-  exec "nimble install -y nimpng@#HEAD" # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
-  exec "nimble install -y nico"
+  exec "nimble install -y nimpng@#HEAD"
+    # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
+  exec "nimble install -y nico@#af99dd60bf2b395038ece815ea1012330a80d6e6"
   buildSample("tutorial_6_game", false, "--styleCheck:off")
 
 # pin system
@@ -136,7 +144,9 @@ task pin, "Create a lockfile":
 import sequtils
 import os
 task install_pinned, "Reads the lockfile":
-  let toInstall = readFile(PinFile).splitWhitespace().mapIt((it.split(";", 1)[0], it.split(";", 1)[1]))
+  let toInstall = readFile(PinFile).splitWhitespace().mapIt(
+      (it.split(";", 1)[0], it.split(";", 1)[1])
+    )
   # [('packageName', 'packageFullUri')]
 
   rmDir("nimbledeps")
@@ -146,8 +156,7 @@ task install_pinned, "Reads the lockfile":
   # Remove the automatically installed deps
   # (inefficient you say?)
   let nimblePkgs =
-    if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs"
-    else: "nimbledeps/pkgs2"
+    if system.dirExists("nimbledeps/pkgs"): "nimbledeps/pkgs" else: "nimbledeps/pkgs2"
   for dependency in listDirs(nimblePkgs):
     let
       fileName = dependency.extractFilename
@@ -155,14 +164,12 @@ task install_pinned, "Reads the lockfile":
       packageName = fileName.split('-')[0]
 
     if toInstall.anyIt(
-        it[0] == packageName and
-        (
-          it[1].split('#')[^1] in fileContent or # nimble for nim 2.X
-          fileName.endsWith(it[1].split('#')[^1]) # nimble for nim 1.X
-        )
-      ) == false or
-      fileName.split('-')[^1].len < 20: # safegard for nimble for nim 1.X
-        rmDir(dependency)
+      it[0] == packageName and (
+        it[1].split('#')[^1] in fileContent or # nimble for nim 2.X
+        fileName.endsWith(it[1].split('#')[^1]) # nimble for nim 1.X
+      )
+    ) == false or fileName.split('-')[^1].len < 20: # safegard for nimble for nim 1.X
+      rmDir(dependency)
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")

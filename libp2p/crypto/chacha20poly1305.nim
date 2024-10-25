@@ -48,17 +48,19 @@ proc intoChaChaPolyTag*(s: openArray[byte]): ChaChaPolyTag =
 # this is reconciled at runtime
 # we do this in the global scope / module init
 
-proc encrypt*(_: type[ChaChaPoly],
-                 key: ChaChaPolyKey,
-                 nonce: ChaChaPolyNonce,
-                 tag: var ChaChaPolyTag,
-                 data: var openArray[byte],
-                 aad: openArray[byte]) =
-  let
-    ad = if aad.len > 0:
-           unsafeAddr aad[0]
-         else:
-           nil
+proc encrypt*(
+    _: type[ChaChaPoly],
+    key: ChaChaPolyKey,
+    nonce: ChaChaPolyNonce,
+    tag: var ChaChaPolyTag,
+    data: var openArray[byte],
+    aad: openArray[byte],
+) =
+  let ad =
+    if aad.len > 0:
+      unsafeAddr aad[0]
+    else:
+      nil
 
   poly1305CtmulRun(
     unsafeAddr key[0],
@@ -69,20 +71,23 @@ proc encrypt*(_: type[ChaChaPoly],
     uint(aad.len),
     baseAddr(tag),
     # cast is required to workaround https://github.com/nim-lang/Nim/issues/13905
-    cast[Chacha20Run](chacha20CtRun),
-    #[encrypt]# 1.cint)
+    cast[Chacha20Run](chacha20CtRun), #[encrypt]#
+    1.cint,
+  )
 
-proc decrypt*(_: type[ChaChaPoly],
-                 key: ChaChaPolyKey,
-                 nonce: ChaChaPolyNonce,
-                 tag: var ChaChaPolyTag,
-                 data: var openArray[byte],
-                 aad: openArray[byte]) =
-  let
-    ad = if aad.len > 0:
-          unsafeAddr aad[0]
-         else:
-           nil
+proc decrypt*(
+    _: type[ChaChaPoly],
+    key: ChaChaPolyKey,
+    nonce: ChaChaPolyNonce,
+    tag: var ChaChaPolyTag,
+    data: var openArray[byte],
+    aad: openArray[byte],
+) =
+  let ad =
+    if aad.len > 0:
+      unsafeAddr aad[0]
+    else:
+      nil
 
   poly1305CtmulRun(
     unsafeAddr key[0],
@@ -93,5 +98,6 @@ proc decrypt*(_: type[ChaChaPoly],
     uint(aad.len),
     baseAddr(tag),
     # cast is required to workaround https://github.com/nim-lang/Nim/issues/13905
-    cast[Chacha20Run](chacha20CtRun),
-    #[decrypt]# 0.cint)
+    cast[Chacha20Run](chacha20CtRun), #[decrypt]#
+    0.cint,
+  )

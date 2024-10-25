@@ -10,9 +10,7 @@
 {.push raises: [].}
 
 import chronos
-import ./discoverymngr,
-       ../protocols/rendezvous,
-       ../peerid
+import ./discoverymngr, ../protocols/rendezvous, ../peerid
 
 type
   RendezVousInterface* = ref object of DiscoveryInterface
@@ -66,13 +64,15 @@ method advertise*(self: RendezVousInterface) {.async.} =
       try:
         await self.rdv.advertise(toAdv, self.ttl)
       except CatchableError as error:
-        debug "RendezVous advertise error: ", msg = error.msg
+        debug "RendezVous advertise error: ", description = error.msg
 
     await sleepAsync(self.timeToAdvertise) or self.advertisementUpdated.wait()
 
-proc new*(T: typedesc[RendezVousInterface],
-          rdv: RendezVous,
-          ttr: Duration = 1.minutes,
-          tta: Duration = 1.minutes,
-          ttl: Duration = MinimumDuration): RendezVousInterface =
+proc new*(
+    T: typedesc[RendezVousInterface],
+    rdv: RendezVous,
+    ttr: Duration = 1.minutes,
+    tta: Duration = 1.minutes,
+    ttl: Duration = MinimumDuration,
+): RendezVousInterface =
   T(rdv: rdv, timeToRequest: ttr, timeToAdvertise: tta, ttl: ttl)

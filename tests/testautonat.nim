@@ -24,9 +24,10 @@ import
   ./helpers
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
-  var builder = SwitchBuilder.new()
+  var builder = SwitchBuilder
+    .new()
     .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withTcpTransport()
     .withMplex()
     .withAutonat()
@@ -39,12 +40,13 @@ proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
 
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
-  autonatProtocol.handler = proc (conn: Connection, proto: string) {.async, gcsafe.} =
+  autonatProtocol.handler = proc(conn: Connection, proto: string) {.async.} =
     discard await conn.readLp(1024)
-    await conn.writeLp(AutonatDialResponse(
-      status: DialError,
-      text: Opt.some("dial failed"),
-      ma: Opt.none(MultiAddress)).encode().buffer)
+    await conn.writeLp(
+      AutonatDialResponse(
+        status: DialError, text: Opt.some("dial failed"), ma: Opt.none(MultiAddress)
+      ).encode().buffer
+    )
     await conn.close()
   autonatProtocol.codec = AutonatCodec
   result = newStandardSwitch()
@@ -62,7 +64,8 @@ suite "Autonat":
     await dst.start()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let ma = await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let ma =
+      await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
     check ma in src.peerInfo.addrs
     await allFutures(src.stop(), dst.stop())
 
@@ -76,7 +79,8 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     expect AutonatUnreachableError:
-      discard await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
+      discard
+        await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "Timeout is triggered in autonat handle":
@@ -93,11 +97,15 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let conn = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
-    let buffer = AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(
-                         id: Opt.some(src.peerInfo.peerId),
-                         # we ask to be dialed in the does nothing listener instead
-                         addrs: doesNothingListener.addrs
-                       ))).encode().buffer
+    let buffer = AutonatDial(
+      peerInfo: Opt.some(
+        AutonatPeerInfo(
+          id: Opt.some(src.peerInfo.peerId),
+          # we ask to be dialed in the does nothing listener instead
+          addrs: doesNothingListener.addrs,
+        )
+      )
+    ).encode().buffer
     await conn.writeLp(buffer)
     let response = AutonatMsg.decode(await conn.readLp(1024)).get().response.get()
     check:
@@ -114,8 +122,8 @@ suite "Autonat":
     await src.start()
     await dst.start()
 
-    let testAddr = MultiAddress.init("/dns4/localhost/").tryGet() &
-                    dst.peerInfo.addrs[0][1].tryGet()
+    let testAddr =
+      MultiAddress.init("/dns4/localhost/").tryGet() & dst.peerInfo.addrs[0][1].tryGet()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let ma = await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, @[testAddr])

@@ -1,12 +1,12 @@
-name: nim-libp2p codecov builds
+name: Coverage
 
 on:
-  #On push to common branches, this computes the "bases stats" for PRs
+  # On push to common branches, this computes the coverage that PRs will use for diff
   push:
     branches:
       - master
-      - unstable
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -14,12 +14,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  Coverage:
-    runs-on: ubuntu-20.04
+  codecov:
+    name: Run coverage and upload to codecov
+    runs-on: ubuntu-22.04
     env:
       CICOV: YES
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -32,7 +33,7 @@ jobs:
 
       - name: Restore deps from cache
         id: deps-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: nimbledeps
           key: nimbledeps-${{ hashFiles('.pinned') }}
@@ -42,24 +43,28 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Run
+      - name: Setup coverage
         run: |
           sudo apt-get update
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
+
+      - name: Run test suite with coverage flags
+        run: |
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
           nimble testnative
           nimble testpubsub
           nimble testfilter
+
+      - name: Run coverage
+        run: |
           find nimcache -name *.c -delete
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           shopt -s globstar
           ls `pwd`/libp2p/{*,**/*}.nim
           lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --output-directory coverage/output
-          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
 
-          #- uses: actions/upload-artifact@master
-          #  with:
-          #    name: coverage
-          #    path: coverage
+      - name: Upload coverage to codecov
+        run: |
+          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"

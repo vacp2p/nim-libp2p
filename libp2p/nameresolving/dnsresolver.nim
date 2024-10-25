@@ -11,19 +11,19 @@
 
 import
   std/[streams, strutils, sets, sequtils],
-  chronos, chronicles, stew/byteutils,
+  chronos,
+  chronicles,
+  stew/byteutils,
   dnsclientpkg/[protocol, types],
   ../utility
 
-import
-  nameresolver
+import nameresolver
 
 logScope:
   topics = "libp2p dnsresolver"
 
-type
-  DnsResolver* = ref object of NameResolver
-    nameServers*: seq[TransportAddress]
+type DnsResolver* = ref object of NameResolver
+  nameServers*: seq[TransportAddress]
 
 proc questionToBuf(address: string, kind: QKind): seq[byte] =
   try:
@@ -41,14 +41,12 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
     discard requestStream.readData(addr buf[0], dataLen)
     return buf
   except CatchableError as exc:
-    info "Failed to created DNS buffer", msg = exc.msg
+    info "Failed to created DNS buffer", description = exc.msg
     return newSeq[byte](0)
 
 proc getDnsResponse(
-  dnsServer: TransportAddress,
-  address: string,
-  kind: QKind): Future[Response] {.async.} =
-
+    dnsServer: TransportAddress, address: string, kind: QKind
+): Future[Response] {.async.} =
   var sendBuf = questionToBuf(address, kind)
 
   if sendBuf.len == 0:
@@ -56,9 +54,10 @@ proc getDnsResponse(
 
   let receivedDataFuture = newFuture[void]()
 
-  proc datagramDataReceived(transp: DatagramTransport,
-                  raddr: TransportAddress): Future[void] {.async, closure.} =
-      receivedDataFuture.complete()
+  proc datagramDataReceived(
+      transp: DatagramTransport, raddr: TransportAddress
+  ): Future[void] {.async, closure.} =
+    receivedDataFuture.complete()
 
   let sock =
     if dnsServer.family == AddressFamily.IPv6:
@@ -78,16 +77,14 @@ proc getDnsResponse(
     # parseResponse can has a raises: [Exception, ..] because of
     # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
     # it can't actually raise though
-    return exceptionToAssert: parseResponse(string.fromBytes(rawResponse))
+    return exceptionToAssert:
+      parseResponse(string.fromBytes(rawResponse))
   finally:
     await sock.closeWait()
 
 method resolveIp*(
-  self: DnsResolver,
-  address: string,
-  port: Port,
-  domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]] {.async.} =
-
+    self: DnsResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
+): Future[seq[TransportAddress]] {.async.} =
   trace "Resolving IP using DNS", address, servers = self.nameServers.mapIt($it), domain
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
@@ -113,16 +110,14 @@ method resolveIp*(
           # toString can has a raises: [Exception, ..] because of
           # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
           # it can't actually raise though
-          resolvedAddresses.incl(
-            exceptionToAssert(answer.toString())
-          )
+          resolvedAddresses.incl(exceptionToAssert(answer.toString()))
       except CancelledError as e:
         raise e
       except ValueError as e:
-        info "Invalid DNS query", address, error=e.msg
+        info "Invalid DNS query", address, error = e.msg
         return @[]
       except CatchableError as e:
-        info "Failed to query DNS", address, error=e.msg
+        info "Failed to query DNS", address, error = e.msg
         resolveFailed = true
         break
 
@@ -137,10 +132,7 @@ method resolveIp*(
   debug "Failed to resolve address, returning empty set"
   return @[]
 
-method resolveTxt*(
-  self: DnsResolver,
-  address: string): Future[seq[string]] {.async.} =
-
+method resolveTxt*(self: DnsResolver, address: string): Future[seq[string]] {.async.} =
   trace "Resolving TXT using DNS", address, servers = self.nameServers.mapIt($it)
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
@@ -150,12 +142,13 @@ method resolveTxt*(
       # it can't actually raise though
       let response = await getDnsResponse(server, address, TXT)
       return exceptionToAssert:
-        trace "Got TXT response", server = $server, answer=response.answers.mapIt(it.toString())
+        trace "Got TXT response",
+          server = $server, answer = response.answers.mapIt(it.toString())
         response.answers.mapIt(it.toString())
     except CancelledError as e:
       raise e
     except CatchableError as e:
-      info "Failed to query DNS", address, error=e.msg
+      info "Failed to query DNS", address, error = e.msg
       self.nameServers.add(self.nameServers[0])
       self.nameServers.delete(0)
       continue
@@ -163,7 +156,5 @@ method resolveTxt*(
   debug "Failed to resolve TXT, returning empty set"
   return @[]
 
-proc new*(
-  T: typedesc[DnsResolver],
-  nameServers: seq[TransportAddress]): T =
+proc new*(T: typedesc[DnsResolver], nameServers: seq[TransportAddress]): T =
   T(nameServers: nameServers)

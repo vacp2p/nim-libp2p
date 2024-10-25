@@ -14,8 +14,7 @@ import ./pubsubpeer, ../../peerid
 
 export tables, sets
 
-type
-  PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
+type PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 
 proc hasPeerId*(t: PeerTable, topic: string, peerId: PeerId): bool =
   if topic in t:
@@ -23,15 +22,14 @@ proc hasPeerId*(t: PeerTable, topic: string, peerId: PeerId): bool =
       for peer in t[topic]:
         if peer.peerId == peerId:
           return true
-    except KeyError: raiseAssert "checked with in"
+    except KeyError:
+      raiseAssert "checked with in"
   false
 
 func addPeer*(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
   # returns true if the peer was added,
   # false if it was already in the collection
-  not table.mgetOrPut(topic,
-    initHashSet[PubSubPeer]())
-    .containsOrIncl(peer)
+  not table.mgetOrPut(topic, initHashSet[PubSubPeer]()).containsOrIncl(peer)
 
 func removePeer*(table: var PeerTable, topic: string, peer: PubSubPeer) =
   table.withValue(topic, peers):
@@ -42,18 +40,23 @@ func removePeer*(table: var PeerTable, topic: string, peer: PubSubPeer) =
 func hasPeer*(table: PeerTable, topic: string, peer: PubSubPeer): bool =
   try:
     (topic in table) and (peer in table[topic])
-  except KeyError: raiseAssert "checked with in"
+  except KeyError:
+    raiseAssert "checked with in"
 
 func peers*(table: PeerTable, topic: string): int =
   if topic in table:
-    try: table[topic].len
-    except KeyError: raiseAssert "checked with in"
+    try:
+      table[topic].len
+    except KeyError:
+      raiseAssert "checked with in"
   else:
     0
 
 func outboundPeers*(table: PeerTable, topic: string): int =
   if topic in table:
-    try: table[topic].countIt(it.outbound)
-    except KeyError: raiseAssert "checked with in"
+    try:
+      table[topic].countIt(it.outbound)
+    except KeyError:
+      raiseAssert "checked with in"
   else:
     0

@@ -1,25 +1,25 @@
 ## # Circuit Relay example
 ##
 ## Circuit Relay can be used when a node cannot reach another node
-## directly, but can reach it through a another node (the Relay).
+## directly, but can reach it through another node (the Relay).
 ##
 ## That may happen because of NAT, Firewalls, or incompatible transports.
 ##
 ## More informations [here](https://docs.libp2p.io/concepts/circuit-relay/).
 import chronos, stew/byteutils
-import libp2p,
-       libp2p/protocols/connectivity/relay/[relay, client]
+import libp2p, libp2p/protocols/connectivity/relay/[relay, client]
 
 # Helper to create a circuit relay node
 proc createCircuitRelaySwitch(r: Relay): Switch =
-  SwitchBuilder.new()
-    .withRng(newRng())
-    .withAddresses(@[ MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet() ])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .withCircuitRelay(r)
-    .build()
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .withCircuitRelay(r)
+  .build()
 
 proc main() {.async.} =
   # Create a custom protocol
@@ -56,8 +56,11 @@ proc main() {.async.} =
 
   let
     # Create a relay address to swDst using swRel as the relay
-    addrs = MultiAddress.init($swRel.peerInfo.addrs[0] & "/p2p/" &
-                              $swRel.peerInfo.peerId & "/p2p-circuit").get()
+    addrs = MultiAddress
+      .init(
+        $swRel.peerInfo.addrs[0] & "/p2p/" & $swRel.peerInfo.peerId & "/p2p-circuit"
+      )
+      .get()
 
   # Connect Dst to the relay
   await swDst.connect(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
@@ -66,7 +69,7 @@ proc main() {.async.} =
   let rsvp = await clDst.reserve(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
 
   # Src dial Dst using the relay
-  let conn = await swSrc.dial(swDst.peerInfo.peerId, @[ addrs ], customProtoCodec)
+  let conn = await swSrc.dial(swDst.peerInfo.peerId, @[addrs], customProtoCodec)
 
   await conn.writeLp("test1")
   var msg = string.fromBytes(await conn.readLp(1024))

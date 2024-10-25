@@ -27,14 +27,14 @@ const SecretKeys = [
   """f5e5767cf153319517630f226876b86c8160cc583bc013744c6bf255f5cc0ee5
      278117fc144c72340f67d0f2316e8386ceffbf2b2428c9c51fef7c597f1d426e""",
   """833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42
-     ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf"""
+     ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf""",
 ]
 const PublicKeys = [
   "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
   "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
   "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
   "278117fc144c72340f67d0f2316e8386ceffbf2b2428c9c51fef7c597f1d426e",
-  "ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf"
+  "ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf",
 ]
 
 const Messages = [
@@ -72,8 +72,7 @@ const Messages = [
      b2eaaa707b4c4185c32eddcdd306705e4dc1ffc872eeee475a64dfac86aba41c
      0618983f8741c5ef68d3a101e8a3b8cac60c905c15fc910840b94c00a0b9d0""",
   """ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a
-     2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"""
-
+     2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f""",
 ]
 
 const Signatures = [
@@ -86,14 +85,14 @@ const Signatures = [
   """0aab4c900501b3e24d7cdf4663326a3a87df5e4843b2cbdb67cbf6e460fec350
      aa5371b1508f9f4528ecea23c436d94b5e8fcd4f681e30a6ac00a9704a188a03""",
   """dc2a4459e7369633a52b1bf277839a00201009a3efbf3ecb69bea2186c26b589
-     09351fc9ac90b3ecfdfbc7c66431e0303dca179c138ac17ad9bef1177331a704"""
+     09351fc9ac90b3ecfdfbc7c66431e0303dca179c138ac17ad9bef1177331a704""",
 ]
 
 const FailScalars = [
   "0000000000000000000000000000000000000000000000000000000000000000",
   "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
   "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-  "EDD3F55C1A631258D69CF7A2DEF9DE1400000000000000000000000000000010"
+  "EDD3F55C1A631258D69CF7A2DEF9DE1400000000000000000000000000000010",
 ]
 
 const GoodScalars = [
@@ -111,7 +110,7 @@ suite "Ed25519 test suite":
       check checkScalar(fromHex(stripSpaces(item))) == 1
 
   test "Private key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EdPrivateKey
       var skey2 = newSeq[byte](256)
       var key = EdPrivateKey.random(rng[])
@@ -135,7 +134,7 @@ suite "Ed25519 test suite":
         isFullZero(rkey2.data) == true
 
   test "Public key serialize/deserialize test":
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var rkey1, rkey2: EdPublicKey
       var skey2 = newSeq[byte](256)
       var pair = EdKeyPair.random(rng[])
@@ -158,22 +157,23 @@ suite "Ed25519 test suite":
         isFullZero(rkey2.data) == true
 
   test "RFC8032 test vectors":
-    for i in 0..<5:
+    for i in 0 ..< 5:
       var key = EdPrivateKey.init(stripSpaces(SecretKeys[i])).expect("key/sig")
       var exppub = EdPublicKey.init(stripSpaces(PublicKeys[i])).expect("key/sig")
       var pubkey = key.getPublicKey()
       check pubkey == exppub
       var msg = fromHex(stripSpaces(Messages[i]))
       var sig = key.sign(msg)
-      var expsig = EdSignature.init(fromHex(stripSpaces(Signatures[i]))).expect("key/sig")
+      var expsig =
+        EdSignature.init(fromHex(stripSpaces(Signatures[i]))).expect("key/sig")
       check sig == expsig
       check sig.verify(msg, pubkey) == true
-      sig.data[32] = not(sig.data[32])
+      sig.data[32] = not (sig.data[32])
       check sig.verify(msg, pubkey) == false
 
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    for i in 0..<TestsCount:
+    for i in 0 ..< TestsCount:
       var kp = EdKeyPair.random(rng[])
       var sig = kp.seckey.sign(message)
       var sersk = kp.seckey.getBytes()
@@ -184,5 +184,5 @@ suite "Ed25519 test suite":
       var csig = EdSignature.init(sersig).expect("key/sig")
       check csig.verify(message, pubkey) == true
       let error = csig.data.high
-      csig.data[error] = not(csig.data[error])
+      csig.data[error] = not (csig.data[error])
       check csig.verify(message, pubkey) == false

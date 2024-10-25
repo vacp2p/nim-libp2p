@@ -7,15 +7,20 @@ if dirExists("nimbledeps/pkgs2"):
 switch("warning", "CaseTransition:off")
 switch("warning", "ObservableStores:off")
 switch("warning", "LockLevel:off")
---define:chronosStrictException
---styleCheck:usages
+--styleCheck:
+  usages
 switch("warningAsError", "UseBase:on")
---styleCheck:error
+--styleCheck:
+  error
+--mm:
+  refc
+  # reconsider when there's a version-2-2 branch worth testing with as we might switch to orc
 
 # Avoid some rare stack corruption while using exceptions with a SEH-enabled
 # toolchain: https://github.com/status-im/nimbus-eth2/issues/3121
 if defined(windows) and not defined(vcc):
-  --define:nimRawSetjmp
+  --define:
+    nimRawSetjmp
 
 # begin Nimble config (version 1)
 when fileExists("nimble.paths"):

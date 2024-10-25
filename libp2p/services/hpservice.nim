@@ -24,17 +24,22 @@ import ../multicodec
 logScope:
   topics = "libp2p hpservice"
 
-type
-  HPService* = ref object of Service
-    newConnectedPeerHandler: PeerEventHandler
-    onNewStatusHandler: StatusAndConfidenceHandler
-    autoRelayService: AutoRelayService
-    autonatService: AutonatService
+type HPService* = ref object of Service
+  newConnectedPeerHandler: PeerEventHandler
+  onNewStatusHandler: StatusAndConfidenceHandler
+  autoRelayService: AutoRelayService
+  autonatService: AutonatService
 
-proc new*(T: typedesc[HPService], autonatService: AutonatService, autoRelayService: AutoRelayService): T =
+proc new*(
+    T: typedesc[HPService],
+    autonatService: AutonatService,
+    autoRelayService: AutoRelayService,
+): T =
   return T(autonatService: autonatService, autoRelayService: autoRelayService)
 
-proc tryStartingDirectConn(self: HPService, switch: Switch, peerId: PeerId): Future[bool] {.async.} =
+proc tryStartingDirectConn(
+    self: HPService, switch: Switch, peerId: PeerId
+): Future[bool] {.async.} =
   proc tryConnect(address: MultiAddress): Future[bool] {.async.} =
     debug "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
@@ -56,7 +61,9 @@ proc closeRelayConn(relayedConn: Connection) {.async.} =
   await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
   await relayedConn.close()
 
-proc newConnectedPeerHandler(self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent) {.async.} =
+proc newConnectedPeerHandler(
+    self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent
+) {.async.} =
   try:
     # Get all connections to the peer. If there is at least one non-relayed connection, return.
     let connections = switch.connManager.getConnections()[peerId].mapIt(it.connection)
@@ -75,7 +82,8 @@ proc newConnectedPeerHandler(self: HPService, switch: Switch, peerId: PeerId, ev
     let dcutrClient = DcutrClient.new()
     var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
     if natAddrs.len == 0:
-      natAddrs =  switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+      natAddrs =
+        switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
     await dcutrClient.startSync(switch, peerId, natAddrs)
     await closeRelayConn(relayedConn)
   except CatchableError as err:
@@ -89,15 +97,21 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     let dcutrProto = Dcutr.new(switch)
     switch.mount(dcutrProto)
 
-    self.newConnectedPeerHandler = proc (peerId: PeerId, event: PeerEvent) {.async.} =
+    self.newConnectedPeerHandler = proc(peerId: PeerId, event: PeerEvent) {.async.} =
       await newConnectedPeerHandler(self, switch, peerId, event)
 
-    switch.connManager.addPeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
+    switch.connManager.addPeerEventHandler(
+      self.newConnectedPeerHandler, PeerEventKind.Joined
+    )
 
-    self.onNewStatusHandler = proc (networkReachability: NetworkReachability, confidence: Opt[float]) {.gcsafe, async.} =
-      if networkReachability == NetworkReachability.NotReachable and not self.autoRelayService.isRunning():
+    self.onNewStatusHandler = proc(
+        networkReachability: NetworkReachability, confidence: Opt[float]
+    ) {.async.} =
+      if networkReachability == NetworkReachability.NotReachable and
+          not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)
-      elif networkReachability == NetworkReachability.Reachable and self.autoRelayService.isRunning():
+      elif networkReachability == NetworkReachability.Reachable and
+          self.autoRelayService.isRunning():
         discard await self.autoRelayService.stop(switch)
 
       # We do it here instead of in the AutonatService because this is useful only when hole punching.
@@ -113,4 +127,6 @@ method run*(self: HPService, switch: Switch) {.async, public.} =
 method stop*(self: HPService, switch: Switch): Future[bool] {.async, public.} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
-    switch.connManager.removePeerEventHandler(self.newConnectedPeerHandler, PeerEventKind.Joined)
+    switch.connManager.removePeerEventHandler(
+      self.newConnectedPeerHandler, PeerEventKind.Joined
+    )

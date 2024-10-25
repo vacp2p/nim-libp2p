@@ -11,22 +11,20 @@
 
 import chronos
 import stew/results
-import peerid,
-       stream/connection,
-       transports/transport
+import peerid, stream/connection, transports/transport
 
 export results
 
-type
-  Dial* = ref object of RootObj
+type Dial* = ref object of RootObj
 
 method connect*(
-  self: Dial,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  forceDial = false,
-  reuseConnection = true,
-  upgradeDir = Direction.Out) {.async, base.} =
+    self: Dial,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    forceDial = false,
+    reuseConnection = true,
+    dir = Direction.Out,
+) {.async, base.} =
   ## connect remote peer without negotiating
   ## a protocol
   ##
@@ -34,18 +32,15 @@ method connect*(
   doAssert(false, "Not implemented!")
 
 method connect*(
-  self: Dial,
-  address: MultiAddress,
-  allowUnknownPeerId = false): Future[PeerId] {.async, base.} =
+    self: Dial, address: MultiAddress, allowUnknownPeerId = false
+): Future[PeerId] {.async, base.} =
   ## Connects to a peer and retrieve its PeerId
 
   doAssert(false, "Not implemented!")
 
 method dial*(
-  self: Dial,
-  peerId: PeerId,
-  protos: seq[string],
-  ): Future[Connection] {.async, base.} =
+    self: Dial, peerId: PeerId, protos: seq[string]
+): Future[Connection] {.async, base.} =
   ## create a protocol stream over an
   ## existing connection
   ##
@@ -53,24 +48,22 @@ method dial*(
   doAssert(false, "Not implemented!")
 
 method dial*(
-  self: Dial,
-  peerId: PeerId,
-  addrs: seq[MultiAddress],
-  protos: seq[string],
-  forceDial = false): Future[Connection] {.async, base.} =
+    self: Dial,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false,
+): Future[Connection] {.async, base.} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
 
   doAssert(false, "Not implemented!")
 
-method addTransport*(
-  self: Dial,
-  transport: Transport) {.base.} =
+method addTransport*(self: Dial, transport: Transport) {.base.} =
   doAssert(false, "Not implemented!")
 
 method tryDial*(
-  self: Dial,
-  peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[Opt[MultiAddress]] {.async, base.} =
+    self: Dial, peerId: PeerId, addrs: seq[MultiAddress]
+): Future[Opt[MultiAddress]] {.async, base.} =
   doAssert(false, "Not implemented!")

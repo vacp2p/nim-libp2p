@@ -19,58 +19,30 @@ func toException*(e: string): ref LPError =
 # sadly nim needs more love for hygienic templates
 # so here goes the macro, its based on the proc/template version
 # and uses quote do so it's quite readable
-macro checkFutures*[T](futs: seq[Future[T]], exclude: untyped = []): untyped =
+# TODO https://github.com/nim-lang/Nim/issues/22936
+macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
   let nexclude = exclude.len
   case nexclude
   of 0:
-    quote do:
+    quote:
       for res in `futs`:
         if res.failed:
           let exc = res.readError()
           # We still don't abort but warn
-          debug "A future has failed, enable trace logging for details", error = exc.name
-          trace "Exception message", msg= exc.msg, stack = getStackTrace()
+          debug "A future has failed, enable trace logging for details",
+            error = exc.name
+          trace "Exception message", description = exc.msg, stack = getStackTrace()
   else:
-    quote do:
+    quote:
       for res in `futs`:
         block check:
           if res.failed:
             let exc = res.readError()
-            for i in 0..<`nexclude`:
+            for i in 0 ..< `nexclude`:
               if exc of `exclude`[i]:
-                trace "A future has failed", error=exc.name, msg=exc.msg
+                trace "A future has failed", error = exc.name, description = exc.msg
                 break check
             # We still don't abort but warn
-            debug "A future has failed, enable trace logging for details", error=exc.name
-            trace "Exception details", msg=exc.msg
-
-proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
-  var futs: seq[Future[T]]
-  for fut in args:
-    futs &= fut
-  proc call() {.async.} =
-    var first: ref CatchableError = nil
-    futs = await allFinished(futs)
-    for fut in futs:
-      if fut.failed:
-        let err = fut.readError()
-        if err of Defect:
-          raise err
-        else:
-          if err of CancelledError:
-            raise err
-          if isNil(first):
-            first = err
-    if not isNil(first):
-      raise first
-
-  return call()
-
-template tryAndWarn*(message: static[string]; body: untyped): untyped =
-  try:
-    body
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    debug "An exception has ocurred, enable trace logging for details", name = exc.name, msg = message
-    trace "Exception details", exc = exc.msg
+            debug "A future has failed, enable trace logging for details",
+              error = exc.name
+            trace "Exception details", description = exc.msg

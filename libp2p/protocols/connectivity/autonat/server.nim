@@ -12,13 +12,14 @@
 import std/[sets, sequtils]
 import stew/results
 import chronos, chronicles
-import ../../protocol,
-       ../../../switch,
-       ../../../multiaddress,
-       ../../../multicodec,
-       ../../../peerid,
-       ../../../utils/[semaphore, future],
-       ../../../errors
+import
+  ../../protocol,
+  ../../../switch,
+  ../../../multiaddress,
+  ../../../multicodec,
+  ../../../peerid,
+  ../../../utils/[semaphore, future],
+  ../../../errors
 import core
 
 export core
@@ -26,33 +27,36 @@ export core
 logScope:
   topics = "libp2p autonat"
 
-type
-  Autonat* = ref object of LPProtocol
-    sem: AsyncSemaphore
-    switch*: Switch
-    dialTimeout: Duration
+type Autonat* = ref object of LPProtocol
+  sem: AsyncSemaphore
+  switch*: Switch
+  dialTimeout: Duration
 
 proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
-  let pb = AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(
-                         id: Opt.some(pid),
-                         addrs: addrs
-                       ))).encode()
+  let pb = AutonatDial(
+    peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
+  ).encode()
   await conn.writeLp(pb.buffer)
 
-proc sendResponseError(conn: Connection, status: ResponseStatus, text: string = "") {.async.} =
+proc sendResponseError(
+    conn: Connection, status: ResponseStatus, text: string = ""
+) {.async.} =
   let pb = AutonatDialResponse(
-             status: status,
-             text: if text == "": Opt.none(string) else: Opt.some(text),
-             ma: Opt.none(MultiAddress)
-           ).encode()
+    status: status,
+    text:
+      if text == "":
+        Opt.none(string)
+      else:
+        Opt.some(text)
+    ,
+    ma: Opt.none(MultiAddress),
+  ).encode()
   await conn.writeLp(pb.buffer)
 
 proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
   let pb = AutonatDialResponse(
-             status: ResponseStatus.Ok,
-             text: Opt.some("Ok"),
-             ma: Opt.some(ma)
-           ).encode()
+    status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
+  ).encode()
   await conn.writeLp(pb.buffer)
 
 proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
@@ -60,12 +64,15 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
   var futs: seq[Future[Opt[MultiAddress]]]
   try:
     # This is to bypass the per peer max connections limit
-    let outgoingConnection = autonat.switch.connManager.expectConnection(conn.peerId, Out)
-    if outgoingConnection.failed() and outgoingConnection.error of AlreadyExpectingConnectionError:
+    let outgoingConnection =
+      autonat.switch.connManager.expectConnection(conn.peerId, Out)
+    if outgoingConnection.failed() and
+        outgoingConnection.error of AlreadyExpectingConnectionError:
       await conn.sendResponseError(DialRefused, outgoingConnection.error.msg)
       return
     # Safer to always try to cancel cause we aren't sure if the connection was established
-    defer: outgoingConnection.cancel()
+    defer:
+      outgoingConnection.cancel()
     # tryDial is to bypass the global max connections limit
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
     let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
@@ -77,13 +84,13 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
   except CancelledError as exc:
     raise exc
   except AllFuturesFailedError as exc:
-    debug "All dial attempts failed", addrs, exc = exc.msg
+    debug "All dial attempts failed", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
-    debug "Dial timeout", addrs, exc = exc.msg
+    debug "Dial timeout", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "Dial timeout")
   except CatchableError as exc:
-    debug "Unexpected error", addrs, exc = exc.msg
+    debug "Unexpected error", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "Unexpected error")
   finally:
     autonat.sem.release()
@@ -106,7 +113,8 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
   var isRelayed = observedAddr.contains(multiCodec("p2p-circuit")).valueOr:
     return conn.sendResponseError(DialRefused, "Invalid observed address")
   if isRelayed:
-    return conn.sendResponseError(DialRefused, "Refused to dial a relayed observed address")
+    return
+      conn.sendResponseError(DialRefused, "Refused to dial a relayed observed address")
   let hostIp = observedAddr[0].valueOr:
     return conn.sendResponseError(InternalError, "Wrong observed address")
   if not IP.match(hostIp):
@@ -115,16 +123,20 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
   addrs.incl(observedAddr)
   trace "addrs received", addrs = peerInfo.addrs
   for ma in peerInfo.addrs:
-    isRelayed = ma.contains(multiCodec("p2p-circuit")).valueOr: continue
-    let maFirst = ma[0].valueOr: continue
-    if not DNS_OR_IP.match(maFirst): continue
+    isRelayed = ma.contains(multiCodec("p2p-circuit")).valueOr:
+      continue
+    let maFirst = ma[0].valueOr:
+      continue
+    if not DNS_OR_IP.match(maFirst):
+      continue
 
     try:
       addrs.incl(
         if maFirst == hostIp:
           ma
         else:
-          let maEnd = ma[1..^1].valueOr: continue
+          let maEnd = ma[1 ..^ 1].valueOr:
+            continue
           hostIp & maEnd
       )
     except LPError as exc:
@@ -138,9 +150,12 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
   trace "trying to dial", addrs = addrsSeq
   return autonat.tryDial(conn, addrsSeq)
 
-proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 15.seconds): T =
-  let autonat = T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
-  proc handleStream(conn: Connection, proto: string) {.async, gcsafe.} =
+proc new*(
+    T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 15.seconds
+): T =
+  let autonat =
+    T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
+  proc handleStream(conn: Connection, proto: string) {.async.} =
     try:
       let msg = AutonatMsg.decode(await conn.readLp(1024)).valueOr:
         raise newException(AutonatError, "Received malformed message")
@@ -150,7 +165,7 @@ proc new*(T: typedesc[Autonat], switch: Switch, semSize: int = 1, dialTimeout = 
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "exception in autonat handler", exc = exc.msg, conn
+      debug "exception in autonat handler", description = exc.msg, conn
     finally:
       trace "exiting autonat handler", conn
       await conn.close()

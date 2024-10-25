@@ -162,7 +162,7 @@ const
     # Secp256k1 keys
     "0802122053DADF1D5A164D6B4ACDB15E24AA4C5B1D3461BDBD42ABEDB0A4404D56CED8FB",
     "08021220FD659951E2ED440CC7ECE436357D123D4C8B3CF1056E3F1607FF3641FB578A1B",
-    "08021220B333BE3E843339E0E2CE9E083ABC119BE05C7B65B8665ADE19E172D47BF91305"
+    "08021220B333BE3E843339E0E2CE9E083ABC119BE05C7B65B8665ADE19E172D47BF91305",
   ]
 
   PeerIds = [
@@ -177,12 +177,12 @@ const
     "Qmcfz2MaPjw44RfVpHKFgXwhW3uFBRBxByVEkgPhefKCJW",
     "16Uiu2HAmLhLvBoYaoZfaMUKuibM6ac163GwKY74c5kiSLg5KvLpY",
     "16Uiu2HAmRRrT319h5upVoC3E8vs1Qej4UF3vPPnLgrhbpHhUb2Av",
-    "16Uiu2HAmDrDaty3uYPgqSr1h5Cup32S2UdYo46rhqZfXPjJMABZL"
+    "16Uiu2HAmDrDaty3uYPgqSr1h5Cup32S2UdYo46rhqZfXPjJMABZL",
   ]
 
 suite "Peer testing suite":
   test "Go PeerId test vectors":
-    for i in 0..<len(PrivateKeys):
+    for i in 0 ..< len(PrivateKeys):
       var seckey = PrivateKey.init(stripSpaces(PrivateKeys[i])).get()
       var pubkey = seckey.getPublicKey().get()
       var p1 = PeerId.init(seckey).get()
@@ -244,7 +244,7 @@ suite "Peer testing suite":
     var randomPeer1 = PeerId.random(rng)
     check:
       $randomPeer1.get() == "16Uiu2HAmCxpSTFDNdWiu1MLScu7inPhcbbGfPvuvRPD1e51gw1Xr"
-    
+
     # generate a random peer with a new random seed
     var randomPeer2 = PeerId.random()
     check:

@@ -6,7 +6,8 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
-when defined(nimHasUsed): {.used.}
+when defined(nimHasUsed):
+  {.used.}
 
 import unittest2
 import ../libp2p/crypto/crypto
@@ -14,34 +15,41 @@ import nimcrypto/utils
 
 let rng = newRng()
 
-const ECDSA_PrivateKey = """
+const ECDSA_PrivateKey =
+  """
   080312793077020101042070896381749FF6B30381C045F627C68C3062749BB53CB13
   11FA07A7AEAB0A225A00A06082A8648CE3D030107A14403420004B17DAFF40C3221A5
   0889A3FA9BB9DA4996AA1FE80D37358FBC6C88D89CD65738B4738C07CFD42F55293EB
   3A56DB224EDCD36E51076F43A63203F8936D868EF18
 """
-const ECDSA_PublicKey = """
+const ECDSA_PublicKey =
+  """
   0803125B3059301306072A8648CE3D020106082A8648CE3D03010703420004B17DAFF
   40C3221A50889A3FA9BB9DA4996AA1FE80D37358FBC6C88D89CD65738B4738C07CFD4
   2F55293EB3A56DB224EDCD36E51076F43A63203F8936D868EF18
 """
-const SECP256k1_PrivateKey = """
+const SECP256k1_PrivateKey =
+  """
   080212209A0F994F5022D9D7B67ACEB26AA4D9F29B2628DBDCC28597469CB0049B6AB
   348
 """
-const SECP256k1_PublicKey = """
+const SECP256k1_PublicKey =
+  """
   08021221039111FA29B374FE94B885408C45DF4647D09438C6E1F91F9B277A96CADD0
   8A2B8
 """
-const ED25519_PrivateKey = """
+const ED25519_PrivateKey =
+  """
   08011240E1BFE38E35F9669CE77F6BE1A551560896B59A3F510537205F3AC1EDAD421
   601C9D5C25AA2FC61B950976D6E5EC26425F8D4BFFE17169A4DE5A246B7154CB2B5
 """
-const ED25519_PublicKey = """
+const ED25519_PublicKey =
+  """
   08011220C9D5C25AA2FC61B950976D6E5EC26425F8D4BFFE17169A4DE5A246B7154CB
   2B5
 """
-const RSA_PrivateKey = """
+const RSA_PrivateKey =
+  """
   080012E80D308206E40201000282018100B5F2CABD05BE70474B262A2715B8C4FE74C
   6F628757FADB3F4815881CD9F8D3D2583757DF178B9BDCB207EB183A260934E6580C9
   3B75789ACADAC13C9DD5A21A6BEDC4845A76D32F61F37C69B2C0E9D1161459FB1C93C
@@ -95,7 +103,8 @@ const RSA_PrivateKey = """
   E2DA931CBB692CAB71F5E14513451614A108F940DABFCD9BEAC4557EE503BD5196A21
   522C61508521D7DB77A384BA696
 """
-const RSA_PublicKey = """
+const RSA_PublicKey =
+  """
   080012A603308201A2300D06092A864886F70D01010105000382018F003082018A028
   2018100B5F2CABD05BE70474B262A2715B8C4FE74C6F628757FADB3F4815881CD9F8D
   3D2583757DF178B9BDCB207EB183A260934E6580C93B75789ACADAC13C9DD5A21A6BE
@@ -112,18 +121,20 @@ const RSA_PublicKey = """
 """
 
 const
-  RSATestMessage = "RSA " & (
-    when supported(PKScheme.RSA): "(enabled)" else: "(disabled)") & " test"
-  EcdsaTestMessage = "ECDSA " & (
-    when supported(PKScheme.ECDSA): "(enabled)" else: "(disabled)") & " test"
-  EdTestMessage = "ED25519 " & (
-    when supported(PKScheme.Ed25519): "(enabled)" else: "(disabled)") & " test"
-  SecpTestMessage = "SECP256k1 " & (
-    when supported(PKScheme.Secp256k1): "(enabled)" else: "(disabled)") & " test"
+  RSATestMessage =
+    "RSA " & (when supported(PKScheme.RSA): "(enabled)" else: "(disabled)") & " test"
+  EcdsaTestMessage =
+    "ECDSA " & (when supported(PKScheme.ECDSA): "(enabled)" else: "(disabled)") & " test"
+  EdTestMessage =
+    "ED25519 " & (when supported(PKScheme.Ed25519): "(enabled)" else: "(disabled)") &
+    " test"
+  SecpTestMessage =
+    "SECP256k1 " & (when supported(PKScheme.Secp256k1): "(enabled)" else: "(disabled)") &
+    " test"
 
 suite "Public key infrastructure filtering test suite":
   test RSATestMessage:
-    when not(supported(PKScheme.RSA)):
+    when not (supported(PKScheme.RSA)):
       let sk2048 = PrivateKey.random(PKScheme.RSA, rng[], 2048)
       let sk3072 = PrivateKey.random(PKScheme.RSA, rng[], 3072)
       let sk4096 = PrivateKey.random(PKScheme.RSA, rng[], 4096)
@@ -161,7 +172,7 @@ suite "Public key infrastructure filtering test suite":
         pk.isOk() == true
 
   test EcdsaTestMessage:
-    when not(supported(PKScheme.ECDSA)):
+    when not (supported(PKScheme.ECDSA)):
       let rsk = PrivateKey.random(PKScheme.ECDSA, rng[])
       let rkp = KeyPair.random(PKScheme.ECDSA, rng[])
       let sk = PrivateKey.init(fromHex(stripSpaces(ECDSA_PrivateKey)))
@@ -187,7 +198,7 @@ suite "Public key infrastructure filtering test suite":
         pk.isOk() == true
 
   test EdTestMessage:
-    when not(supported(PKScheme.Ed25519)):
+    when not (supported(PKScheme.Ed25519)):
       let rsk = PrivateKey.random(PKScheme.Ed25519, rng[])
       let rkp = KeyPair.random(PKScheme.Ed25519, rng[])
       let sk = PrivateKey.init(fromHex(stripSpaces(ED25519_PrivateKey)))
@@ -213,7 +224,7 @@ suite "Public key infrastructure filtering test suite":
         pk.isOk() == true
 
   test SecpTestMessage:
-    when not(supported(PKScheme.Secp256k1)):
+    when not (supported(PKScheme.Secp256k1)):
       let rsk = PrivateKey.random(PKScheme.Secp256k1, rng[])
       let rkp = KeyPair.random(PKScheme.Secp256k1, rng[])
       let sk = PrivateKey.init(fromHex(stripSpaces(SECP256k1_PrivateKey)))

@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -10,16 +10,13 @@
 # those terms.
 
 import chronos, stew/byteutils
-import ../libp2p/stream/bufferstream,
-       ../libp2p/stream/lpstream,
-       ../libp2p/errors
+import ../libp2p/stream/bufferstream, ../libp2p/stream/lpstream, ../libp2p/errors
 
 import ./helpers
 
 suite "BufferStream":
   teardown:
-    # echo getTracker(BufferStreamTrackerName).dump()
-    check getTracker(BufferStreamTrackerName).isLeaked() == false
+    checkTrackers()
 
   asyncTest "push data to buffer":
     let buff = BufferStream.new()
@@ -38,7 +35,8 @@ suite "BufferStream":
     check buff.len == 4 # the second write should not be visible yet
 
     var data: array[1, byte]
-    check: 1 == await buff.readOnce(addr data[0], data.len)
+    check:
+      1 == await buff.readOnce(addr data[0], data.len)
 
     check ['1'] == string.fromBytes(data)
     await fut0
@@ -140,7 +138,7 @@ suite "BufferStream":
 
     var str: string
     proc writer() {.async.} =
-      for i in 0..<10:
+      for i in 0 ..< 10:
         await buff.pushData("123".toBytes())
         str &= "123"
       await buff.close() # all data should still be read after close
@@ -152,11 +150,9 @@ suite "BufferStream":
       expect LPStreamEOFError:
         while true:
           let x = await buff.readOnce(addr data[0], data.len)
-          str2 &= string.fromBytes(data[0..<x])
+          str2 &= string.fromBytes(data[0 ..< x])
 
-
-    await allFuturesThrowing(
-      allFinished(reader(), writer()))
+    await allFuturesThrowing(allFinished(reader(), writer()))
     check str == str2
     await buff.close()
 
@@ -166,7 +162,8 @@ suite "BufferStream":
 
     await buff.pushData("12345".toBytes())
     var data: array[2, byte]
-    check: (await buff.readOnce(addr data[0], data.len)) == 2
+    check:
+      (await buff.readOnce(addr data[0], data.len)) == 2
 
     await buff.pushEof()
 
@@ -190,13 +187,16 @@ suite "BufferStream":
 
     await buff.pushData("12345".toBytes())
     var data: array[5, byte]
-    check: (await buff.readOnce(addr data[0], 1)) == 1 # 4 bytes in readBuf
+    check:
+      (await buff.readOnce(addr data[0], 1)) == 1
+      # 4 bytes in readBuf
 
     await buff.pushEof()
 
     check:
       not buff.atEof()
-      (await buff.readOnce(addr data[0], 1)) == 1 # 3 bytes in readBuf, eof marker processed
+      (await buff.readOnce(addr data[0], 1)) == 1
+        # 3 bytes in readBuf, eof marker processed
       not buff.atEof()
       (await buff.readOnce(addr data[0], data.len)) == 3 # 0 bytes in readBuf
       buff.atEof()

@@ -10,14 +10,17 @@
 # those terms.
 
 import chronos, stew/byteutils
-import ../libp2p/[stream/connection,
-                  transports/transport,
-                  transports/tcptransport,
-                  upgrademngrs/upgrade,
-                  multiaddress,
-                  multicodec,
-                  errors,
-                  wire]
+import
+  ../libp2p/[
+    stream/connection,
+    transports/transport,
+    transports/tcptransport,
+    upgrademngrs/upgrade,
+    multiaddress,
+    multicodec,
+    errors,
+    wire,
+  ]
 
 import ./helpers, ./commontransport
 
@@ -30,7 +33,7 @@ suite "TCP transport":
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport.accept()
       await conn.write("Hello!")
       await conn.close()
@@ -52,7 +55,7 @@ suite "TCP transport":
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport.start(ma)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       var msg = newSeq[byte](6)
       let conn = await transport.accept()
       await conn.readExactly(addr msg[0], 6)
@@ -72,8 +75,7 @@ suite "TCP transport":
   asyncTest "test dialer: handle write":
     let address = initTAddress("0.0.0.0:0")
     let handlerWait = newFuture[void]()
-    proc serveClient(server: StreamServer,
-                      transp: StreamTransport) {.async, gcsafe.} =
+    proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
       var wstream = newAsyncStreamWriter(transp)
       await wstream.write("Hello!")
       await wstream.finish()
@@ -105,8 +107,7 @@ suite "TCP transport":
   asyncTest "test dialer: handle write":
     let address = initTAddress("0.0.0.0:0")
     let handlerWait = newFuture[void]()
-    proc serveClient(server: StreamServer,
-                      transp: StreamTransport) {.async, gcsafe.} =
+    proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
       var rstream = newAsyncStreamReader(transp)
       let msg = await rstream.read(6)
       check string.fromBytes(msg) == "Hello!"
@@ -135,8 +136,11 @@ suite "TCP transport":
     await server.join()
 
   asyncTest "Starting with duplicate but zero ports addresses must NOT fail":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-               MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+    let ma =
+      @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+      ]
 
     let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
 
@@ -170,16 +174,18 @@ suite "TCP transport":
     let acceptedPort2 = acceptedConn2.observedAddr.get()[multiCodec("tcp")].get()
     check listeningPort == acceptedPort2
 
-    await allFutures(transport.stop(), transport2.stop(),  transport3.stop())
+    await allFutures(transport.stop(), transport2.stop(), transport3.stop())
 
-  proc transProvider(): Transport = TcpTransport.new(upgrade = Upgrade())
+  proc transProvider(): Transport =
+    TcpTransport.new(upgrade = Upgrade())
 
   asyncTest "Custom timeout":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-    let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade(), connectionsTimeout=1.milliseconds)
+    let transport: TcpTransport =
+      TcpTransport.new(upgrade = Upgrade(), connectionsTimeout = 1.milliseconds)
     asyncSpawn transport.start(ma)
 
-    proc acceptHandler() {.async, gcsafe.} =
+    proc acceptHandler() {.async.} =
       let conn = await transport.accept()
       await conn.join()
 
@@ -190,7 +196,4 @@ suite "TCP transport":
     await streamTransport.closeWait()
     await transport.stop()
 
-
-  commonTransportTest(
-    transProvider,
-    "/ip4/0.0.0.0/tcp/0")
+  commonTransportTest(transProvider, "/ip4/0.0.0.0/tcp/0")
