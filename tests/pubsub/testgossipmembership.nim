@@ -112,7 +112,7 @@ suite "GossipSub Topic Membership Tests":
 
     await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
-    # When nodes subscribe and then unsubscribe to multiple topics
+    # When nodes subscribe to multiple topics
     await subscribeNodes(nodes)
     for node in nodes:
       for topic in topics:
@@ -168,11 +168,8 @@ suite "GossipSub Topic Membership Tests":
             discard
           ,
         )
-      else:
-        # Then the subscription count should not exceed the limit
-        check gossipSub.topics.len == gossipSub.topicsHigh
 
-    check gossipSub.topics.len == gossipSub.topicsHigh
+    check gossipSub.topics.len == gossipSubParams
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
@@ -186,7 +183,7 @@ suite "GossipSub Topic Membership Tests":
 
     await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
-    # When nodes join and subscribe to the topic
+    # When nodes subscribe to the topic
     await subscribeNodes(nodes)
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
@@ -197,6 +194,7 @@ suite "GossipSub Topic Membership Tests":
     for node in nodes:
       let currentGossip = GossipSub(node)
       check currentGossip.mesh[topic].len == numberOfNodes - 1
+      check currentGossip.gossipsub.hasKey(topic)
       check currentGossip.topics.contains(topic)
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
@@ -210,20 +208,21 @@ suite "GossipSub Topic Membership Tests":
       nodes = generateNodes(numberOfNodes, gossip = true)
       nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
 
+    # When they all join the topic
     await subscribeNodes(nodes)
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
 
     await sleepAsync(2 * DURATION_TIMEOUT)
 
-    # When they all join the topic, their attributes should reflect this
+    # Their attributes should reflect in this loop
     for i in 0 ..< numberOfNodes:
       let currentGossip = GossipSub(nodes[i])
       check currentGossip.gossipsub.hasKey(topic)
       check currentGossip.mesh.hasKey(topic)
       check currentGossip.topics.contains(topic)
 
-    # When peers subscribe to each other's topics
+    # Make sure all nodes are connected between themselves.
     for x in 0 ..< numberOfNodes:
       for y in 0 ..< numberOfNodes:
         if x != y:
