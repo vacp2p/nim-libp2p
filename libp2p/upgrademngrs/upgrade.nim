@@ -47,9 +47,10 @@ method upgrade*(
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError], raw: true), base.} =
   raiseAssert("Not implemented!")
 
-proc secure*(
+method secure*(
     self: Upgrade, conn: Connection, peerId: Opt[PeerId]
 ): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
+  echo "> Upgrade::secure"
   if self.secureManagers.len <= 0:
     raise (ref UpgradeFailedError)(msg: "No secure managers registered!")
 
@@ -68,4 +69,5 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
+  echo "> Upgrade::secure - 0"
   await secureProtocol[0].secure(conn, peerId)

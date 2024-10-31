@@ -226,6 +226,7 @@ method accept*(self: TcpTransport): Future[Connection] =
   proc impl(
       self: TcpTransport
   ): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+    echo "> TcpTransport::accept"
     proc cancelAcceptFuts() =
       for fut in self.acceptFuts:
         if not fut.completed():
@@ -239,19 +240,23 @@ method accept*(self: TcpTransport): Future[Connection] =
     elif self.acceptFuts.len == 0:
       # Holds futures representing ongoing accept calls on multiple servers.
       self.acceptFuts = self.servers.mapIt(it.accept())
-
+    echo "> TcpTransport::accept - 0"
     let
       finished =
         try:
           # Waits for any one of these futures to complete, indicating that a new connection has been accepted on one of the servers.
+          echo "###############################################################"
           await one(self.acceptFuts)
         except ValueError:
+          echo "> TcpTransport::accept - 02"
           raiseAssert "Accept futures should not be empty"
         except CancelledError as exc:
+          echo "> TcpTransport::accept - 03"
           cancelAcceptFuts()
           raise exc
       index = self.acceptFuts.find(finished)
 
+    echo "> TcpTransport::accept - 1"
     # A new connection has been accepted. The corresponding server should immediately start accepting another connection.
     # Thus we replace the completed future with a new one by calling accept on the same server again.
     self.acceptFuts[index] = self.servers[index].accept()
@@ -274,6 +279,7 @@ method accept*(self: TcpTransport): Future[Connection] =
         cancelAcceptFuts()
         raise exc
 
+    echo "> TcpTransport::accept - 2"
     if not self.running: # Stopped while waiting
       await transp.closeWait()
       raise newTransportClosedError()
@@ -289,6 +295,7 @@ method accept*(self: TcpTransport): Future[Connection] =
 
     let observedAddr =
       MultiAddress.init(remote).expect("Can initialize from remote address")
+    echo "- TcpTransport::accept"
     self.connHandler(transp, Opt.some(observedAddr), Direction.In)
 
   impl(self)

@@ -36,6 +36,9 @@ type
     upgrader*: Upgrade
     networkReachability*: NetworkReachability
 
+method log*(self: Transport): string {.base, gcsafe.} =
+  "<Transport>"
+
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
 
@@ -69,10 +72,10 @@ method dial*(
 ): Future[Connection] {.base, gcsafe.} =
   ## dial a peer
   ##
-
+  echo "Transport::dial"
   doAssert(false, "Not implemented!")
 
-proc dial*(
+method dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
 ): Future[Connection] {.gcsafe.} =
   self.dial("", address)
@@ -83,6 +86,7 @@ method upgrade*(
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
   ##
+  echo "> Transport::upgrade"
   self.upgrader.upgrade(conn, peerId)
 
 method handles*(self: Transport, address: MultiAddress): bool {.base, gcsafe.} =

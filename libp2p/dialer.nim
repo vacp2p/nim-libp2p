@@ -54,13 +54,29 @@ proc dialAndUpgrade(
     address: MultiAddress,
     dir = Direction.Out,
 ): Future[Muxer] {.async.} =
+  echo "\n\n> Dialer::dialAndUpgrade"
   for transport in self.transports: # for each transport
     if transport.handles(address): # check if it can dial it
       trace "Dialing address", address, peerId = peerId.get(default(PeerId)), hostname
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
-          await transport.dial(hostname, address, peerId)
+          echo "> Dialer::dialAndUpgrade::0"
+          # echo hostname
+          # echo address
+          # echo peerId
+          echo transport.log()
+          echo type(transport)
+          echo type(hostname)
+          echo type(address)
+          echo type(peerId)
+          let dialFut = transport.dial(hostname, address, peerId)
+          echo "> Dialer::dialAndUpgrade::after-dial"
+          let myD = await dialFut
+          echo "< Dialer::dialAndUpgrade::after-dial"
+          echo myD.shortLog()
+          echo "<<<< Dialer::dialAndUpgrade::after-dial"
+          myD
         except CancelledError as exc:
           trace "Dialing canceled",
             description = exc.msg, peerId = peerId.get(default(PeerId))
@@ -70,7 +86,8 @@ proc dialAndUpgrade(
             description = exc.msg, peerId = peerId.get(default(PeerId))
           libp2p_failed_dials.inc()
           return nil # Try the next address
-
+      echo "> Dialer::dialAndUpgrade::1"
+      echo dialed.shortLog()
       libp2p_successful_dials.inc()
 
       let mux =
@@ -80,6 +97,11 @@ proc dialAndUpgrade(
           # The if below is more general and might handle other use cases in the future.
           if dialed.dir != dir:
             dialed.dir = dir
+          echo "> Dialer::dialAndUpgrade::2"
+          echo transport.log()
+          echo dialed.shortLog()
+          # TODO: dialed should be MixnetConnectionAdapter
+          echo "< Dialer::dialAndUpgrade::2"
           await transport.upgrade(dialed, peerId)
         except CancelledError as exc:
           await dialed.close()
@@ -97,7 +119,7 @@ proc dialAndUpgrade(
 
           # Try other address
           return nil
-
+      echo "> Dialer::dialAndUpgrade::3"
       doAssert not isNil(mux), "connection died after upgrade " & $dialed.dir
       debug "Dial successful", peerId = mux.connection.peerId
       return mux
@@ -170,6 +192,7 @@ proc internalConnect(
     reuseConnection = true,
     dir = Direction.Out,
 ): Future[Muxer] {.async.} =
+  echo "> Dialer::internalConnect"
   if Opt.some(self.localPeerId) == peerId:
     raise newException(CatchableError, "can't dial self!")
 
@@ -184,16 +207,17 @@ proc internalConnect(
           return mux
 
     let slot = self.connManager.getOutgoingSlot(forceDial)
+    echo "> Dialer::internalConnect::0"
     let muxed =
       try:
         await self.dialAndUpgrade(peerId, addrs, dir)
       except CatchableError as exc:
         slot.release()
         raise exc
+    echo "> Dialer::internalConnect::1"
     slot.trackMuxer(muxed)
     if isNil(muxed): # None of the addresses connected
       raise newException(DialFailedError, "Unable to establish outgoing link")
-
     try:
       self.connManager.storeMuxer(muxed)
       await self.peerStore.identify(muxed)
@@ -302,7 +326,7 @@ method dial*(
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
-
+  echo "> Dialer::dial"
   var
     conn: Muxer
     stream: Connection
@@ -315,14 +339,18 @@ method dial*(
       await conn.close()
 
   try:
+    echo "> Dialer::0"
     trace "Dialing (new)", peerId, protos
     conn = await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+    echo "> Dialer::1"
     trace "Opening stream", conn
     stream = await self.connManager.getStream(conn)
+    echo "> Dialer::2"
 
     if isNil(stream):
       raise newException(DialFailedError, "Couldn't get muxed stream")
 
+    echo "< Dialer::dial"
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
     trace "Dial canceled", conn

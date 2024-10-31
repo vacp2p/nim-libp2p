@@ -148,6 +148,7 @@ method init*(s: Secure) =
     try:
       # We don't need the result but we
       # definitely need to await the handshake
+      echo "Secure::handle"
       discard await s.handleConn(conn, false, Opt.none(PeerId))
       trace "connection secured", conn
     except CancelledError as exc:
@@ -165,6 +166,7 @@ method secure*(
 ): Future[Connection] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
+  echo "> Secure::secure"
   s.handleConn(conn, conn.dir == Direction.Out, peerId)
 
 method readOnce*(
