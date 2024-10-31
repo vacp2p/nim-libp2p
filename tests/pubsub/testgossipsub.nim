@@ -1690,3 +1690,246 @@ suite "Gossipsub Parameters":
       (await iDontWantReceived2.waitForResult()).isOk
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+
+  asyncTest "Ensure handling of multiple Control messages simultaneously":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      ihaveMessage =
+        ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
+      iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
+      graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+      pruneMessage = ControlMessage(
+        prune:
+          @[
+            ControlPrune(
+              topicID: topic,
+              peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](10)))],
+              backoff: 60'u64,
+            )
+          ]
+      )
+      iDontWantMessage =
+        ControlMessage(idontwant: @[ControlIWant(messageIDs: @[messageID])])
+
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+      tg0 = cast[TestGossipSub](g0)
+      tg1 = cast[TestGossipSub](g1)
+
+    # Setup an observer for node1
+    # All of them are checking for iHave messages
+    var
+      receivedIHaves: int = 0
+      receivedIWants: int = 0
+      receivedGrafts: int = 0
+      receivedPrunes: int = 0
+      receivedIDontWants: int = 0
+
+    let observeControlMessages = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let
+          iHave = msgs.control.get.ihave
+          iWant = msgs.control.get.iwant
+          graft = msgs.control.get.graft
+          prune = msgs.control.get.prune
+          iDontWant = msgs.control.get.idontwant
+
+        for msg in iHave:
+          if msg.topicID == topic:
+            receivedIHaves += 1
+        for msg in iWant:
+          for msgId in msg.messageIDs:
+            if msgId == messageID:
+              receivedIWants += 1
+        for msg in graft:
+          if msg.topicID == topic:
+            receivedGrafts += 1
+        for msg in prune:
+          if msg.topicID == topic:
+            receivedPrunes += 1
+        for msg in iDontWant:
+          for msgId in msg.messageIDs:
+            if msgId == messageID:
+              receivedIDontWants += 1
+
+    n1.addObserver(PubSubObserver(onRecv: observeControlMessages))
+
+    # Connect them
+    await n0.switch.connect(n1.peerInfo.peerId, n1.peerInfo.addrs)
+
+    # Subscribe them to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+    await waitSubGraph(nodes, topic)
+
+    # When node 0 sends multiple Control messages
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(ihaveMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(iwantMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(graftMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(pruneMessage)), isHighPriority = true
+    )
+    g0.broadcast(
+      g0.mesh[topic], RPCMsg(control: some(iDontWantMessage)), isHighPriority = true
+    )
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Then node 1 should have received all of them
+
+    check:
+      receivedIHaves == 1
+      receivedIWants == 1
+      receivedGrafts == 2 # 1 from the initial subscription and 1 from the graft message
+      receivedPrunes == 1
+      receivedIDontWants == 1
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+    await allFuturesThrowing(nodesFut)
+
+  asyncTest "Verify inclusion of backoff periods and peer lists in PRUNE messages for Peer Exchange":
+    # A, B & C are subscribed to something
+    # B unsubcribe from it, it should send
+    # PX to A & C
+    #
+    # C sent his SPR, not A
+    let
+      topic = "foobar"
+      nodes =
+        generateNodes(2, gossip = true, enablePX = true) &
+        generateNodes(1, gossip = true, sendSignedPeerRecord = true)
+
+      # start switches
+      nodesFut = await allFinished(
+        nodes[0].switch.start(), nodes[1].switch.start(), nodes[2].switch.start()
+      )
+
+    var
+      gossip0 = GossipSub(nodes[0])
+      gossip1 = GossipSub(nodes[1])
+      gossip2 = GossipSub(nodes[2])
+
+    # Connect nodes
+    await subscribeNodes(nodes)
+
+    # Subscribe nodes to the same topic
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    for x in 0 ..< 3:
+      for y in 0 ..< 3:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], topic)
+
+    # Add an observer to node 2 for PRUNE messages
+    var receivedPrunes: seq[ControlPrune] = @[]
+    let checkForPrunes = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let prunes = msgs.control.get.prune
+        for prune in prunes:
+          if prune.topicID == topic:
+            receivedPrunes.add(prune)
+
+    gossip2.addObserver(PubSubObserver(onRecv: checkForPrunes))
+
+    # Setup record handlers for all nodes
+    var
+      passed0: Future[void] = newFuture[void]()
+      passed1: Future[void] = newFuture[void]()
+      passed2: Future[void] = newFuture[void]()
+    gossip0.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == topic
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed0.complete()
+    )
+    gossip1.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        passed1.complete()
+    )
+    gossip2.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == topic
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed2.complete()
+    )
+
+    # Unsubscribe from the topic
+    nodes[1].unsubscribe(topic, voidTopicHandler)
+
+    # Then verify what nodes receive the PX
+    check:
+      (await passed0.waitForResult()).isOk
+      not (await passed1.waitForResult()).isOk
+      (await passed2.waitForResult()).isOk
+
+    # And verify node 2 received the PRUNE message and it contains the backoff period and peer list
+    check:
+      receivedPrunes.len == 1
+      receivedPrunes[0].topicID == "foobar"
+      receivedPrunes[0].peers.len == 2
+      receivedPrunes[0].backoff == 1
+
+    await allFuturesThrowing(
+      nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
+    )
+
+    await allFuturesThrowing(nodesFut.concat())
+
+  asyncTest "GRAFT on direct peers are rejected":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      nodes = generateNodes(2, gossip = true)
+      nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+
+    # Connect them
+    await subscribeNodes(nodes)
+
+    # Set them as direct peers
+    await g0.addDirectPeer(n1.switch.peerInfo.peerId, n1.switch.peerInfo.addrs)
+    await g1.addDirectPeer(n0.switch.peerInfo.peerId, n0.switch.peerInfo.addrs)
+
+    # Get peers to check their behaviour penalty
+    let
+      p0 = g0.getOrCreatePeer(n1.switch.peerInfo.peerId, @[GossipSubCodec_12])
+      p1 = g1.getOrCreatePeer(n0.switch.peerInfo.peerId, @[GossipSubCodec_12])
+    check:
+      p0.behaviourPenalty == 0
+      p1.behaviourPenalty == 0
+
+    # When node 0 sends a GRAFT message to node 1
+    let controlMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+    g0.broadcast(@[p1], RPCMsg(control: some(controlMessage)), isHighPriority = true)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    echo p0.behaviourPenalty
+    # Then the peer should be penalized
+    check:
+      p0.behaviourPenalty >= 0.09 and p0.behaviourPenalty <= 0.1
+      p1.behaviourPenalty == 0
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
+    await allFuturesThrowing(nodesFut)
