@@ -29,10 +29,13 @@ jobs:
             cpu: amd64
           - os: windows
             cpu: amd64
-        nim: 
-          - branch: version-1-6
+        nim:
+          - ref: version-1-6
             memory_management: refc
-          - branch: version-2-0
+          # The ref below corresponds to the branch "version-2-0".
+          # Right before an update from Nimble 0.16.1 to 0.16.2.
+          # That update breaks our dependency resolution.
+          - ref: 8754469f4947844c5938f56e1fba846c349354b5
             memory_management: refc
         include:
           - platform:
@@ -56,7 +59,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.branch }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})'
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -70,7 +73,7 @@ jobs:
           os: ${{ matrix.platform.os }}
           cpu: ${{ matrix.platform.cpu }}
           shell: ${{ matrix.shell }}
-          nim_branch: ${{ matrix.nim.branch }}
+          nim_ref: ${{ matrix.nim.ref }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -86,9 +89,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: nimbledeps
-          # Using nim.branch as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
+          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
           # The change happened on Nimble v0.14.0.
-          key: nimbledeps-${{ matrix.nim.branch }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+          key: nimbledeps-${{ matrix.nim.ref }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
@@ -109,5 +112,6 @@ jobs:
           nim --version
           nimble --version
           gcc --version
+
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
