@@ -387,6 +387,7 @@ const MultiCodecList = [
   ("tls", 0x01C0),
   ("quic", 0x01CC),
   ("quic-v1", 0x01CD),
+  ("certhash", 0x01D2),
   ("ws", 0x01DD),
   ("wss", 0x01DE),
   ("p2p-websocket-star", 0x01DF), # not in multicodec list

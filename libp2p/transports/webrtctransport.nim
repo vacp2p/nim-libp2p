@@ -30,7 +30,7 @@ import transport,
        ../protocols/secure/noise,
        ../utility
 
-import webrtc/webrtc, webrtc/datachannel, webrtc/dtls/dtls
+import webrtc/webrtc, webrtc/datachannel, webrtc/dtls/dtls_transport, webrtc/errors
 
 logScope:
   topics = "libp2p webrtctransport"
@@ -113,22 +113,28 @@ type
 proc new(_: type RawWebRtcStream, dataChannel: DataChannelStream): RawWebRtcStream =
   RawWebRtcStream(dataChannel: dataChannel)
 
-method closeImpl*(s: RawWebRtcStream): Future[void] =
+method closeImpl*(s: RawWebRtcStream): Future[void] {.async: (raises: []).} =
   # TODO: close datachannel
   discard
 
-method write*(s: RawWebRtcStream, msg: seq[byte]): Future[void] =
+method write*(s: RawWebRtcStream, msg: seq[byte]): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "RawWebrtcStream write", msg, len=msg.len()
-  s.dataChannel.write(msg)
+  try:
+    await s.dataChannel.write(msg)
+  except WebRtcError as exc:
+    raise newException(LPStreamError, exc.msg, exc)
 
-method readOnce*(s: RawWebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
+method readOnce*(s: RawWebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   # TODO:
   # if s.isClosed:
   #   raise newLPStreamEOFError()
 
   if s.readData.len() == 0:
-    let rawData = await s.dataChannel.read()
-    s.readData = rawData
+    try:
+      let rawData = await s.dataChannel.read()
+      s.readData = rawData
+    except WebRtcError as exc:
+      raise newException(LPStreamError, exc.msg, exc)
   trace "readOnce RawWebRtcStream", data = s.readData, nbytes
 
   result = min(nbytes, s.readData.len)
@@ -143,7 +149,7 @@ type
 
   WebRtcStream = ref object of Connection
     rawStream: RawWebRtcStream
-    sendQueue: seq[(seq[byte], Future[void])]
+    sendQueue: seq[(seq[byte], Future[void].Raising([CancelledError, LPStreamError]))]
     sendLoop: Future[void]
     readData: seq[byte]
     txState: WebRtcState # Transmission
@@ -159,30 +165,29 @@ proc new(
   procCall Connection(stream).initStream()
   stream
 
-proc sender(s: WebRtcStream) {.async.} =
+proc sender(s: WebRtcStream) {.async: (raises: [CancelledError, LPStreamError]).} =
   while s.sendQueue.len > 0:
     let (message, fut) = s.sendQueue.pop()
     #TODO handle exceptions
     await s.rawStream.writeLp(message)
     if not fut.isNil: fut.complete()
 
-proc send(s: WebRtcStream, msg: WebRtcMessage, fut: Future[void] = nil) =
+proc send(s: WebRtcStream, msg: WebRtcMessage, fut: Future[void].Raising([CancelledError, LPStreamError]) = nil) =
   let wrappedMessage = msg.encode()
   s.sendQueue.insert((wrappedMessage, fut))
 
   if s.sendLoop == nil or s.sendLoop.finished:
     s.sendLoop = s.sender()
 
-method write*(s: WebRtcStream, msg2: seq[byte]): Future[void] =
+method write*(s: WebRtcStream, msg2: seq[byte]): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   # We need to make sure we send all of our data before another write
   # Otherwise, two concurrent writes could get intertwined
   # We avoid this by filling the s.sendQueue synchronously
   var msg = msg2
   trace "WebrtcStream write", msg, len=msg.len()
-  let retFuture = newFuture[void]("WebRtcStream.write")
+  var retFuture = Future[void].Raising([CancelledError, LPStreamError]).init("WebRtcStream.write")
   if s.txState != Sending:
-    retFuture.fail(newLPStreamClosedError())
-    return retFuture
+    raise newException(LPStreamClosedError, "whatever")
 
   var messages: seq[seq[byte]]
   while msg.len > MaxMessageSize - 16:
@@ -196,16 +201,16 @@ method write*(s: WebRtcStream, msg2: seq[byte]): Future[void] =
     wrappedMessage = WebRtcMessage(data: msg)
   s.send(wrappedMessage, retFuture)
 
-  return retFuture
+  await retFuture
 
-proc actuallyClose(s: WebRtcStream) {.async.} =
+proc actuallyClose(s: WebRtcStream) {.async: (raises: [CancelledError, LPStreamError]).} =
   debug "stream closed", rxState=s.rxState, txState=s.txState
   if s.rxState == Closed and s.txState == Closed and s.readData.len == 0:
     #TODO add support to DataChannel
     #await s.dataChannel.close()
     await procCall Connection(s).closeImpl()
 
-method readOnce*(s: WebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.async.} =
+method readOnce*(s: WebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   if s.rxState == Closed:
     raise newLPStreamEOFError()
 
@@ -216,35 +221,44 @@ method readOnce*(s: WebRtcStream, pbytes: pointer, nbytes: int): Future[int] {.a
       await s.actuallyClose()
       return 0
 
-    let
-      #TODO handle exceptions
-      message = await s.rawStream.readLp(MaxMessageSize)
-      decoded = WebRtcMessage.decode(message).tryGet()
+    try:
+      let
+        #TODO handle exceptions
+        message = await s.rawStream.readLp(MaxMessageSize)
+        decoded = WebRtcMessage.decode(message).tryGet()
 
-    s.readData = s.readData.concat(decoded.data)
+      s.readData = s.readData.concat(decoded.data)
 
-    decoded.flag.withValue(flag):
-      case flag:
-      of Fin:
-        # Peer won't send any more data
-        s.rxState = Closed
-        s.send(WebRtcMessage(flag: Opt.some(FinAck)))
-      of FinAck:
-        s.txState = Closed
-        await s.actuallyClose()
-        if nbytes == 0:
-          return 0
-      else: discard
+      decoded.flag.withValue(flag):
+        case flag:
+        of Fin:
+          # Peer won't send any more data
+          s.rxState = Closed
+          s.send(WebRtcMessage(flag: Opt.some(FinAck)))
+        of FinAck:
+          s.txState = Closed
+          await s.actuallyClose()
+          if nbytes == 0:
+            return 0
+        else: discard
+    except CatchableError as exc:
+      raise newException(LPStreamError, exc.msg, exc)
+
 
   result = min(nbytes, s.readData.len)
   copyMem(pbytes, addr s.readData[0], result)
   s.readData = s.readData[result..^1]
 
-method closeImpl*(s: WebRtcStream) {.async.} =
+method closeImpl*(s: WebRtcStream) {.async: (raises: []).} =
   s.send(WebRtcMessage(flag: Opt.some(Fin)))
   s.txState = Closing
   while s.txState != Closed:
-    discard await s.readOnce(nil, 0)
+    try:
+      discard await s.readOnce(nil, 0)
+    except CatchableError as exc:
+      discard
+    except CancelledError as exc:
+      discard
 
 # -- Connection --
 
@@ -252,7 +266,7 @@ type WebRtcConnection = ref object of Connection
   connection: DataChannelConnection
   remoteAddress: MultiAddress
 
-method close*(conn: WebRtcConnection) {.async.} =
+method close*(conn: WebRtcConnection) {.async: (raises: []).} =
   #TODO
   discard
 
@@ -267,13 +281,16 @@ proc new(
 
 proc getStream*(conn: WebRtcConnection,
                 direction: Direction,
-                noiseHandshake: bool = false): Future[WebRtcStream] {.async.} =
+                noiseHandshake: bool = false): Future[WebRtcStream] {.async: (raises: [CancelledError, LPStreamError]).} =
   var datachannel =
     case direction:
       of Direction.In:
         await conn.connection.accept()
       of Direction.Out:
-        await conn.connection.openStream(noiseHandshake)
+        try:
+          await conn.connection.openStream(noiseHandshake)
+        except WebRtcError as exc:
+          raise newException(LPStreamError, exc.msg, exc)
   return WebRtcStream.new(datachannel, conn.observedAddr, conn.peerId)
 
 # -- Muxer --
@@ -282,7 +299,7 @@ type WebRtcMuxer = ref object of Muxer
   webRtcConn: WebRtcConnection
   handleFut: Future[void]
 
-method newStream*(m: WebRtcMuxer, name: string = "", lazy: bool = false): Future[Connection] {.async, gcsafe.} =
+method newStream*(m: WebRtcMuxer, name: string = "", lazy: bool = false): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   return await m.webRtcConn.getStream(Direction.Out)
 
 proc handleStream(m: WebRtcMuxer, chann: WebRtcStream) {.async.} =
@@ -296,31 +313,34 @@ proc handleStream(m: WebRtcMuxer, chann: WebRtcStream) {.async.} =
 
 #TODO add atEof
 
-method handle*(m: WebRtcMuxer): Future[void] {.async, gcsafe.} =
+method handle*(m: WebRtcMuxer): Future[void] {.async: (raises: []).} =
   try:
     #while not m.webRtcConn.atEof:
     while true:
       let incomingStream = await m.webRtcConn.getStream(Direction.In)
       asyncSpawn m.handleStream(incomingStream)
+  except CatchableError as exc:
+    discard
+  except CancelledError as exc:
+    discard
   finally:
     await m.webRtcConn.close()
 
-method close*(m: WebRtcMuxer) {.async, gcsafe.} =
+method close*(m: WebRtcMuxer) {.async: (raises: []).} =
   m.handleFut.cancel()
   await m.webRtcConn.close()
 
 # -- Upgrader --
 
 type
-  WebRtcStreamHandler = proc(conn: Connection): Future[void] {.gcsafe, raises: [].}
+  WebRtcStreamHandler = proc(conn: Connection): Future[void] {.async: (raises: []).}
   WebRtcUpgrade = ref object of Upgrade
     streamHandler: WebRtcStreamHandler
 
 method upgrade*(
     self: WebRtcUpgrade,
     conn: Connection,
-    direction: Direction,
-    peerId: Opt[PeerId]): Future[Muxer] {.async.} =
+    peerId: Opt[PeerId]): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
 
   let webRtcConn = WebRtcConnection(conn)
   result = WebRtcMuxer(connection: conn, webRtcConn: webRtcConn)
@@ -330,8 +350,8 @@ method upgrade*(
   assert noiseHandler.len > 0
 
   let xx = "libp2p-webrtc-noise:".toBytes()
-  let localCert = MultiHash.digest("sha2-256", webRtcConn.connection.conn.conn.localCertificate()).get().data.buffer
-  let remoteCert = MultiHash.digest("sha2-256", webRtcConn.connection.conn.conn.remoteCertificate()).get().data.buffer
+  let localCert = MultiHash.digest("sha2-256", webRtcConn.connection.localCertificate()).get().data.buffer
+  let remoteCert = MultiHash.digest("sha2-256", webRtcConn.connection.remoteCertificate()).get().data.buffer
   ((Noise)noiseHandler[0]).commonPrologue = xx & remoteCert & localCert
   echo "=> ", ((Noise)noiseHandler[0]).commonPrologue
 
@@ -356,7 +376,7 @@ type
   WebRtcTransport* = ref object of Transport
     connectionsTimeout: Duration
     servers: seq[WebRtc]
-    acceptFuts: seq[Future[DataChannelConnection]]
+    acceptFuts: seq[Future[DataChannelConnection].Raising([CancelledError, WebRtcError])]
     clients: array[Direction, seq[DataChannelConnection]]
 
   WebRtcTransportTracker* = ref object of TrackerBase
@@ -395,16 +415,15 @@ proc new*(
   connectionsTimeout = 10.minutes): T {.public.} =
 
   let upgrader = WebRtcUpgrade(ms: upgrade.ms, secureManagers: upgrade.secureManagers)
-  upgrader.streamHandler = proc(conn: Connection)
-    {.async, gcsafe, raises: [].} =
+  upgrader.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
     # TODO: replace echo by trace and find why it fails compiling
     echo "Starting stream handler"#, conn
     try:
       await upgrader.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
-      raise exc
+      echo "Stream handler cancelled"
     except CatchableError as exc:
-      echo "exception in stream handler", exc.msg#, conn, msg = exc.msg
+      echo "Exception in stream handler", exc.msg
     finally:
       await conn.closeWithEOF()
     echo "Stream handler done"#, conn
@@ -443,10 +462,10 @@ method start*(
     self.servers &= server
 
     let
-      cert = server.dtls.localCertificate()
+      cert = server.localCertificate()
       certHash = MultiHash.digest("sha2-256", cert).get().data.buffer
       encodedCertHash = MultiBase.encode("base64", certHash).get()
-    self.addrs[i] = MultiAddress.init(server.udp.laddr, IPPROTO_UDP).tryGet() &
+    self.addrs[i] = MultiAddress.init(server.localAddress(), IPPROTO_UDP).tryGet() &
       MultiAddress.init(multiCodec("webrtc-direct")).tryGet() &
       MultiAddress.init(multiCodec("certhash"), certHash).tryGet()
 
@@ -529,4 +548,4 @@ method accept*(self: WebRtcTransport): Future[Connection] {.async, gcsafe.} =
 method handles*(t: WebRtcTransport, address: MultiAddress): bool {.gcsafe.} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
-      return WebRtcDirect2.match(address)
+      return WebRTCDirect2.match(address)

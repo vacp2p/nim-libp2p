@@ -382,6 +382,11 @@ const
   )
   TranscoderDNS* =
     Transcoder(stringToBuffer: dnsStB, bufferToString: dnsBtS, validateBuffer: dnsVB)
+  TranscoderCertHash* = Transcoder(
+    stringToBuffer: certHashStB,
+    bufferToString: certHashBtS,
+    validateBuffer: certHashVB
+  )
   ProtocolsList = [
     MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderIP4),
     MAProtocol(mcodec: multiCodec("tcp"), kind: Fixed, size: 2, coder: TranscoderPort),
@@ -416,105 +421,13 @@ const
     MAProtocol(
       mcodec: multiCodec("dnsaddr"), kind: Length, size: 0, coder: TranscoderDNS
     ),
-<<<<<<< HEAD
-    MAProtocol(
-      mcodec: multiCodec("dccp"), kind: Fixed, size: 2,
-      coder: TranscoderPort
-    ),
-    MAProtocol(
-      mcodec: multiCodec("sctp"), kind: Fixed, size: 2,
-      coder: TranscoderPort
-    ),
-    MAProtocol(
-      mcodec: multiCodec("udt"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("utp"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("http"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("https"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("quic"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("ip6zone"), kind: Length, size: 0,
-      coder: TranscoderIP6Zone
-    ),
-    MAProtocol(
-      mcodec: multiCodec("onion"), kind: Fixed, size: 10,
-      coder: TranscoderOnion
-    ),
-    MAProtocol(
-      mcodec: multiCodec("onion3"), kind: Fixed, size: 37,
-      coder: TranscoderOnion3
-    ),
-    MAProtocol(
-      mcodec: multiCodec("ws"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("wss"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("tls"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("ipfs"), kind: Length, size: 0,
-      coder: TranscoderP2P
-    ),
-    MAProtocol(
-      mcodec: multiCodec("p2p"), kind: Length, size: 0,
-      coder: TranscoderP2P
-    ),
-    MAProtocol(
-      mcodec: multiCodec("unix"), kind: Path, size: 0,
-      coder: TranscoderUnix
-    ),
-    MAProtocol(
-      mcodec: multiCodec("dns"), kind: Length, size: 0,
-      coder: TranscoderDNS
-    ),
-    MAProtocol(
-      mcodec: multiCodec("dns4"), kind: Length, size: 0,
-      coder: TranscoderDNS
-    ),
-    MAProtocol(
-      mcodec: multiCodec("dns6"), kind: Length, size: 0,
-      coder: TranscoderDNS
-    ),
-    MAProtocol(
-      mcodec: multiCodec("dnsaddr"), kind: Length, size: 0,
-      coder: TranscoderDNS
-    ),
-    MAProtocol(
-      mcodec: multiCodec("p2p-circuit"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("p2p-websocket-star"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("webrtc"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("webrtc-direct"), kind: Marker, size: 0
-    ),
-    MAProtocol(
-      mcodec: multiCodec("certhash"), kind: Length, size: 0,
-      coder: TranscoderCertHash
-    ),
     MAProtocol(mcodec: multiCodec("p2p-circuit"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-websocket-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("webrtc"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("webrtc-direct"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("certhash"), kind: Length, size: 0, coder: TranscoderCertHash),
   ]
 
   DNSANY* = mapEq("dns")
@@ -550,7 +463,6 @@ const
   WebSockets_DNS* = mapOr(WS_DNS, WSS_DNS)
   WebSockets_IP* = mapOr(WS_IP, WSS_IP)
   WebSockets* = mapOr(WS, WSS)
-  WebRtcDirect2* = mapAnd(UDP, mapEq("webrtc-direct"), mapEq("certhash"))
   Onion3* = mapEq("onion3")
   TcpOnion3* = mapAnd(TCP, Onion3)
 
@@ -570,9 +482,11 @@ const
     mapAnd(TCP, mapEq("https")), mapAnd(IP, mapEq("https")), mapAnd(DNS, mapEq("https"))
   )
 
-  WebRTCDirect* = mapOr(
+  WebRTCDirect* {.deprecated.} = mapOr(
     mapAnd(HTTP, mapEq("p2p-webrtc-direct")), mapAnd(HTTPS, mapEq("p2p-webrtc-direct"))
   )
+
+  WebRTCDirect2* = mapAnd(UDP, mapEq("webrtc-direct"), mapEq("certhash"))
 
   CircuitRelay* = mapEq("p2p-circuit")
 

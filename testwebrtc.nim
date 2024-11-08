@@ -18,9 +18,11 @@ proc echoHandler(conn: Connection, proto: string) {.async.} =
       break
 
 proc main {.async.} =
+  let ma = MultiAddress.init("/ip4/127.0.0.1/udp/4242/webrtc-direct/certhash/uEiDDq4_xNyDorZBH3TlGazyJdOWSwvo4PUo5YHFMrvDE8g")
+  echo ma
   let switch =
     SwitchBuilder.new()
-    .withAddress(MultiAddress.init("/ip4/127.0.0.1/udp/4242/webrtc-direct/certhash/uEiDDq4_xNyDorZBH3TlGazyJdOWSwvo4PUo5YHFMrvDE8g").tryGet()) #TODO the certhash shouldn't be necessary
+    .withAddress(ma.tryGet()) #TODO the certhash shouldn't be necessary
     .withRng(crypto.newRng())
     .withMplex()
     .withYamux()
