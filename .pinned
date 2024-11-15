@@ -18,6 +18,6 @@ stew;https://github.com/status-im/nim-stew@#3159137d9a3110edb4024145ce0ba778975d
 testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014de2b4bfb4dafc34
 unittest2;https://github.com/status-im/nim-unittest2@#2300fa9924a76e6c96bc4ea79d043e3a0f27120c
 usrsctp;https://github.com/status-im/nim-usrsctp@#c6a8d4bab44447df790e97dfc8099f7af93d435e
-webrtc;https://github.com/status-im/nim-webrtc.git@#10d2389ab4d314ababe9544f71e462497d8c8dea
+webrtc;https://github.com/status-im/nim-webrtc.git@#497aea7e6c2e73d81456e60f26a49281d0b8c87f
 websock;https://github.com/status-im/nim-websock@#f8ed9b40a5ff27ad02a3c237c4905b0924e3f982
 zlib;https://github.com/status-im/nim-zlib@#a2f44bb7f65571a894227ff6fde9298a104e03a5

@@ -12,7 +12,7 @@
 
 {.push raises: [].}
 
-import std/[sequtils]
+import std/[sequtils, strutils]
 import stew/[endians2, byteutils, objects, results]
 import chronos, chronicles
 import transport,
@@ -435,6 +435,14 @@ proc new*(
 
   return transport
 
+proc stunpwprovider(usernameBytes: seq[byte]): seq[byte] =
+  let username = string.fromBytes(usernameBytes)
+  let usersplit = username.split(":")
+  if usersplit.len() <= 2 and usersplit[0].startsWith("libp2p+webrtc+v1/"):
+    return toBytes(usersplit[0])
+  else:
+    return @[]
+
 method start*(
   self: WebRtcTransport,
   addrs: seq[MultiAddress]) {.async.} =
@@ -456,7 +464,7 @@ method start*(
 
     let
       transportAddress = initTAddress(ma[0..1].tryGet()).tryGet()
-      server = WebRtc.new(transportAddress)
+      server = WebRtc.new(transportAddress, passwordProvider = stunpwprovider)
     server.listen()
 
     self.servers &= server
