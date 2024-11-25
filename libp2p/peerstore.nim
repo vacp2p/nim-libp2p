@@ -145,9 +145,21 @@ proc del*(peerStore: PeerStore, peerId: PeerId) {.public.} =
   for _, book in peerStore.books:
     book.deletor(peerId)
 
-proc updatePeerInfo*(peerStore: PeerStore, info: IdentifyInfo) =
-  if info.addrs.len > 0:
-    peerStore[AddressBook][info.peerId] = info.addrs
+proc updatePeerInfo*(
+    peerStore: PeerStore,
+    info: IdentifyInfo,
+    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress)
+) =
+  let
+    observed =
+      if observedAddr.isNone():
+        default(seq[MultiAddress])
+      else:
+        @[observedAddr.get()]
+    addresses = info.addrs & observed
+
+  if len(addresses) > 0:
+    peerStore[AddressBook][info.peerId] = addresses
 
   info.pubkey.withValue(pubkey):
     peerStore[KeyBook][info.peerId] = pubkey
@@ -200,7 +212,7 @@ proc identify*(peerStore: PeerStore, muxer: Muxer) {.async.} =
           knownAgent = shortAgent
         muxer.connection.setShortAgent(knownAgent)
 
-      peerStore.updatePeerInfo(info)
+      peerStore.updatePeerInfo(info, stream.observedAddr)
   finally:
     await stream.closeWithEOF()
 
