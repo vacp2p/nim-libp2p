@@ -156,17 +156,7 @@ proc updatePeerInfo*(
       if observedAddr.isNone():
         default(seq[MultiAddress])
       else:
-        let res = observedAddr.get()
-        if TCP.match(res):
-          # We should form full P2P address in case of simple TCP address.
-          let
-            p2p = MultiAddress.init(multiCodec("p2p"), info.peerId).valueOr:
-              raiseAssert "Initialization should not fail"
-            ma = concat(res, p2p).valueOr:
-              raiseAssert "Concatenation should not fail"
-          @[ma]
-        else:
-          @[res]
+        @[observedAddr.get()]
     addresses = info.addrs & observed
 
   if len(addresses) > 0:
