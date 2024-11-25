@@ -32,6 +32,7 @@ import
   ./peerid,
   ./peerinfo,
   ./routing_record,
+  ./multicodec,
   ./multiaddress,
   ./stream/connection,
   ./multistream,
@@ -155,13 +156,17 @@ proc updatePeerInfo*(
       if observedAddr.isNone():
         default(seq[MultiAddress])
       else:
-        if TCP.match(observedAddr):
+        let res = observedAddr.get()
+        if TCP.match(res):
           # We should form full P2P address in case of simple TCP address.
-          let p2p = MultiAddress.init(multiCodec("p2p"), info.peerId).valueOr:
-            raiseAssert "Should not be happen"
-          @[observedAddr.get() & p2p]
+          let
+            p2p = MultiAddress.init(multiCodec("p2p"), info.peerId).valueOr:
+              raiseAssert "Initialization should not fail"
+            ma = concat(res, p2p).valueOr:
+              raiseAssert "Concatenation should not fail"
+          @[ma]
         else:
-          @[observedAddr.get()]
+          @[res]
     addresses = info.addrs & observed
 
   if len(addresses) > 0:
