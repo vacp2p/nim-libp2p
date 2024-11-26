@@ -64,6 +64,7 @@ type
   KeyBook* {.public.} = ref object of PeerBook[PublicKey]
 
   AgentBook* {.public.} = ref object of PeerBook[string]
+  LastSeenBook* {.public.} = ref object of PeerBook[Opt[MultiAddress]]
   ProtoVersionBook* {.public.} = ref object of PeerBook[string]
   SPRBook* {.public.} = ref object of PeerBook[Envelope]
 
@@ -149,18 +150,12 @@ proc del*(peerStore: PeerStore, peerId: PeerId) {.public.} =
 proc updatePeerInfo*(
     peerStore: PeerStore,
     info: IdentifyInfo,
-    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress)
+    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress),
 ) =
-  let
-    observed =
-      if observedAddr.isNone():
-        default(seq[MultiAddress])
-      else:
-        @[observedAddr.get()]
-    addresses = info.addrs & observed
+  if len(info.addrs) > 0:
+    peerStore[AddressBook][info.peerId] = info.addrs
 
-  if len(addresses) > 0:
-    peerStore[AddressBook][info.peerId] = addresses
+  peerStore[LastSeenBook][info.peerId] = observedAddr
 
   info.pubkey.withValue(pubkey):
     peerStore[KeyBook][info.peerId] = pubkey
