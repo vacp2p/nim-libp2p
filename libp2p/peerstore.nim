@@ -32,7 +32,6 @@ import
   ./peerid,
   ./peerinfo,
   ./routing_record,
-  ./multicodec,
   ./multiaddress,
   ./stream/connection,
   ./multistream,

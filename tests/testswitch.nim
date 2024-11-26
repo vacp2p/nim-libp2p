@@ -842,6 +842,9 @@ suite "Switch":
       switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
       switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] == switch2.peerInfo.protocols
 
+      switch1.peerStore[LastSeenBook][switch2.peerInfo.peerId].isSome()
+      switch2.peerStore[LastSeenBook][switch1.peerInfo.peerId].isSome()
+
       switch1.peerInfo.peerId notin switch2.peerStore[AddressBook]
       switch1.peerInfo.peerId notin switch2.peerStore[ProtoBook]
 
