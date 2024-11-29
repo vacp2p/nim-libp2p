@@ -52,7 +52,9 @@ proc select*(
 ): Future[string] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
   trace "initiating handshake", conn, codec = Codec
   ## select a remote protocol
+  echo "> MultiStreamSelect::select"
   await conn.writeLp(Codec & "\n") # write handshake
+  echo "> MultiStreamSelect::select - 0"
   if proto.len() > 0:
     trace "selecting proto", conn, proto = proto[0]
     await conn.writeLp((proto[0] & "\n")) # select proto
@@ -67,6 +69,7 @@ proc select*(
     trace "multistream handshake success", conn
 
   if proto.len() == 0: # no protocols, must be a handshake call
+    echo "< MultiStreamSelect::select - Handshake"
     return Codec
   else:
     s = string.fromBytes(await conn.readLp(MsgSize)) # read the first proto
@@ -75,6 +78,7 @@ proc select*(
     if s == proto[0]:
       trace "successfully selected ", conn, proto = proto[0]
       conn.protocol = proto[0]
+      echo "< MultiStreamSelect::select - ", proto[0]
       return proto[0]
     elif proto.len > 1:
       # Try to negotiate alternatives
