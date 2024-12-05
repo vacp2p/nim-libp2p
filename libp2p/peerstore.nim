@@ -63,6 +63,7 @@ type
   KeyBook* {.public.} = ref object of PeerBook[PublicKey]
 
   AgentBook* {.public.} = ref object of PeerBook[string]
+  LastSeenBook* {.public.} = ref object of PeerBook[Opt[MultiAddress]]
   ProtoVersionBook* {.public.} = ref object of PeerBook[string]
   SPRBook* {.public.} = ref object of PeerBook[Envelope]
 
@@ -145,9 +146,15 @@ proc del*(peerStore: PeerStore, peerId: PeerId) {.public.} =
   for _, book in peerStore.books:
     book.deletor(peerId)
 
-proc updatePeerInfo*(peerStore: PeerStore, info: IdentifyInfo) =
-  if info.addrs.len > 0:
+proc updatePeerInfo*(
+    peerStore: PeerStore,
+    info: IdentifyInfo,
+    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress),
+) =
+  if len(info.addrs) > 0:
     peerStore[AddressBook][info.peerId] = info.addrs
+
+  peerStore[LastSeenBook][info.peerId] = observedAddr
 
   info.pubkey.withValue(pubkey):
     peerStore[KeyBook][info.peerId] = pubkey
@@ -200,7 +207,7 @@ proc identify*(peerStore: PeerStore, muxer: Muxer) {.async.} =
           knownAgent = shortAgent
         muxer.connection.setShortAgent(knownAgent)
 
-      peerStore.updatePeerInfo(info)
+      peerStore.updatePeerInfo(info, stream.observedAddr)
   finally:
     await stream.closeWithEOF()
 

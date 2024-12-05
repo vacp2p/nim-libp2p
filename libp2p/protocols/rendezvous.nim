@@ -750,7 +750,7 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
-): T =
+): T {.raises: [RendezVousError].} =
   let rdv = T.new(rng, minDuration, maxDuration)
   rdv.setup(switch)
   return rdv
