@@ -126,8 +126,8 @@ task examples_build, "Build the samples":
   buildSample("tutorial_4_gossipsub", true)
   buildSample("tutorial_5_discovery", true)
   exec "nimble install -y nimpng@#HEAD"
-    # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
-  exec "nimble install -y nico@#af99dd60bf2b395038ece815ea1012330a80d6e6"
+  # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
+  exec "nimble install -y nico@#af99dd60bf2b395038ece815ea1012330a80d6e6 --passNim=--skipParentCfg"
   buildSample("tutorial_6_game", false, "--styleCheck:off")
 
 # pin system

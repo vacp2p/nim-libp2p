@@ -32,10 +32,7 @@ jobs:
         nim:
           - ref: version-1-6
             memory_management: refc
-          # The ref below corresponds to the branch "version-2-0".
-          # Right before an update from Nimble 0.16.1 to 0.16.2.
-          # That update breaks our dependency resolution.
-          - ref: 8754469f4947844c5938f56e1fba846c349354b5
+          - ref: version-2-0
             memory_management: refc
         include:
           - platform:
