@@ -220,16 +220,16 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">resolveDnsAddr
       <li><a class="reference" href="#resolveDnsAddr%2CNameResolver%2CMultiAddress%2Cint"
-    title="resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): Future[
-    seq[MultiAddress]]">resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): Future[
-    seq[MultiAddress]]</a></li>
+    title="resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]">resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">resolveMAddress
       <li><a class="reference" href="#resolveMAddress%2CNameResolver%2CMultiAddress"
-    title="resolveMAddress(self: NameResolver; address: MultiAddress): Future[
-    seq[MultiAddress]]">resolveMAddress(self: NameResolver; address: MultiAddress): Future[
-    seq[MultiAddress]]</a></li>
+    title="resolveMAddress(self: NameResolver; address: MultiAddress): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]">resolveMAddress(self: NameResolver; address: MultiAddress): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]</a></li>
 
   </ul>
 
@@ -241,13 +241,17 @@ window.addEventListener("DOMContentLoaded", main2);
       <ul class="simple nested-toc-section">resolveIp
       <li><a class="reference" href="#resolveIp.e%2CNameResolver%2Cstring%2CPort%2CDomain"
     title="resolveIp(self: NameResolver; address: string; port: Port;
-          domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]]">resolveIp(self: NameResolver; address: string; port: Port;
-          domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]]</a></li>
+          domain: Domain = Domain.AF_UNSPEC): InternalRaisesFuture[
+    seq[TransportAddress], (CancelledError, TransportAddressError)]">resolveIp(self: NameResolver; address: string; port: Port;
+          domain: Domain = Domain.AF_UNSPEC): InternalRaisesFuture[
+    seq[TransportAddress], (CancelledError, TransportAddressError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">resolveTxt
       <li><a class="reference" href="#resolveTxt.e%2CNameResolver%2Cstring"
-    title="resolveTxt(self: NameResolver; address: string): Future[seq[string]]">resolveTxt(self: NameResolver; address: string): Future[seq[string]]</a></li>
+    title="resolveTxt(self: NameResolver; address: string): InternalRaisesFuture[
+    seq[string], (CancelledError,)]">resolveTxt(self: NameResolver; address: string): InternalRaisesFuture[
+    seq[string], (CancelledError,)]</a></li>
 
   </ul>
 
@@ -297,37 +301,39 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L37"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L35"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L37" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L35" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="resolveDnsAddr,NameResolver,MultiAddress,int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#resolveDnsAddr%2CNameResolver%2CMultiAddress%2Cint"><span class="Identifier">resolveDnsAddr</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="nameresolver.html#NameResolver"><span class="Identifier">NameResolver</span></a><span class="Other">;</span> <span class="Identifier">ma</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span> <span class="Identifier">depth</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                         <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#resolveDnsAddr%2CNameResolver%2CMultiAddress%2Cint"><span class="Identifier">resolveDnsAddr</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="nameresolver.html#NameResolver"><span class="Identifier">NameResolver</span></a><span class="Other">;</span> <span class="Identifier">ma</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span> <span class="Identifier">depth</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../multiaddress.html#MaError"><span class="Identifier">MaError</span></a><span class="Other">,</span> <span class="Identifier">TransportAddressError</span><span class="Other">)</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L72"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L79"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L72" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L79" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="resolveMAddress,NameResolver,MultiAddress" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#resolveMAddress%2CNameResolver%2CMultiAddress"><span class="Identifier">resolveMAddress</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="nameresolver.html#NameResolver"><span class="Identifier">NameResolver</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                         <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#resolveMAddress%2CNameResolver%2CMultiAddress"><span class="Identifier">resolveMAddress</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="nameresolver.html#NameResolver"><span class="Identifier">NameResolver</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../multiaddress.html#MaError"><span class="Identifier">MaError</span></a><span class="Other">,</span> <span class="Identifier">TransportAddressError</span><span class="Other">)</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L109"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L127"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L109" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L127" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -338,26 +344,28 @@ class="link-seesrc" target="_blank">Source</a>
 <dl class="item">
 <div id="resolveIp.e,NameResolver,string,Port,Domain" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#resolveIp.e%2CNameResolver%2Cstring%2CPort%2CDomain"><span class="Identifier">resolveIp</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="nameresolver.html#NameResolver"><span class="Identifier">NameResolver</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">port</span><span class="Other">:</span> <span class="Identifier">Port</span><span class="Other">;</span>
-                 <span class="Identifier">domain</span><span class="Other">:</span> <span class="Identifier">Domain</span> <span class="Other">=</span> <span class="Identifier">Domain</span><span class="Other">.</span><span class="Identifier">AF_UNSPEC</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">TransportAddress</span><span class="Other">]</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-                             <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+                 <span class="Identifier">domain</span><span class="Other">:</span> <span class="Identifier">Domain</span> <span class="Other">=</span> <span class="Identifier">Domain</span><span class="Other">.</span><span class="Identifier">AF_UNSPEC</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">TransportAddress</span><span class="Other">]</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <span class="Identifier">TransportAddressError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-Resolve the specified address 
+Resolve the specified address
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L31"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L30"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L31" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/nameresolving/nameresolver.nim#L30" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="resolveTxt.e,NameResolver,string" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#resolveTxt.e%2CNameResolver%2Cstring"><span class="Identifier">resolveTxt</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="nameresolver.html#NameResolver"><span class="Identifier">NameResolver</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">]</span> {.
-    <span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#resolveTxt.e%2CNameResolver%2Cstring"><span class="Identifier">resolveTxt</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="nameresolver.html#NameResolver"><span class="Identifier">NameResolver</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                      <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                      <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-Get TXT record 
+Get TXT record
 &nbsp;&nbsp;<a
 href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/nameresolving/nameresolver.nim#L23"
 class="link-seesrc" target="_blank">Source</a>
@@ -375,7 +383,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-11-27 12:51:19 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-12-09 11:45:02 UTC</small>
       </div>
     </div>
   </div>

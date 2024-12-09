@@ -4115,25 +4115,29 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="resolveDnsAddr" href="#resolveDnsAddr"><span>resolveDnsAddr:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="nameresolver: resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): Future[
-    seq[MultiAddress]]" href="libp2p/nameresolving/nameresolver.html#resolveDnsAddr%2CNameResolver%2CMultiAddress%2Cint">nameresolver: resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): Future[
-    seq[MultiAddress]]</a></li>
+          data-doc-search-tag="nameresolver: resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]" href="libp2p/nameresolving/nameresolver.html#resolveDnsAddr%2CNameResolver%2CMultiAddress%2Cint">nameresolver: resolveDnsAddr(self: NameResolver; ma: MultiAddress; depth: int = 0): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]</a></li>
           </ul></dd>
 <dt><a name="resolveIp" href="#resolveIp"><span>resolveIp:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="nameresolver: resolveIp(self: NameResolver; address: string; port: Port;
-          domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]]" href="libp2p/nameresolving/nameresolver.html#resolveIp.e%2CNameResolver%2Cstring%2CPort%2CDomain">nameresolver: resolveIp(self: NameResolver; address: string; port: Port;
-          domain: Domain = Domain.AF_UNSPEC): Future[seq[TransportAddress]]</a></li>
+          domain: Domain = Domain.AF_UNSPEC): InternalRaisesFuture[
+    seq[TransportAddress], (CancelledError, TransportAddressError)]" href="libp2p/nameresolving/nameresolver.html#resolveIp.e%2CNameResolver%2Cstring%2CPort%2CDomain">nameresolver: resolveIp(self: NameResolver; address: string; port: Port;
+          domain: Domain = Domain.AF_UNSPEC): InternalRaisesFuture[
+    seq[TransportAddress], (CancelledError, TransportAddressError)]</a></li>
           </ul></dd>
 <dt><a name="resolveMAddress" href="#resolveMAddress"><span>resolveMAddress:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="nameresolver: resolveMAddress(self: NameResolver; address: MultiAddress): Future[
-    seq[MultiAddress]]" href="libp2p/nameresolving/nameresolver.html#resolveMAddress%2CNameResolver%2CMultiAddress">nameresolver: resolveMAddress(self: NameResolver; address: MultiAddress): Future[
-    seq[MultiAddress]]</a></li>
+          data-doc-search-tag="nameresolver: resolveMAddress(self: NameResolver; address: MultiAddress): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]" href="libp2p/nameresolving/nameresolver.html#resolveMAddress%2CNameResolver%2CMultiAddress">nameresolver: resolveMAddress(self: NameResolver; address: MultiAddress): InternalRaisesFuture[
+    seq[MultiAddress], (CancelledError, MaError, TransportAddressError)]</a></li>
           </ul></dd>
 <dt><a name="resolveTxt" href="#resolveTxt"><span>resolveTxt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="nameresolver: resolveTxt(self: NameResolver; address: string): Future[seq[string]]" href="libp2p/nameresolving/nameresolver.html#resolveTxt.e%2CNameResolver%2Cstring">nameresolver: resolveTxt(self: NameResolver; address: string): Future[seq[string]]</a></li>
+          data-doc-search-tag="nameresolver: resolveTxt(self: NameResolver; address: string): InternalRaisesFuture[
+    seq[string], (CancelledError,)]" href="libp2p/nameresolving/nameresolver.html#resolveTxt.e%2CNameResolver%2Cstring">nameresolver: resolveTxt(self: NameResolver; address: string): InternalRaisesFuture[
+    seq[string], (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="ResourceLimitExceeded" href="#ResourceLimitExceeded"><span>ResourceLimitExceeded:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5492,7 +5496,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-11-27 12:51:23 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-12-09 11:45:06 UTC</small>
       </div>
     </div>
   </div>
