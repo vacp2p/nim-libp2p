@@ -20,6 +20,8 @@ when defined(nimdoc):
   ## If you're new to nim-libp2p, you can find a tutorial `here<https://status-im.github.io/nim-libp2p/docs/tutorial_1_connect/>`_
   ## that can help you get started.
 
+  #test
+
   # Import stuff for doc
   import
     libp2p/[
