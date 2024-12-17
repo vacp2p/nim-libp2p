@@ -936,6 +936,39 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "e2e - iDontWant is broadcasted on publish":
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let
+      nodes = generateNodes(2, gossip = true, msgIdProvider = dumbMsgIdProvider)
+
+      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+
+    await nodes[0].switch.connect(
+      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
+    )
+
+    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip2: GossipSub = GossipSub(nodes[1])
+
+    tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
+
+    checkUntilTimeout:
+      gossip2.mesh.getOrDefault("foobar").anyIt(it.iDontWants[^1].len == 1)
+
+    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
+
+    await allFuturesThrowing(nodesFut.concat())
+
   asyncTest "e2e - iDontWant is sent only for 1.2":
     # 3 nodes: A <=> B <=> C
     # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
