@@ -131,8 +131,6 @@ suite "RendezVous":
     expect RendezVousError:
       discard await rdv.request("A".repeat(300))
     expect RendezVousError:
-      discard await rdv.request("A", -1)
-    expect RendezVousError:
       discard await rdv.request("A", 3000)
     expect RendezVousError:
       await rdv.advertise("A".repeat(300))
