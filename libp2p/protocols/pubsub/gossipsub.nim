@@ -383,6 +383,38 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     trace "sending iwant reply messages", peer
     g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
 
+proc sendIDontWant(
+    g: GossipSub,
+    msg: Message,
+    msgId: MessageId,
+    peersToSendIDontWant: HashSet[PubSubPeer],
+) =
+  # If the message is "large enough", let the mesh know that we do not want
+  # any more copies of it, regardless if it is valid or not.
+  #
+  # In the case that it is not valid, this leads to some redundancy
+  # (since the other peer should not send us an invalid message regardless),
+  # but the expectation is that this is rare (due to such peers getting
+  # descored) and that the savings from honest peers are greater than the
+  # cost a dishonest peer can incur in short time (since the IDONTWANT is
+  # small).
+
+  # IDONTWANT is only supported by >= GossipSubCodec_12
+  let peers = peersToSendIDontWant.filterIt(
+    it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11
+  )
+
+  g.broadcast(
+    peers,
+    RPCMsg(
+      control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+    ),
+    isHighPriority = true,
+  )
+
+proc isLargeMessage(msg: Message, msgId: MessageId): bool =
+  msg.data.len > max(512, msgId.len * 10)
+
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
 ) {.async.} =
@@ -399,29 +431,10 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
 
-    if msg.data.len > max(512, msgId.len * 10):
-      # If the message is "large enough", let the mesh know that we do not want
-      # any more copies of it, regardless if it is valid or not.
-      #
-      # In the case that it is not valid, this leads to some redundancy
-      # (since the other peer should not send us an invalid message regardless),
-      # but the expectation is that this is rare (due to such peers getting
-      # descored) and that the savings from honest peers are greater than the
-      # cost a dishonest peer can incur in short time (since the IDONTWANT is
-      # small).
+    if isLargeMessage(msg, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
-      peersToSendIDontWant.exclIfIt(
-        it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
-      )
-      g.broadcast(
-        peersToSendIDontWant,
-        RPCMsg(
-          control:
-            some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
-        ),
-        isHighPriority = true,
-      )
+      g.sendIDontWant(msg, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
 
@@ -783,6 +796,9 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   g.mcache.put(msgId, msg)
 
   g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+
+  if isLargeMessage(msg, msgId):
+    g.sendIDontWant(msg, msgId, peers)
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
