@@ -149,3 +149,11 @@ template exclIfIt*[T](set: var HashSet[T], condition: untyped) =
       if condition:
         toExcl.incl(it)
     set.excl(toExcl)
+
+template filterIt*[T](set: HashSet[T], condition: untyped): HashSet[T] =
+  var filtered = HashSet[T]()
+  if set.len != 0:
+    for it {.inject.} in set:
+      if condition:
+        filtered.incl(it)
+  filtered
