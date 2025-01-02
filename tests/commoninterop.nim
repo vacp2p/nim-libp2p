@@ -69,7 +69,7 @@ proc testPubSubDaemonPublish(
 
   var finished = false
   var times = 0
-  proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
+  proc nativeHandler(topic: string, data: seq[byte]) {.async: (raises: []).} =
     let smsg = string.fromBytes(data)
     check smsg == pubsubData
     times.inc()
@@ -83,7 +83,7 @@ proc testPubSubDaemonPublish(
 
   proc pubsubHandler(
       api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.async.} =
+  ): Future[bool] {.async: (raises: [CatchableError]).} =
     result = true # don't cancel subscription
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
@@ -137,7 +137,7 @@ proc testPubSubNodePublish(
   var finished = false
   proc pubsubHandler(
       api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.async.} =
+  ): Future[bool] {.async: (raises: [CatchableError]).} =
     let smsg = string.fromBytes(message.data)
     check smsg == pubsubData
     times.inc()
@@ -146,7 +146,7 @@ proc testPubSubNodePublish(
     result = true # don't cancel subscription
 
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
+  proc nativeHandler(topic: string, data: seq[byte]) {.async: (raises: []).} =
     discard
 
   pubsub.subscribe(testTopic, nativeHandler)

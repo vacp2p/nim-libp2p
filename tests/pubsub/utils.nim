@@ -27,8 +27,11 @@ randomize()
 type TestGossipSub* = ref object of GossipSub
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
-  proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, GossipSubCodec_12)
+  proc getConn(): Future[Connection] {.async: (raises: [GetConnDialError]).} =
+    try:
+      return await p.switch.dial(peerId, GossipSubCodec_12)
+    except CatchableError as e:
+      raise (ref GetConnDialError)(parent: e)
 
   let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)
   debug "created new pubsub peer", peerId

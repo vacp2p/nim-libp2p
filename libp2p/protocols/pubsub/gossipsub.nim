@@ -385,7 +385,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
-) {.async.} =
+) {.async: (raises: []).} =
   try:
     template topic(): string =
       msg.topic
@@ -511,7 +511,9 @@ proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
 
   msgSize - payloadSize - controlSize
 
-proc rateLimit*(g: GossipSub, peer: PubSubPeer, overhead: int) {.async.} =
+proc rateLimit*(
+    g: GossipSub, peer: PubSubPeer, overhead: int
+) {.async: (raises: [PeerRateLimitError]).} =
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(overhead):
       libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
@@ -524,7 +526,9 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, overhead: int) {.async.} =
           PeerRateLimitError, "Peer disconnected because it's above rate limit."
         )
 
-method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
+method rpcHandler*(
+    g: GossipSub, peer: PubSubPeer, data: seq[byte]
+) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
@@ -534,7 +538,7 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
     # TODO evaluate behaviour penalty values
     peer.behaviourPenalty += 0.1
 
-    raise newException(CatchableError, "Peer msg couldn't be decoded")
+    raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
   when defined(libp2p_expensive_metrics):
     for m in rpcMsg.messages:
@@ -682,7 +686,9 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.async.} =
+method publish*(
+    g: GossipSub, topic: string, data: seq[byte]
+): Future[int] {.async: (raises: [LPError]).} =
   logScope:
     topic
 
@@ -792,7 +798,9 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   trace "Published message to peers", peers = peers.len
   return peers.len
 
-proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc maintainDirectPeer(
+    g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: [CancelledError]).} =
   if id notin g.peers:
     trace "Attempting to dial a direct peer", peer = id
     if g.switch.isConnected(id):
@@ -808,11 +816,13 @@ proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.as
     except CatchableError as exc:
       debug "Direct peer error dialing", description = exc.msg
 
-proc addDirectPeer*(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc addDirectPeer*(
+    g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: [CancelledError]).} =
   g.parameters.directPeers[id] = addrs
   await g.maintainDirectPeer(id, addrs)
 
-proc maintainDirectPeers(g: GossipSub) {.async.} =
+proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub DirectPeers", 1.minutes:
     for id, addrs in g.parameters.directPeers:
       await g.addDirectPeer(id, addrs)
@@ -846,9 +856,9 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
     return fut
 
   # stop heartbeat interval
-  g.directPeersLoop.cancel()
-  g.scoringHeartbeatFut.cancel()
-  g.heartbeatFut.cancel()
+  g.directPeersLoop.cancelSoon()
+  g.scoringHeartbeatFut.cancelSoon()
+  g.heartbeatFut.cancelSoon()
   g.heartbeatFut = nil
   fut
 

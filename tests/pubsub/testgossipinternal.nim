@@ -36,7 +36,9 @@ suite "GossipSub internal":
   asyncTest "subscribe/unsubscribeAll":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(topic: string, data: seq[byte]): Future[void] {.gcsafe.} =
+    proc handler(
+        topic: string, data: seq[byte]
+    ): Future[void] {.gcsafe, async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -162,7 +164,7 @@ suite "GossipSub internal":
   asyncTest "`replenishFanout` Degree Lo":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -189,7 +191,7 @@ suite "GossipSub internal":
   asyncTest "`dropFanoutPeers` drop expired fanout topics":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -219,7 +221,7 @@ suite "GossipSub internal":
   asyncTest "`dropFanoutPeers` leave unexpired fanout topics":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic1 = "foobar1"
@@ -256,7 +258,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should gather up to degree D non intersecting peers":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -317,7 +319,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should not crash on missing topics in mesh":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -357,7 +359,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should not crash on missing topics in fanout":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -398,7 +400,7 @@ suite "GossipSub internal":
   asyncTest "`getGossipPeers` - should not crash on missing topics in gossip":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -439,7 +441,7 @@ suite "GossipSub internal":
   asyncTest "Drop messages of topics without subscription":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       check false
 
     let topic = "foobar"
@@ -473,7 +475,7 @@ suite "GossipSub internal":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
     gossipSub.parameters.disconnectBadPeers = true
     gossipSub.parameters.appSpecificWeight = 1.0
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       check false
 
     let topic = "foobar"
@@ -665,10 +667,10 @@ suite "GossipSub internal":
   asyncTest "handleIHave/Iwant tests":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async.} =
+    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       check false
 
-    proc handler2(topic: string, data: seq[byte]) {.async.} =
+    proc handler2(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let topic = "foobar"
@@ -769,10 +771,10 @@ suite "GossipSub internal":
 
     var receivedMessages = new(HashSet[seq[byte]])
 
-    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+    proc handlerA(topic: string, data: seq[byte]) {.async: (raises: []).} =
       receivedMessages[].incl(data)
 
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+    proc handlerB(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     nodes[0].subscribe("foobar", handlerA)
