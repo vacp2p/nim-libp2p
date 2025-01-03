@@ -6,7 +6,7 @@ inputs:
   cpu:
     description: "CPU to build for"
     default: "amd64"
-  nim_branch:
+  nim_ref:
     description: "Nim version"
     default: "version-1-6"
   shell:
@@ -88,6 +88,8 @@ runs:
       run: |
         if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
           PLATFORM=x64
+        elif [[ '${{ inputs.cpu }}' == 'arm64' ]]; then
+          PLATFORM=arm64
         else
           PLATFORM=x86
         fi
@@ -117,7 +119,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: '${{ github.workspace }}/nim'
-        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache-${{ env.cache_nonce }}
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_ref }}-cache-${{ env.cache_nonce }}
 
     - name: Build Nim and Nimble
       shell: ${{ inputs.shell }}
@@ -126,6 +128,6 @@ runs:
         # We don't want partial matches of the cache restored
         rm -rf nim
         curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
-        env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_branch }} \
+        env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_ref }} \
           QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
           bash build_nim.sh nim csources dist/nimble NimBinaries

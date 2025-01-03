@@ -1,7 +1,7 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.6.0"
+version = "1.7.1"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
@@ -125,9 +125,8 @@ task examples_build, "Build the samples":
   buildSample("tutorial_3_protobuf", true)
   buildSample("tutorial_4_gossipsub", true)
   buildSample("tutorial_5_discovery", true)
-  exec "nimble install -y nimpng@#HEAD"
-    # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
-  exec "nimble install -y nico@#af99dd60bf2b395038ece815ea1012330a80d6e6"
+  exec "nimble install -y nimpng"
+  exec "nimble install -y nico --passNim=--skipParentCfg"
   buildSample("tutorial_6_game", false, "--styleCheck:off")
 
 # pin system

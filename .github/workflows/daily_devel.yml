@@ -10,5 +10,5 @@ jobs:
     name: Daily Nim Devel
     uses: ./.github/workflows/daily_common.yml
     with:
-      nim: "[{'branch': 'devel', 'memory_management': 'orc'}]"
+      nim: "[{'ref': 'devel', 'memory_management': 'orc'}]"
       cpu: "['amd64']"
