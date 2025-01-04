@@ -24,6 +24,7 @@ import
   ./rpc/[messages, message, protobuf],
   ../protocol,
   ../../stream/connection,
+  ../../utils/semaphore,  
   ../../peerinfo,
   ../../peerid,
   ../../utility,
@@ -537,6 +538,25 @@ proc validateAndRelay(
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
+
+    let sem = newAsyncSemaphore(2)
+    var staggerPeers = toSeq(toSendPeers)
+    g.rng.shuffle(staggerPeers)
+
+    proc sendToOne(p: PubSubPeer) {.async.} =
+      await sem.acquire()
+      defer: sem.release()
+
+      if isMsgInIdontWant(p):
+        return
+      g.broadcast(@[p], RPCMsg(messages: @[msg]), isHighPriority = false)
+      #await fut or sleepAsync(200.milliseconds)
+      #if not fut.completed:
+      #  echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+
+    for p in staggerPeers:
+      asyncSpawn sendToOne(p)
+
 
     if g.knownTopics.contains(topic):
       libp2p_pubsub_messages_rebroadcasted.inc(
