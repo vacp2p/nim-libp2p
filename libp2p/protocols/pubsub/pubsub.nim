@@ -645,7 +645,7 @@ proc init*[PubParams: object | bool](
     sign: bool = true,
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     subscriptionValidator: SubscriptionValidator = nil,
-    maxMessageSize: int = 1024 * 1024,
+    maxMessageSize: int = 1450 * 1450,                #support upto 2MB
     rng: ref HmacDrbgContext = newRng(),
     parameters: PubParams = false,
 ): P {.raises: [InitializationError], public.} =

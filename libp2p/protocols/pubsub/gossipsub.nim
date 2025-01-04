@@ -37,7 +37,7 @@ import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 export types, scoring, behavior, pubsub
 
 import std/atomics
-const WARMUP_THRESHOLD = 2
+const WARMUP_THRESHOLD = 0
 var
   lma_dup_during_validation: Atomic[uint32]   # number of duplicates during 1st message validation
   lma_idontwant_saves: Atomic[uint32]         # number of Txs saved due to idontwant
@@ -486,7 +486,7 @@ proc validateAndRelay(
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(saltedId, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
-    lma_dup_during_validation.atomicInc()
+    lma_dup_during_validation.atomicInc(seenPeers.len.uint32)
     libp2p_gossipsub_saved_bytes.inc(
       (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]
     )
