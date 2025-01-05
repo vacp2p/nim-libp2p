@@ -540,7 +540,7 @@ proc validateAndRelay(
     #g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
-    let sem = newAsyncSemaphore(2)
+    let sem = newAsyncSemaphore(1)
     var staggerPeers = toSeq(toSendPeers)
     g.rng.shuffle(staggerPeers)
 
@@ -868,7 +868,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   g.mcache.put(msgId, msg)
 
   #g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
-  let sem = newAsyncSemaphore(2)
+  let sem = newAsyncSemaphore(1)
   var staggerPeers = toSeq(peers)
   g.rng.shuffle(staggerPeers)
 
