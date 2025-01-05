@@ -536,7 +536,7 @@ proc validateAndRelay(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    #g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     let sem = newAsyncSemaphore(2)
@@ -862,7 +862,25 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
 
   g.mcache.put(msgId, msg)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  #g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  let sem = newAsyncSemaphore(2)
+  var staggerPeers = toSeq(peers)
+  g.rng.shuffle(staggerPeers)
+
+  proc sendToOne(p: PubSubPeer) {.async.} =
+    await sem.acquire()
+    defer: sem.release()
+
+    #if isMsgInIdontWant(p):
+    #  return
+    g.broadcast(@[p], RPCMsg(messages: @[msg]), isHighPriority = false)
+    #await fut or sleepAsync(200.milliseconds)
+    #if not fut.completed:
+    #  echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
+
+  for p in staggerPeers:
+    asyncSpawn sendToOne(p)
+
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
