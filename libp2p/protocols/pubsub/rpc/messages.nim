@@ -63,6 +63,7 @@ type
     graft*: seq[ControlGraft]
     prune*: seq[ControlPrune]
     idontwant*: seq[ControlIWant]
+    preamble*: seq[ControlIWant]
     imreceiving*: seq[ControlIWant]
 
   ControlIHave* = object
@@ -174,11 +175,12 @@ proc byteSize(controlPrune: ControlPrune): int =
     # 8 bytes for uint64
 
 static:
-  expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "imreceiving"])
+  expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving"])
 proc byteSize(control: ControlMessage): int =
   control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
     control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
     control.idontwant.foldl(a + b.byteSize, 0) +
+    control.preamble.foldl(a + b.byteSize, 0) +
     control.imreceiving.foldl(a + b.byteSize, 0)
 
 static:

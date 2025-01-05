@@ -375,6 +375,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
+  g.handlePreamble(peer, control.preamble)  
   g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
@@ -544,6 +545,10 @@ proc validateAndRelay(
     g.rng.shuffle(staggerPeers)
 
     proc sendToOne(p: PubSubPeer) {.async.} =
+      g.broadcast(@[p], RPCMsg(control: some(ControlMessage(
+          preamble: @[ControlIWant(messageIDs: @[msgId])]
+        ))), isHighPriority = true)
+      
       await sem.acquire()
       defer: sem.release()
 

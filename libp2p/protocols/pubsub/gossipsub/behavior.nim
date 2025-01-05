@@ -327,6 +327,14 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
         break
       peer.iDontWants[^1].incl(g.salt(messageId))
   
+proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlIWant]) =
+  for preamble in preambles:
+    for messageId in preamble.messageIDs:
+      #Idealy a peer should a maximum of peer_preamble_announcements preambles for unfinished downloads
+      #A peer violating this should be pnalized through P4???
+      if peer.heIsSendings[^1].len > 1000:
+        break
+      peer.heIsSendings[^1].incl(messageId)
       #Experimental change for quick performance evaluation only (Ideally for very large messages):
       #[
         1) IDontWant is followed by the message. IMReceiving informs peers that we are receiving this message
@@ -344,7 +352,6 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
       g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
           imreceiving: @[ControlIWant(messageIDs: @[messageId])]
         ))), isHighPriority = true)
-  
 
 
 proc handleIMReceiving*(g: GossipSub,
