@@ -231,7 +231,7 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
     if ? cpb.getRepeatedField(6, preamble):
       for item in preamble:
-        control.preamble.add(?decodeIWant(initProtoBuffer(item)))
+        control.preamble.add(?decodeIHave(initProtoBuffer(item)))
     if ? cpb.getRepeatedField(7, imreceiving):
       for item in imreceiving:
         control.imreceiving.add(?decodeIWant(initProtoBuffer(item)))

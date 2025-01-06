@@ -327,7 +327,7 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
         break
       peer.iDontWants[^1].incl(g.salt(messageId))
   
-proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlIWant]) =
+proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlIHave]) =
   for preamble in preambles:
     for messageId in preamble.messageIDs:
       #Idealy a peer should a maximum of peer_preamble_announcements preambles for unfinished downloads
@@ -343,11 +343,11 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlIWant
         3) Better solution is to send Message detail in a message preamble, That can be used for IMReceiving
       ]#
       var toSendPeers = HashSet[PubSubPeer]()
-      g.floodsub.withValue("test", peers): toSendPeers.incl(peers[])
-      g.mesh.withValue("test", peers): toSendPeers.incl(peers[])
+      g.floodsub.withValue(preamble.topicID, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(preamble.topicID, peers): toSendPeers.incl(peers[])
 
       # add direct peers
-      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault("test"))
+      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
 
       g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
           imreceiving: @[ControlIWant(messageIDs: @[messageId])]

@@ -546,7 +546,7 @@ proc validateAndRelay(
 
     proc sendToOne(p: PubSubPeer) {.async.} =
       g.broadcast(@[p], RPCMsg(control: some(ControlMessage(
-          preamble: @[ControlIWant(messageIDs: @[msgId])]
+          preamble: @[ControlIHave(topicID: topic, messageIDs: @[msgId])]
         ))), isHighPriority = true)
       
       await sem.acquire()
@@ -873,6 +873,10 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   g.rng.shuffle(staggerPeers)
 
   proc sendToOne(p: PubSubPeer) {.async.} =
+    g.broadcast(@[p], RPCMsg(control: some(ControlMessage(
+        preamble: @[ControlIHave(topicID: topic, messageIDs: @[msgId])]
+      ))), isHighPriority = true)
+
     await sem.acquire()
     defer: sem.release()
 

@@ -63,7 +63,7 @@ type
     graft*: seq[ControlGraft]
     prune*: seq[ControlPrune]
     idontwant*: seq[ControlIWant]
-    preamble*: seq[ControlIWant]
+    preamble*: seq[ControlIHave]
     imreceiving*: seq[ControlIWant]
 
   ControlIHave* = object
