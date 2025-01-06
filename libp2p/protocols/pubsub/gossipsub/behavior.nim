@@ -365,9 +365,10 @@ proc handleIMReceiving*(g: GossipSub,
 
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
-): seq[Message] =
+): tuple[messages: seq[Message], ids: seq[MessageId]] =
   var
-    messages: seq[Message]
+    #ids: seq[MessageId]
+    #messages: seq[Message]
     invalidRequests = 0
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
@@ -382,14 +383,15 @@ proc handleIWant*(
           invalidRequests.inc()
           if invalidRequests > 20:
             libp2p_gossipsub_received_iwants.inc(1, labelValues = ["skipped"])
-            return messages
+            return result
           continue
         let msg = g.mcache.get(mid).valueOr:
           libp2p_gossipsub_received_iwants.inc(1, labelValues = ["unknown"])
           continue
         libp2p_gossipsub_received_iwants.inc(1, labelValues = ["correct"])
-        messages.add(msg)
-  return messages
+        result.messages.add(msg)
+        result.ids.add(mid)
+  return result
 
 proc commitMetrics(metrics: var MeshMetrics) =
   libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)

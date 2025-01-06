@@ -381,7 +381,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
-  let messages = g.handleIWant(peer, control.iwant)
+  let (messages, msgIDs) = g.handleIWant(peer, control.iwant)
 
   let
     isPruneNotEmpty = respControl.prune.len > 0
@@ -407,8 +407,13 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       let topic = smsg.topic
       if g.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
+        #We send preamble first, so the peers sends IMReceiving to mesh members
+        g.broadcast(@[peer], RPCMsg(control: some(ControlMessage(
+            preamble: @[ControlIHave(topicID: topic, messageIDs: msgIDs)]
+          ))), isHighPriority = true)
       else:
         libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
