@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-when defined(nimdoc):
+when   defined(nimdoc):
   ## Welcome to the nim-libp2p reference!
   ##
   ## On the left, you'll find a switch that allows you to see private
