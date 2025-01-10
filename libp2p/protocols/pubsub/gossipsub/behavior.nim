@@ -290,14 +290,31 @@ proc handleIHave*(
     for ihave in ihaves:
       trace "peer sent ihave", peer, topicID = ihave.topicID, msgs = ihave.messageIDs
       if ihave.topicID in g.topics:
+        #look here for receieved idontwants for the same message
+        var meshPeers: HashSet[PubSubPeer]
+        g.mesh.withValue(ihave.topicID, peers): meshPeers.incl(peers[])
+        g.subscribedDirectPeers.withValue(ihave.topicID, peers): meshPeers.incl(peers[])
+
         for msgId in ihave.messageIDs:
           if not g.hasSeen(g.salt(msgId)):
             if peer.iHaveBudget <= 0:
               break
+            elif msgId in g.iwantsRequested:
+              break
             elif msgId notin res.messageIDs:
-              res.messageIDs.add(msgId)
-              dec peer.iHaveBudget
-              trace "requested message via ihave", messageID = msgId
+              #dont send IWANT if we have received (N number of) IDontWant(s) for a msgID
+              let saltedID = g.salt(msgId)
+              var numFinds: int = 0
+              for meshPeer in meshPeers:
+                for heDontWant in meshPeer.iDontWants:
+                  if saltedID in heDontWant: 
+                    numFinds = numFinds + 1
+                    #break;
+              if numFinds == 0:  #We currently wait for 1 IDontWants  
+                res.messageIDs.add(msgId)
+                dec peer.iHaveBudget
+                g.iwantsRequested.incl(msgId)
+                trace "requested message via ihave", messageID = msgId
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIDs)
@@ -309,12 +326,49 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
       if peer.iDontWants[^1].len > 1000:
         break
       peer.iDontWants[^1].incl(g.salt(messageId))
+  
+proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlIHave]) =
+  for preamble in preambles:
+    for messageId in preamble.messageIDs:
+      #Idealy a peer should a maximum of peer_preamble_announcements preambles for unfinished downloads
+      #A peer violating this should be pnalized through P4???
+      if peer.heIsSendings[^1].len > 1000:
+        break
+      peer.heIsSendings[^1].incl(messageId)
+      #Experimental change for quick performance evaluation only (Ideally for very large messages):
+      #[
+        1) IDontWant is followed by the message. IMReceiving informs peers that we are receiving this message
+        2) Prototype implementation for a single topic ("test"). Need topic ID in IDontWant
+
+        3) Better solution is to send Message detail in a message preamble, That can be used for IMReceiving
+      ]#
+      var toSendPeers = HashSet[PubSubPeer]()
+      g.floodsub.withValue(preamble.topicID, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(preamble.topicID, peers): toSendPeers.incl(peers[])
+
+      # add direct peers
+      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
+
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
+          imreceiving: @[ControlIWant(messageIDs: @[messageId])]
+        ))), isHighPriority = true)
+
+
+proc handleIMReceiving*(g: GossipSub,
+                      peer: PubSubPeer,
+                      imreceivings: seq[ControlIWant]) =
+  for imreceiving in imreceivings:
+    for messageId in imreceiving.messageIDs:
+      if peer.heIsReceivings[^1].len > 1000: break
+      if messageId.len > 100: continue
+      peer.heIsReceivings[^1].incl(messageId)
 
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
-): seq[Message] =
+): tuple[messages: seq[Message], ids: seq[MessageId]] =
   var
-    messages: seq[Message]
+    #ids: seq[MessageId]
+    #messages: seq[Message]
     invalidRequests = 0
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
@@ -329,14 +383,15 @@ proc handleIWant*(
           invalidRequests.inc()
           if invalidRequests > 20:
             libp2p_gossipsub_received_iwants.inc(1, labelValues = ["skipped"])
-            return messages
+            return result
           continue
         let msg = g.mcache.get(mid).valueOr:
           libp2p_gossipsub_received_iwants.inc(1, labelValues = ["unknown"])
           continue
         libp2p_gossipsub_received_iwants.inc(1, labelValues = ["correct"])
-        messages.add(msg)
-  return messages
+        result.messages.add(msg)
+        result.ids.add(mid)
+  return result
 
 proc commitMetrics(metrics: var MeshMetrics) =
   libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)

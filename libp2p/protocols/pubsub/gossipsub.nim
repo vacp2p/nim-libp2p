@@ -24,6 +24,7 @@ import
   ./rpc/[messages, message, protobuf],
   ../protocol,
   ../../stream/connection,
+  ../../utils/semaphore,  
   ../../peerinfo,
   ../../peerid,
   ../../utility,
@@ -35,6 +36,32 @@ export results
 import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
+
+import std/atomics
+const WARMUP_THRESHOLD = 2
+var
+  lma_dup_during_validation: Atomic[uint32]   # number of duplicates during 1st message validation
+  lma_idontwant_saves: Atomic[uint32]         # number of Txs saved due to idontwant
+  lma_duplicate_count: Atomic[uint32]         # number of duplicate  messages received
+  lma_iwants_sent: Atomic[uint32]             # number of iwant requests sent
+  lma_iwants_replied: Atomic[uint32]          # number of iwant messages that are replied
+  lma_imreceiving_saves: Atomic[uint32]       # number of messages saved due to imreceiving message
+  lma_unique_receives: Atomic[uint32]         # number of unique messages received
+  lma_mesh_recvs_aftar_iwant: Atomic[uint32]  # messages received from mesh, after sending iwant request
+  lma_warmup_messages: Atomic[uint32]         # dont issue idontwant during if < WARMUP_THRESHOLD
+
+lma_dup_during_validation.store(0)
+lma_idontwant_saves.store(0)
+lma_duplicate_count.store(0)
+lma_iwants_sent.store(0)
+lma_iwants_replied.store(0)
+lma_imreceiving_saves.store(0)
+lma_unique_receives.store(0)
+lma_mesh_recvs_aftar_iwant.store(0)
+lma_warmup_messages.store(0)
+
+export lma_dup_during_validation, lma_idontwant_saves, lma_duplicate_count, lma_iwants_sent, 
+        lma_iwants_replied, lma_imreceiving_saves, lma_unique_receives, lma_mesh_recvs_aftar_iwant
 
 logScope:
   topics = "libp2p gossipsub"
@@ -226,6 +253,7 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
+  g.iwantsRequested = initHashSet[MessageId]()
 
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
@@ -347,11 +375,13 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
+  g.handlePreamble(peer, control.preamble)  
+  g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
-  let messages = g.handleIWant(peer, control.iwant)
+  let (messages, msgIDs) = g.handleIWant(peer, control.iwant)
 
   let
     isPruneNotEmpty = respControl.prune.len > 0
@@ -360,6 +390,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   if isPruneNotEmpty or isIWantNotEmpty:
     if isIWantNotEmpty:
       libp2p_pubsub_broadcast_iwant.inc(respControl.iwant.len.int64)
+      lma_iwants_sent.atomicInc(respControl.iwant.len.uint32)
 
     if isPruneNotEmpty:
       for prune in respControl.prune:
@@ -376,11 +407,17 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       let topic = smsg.topic
       if g.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
+        #We send preamble first, so the peers sends IMReceiving to mesh members
+        g.broadcast(@[peer], RPCMsg(control: some(ControlMessage(
+            preamble: @[ControlIHave(topicID: topic, messageIDs: msgIDs)]
+          ))), isHighPriority = true)
       else:
         libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
 
+
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
+    lma_iwants_replied.atomicInc(messages.len.uint32)
     g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
 
 proc validateAndRelay(
@@ -397,6 +434,8 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       g.subscribedDirectPeers.withValue(topic, peers):
         toSendPeers.incl(peers[])
+      if not (peer in toSendPeers):
+        lma_mesh_recvs_aftar_iwant.atomicInc()
       toSendPeers.excl(peer)
 
     if msg.data.len > max(512, msgId.len * 10):
@@ -409,25 +448,41 @@ proc validateAndRelay(
       # descored) and that the savings from honest peers are greater than the
       # cost a dishonest peer can incur in short time (since the IDONTWANT is
       # small).
-      var peersToSendIDontWant = HashSet[PubSubPeer]()
-      addToSendPeers(peersToSendIDontWant)
-      peersToSendIDontWant.exclIfIt(
-        it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
-      )
-      g.broadcast(
-        peersToSendIDontWant,
-        RPCMsg(
-          control:
-            some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
-        ),
-        isHighPriority = true,
-      )
+
+      #We dont consider first WARMUP_THRESHOLD messages in stats (They are for raising Cwnd)
+      if lma_warmup_messages.load() < WARMUP_THRESHOLD:
+        lma_warmup_messages.atomicInc()
+        if lma_warmup_messages.load() == WARMUP_THRESHOLD:
+          lma_dup_during_validation.store(0)
+          lma_idontwant_saves.store(0)
+          lma_duplicate_count.store(0)
+          lma_iwants_sent.store(0)
+          lma_iwants_replied.store(0)
+          lma_imreceiving_saves.store(0)
+          lma_unique_receives.store(0)
+          lma_mesh_recvs_aftar_iwant.store(0)
+          
+      else:
+        var peersToSendIDontWant = HashSet[PubSubPeer]() 
+        addToSendPeers(peersToSendIDontWant)
+        peersToSendIDontWant.exclIfIt(
+          it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
+        )
+        g.broadcast(
+          peersToSendIDontWant,
+          RPCMsg(
+            control:
+              some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+          ),
+          isHighPriority = true,
+        )
 
     let validation = await g.validate(msg)
 
     var seenPeers: HashSet[PubSubPeer]
     discard g.validationSeen.pop(saltedId, seenPeers)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
+    lma_dup_during_validation.atomicInc(seenPeers.len.uint32)
     libp2p_gossipsub_saved_bytes.inc(
       (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]
     )
@@ -463,6 +518,17 @@ proc validateAndRelay(
     # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
 
+    #We have received IMReceiving from these peers, We should not exclude them
+    #Ideally we should wait (TxTime + large safety cushion) before sending to these peers
+    var receivingPeers: HashSet[PubSubPeer]
+    for pr in toSendPeers:
+      for heIsReceiving in pr.heIsReceivings:
+        if msgId in heIsReceiving:
+          receivingPeers.incl(pr)
+          break
+    toSendPeers.excl(receivingPeers)
+    lma_imreceiving_saves.atomicInc(receivingPeers.len.uint32)
+
     proc isMsgInIdontWant(it: PubSubPeer): bool =
       for iDontWant in it.iDontWants:
         if saltedId in iDontWant:
@@ -470,6 +536,7 @@ proc validateAndRelay(
           libp2p_gossipsub_saved_bytes.inc(
             msg.data.len.int64, labelValues = ["idontwant"]
           )
+          lma_idontwant_saves.atomicInc()
           return true
       return false
 
@@ -477,8 +544,30 @@ proc validateAndRelay(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    #g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
+
+    let sem = newAsyncSemaphore(1)
+    var staggerPeers = toSeq(toSendPeers)
+    g.rng.shuffle(staggerPeers)
+
+    proc sendToOne(p: PubSubPeer) {.async.} =
+      g.broadcast(@[p], RPCMsg(control: some(ControlMessage(
+          preamble: @[ControlIHave(topicID: topic, messageIDs: @[msgId])]
+        ))), isHighPriority = true)
+      
+      #Won't add much delay as we populate messages in outgoing message queues (no timeouts needed)
+      #Small delay (nearing avg link latency) is sufficient for IMReceiving messages 
+      await sem.acquire()
+      defer: sem.release()
+
+      if isMsgInIdontWant(p):
+        return
+      g.broadcast(@[p], RPCMsg(messages: @[msg]), isHighPriority = false)
+
+    for p in staggerPeers:
+      asyncSpawn sendToOne(p)
+
 
     if g.knownTopics.contains(topic):
       libp2p_pubsub_messages_rebroadcasted.inc(
@@ -596,11 +685,13 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
         g.rewardDelivered(peer, topic, false, delay)
 
       libp2p_gossipsub_duplicate.inc()
+      lma_duplicate_count.atomicInc()
 
       # onto the next message
       continue
 
     libp2p_gossipsub_received.inc()
+    lma_unique_receives.atomicInc()
 
     # avoid processing messages we are not interested in
     if topic notin g.topics:
@@ -782,7 +873,25 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
 
   g.mcache.put(msgId, msg)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  #g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  let sem = newAsyncSemaphore(1)
+  var staggerPeers = toSeq(peers)
+  g.rng.shuffle(staggerPeers)
+
+  #We send message immediately after sending preamble to each peer
+  proc sendToOne(p: PubSubPeer) {.async.} =
+    g.broadcast(@[p], RPCMsg(control: some(ControlMessage(
+        preamble: @[ControlIHave(topicID: topic, messageIDs: @[msgId])]
+      ))), isHighPriority = true)
+
+    await sem.acquire()
+    defer: sem.release()
+
+    g.broadcast(@[p], RPCMsg(messages: @[msg]), isHighPriority = false)
+
+  for p in staggerPeers:
+    asyncSpawn sendToOne(p)
+
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
