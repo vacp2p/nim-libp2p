@@ -940,7 +940,12 @@ suite "GossipSub":
     func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
       ok(newSeq[byte](10))
     let
-      nodes = generateNodes(2, gossip = true, msgIdProvider = dumbMsgIdProvider)
+      nodes = generateNodes(
+        2,
+        gossip = true,
+        msgIdProvider = dumbMsgIdProvider,
+        sendIDontWantOnPublish = true,
+      )
 
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
@@ -948,10 +953,10 @@ suite "GossipSub":
       nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
     )
 
-    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+    proc handlerA(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+    proc handlerB(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     nodes[0].subscribe("foobar", handlerA)

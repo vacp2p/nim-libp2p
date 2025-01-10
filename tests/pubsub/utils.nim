@@ -74,6 +74,7 @@ proc generateNodes*(
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
+    sendIDontWantOnPublish: bool = false,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -97,6 +98,7 @@ proc generateNodes*(
             p.unsubscribeBackoff = unsubscribeBackoff
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
+            p.sendIDontWantOnPublish = sendIDontWantOnPublish
             p
           ),
         )
