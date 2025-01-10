@@ -448,6 +448,8 @@ proc validateAndRelay(
       # descored) and that the savings from honest peers are greater than the
       # cost a dishonest peer can incur in short time (since the IDONTWANT is
       # small).
+
+      #We dont consider first WARMUP_THRESHOLD messages in stats (They are for raising Cwnd)
       if lma_warmup_messages.load() < WARMUP_THRESHOLD:
         lma_warmup_messages.atomicInc()
         if lma_warmup_messages.load() == WARMUP_THRESHOLD:
@@ -554,15 +556,14 @@ proc validateAndRelay(
           preamble: @[ControlIHave(topicID: topic, messageIDs: @[msgId])]
         ))), isHighPriority = true)
       
+      #Won't add much delay as we populate messages in outgoing message queues (no timeouts needed)
+      #Small delay (nearing avg link latency) is sufficient for IMReceiving messages 
       await sem.acquire()
       defer: sem.release()
 
       if isMsgInIdontWant(p):
         return
       g.broadcast(@[p], RPCMsg(messages: @[msg]), isHighPriority = false)
-      #await fut or sleepAsync(200.milliseconds)
-      #if not fut.completed:
-      #  echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
 
     for p in staggerPeers:
       asyncSpawn sendToOne(p)
@@ -877,6 +878,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   var staggerPeers = toSeq(peers)
   g.rng.shuffle(staggerPeers)
 
+  #We send message immediately after sending preamble to each peer
   proc sendToOne(p: PubSubPeer) {.async.} =
     g.broadcast(@[p], RPCMsg(control: some(ControlMessage(
         preamble: @[ControlIHave(topicID: topic, messageIDs: @[msgId])]
@@ -885,12 +887,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
     await sem.acquire()
     defer: sem.release()
 
-    #if isMsgInIdontWant(p):
-    #  return
     g.broadcast(@[p], RPCMsg(messages: @[msg]), isHighPriority = false)
-    #await fut or sleepAsync(200.milliseconds)
-    #if not fut.completed:
-    #  echo g.switch.peerInfo.peerId, ": timeout from ", p.peerId
 
   for p in staggerPeers:
     asyncSpawn sendToOne(p)
