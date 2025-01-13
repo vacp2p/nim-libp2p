@@ -95,11 +95,8 @@ proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
     node.gossip.subscribe(
       "metrics",
       proc(topic: string, data: seq[byte]) {.async: (raises: []).} =
-        let m = MetricList.decode(data)
-        if m.isErr:
-          raiseAssert "failed to decode metric"
-        else:
-          echo m
+        let m = MetricList.decode(data).expect("metric can be decoded")
+        echo m
       ,
     )
   else:

@@ -602,12 +602,9 @@ method validate*(
     topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:
     trace "running validators for topic", topic = topic
-    try:
-      for validator in p.validators[topic]:
+    p.validators.withValue(topic, validators):
+      for validator in validators[]:
         pending.add(validator(topic, message))
-    except KeyError:
-      raiseAssert "topic checked before"
-
   var valResult = ValidationResult.Accept
   let futs = await allFinished(pending)
   for fut in futs:

@@ -65,15 +65,8 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(
-            topic: string, data: seq[byte]
-        ) {.async: (raises: []), closure.} =
-          try:
-            if peerName notin seen:
-              seen[peerName] = 0
-            seen[peerName].inc
-          except KeyError:
-            raiseAssert "seen checked before"
+        handler = proc(topic: string, data: seq[byte]) {.async: (raises: []).} =
+          seen.mgetOrPut(peerName, 0).inc()
           info "seen up", count = seen.len
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
@@ -282,12 +275,7 @@ suite "GossipSub":
         handler = proc(
             topic: string, data: seq[byte]
         ) {.async: (raises: []), closure.} =
-          try:
-            if peerName notin seen:
-              seen[peerName] = 0
-            seen[peerName].inc
-          except KeyError:
-            raiseAssert "seen checked before"
+          seen.mgetOrPut(peerName, 0).inc()
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
             seenFut.complete()

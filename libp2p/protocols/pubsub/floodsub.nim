@@ -188,8 +188,6 @@ method init*(f: FloodSub) =
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
       trace "Unexpected cancellation in floodsub handler", conn
-    except CatchableError as exc:
-      trace "FloodSub handler leaks an error", description = exc.msg, conn
 
   f.handler = handler
   f.codec = FloodSubCodec

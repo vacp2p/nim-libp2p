@@ -81,9 +81,7 @@ type
   PubSubPeerEvent* = object
     kind*: PubSubPeerEventKind
 
-  GetConn* = proc(): Future[Connection] {.
-    gcsafe, async: (raises: [GetConnDialError]), raises: []
-  .}
+  GetConn* = proc(): Future[Connection] {.gcsafe, async: (raises: [GetConnDialError]).}
   DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [].}
     # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
@@ -211,7 +209,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
         conn, peer = p, description = exc.msg
-    except CatchableError as exc:
+    except LPStreamError as exc:
       debug "Exception occurred in PubSubPeer.handle",
         conn, peer = p, closed = conn.closed, description = exc.msg
     finally:
@@ -220,9 +218,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
     trace "Unexpected cancellation in PubSubPeer.handle"
-  except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.handle",
-      conn, peer = p, closed = conn.closed, description = exc.msg
   finally:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
 
@@ -242,8 +237,6 @@ proc closeSendConn(
       p.onEvent(p, PubSubPeerEvent(kind: event))
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
-    debug "Errors during diconnection events", description = exc.msg
   # don't cleanup p.address else we leak some gossip stat table
 
 proc connectOnce(
@@ -294,7 +287,11 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
           p.connectedFut.complete()
         return
       await connectOnce(p)
-  except CatchableError as exc: # never cancelled
+  except CancelledError as exc:
+    debug "Could not establish send connection", description = exc.msg
+  except LPError as exc:
+    debug "Could not establish send connection", description = exc.msg
+  except GetConnDialError as exc:
     debug "Could not establish send connection", description = exc.msg
 
 proc connect*(p: PubSubPeer) =

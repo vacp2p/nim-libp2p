@@ -219,8 +219,6 @@ method init*(g: GossipSub) =
       # This is top-level procedure which will work as separate task, so it
       # do not need to propogate CancelledError.
       trace "Unexpected cancellation in gossipsub handler", conn
-    except CatchableError as exc:
-      trace "GossipSub handler leaks an error", description = exc.msg, conn
 
   g.handler = handler
   g.codecs &= GossipSubCodec_12
@@ -490,7 +488,9 @@ proc validateAndRelay(
       )
 
     await handleData(g, topic, msg.data)
-  except CatchableError as exc:
+  except CancelledError as exc:
+    info "validateAndRelay failed", description = exc.msg
+  except PeerRateLimitError as exc:
     info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
