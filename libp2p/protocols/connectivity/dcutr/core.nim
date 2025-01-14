@@ -15,6 +15,7 @@ import chronos
 import stew/objects
 
 import ../../../multiaddress, ../../../errors, ../../../stream/connection
+import ../../../protobuf/minprotobuf
 
 export multiaddress
 

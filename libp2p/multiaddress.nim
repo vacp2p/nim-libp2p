@@ -26,7 +26,7 @@ import
   errors,
   utility
 import stew/[base58, base32, endians2]
-export results, minprotobuf, vbuffer, errors, utility
+export results, vbuffer, errors, utility
 
 logScope:
   topics = "libp2p multiaddress"

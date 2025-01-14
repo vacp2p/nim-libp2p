@@ -12,6 +12,7 @@
 import stew/[results, objects]
 import chronos, chronicles
 import ../../../multiaddress, ../../../peerid, ../../../errors
+import ../../../protobuf/minprotobuf
 
 logScope:
   topics = "libp2p autonat"
