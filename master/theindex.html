@@ -243,7 +243,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="addDirectPeer" href="#addDirectPeer"><span>addDirectPeer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="gossipsub: addDirectPeer(g: GossipSub; id: PeerId; addrs: seq[MultiAddress]): Future[void]" href="libp2p/protocols/pubsub/gossipsub.html#addDirectPeer%2CGossipSub%2CPeerId%2Cseq%5BMultiAddress%5D">gossipsub: addDirectPeer(g: GossipSub; id: PeerId; addrs: seq[MultiAddress]): Future[void]</a></li>
+          data-doc-search-tag="gossipsub: addDirectPeer(g: GossipSub; id: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    void, (CancelledError,)]" href="libp2p/protocols/pubsub/gossipsub.html#addDirectPeer%2CGossipSub%2CPeerId%2Cseq%5BMultiAddress%5D">gossipsub: addDirectPeer(g: GossipSub; id: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="addedAt" href="#addedAt"><span>addedAt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1219,7 +1221,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="disconnectPeer" href="#disconnectPeer"><span>disconnectPeer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="scoring: disconnectPeer(g: GossipSub; peer: PubSubPeer): Future[void]" href="libp2p/protocols/pubsub/gossipsub/scoring.html#disconnectPeer%2CGossipSub%2CPubSubPeer">scoring: disconnectPeer(g: GossipSub; peer: PubSubPeer): Future[void]</a></li>
+          data-doc-search-tag="scoring: disconnectPeer(g: GossipSub; peer: PubSubPeer): InternalRaisesFuture[void, void]" href="libp2p/protocols/pubsub/gossipsub/scoring.html#disconnectPeer%2CGossipSub%2CPubSubPeer">scoring: disconnectPeer(g: GossipSub; peer: PubSubPeer): InternalRaisesFuture[void, void]</a></li>
           </ul></dd>
 <dt><a name="DNS" href="#DNS"><span>DNS:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1645,6 +1647,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: GetConn" href="libp2p/protocols/pubsub/pubsubpeer.html#GetConn">pubsubpeer: GetConn</a></li>
           </ul></dd>
+<dt><a name="GetConnDialError" href="#GetConnDialError"><span>GetConnDialError:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: GetConnDialError" href="libp2p/protocols/pubsub/pubsubpeer.html#GetConnDialError">pubsubpeer: GetConnDialError</a></li>
+          </ul></dd>
 <dt><a name="getConnections" href="#getConnections"><span>getConnections:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="connmanager: getConnections(c: ConnManager): Table[PeerId, seq[Muxer]]" href="libp2p/connmanager.html#getConnections%2CConnManager">connmanager: getConnections(c: ConnManager): Table[PeerId, seq[Muxer]]</a></li>
@@ -1941,7 +1947,7 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="yamux: handle(m: Yamux): InternalRaisesFuture[void, void]" href="libp2p/muxers/yamux/yamux.html#handle.e%2CYamux">yamux: handle(m: Yamux): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pubsubpeer: handle(p: PubSubPeer; conn: Connection): Future[void]" href="libp2p/protocols/pubsub/pubsubpeer.html#handle%2CPubSubPeer%2CConnection">pubsubpeer: handle(p: PubSubPeer; conn: Connection): Future[void]</a></li>
+          data-doc-search-tag="pubsubpeer: handle(p: PubSubPeer; conn: Connection): InternalRaisesFuture[void, void]" href="libp2p/protocols/pubsub/pubsubpeer.html#handle%2CPubSubPeer%2CConnection">pubsubpeer: handle(p: PubSubPeer; conn: Connection): InternalRaisesFuture[void, void]</a></li>
           </ul></dd>
 <dt><a name="handleBackingOff" href="#handleBackingOff"><span>handleBackingOff:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1949,11 +1955,15 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="handleConn" href="#handleConn"><span>handleConn:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsub: handleConn(p: PubSub; conn: Connection; proto: string): Future[void]" href="libp2p/protocols/pubsub/pubsub.html#handleConn.e%2CPubSub%2CConnection%2Cstring">pubsub: handleConn(p: PubSub; conn: Connection; proto: string): Future[void]</a></li>
+          data-doc-search-tag="pubsub: handleConn(p: PubSub; conn: Connection; proto: string): InternalRaisesFuture[
+    void, (CancelledError,)]" href="libp2p/protocols/pubsub/pubsub.html#handleConn.e%2CPubSub%2CConnection%2Cstring">pubsub: handleConn(p: PubSub; conn: Connection; proto: string): InternalRaisesFuture[
+    void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="handleData" href="#handleData"><span>handleData:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsub: handleData(p: PubSub; topic: string; data: seq[byte]): Future[void]" href="libp2p/protocols/pubsub/pubsub.html#handleData%2CPubSub%2Cstring%2Cseq%5Bbyte%5D">pubsub: handleData(p: PubSub; topic: string; data: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="pubsub: handleData(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[
+    void, void]" href="libp2p/protocols/pubsub/pubsub.html#handleData%2CPubSub%2Cstring%2Cseq%5Bbyte%5D">pubsub: handleData(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[
+    void, void]</a></li>
           </ul></dd>
 <dt><a name="handleGraft" href="#handleGraft"><span>handleGraft:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2069,7 +2079,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="heartbeat" href="#heartbeat"><span>heartbeat:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="behavior: heartbeat(g: GossipSub): Future[void]" href="libp2p/protocols/pubsub/gossipsub/behavior.html#heartbeat%2CGossipSub">behavior: heartbeat(g: GossipSub): Future[void]</a></li>
+          data-doc-search-tag="behavior: heartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/pubsub/gossipsub/behavior.html#heartbeat%2CGossipSub">behavior: heartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="heartbeat: heartbeat(name: string; interval: Duration; body: untyped): untyped" href="libp2p/utils/heartbeat.html#heartbeat.t%2Cstring%2CDuration%2Cuntyped">heartbeat: heartbeat(name: string; interval: Duration; body: untyped): untyped</a></li>
           </ul></dd>
@@ -2491,15 +2501,11 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="initProtoBuffer" href="#initProtoBuffer"><span>initProtoBuffer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="minprotobuf: initProtoBuffer(data: openArray[byte]; offset = 0;
-                options: set[ProtoFlags] = {}; maxSize = MaxMessageSize): ProtoBuffer" href="libp2p/protobuf/minprotobuf.html#initProtoBuffer%2CopenArray%5Bbyte%5D%2Cint%2Cset%5BProtoFlags%5D">minprotobuf: initProtoBuffer(data: openArray[byte]; offset = 0;
-                options: set[ProtoFlags] = {}; maxSize = MaxMessageSize): ProtoBuffer</a></li>
+          data-doc-search-tag="minprotobuf: initProtoBuffer(data: openArray[byte]; offset = 0; options: set[ProtoFlags] = {}): ProtoBuffer" href="libp2p/protobuf/minprotobuf.html#initProtoBuffer%2CopenArray%5Bbyte%5D%2Cint%2Cset%5BProtoFlags%5D">minprotobuf: initProtoBuffer(data: openArray[byte]; offset = 0; options: set[ProtoFlags] = {}): ProtoBuffer</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="minprotobuf: initProtoBuffer(data: seq[byte]; offset = 0; options: set[ProtoFlags] = {};
-                maxSize = MaxMessageSize): ProtoBuffer" href="libp2p/protobuf/minprotobuf.html#initProtoBuffer%2Cseq%5Bbyte%5D%2Cint%2Cset%5BProtoFlags%5D">minprotobuf: initProtoBuffer(data: seq[byte]; offset = 0; options: set[ProtoFlags] = {};
-                maxSize = MaxMessageSize): ProtoBuffer</a></li>
+          data-doc-search-tag="minprotobuf: initProtoBuffer(data: seq[byte]; offset = 0; options: set[ProtoFlags] = {}): ProtoBuffer" href="libp2p/protobuf/minprotobuf.html#initProtoBuffer%2Cseq%5Bbyte%5D%2Cint%2Cset%5BProtoFlags%5D">minprotobuf: initProtoBuffer(data: seq[byte]; offset = 0; options: set[ProtoFlags] = {}): ProtoBuffer</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="minprotobuf: initProtoBuffer(options: set[ProtoFlags] = {}; maxSize = MaxMessageSize): ProtoBuffer" href="libp2p/protobuf/minprotobuf.html#initProtoBuffer%2Cset%5BProtoFlags%5D">minprotobuf: initProtoBuffer(options: set[ProtoFlags] = {}; maxSize = MaxMessageSize): ProtoBuffer</a></li>
+          data-doc-search-tag="minprotobuf: initProtoBuffer(options: set[ProtoFlags] = {}): ProtoBuffer" href="libp2p/protobuf/minprotobuf.html#initProtoBuffer%2Cset%5BProtoFlags%5D">minprotobuf: initProtoBuffer(options: set[ProtoFlags] = {}): ProtoBuffer</a></li>
           </ul></dd>
 <dt><a name="initPubSub" href="#initPubSub"><span>initPubSub:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2627,7 +2633,7 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="minasn1: isEnough(ab: Asn1Buffer; length: int64): bool" href="libp2p/crypto/minasn1.html#isEnough.t%2CAsn1Buffer%2Cint64">minasn1: isEnough(ab: Asn1Buffer; length: int64): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="minprotobuf: isEnough(pb: ProtoBuffer; length: int): bool" href="libp2p/protobuf/minprotobuf.html#isEnough.t%2CProtoBuffer%2Cint">minprotobuf: isEnough(pb: ProtoBuffer; length: int): bool</a></li>
+          data-doc-search-tag="minprotobuf: isEnough(pb: ProtoBuffer; length: uint64): bool" href="libp2p/protobuf/minprotobuf.html#isEnough.t%2CProtoBuffer%2Cuint64">minprotobuf: isEnough(pb: ProtoBuffer; length: uint64): bool</a></li>
           <li><a class="reference external"
           data-doc-search-tag="vbuffer: isEnough(vb: VBuffer; length: int): bool" href="libp2p/vbuffer.html#isEnough.t%2CVBuffer%2Cint">vbuffer: isEnough(vb: VBuffer; length: int): bool</a></li>
           </ul></dd>
@@ -2702,6 +2708,10 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="MAKind.Length" href="libp2p/multiaddress.html#Length">MAKind.Length</a></li>
           <li><a class="reference external"
           data-doc-search-tag="ProtoFieldKind.Length" href="libp2p/protobuf/minprotobuf.html#Length">ProtoFieldKind.Length</a></li>
+          </ul></dd>
+<dt><a name="lenu64" href="#lenu64"><span>lenu64:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="minprotobuf: lenu64(x: untyped): untyped" href="libp2p/protobuf/minprotobuf.html#lenu64.t%2Cuntyped">minprotobuf: lenu64(x: untyped): untyped</a></li>
           </ul></dd>
 <dt><a name="libp2p_failed_upgrades_incoming" href="#libp2p_failed_upgrades_incoming"><span>libp2p_failed_upgrades_incoming:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3573,6 +3583,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="messages: PeerInfoMsg" href="libp2p/protocols/pubsub/rpc/messages.html#PeerInfoMsg">messages: PeerInfoMsg</a></li>
           </ul></dd>
+<dt><a name="PeerMessageDecodeError" href="#PeerMessageDecodeError"><span>PeerMessageDecodeError:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsub: PeerMessageDecodeError" href="libp2p/protocols/pubsub/pubsub.html#PeerMessageDecodeError">pubsub: PeerMessageDecodeError</a></li>
+          </ul></dd>
 <dt><a name="PeerRateLimitError" href="#PeerRateLimitError"><span>PeerRateLimitError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: PeerRateLimitError" href="libp2p/protocols/pubsub/pubsubpeer.html#PeerRateLimitError">pubsubpeer: PeerRateLimitError</a></li>
@@ -3727,11 +3741,17 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="publish" href="#publish"><span>publish:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="floodsub: publish(f: FloodSub; topic: string; data: seq[byte]): Future[int]" href="libp2p/protocols/pubsub/floodsub.html#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D">floodsub: publish(f: FloodSub; topic: string; data: seq[byte]): Future[int]</a></li>
+          data-doc-search-tag="floodsub: publish(f: FloodSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
+    (LPError,)]" href="libp2p/protocols/pubsub/floodsub.html#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D">floodsub: publish(f: FloodSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
+    (LPError,)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: publish(g: GossipSub; topic: string; data: seq[byte]): Future[int]" href="libp2p/protocols/pubsub/gossipsub.html#publish.e%2CGossipSub%2Cstring%2Cseq%5Bbyte%5D">gossipsub: publish(g: GossipSub; topic: string; data: seq[byte]): Future[int]</a></li>
+          data-doc-search-tag="gossipsub: publish(g: GossipSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
+    (LPError,)]" href="libp2p/protocols/pubsub/gossipsub.html#publish.e%2CGossipSub%2Cstring%2Cseq%5Bbyte%5D">gossipsub: publish(g: GossipSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
+    (LPError,)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pubsub: publish(p: PubSub; topic: string; data: seq[byte]): Future[int]" href="libp2p/protocols/pubsub/pubsub.html#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D">pubsub: publish(p: PubSub; topic: string; data: seq[byte]): Future[int]</a></li>
+          data-doc-search-tag="pubsub: publish(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
+    (LPError,)]" href="libp2p/protocols/pubsub/pubsub.html#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D">pubsub: publish(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
+    (LPError,)]</a></li>
           </ul></dd>
 <dt><a name="PubSub" href="#PubSub"><span>PubSub:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3755,7 +3775,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="punishInvalidMessage" href="#punishInvalidMessage"><span>punishInvalidMessage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="scoring: punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): Future[void]" href="libp2p/protocols/pubsub/gossipsub/scoring.html#punishInvalidMessage%2CGossipSub%2CPubSubPeer%2CMessage">scoring: punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): Future[void]</a></li>
+          data-doc-search-tag="scoring: punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): InternalRaisesFuture[
+    void, (PeerRateLimitError,)]" href="libp2p/protocols/pubsub/gossipsub/scoring.html#punishInvalidMessage%2CGossipSub%2CPubSubPeer%2CMessage">scoring: punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): InternalRaisesFuture[
+    void, (PeerRateLimitError,)]</a></li>
           </ul></dd>
 <dt><a name="push" href="#push"><span>push:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3867,7 +3889,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="rateLimit" href="#rateLimit"><span>rateLimit:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): Future[void]" href="libp2p/protocols/pubsub/gossipsub.html#rateLimit%2CGossipSub%2CPubSubPeer%2Cint">gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): Future[void]</a></li>
+          data-doc-search-tag="gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): InternalRaisesFuture[
+    void, (PeerRateLimitError,)]" href="libp2p/protocols/pubsub/gossipsub.html#rateLimit%2CGossipSub%2CPubSubPeer%2Cint">gossipsub: rateLimit(g: GossipSub; peer: PubSubPeer; overhead: int): InternalRaisesFuture[
+    void, (PeerRateLimitError,)]</a></li>
           </ul></dd>
 <dt><a name="read" href="#read"><span>read:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4163,11 +4187,17 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="rpcHandler" href="#rpcHandler"><span>rpcHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="floodsub: rpcHandler(f: FloodSub; peer: PubSubPeer; data: seq[byte]): Future[void]" href="libp2p/protocols/pubsub/floodsub.html#rpcHandler.e%2CFloodSub%2CPubSubPeer%2Cseq%5Bbyte%5D">floodsub: rpcHandler(f: FloodSub; peer: PubSubPeer; data: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="floodsub: rpcHandler(f: FloodSub; peer: PubSubPeer; data: seq[byte]): InternalRaisesFuture[
+    void, (CancelledError, PeerMessageDecodeError, PeerRateLimitError)]" href="libp2p/protocols/pubsub/floodsub.html#rpcHandler.e%2CFloodSub%2CPubSubPeer%2Cseq%5Bbyte%5D">floodsub: rpcHandler(f: FloodSub; peer: PubSubPeer; data: seq[byte]): InternalRaisesFuture[
+    void, (CancelledError, PeerMessageDecodeError, PeerRateLimitError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: rpcHandler(g: GossipSub; peer: PubSubPeer; data: seq[byte]): Future[void]" href="libp2p/protocols/pubsub/gossipsub.html#rpcHandler.e%2CGossipSub%2CPubSubPeer%2Cseq%5Bbyte%5D">gossipsub: rpcHandler(g: GossipSub; peer: PubSubPeer; data: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="gossipsub: rpcHandler(g: GossipSub; peer: PubSubPeer; data: seq[byte]): InternalRaisesFuture[
+    void, (CancelledError, PeerMessageDecodeError, PeerRateLimitError)]" href="libp2p/protocols/pubsub/gossipsub.html#rpcHandler.e%2CGossipSub%2CPubSubPeer%2Cseq%5Bbyte%5D">gossipsub: rpcHandler(g: GossipSub; peer: PubSubPeer; data: seq[byte]): InternalRaisesFuture[
+    void, (CancelledError, PeerMessageDecodeError, PeerRateLimitError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pubsub: rpcHandler(p: PubSub; peer: PubSubPeer; data: seq[byte]): Future[void]" href="libp2p/protocols/pubsub/pubsub.html#rpcHandler.e%2CPubSub%2CPubSubPeer%2Cseq%5Bbyte%5D">pubsub: rpcHandler(p: PubSub; peer: PubSubPeer; data: seq[byte]): Future[void]</a></li>
+          data-doc-search-tag="pubsub: rpcHandler(p: PubSub; peer: PubSubPeer; data: seq[byte]): InternalRaisesFuture[
+    void, (CancelledError, PeerMessageDecodeError, PeerRateLimitError)]" href="libp2p/protocols/pubsub/pubsub.html#rpcHandler.e%2CPubSub%2CPubSubPeer%2Cseq%5Bbyte%5D">pubsub: rpcHandler(p: PubSub; peer: PubSubPeer; data: seq[byte]): InternalRaisesFuture[
+    void, (CancelledError, PeerMessageDecodeError, PeerRateLimitError)]</a></li>
           </ul></dd>
 <dt><a name="RPCHandler" href="#RPCHandler"><span>RPCHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4293,7 +4323,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="scoringHeartbeat" href="#scoringHeartbeat"><span>scoringHeartbeat:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="scoring: scoringHeartbeat(g: GossipSub): Future[void]" href="libp2p/protocols/pubsub/gossipsub/scoring.html#scoringHeartbeat%2CGossipSub">scoring: scoringHeartbeat(g: GossipSub): Future[void]</a></li>
+          data-doc-search-tag="scoring: scoringHeartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/pubsub/gossipsub/scoring.html#scoringHeartbeat%2CGossipSub">scoring: scoringHeartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="seckey" href="#seckey"><span>seckey:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5073,7 +5103,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="peerid: validate(pid: PeerId): bool" href="libp2p/peerid.html#validate%2CPeerId">peerid: validate(pid: PeerId): bool</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pubsub: validate(p: PubSub; message: Message): Future[ValidationResult]" href="libp2p/protocols/pubsub/pubsub.html#validate.e%2CPubSub%2CMessage">pubsub: validate(p: PubSub; message: Message): Future[ValidationResult]</a></li>
+          data-doc-search-tag="pubsub: validate(p: PubSub; message: Message): InternalRaisesFuture[ValidationResult,
+    (CancelledError,)]" href="libp2p/protocols/pubsub/pubsub.html#validate.e%2CPubSub%2CMessage">pubsub: validate(p: PubSub; message: Message): InternalRaisesFuture[ValidationResult,
+    (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="validatedObservers" href="#validatedObservers"><span>validatedObservers:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5496,7 +5528,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-12-21 01:21:01 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 16:02:44 UTC</small>
       </div>
     </div>
   </div>

@@ -256,7 +256,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">heartbeat
       <li><a class="reference" href="#heartbeat%2CGossipSub"
-    title="heartbeat(g: GossipSub): Future[void]">heartbeat(g: GossipSub): Future[void]</a></li>
+    title="heartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]">heartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">peerExchangeList
@@ -421,8 +421,9 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="heartbeat,GossipSub" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#heartbeat%2CGossipSub"><span class="Identifier">heartbeat</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#heartbeat%2CGossipSub"><span class="Identifier">heartbeat</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -494,7 +495,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-12-21 01:21:00 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 16:02:44 UTC</small>
       </div>
     </div>
   </div>

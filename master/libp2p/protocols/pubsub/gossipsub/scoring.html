@@ -230,7 +230,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">disconnectPeer
       <li><a class="reference" href="#disconnectPeer%2CGossipSub%2CPubSubPeer"
-    title="disconnectPeer(g: GossipSub; peer: PubSubPeer): Future[void]">disconnectPeer(g: GossipSub; peer: PubSubPeer): Future[void]</a></li>
+    title="disconnectPeer(g: GossipSub; peer: PubSubPeer): InternalRaisesFuture[void, void]">disconnectPeer(g: GossipSub; peer: PubSubPeer): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">init
@@ -240,7 +240,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">punishInvalidMessage
       <li><a class="reference" href="#punishInvalidMessage%2CGossipSub%2CPubSubPeer%2CMessage"
-    title="punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): Future[void]">punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): Future[void]</a></li>
+    title="punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): InternalRaisesFuture[
+    void, (PeerRateLimitError,)]">punishInvalidMessage(g: GossipSub; peer: PubSubPeer; msg: Message): InternalRaisesFuture[
+    void, (PeerRateLimitError,)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">rewardDelivered
@@ -252,7 +254,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">scoringHeartbeat
       <li><a class="reference" href="#scoringHeartbeat%2CGossipSub"
-    title="scoringHeartbeat(g: GossipSub): Future[void]">scoringHeartbeat(g: GossipSub): Future[void]</a></li>
+    title="scoringHeartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]">scoringHeartbeat(g: GossipSub): InternalRaisesFuture[void, (CancelledError,)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">updateScores
@@ -314,9 +316,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/scoring.nim#L343"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/scoring.nim#L345"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L343" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L345" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -346,9 +348,9 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="disconnectPeer,GossipSub,PubSubPeer" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#disconnectPeer%2CGossipSub%2CPubSubPeer"><span class="Identifier">disconnectPeer</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#disconnectPeer%2CGossipSub%2CPubSubPeer"><span class="Identifier">disconnectPeer</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+            <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -372,16 +374,16 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="punishInvalidMessage,GossipSub,PubSubPeer,Message" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#punishInvalidMessage%2CGossipSub%2CPubSubPeer%2CMessage"><span class="Identifier">punishInvalidMessage</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="../rpc/messages.html#Message"><span class="Identifier">Message</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-            <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#punishInvalidMessage%2CGossipSub%2CPubSubPeer%2CMessage"><span class="Identifier">punishInvalidMessage</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="../rpc/messages.html#Message"><span class="Identifier">Message</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><a href="../pubsubpeer.html#PeerRateLimitError"><span class="Identifier">PeerRateLimitError</span></a><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                   <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/scoring.nim#L321"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/scoring.nim#L323"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L321" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L323" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -392,15 +394,16 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/scoring.nim#L346"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/scoring.nim#L348"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L346" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/scoring.nim#L348" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="scoringHeartbeat,GossipSub" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#scoringHeartbeat%2CGossipSub"><span class="Identifier">scoringHeartbeat</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#scoringHeartbeat%2CGossipSub"><span class="Identifier">scoringHeartbeat</span></a><span class="Other">(</span><span class="Identifier">g</span><span class="Other">:</span> <a href="types.html#GossipSub"><span class="Identifier">GossipSub</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                         <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -448,7 +451,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-12-21 01:21:00 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 16:02:44 UTC</small>
       </div>
     </div>
   </div>
