@@ -162,7 +162,7 @@ type
   .}
   P2PPubSubCallback* = proc(
     api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.gcsafe, raises: [CatchableError].}
+  ): Future[bool] {.gcsafe, async: (raises: [CatchableError]).}
 
   DaemonError* = object of LPError
   DaemonRemoteError* = object of DaemonError
@@ -1296,7 +1296,7 @@ proc pubsubLoop(api: DaemonAPI, ticket: PubsubTicket) {.async.} =
 
 proc pubsubSubscribe*(
     api: DaemonAPI, topic: string, handler: P2PPubSubCallback
-): Future[PubsubTicket] {.async.} =
+): Future[PubsubTicket] {.async: (raises: [CatchableError]).} =
   ## Subscribe to topic ``topic``.
   var transp = await api.newConnection()
   try:

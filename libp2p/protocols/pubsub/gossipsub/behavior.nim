@@ -770,7 +770,7 @@ proc onHeartbeat(g: GossipSub) =
 
   g.mcache.shift() # shift the cache
 
-proc heartbeat*(g: GossipSub) {.async.} =
+proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:
     trace "running heartbeat", instance = cast[int](g)
     g.onHeartbeat()

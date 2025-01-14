@@ -194,7 +194,7 @@ proc networking(g: Game) {.async.} =
 
   gossip.subscribe(
     "/tron/matchmaking",
-    proc(topic: string, data: seq[byte]) {.async.} =
+    proc(topic: string, data: seq[byte]) {.async: (raises: []).} =
       # If we are still looking for an opponent,
       # try to match anyone broadcasting its address
       if g.peerFound.finished or g.hasCandidate:

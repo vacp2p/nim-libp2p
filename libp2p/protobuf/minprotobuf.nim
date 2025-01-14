@@ -16,8 +16,6 @@ export results, utility
 
 {.push public.}
 
-const MaxMessageSize = 1'u shl 22
-
 type
   ProtoFieldKind* = enum
     ## Protobuf's field types enum
@@ -39,7 +37,6 @@ type
     buffer*: seq[byte]
     offset*: int
     length*: int
-    maxSize*: uint
 
   ProtoHeader* = object
     wire*: ProtoFieldKind
@@ -63,7 +60,6 @@ type
     VarintDecode
     MessageIncomplete
     BufferOverflow
-    MessageTooBig
     BadWireType
     IncorrectBlob
     RequiredFieldMissing
@@ -99,11 +95,14 @@ template getProtoHeader*(field: ProtoField): uint64 =
 template toOpenArray*(pb: ProtoBuffer): untyped =
   toOpenArray(pb.buffer, pb.offset, len(pb.buffer) - 1)
 
+template lenu64*(x: untyped): untyped =
+  uint64(len(x))
+
 template isEmpty*(pb: ProtoBuffer): bool =
   len(pb.buffer) - pb.offset <= 0
 
-template isEnough*(pb: ProtoBuffer, length: int): bool =
-  len(pb.buffer) - pb.offset - length >= 0
+template isEnough*(pb: ProtoBuffer, length: uint64): bool =
+  pb.offset <= len(pb.buffer) and length <= uint64(len(pb.buffer) - pb.offset)
 
 template getPtr*(pb: ProtoBuffer): pointer =
   cast[pointer](unsafeAddr pb.buffer[pb.offset])
@@ -127,33 +126,25 @@ proc vsizeof*(field: ProtoField): int {.inline.} =
     0
 
 proc initProtoBuffer*(
-    data: seq[byte], offset = 0, options: set[ProtoFlags] = {}, maxSize = MaxMessageSize
+    data: seq[byte], offset = 0, options: set[ProtoFlags] = {}
 ): ProtoBuffer =
   ## Initialize ProtoBuffer with shallow copy of ``data``.
   result.buffer = data
   result.offset = offset
   result.options = options
-  result.maxSize = maxSize
 
 proc initProtoBuffer*(
-    data: openArray[byte],
-    offset = 0,
-    options: set[ProtoFlags] = {},
-    maxSize = MaxMessageSize,
+    data: openArray[byte], offset = 0, options: set[ProtoFlags] = {}
 ): ProtoBuffer =
   ## Initialize ProtoBuffer with copy of ``data``.
   result.buffer = @data
   result.offset = offset
   result.options = options
-  result.maxSize = maxSize
 
-proc initProtoBuffer*(
-    options: set[ProtoFlags] = {}, maxSize = MaxMessageSize
-): ProtoBuffer =
+proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
   ## Initialize ProtoBuffer with new sequence of capacity ``cap``.
   result.buffer = newSeq[byte]()
   result.options = options
-  result.maxSize = maxSize
   if WithVarintLength in options:
     # Our buffer will start from position 10, so we can store length of buffer
     # in [0, 9].
@@ -194,12 +185,12 @@ proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
     doAssert(vres.isOk())
     pb.offset += length
   elif T is float32:
-    doAssert(pb.isEnough(sizeof(T)))
+    doAssert(pb.isEnough(uint64(sizeof(T))))
     let u32 = cast[uint32](value)
     pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u32.toBytesLE()
     pb.offset += sizeof(T)
   elif T is float64:
-    doAssert(pb.isEnough(sizeof(T)))
+    doAssert(pb.isEnough(uint64(sizeof(T))))
     let u64 = cast[uint64](value)
     pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u64.toBytesLE()
     pb.offset += sizeof(T)
@@ -242,12 +233,12 @@ proc writePacked*[T: ProtoScalar](
       doAssert(vres.isOk())
       pb.offset += length
     elif T is float32:
-      doAssert(pb.isEnough(sizeof(T)))
+      doAssert(pb.isEnough(uint64(sizeof(T))))
       let u32 = cast[uint32](item)
       pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u32.toBytesLE()
       pb.offset += sizeof(T)
     elif T is float64:
-      doAssert(pb.isEnough(sizeof(T)))
+      doAssert(pb.isEnough(uint64(sizeof(T))))
       let u64 = cast[uint64](item)
       pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u64.toBytesLE()
       pb.offset += sizeof(T)
@@ -268,7 +259,7 @@ proc write*[T: byte | char](pb: var ProtoBuffer, field: int, value: openArray[T]
   doAssert(lres.isOk())
   pb.offset += length
   if len(value) > 0:
-    doAssert(pb.isEnough(len(value)))
+    doAssert(pb.isEnough(value.lenu64))
     copyMem(addr pb.buffer[pb.offset], unsafeAddr value[0], len(value))
     pb.offset += len(value)
 
@@ -327,13 +318,13 @@ proc skipValue(data: var ProtoBuffer, header: ProtoHeader): ProtoResult[void] =
     else:
       err(ProtoError.VarintDecode)
   of ProtoFieldKind.Fixed32:
-    if data.isEnough(sizeof(uint32)):
+    if data.isEnough(uint64(sizeof(uint32))):
       data.offset += sizeof(uint32)
       ok()
     else:
       err(ProtoError.VarintDecode)
   of ProtoFieldKind.Fixed64:
-    if data.isEnough(sizeof(uint64)):
+    if data.isEnough(uint64(sizeof(uint64))):
       data.offset += sizeof(uint64)
       ok()
     else:
@@ -343,14 +334,11 @@ proc skipValue(data: var ProtoBuffer, header: ProtoHeader): ProtoResult[void] =
     var bsize = 0'u64
     if PB.getUVarint(data.toOpenArray(), length, bsize).isOk():
       data.offset += length
-      if bsize <= uint64(data.maxSize):
-        if data.isEnough(int(bsize)):
-          data.offset += int(bsize)
-          ok()
-        else:
-          err(ProtoError.MessageIncomplete)
+      if data.isEnough(bsize):
+        data.offset += int(bsize)
+        ok()
       else:
-        err(ProtoError.MessageTooBig)
+        err(ProtoError.MessageIncomplete)
     else:
       err(ProtoError.VarintDecode)
   of ProtoFieldKind.StartGroup, ProtoFieldKind.EndGroup:
@@ -382,7 +370,7 @@ proc getValue[T: ProtoScalar](
       err(ProtoError.VarintDecode)
   elif T is float32:
     doAssert(header.wire == ProtoFieldKind.Fixed32)
-    if data.isEnough(sizeof(float32)):
+    if data.isEnough(uint64(sizeof(float32))):
       outval = cast[float32](fromBytesLE(uint32, data.toOpenArray()))
       data.offset += sizeof(float32)
       ok()
@@ -390,7 +378,7 @@ proc getValue[T: ProtoScalar](
       err(ProtoError.MessageIncomplete)
   elif T is float64:
     doAssert(header.wire == ProtoFieldKind.Fixed64)
-    if data.isEnough(sizeof(float64)):
+    if data.isEnough(uint64(sizeof(float64))):
       outval = cast[float64](fromBytesLE(uint64, data.toOpenArray()))
       data.offset += sizeof(float64)
       ok()
@@ -410,22 +398,19 @@ proc getValue[T: byte | char](
   outLength = 0
   if PB.getUVarint(data.toOpenArray(), length, bsize).isOk():
     data.offset += length
-    if bsize <= uint64(data.maxSize):
-      if data.isEnough(int(bsize)):
-        outLength = int(bsize)
-        if len(outBytes) >= int(bsize):
-          if bsize > 0'u64:
-            copyMem(addr outBytes[0], addr data.buffer[data.offset], int(bsize))
-          data.offset += int(bsize)
-          ok()
-        else:
-          # Buffer overflow should not be critical failure
-          data.offset += int(bsize)
-          err(ProtoError.BufferOverflow)
+    if data.isEnough(bsize):
+      outLength = int(bsize)
+      if len(outBytes) >= int(bsize):
+        if bsize > 0'u64:
+          copyMem(addr outBytes[0], addr data.buffer[data.offset], int(bsize))
+        data.offset += int(bsize)
+        ok()
       else:
-        err(ProtoError.MessageIncomplete)
+        # Buffer overflow should not be critical failure
+        data.offset += int(bsize)
+        err(ProtoError.BufferOverflow)
     else:
-      err(ProtoError.MessageTooBig)
+      err(ProtoError.MessageIncomplete)
   else:
     err(ProtoError.VarintDecode)
 
@@ -439,17 +424,14 @@ proc getValue[T: seq[byte] | string](
 
   if PB.getUVarint(data.toOpenArray(), length, bsize).isOk():
     data.offset += length
-    if bsize <= uint64(data.maxSize):
-      if data.isEnough(int(bsize)):
-        outBytes.setLen(bsize)
-        if bsize > 0'u64:
-          copyMem(addr outBytes[0], addr data.buffer[data.offset], int(bsize))
-        data.offset += int(bsize)
-        ok()
-      else:
-        err(ProtoError.MessageIncomplete)
+    if data.isEnough(bsize):
+      outBytes.setLen(bsize)
+      if bsize > 0'u64:
+        copyMem(addr outBytes[0], addr data.buffer[data.offset], int(bsize))
+      data.offset += int(bsize)
+      ok()
     else:
-      err(ProtoError.MessageTooBig)
+      err(ProtoError.MessageIncomplete)
   else:
     err(ProtoError.VarintDecode)
 

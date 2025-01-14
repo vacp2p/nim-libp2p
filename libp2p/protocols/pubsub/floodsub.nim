@@ -101,10 +101,12 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
   procCall PubSub(f).unsubscribePeer(peer)
 
-method rpcHandler*(f: FloodSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
+method rpcHandler*(
+    f: FloodSub, peer: PubSubPeer, data: seq[byte]
+) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
-    raise newException(CatchableError, "Peer msg couldn't be decoded")
+    raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
   trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
   # trigger hooks
@@ -186,13 +188,13 @@ method init*(f: FloodSub) =
       # This is top-level procedure which will work as separate task, so it
       # do not need to propagate CancelledError.
       trace "Unexpected cancellation in floodsub handler", conn
-    except CatchableError as exc:
-      trace "FloodSub handler leaks an error", description = exc.msg, conn
 
   f.handler = handler
   f.codec = FloodSubCodec
 
-method publish*(f: FloodSub, topic: string, data: seq[byte]): Future[int] {.async.} =
+method publish*(
+    f: FloodSub, topic: string, data: seq[byte]
+): Future[int] {.async: (raises: [LPError]).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
 

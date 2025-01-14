@@ -54,7 +54,7 @@ suite "GossipSub":
 
   asyncTest "GossipSub validation should succeed":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
       handlerFut.complete(true)
 
@@ -78,7 +78,7 @@ suite "GossipSub":
     var validatorFut = newFuture[bool]()
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
+    ): Future[ValidationResult] {.async: (raises: []).} =
       check topic == "foobar"
       validatorFut.complete(true)
       result = ValidationResult.Accept
@@ -93,7 +93,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub validation should fail (reject)":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check false # if we get here, it should fail
 
     let
@@ -119,7 +119,7 @@ suite "GossipSub":
     var validatorFut = newFuture[bool]()
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
+    ): Future[ValidationResult] {.async: (raises: []).} =
       result = ValidationResult.Reject
       validatorFut.complete(true)
 
@@ -133,7 +133,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub validation should fail (ignore)":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check false # if we get here, it should fail
 
     let
@@ -159,7 +159,7 @@ suite "GossipSub":
     var validatorFut = newFuture[bool]()
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
+    ): Future[ValidationResult] {.async: (raises: []).} =
       result = ValidationResult.Ignore
       validatorFut.complete(true)
 
@@ -174,7 +174,7 @@ suite "GossipSub":
 
   asyncTest "GossipSub validation one fails and one succeeds":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foo"
       handlerFut.complete(true)
 
@@ -192,7 +192,7 @@ suite "GossipSub":
     var passed, failed: Future[bool] = newFuture[bool]()
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
+    ): Future[ValidationResult] {.async: (raises: []).} =
       result =
         if topic == "foo":
           passed.complete(true)
@@ -226,7 +226,7 @@ suite "GossipSub":
       sendCounter = 0
       validatedCounter = 0
 
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     proc onRecv(peer: PubSubPeer, msgs: var RPCMsg) =
@@ -254,7 +254,7 @@ suite "GossipSub":
 
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
+    ): Future[ValidationResult] {.async: (raises: []).} =
       result = if topic == "foo": ValidationResult.Accept else: ValidationResult.Reject
 
     nodes[1].addValidator("foo", "bar", validator)
@@ -279,7 +279,7 @@ suite "GossipSub":
 
   asyncTest "GossipSub unsub - resub faster than backoff":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
       handlerFut.complete(true)
 
@@ -311,7 +311,7 @@ suite "GossipSub":
     var validatorFut = newFuture[bool]()
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
+    ): Future[ValidationResult] {.async: (raises: []).} =
       check topic == "foobar"
       validatorFut.complete(true)
       result = ValidationResult.Accept
@@ -326,7 +326,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let
@@ -352,7 +352,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let
@@ -395,7 +395,7 @@ suite "GossipSub":
 
   asyncTest "e2e - GossipSub send over fanout A -> B":
     var passed = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
       passed.complete()
 
@@ -443,7 +443,7 @@ suite "GossipSub":
 
   asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
     var passed = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
       passed.complete()
 
@@ -487,7 +487,7 @@ suite "GossipSub":
 
   asyncTest "e2e - GossipSub send over mesh A -> B":
     var passed: Future[bool] = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
       passed.complete(true)
 
@@ -542,14 +542,14 @@ suite "GossipSub":
     var
       aReceived = 0
       cReceived = 0
-    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+    proc handlerA(topic: string, data: seq[byte]) {.async: (raises: []).} =
       inc aReceived
       check aReceived < 2
 
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+    proc handlerB(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
-    proc handlerC(topic: string, data: seq[byte]) {.async.} =
+    proc handlerC(topic: string, data: seq[byte]) {.async: (raises: []).} =
       inc cReceived
       check cReceived < 2
       cRelayed.complete()
@@ -565,20 +565,23 @@ suite "GossipSub":
 
     proc slowValidator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
-      await cRelayed
-      # Empty A & C caches to detect duplicates
-      gossip1.seen = TimedCache[SaltedId].init()
-      gossip3.seen = TimedCache[SaltedId].init()
-      let msgId = toSeq(gossip2.validationSeen.keys)[0]
-      checkUntilTimeout(
-        try:
-          gossip2.validationSeen[msgId].len > 0
-        except:
-          false
-      )
-      result = ValidationResult.Accept
-      bFinished.complete()
+    ): Future[ValidationResult] {.async: (raises: []).} =
+      try:
+        await cRelayed
+        # Empty A & C caches to detect duplicates
+        gossip1.seen = TimedCache[SaltedId].init()
+        gossip3.seen = TimedCache[SaltedId].init()
+        let msgId = toSeq(gossip2.validationSeen.keys)[0]
+        checkUntilTimeout(
+          try:
+            gossip2.validationSeen[msgId].len > 0
+          except:
+            false
+        )
+        result = ValidationResult.Accept
+        bFinished.complete()
+      except CatchableError:
+        raiseAssert "err on slowValidator"
 
     nodes[1].addValidator("foobar", slowValidator)
 
@@ -598,7 +601,7 @@ suite "GossipSub":
 
   asyncTest "e2e - GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
       passed.complete(true)
 
@@ -643,7 +646,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
 
   proc connectNodes(nodes: seq[PubSub], target: PubSub) {.async.} =
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
 
     for node in nodes:
@@ -656,7 +659,7 @@ suite "GossipSub":
       numPeersFirstMsg: int,
       numPeersSecondMsg: int,
   ) {.async.} =
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       check topic == "foobar"
 
     block setup:
@@ -721,10 +724,10 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
-          if peerName notin seen:
-            seen[peerName] = 0
-          seen[peerName].inc
+        handler = proc(
+            topic: string, data: seq[byte]
+        ) {.async: (raises: []), closure.} =
+          seen.mgetOrPut(peerName, 0).inc()
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
             seenFut.complete()
@@ -771,10 +774,15 @@ suite "GossipSub":
       var handler: TopicHandler
       capture dialer, i:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
-          if peerName notin seen:
-            seen[peerName] = 0
-          seen[peerName].inc
+        handler = proc(
+            topic: string, data: seq[byte]
+        ) {.async: (raises: []), closure.} =
+          try:
+            if peerName notin seen:
+              seen[peerName] = 0
+            seen[peerName].inc
+          except KeyError:
+            raiseAssert "seen checked before"
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
             seenFut.complete()
@@ -811,7 +819,7 @@ suite "GossipSub":
     # PX to A & C
     #
     # C sent his SPR, not A
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard # not used in this test
 
     let
@@ -880,13 +888,13 @@ suite "GossipSub":
     )
 
     let bFinished = newFuture[void]()
-    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+    proc handlerA(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+    proc handlerB(topic: string, data: seq[byte]) {.async: (raises: []).} =
       bFinished.complete()
 
-    proc handlerC(topic: string, data: seq[byte]) {.async.} =
+    proc handlerC(topic: string, data: seq[byte]) {.async: (raises: []).} =
       doAssert false
 
     nodes[0].subscribe("foobar", handlerA)
@@ -957,10 +965,10 @@ suite "GossipSub":
     )
 
     let bFinished = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+    proc handlerB(topic: string, data: seq[byte]) {.async: (raises: []).} =
       bFinished.complete()
 
     nodeA.subscribe("foobar", handler)
@@ -1000,7 +1008,7 @@ suite "GossipSub":
 
     await subscribeNodes(nodes)
 
-    proc handle(topic: string, data: seq[byte]) {.async.} =
+    proc handle(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     let gossip0 = GossipSub(nodes[0])
@@ -1131,7 +1139,7 @@ suite "GossipSub":
     let topic = "foobar"
     proc execValidator(
         topic: string, message: messages.Message
-    ): Future[ValidationResult] {.raises: [].} =
+    ): Future[ValidationResult] {.async: (raises: [], raw: true).} =
       let res = newFuture[ValidationResult]()
       res.complete(ValidationResult.Reject)
       res
@@ -1177,7 +1185,7 @@ suite "GossipSub":
       node1.switch.peerInfo.peerId, node1.switch.peerInfo.addrs
     )
 
-    proc handler(topic: string, data: seq[byte]) {.async.} =
+    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
       discard
 
     node0.subscribe("foobar", handler)
