@@ -154,6 +154,9 @@ type
     # Max number of elements allowed in the non-priority queue. When this limit has been reached, the peer will be disconnected.
     maxNumElementsInNonPriorityQueue*: int
 
+    # Broadcast an IDONTWANT message automatically when the message exceeds the IDONTWANT message size threshold
+    sendIDontWantOnPublish*: bool
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
 

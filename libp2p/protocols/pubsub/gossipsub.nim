@@ -102,6 +102,7 @@ proc init*(
     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
+    sendIDontWantOnPublish = false,
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -139,6 +140,7 @@ proc init*(
     overheadRateLimit: overheadRateLimit,
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    sendIDontWantOnPublish: sendIDontWantOnPublish,
   )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -381,6 +383,40 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     trace "sending iwant reply messages", peer
     g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
 
+proc sendIDontWant(
+    g: GossipSub,
+    msg: Message,
+    msgId: MessageId,
+    peersToSendIDontWant: HashSet[PubSubPeer],
+) =
+  # If the message is "large enough", let the mesh know that we do not want
+  # any more copies of it, regardless if it is valid or not.
+  #
+  # In the case that it is not valid, this leads to some redundancy
+  # (since the other peer should not send us an invalid message regardless),
+  # but the expectation is that this is rare (due to such peers getting
+  # descored) and that the savings from honest peers are greater than the
+  # cost a dishonest peer can incur in short time (since the IDONTWANT is
+  # small).
+
+  # IDONTWANT is only supported by >= GossipSubCodec_12
+  let peers = peersToSendIDontWant.filterIt(
+    it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11
+  )
+
+  g.broadcast(
+    peers,
+    RPCMsg(
+      control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+    ),
+    isHighPriority = true,
+  )
+
+const iDontWantMessageSizeThreshold* = 512
+
+proc isLargeMessage(msg: Message, msgId: MessageId): bool =
+  msg.data.len > max(iDontWantMessageSizeThreshold, msgId.len * 10)
+
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
 ) {.async: (raises: []).} =
@@ -397,29 +433,10 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
 
-    if msg.data.len > max(512, msgId.len * 10):
-      # If the message is "large enough", let the mesh know that we do not want
-      # any more copies of it, regardless if it is valid or not.
-      #
-      # In the case that it is not valid, this leads to some redundancy
-      # (since the other peer should not send us an invalid message regardless),
-      # but the expectation is that this is rare (due to such peers getting
-      # descored) and that the savings from honest peers are greater than the
-      # cost a dishonest peer can incur in short time (since the IDONTWANT is
-      # small).
+    if isLargeMessage(msg, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
-      peersToSendIDontWant.exclIfIt(
-        it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
-      )
-      g.broadcast(
-        peersToSendIDontWant,
-        RPCMsg(
-          control:
-            some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
-        ),
-        isHighPriority = true,
-      )
+      g.sendIDontWant(msg, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
 
@@ -787,6 +804,9 @@ method publish*(
     return 0
 
   g.mcache.put(msgId, msg)
+
+  if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
+    g.sendIDontWant(msg, msgId, peers)
 
   g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
 
