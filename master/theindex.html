@@ -1499,6 +1499,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="constants: Fe" href="libp2p/crypto/ed25519/constants.html#Fe">constants: Fe</a></li>
           </ul></dd>
+<dt><a name="filterIt" href="#filterIt"><span>filterIt:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="utility: filterIt[T](set: HashSet[T]; condition: untyped): HashSet[T]" href="libp2p/utility.html#filterIt.t%2CHashSet%5BT%5D%2Cuntyped">utility: filterIt[T](set: HashSet[T]; condition: untyped): HashSet[T]</a></li>
+          </ul></dd>
 <dt><a name="finish" href="#finish"><span>finish:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="minasn1: finish[T: Asn1Buffer | Asn1Composite](abc: var T)" href="libp2p/crypto/minasn1.html#finish%2CT">minasn1: finish[T: Asn1Buffer | Asn1Composite](abc: var T)</a></li>
@@ -2181,6 +2185,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="identify: IdentityNoMatchError" href="libp2p/protocols/identify.html#IdentityNoMatchError">identify: IdentityNoMatchError</a></li>
           </ul></dd>
+<dt><a name="iDontWantMessageSizeThreshold" href="#iDontWantMessageSizeThreshold"><span>iDontWantMessageSizeThreshold:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="gossipsub: iDontWantMessageSizeThreshold" href="libp2p/protocols/pubsub/gossipsub.html#iDontWantMessageSizeThreshold">gossipsub: iDontWantMessageSizeThreshold</a></li>
+          </ul></dd>
 <dt><a name="IHaveMaxLength" href="#IHaveMaxLength"><span>IHaveMaxLength:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="types: IHaveMaxLength" href="libp2p/protocols/pubsub/gossipsub/types.html#IHaveMaxLength">types: IHaveMaxLength</a></li>
@@ -2415,8 +2423,8 @@ window.addEventListener('DOMContentLoaded', main);
      disconnectBadPeers = false; enablePX = false;
      bandwidthEstimatebps = 100000000;
      overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
-     disconnectPeerAboveRateLimit = false;
-     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint">gossipsub: init(_: type[GossipSubParams]; pruneBackoff = 1.minutes;
+     disconnectPeerAboveRateLimit = false; maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue;
+     sendIDontWantOnPublish = false): GossipSubParams" href="libp2p/protocols/pubsub/gossipsub.html#init%2Ctype%5BGossipSubParams%5D%2Cfloat64%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cfloat%2Cint">gossipsub: init(_: type[GossipSubParams]; pruneBackoff = 1.minutes;
      unsubscribeBackoff = 5.seconds; floodPublish = true;
      gossipFactor: float64 = 0.25; d = GossipSubD; dLow = GossipSubDlo;
      dHigh = GossipSubDhi; dScore = GossipSubDlo; dOut = GossipSubDlo - 1;
@@ -2432,8 +2440,8 @@ window.addEventListener('DOMContentLoaded', main);
      disconnectBadPeers = false; enablePX = false;
      bandwidthEstimatebps = 100000000;
      overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]);
-     disconnectPeerAboveRateLimit = false;
-     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue): GossipSubParams</a></li>
+     disconnectPeerAboveRateLimit = false; maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue;
+     sendIDontWantOnPublish = false): GossipSubParams</a></li>
           <li><a class="reference external"
           data-doc-search-tag="gossipsub: init(g: GossipSub)" href="libp2p/protocols/pubsub/gossipsub.html#init.e%2CGossipSub">gossipsub: init(g: GossipSub)</a></li>
           <li><a class="reference external"
@@ -5528,7 +5536,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 19:48:55 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 21:01:45 UTC</small>
       </div>
     </div>
   </div>

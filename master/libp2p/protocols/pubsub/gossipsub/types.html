@@ -264,7 +264,8 @@ window.addEventListener("DOMContentLoaded", main2);
   bandwidthEstimatebps*: int
   overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
   disconnectPeerAboveRateLimit*: bool
-  maxNumElementsInNonPriorityQueue*: int">GossipSubParams</a></li>
+  maxNumElementsInNonPriorityQueue*: int
+  sendIDontWantOnPublish*: bool">GossipSubParams</a></li>
   <li><a class="reference" href="#MeshMetrics"
     title="MeshMetrics = object
   otherPeersPerTopicMesh*: int64
@@ -384,9 +385,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L157"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L160"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L157" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L160" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -415,9 +416,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L167"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L170"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L167" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L170" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -459,6 +460,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">overheadRateLimit</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Keyword">tuple</span><span class="Other">[</span><span class="Identifier">bytes</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">interval</span><span class="Other">:</span> <span class="Identifier">Duration</span><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">disconnectPeerAboveRateLimit</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">maxNumElementsInNonPriorityQueue</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
+  <span class="Identifier">sendIDontWantOnPublish</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
 </pre></dt>
 <dd>
 
@@ -484,9 +486,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L191"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L194"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L191" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L194" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -516,9 +518,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L161"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L164"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L164" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -528,9 +530,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L160"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L163"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L160" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L163" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -591,9 +593,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L158"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L161"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L158" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -792,7 +794,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 19:48:55 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 21:01:44 UTC</small>
       </div>
     </div>
   </div>
