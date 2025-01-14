@@ -14,6 +14,7 @@ import metrics except collect
 import chronos, chronicles, bearssl/rand, stew/[byteutils, objects, results]
 import
   ./protocol,
+  ../protobuf/minprotobuf,
   ../switch,
   ../routing_record,
   ../utils/heartbeat,

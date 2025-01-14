@@ -12,6 +12,7 @@
 import macros
 import stew/[objects, results]
 import ../../../peerinfo, ../../../signed_envelope
+import ../../../protobuf/minprotobuf
 
 # Circuit Relay V1 Message
 

@@ -19,6 +19,7 @@ import
     protocols/connectivity/relay/utils,
     protocols/connectivity/relay/rtransport,
     multiaddress,
+    protobuf/minprotobuf,
     peerinfo,
     peerid,
     stream/connection,
