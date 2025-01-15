@@ -75,9 +75,7 @@ proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
   # This procedure will handle one of the node of the network
   node.gossip.addValidator(
     ["metrics"],
-    proc(
-        topic: string, message: Message
-    ): Future[ValidationResult] {.async: (raises: []).} =
+    proc(topic: string, message: Message): Future[ValidationResult] {.async.} =
       let decoded = MetricList.decode(message.data)
       if decoded.isErr:
         return ValidationResult.Reject
@@ -94,7 +92,7 @@ proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
   if node.hostname == "John":
     node.gossip.subscribe(
       "metrics",
-      proc(topic: string, data: seq[byte]) {.async: (raises: []).} =
+      proc(topic: string, data: seq[byte]) {.async.} =
         let m = MetricList.decode(data).expect("metric can be decoded")
         echo m
       ,
