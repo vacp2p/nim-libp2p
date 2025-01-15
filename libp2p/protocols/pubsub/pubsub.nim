@@ -128,11 +128,11 @@ type
   PeerMessageDecodeError* = object of CatchableError
 
   TopicHandler* {.public.} =
-    proc(topic: string, data: seq[byte]): Future[void] {.gcsafe, async: (raises: []).}
+    proc(topic: string, data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
   ValidatorHandler* {.public.} = proc(
     topic: string, message: Message
-  ): Future[ValidationResult] {.gcsafe, async: (raises: []).}
+  ): Future[ValidationResult] {.gcsafe, raises: [].}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
