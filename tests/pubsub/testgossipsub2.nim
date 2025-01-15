@@ -65,7 +65,7 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async: (raises: []).} =
+        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
           seen.mgetOrPut(peerName, 0).inc()
           info "seen up", count = seen.len
           check topic == "foobar"
@@ -96,7 +96,7 @@ suite "GossipSub":
 
   asyncTest "GossipSub invalid topic subscription":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete(true)
 
@@ -152,7 +152,7 @@ suite "GossipSub":
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
     ### await subscribeNodes(nodes)
 
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
 
     nodes[1].subscribe("foobar", handler)
@@ -184,11 +184,11 @@ suite "GossipSub":
     )
 
     var handlerFut = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete()
 
-    proc noop(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc noop(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
 
     nodes[0].subscribe("foobar", noop)
@@ -228,7 +228,7 @@ suite "GossipSub":
     GossipSub(nodes[1]).parameters.graylistThreshold = 100000
 
     var handlerFut = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete()
 
@@ -272,9 +272,7 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(
-            topic: string, data: seq[byte]
-        ) {.async: (raises: []), closure.} =
+        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
           seen.mgetOrPut(peerName, 0).inc()
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
@@ -326,7 +324,7 @@ suite "GossipSub":
 
     # Adding again subscriptions
 
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
 
     for i in 0 ..< runs:
@@ -362,7 +360,7 @@ suite "GossipSub":
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
     var handlerFut = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       handlerFut.complete()
 
     await subscribeNodes(nodes)

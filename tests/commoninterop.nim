@@ -69,7 +69,7 @@ proc testPubSubDaemonPublish(
 
   var finished = false
   var times = 0
-  proc nativeHandler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+  proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
     let smsg = string.fromBytes(data)
     check smsg == pubsubData
     times.inc()
@@ -146,7 +146,7 @@ proc testPubSubNodePublish(
     result = true # don't cancel subscription
 
   discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  proc nativeHandler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+  proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
     discard
 
   pubsub.subscribe(testTopic, nativeHandler)

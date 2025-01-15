@@ -36,9 +36,7 @@ suite "GossipSub internal":
   asyncTest "subscribe/unsubscribeAll":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-    proc handler(
-        topic: string, data: seq[byte]
-    ): Future[void] {.gcsafe, async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]): Future[void] {.gcsafe, raises: [].} =
       discard
 
     let topic = "foobar"
@@ -670,7 +668,7 @@ suite "GossipSub internal":
     proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
       check false
 
-    proc handler2(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler2(topic: string, data: seq[byte]) {.async.} =
       discard
 
     let topic = "foobar"
@@ -771,10 +769,10 @@ suite "GossipSub internal":
 
     var receivedMessages = new(HashSet[seq[byte]])
 
-    proc handlerA(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handlerA(topic: string, data: seq[byte]) {.async.} =
       receivedMessages[].incl(data)
 
-    proc handlerB(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
       discard
 
     nodes[0].subscribe("foobar", handlerA)

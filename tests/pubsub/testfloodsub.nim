@@ -45,7 +45,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub basic publish/subscribe A -> B":
     var completionFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       completionFut.complete(true)
 
@@ -77,7 +77,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub basic publish/subscribe B -> A":
     var completionFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       completionFut.complete(true)
 
@@ -102,7 +102,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub validation should succeed":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete(true)
 
@@ -120,7 +120,7 @@ suite "FloodSub":
     var validatorFut = newFuture[bool]()
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async: (raises: []).} =
+    ): Future[ValidationResult] {.async.} =
       check topic == "foobar"
       validatorFut.complete(true)
       result = ValidationResult.Accept
@@ -135,7 +135,7 @@ suite "FloodSub":
     await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub validation should fail":
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check false # if we get here, it should fail
 
     let
@@ -151,7 +151,7 @@ suite "FloodSub":
     var validatorFut = newFuture[bool]()
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async: (raises: []).} =
+    ): Future[ValidationResult] {.async.} =
       validatorFut.complete(true)
       result = ValidationResult.Reject
 
@@ -165,7 +165,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub validation one fails and one succeeds":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foo"
       handlerFut.complete(true)
 
@@ -183,7 +183,7 @@ suite "FloodSub":
 
     proc validator(
         topic: string, message: Message
-    ): Future[ValidationResult] {.async: (raises: []).} =
+    ): Future[ValidationResult] {.async.} =
       if topic == "foo":
         result = ValidationResult.Accept
       else:
@@ -210,7 +210,7 @@ suite "FloodSub":
         futs[i] = (
           fut,
           (
-            proc(topic: string, data: seq[byte]) {.async: (raises: []).} =
+            proc(topic: string, data: seq[byte]) {.async.} =
               check topic == "foobar"
               inc counter[]
               if counter[] == runs - 1:
@@ -257,7 +257,7 @@ suite "FloodSub":
         futs[i] = (
           fut,
           (
-            proc(topic: string, data: seq[byte]) {.async: (raises: []).} =
+            proc(topic: string, data: seq[byte]) {.async.} =
               check topic == "foobar"
               inc counter[]
               if counter[] == runs - 1:
@@ -305,7 +305,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       check data.len < 50
       inc(messageReceived)
 
@@ -343,7 +343,7 @@ suite "FloodSub":
 
   asyncTest "FloodSub message size validation 2":
     var messageReceived = 0
-    proc handler(topic: string, data: seq[byte]) {.async: (raises: []).} =
+    proc handler(topic: string, data: seq[byte]) {.async.} =
       inc(messageReceived)
 
     let
