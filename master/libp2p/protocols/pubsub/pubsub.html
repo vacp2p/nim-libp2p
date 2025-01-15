@@ -275,12 +275,12 @@ window.addEventListener("DOMContentLoaded", main2);
     gcsafe.}">SubscriptionValidator</a></li>
   <li><a class="reference" href="#TopicHandler"
     title="TopicHandler {.public.} = proc (topic: string; data: seq[byte]): Future[void] {.
-    gcsafe, async: (raises: []).}">TopicHandler</a></li>
+    gcsafe, raises: [].}">TopicHandler</a></li>
   <li><a class="reference" href="#TopicPair"
     title="TopicPair = tuple[topic: string, handler: TopicHandler]">TopicPair</a></li>
   <li><a class="reference" href="#ValidatorHandler"
     title="ValidatorHandler {.public.} = proc (topic: string; message: Message): Future[
-    ValidationResult] {.gcsafe, async: (raises: []).}">ValidatorHandler</a></li>
+    ValidationResult] {.gcsafe, raises: [].}">ValidatorHandler</a></li>
 
   </ul>
 </li>
@@ -759,7 +759,7 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="TopicHandler" class="tohide">
 <dt><pre><a href="pubsub.html#TopicHandler"><span class="Identifier">TopicHandler</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -783,8 +783,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="ValidatorHandler" class="tohide">
-<dt><pre><a href="pubsub.html#ValidatorHandler"><span class="Identifier">ValidatorHandler</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">Message</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">ValidationResult</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
+<dt><pre><a href="pubsub.html#ValidatorHandler"><span class="Identifier">ValidatorHandler</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <a href="rpc/messages.html#Message"><span class="Identifier">Message</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
+    <a href="errors.html#ValidationResult"><span class="Identifier">ValidationResult</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -1205,7 +1205,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-14 21:01:44 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-01-15 03:37:09 UTC</small>
       </div>
     </div>
   </div>
