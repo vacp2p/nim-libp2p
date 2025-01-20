@@ -81,7 +81,7 @@ method dial*(
 
   doAssert(false, "[Transport.dial] abstract method not implemented!")
 
-proc dial*(
+method dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
 ): Future[Connection] {.gcsafe.} =
   self.dial("", address)
