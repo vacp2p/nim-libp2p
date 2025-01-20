@@ -40,14 +40,11 @@ type
 
 proc timeoutMonitor(s: Connection) {.async: (raises: []).}
 
-func shortLog*(conn: Connection): string =
-  try:
-    if conn == nil:
-      "Connection(nil)"
-    else:
-      &"{shortLog(conn.peerId)}:{conn.oid}"
-  except ValueError as exc:
-    raiseAssert(exc.msg)
+method shortLog*(conn: Connection): string {.raises: [].} =
+  if conn == nil:
+    "Connection(nil)"
+  else:
+    &"{shortLog(conn.peerId)}:{conn.oid}:{conn.protocol}"
 
 chronicles.formatIt(Connection):
   shortLog(it)
