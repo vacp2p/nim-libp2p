@@ -72,7 +72,7 @@ method dial*(
 
   doAssert(false, "Not implemented!")
 
-proc dial*(
+method dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
 ): Future[Connection] {.gcsafe.} =
   self.dial("", address)
