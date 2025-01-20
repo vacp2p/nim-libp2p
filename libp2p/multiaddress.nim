@@ -306,6 +306,32 @@ proc onion3VB(vb: var VBuffer): bool =
   if vb.readArray(buf) == 37:
     result = true
 
+proc mixStB(s: string, vb: var VBuffer): bool =
+  ## Mix address stringToBuffer() implementation.
+  try:
+    if s.len != 53:
+      return false
+    let peerIdBytes = Base58.decode(s)
+    if peerIdBytes.len != 39:
+      return false
+    vb.writeArray(peerIdBytes)
+    result = true
+  except CatchableError:
+    discard
+
+proc mixBtS(vb: var VBuffer, s: var string): bool =
+  ## Mix address bufferToString() implementation.
+  var buf: array[39, byte]
+  if vb.readArray(buf) == 39:
+    s = Base58.encode(buf)
+    result = true
+
+proc mixVB(vb: var VBuffer): bool =
+  ## Mix address validateBuffer() implementation.
+  var buf: array[39, byte]
+  if vb.readArray(buf) == 39:
+    result = true
+
 proc unixStB(s: string, vb: var VBuffer): bool =
   ## Unix socket name stringToBuffer() implementation.
   pathStringToBuffer(s, vb)
@@ -365,6 +391,9 @@ const
   TranscoderOnion3* = Transcoder(
     stringToBuffer: onion3StB, bufferToString: onion3BtS, validateBuffer: onion3VB
   )
+  TranscoderMix* = Transcoder(
+    stringToBuffer: mixStB, bufferToString: mixBtS, validateBuffer: mixVB
+  )
   TranscoderDNS* =
     Transcoder(stringToBuffer: dnsStB, bufferToString: dnsBtS, validateBuffer: dnsVB)
   TranscoderMemory* = Transcoder(
@@ -392,6 +421,9 @@ const
     ),
     MAProtocol(
       mcodec: multiCodec("onion3"), kind: Fixed, size: 37, coder: TranscoderOnion3
+    ),
+    MAProtocol(
+      mcodec: multiCodec("mix"), kind: Fixed, size: 39, coder: TranscoderMix
     ),
     MAProtocol(mcodec: multiCodec("ws"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("wss"), kind: Marker, size: 0),
@@ -449,6 +481,8 @@ const
   WebSockets* = mapOr(WS, WSS)
   Onion3* = mapEq("onion3")
   TcpOnion3* = mapAnd(TCP, Onion3)
+  Mix* = mapEq("mix")
+  TcpMix* = mapAnd(TCP, Mix)
 
   Unreliable* = mapOr(UDP)
 
