@@ -81,7 +81,8 @@ type
   PubSubPeerEvent* = object
     kind*: PubSubPeerEventKind
 
-  GetConn* = proc(): Future[Connection] {.async: (raises: [CancelledError, GetConnDialError]).}
+  GetConn* =
+    proc(): Future[Connection] {.async: (raises: [CancelledError, GetConnDialError]).}
   DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [].}
     # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
@@ -123,9 +124,8 @@ type
       # The max number of elements allowed in the non-priority queue.
     disconnected: bool
 
-  RPCHandler* = proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.
-    async: (raises: [])
-  .}
+  RPCHandler* =
+    proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.async: (raises: []).}
 
 when defined(libp2p_agents_metrics):
   func shortAgent*(p: PubSubPeer): string =

@@ -165,7 +165,7 @@ type
   ): Future[bool] {.gcsafe, raises: [CatchableError].}
   P2PPubSubCallback2* = proc(
     api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.async:(raises: [CatchableError]).}
+  ): Future[bool] {.async: (raises: [CatchableError]).}
   DaemonError* = object of LPError
   DaemonRemoteError* = object of DaemonError
   DaemonLocalError* = object of DaemonError
@@ -1512,9 +1512,14 @@ proc pubsubSubscribe*(
 
 proc pubsubSubscribe*(
     api: DaemonAPI, topic: string, handler: P2PPubSubCallback
-): Future[PubsubTicket] {.async: (raises: [CatchableError]), deprecated: "Use P2PPubSubCallback2 instead".} =
-  proc wrap(api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage): Future[bool] {.async:(raises: [CatchableError]).} =
+): Future[PubsubTicket] {.
+    async: (raises: [CatchableError]), deprecated: "Use P2PPubSubCallback2 instead"
+.} =
+  proc wrap(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async: (raises: [CatchableError]).} =
     await handler(api, ticket, message)
+
   await pubsubSubscribe(api, topic, wrap)
 
 proc shortLog*(pinfo: PeerInfo): string =

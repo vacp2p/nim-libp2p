@@ -27,8 +27,10 @@ randomize()
 type TestGossipSub* = ref object of GossipSub
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
-  proc getConn(): Future[Connection] {.async: (raises: [CancelledError, GetConnDialError]).} =
-    try: 
+  proc getConn(): Future[Connection] {.
+      async: (raises: [CancelledError, GetConnDialError])
+  .} =
+    try:
       return await p.switch.dial(peerId, GossipSubCodec_12)
     except CancelledError as exc:
       raise exc
