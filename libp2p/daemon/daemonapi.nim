@@ -162,7 +162,7 @@ type
   .}
   P2PPubSubCallback* = proc(
     api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.gcsafe, async: (raises: [CatchableError]).}
+  ): Future[bool] {.async: (raises: [CatchableError]).}
 
   DaemonError* = object of LPError
   DaemonRemoteError* = object of DaemonError
