@@ -81,7 +81,7 @@ type
   PubSubPeerEvent* = object
     kind*: PubSubPeerEventKind
 
-  GetConn* = proc(): Future[Connection] {.async: (raises: [GetConnDialError]).}
+  GetConn* = proc(): Future[Connection] {.async: (raises: [CancelledError, GetConnDialError]).}
   DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [].}
     # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
