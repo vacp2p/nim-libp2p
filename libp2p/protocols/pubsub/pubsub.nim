@@ -259,7 +259,7 @@ proc broadcast*(
 
   trace "broadcasting messages to peers", peers = sendPeers.len, payload = shortLog(msg)
 
-  if anyIt(sendPeers, it.hasObservers):
+  if anyIt(sendPeers, it.hasBeforeSendObservers):
     for peer in sendPeers:
       p.send(peer, msg, isHighPriority)
   else:
@@ -374,7 +374,7 @@ method getOrCreatePeer*(
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
-  pubSubPeer.observers = p.observers
+  pubSubPeer.setObservers(p.observers)
 
   onNewPeer(p, pubSubPeer)
 
@@ -553,9 +553,12 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
 
   p.updateTopicMetrics(topic)
 
-method publish*(
+# `Non-public` overridable interface for publshing messages.
+# Although it must be exported, this not intended to call from outside by class users, 
+# but call `publish` or `publishEx` interfaces.
+method doPublish*(
     p: PubSub, topic: string, data: seq[byte]
-): Future[int] {.base, async: (raises: []), public.} =
+): Future[int] {.base, async: (raises: []).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
@@ -566,6 +569,27 @@ method publish*(
     await handleData(p, topic, data)
 
   return 0
+
+proc publish*(
+    p: PubSub, topic: string, data: seq[byte]
+): Future[int] {.async: (raises: []), public.} =
+  try:
+    return await p.doPublish(topic, data)
+  except LPError:
+    # won't let exception propagate further from this interface.
+    # keep original behavior for unprepared users, any error results that 
+    # message relayed to no - 0 - peers 
+    # Assuming errors logged in place they occured.
+    return 0
+
+# Extended publish interface: it will raise exceptions in case any issue happaned
+# while publishing message, even found if no peers to relay it.
+# Will effectively return the number of peers the message is successfully try-send.
+# Notice: interface may change in future for better support heavy users like waku.
+proc publishEx*(
+    p: PubSub, topic: string, data: seq[byte]
+): Future[int] {.async: (raises: [LPError]), public.} =
+  return await p.doPublish(topic, data)
 
 method initPubSub*(p: PubSub) {.base, raises: [InitializationError].} =
   ## perform pubsub initialization

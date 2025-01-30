@@ -24,6 +24,7 @@ import
   ../../peerinfo,
   ../../utility
 
+export pubsub
 ## Simple flood-based publishing.
 
 logScope:
@@ -192,11 +193,11 @@ method init*(f: FloodSub) =
   f.handler = handler
   f.codec = FloodSubCodec
 
-method publish*(
+method doPublish*(
     f: FloodSub, topic: string, data: seq[byte]
 ): Future[int] {.async: (raises: []).} =
   # base returns always 0
-  discard await procCall PubSub(f).publish(topic, data)
+  discard await procCall PubSub(f).doPublish(topic, data)
 
   trace "Publishing message on topic", data = data.shortLog, topic
 

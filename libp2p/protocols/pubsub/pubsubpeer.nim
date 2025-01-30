@@ -68,7 +68,8 @@ type
 
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
-    onSend*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+    onAfterSent*: proc(peer: PubSubPeer, msgs: RPCMsg) {.gcsafe, raises: [].}
+    onBeforeSend*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
     onValidated*:
       proc(peer: PubSubPeer, msg: Message, msgId: MessageId) {.gcsafe, raises: [].}
 
@@ -103,7 +104,7 @@ type
     address*: Option[MultiAddress]
     peerId*: PeerId
     handler*: RPCHandler
-    observers*: ref seq[PubSubObserver] # ref as in smart_ptr
+    observers: ref seq[PubSubObserver] # ref as in smart_ptr
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
@@ -160,15 +161,21 @@ chronicles.formatIt(PubSubPeer):
 proc connected*(p: PubSubPeer): bool =
   not p.sendConn.isNil and not (p.sendConn.closed or p.sendConn.atEof)
 
-proc hasObservers*(p: PubSubPeer): bool =
-  p.observers != nil and anyIt(p.observers[], it != nil)
-
 func outbound*(p: PubSubPeer): bool =
   # gossipsub 1.1 spec requires us to know if the transport is outgoing
   # in order to give priotity to connections we make
   # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#outbound-mesh-quotas
   # This behaviour is presrcibed to counter sybil attacks and ensures that a coordinated inbound attack can never fully take over the mesh
   if not p.sendConn.isNil and p.sendConn.transportDir == Direction.Out: true else: false
+
+proc setObservers*(p: PubSubPeer, observers: ref seq[PubSubObserver]) =
+  p.observers = observers
+
+proc hasObservers*(p: PubSubPeer): bool =
+  p.observers != nil and anyIt(p.observers[], it != nil)
+
+proc hasBeforeSendObservers*(p: PubSubPeer): bool =
+  p.observers != nil and anyIt(p.observers[], it != nil and it.onBeforeSend != nil)
 
 proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -185,13 +192,21 @@ proc validatedObservers*(p: PubSubPeer, msg: Message, msgId: MessageId) =
       if not (isNil(obs.onValidated)):
         obs.onValidated(p, msg, msgId)
 
-proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
+proc beforeSendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
   if not (isNil(p.observers)) and p.observers[].len > 0:
     for obs in p.observers[]:
       if not (isNil(obs)): # TODO: should never be nil, but...
-        if not (isNil(obs.onSend)):
-          obs.onSend(p, msg)
+        if not (isNil(obs.onBeforeSend)):
+          obs.onBeforeSend(p, msg)
+
+proc afterSentObservers(p: PubSubPeer, msg: RPCMsg) =
+  # trigger hooks
+  if not (isNil(p.observers)) and p.observers[].len > 0:
+    for obs in p.observers[]:
+      if not (isNil(obs)): # TODO: should never be nil, but...
+        if not (isNil(obs.onAfterSent)):
+          obs.onAfterSent(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
   debug "starting pubsub read loop", conn, peer = p, closed = conn.closed
@@ -475,10 +490,10 @@ proc send*(
   # some forms of valid but redundantly encoded protobufs with unknown or
   # duplicated fields
   let encoded =
-    if p.hasObservers():
+    if p.hasBeforeSendObservers():
       var mm = msg
       # trigger send hooks
-      p.sendObservers(mm)
+      p.beforeSendObservers(mm)
       sendMetrics(mm)
       encodeRpcMsg(mm, anonymize)
     else:
@@ -494,6 +509,8 @@ proc send*(
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
     asyncSpawn p.sendEncoded(encoded, isHighPriority)
+
+  p.afterSentObservers(msg)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():

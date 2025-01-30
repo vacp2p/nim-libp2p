@@ -15,7 +15,6 @@ import std/[sets, sequtils]
 import chronos, chronicles, metrics
 import chronos/ratelimit
 import
-  ./pubsub,
   ./floodsub,
   ./pubsubpeer,
   ./peertable,
@@ -34,7 +33,7 @@ export results
 
 import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 
-export types, scoring, behavior, pubsub
+export types, scoring, behavior, floodsub
 
 logScope:
   topics = "libp2p gossipsub"
@@ -703,7 +702,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-method publish*(
+method doPublish*(
     g: GossipSub, topic: string, data: seq[byte]
 ): Future[int] {.async: (raises: []).} =
   logScope:
@@ -711,10 +710,10 @@ method publish*(
 
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish"
-    return 0
+    raise newException(NoTopicSpecifiedError, "Empty topic, skipping publish")
 
   # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
+  discard await procCall PubSub(g).doPublish(topic, data)
 
   trace "Publishing message on topic", data = data.shortLog
 
@@ -777,7 +776,7 @@ method publish*(
       connectedPeers = topicPeers.filterIt(it.connected).len,
       topic
     libp2p_gossipsub_failed_publish.inc()
-    return 0
+    raise newException(NoPeersToPublishError, "No peers for topic, skipping publish")
 
   let
     msg =
@@ -789,7 +788,9 @@ method publish*(
     msgId = g.msgIdProvider(msg).valueOr:
       trace "Error generating message id, skipping publish", error = error
       libp2p_gossipsub_failed_publish.inc()
-      return 0
+      raise newException(
+        GeneratingMessageIdError, "Error generating message id, skipping publish"
+      )
 
   logScope:
     msgId = shortLog(msgId)
@@ -801,7 +802,7 @@ method publish*(
     # this might happen when not using sequence id:s and / or with a custom
     # message id provider
     trace "Dropping already-seen message"
-    return 0
+    raise newException(DuplicateMessageError, "Duplicate message, skipping publish")
 
   g.mcache.put(msgId, msg)
 
