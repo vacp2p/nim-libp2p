@@ -205,6 +205,7 @@ proc remoteClosed(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedRemotely.isSet():
     channel.closedRemotely.fire()
     await channel.actuallyClose()
+  channel.isClosedRemotely = true
 
 method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedLocally:
@@ -632,7 +633,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
     await m.close()
   trace "Stopped yamux handler"
 
-method getStreams*(m: Yamux): seq[Connection] =
+method getStreams*(m: Yamux): seq[Connection] {.gcsafe.} =
   for c in m.channels.values:
     result.add(c)
 
