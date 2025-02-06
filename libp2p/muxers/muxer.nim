@@ -67,5 +67,5 @@ proc new*(
   let muxerProvider = T(newMuxer: creator, codec: codec)
   muxerProvider
 
-method getStreams*(m: Muxer): seq[Connection] {.base.} =
+method getStreams*(m: Muxer): seq[Connection] {.base, gcsafe.} =
   raiseAssert("Not implemented!")

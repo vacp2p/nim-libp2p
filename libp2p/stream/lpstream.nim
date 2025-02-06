@@ -43,6 +43,7 @@ type
     oid*: Oid
     dir*: Direction
     closedWithEOF: bool # prevent concurrent calls
+    isClosedRemotely*: bool
 
   LPStreamError* = object of LPError
   LPStreamIncompleteError* = object of LPStreamError
