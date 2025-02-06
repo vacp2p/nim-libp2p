@@ -374,6 +374,18 @@ proc generate*(
   # Set the MD algorithm
   mbedtls_x509write_crt_set_md_alg(addr crt, SIGNATURE_ALG)
 
+  # Generate a random serial number
+  const SERIAL_LEN = 20
+  var serialBuffer: array[SERIAL_LEN, byte]
+  ret = mbedtls_ctr_drbg_random(addr ctrDrbg, addr serialBuffer[0], SERIAL_LEN);
+  if ret != 0:
+    raise newException(CertificateCreationError, "Failed to generate serial number")
+
+  # Set the serial number
+  ret = mbedtls_x509write_crt_set_serial_raw(addr crt, addr serialBuffer[0], SERIAL_LEN);
+  if ret != 0:
+    raise newException(CertificateCreationError, "Failed to set serial number")
+
   # Prepare Buffer for Certificate Serialization
   const CERT_BUFFER_SIZE = 4096
   var
