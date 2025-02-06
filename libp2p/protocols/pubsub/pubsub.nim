@@ -555,7 +555,7 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
 
 method publish*(
     p: PubSub, topic: string, data: seq[byte]
-): Future[int] {.base, async: (raises: [LPError]), public.} =
+): Future[int] {.base, async: (raises: []), public.} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the

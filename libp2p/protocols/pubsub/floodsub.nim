@@ -194,7 +194,7 @@ method init*(f: FloodSub) =
 
 method publish*(
     f: FloodSub, topic: string, data: seq[byte]
-): Future[int] {.async: (raises: [LPError]).} =
+): Future[int] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
 
