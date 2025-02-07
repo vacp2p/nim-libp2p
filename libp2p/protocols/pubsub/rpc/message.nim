@@ -65,7 +65,10 @@ proc init*(
     topic: string,
     seqno: Option[uint64],
     sign: bool = true,
-): Message {.gcsafe, raises: [LPError].} =
+): Message {.gcsafe, raises: [].} =
+  if sign and peer.isNone():
+    doAssert(false, "Cannot sign message without peer info")
+
   var msg = Message(data: data, topic: topic)
 
   # order matters, we want to include seqno in the signature
@@ -81,9 +84,6 @@ proc init*(
         .expect("Invalid private key!")
         .getBytes()
         .expect("Couldn't get public key bytes!")
-  else:
-    if sign:
-      raise (ref LPError)(msg: "Cannot sign message without peer info")
 
   msg
 
