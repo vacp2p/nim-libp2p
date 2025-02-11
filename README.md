@@ -145,9 +145,8 @@ The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-st
 <table>
   <tbody>
     <tr>
-      <td align="center"><a href="https://github.com/Menduist"><img src="https://avatars.githubusercontent.com/u/13471753?v=4?s=100" width="100px;" alt="Tanguy"/><br /><sub><b>Tanguy (Menduist)</b></sub></a></td>
-      <td align="center"><a href="https://github.com/lchenut"><img src="https://avatars.githubusercontent.com/u/11214565?v=4?s=100" width="100px;" alt="Ludovic"/><br /><sub><b>Ludovic</b></sub></a></td>
-      <td align="center"><a href="https://github.com/diegomrsantos"><img src="https://avatars.githubusercontent.com/u/7316595?v=4?s=100" width="100px;" alt="Diego"/><br /><sub><b>Diego</b></sub></a></td>
+      <td align="center"><a href="https://github.com/richard-ramos"><img src="https://avatars.githubusercontent.com/u/1106587?v=4?s=100" width="100px;" alt="Richard"/><br /><sub><b>Richard</b></sub></a></td>
+      <td align="center"><a href="https://github.com/vladopajic"><img src="https://avatars.githubusercontent.com/u/4353513?v=4?s=100" width="100px;" alt="Vlado"/><br /><sub><b>Vlado</b></sub></a></td>
     </tr>
   </tbody>
 </table>
