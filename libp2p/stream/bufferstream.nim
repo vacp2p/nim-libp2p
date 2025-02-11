@@ -44,8 +44,7 @@ chronicles.formatIt(BufferStream):
 
 proc len*(s: BufferStream): int =
   s.readBuf.len + (if s.readQueue.len > 0: s.readQueue[0].len()
-  else: 0
-  )
+  else: 0)
 
 method initStream*(s: BufferStream) =
   if s.objName.len == 0:

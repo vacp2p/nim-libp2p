@@ -214,8 +214,7 @@ proc networking(g: Game) {.async.} =
         # We are "player 2"
         swap(g.localPlayer, g.remotePlayer)
       except CatchableError as exc:
-        discard
-    ,
+        discard,
   )
 
   await switch.start()
@@ -268,14 +267,11 @@ nico.init("Status", "Tron")
 nico.createWindow("Tron", mapSize * 4, mapSize * 4, 4, false)
 nico.run(
   proc() =
-    discard
-  ,
+    discard,
   proc(dt: float32) =
-    game.update(dt)
-  ,
+    game.update(dt),
   proc() =
-    game.draw()
-  ,
+    game.draw(),
 )
 waitFor(netFut.cancelAndWait())
 

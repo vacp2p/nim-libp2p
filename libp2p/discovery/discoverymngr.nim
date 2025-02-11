@@ -38,8 +38,7 @@ proc add*[T](pa: var PeerAttributes, value: T) =
     Attribute[T](
       value: value,
       comparator: proc(f: BaseAttr, c: BaseAttr): bool =
-        f.ofType(T) and c.ofType(T) and f.to(T) == c.to(T)
-      ,
+        f.ofType(T) and c.ofType(T) and f.to(T) == c.to(T),
     )
   )
 

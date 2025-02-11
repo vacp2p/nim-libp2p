@@ -86,8 +86,7 @@ proc connect*(
       if localAddress.isSome():
         initTAddress(localAddress.expect("just checked")).tryGet()
       else:
-        TransportAddress()
-      ,
+        TransportAddress(),
       flags,
     )
   do:

@@ -92,8 +92,7 @@ proc new*(
       when maxIncomingStreams is int:
         Opt.some(maxIncomingStreams)
       else:
-        maxIncomingStreams
-    ,
+        maxIncomingStreams,
   )
 
 proc new*[E](

@@ -9,8 +9,7 @@ type
   SwitchCreator = proc(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     prov: TransportProvider = proc(upgr: Upgrade): Transport =
-      TcpTransport.new({}, upgr)
-    ,
+      TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true),
   ): Switch {.gcsafe, raises: [LPError].}
   DaemonPeerInfo = daemonapi.PeerInfo
@@ -301,8 +300,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       let nativeNode = swCreator(
         ma = wsAddress,
         prov = proc(upgr: Upgrade): Transport =
-          WsTransport.new(upgr)
-        ,
+          WsTransport.new(upgr),
       )
 
       nativeNode.mount(proto)

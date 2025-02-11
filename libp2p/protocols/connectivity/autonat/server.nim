@@ -47,8 +47,7 @@ proc sendResponseError(
       if text == "":
         Opt.none(string)
       else:
-        Opt.some(text)
-    ,
+        Opt.some(text),
     ma: Opt.none(MultiAddress),
   ).encode()
   await conn.writeLp(pb.buffer)
