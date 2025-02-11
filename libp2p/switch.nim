@@ -33,7 +33,8 @@ import
   peerstore,
   errors,
   utility,
-  dialer
+  dialer,
+  ./muxers/muxer
 
 export connmanager, upgrade, dialer, peerstore
 
@@ -200,7 +201,16 @@ proc mount*[T: LPProtocol](
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
 
-proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
+proc upgrader(
+    switch: Switch, trans: Transport, conn: Connection
+) {.
+    async: (
+      raises: [
+        CancelledError, LPError, LPStreamError, MultiStreamError, MuxerError,
+        IdentityInvalidMsgError, IdentityNoMatchError,
+      ]
+    )
+.} =
   let muxed = await trans.upgrade(conn, Opt.none(PeerId))
   switch.connManager.storeMuxer(muxed)
   await switch.peerStore.identify(muxed)
@@ -211,7 +221,7 @@ proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
 
 proc upgradeMonitor(
     switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
-) {.async.} =
+) {.async: (raises: []).} =
   try:
     await switch.upgrader(trans, conn).wait(30.seconds)
   except CatchableError as exc:
@@ -223,7 +233,7 @@ proc upgradeMonitor(
   finally:
     upgrades.release()
 
-proc accept(s: Switch, transport: Transport) {.async.} = # noraises
+proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
 
