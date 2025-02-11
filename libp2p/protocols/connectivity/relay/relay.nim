@@ -334,8 +334,7 @@ proc setup*(r: Relay, switch: Switch) =
   r.switch = switch
   r.switch.addPeerEventHandler(
     proc(peerId: PeerId, event: PeerEvent) {.async.} =
-      r.rsvp.del(peerId)
-    ,
+      r.rsvp.del(peerId),
     Left,
   )
 

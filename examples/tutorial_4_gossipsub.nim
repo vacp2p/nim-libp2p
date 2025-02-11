@@ -79,8 +79,7 @@ proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
       let decoded = MetricList.decode(message.data)
       if decoded.isErr:
         return ValidationResult.Reject
-      return ValidationResult.Accept
-    ,
+      return ValidationResult.Accept,
   )
   # This "validator" will attach to the `metrics` topic and make sure
   # that every message in this topic is valid. This allows us to stop
