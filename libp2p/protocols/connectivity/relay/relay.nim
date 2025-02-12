@@ -359,7 +359,9 @@ proc new*(
     isCircuitRelayV1: circuitRelayV1,
   )
 
-  proc handleStream(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handleStream(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     try:
       case proto
       of RelayV2HopCodec:
