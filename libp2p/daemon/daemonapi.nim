@@ -583,6 +583,25 @@ proc listPeers*(
   )
 .}
 
+template exceptionToAssert(body: untyped): untyped =
+  block:
+    var res: type(body)
+    when defined(nimHasWarnBareExcept):
+      {.push warning[BareExcept]: off.}
+    try:
+      res = body
+    except OSError as exc:
+      raise exc
+    except IOError as exc:
+      raise exc
+    except Defect as exc:
+      raise exc
+    except Exception as exc:
+      raiseAssert exc.msg
+    when defined(nimHasWarnBareExcept):
+      {.pop.}
+    res
+
 proc copyEnv(): StringTableRef =
   ## This procedure copy all environment variables into StringTable.
   result = newStringTable(modeStyleInsensitive)
@@ -608,7 +627,7 @@ proc newDaemonApi*(
 ): Future[DaemonAPI] {.
     async: (
       raises:
-        [ValueError, DaemonLocalError, CancelledError, OSError, LPError, CatchableError]
+        [ValueError, DaemonLocalError, CancelledError, LPError, OSError, IOError, CatchableError]
     )
 .} =
   ## Initialize connection to `go-libp2p-daemon` control socket.
