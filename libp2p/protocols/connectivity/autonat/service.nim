@@ -198,7 +198,9 @@ proc addressMapper(
     addrs.add(processedMA)
   return addrs
 
-method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
+method setup*(
+    self: AutonatService, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError, CatchableError]).} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async.} =

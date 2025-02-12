@@ -36,7 +36,7 @@ proc isRunning*(self: AutoRelayService): bool =
 
 proc addressMapper(
     self: AutoRelayService, listenAddrs: seq[MultiAddress]
-): Future[seq[MultiAddress]] {.async.} =
+): Future[seq[MultiAddress]] {.async: (raises: []).} =
   return concat(toSeq(self.relayAddresses.values)) & listenAddrs
 
 proc reserveAndUpdate(
@@ -58,7 +58,9 @@ proc reserveAndUpdate(
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
-method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
+method setup*(
+    self: AutoRelayService, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError, CatchableError]).} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async.} =
@@ -87,19 +89,24 @@ proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
   self.backingOff.keepItIf(it != pid)
   self.peerAvailable.fire()
 
-proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
+proc innerRun(
+    self: AutoRelayService, switch: Switch
+) {.async: (raises: [CancelledError]).} =
   while true:
     # Remove relayPeers that failed
     let peers = toSeq(self.relayPeers.keys())
     for k in peers:
-      if self.relayPeers[k].finished():
-        self.relayPeers.del(k)
-        self.relayAddresses.del(k)
-        if not self.onReservation.isNil():
-          self.onReservation(concat(toSeq(self.relayAddresses.values)))
-        # To avoid ddosing our peers in certain conditions
-        self.backingOff.add(k)
-        asyncSpawn self.manageBackedOff(k)
+      try:
+        if self.relayPeers[k].finished():
+          self.relayPeers.del(k)
+          self.relayAddresses.del(k)
+          if not self.onReservation.isNil():
+            self.onReservation(concat(toSeq(self.relayAddresses.values)))
+          # To avoid ddosing our peers in certain conditions
+          self.backingOff.add(k)
+          asyncSpawn self.manageBackedOff(k)
+      except KeyError:
+        discard
 
     # Get all connected relayPeers
     self.peerAvailable.clear()
@@ -115,9 +122,9 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
         break
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch)
 
-    if self.relayPeers.len() > 0:
+    try:
       await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
-    else:
+    except ValueError:
       await self.peerAvailable.wait()
 
 method run*(self: AutoRelayService, switch: Switch) {.async.} =

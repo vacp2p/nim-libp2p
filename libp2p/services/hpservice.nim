@@ -89,7 +89,9 @@ proc newConnectedPeerHandler(
   except CatchableError as err:
     debug "Hole punching failed during dcutr", err = err.msg
 
-method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
+method setup*(
+    self: HPService, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError, CatchableError]).} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 

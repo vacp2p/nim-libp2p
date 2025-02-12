@@ -148,7 +148,7 @@ proc expandWildcardAddresses(
 
 method setup*(
     self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError, CatchableError]).} =
   ## Sets up the `WildcardAddressResolverService`.
   ##
   ## This method adds the address mapper to the peer's list of address mappers.

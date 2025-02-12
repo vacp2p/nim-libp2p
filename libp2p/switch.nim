@@ -64,7 +64,9 @@ type
   Service* = ref object of RootObj
     inUse: bool
 
-method setup*(self: Service, switch: Switch): Future[bool] {.base, async.} =
+method setup*(
+    self: Service, switch: Switch
+): Future[bool] {.base, async: (raises: [CancelledError, CatchableError]).} =
   if self.inUse:
     warn "service setup has already been called"
     return false
