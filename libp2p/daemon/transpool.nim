@@ -55,7 +55,7 @@ proc newPool*(
     address: TransportAddress,
     poolsize: int = DefaultPoolSize,
     bufferSize = DefaultStreamBufferSize,
-): Future[TransportPool] {.async.} =
+): Future[TransportPool] {.async: (raises: [CatchableError]).} =
   ## Establish pool of connections to address ``address`` with size
   ## ``poolsize``.
   var pool = new TransportPool
@@ -80,7 +80,9 @@ proc newPool*(
   pool.state = Connected
   result = pool
 
-proc acquire*(pool: TransportPool): Future[StreamTransport] {.async.} =
+proc acquire*(
+    pool: TransportPool
+): Future[StreamTransport] {.async: (raises: [CancelledError, TransportPoolError]).} =
   ## Acquire non-busy connection from pool ``pool``.
   var transp: StreamTransport
   if pool.state in {Connected}:
@@ -102,7 +104,9 @@ proc acquire*(pool: TransportPool): Future[StreamTransport] {.async.} =
     raise newException(TransportPoolError, "Pool is not ready!")
   result = transp
 
-proc release*(pool: TransportPool, transp: StreamTransport) =
+proc release*(
+    pool: TransportPool, transp: StreamTransport
+) {.async: (raises: [TransportPoolError]).} =
   ## Release connection ``transp`` back to pool ``pool``.
   if pool.state in {Connected, Closing}:
     var found = false
@@ -118,7 +122,9 @@ proc release*(pool: TransportPool, transp: StreamTransport) =
   else:
     raise newException(TransportPoolError, "Pool is not ready!")
 
-proc join*(pool: TransportPool) {.async.} =
+proc join*(
+    pool: TransportPool
+) {.async: (raises: [TransportPoolError, CancelledError]).} =
   ## Waiting for all connection to become available.
   if pool.state in {Connected, Closing}:
     while true:
@@ -130,7 +136,9 @@ proc join*(pool: TransportPool) {.async.} =
   elif pool.state == Connecting:
     raise newException(TransportPoolError, "Pool is not ready!")
 
-proc close*(pool: TransportPool) {.async.} =
+proc close*(
+    pool: TransportPool
+) {.async: (raises: [TransportPoolError, CatchableError]).} =
   ## Closes transports pool ``pool`` and release all resources.
   if pool.state == Connected:
     pool.state = Closing
