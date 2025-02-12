@@ -67,7 +67,9 @@ proc connect*(
     child: StreamTransport = nil,
     flags = default(set[SocketFlags]),
     localAddress: Opt[MultiAddress] = Opt.none(MultiAddress),
-): Future[StreamTransport] {.async.} =
+): Future[StreamTransport] {.
+    async: (raises: [MaInvalidAddress, TransportError, CancelledError, LPError])
+.} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.

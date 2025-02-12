@@ -512,7 +512,11 @@ proc recvMessage(
 
   result = buffer
 
-proc newConnection*(api: DaemonAPI): Future[StreamTransport] {.raises: [LPError].} =
+proc newConnection*(
+    api: DaemonAPI
+): Future[StreamTransport] {.
+    raises: [MaInvalidAddress, TransportError, CancelledError, LPError]
+.} =
   result = connect(api.address)
 
 proc closeConnection*(api: DaemonAPI, transp: StreamTransport): Future[void] =
@@ -571,8 +575,12 @@ proc getSocket(
 proc listPeers*(
   api: DaemonAPI
 ): Future[seq[PeerInfo]] {.
-  async:
-    (raises: [ValueError, DaemonLocalError, CancelledError, OSError, CatchableError])
+  async: (
+    raises: [
+      ValueError, DaemonLocalError, OSError, MaInvalidAddress, TransportError,
+      CancelledError, LPError, CatchableError,
+    ]
+  )
 .}
 
 proc copyEnv(): StringTableRef =
@@ -867,7 +875,12 @@ proc getPeerInfo(pb: ProtoBuffer): PeerInfo {.raises: [DaemonLocalError].} =
 
 proc identity*(
     api: DaemonAPI
-): Future[PeerInfo] {.async: (raises: [LPError, CancelledError, CatchableError]).} =
+): Future[PeerInfo] {.
+    async: (
+      raises:
+        [MaInvalidAddress, TransportError, CancelledError, LPError, CatchableError]
+    )
+.} =
   ## Get Node identity information
   var transp = await api.newConnection()
   try:
@@ -882,7 +895,12 @@ proc identity*(
 
 proc connect*(
     api: DaemonAPI, peer: PeerId, addresses: seq[MultiAddress], timeout = 0
-) {.async: (raises: [LPError, CatchableError]).} =
+) {.
+    async: (
+      raises:
+        [MaInvalidAddress, TransportError, CancelledError, LPError, CatchableError]
+    )
+.} =
   ## Connect to remote peer with id ``peer`` and addresses ``addresses``.
   var transp = await api.newConnection()
   try:
@@ -894,7 +912,12 @@ proc connect*(
 
 proc disconnect*(
     api: DaemonAPI, peer: PeerId
-) {.async: (raises: [LPError, CatchableError, TransportError]).} =
+) {.
+    async: (
+      raises:
+        [MaInvalidAddress, TransportError, CancelledError, LPError, CatchableError]
+    )
+.} =
   ## Disconnect from remote peer with id ``peer``.
   var transp = await api.newConnection()
   try:
@@ -906,7 +929,12 @@ proc disconnect*(
 
 proc openStream*(
     api: DaemonAPI, peer: PeerId, protocols: seq[string], timeout = 0
-): Future[P2PStream] {.async: (raises: [LPError, CatchableError]).} =
+): Future[P2PStream] {.
+    async: (
+      raises:
+        [MaInvalidAddress, TransportError, CancelledError, LPError, CatchableError]
+    )
+.} =
   ## Open new stream to peer ``peer`` using one of the protocols in
   ## ``protocols``. Returns ``StreamTransport`` for the stream.
   var transp = await api.newConnection()
@@ -951,7 +979,10 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
 
 proc addHandler*(
     api: DaemonAPI, protocols: seq[string], handler: P2PStreamCallback
-) {.async, raises: [LPError].} =
+) {.
+    async,
+    raises: [MaInvalidAddress, TransportError, CancelledError, LPError, CatchableError]
+.} =
   ## Add stream handler ``handler`` for set of protocols ``protocols``.
   var transp = await api.newConnection()
   let maddress = await getSocket(api.pattern, addr api.ucounter)
@@ -976,8 +1007,12 @@ proc addHandler*(
 proc listPeers*(
     api: DaemonAPI
 ): Future[seq[PeerInfo]] {.
-    async:
-      (raises: [ValueError, DaemonLocalError, CancelledError, OSError, CatchableError])
+    async: (
+      raises: [
+        ValueError, DaemonLocalError, OSError, MaInvalidAddress, TransportError,
+        CancelledError, LPError, CatchableError,
+      ]
+    )
 .} =
   ## Get list of remote peers to which we are currently connected.
   var transp = await api.newConnection()
@@ -997,8 +1032,10 @@ proc cmTagPeer*(
     api: DaemonAPI, peer: PeerId, tag: string, weight: int
 ) {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Tag peer with id ``peer`` using ``tag`` and ``weight``.
@@ -1014,8 +1051,10 @@ proc cmUntagPeer*(
     api: DaemonAPI, peer: PeerId, tag: string
 ) {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Remove tag ``tag`` from peer with id ``peer``.
@@ -1031,8 +1070,10 @@ proc cmTrimPeers*(
     api: DaemonAPI
 ) {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Trim all connections.
@@ -1110,8 +1151,10 @@ proc dhtFindPeer*(
     api: DaemonAPI, peer: PeerId, timeout = 0
 ): Future[PeerInfo] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Find peer with id ``peer`` and return peer information ``PeerInfo``.
@@ -1130,8 +1173,10 @@ proc dhtGetPublicKey*(
     api: DaemonAPI, peer: PeerId, timeout = 0
 ): Future[PublicKey] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Get peer's public key from peer with id ``peer``.
@@ -1150,8 +1195,10 @@ proc dhtGetValue*(
     api: DaemonAPI, key: string, timeout = 0
 ): Future[seq[byte]] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Get value associated with ``key``.
@@ -1170,8 +1217,10 @@ proc dhtPutValue*(
     api: DaemonAPI, key: string, value: seq[byte], timeout = 0
 ) {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Associate ``value`` with ``key``.
@@ -1190,8 +1239,10 @@ proc dhtProvide*(
     api: DaemonAPI, cid: Cid, timeout = 0
 ) {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Provide content with id ``cid``.
@@ -1210,8 +1261,10 @@ proc dhtFindPeersConnectedToPeer*(
     api: DaemonAPI, peer: PeerId, timeout = 0
 ): Future[seq[PeerInfo]] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Find peers which are connected to peer with id ``peer``.
@@ -1241,8 +1294,10 @@ proc dhtGetClosestPeers*(
     api: DaemonAPI, key: string, timeout = 0
 ): Future[seq[PeerId]] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Get closest peers for ``key``.
@@ -1272,8 +1327,10 @@ proc dhtFindProviders*(
     api: DaemonAPI, cid: Cid, count: uint32, timeout = 0
 ): Future[seq[PeerInfo]] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Get ``count`` providers for content with id ``cid``.
@@ -1303,8 +1360,10 @@ proc dhtSearchValue*(
     api: DaemonAPI, key: string, timeout = 0
 ): Future[seq[seq[byte]]] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Search for value with ``key``, return list of values found.
@@ -1333,8 +1392,10 @@ proc pubsubGetTopics*(
     api: DaemonAPI
 ): Future[seq[string]] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Get list of topics this node is subscribed to.
@@ -1353,8 +1414,10 @@ proc pubsubListPeers*(
     api: DaemonAPI, topic: string
 ): Future[seq[PeerId]] {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Get list of peers we are connected to and which also subscribed to topic
@@ -1375,8 +1438,10 @@ proc pubsubPublish*(
     api: DaemonAPI, topic: string, value: seq[byte]
 ) {.
     async: (
-      raises:
-        [LPError, DaemonLocalError, TransportError, CancelledError, CatchableError]
+      raises: [
+        DaemonLocalError, MaInvalidAddress, TransportError, CancelledError, LPError,
+        CatchableError,
+      ]
     )
 .} =
   ## Get list of peer identifiers which are subscribed to topic ``topic``.
