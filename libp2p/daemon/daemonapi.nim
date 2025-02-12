@@ -626,8 +626,10 @@ proc newDaemonApi*(
     logLevel = IpfsLogLevel.Debug,
 ): Future[DaemonAPI] {.
     async: (
-      raises:
-        [ValueError, DaemonLocalError, CancelledError, LPError, OSError, IOError, CatchableError]
+      raises: [
+        ValueError, DaemonLocalError, CancelledError, LPError, OSError, IOError,
+        CatchableError,
+      ]
     )
 .} =
   ## Initialize connection to `go-libp2p-daemon` control socket.
