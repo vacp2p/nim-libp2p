@@ -718,7 +718,7 @@ proc new*(
   )
   logScope:
     topics = "libp2p discovery rendezvous"
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       let
         buf = await conn.readLp(4096)

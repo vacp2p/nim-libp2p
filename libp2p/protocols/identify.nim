@@ -148,7 +148,7 @@ proc new*(
   identify
 
 method init*(p: Identify) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
@@ -205,7 +205,7 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.pu
   identifypush
 
 proc init*(p: IdentifyPush) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling identify push", conn
     try:
       var message = await conn.readLp(64 * 1024)
