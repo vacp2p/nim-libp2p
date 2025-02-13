@@ -55,7 +55,7 @@ proc newPool*(
     address: TransportAddress,
     poolsize: int = DefaultPoolSize,
     bufferSize = DefaultStreamBufferSize,
-): Future[TransportPool] {.async: (raises: [CatchableError]).} =
+): Future[TransportPool] {.async: (raises: [CancelledError]).} =
   ## Establish pool of connections to address ``address`` with size
   ## ``poolsize``.
   var pool = new TransportPool
@@ -138,7 +138,7 @@ proc join*(
 
 proc close*(
     pool: TransportPool
-) {.async: (raises: [TransportPoolError, CatchableError]).} =
+) {.async: (raises: [TransportPoolError, CancelledError]).} =
   ## Closes transports pool ``pool`` and release all resources.
   if pool.state == Connected:
     pool.state = Closing

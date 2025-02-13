@@ -942,7 +942,7 @@ proc openStream*(
 ): Future[P2PStream] {.
     async: (
       raises:
-        [MaInvalidAddress, TransportError, CancelledError, LPError, CatchableError]
+        [MaInvalidAddress, TransportError, CancelledError, LPError, DaemonLocalError]
     )
 .} =
   ## Open new stream to peer ``peer`` using one of the protocols in
@@ -965,9 +965,9 @@ proc openStream*(
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  except CatchableError as exc:
+  except ResultError[ProtoError]:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(DaemonLocalError, "Wrong message type!")
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var api = getUserData[DaemonAPI](server)
@@ -990,13 +990,27 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
 proc addHandler*(
     api: DaemonAPI, protocols: seq[string], handler: P2PStreamCallback
 ) {.
-    async,
-    raises: [MaInvalidAddress, TransportError, CancelledError, LPError, CatchableError]
+    async: (
+      raises: [
+        MaInvalidAddress, DaemonLocalError, TransportError, CancelledError, LPError,
+        ValueError,
+      ]
+    )
 .} =
   ## Add stream handler ``handler`` for set of protocols ``protocols``.
   var transp = await api.newConnection()
   let maddress = await getSocket(api.pattern, addr api.ucounter)
   var server = createStreamServer(maddress, streamHandler, udata = api)
+
+  var removeHandler = proc(): Future[void] {.
+      async: (raises: [CancelledError, TransportError])
+  .} =
+    for item in protocols:
+      api.handlers.del(item)
+    server.stop()
+    server.close()
+    await server.join()
+
   try:
     for item in protocols:
       api.handlers[item] = handler
@@ -1004,13 +1018,15 @@ proc addHandler*(
     var pb = await transp.transactMessage(requestStreamHandler(maddress, protocols))
     pb.withMessage:
       api.servers.add(P2PServer(server: server, address: maddress))
-  except CatchableError as exc:
-    for item in protocols:
-      api.handlers.del(item)
-    server.stop()
-    server.close()
-    await server.join()
-    raise exc
+  except DaemonLocalError as e:
+    await removeHandler()
+    raise e
+  except TransportError as e:
+    await removeHandler()
+    raise e
+  except CancelledError as e:
+    await removeHandler()
+    raise e
   finally:
     await api.closeConnection(transp)
 
@@ -1445,7 +1461,11 @@ proc getPubsubMessage*(pb: ProtoBuffer): PubSubMessage =
 
 proc pubsubLoop(
     api: DaemonAPI, ticket: PubsubTicket
-) {.async: (raises: [TransportIncompleteError, CatchableError]).} =
+) {.
+    async: (
+      raises: [TransportIncompleteError, TransportError, CancelledError, CatchableError]
+    )
+.} =
   while true:
     var pbmessage = await ticket.transp.recvMessage()
     if len(pbmessage) == 0:
@@ -1461,7 +1481,12 @@ proc pubsubLoop(
 
 proc pubsubSubscribe*(
     api: DaemonAPI, topic: string, handler: P2PPubSubCallback
-): Future[PubsubTicket] {.async: (raises: [CatchableError]).} =
+): Future[PubsubTicket] {.
+    async: (
+      raises:
+        [MaInvalidAddress, TransportError, LPError, CancelledError, DaemonLocalError]
+    )
+.} =
   ## Subscribe to topic ``topic``.
   var transp = await api.newConnection()
   try:
@@ -1473,7 +1498,13 @@ proc pubsubSubscribe*(
       ticket.transp = transp
       asyncSpawn pubsubLoop(api, ticket)
       result = ticket
-  except CatchableError as exc:
+  except DaemonLocalError as exc:
+    await api.closeConnection(transp)
+    raise exc
+  except TransportError as exc:
+    await api.closeConnection(transp)
+    raise exc
+  except CancelledError as exc:
     await api.closeConnection(transp)
     raise exc
 
