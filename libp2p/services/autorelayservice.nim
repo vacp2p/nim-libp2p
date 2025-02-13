@@ -122,9 +122,12 @@ proc innerRun(
         break
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch)
 
-    try:
-      await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
-    except ValueError:
+    if self.relayPeers.len() > 0:
+      try:
+          await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
+      except ValueError:
+          raiseAssert "checked with relayPeers.len()" 
+    else:
       await self.peerAvailable.wait()
 
 method run*(
