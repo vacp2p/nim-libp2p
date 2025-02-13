@@ -99,7 +99,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
         if not awaiter.finished:
@@ -148,7 +148,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
         if not awaiter.finished:
@@ -196,7 +196,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
         if not awaiter.finished:
@@ -241,7 +241,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
         if not awaiter.finished:
@@ -303,7 +303,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
         if not awaiter.finished:
@@ -353,7 +353,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler1(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
         if not awaiter1.finished:
@@ -361,7 +361,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler2(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
         if not awaiter2.finished:
@@ -405,7 +405,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler1(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
         if not awaiter1.finished:
@@ -454,7 +454,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
         if not awaiter.finished:
@@ -498,7 +498,7 @@ suite "Autonat Service":
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       fail()
 
     check autonatService.networkReachability == NetworkReachability.Unknown

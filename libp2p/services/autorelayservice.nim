@@ -63,7 +63,7 @@ method setup*(
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
-  ): Future[seq[MultiAddress]] {.async.} =
+  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return await addressMapper(self, listenAddrs)
 
   let hasBeenSetUp = await procCall Service(self).setup(switch)

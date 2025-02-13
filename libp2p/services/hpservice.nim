@@ -96,8 +96,11 @@ method setup*(
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 
   if hasBeenSetup:
-    let dcutrProto = Dcutr.new(switch)
-    switch.mount(dcutrProto)
+    try:
+      let dcutrProto = Dcutr.new(switch)
+      switch.mount(dcutrProto)
+    except LPError as err:
+      trace "Failed to mount Dcutr", err = err.msg
 
     self.newConnectedPeerHandler = proc(peerId: PeerId, event: PeerEvent) {.async.} =
       await newConnectedPeerHandler(self, switch, peerId, event)
@@ -108,7 +111,7 @@ method setup*(
 
     self.onNewStatusHandler = proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and
           not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)

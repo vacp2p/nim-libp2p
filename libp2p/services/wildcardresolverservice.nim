@@ -161,7 +161,7 @@ method setup*(
   ## - A `Future[bool]` that resolves to `true` if the setup was successful, otherwise `false`.
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
-  ): Future[seq[MultiAddress]] {.async.} =
+  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
   debug "Setting up WildcardAddressResolverService"
