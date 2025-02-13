@@ -127,7 +127,9 @@ proc innerRun(
     except ValueError:
       await self.peerAvailable.wait()
 
-method run*(self: AutoRelayService, switch: Switch) {.async.} =
+method run*(
+    self: AutoRelayService, switch: Switch
+) {.async: (raises: [CancelledError, CatchableError]).} =
   if self.running:
     trace "Autorelay is already running"
     return

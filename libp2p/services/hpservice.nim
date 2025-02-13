@@ -123,7 +123,9 @@ method setup*(
     self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
   return hasBeenSetup
 
-method run*(self: HPService, switch: Switch) {.async, public.} =
+method run*(
+    self: HPService, switch: Switch
+) {.public, async: (raises: [CancelledError, CatchableError]).} =
   await self.autonatService.run(switch)
 
 method stop*(

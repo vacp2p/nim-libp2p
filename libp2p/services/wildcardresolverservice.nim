@@ -170,7 +170,9 @@ method setup*(
     switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
-method run*(self: WildcardAddressResolverService, switch: Switch) {.async, public.} =
+method run*(
+    self: WildcardAddressResolverService, switch: Switch
+) {.public, async: (raises: [CancelledError, CatchableError]).} =
   ## Runs the WildcardAddressResolverService for a given switch.
   ##
   ## It updates the peer information for the provided switch by running the registered address mapper. Any other

@@ -223,7 +223,9 @@ method setup*(
       switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
-method run*(self: AutonatService, switch: Switch) {.async, public.} =
+method run*(
+    self: AutonatService, switch: Switch
+) {.public, async: (raises: [CancelledError, CatchableError]).} =
   trace "Running AutonatService"
   await askConnectedPeers(self, switch)
 

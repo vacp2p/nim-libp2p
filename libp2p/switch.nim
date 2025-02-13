@@ -73,7 +73,9 @@ method setup*(
   self.inUse = true
   return true
 
-method run*(self: Service, switch: Switch) {.base, async.} =
+method run*(
+    self: Service, switch: Switch
+) {.base, async: (raises: [CancelledError, CatchableError]).} =
   doAssert(false, "Not implemented!")
 
 method stop*(
