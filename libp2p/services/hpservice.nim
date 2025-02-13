@@ -126,7 +126,9 @@ method setup*(
 method run*(self: HPService, switch: Switch) {.async, public.} =
   await self.autonatService.run(switch)
 
-method stop*(self: HPService, switch: Switch): Future[bool] {.async, public.} =
+method stop*(
+    self: HPService, switch: Switch
+): Future[bool] {.public, async: (raises: [CancelledError, CatchableError]).} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(

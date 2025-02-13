@@ -181,7 +181,7 @@ method run*(self: WildcardAddressResolverService, switch: Switch) {.async, publi
 
 method stop*(
     self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.async, public.} =
+): Future[bool] {.public, async: (raises: [CancelledError, CatchableError]).} =
   ## Stops the WildcardAddressResolverService.
   ##
   ## Handles the shutdown process of the WildcardAddressResolverService for a given switch.

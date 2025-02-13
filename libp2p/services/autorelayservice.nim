@@ -134,7 +134,9 @@ method run*(self: AutoRelayService, switch: Switch) {.async.} =
   self.running = true
   self.runner = self.innerRun(switch)
 
-method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
+method stop*(
+    self: AutoRelayService, switch: Switch
+): Future[bool] {.public, async: (raises: [CancelledError, CatchableError]).} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     self.running = false

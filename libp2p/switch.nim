@@ -76,7 +76,9 @@ method setup*(
 method run*(self: Service, switch: Switch) {.base, async.} =
   doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch): Future[bool] {.base, async.} =
+method stop*(
+    self: Service, switch: Switch
+): Future[bool] {.base, async: (raises: [CancelledError, CatchableError]).} =
   if not self.inUse:
     warn "service is already stopped"
     return false
