@@ -60,7 +60,7 @@ proc reserveAndUpdate(
 
 method setup*(
     self: AutoRelayService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError, CatchableError]).} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async.} =
@@ -129,7 +129,7 @@ proc innerRun(
 
 method run*(
     self: AutoRelayService, switch: Switch
-) {.async: (raises: [CancelledError, CatchableError]).} =
+) {.async: (raises: [CancelledError]).} =
   if self.running:
     trace "Autorelay is already running"
     return
@@ -138,7 +138,7 @@ method run*(
 
 method stop*(
     self: AutoRelayService, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError, CatchableError]).} =
+): Future[bool] {.public, async: (raises: [CancelledError]).} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     self.running = false

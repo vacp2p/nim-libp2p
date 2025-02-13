@@ -91,7 +91,7 @@ proc newConnectedPeerHandler(
 
 method setup*(
     self: HPService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError, CatchableError]).} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 
@@ -125,12 +125,12 @@ method setup*(
 
 method run*(
     self: HPService, switch: Switch
-) {.public, async: (raises: [CancelledError, CatchableError]).} =
+) {.public, async: (raises: [CancelledError]).} =
   await self.autonatService.run(switch)
 
 method stop*(
     self: HPService, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError, CatchableError]).} =
+): Future[bool] {.public, async: (raises: [CancelledError]).} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(
