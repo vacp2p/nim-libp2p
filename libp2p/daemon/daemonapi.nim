@@ -158,7 +158,7 @@ type
     key*: PublicKey
 
   P2PStreamCallback* = proc(api: DaemonAPI, stream: P2PStream): Future[void] {.
-    gcsafe, raises: [CatchableError]
+    gcsafe, async: (raises: [CatchableError])
   .}
   P2PPubSubCallback* = proc(
     api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
