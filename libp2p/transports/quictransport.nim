@@ -156,12 +156,7 @@ method start*(
   #TODO handle multiple addr
   try:
     self.listener = listen(initTAddress(addrs[0]).tryGet)
-  except TransportOsError as exc:
-    raise (ref QuickTransportError)(msg: exc.msg, parent: exc)
-
-  await procCall Transport(self).start(addrs)
-  
-  try:
+    await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()

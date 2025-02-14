@@ -151,10 +151,7 @@ method start*(
       await noCancel allFutures(self.servers.mapIt(it.closeWait()))
       reset(self.servers)
 
-  try:
-    await procCall Transport(self).start(supported)
-  except CatchableError:
-    raiseAssert "Base method does not raise"
+  await procCall Transport(self).start(supported)
 
   trackCounter(TcpTransportTrackerName)
 
@@ -168,11 +165,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
 
     if self.running:
       # Reset the running flag
-      try:
-        await noCancel procCall Transport(self).stop()
-      except CatchableError: # TODO remove when `accept` is annotated with raises
-        raiseAssert "doesn't actually raise"
-
+      await noCancel procCall Transport(self).stop()
       # Stop each server by closing the socket - this will cause all accept loops
       # to fail - since the running flag has been reset, it's also safe to close
       # all known clients since no more of them will be added

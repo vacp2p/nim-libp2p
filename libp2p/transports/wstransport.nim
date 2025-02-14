@@ -37,6 +37,7 @@ const DefaultHeadersTimeout = 3.seconds
 type
   WsStream = ref object of Connection
     session: WSSession
+
   WsTransportError* = object of transport.TransportError
 
 method initStream*(s: WsStream) =
@@ -173,7 +174,8 @@ method start*(
         MultiAddress.init("/ws")
 
     # always get the resolved address in case we're bound to 0.0.0.0:0
-    self.addrs[i] = MultiAddress.init(httpserver.localAddress()).tryGet() & codec.tryGet()
+    self.addrs[i] =
+      MultiAddress.init(httpserver.localAddress()).tryGet() & codec.tryGet()
 
   trace "Listening on", addresses = self.addrs
 
