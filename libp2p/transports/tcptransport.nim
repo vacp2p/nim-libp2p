@@ -156,50 +156,46 @@ method start*(
   trackCounter(TcpTransportTrackerName)
 
 method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
-  ## Stop the transport and close all connections it created
-  proc impl(self: TcpTransport) {.async: (raises: []).} =
-    trace "Stopping TCP transport"
-    self.stopping = true
-    defer:
-      self.stopping = false
+  trace "Stopping TCP transport"
+  self.stopping = true
+  defer:
+    self.stopping = false
 
-    if self.running:
-      # Reset the running flag
-      await noCancel procCall Transport(self).stop()
-      # Stop each server by closing the socket - this will cause all accept loops
-      # to fail - since the running flag has been reset, it's also safe to close
-      # all known clients since no more of them will be added
-      await noCancel allFutures(
-        self.servers.mapIt(it.closeWait()) &
-          self.clients[Direction.In].mapIt(it.closeWait()) &
-          self.clients[Direction.Out].mapIt(it.closeWait())
-      )
+  if self.running:
+    # Reset the running flag
+    await noCancel procCall Transport(self).stop()
+    # Stop each server by closing the socket - this will cause all accept loops
+    # to fail - since the running flag has been reset, it's also safe to close
+    # all known clients since no more of them will be added
+    await noCancel allFutures(
+      self.servers.mapIt(it.closeWait()) &
+        self.clients[Direction.In].mapIt(it.closeWait()) &
+        self.clients[Direction.Out].mapIt(it.closeWait())
+    )
 
-      self.servers = @[]
+    self.servers = @[]
 
-      for acceptFut in self.acceptFuts:
-        if acceptFut.completed():
-          await acceptFut.value().closeWait()
-      self.acceptFuts = @[]
+    for acceptFut in self.acceptFuts:
+      if acceptFut.completed():
+        await acceptFut.value().closeWait()
+    self.acceptFuts = @[]
 
-      if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
-        # Future updates could consider turning this warn into an assert since
-        # it should never happen if the shutdown code is correct
-        warn "Couldn't clean up clients",
-          len = self.clients[Direction.In].len + self.clients[Direction.Out].len
+    if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
+      # Future updates could consider turning this warn into an assert since
+      # it should never happen if the shutdown code is correct
+      warn "Couldn't clean up clients",
+        len = self.clients[Direction.In].len + self.clients[Direction.Out].len
 
-      trace "Transport stopped"
-      untrackCounter(TcpTransportTrackerName)
-    else:
-      # For legacy reasons, `stop` on a transpart that wasn't started is
-      # expected to close outgoing connections created by the transport
-      warn "TCP transport already stopped"
+    trace "Transport stopped"
+    untrackCounter(TcpTransportTrackerName)
+  else:
+    # For legacy reasons, `stop` on a transpart that wasn't started is
+    # expected to close outgoing connections created by the transport
+    warn "TCP transport already stopped"
 
-      doAssert self.clients[Direction.In].len == 0,
-        "No incoming connections possible without start"
-      await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
-
-  impl(self)
+    doAssert self.clients[Direction.In].len == 0,
+      "No incoming connections possible without start"
+    await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
 
 method accept*(self: TcpTransport): Future[Connection] =
   ## accept a new TCP connection, returning nil on non-fatal errors
