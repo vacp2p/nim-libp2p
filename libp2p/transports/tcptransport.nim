@@ -105,65 +105,60 @@ proc new*(
     connectionsTimeout: connectionsTimeout,
   )
 
-method start*(self: TcpTransport, addrs: seq[MultiAddress]): Future[void] =
+method start*(
+    self: TcpTransport, addrs: seq[MultiAddress]
+): Future[void] {.async: (raises: [LPError, transport.TransportError]).} =
   ## Start transport listening to the given addresses - for dial-only transports,
   ## start with an empty list
 
-  # TODO remove `impl` indirection throughout when `raises` is added to base
+  if self.running:
+    warn "TCP transport already running"
+    return
 
-  proc impl(
-      self: TcpTransport, addrs: seq[MultiAddress]
-  ): Future[void] {.async: (raises: [transport.TransportError, CancelledError]).} =
-    if self.running:
-      warn "TCP transport already running"
-      return
+  trace "Starting TCP transport"
 
-    trace "Starting TCP transport"
+  self.flags.incl(ServerFlags.ReusePort)
 
-    self.flags.incl(ServerFlags.ReusePort)
+  var supported: seq[MultiAddress]
+  var initialized = false
+  try:
+    for i, ma in addrs:
+      if not self.handles(ma):
+        trace "Invalid address detected, skipping!", address = ma
+        continue
 
-    var supported: seq[MultiAddress]
-    var initialized = false
-    try:
-      for i, ma in addrs:
-        if not self.handles(ma):
-          trace "Invalid address detected, skipping!", address = ma
-          continue
+      let
+        ta = initTAddress(ma).expect("valid address per handles check above")
+        server =
+          try:
+            createStreamServer(ta, flags = self.flags)
+          except common.TransportError as exc:
+            raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
 
-        let
-          ta = initTAddress(ma).expect("valid address per handles check above")
-          server =
-            try:
-              createStreamServer(ta, flags = self.flags)
-            except common.TransportError as exc:
-              raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      self.servers &= server
 
-        self.servers &= server
-
-        trace "Listening on", address = ma
-        supported.add(
-          MultiAddress.init(server.sock.getLocalAddress()).expect(
-            "Can init from local address"
-          )
+      trace "Listening on", address = ma
+      supported.add(
+        MultiAddress.init(server.sock.getLocalAddress()).expect(
+          "Can init from local address"
         )
+      )
 
-      initialized = true
-    finally:
-      if not initialized:
-        # Clean up partial success on exception
-        await noCancel allFutures(self.servers.mapIt(it.closeWait()))
-        reset(self.servers)
+    initialized = true
+  finally:
+    if not initialized:
+      # Clean up partial success on exception
+      await noCancel allFutures(self.servers.mapIt(it.closeWait()))
+      reset(self.servers)
 
-    try:
-      await procCall Transport(self).start(supported)
-    except CatchableError:
-      raiseAssert "Base method does not raise"
+  try:
+    await procCall Transport(self).start(supported)
+  except CatchableError:
+    raiseAssert "Base method does not raise"
 
-    trackCounter(TcpTransportTrackerName)
+  trackCounter(TcpTransportTrackerName)
 
-  impl(self, addrs)
-
-method stop*(self: TcpTransport): Future[void] =
+method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
   ## Stop the transport and close all connections it created
   proc impl(self: TcpTransport) {.async: (raises: []).} =
     trace "Stopping TCP transport"

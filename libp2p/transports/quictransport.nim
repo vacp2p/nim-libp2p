@@ -21,6 +21,7 @@ logScope:
 type
   P2PConnection = connection.Connection
   QuicConnection = quic.Connection
+  QuickTransportError* = object of transport.TransportError
 
 # Stream
 type QuicStream* = ref object of P2PConnection
@@ -148,22 +149,35 @@ method handles*(transport: QuicTransport, address: MultiAddress): bool =
     return false
   QUIC_V1.match(address)
 
-method start*(transport: QuicTransport, addrs: seq[MultiAddress]) {.async.} =
-  doAssert transport.listener.isNil, "start() already called"
+method start*(
+    self: QuicTransport, addrs: seq[MultiAddress]
+) {.async: (raises: [LPError, transport.TransportError]).} =
+  doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
-  transport.listener = listen(initTAddress(addrs[0]).tryGet)
-  await procCall Transport(transport).start(addrs)
-  transport.addrs[0] =
-    MultiAddress.init(transport.listener.localAddress(), IPPROTO_UDP).tryGet() &
-    MultiAddress.init("/quic-v1").get()
-  transport.running = true
+  try:
+    self.listener = listen(initTAddress(addrs[0]).tryGet)
+  except TransportOsError as exc:
+    raise (ref QuickTransportError)(msg: exc.msg, parent: exc)
 
-method stop*(transport: QuicTransport) {.async.} =
+  await procCall Transport(self).start(addrs)
+  
+  try:
+    self.addrs[0] =
+      MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
+      MultiAddress.init("/quic-v1").get()
+  except TransportOsError as exc:
+    raise (ref QuickTransportError)(msg: exc.msg, parent: exc)
+  self.running = true
+
+method stop*(transport: QuicTransport) {.async: (raises: []).} =
   if transport.running:
     for c in transport.connections:
       await c.close()
     await procCall Transport(transport).stop()
-    await transport.listener.stop()
+    try:
+      await transport.listener.stop()
+    except CatchableError as exc:
+      trace "Error shutting down Quick transport", description = exc.msg
     transport.running = false
     transport.listener = nil
 
