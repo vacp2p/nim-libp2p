@@ -100,7 +100,7 @@ method setup*(
       let dcutrProto = Dcutr.new(switch)
       switch.mount(dcutrProto)
     except LPError as err:
-      trace "Failed to mount Dcutr", err = err.msg
+      error "Failed to mount Dcutr", err = err.msg
 
     self.newConnectedPeerHandler = proc(peerId: PeerId, event: PeerEvent) {.async.} =
       await newConnectedPeerHandler(self, switch, peerId, event)
