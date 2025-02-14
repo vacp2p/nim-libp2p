@@ -21,7 +21,7 @@ logScope:
 type
   P2PConnection = connection.Connection
   QuicConnection = quic.Connection
-  QuickTransportError* = object of transport.TransportError
+  QuicTransportError* = object of transport.TransportError
 
 # Stream
 type QuicStream* = ref object of P2PConnection
@@ -161,7 +161,7 @@ method start*(
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()
   except TransportOsError as exc:
-    raise (ref QuickTransportError)(msg: exc.msg, parent: exc)
+    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
   self.running = true
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
@@ -172,7 +172,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
     try:
       await transport.listener.stop()
     except CatchableError as exc:
-      trace "Error shutting down Quick transport", description = exc.msg
+      trace "Error shutting down Quic transport", description = exc.msg
     transport.running = false
     transport.listener = nil
 

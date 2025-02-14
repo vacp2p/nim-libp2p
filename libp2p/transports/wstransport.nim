@@ -159,7 +159,7 @@ method start*(
           )
         else:
           HttpServer.create(address, handshakeTimeout = self.handshakeTimeout)
-      except TransportOsError as exc:
+      except CatchableError as exc:
         raise (ref WsTransportError)(msg: exc.msg, parent: exc)
 
     self.httpservers &= httpserver
