@@ -37,7 +37,7 @@ proc main() {.async.} =
       assert "test3" == msg
       await conn.writeLp("test4")
     except:
-      echo "exception in handler".getCurrentException().msg
+      echo "exception in handler", getCurrentException().msg
 
   let
     relay = Relay.new()

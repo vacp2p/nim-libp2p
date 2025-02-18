@@ -50,7 +50,7 @@ proc new(T: typedesc[ChatProto], c: Chat): T =
       else:
         await c.handlePeer(stream)
     except:
-      echo "exception in handler".getCurrentException().msg
+      echo "exception in handler", getCurrentException().msg
     finally:
       await stream.close()
 

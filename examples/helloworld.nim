@@ -16,7 +16,7 @@ proc new(T: typedesc[TestProto]): T =
       echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("Roger p2p!")
     except:
-      echo "exception in handler".getCurrentException().msg
+      echo "exception in handler", getCurrentException().msg
     finally:
       # We must close the connections ourselves when we're done with it
       await conn.close()
