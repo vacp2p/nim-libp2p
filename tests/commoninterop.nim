@@ -258,7 +258,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
           var line = string.fromBytes(await conn.readLp(1024))
           check line == test
           testFuture.complete(line)
-        except CatchableError:
+        except:
           check false # should not be here
         finally:
           await conn.close()
@@ -297,7 +297,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
           var line = string.fromBytes(await conn.readLp(1024))
           check line == test
           testFuture.complete(line)
-        except CatchableError:
+        except:
           check false # should not be here
         finally:
           await conn.close()
@@ -395,7 +395,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
           await conn.writeLp("test 4".toBytes())
 
           testFuture.complete()
-        except CatchableError:
+        except:
           check false # should not be here
         finally:
           await conn.close()
@@ -443,7 +443,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
             count.inc()
 
           testFuture.complete(count)
-        except CatchableError:
+        except:
           check false # should not be here
         finally:
           await conn.close()
@@ -554,7 +554,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
           await conn.writeLp("line2")
           check "line3" == string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("line4")
-        except CatchableError:
+        except:
           check false # should not be here
         finally:
           await conn.close()
@@ -597,7 +597,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
           await conn.writeLp("line2")
           check "line3" == string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("line4")
-        except CatchableError:
+        except:
           check false # should not be here
         finally:
           await conn.close()

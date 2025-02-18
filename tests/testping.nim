@@ -103,7 +103,7 @@ suite "Ping":
           fakebuf: array[32, byte]
         await conn.readExactly(addr buf[0], 32)
         await conn.write(@fakebuf)
-      except CatchableError:
+      except:
         check false # should not be here
 
     fakePingProto.codec = PingCodec

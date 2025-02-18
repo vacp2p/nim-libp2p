@@ -181,7 +181,7 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except CatchableError:
+          except:
             check false # should not be here
           finally:
             await conn.close()
@@ -339,7 +339,7 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except CatchableError:
+          except:
             check false # should not be here
           finally:
             await conn.close()
@@ -443,7 +443,7 @@ suite "Circuit Relay V2":
             check:
               "testABC3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testABC4")
-          except CatchableError:
+          except:
             check false # should not be here
           finally:
             await conn.close()
@@ -458,7 +458,7 @@ suite "Circuit Relay V2":
             check:
               "testBCA3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testBCA4")
-          except CatchableError:
+          except:
             check false # should not be here
           finally:
             await conn.close()
@@ -473,7 +473,7 @@ suite "Circuit Relay V2":
             check:
               "testCAB3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testCAB4")
-          except CatchableError:
+          except:
             check false # should not be here
           finally:
             await conn.close()

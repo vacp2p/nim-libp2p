@@ -100,10 +100,9 @@ suite "Tor transport":
           await conn.readExactly(addr resp, 6)
           check string.fromBytes(resp) == "client"
           await conn.write("server")
-        except CatchableError:
+        except:
           check false # should not be here
         finally:
-          # We must close the connections ourselves when we're done with it
           await conn.close()
 
       return T.new(codecs = @[TestCodec], handler = handle)

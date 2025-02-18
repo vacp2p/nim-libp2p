@@ -87,7 +87,7 @@ suite "Circuit Relay":
       await conn.writeLp("line2")
       check "line3" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("line4")
-    except CatchableError:
+    except:
       check false # should not be here
     finally:
       await conn.close()

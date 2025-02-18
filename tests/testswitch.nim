@@ -53,7 +53,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -93,7 +93,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -138,7 +138,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -177,7 +177,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -818,7 +818,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -870,7 +870,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -1047,7 +1047,7 @@ suite "Switch":
       try:
         check "test123" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test456")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()

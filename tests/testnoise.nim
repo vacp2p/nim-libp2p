@@ -47,7 +47,7 @@ method init(p: TestProto) {.gcsafe.} =
       let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
       await conn.writeLp("Hello!")
-    except CatchableError:
+    except:
       check false # should not be here
     finally:
       await conn.close()

@@ -293,7 +293,7 @@ suite "Multistream select":
       check proto == "/test/proto/1.0.0"
       try:
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -340,7 +340,7 @@ suite "Multistream select":
       try:
         await blocker
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -464,7 +464,7 @@ suite "Multistream select":
       check proto == "/test/proto/1.0.0"
       try:
         await conn.writeLp("Hello!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
@@ -505,7 +505,7 @@ suite "Multistream select":
     ): Future[void] {.async: (raises: []).} =
       try:
         await conn.writeLp(&"Hello from {proto}!")
-      except CatchableError:
+      except:
         check false # should not be here
       finally:
         await conn.close()
