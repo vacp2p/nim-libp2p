@@ -180,7 +180,7 @@ suite "Switch":
       except CatchableError:
         check false # should not be here
       finally:
-        await conn.close()  
+        await conn.close()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
