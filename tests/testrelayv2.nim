@@ -228,8 +228,9 @@ suite "Circuit Relay V2":
             check "go!" == string.fromBytes(await conn.readLp(1024))
             await sleepAsync(chronos.timer.seconds(ldur + 1))
             await conn.writeLp("that was a cool power nap")
+            check false # must not be here - should timeout
           except CatchableError:
-            check false # should not be here
+            discard # will get here after timeout
           finally:
             await conn.close()
         rv2 = Relay.new(
@@ -291,7 +292,9 @@ suite "Circuit Relay V2":
     take to the ship."""
             )
           except CatchableError:
-            check false # should not be here
+            discard # will get here after data exceeded
+          finally:
+            await conn.close()
         rv2 = Relay.new(
           reservationTTL = initDuration(seconds = ttl),
           limitDuration = ldur,

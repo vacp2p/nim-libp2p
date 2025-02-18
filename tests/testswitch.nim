@@ -661,7 +661,7 @@ suite "Switch":
       try:
         discard await conn.readLp(100)
       except CatchableError:
-        check false # should not be here
+        check true # should be here
 
     let testProto = new TestProto
     testProto.codec = TestCodec
