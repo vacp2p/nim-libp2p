@@ -152,7 +152,7 @@ proc draw(g: Game) =
 ## peer know that we are available, check that he is also available,
 ## and launch the game.
 proc new(T: typedesc[GameProto], g: Game): T =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
     defer:
       await conn.closeWithEof()
     if g.peerFound.finished or g.hasCandidate:
