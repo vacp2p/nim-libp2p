@@ -290,7 +290,7 @@ proc new*(
     msgSize: msgSize,
     isCircuitRelayV1: circuitRelayV1,
   )
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(conn: Connection, proto: string) {.async: (raises: []).} =
     try:
       case proto
       of RelayV1Codec:
@@ -300,7 +300,7 @@ proc new*(
       of RelayV2HopCodec:
         await cl.handleHopStreamV2(conn)
     except CancelledError as exc:
-      raise exc
+      trace "cancelled client handler"
     except CatchableError as exc:
       trace "exception in client handler", description = exc.msg, conn
     finally:
