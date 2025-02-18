@@ -96,12 +96,15 @@ suite "Ping":
   asyncTest "bad ping data ack":
     type FakePing = ref object of LPProtocol
     let fakePingProto = FakePing()
-    proc fakeHandle(conn: Connection, proto: string) {.async, closure.} =
-      var
-        buf: array[32, byte]
-        fakebuf: array[32, byte]
-      await conn.readExactly(addr buf[0], 32)
-      await conn.write(@fakebuf)
+    proc fakeHandle(conn: Connection, proto: string) {.async: (raises: []), closure.} =
+      try:
+        var
+          buf: array[32, byte]
+          fakebuf: array[32, byte]
+        await conn.readExactly(addr buf[0], 32)
+        await conn.write(@fakebuf)
+      except CatchableError:
+        check false # should not be here
 
     fakePingProto.codec = PingCodec
     fakePingProto.handler = fakeHandle

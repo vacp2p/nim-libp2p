@@ -48,11 +48,13 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async.} =
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
+      except CatchableError:
+        check false # should not be here
       finally:
         await conn.close()
         done.complete()
@@ -86,11 +88,13 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string with custom matcher":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async.} =
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
+      except CatchableError:
+        check false # should not be here
       finally:
         await conn.close()
         done.complete()
@@ -129,11 +133,13 @@ suite "Switch":
 
   asyncTest "e2e should not leak bufferstreams and connections on channel close":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async.} =
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
+      except CatchableError:
+        check false # should not be here
       finally:
         await conn.close()
         done.complete()
@@ -166,13 +172,15 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use connect then dial":
-    proc handle(conn: Connection, proto: string) {.async.} =
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
-      finally:
         await conn.writeLp("Hello!")
-        await conn.close()
+      except CatchableError:
+        check false # should not be here
+      finally:
+        await conn.close()  
 
     let testProto = new TestProto
     testProto.codec = TestCodec
@@ -649,8 +657,11 @@ suite "Switch":
     await allFuturesThrowing(transport.stop(), switch.stop())
 
   asyncTest "e2e calling closeWithEOF on the same stream should not assert":
-    proc handle(conn: Connection, proto: string) {.async.} =
-      discard await conn.readLp(100)
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+      try:
+        discard await conn.readLp(100)
+      except CatchableError:
+        check false # should not be here
 
     let testProto = new TestProto
     testProto.codec = TestCodec
@@ -802,11 +813,13 @@ suite "Switch":
 
   asyncTest "e2e peer store":
     let done = newFuture[void]()
-    proc handle(conn: Connection, proto: string) {.async.} =
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
+      except CatchableError:
+        check false # should not be here
       finally:
         await conn.close()
         done.complete()
@@ -852,11 +865,13 @@ suite "Switch":
       # this randomly locks the Windows CI job
       skip()
       return
-    proc handle(conn: Connection, proto: string) {.async.} =
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
+      except CatchableError:
+        check false # should not be here
       finally:
         await conn.close()
 
@@ -1028,10 +1043,14 @@ suite "Switch":
     await srcSwitch.stop()
 
   asyncTest "mount unstarted protocol":
-    proc handle(conn: Connection, proto: string) {.async.} =
-      check "test123" == string.fromBytes(await conn.readLp(1024))
-      await conn.writeLp("test456")
-      await conn.close()
+    proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+      try:
+        check "test123" == string.fromBytes(await conn.readLp(1024))
+        await conn.writeLp("test456")
+      except CatchableError:
+        check false # should not be here
+      finally:
+        await conn.close()
 
     let
       src = newStandardSwitch()

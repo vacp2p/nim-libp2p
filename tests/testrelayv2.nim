@@ -173,14 +173,18 @@ suite "Circuit Relay V2":
         rel = createSwitch(nil, useYamux)
 
       asyncTest "Connection succeed":
-        proto.handler = proc(conn: Connection, proto: string) {.async.} =
-          check:
-            "test1" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("test2")
-          check:
-            "test3" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("test4")
-          await conn.close()
+        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+          try:
+            check:
+              "test1" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("test2")
+            check:
+              "test3" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("test4")
+          except CatchableError:
+            check false # should not be here
+          finally:
+            await conn.close()
         rv2 = Relay.new(
           reservationTTL = initDuration(seconds = ttl),
           limitDuration = ldur,
@@ -217,13 +221,17 @@ suite "Circuit Relay V2":
 
       asyncTest "Connection duration exceeded":
         ldur = 3
-        proto.handler = proc(conn: Connection, proto: string) {.async.} =
-          check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("yeah!")
-          check "go!" == string.fromBytes(await conn.readLp(1024))
-          await sleepAsync(chronos.timer.seconds(ldur + 1))
-          await conn.writeLp("that was a cool power nap")
-          await conn.close()
+        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+          try:
+            check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("yeah!")
+            check "go!" == string.fromBytes(await conn.readLp(1024))
+            await sleepAsync(chronos.timer.seconds(ldur + 1))
+            await conn.writeLp("that was a cool power nap")
+          except CatchableError:
+            check false # should not be here
+          finally:
+            await conn.close()
         rv2 = Relay.new(
           reservationTTL = initDuration(seconds = ttl),
           limitDuration = ldur,
@@ -259,28 +267,31 @@ suite "Circuit Relay V2":
 
       asyncTest "Connection data exceeded":
         ldata = 1000
-        proto.handler = proc(conn: Connection, proto: string) {.async.} =
-          check "count me the better story you know" ==
-            string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("do you expect a lorem ipsum or...?")
-          check "surprise me!" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp(
-            """Call me Ishmael. Some years ago--never mind how long
-  precisely--having little or no money in my purse, and nothing
-  particular to interest me on shore, I thought I would sail about a
-  little and see the watery part of the world. It is a way I have of
-  driving off the spleen and regulating the circulation. Whenever I
-  find myself growing grim about the mouth; whenever it is a damp,
-  drizzly November in my soul; whenever I find myself involuntarily
-  pausing before coffin warehouses, and bringing up the rear of every
-  funeral I meet; and especially whenever my hypos get such an upper
-  hand of me, that it requires a strong moral principle to prevent me
-  from deliberately stepping into the street, and methodically knocking
-  people's hats off--then, I account it high time to get to sea as soon
-  as I can. This is my substitute for pistol and ball. With a
-  philosophical flourish Cato throws himself upon his sword; I quietly
-  take to the ship."""
-          )
+        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+          try:
+            check "count me the better story you know" ==
+              string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("do you expect a lorem ipsum or...?")
+            check "surprise me!" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp(
+              """Call me Ishmael. Some years ago--never mind how long
+    precisely--having little or no money in my purse, and nothing
+    particular to interest me on shore, I thought I would sail about a
+    little and see the watery part of the world. It is a way I have of
+    driving off the spleen and regulating the circulation. Whenever I
+    find myself growing grim about the mouth; whenever it is a damp,
+    drizzly November in my soul; whenever I find myself involuntarily
+    pausing before coffin warehouses, and bringing up the rear of every
+    funeral I meet; and especially whenever my hypos get such an upper
+    hand of me, that it requires a strong moral principle to prevent me
+    from deliberately stepping into the street, and methodically knocking
+    people's hats off--then, I account it high time to get to sea as soon
+    as I can. This is my substitute for pistol and ball. With a
+    philosophical flourish Cato throws himself upon his sword; I quietly
+    take to the ship."""
+            )
+          except CatchableError:
+            check false # should not be here
         rv2 = Relay.new(
           reservationTTL = initDuration(seconds = ttl),
           limitDuration = ldur,
@@ -317,14 +328,18 @@ suite "Circuit Relay V2":
 
       asyncTest "Reservation ttl expire during connection":
         ttl = 3
-        proto.handler = proc(conn: Connection, proto: string) {.async.} =
-          check:
-            "test1" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("test2")
-          check:
-            "test3" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("test4")
-          await conn.close()
+        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+          try:
+            check:
+              "test1" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("test2")
+            check:
+              "test3" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("test4")
+          except CatchableError:
+            check false # should not be here
+          finally:
+            await conn.close()
         rv2 = Relay.new(
           reservationTTL = initDuration(seconds = ttl),
           limitDuration = ldur,
@@ -370,8 +385,9 @@ suite "Circuit Relay V2":
         # rel2 reserve rel
         # dst reserve rel2
         # src try to connect with dst
-        proto.handler = proc(conn: Connection, proto: string) {.async.} =
-          raise newException(CatchableError, "Should not be here")
+        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+          check false # should not be here
+
         let
           rel2Cl = RelayClient.new(canHop = true)
           rel2 = createSwitch(rel2Cl, useYamux)
@@ -414,32 +430,50 @@ suite "Circuit Relay V2":
           protoBCA = new LPProtocol
           protoCAB = new LPProtocol
         protoABC.codec = "/abctest"
-        protoABC.handler = proc(conn: Connection, proto: string) {.async.} =
-          check:
-            "testABC1" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("testABC2")
-          check:
-            "testABC3" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("testABC4")
-          await conn.close()
+        protoABC.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: []).} =
+          try:
+            check:
+              "testABC1" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("testABC2")
+            check:
+              "testABC3" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("testABC4")
+          except CatchableError:
+            check false # should not be here
+          finally:
+            await conn.close()
         protoBCA.codec = "/bcatest"
-        protoBCA.handler = proc(conn: Connection, proto: string) {.async.} =
-          check:
-            "testBCA1" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("testBCA2")
-          check:
-            "testBCA3" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("testBCA4")
-          await conn.close()
+        protoBCA.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: []).} =
+          try:
+            check:
+              "testBCA1" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("testBCA2")
+            check:
+              "testBCA3" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("testBCA4")
+          except CatchableError:
+            check false # should not be here
+          finally:
+            await conn.close()
         protoCAB.codec = "/cabtest"
-        protoCAB.handler = proc(conn: Connection, proto: string) {.async.} =
-          check:
-            "testCAB1" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("testCAB2")
-          check:
-            "testCAB3" == string.fromBytes(await conn.readLp(1024))
-          await conn.writeLp("testCAB4")
-          await conn.close()
+        protoCAB.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: []).} =
+          try:
+            check:
+              "testCAB1" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("testCAB2")
+            check:
+              "testCAB3" == string.fromBytes(await conn.readLp(1024))
+            await conn.writeLp("testCAB4")
+          except CatchableError:
+            check false # should not be here
+          finally:
+            await conn.close()
 
         let
           clientA = RelayClient.new(canHop = true)
