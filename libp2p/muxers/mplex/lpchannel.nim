@@ -169,7 +169,7 @@ method readOnce*(
   ## channel must not be done from within a callback / read handler of another
   ## or the reads will lock each other.
   if s.remoteReset:
-    debug "reset stream in readOnce", s
+    trace "reset stream in readOnce", s
     raise newLPStreamResetError()
   if s.localReset:
     raise newLPStreamClosedError()
@@ -202,7 +202,7 @@ proc prepareWrite(
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
   if s.remoteReset:
-    debug "stream is reset when prepareWrite", s
+    trace "stream is reset when prepareWrite", s
     raise newLPStreamResetError()
   if s.closedLocal:
     raise newLPStreamClosedError()
@@ -213,7 +213,7 @@ proc prepareWrite(
     return
 
   if s.writes >= MaxWrites:
-    debug "Closing connection, too many in-flight writes on channel",
+    trace "Closing connection, too many in-flight writes on channel",
       s, conn = s.conn, writes = s.writes
     when defined(libp2p_mplex_metrics):
       libp2p_mplex_qlenclose.inc()
