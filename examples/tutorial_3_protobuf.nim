@@ -118,7 +118,7 @@ proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
       echo "exception in handler", getCurrentException().msg
     finally:
       await conn.close()
-      
+
   res = MetricProto.new(@["/metric-getter/1.0.0"], handle)
   res.metricGetter = cb
   return res
