@@ -169,7 +169,7 @@ proc new(T: typedesc[GameProto], g: Game): T =
       # be finished before returning
       await conn.join()
     except:
-       echo "exception in handler", getCurrentException().msg
+      echo "exception in handler", getCurrentException().msg
 
   return T.new(codecs = @["/tron/1.0.0"], handler = handle)
 
