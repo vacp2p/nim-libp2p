@@ -28,7 +28,9 @@ proc connectStreamTest(): Future[bool] {.async.} =
 
   var testFuture = newFuture[string]("test.future")
 
-  proc streamHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+  proc streamHandler(
+      api: DaemonAPI, stream: P2PStream
+  ) {.async: (raises: [CatchableError]).} =
     var line = await stream.transp.readLine()
     testFuture.complete(line)
 
