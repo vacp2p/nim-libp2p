@@ -221,7 +221,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="acquire" href="#acquire"><span>acquire:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="semaphore: acquire(s: AsyncSemaphore): Future[void]" href="libp2p/utils/semaphore.html#acquire%2CAsyncSemaphore">semaphore: acquire(s: AsyncSemaphore): Future[void]</a></li>
+          data-doc-search-tag="semaphore: acquire(s: AsyncSemaphore): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/utils/semaphore.html#acquire%2CAsyncSemaphore">semaphore: acquire(s: AsyncSemaphore): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="add" href="#add"><span>add:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -669,7 +669,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="close" href="#close"><span>close:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="connmanager: close(c: ConnManager): Future[void]" href="libp2p/connmanager.html#close%2CConnManager">connmanager: close(c: ConnManager): Future[void]</a></li>
+          data-doc-search-tag="connmanager: close(c: ConnManager): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/connmanager.html#close%2CConnManager">connmanager: close(c: ConnManager): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="mplex: close(m: Mplex): InternalRaisesFuture[void, void]" href="libp2p/muxers/mplex/mplex.html#close.e%2CMplex">mplex: close(m: Mplex): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
@@ -1118,12 +1118,6 @@ window.addEventListener('DOMContentLoaded', main);
      forceDial = false): Future[Connection]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="dial: dial(self: Dial; peerId: PeerId; protos: seq[string]): Future[Connection]" href="libp2p/dial.html#dial.e%2CDial%2CPeerId%2Cseq%5Bstring%5D">dial: dial(self: Dial; peerId: PeerId; protos: seq[string]): Future[Connection]</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="dialer: dial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-     protos: seq[string]; forceDial = false): Future[Connection]" href="libp2p/dialer.html#dial.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D%2Cseq%5Bstring%5D">dialer: dial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-     protos: seq[string]; forceDial = false): Future[Connection]</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="dialer: dial(self: Dialer; peerId: PeerId; protos: seq[string]): Future[Connection]" href="libp2p/dialer.html#dial.e%2CDialer%2CPeerId%2Cseq%5Bstring%5D">dialer: dial(self: Dialer; peerId: PeerId; protos: seq[string]): Future[Connection]</a></li>
           </ul></dd>
 <dt><a name="Dial" href="#Dial"><span>Dial:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1261,7 +1255,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="dropPeer" href="#dropPeer"><span>dropPeer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="connmanager: dropPeer(c: ConnManager; peerId: PeerId): Future[void]" href="libp2p/connmanager.html#dropPeer%2CConnManager%2CPeerId">connmanager: dropPeer(c: ConnManager; peerId: PeerId): Future[void]</a></li>
+          data-doc-search-tag="connmanager: dropPeer(c: ConnManager; peerId: PeerId): InternalRaisesFuture[void,
+    (CancelledError,)]" href="libp2p/connmanager.html#dropPeer%2CConnManager%2CPeerId">connmanager: dropPeer(c: ConnManager; peerId: PeerId): InternalRaisesFuture[void,
+    (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="dummyPrivateProc" href="#dummyPrivateProc"><span>dummyPrivateProc:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1481,7 +1477,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="expectConnection" href="#expectConnection"><span>expectConnection:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="connmanager: expectConnection(c: ConnManager; p: PeerId; dir: Direction): Future[Muxer]" href="libp2p/connmanager.html#expectConnection%2CConnManager%2CPeerId%2CDirection">connmanager: expectConnection(c: ConnManager; p: PeerId; dir: Direction): Future[Muxer]</a></li>
+          data-doc-search-tag="connmanager: expectConnection(c: ConnManager; p: PeerId; dir: Direction): InternalRaisesFuture[
+    Muxer, (AlreadyExpectingConnectionError, CancelledError)]" href="libp2p/connmanager.html#expectConnection%2CConnManager%2CPeerId%2CDirection">connmanager: expectConnection(c: ConnManager; p: PeerId; dir: Direction): InternalRaisesFuture[
+    Muxer, (AlreadyExpectingConnectionError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="expire" href="#expire"><span>expire:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1705,7 +1703,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="getIncomingSlot" href="#getIncomingSlot"><span>getIncomingSlot:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="connmanager: getIncomingSlot(c: ConnManager): Future[ConnectionSlot]" href="libp2p/connmanager.html#getIncomingSlot%2CConnManager">connmanager: getIncomingSlot(c: ConnManager): Future[ConnectionSlot]</a></li>
+          data-doc-search-tag="connmanager: getIncomingSlot(c: ConnManager): InternalRaisesFuture[ConnectionSlot,
+    (CancelledError,)]" href="libp2p/connmanager.html#getIncomingSlot%2CConnManager">connmanager: getIncomingSlot(c: ConnManager): InternalRaisesFuture[ConnectionSlot,
+    (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="getLen" href="#getLen"><span>getLen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1820,14 +1820,6 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="getSecret" href="#getSecret"><span>getSecret:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ecnist: getSecret(pubkey: EcPublicKey; seckey: EcPrivateKey): seq[byte]" href="libp2p/crypto/ecnist.html#getSecret%2CEcPublicKey%2CEcPrivateKey">ecnist: getSecret(pubkey: EcPublicKey; seckey: EcPrivateKey): seq[byte]</a></li>
-          </ul></dd>
-<dt><a name="getStream" href="#getStream"><span>getStream:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="connmanager: getStream(c: ConnManager; muxer: Muxer): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CMuxer">connmanager: getStream(c: ConnManager; muxer: Muxer): Future[Connection]</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="connmanager: getStream(c: ConnManager; peerId: PeerId): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CPeerId">connmanager: getStream(c: ConnManager; peerId: PeerId): Future[Connection]</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="connmanager: getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]" href="libp2p/connmanager.html#getStream%2CConnManager%2CPeerId%2CDirection">connmanager: getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]</a></li>
           </ul></dd>
 <dt><a name="getStreams" href="#getStreams"><span>getStreams:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4625,6 +4617,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="secp: SkSignature" href="libp2p/crypto/secp.html#SkSignature">secp: SkSignature</a></li>
           </ul></dd>
+<dt><a name="slotsAvailable" href="#slotsAvailable"><span>slotsAvailable:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="connmanager: slotsAvailable(c: ConnManager; dir: Direction): int" href="libp2p/connmanager.html#slotsAvailable%2CConnManager%2CDirection">connmanager: slotsAvailable(c: ConnManager; dir: Direction): int</a></li>
+          </ul></dd>
 <dt><a name="SomeUVarint" href="#SomeUVarint"><span>SomeUVarint:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="varint: SomeUVarint" href="libp2p/varint.html#SomeUVarint">varint: SomeUVarint</a></li>
@@ -4993,7 +4989,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="triggerPeerEvents" href="#triggerPeerEvents"><span>triggerPeerEvents:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="connmanager: triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): Future[void]" href="libp2p/connmanager.html#triggerPeerEvents%2CConnManager%2CPeerId%2CPeerEvent">connmanager: triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): Future[void]</a></li>
+          data-doc-search-tag="connmanager: triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): InternalRaisesFuture[
+    void, (CancelledError,)]" href="libp2p/connmanager.html#triggerPeerEvents%2CConnManager%2CPeerId%2CPeerEvent">connmanager: triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): InternalRaisesFuture[
+    void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="tryAcquire" href="#tryAcquire"><span>tryAcquire:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5536,7 +5534,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-19 15:02:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-19 15:57:57 UTC</small>
       </div>
     </div>
   </div>

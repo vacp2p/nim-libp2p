@@ -277,7 +277,7 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">close
       <li><a class="reference" href="#close%2CConnManager"
-    title="close(c: ConnManager): Future[void]">close(c: ConnManager): Future[void]</a></li>
+    title="close(c: ConnManager): InternalRaisesFuture[void, (CancelledError,)]">close(c: ConnManager): InternalRaisesFuture[void, (CancelledError,)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">connCount
@@ -294,12 +294,16 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">dropPeer
       <li><a class="reference" href="#dropPeer%2CConnManager%2CPeerId"
-    title="dropPeer(c: ConnManager; peerId: PeerId): Future[void]">dropPeer(c: ConnManager; peerId: PeerId): Future[void]</a></li>
+    title="dropPeer(c: ConnManager; peerId: PeerId): InternalRaisesFuture[void,
+    (CancelledError,)]">dropPeer(c: ConnManager; peerId: PeerId): InternalRaisesFuture[void,
+    (CancelledError,)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">expectConnection
       <li><a class="reference" href="#expectConnection%2CConnManager%2CPeerId%2CDirection"
-    title="expectConnection(c: ConnManager; p: PeerId; dir: Direction): Future[Muxer]">expectConnection(c: ConnManager; p: PeerId; dir: Direction): Future[Muxer]</a></li>
+    title="expectConnection(c: ConnManager; p: PeerId; dir: Direction): InternalRaisesFuture[
+    Muxer, (AlreadyExpectingConnectionError, CancelledError)]">expectConnection(c: ConnManager; p: PeerId; dir: Direction): InternalRaisesFuture[
+    Muxer, (AlreadyExpectingConnectionError, CancelledError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getConnections
@@ -309,21 +313,14 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">getIncomingSlot
       <li><a class="reference" href="#getIncomingSlot%2CConnManager"
-    title="getIncomingSlot(c: ConnManager): Future[ConnectionSlot]">getIncomingSlot(c: ConnManager): Future[ConnectionSlot]</a></li>
+    title="getIncomingSlot(c: ConnManager): InternalRaisesFuture[ConnectionSlot,
+    (CancelledError,)]">getIncomingSlot(c: ConnManager): InternalRaisesFuture[ConnectionSlot,
+    (CancelledError,)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getOutgoingSlot
       <li><a class="reference" href="#getOutgoingSlot%2CConnManager"
     title="getOutgoingSlot(c: ConnManager; forceDial = false): ConnectionSlot">getOutgoingSlot(c: ConnManager; forceDial = false): ConnectionSlot</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">getStream
-      <li><a class="reference" href="#getStream%2CConnManager%2CMuxer"
-    title="getStream(c: ConnManager; muxer: Muxer): Future[Connection]">getStream(c: ConnManager; muxer: Muxer): Future[Connection]</a></li>
-  <li><a class="reference" href="#getStream%2CConnManager%2CPeerId"
-    title="getStream(c: ConnManager; peerId: PeerId): Future[Connection]">getStream(c: ConnManager; peerId: PeerId): Future[Connection]</a></li>
-  <li><a class="reference" href="#getStream%2CConnManager%2CPeerId%2CDirection"
-    title="getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]">getStream(c: ConnManager; peerId: PeerId; dir: Direction): Future[Connection]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">new
@@ -357,6 +354,11 @@ window.addEventListener("DOMContentLoaded", main2);
     title="selectMuxer(c: ConnManager; peerId: PeerId): Muxer">selectMuxer(c: ConnManager; peerId: PeerId): Muxer</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">slotsAvailable
+      <li><a class="reference" href="#slotsAvailable%2CConnManager%2CDirection"
+    title="slotsAvailable(c: ConnManager; dir: Direction): int">slotsAvailable(c: ConnManager; dir: Direction): int</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">trackConnection
       <li><a class="reference" href="#trackConnection%2CConnectionSlot%2CConnection"
     title="trackConnection(cs: ConnectionSlot; conn: Connection)">trackConnection(cs: ConnectionSlot; conn: Connection)</a></li>
@@ -369,7 +371,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">triggerPeerEvents
       <li><a class="reference" href="#triggerPeerEvents%2CConnManager%2CPeerId%2CPeerEvent"
-    title="triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): Future[void]">triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): Future[void]</a></li>
+    title="triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): InternalRaisesFuture[
+    void, (CancelledError,)]">triggerPeerEvents(c: ConnManager; peerId: PeerId; event: PeerEvent): InternalRaisesFuture[
+    void, (CancelledError,)]</a></li>
 
   </ul>
 
@@ -597,22 +601,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 Add peer event handler - handlers must not raise exceptions! 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L142"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L144"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L142" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L144" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="close,ConnManager" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#close%2CConnManager"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#close%2CConnManager"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 cleanup resources for the connection manager 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L408"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L414"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L408" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L414" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -634,9 +639,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 checks if a muxer is being tracked by the connection manager 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L197"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L201"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L197" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L201" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -646,36 +651,38 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L194"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L198"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L194" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L198" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="dropPeer,ConnManager,PeerId" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#dropPeer%2CConnManager%2CPeerId"><span class="Identifier">dropPeer</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#dropPeer%2CConnManager%2CPeerId"><span class="Identifier">dropPeer</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                         <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 drop connections and cleanup resources for peer 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L397"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L403"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L397" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L403" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="expectConnection,ConnManager,PeerId,Direction" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#expectConnection%2CConnManager%2CPeerId%2CDirection"><span class="Identifier">expectConnection</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">p</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">dir</span><span class="Other">:</span> <span class="Identifier">Direction</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Muxer</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#expectConnection%2CConnManager%2CPeerId%2CDirection"><span class="Identifier">expectConnection</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">p</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">dir</span><span class="Other">:</span> <span class="Identifier">Direction</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">Muxer</span><span class="Other">,</span> <span class="Other">(</span><a href="peerstore.html#AlreadyExpectingConnectionError"><span class="Identifier">AlreadyExpectingConnectionError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.
     <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Wait for a peer to connect to us. This will bypass the <tt class="docutils literal"><span class="pre"><span class="Identifier">MaxConnectionsPerPeer</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L177"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L181"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L177" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L181" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -693,16 +700,16 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="getIncomingSlot,ConnManager" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getIncomingSlot%2CConnManager"><span class="Identifier">getIncomingSlot</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><a href="peerstore.html#ConnectionSlot"><span class="Identifier">ConnectionSlot</span></a><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#getIncomingSlot%2CConnManager"><span class="Identifier">getIncomingSlot</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><a href="peerstore.html#ConnectionSlot"><span class="Identifier">ConnectionSlot</span></a><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                         <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L327"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L333"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L327" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L333" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -713,51 +720,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L331"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L337"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L331" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="getStream,ConnManager,Muxer" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getStream%2CConnManager%2CMuxer"><span class="Identifier">getStream</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">muxer</span><span class="Other">:</span> <span class="Identifier">Muxer</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Connection</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-get a muxed stream for the passed muxer 
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L376"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L376" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="getStream,ConnManager,PeerId" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getStream%2CConnManager%2CPeerId"><span class="Identifier">getStream</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Connection</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-get a muxed stream for the passed peer from any connection 
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L383"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L383" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="getStream,ConnManager,PeerId,Direction" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getStream%2CConnManager%2CPeerId%2CDirection"><span class="Identifier">getStream</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">dir</span><span class="Other">:</span> <span class="Identifier">Direction</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">Connection</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                  <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-get a muxed stream for the passed peer from a connection with <tt class="docutils literal"><span class="pre"><span class="Identifier">dir</span></span></tt> 
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L391"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L391" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L337" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -781,9 +746,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L349"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L354"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L349" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L354" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -807,9 +772,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L152"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L154"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -819,9 +784,21 @@ class="link-seesrc" target="_blank">Source</a>
 
 Select a connection for the provided giving priority to outgoing connections 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L263"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L267"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L263" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L267" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="slotsAvailable,ConnManager,Direction" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#slotsAvailable%2CConnManager%2CDirection"><span class="Identifier">slotsAvailable</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">dir</span><span class="Other">:</span> <span class="Identifier">Direction</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L351"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L351" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -832,9 +809,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L355"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L357"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L355" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L357" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -844,23 +821,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L370"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L372"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L370" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L372" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="triggerPeerEvents,ConnManager,PeerId,PeerEvent" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#triggerPeerEvents%2CConnManager%2CPeerId%2CPeerEvent"><span class="Identifier">triggerPeerEvents</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">event</span><span class="Other">:</span> <a href="peerstore.html#PeerEvent"><span class="Identifier">PeerEvent</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-            <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#triggerPeerEvents%2CConnManager%2CPeerId%2CPeerEvent"><span class="Identifier">triggerPeerEvents</span></a><span class="Other">(</span><span class="Identifier">c</span><span class="Other">:</span> <a href="peerstore.html#ConnManager"><span class="Identifier">ConnManager</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">event</span><span class="Other">:</span> <a href="peerstore.html#PeerEvent"><span class="Identifier">PeerEvent</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                               <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L157"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/connmanager.nim#L161"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L157" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/connmanager.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -874,7 +851,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-19 15:02:48 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-19 15:57:34 UTC</small>
       </div>
     </div>
   </div>
