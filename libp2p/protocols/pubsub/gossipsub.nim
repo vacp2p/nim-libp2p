@@ -210,7 +210,7 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
     ok()
 
 method init*(g: GossipSub) =
-  proc handler(conn: Connection, proto: string) {.async.} =
+  proc handler(conn: Connection, proto: string) {.async: (raises: []).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...

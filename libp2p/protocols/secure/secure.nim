@@ -143,19 +143,18 @@ proc handleConn(
 method init*(s: Secure) =
   procCall LPProtocol(s).init()
 
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
     trace "handling connection upgrade", proto, conn
     try:
       # We don't need the result but we
       # definitely need to await the handshake
       discard await s.handleConn(conn, false, Opt.none(PeerId))
       trace "connection secured", conn
-    except CancelledError as exc:
+    except CancelledError:
       warn "securing connection canceled", conn
-      await conn.close()
-      raise exc
     except LPStreamError as exc:
       warn "securing connection failed", description = exc.msg, conn
+    finally:
       await conn.close()
 
   s.handler = handle

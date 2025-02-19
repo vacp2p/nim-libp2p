@@ -718,7 +718,7 @@ proc new*(
   )
   logScope:
     topics = "libp2p discovery rendezvous"
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(conn: Connection, proto: string) {.async: (raises: []).} =
     try:
       let
         buf = await conn.readLp(4096)
@@ -734,8 +734,8 @@ proc new*(
         await rdv.discover(conn, msg.discover.tryGet())
       of MessageType.DiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
-    except CancelledError as exc:
-      raise exc
+    except CancelledError:
+      trace "cancelled rendezvous handler"
     except CatchableError as exc:
       trace "exception in rendezvous handler", description = exc.msg
     finally:

@@ -94,14 +94,16 @@ suite "Tor transport":
 
     proc new(T: typedesc[TestProto]): T =
       # every incoming connections will be in handled in this closure
-      proc handle(conn: Connection, proto: string) {.async.} =
-        var resp: array[6, byte]
-        await conn.readExactly(addr resp, 6)
-        check string.fromBytes(resp) == "client"
-        await conn.write("server")
-
-        # We must close the connections ourselves when we're done with it
-        await conn.close()
+      proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+        try:
+          var resp: array[6, byte]
+          await conn.readExactly(addr resp, 6)
+          check string.fromBytes(resp) == "client"
+          await conn.write("server")
+        except:
+          check false # should not be here
+        finally:
+          await conn.close()
 
       return T.new(codecs = @[TestCodec], handler = handle)
 

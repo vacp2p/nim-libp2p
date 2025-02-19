@@ -154,7 +154,7 @@ proc new*(
 ): T =
   let autonat =
     T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(conn: Connection, proto: string) {.async: (raises: []).} =
     try:
       let msg = AutonatMsg.decode(await conn.readLp(1024)).valueOr:
         raise newException(AutonatError, "Received malformed message")
@@ -162,7 +162,7 @@ proc new*(
         raise newException(AutonatError, "Message type should be dial")
       await autonat.handleDial(conn, msg)
     except CancelledError as exc:
-      raise exc
+      trace "cancelled autonat handler"
     except CatchableError as exc:
       debug "exception in autonat handler", description = exc.msg, conn
     finally:

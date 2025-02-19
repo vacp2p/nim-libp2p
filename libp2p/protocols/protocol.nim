@@ -17,7 +17,8 @@ export results
 const DefaultMaxIncomingStreams* = 10
 
 type
-  LPProtoHandler* = proc(conn: Connection, proto: string): Future[void] {.async.}
+  LPProtoHandler* =
+    proc(conn: Connection, proto: string): Future[void] {.async: (raises: []).}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]

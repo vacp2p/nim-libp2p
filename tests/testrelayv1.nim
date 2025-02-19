@@ -81,12 +81,16 @@ suite "Circuit Relay":
     check:
       m.dstPeer == dst
 
-  proc customHandler(conn: Connection, proto: string) {.async.} =
-    check "line1" == string.fromBytes(await conn.readLp(1024))
-    await conn.writeLp("line2")
-    check "line3" == string.fromBytes(await conn.readLp(1024))
-    await conn.writeLp("line4")
-    await conn.close()
+  proc customHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+    try:
+      check "line1" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("line2")
+      check "line3" == string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("line4")
+    except:
+      check false # should not be here
+    finally:
+      await conn.close()
 
   asyncSetup:
     # Create a custom prototype

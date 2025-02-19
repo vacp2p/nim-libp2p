@@ -148,13 +148,13 @@ proc new*(
   identify
 
 method init*(p: Identify) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
     try:
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
       await conn.writeLp(pb.buffer)
-    except CancelledError as exc:
-      raise exc
+    except CancelledError:
+      trace "cancelled identify handler"
     except CatchableError as exc:
       trace "exception in identify handler", description = exc.msg, conn
     finally:
@@ -205,7 +205,7 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.pu
   identifypush
 
 proc init*(p: IdentifyPush) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
     trace "handling identify push", conn
     try:
       var message = await conn.readLp(64 * 1024)
@@ -224,7 +224,7 @@ proc init*(p: IdentifyPush) =
       if not isNil(p.identifyHandler):
         await p.identifyHandler(conn.peerId, identInfo)
     except CancelledError as exc:
-      raise exc
+      trace "cancelled identify push handler"
     except CatchableError as exc:
       info "exception in identify push handler", description = exc.msg, conn
     finally:
