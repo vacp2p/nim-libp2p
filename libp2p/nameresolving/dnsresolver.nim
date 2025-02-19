@@ -64,7 +64,7 @@ proc getDnsResponse(
 
   proc datagramDataReceived(
       transp: DatagramTransport, raddr: TransportAddress
-  ): Future[void] {.async: (raises: []), closure.} =
+  ): Future[void] {.async: (raises: []).} =
     receivedDataFuture.complete()
 
   let sock =
