@@ -345,18 +345,14 @@ proc getOutgoingSlot*(
     raise newTooManyConnectionsError()
   return ConnectionSlot(connManager: c, direction: Out)
 
+func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
+  return if dir == In: c.inSema else: c.outSema
+
 proc slotsAvailable*(c: ConnManager, dir: Direction): int =
-  case dir
-  of Direction.In:
-    return c.inSema.count
-  of Direction.Out:
-    return c.outSema.count
+  return semaphore(c, dir).count
 
 proc release*(cs: ConnectionSlot) =
-  if cs.direction == In:
-    cs.connManager.inSema.release()
-  else:
-    cs.connManager.outSema.release()
+  semaphore(cs.connManager, cs.direction).release()
 
 proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
   if isNil(conn):
