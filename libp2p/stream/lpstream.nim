@@ -113,7 +113,7 @@ method initStream*(s: LPStream) {.base.} =
   trackCounter(s.objName)
   trace "Stream created", s, objName = s.objName, dir = $s.dir
 
-proc join*(
+method join*(
     s: LPStream
 ): Future[void] {.async: (raises: [CancelledError], raw: true), public.} =
   ## Wait for the stream to be closed
@@ -135,9 +135,10 @@ method readOnce*(
   ## available
   raiseAssert("Not implemented!")
 
-proc readExactly*(
+method readExactly*(
     s: LPStream, pbytes: pointer, nbytes: int
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
+  # echo "readExactly. Is conn closed? ", s.isClosed
   ## Waits for `nbytes` to be available, then read
   ## them and return them
   if s.atEof:
@@ -160,9 +161,9 @@ proc readExactly*(
 
   if read == 0:
     doAssert s.atEof()
-    trace "couldn't read all bytes, stream EOF", s, nbytes, read
     # Re-readOnce to raise a more specific error than EOF
     # Raise EOF if it doesn't raise anything(shouldn't happen)
+    # echo "readExactly3. Is conn closed? ", s.isClosed
     discard await s.readOnce(addr pbuffer[read], nbytes - read)
     warn "Read twice while at EOF"
     raise newLPStreamEOFError()
@@ -171,7 +172,7 @@ proc readExactly*(
     trace "couldn't read all bytes, incomplete data", s, nbytes, read
     raise newLPStreamIncompleteError()
 
-proc readLine*(
+method readLine*(
     s: LPStream, limit = 0, sep = "\r\n"
 ): Future[string] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## Reads up to `limit` bytes are read, or a `sep` is found
@@ -199,7 +200,7 @@ proc readLine*(
       if len(result) == lim:
         break
 
-proc readVarint*(
+method readVarint*(
     conn: LPStream
 ): Future[uint64] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   var buffer: array[10, byte]
@@ -218,7 +219,7 @@ proc readVarint*(
   if true: # can't end with a raise apparently
     raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
-proc readLp*(
+method readLp*(
     s: LPStream, maxSize: int
 ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   ## read length prefixed msg, with the length encoded as a varint
@@ -244,7 +245,7 @@ method write*(
   # Write `msg` to stream, waiting for the write to be finished
   raiseAssert("Not implemented!")
 
-proc writeLp*(
+method writeLp*(
     s: LPStream, msg: openArray[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
   ## Write `msg` with a varint-encoded length prefix
@@ -254,7 +255,7 @@ proc writeLp*(
   buf[vbytes.len ..< buf.len] = msg
   s.write(buf)
 
-proc writeLp*(
+method writeLp*(
     s: LPStream, msg: string
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
@@ -306,6 +307,7 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []), public.} =
   ##
 
   trace "Closing with EOF", s
+  echo "> Closing with EOF: ", s.shortLog()
   if s.closedWithEOF:
     trace "Already closed"
     return

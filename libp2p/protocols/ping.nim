@@ -52,6 +52,7 @@ proc new*(
 
 method init*(p: Ping) =
   proc handle(conn: Connection, proto: string) {.async.} =
+    echo "######### Before Ping #########"
     try:
       trace "handling ping", conn
       var buf: array[PingSize, byte]
@@ -64,13 +65,15 @@ method init*(p: Ping) =
       raise exc
     except CatchableError as exc:
       trace "exception in ping handler", description = exc.msg, conn
+    echo "######### After Ping #########"
 
   p.handler = handle
   p.codec = PingCodec
 
 proc ping*(p: Ping, conn: Connection): Future[Duration] {.async, public.} =
   ## Sends ping to `conn`, returns the delay
-
+  echo "######### Pinging #########"
+  echo conn.shortLog()
   trace "initiating ping", conn
 
   var
@@ -82,9 +85,12 @@ proc ping*(p: Ping, conn: Connection): Future[Duration] {.async, public.} =
   let startTime = Moment.now()
 
   trace "sending ping", conn
+  echo "# Before Write. Is conn closed? ", conn.isClosed, conn.isEof
   await conn.write(@randomBuf)
+  echo "# After Write. Is conn closed? ", conn.isClosed, conn.isEof
 
   await conn.readExactly(addr resultBuf[0], PingSize)
+  echo "# After Read. Is conn closed? ", conn.isClosed
 
   let responseDur = Moment.now() - startTime
 
@@ -95,4 +101,5 @@ proc ping*(p: Ping, conn: Connection): Future[Duration] {.async, public.} =
       raise newException(WrongPingAckError, "Incorrect ping data from peer!")
 
   trace "valid ping response", conn
+  echo "######### Pinged #########"
   return responseDur

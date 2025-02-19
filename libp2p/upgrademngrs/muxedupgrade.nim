@@ -68,6 +68,8 @@ method upgrade*(
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   trace "Upgrading connection", conn, direction = conn.dir
 
+  echo "> MuxedUpgrade::upgrade"
+  echo "-----"
   let sconn = await self.secure(conn, peerId) # secure the connection
   if sconn == nil:
     raise (ref UpgradeFailedError)(msg: "unable to secure connection, stopping upgrade")
