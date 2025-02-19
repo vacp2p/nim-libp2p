@@ -12,8 +12,6 @@
 import sequtils
 import chronos, chronicles
 
-# TODO: this should probably go in chronos
-
 logScope:
   topics = "libp2p semaphore"
 
@@ -38,14 +36,14 @@ proc tryAcquire*(s: AsyncSemaphore): bool =
     trace "Acquired slot", available = s.count, queue = s.queue.len
     return true
 
-proc acquire*(s: AsyncSemaphore): Future[void].Raising([CancelledError]) =
+proc acquire*(s: AsyncSemaphore): Future[void] {.async: (raises:[], raw: true).} =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
   ## the returned future will not complete until
   ## the resource count goes above 0.
   ##
 
-  let fut = Future[void].Raising([CancelledError]).init("AsyncSemaphore.acquire")
+  let fut = newFuture[void]("AsyncSemaphore.acquire")
   if s.tryAcquire():
     fut.complete()
     return fut
