@@ -195,7 +195,7 @@ method init*(f: FloodSub) =
 
 method doPublish*(
     f: FloodSub, topic: string, data: seq[byte]
-): Future[int] {.async: (raises: []).} =
+): Future[Result[int, PublishOutcome]] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).doPublish(topic, data)
 
@@ -203,31 +203,24 @@ method doPublish*(
 
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish", topic
-    return 0
+    return err(NoTopicSpecified)
 
   let peers = f.floodsub.getOrDefault(topic)
 
   if peers.len == 0:
     debug "No peers for topic, skipping publish", topic
-    return 0
+    return err(NoPeersToPublish)
 
-  let
-    msg =
-      if f.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
-      else:
-        inc f.msgSeqno
-        Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
-    msgId = f.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish", error = error
-      return 0
+  let (msg, msgId) = f.createMessage(topic, data).valueOr:
+    trace "Error generating message id, skipping publish", error = error
+    return err(CannotGenerateMessageId)
 
   trace "Created new message", payload = shortLog(msg), peers = peers.len, topic, msgId
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this
     trace "Dropping already-seen message", msgId, topic
-    return 0
+    return err(DuplicateMessage)
 
   # Try to send to all peers that are known to be interested
   f.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
@@ -237,7 +230,7 @@ method doPublish*(
 
   trace "Published message to peers", msgId, topic
 
-  return peers.len
+  return ok(peers.len)
 
 method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()

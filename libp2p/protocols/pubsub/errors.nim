@@ -8,12 +8,21 @@ type ValidationResult* {.pure, public.} = enum
   Reject
   Ignore
 
-type
-  PublishingError* = object of LPError
+type PublishOutcome* {.pure, public.} = enum
+  NoTopicSpecified
+  DuplicateMessage
+  NoPeersToPublish
+  CannotGenerateMessageId
 
-  NoTopicSpecifiedError* = object of PublishingError
-  PayloadIsEmptyError* = object of PublishingError
-  DuplicateMessageError* = object of PublishingError
-  NotSubscribedToTopicError* = object of PublishingError
-  NoPeersToPublishError* = object of PublishingError
-  GeneratingMessageIdError* = object of PublishingError
+proc `$`*(publishOutcome: PublishOutcome): string =
+  case publishOutcome
+  of NoTopicSpecified:
+    return "NoTopicSpecified"
+  of DuplicateMessage:
+    return "DuplicateMessage"
+  of NoPeersToPublish:
+    return "NoPeersToPublish"
+  of CannotGenerateMessageId:
+    return "CannotGenerateMessageId"
+  else:
+    return "unknown"

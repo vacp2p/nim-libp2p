@@ -403,13 +403,14 @@ proc sendIDontWant(
     it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11
   )
 
-  g.broadcast(
-    peers,
-    RPCMsg(
-      control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
-    ),
-    isHighPriority = true,
-  )
+  if peers.len > 0:
+    g.broadcast(
+      peers,
+      RPCMsg(
+        control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+      ),
+      isHighPriority = true,
+    )
 
 const iDontWantMessageSizeThreshold* = 512
 
@@ -702,21 +703,9 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-method doPublish*(
-    g: GossipSub, topic: string, data: seq[byte]
-): Future[int] {.async: (raises: []).} =
-  logScope:
-    topic
-
-  if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
-    raise newException(NoTopicSpecifiedError, "Empty topic, skipping publish")
-
-  # base returns always 0
-  discard await procCall PubSub(g).doPublish(topic, data)
-
-  trace "Publishing message on topic", data = data.shortLog
-
+proc collectPeersForPublish(
+    g: GossipSub, topic: string, payloadLen: int
+): Result[HashSet[PubSubPeer], void] {.raises: [].} =
   var peers: HashSet[PubSubPeer]
 
   # add always direct peers
@@ -735,7 +724,7 @@ method doPublish*(
         let
           bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000
             # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
-          msToTransmit = max(data.len div bandwidth, 1)
+          msToTransmit = max(payloadLen div bandwidth, 1)
         max(
           g.parameters.heartbeatInterval.milliseconds div msToTransmit,
           g.parameters.dLow,
@@ -770,27 +759,37 @@ method doPublish*(
     g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
   if peers.len == 0:
-    let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    debug "No peers for topic, skipping publish",
-      peersOnTopic = topicPeers.len,
-      connectedPeers = topicPeers.filterIt(it.connected).len,
-      topic
-    libp2p_gossipsub_failed_publish.inc()
-    raise newException(NoPeersToPublishError, "No peers for topic, skipping publish")
+    return err()
 
-  let
-    msg =
-      if g.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
-      else:
-        inc g.msgSeqno
-        Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
-    msgId = g.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish", error = error
-      libp2p_gossipsub_failed_publish.inc()
-      raise newException(
-        GeneratingMessageIdError, "Error generating message id, skipping publish"
-      )
+  return ok(peers)
+
+method doPublish*(
+    g: GossipSub, topic: string, data: seq[byte]
+): Future[Result[int, PublishOutcome]] {.async: (raises: []).} =
+  logScope:
+    topic
+
+  if topic.len <= 0: # data could be 0/empty
+    debug "Empty topic, skipping publish"
+    return err(NoTopicSpecified)
+
+  # base returns always 0
+  discard await procCall PubSub(g).doPublish(topic, data)
+
+  trace "Publishing message on topic", data = data.shortLog
+
+  var peers = g.collectPeersForPublish(topic, data.len).valueOr:
+    let
+      topicPeers = g.gossipsub.getOrDefault(topic)
+      connectedPeersLen = topicPeers.filterIt(it.connected).len()
+    debug "No peers for topic, skipping publish",
+      peersOnTopic = topicPeers.len, connectedPeers = connectedPeersLen, topic
+    libp2p_gossipsub_failed_publish.inc()
+    return err(NoPeersToPublish)
+
+  let (msg, msgId) = g.createMessage(topic, data).valueOr:
+    trace "Error generating message id, skipping publish", error = error
+    return err(CannotGenerateMessageId)
 
   logScope:
     msgId = shortLog(msgId)
@@ -802,7 +801,7 @@ method doPublish*(
     # this might happen when not using sequence id:s and / or with a custom
     # message id provider
     trace "Dropping already-seen message"
-    raise newException(DuplicateMessageError, "Duplicate message, skipping publish")
+    return err(DuplicateMessage)
 
   g.mcache.put(msgId, msg)
 
@@ -817,7 +816,7 @@ method doPublish*(
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
   trace "Published message to peers", peers = peers.len
-  return peers.len
+  return ok(peers.len())
 
 proc maintainDirectPeer(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
