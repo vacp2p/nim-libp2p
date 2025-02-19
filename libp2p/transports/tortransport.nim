@@ -222,7 +222,9 @@ method dial*(
     await transp.closeWait()
     raise err
 
-method start*(self: TorTransport, addrs: seq[MultiAddress]) {.async.} =
+method start*(
+    self: TorTransport, addrs: seq[MultiAddress]
+) {.async: (raises: [LPError, transport.TransportError]).} =
   ## listen on the transport
   ##
 
@@ -254,7 +256,7 @@ method accept*(self: TorTransport): Future[Connection] {.async.} =
   conn.observedAddr = Opt.none(MultiAddress)
   return conn
 
-method stop*(self: TorTransport) {.async.} =
+method stop*(self: TorTransport) {.async: (raises: []).} =
   ## stop the transport
   ##
   await procCall Transport(self).stop() # call base

@@ -29,7 +29,9 @@ type RelayTransport* = ref object of Transport
   queue: AsyncQueue[Connection]
   selfRunning: bool
 
-method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
+method start*(
+    self: RelayTransport, ma: seq[MultiAddress]
+) {.async: (raises: [LPError, transport.TransportError]).} =
   if self.selfRunning:
     trace "Relay transport already running"
     return
@@ -43,12 +45,15 @@ method start*(self: RelayTransport, ma: seq[MultiAddress]) {.async.} =
   await procCall Transport(self).start(ma)
   trace "Starting Relay transport"
 
-method stop*(self: RelayTransport) {.async.} =
+method stop*(self: RelayTransport) {.async: (raises: []).} =
   self.running = false
   self.selfRunning = false
   self.client.onNewConnection = nil
   while not self.queue.empty():
-    await self.queue.popFirstNoWait().close()
+    try:
+      await self.queue.popFirstNoWait().close()
+    except AsyncQueueEmptyError:
+      continue # checked with self.queue.empty()
 
 method accept*(self: RelayTransport): Future[Connection] {.async.} =
   result = await self.queue.popFirst()

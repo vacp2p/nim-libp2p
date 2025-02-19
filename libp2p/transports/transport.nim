@@ -39,7 +39,9 @@ type
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
 
-method start*(self: Transport, addrs: seq[MultiAddress]) {.base, async.} =
+method start*(
+    self: Transport, addrs: seq[MultiAddress]
+) {.base, async: (raises: [LPError, TransportError]).} =
   ## start the transport
   ##
 
@@ -47,7 +49,7 @@ method start*(self: Transport, addrs: seq[MultiAddress]) {.base, async.} =
   self.addrs = addrs
   self.running = true
 
-method stop*(self: Transport) {.base, async.} =
+method stop*(self: Transport) {.base, async: (raises: []).} =
   ## stop and cleanup the transport
   ## including all outstanding connections
   ##
