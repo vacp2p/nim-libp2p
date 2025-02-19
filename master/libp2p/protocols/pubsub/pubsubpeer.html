@@ -208,8 +208,8 @@ window.addEventListener("DOMContentLoaded", main2);
       <li><a class="reference" href="#DropConn"
     title="DropConn = proc (peer: PubSubPeer) {.gcsafe, raises: [].}">DropConn</a></li>
   <li><a class="reference" href="#GetConn"
-    title="GetConn = proc (): Future[Connection] {.gcsafe,
-                                        async: (raises: [GetConnDialError]).}">GetConn</a></li>
+    title="GetConn = proc (): Future[Connection] {.async: (
+    raises: [CancelledError, GetConnDialError]).}">GetConn</a></li>
   <li><a class="reference" href="#GetConnDialError"
     title="GetConnDialError = object of CatchableError">GetConnDialError</a></li>
   <li><a class="reference" href="#OnEvent"
@@ -254,7 +254,7 @@ window.addEventListener("DOMContentLoaded", main2);
     title="PubSubPeerEventKind {.pure.} = enum
   StreamOpened, StreamClosed, DisconnectionRequested">PubSubPeerEventKind</a></li>
   <li><a class="reference" href="#RPCHandler"
-    title="RPCHandler = proc (peer: PubSubPeer; data: seq[byte]): Future[void] {.gcsafe,
+    title="RPCHandler = proc (peer: PubSubPeer; data: seq[byte]): Future[void] {.
     async: (raises: []).}">RPCHandler</a></li>
   <li><a class="reference" href="#RpcMessageQueue"
     title="RpcMessageQueue = ref object
@@ -411,15 +411,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L85"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L86"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L85" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L86" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="GetConn" class="tohide">
-<dt><pre><a href="pubsubpeer.html#GetConn"><span class="Identifier">GetConn</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Connection</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-                                        </span><span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">GetConnDialError</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
+<dt><pre><a href="pubsubpeer.html#GetConn"><span class="Identifier">GetConn</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Connection</span><span class="Other">]</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <span class="Identifier">GetConnDialError</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
@@ -448,9 +448,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L87"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L88"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L88" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -513,9 +513,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L97"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L98"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L97" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -547,15 +547,15 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="RPCHandler" class="tohide">
-<dt><pre><a href="pubsubpeer.html#RPCHandler"><span class="Identifier">RPCHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <span class="Identifier">PubSubPeer</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    </span><span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
+<dt><pre><a href="pubsubpeer.html#RPCHandler"><span class="Identifier">RPCHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <span class="Identifier">PubSubPeer</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L126"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L127"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L127" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -569,9 +569,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L89"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L90"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L89" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L90" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -859,7 +859,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-19 13:16:31 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-19 15:02:51 UTC</small>
       </div>
     </div>
   </div>
