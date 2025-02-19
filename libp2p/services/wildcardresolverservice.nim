@@ -148,7 +148,7 @@ proc expandWildcardAddresses(
 
 method setup*(
     self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   ## Sets up the `WildcardAddressResolverService`.
   ##
   ## This method adds the address mapper to the peer's list of address mappers.
@@ -161,7 +161,7 @@ method setup*(
   ## - A `Future[bool]` that resolves to `true` if the setup was successful, otherwise `false`.
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
-  ): Future[seq[MultiAddress]] {.async.} =
+  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
   debug "Setting up WildcardAddressResolverService"
@@ -170,7 +170,9 @@ method setup*(
     switch.peerInfo.addressMappers.add(self.addressMapper)
   return hasBeenSetup
 
-method run*(self: WildcardAddressResolverService, switch: Switch) {.async, public.} =
+method run*(
+    self: WildcardAddressResolverService, switch: Switch
+) {.public, async: (raises: [CancelledError]).} =
   ## Runs the WildcardAddressResolverService for a given switch.
   ##
   ## It updates the peer information for the provided switch by running the registered address mapper. Any other
@@ -181,7 +183,7 @@ method run*(self: WildcardAddressResolverService, switch: Switch) {.async, publi
 
 method stop*(
     self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.async, public.} =
+): Future[bool] {.public, async: (raises: [CancelledError]).} =
   ## Stops the WildcardAddressResolverService.
   ##
   ## Handles the shutdown process of the WildcardAddressResolverService for a given switch.

@@ -74,7 +74,9 @@ suite "PeerInfo":
         ]
       multiAddresses2 = @[MultiAddress.init("/ip4/8.8.8.8/tcp/33").tryGet()]
 
-    proc addressMapper(input: seq[MultiAddress]): Future[seq[MultiAddress]] {.async.} =
+    proc addressMapper(
+        input: seq[MultiAddress]
+    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
       check input == multiAddresses
       await sleepAsync(0.seconds)
       return multiAddresses2

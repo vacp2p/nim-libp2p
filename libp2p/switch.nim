@@ -64,17 +64,21 @@ type
   Service* = ref object of RootObj
     inUse: bool
 
-method setup*(self: Service, switch: Switch): Future[bool] {.base, async.} =
+method setup*(
+    self: Service, switch: Switch
+): Future[bool] {.base, async: (raises: [CancelledError]).} =
   if self.inUse:
     warn "service setup has already been called"
     return false
   self.inUse = true
   return true
 
-method run*(self: Service, switch: Switch) {.base, async.} =
+method run*(self: Service, switch: Switch) {.base, async: (raises: [CancelledError]).} =
   doAssert(false, "Not implemented!")
 
-method stop*(self: Service, switch: Switch): Future[bool] {.base, async.} =
+method stop*(
+    self: Service, switch: Switch
+): Future[bool] {.base, async: (raises: [CancelledError]).} =
   if not self.inUse:
     warn "service is already stopped"
     return false
