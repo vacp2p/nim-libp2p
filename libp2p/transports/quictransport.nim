@@ -197,7 +197,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[P2PConnection] {.async, gcsafe.} =
+): Future[P2PConnection] {.async.} =
   let connection = await dial(initTAddress(address).tryGet)
   return transport.wrapConnection(connection)
 

@@ -45,7 +45,7 @@ suite "Ping":
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())
 
-    proc handlePing(peer: PeerId) {.async, closure.} =
+    proc handlePing(peer: PeerId) {.async.} =
       inc pingReceivedCount
 
     pingProto1 = Ping.new()
@@ -96,7 +96,7 @@ suite "Ping":
   asyncTest "bad ping data ack":
     type FakePing = ref object of LPProtocol
     let fakePingProto = FakePing()
-    proc fakeHandle(conn: Connection, proto: string) {.async, closure.} =
+    proc fakeHandle(conn: Connection, proto: string) {.async.} =
       var
         buf: array[32, byte]
         fakebuf: array[32, byte]

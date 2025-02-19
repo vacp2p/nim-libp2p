@@ -724,7 +724,7 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
+        handler = proc(topic: string, data: seq[byte]) {.async.} =
           seen.mgetOrPut(peerName, 0).inc()
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
@@ -772,7 +772,7 @@ suite "GossipSub":
       var handler: TopicHandler
       capture dialer, i:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
+        handler = proc(topic: string, data: seq[byte]) {.async.} =
           try:
             if peerName notin seen:
               seen[peerName] = 0
