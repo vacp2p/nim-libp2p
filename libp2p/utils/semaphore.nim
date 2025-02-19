@@ -38,14 +38,14 @@ proc tryAcquire*(s: AsyncSemaphore): bool =
     trace "Acquired slot", available = s.count, queue = s.queue.len
     return true
 
-proc acquire*(s: AsyncSemaphore): Future[void] =
+proc acquire*(s: AsyncSemaphore): Future[void].Raising([CancelledError]) =
   ## Acquire a resource and decrement the resource
   ## counter. If no more resources are available,
   ## the returned future will not complete until
   ## the resource count goes above 0.
   ##
 
-  let fut = newFuture[void]("AsyncSemaphore.acquire")
+  let fut = Future[void].Raising([CancelledError]).init("AsyncSemaphore.acquire")
   if s.tryAcquire():
     fut.complete()
     return fut
