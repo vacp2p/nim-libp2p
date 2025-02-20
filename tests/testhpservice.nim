@@ -293,8 +293,8 @@ suite "Hole Punching":
         forceDial = false,
         reuseConnection = true,
         dir = Direction.Out,
-    ): Future[void] {.async.} =
+    ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
       self.connectStub = nil # this stub should be called only once
-      raise newException(CatchableError, "error")
+      raise newException(DialFailedError, "error")
 
     await holePunchingTest(connectStub, nil, Reachable)
