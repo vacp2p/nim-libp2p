@@ -2,6 +2,7 @@ import std/sequtils
 import pkg/chronos
 import pkg/chronicles
 import pkg/quic
+import results
 import ../multiaddress
 import ../multicodec
 import ../stream/connection
@@ -9,6 +10,7 @@ import ../wire
 import ../muxers/muxer
 import ../upgrademngrs/upgrade
 import ./transport
+import tls/certificate
 
 export multiaddress
 export multicodec
@@ -140,10 +142,14 @@ type QuicUpgrade = ref object of Upgrade
 
 type QuicTransport* = ref object of Transport
   listener: Listener
+  privateKey: PrivateKey
   connections: seq[P2PConnection]
 
-func new*(_: type QuicTransport, u: Upgrade): QuicTransport =
-  QuicTransport(upgrader: QuicUpgrade(ms: u.ms))
+func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
+  QuicTransport(
+    upgrader: QuicUpgrade(ms: u.ms),
+    privateKey: privateKey,
+  )
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
@@ -155,10 +161,26 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError]).} =
   doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
-  try:
-    self.listener = listen(initTAddress(addrs[0]).tryGet)
+
+  let pubkey = self.privateKey.getPublicKey().valueOr:
+      doAssert false, "could not obtain public key"
+      return
+
+  let keypair = KeyPair(
+    seckey: self.privateKey,
+    pubkey: pubkey
+  )
+
+  let certPair = generate(keypair, EncodingFormat.PEM)
+  let tlsConfig = TLSConfig(
+    certificate: certPair[0],
+    key: certPair[1],
+  )
+
+  try: 
+    self.listener = listen(initTAddress(addrs[0]).tryGet, tlsConfig)
     await procCall Transport(self).start(addrs)
-    self.addrs[0] =
+    transport.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()
   except TransportOsError as exc:
@@ -179,7 +201,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection
-): P2PConnection {.raises: [Defect, TransportOsError, LPError].} =
+): P2PConnection {.raises: [TransportOsError, LPError].} =
   let
     remoteAddr = connection.remoteAddress()
     observedAddr =
