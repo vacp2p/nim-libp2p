@@ -139,14 +139,16 @@ method connect*(
     forceDial = false,
     reuseConnection = true,
     dir = Direction.Out,
-): Future[void] {.public.} =
+): Future[void] {.
+    public, async: (raises: [DialFailedError, CancelledError], raw: true)
+.} =
   ## Connects to a peer without opening a stream to it
 
   s.dialer.connect(peerId, addrs, forceDial, reuseConnection, dir)
 
 method connect*(
     s: Switch, address: MultiAddress, allowUnknownPeerId = false
-): Future[PeerId] =
+): Future[PeerId] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Connects to a peer and retrieve its PeerId
   ##
   ## If the P2P part is missing from the MA and `allowUnknownPeerId` is set
@@ -157,12 +159,18 @@ method connect*(
 
 method dial*(
     s: Switch, peerId: PeerId, protos: seq[string]
-): Future[Connection] {.public.} =
+): Future[Connection] {.
+    public, async: (raises: [DialFailedError, CancelledError], raw: true)
+.} =
   ## Open a stream to a connected peer with the specified `protos`
 
   s.dialer.dial(peerId, protos)
 
-proc dial*(s: Switch, peerId: PeerId, proto: string): Future[Connection] {.public.} =
+proc dial*(
+    s: Switch, peerId: PeerId, proto: string
+): Future[Connection] {.
+    public, async: (raises: [DialFailedError, CancelledError], raw: true)
+.} =
   ## Open a stream to a connected peer with the specified `proto`
 
   dial(s, peerId, @[proto])
@@ -173,7 +181,9 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
-): Future[Connection] {.public.} =
+): Future[Connection] {.
+    public, async: (raises: [DialFailedError, CancelledError], raw: true)
+.} =
   ## Connected to a peer and open a stream
   ## with the specified `protos`
 
@@ -181,7 +191,9 @@ method dial*(
 
 proc dial*(
     s: Switch, peerId: PeerId, addrs: seq[MultiAddress], proto: string
-): Future[Connection] {.public.} =
+): Future[Connection] {.
+    public, async: (raises: [DialFailedError, CancelledError], raw: true)
+.} =
   ## Connected to a peer and open a stream
   ## with the specified `proto`
 
