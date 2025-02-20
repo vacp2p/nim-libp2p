@@ -55,11 +55,16 @@ proc sendResponseError(
   except LPStreamError as exc:
     trace "autonat failed to send response error", description = exc.msg, conn
 
-proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
+proc sendResponseOk(
+    conn: Connection, ma: MultiAddress
+) {.async: (raises: [CancelledError]).} =
   let pb = AutonatDialResponse(
     status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
   ).encode()
-  await conn.writeLp(pb.buffer)
+  try:
+    await conn.writeLp(pb.buffer)
+  except LPStreamError as exc:
+    trace "autonat failed to send response ok", description = exc.msg, conn
 
 proc tryDial(
     autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]
@@ -80,8 +85,8 @@ proc tryDial(
 
     # tryDial is to bypass the global max connections limit
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
-    let raceFut = await anyCompletedCatchable(futs).wait(autonat.dialTimeout)
-    let ma = await raceFut
+    let fut = await anyCompletedCatchable(futs).wait(autonat.dialTimeout)
+    let ma = await fut
     ma.withValue(maddr):
       await conn.sendResponseOk(maddr)
     else:
@@ -94,9 +99,6 @@ proc tryDial(
   except AsyncTimeoutError as exc:
     debug "Dial timeout", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "Dial timeout")
-  except CatchableError as exc:
-    debug "Unexpected error", addrs, description = exc.msg
-    await conn.sendResponseError(DialError, "Unexpected error")
   finally:
     autonat.sem.release()
     for f in futs:

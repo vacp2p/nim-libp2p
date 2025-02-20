@@ -17,7 +17,6 @@ export results
 
 type
   Dial* = ref object of RootObj
-
   DialFailedError* = object of LPError
 
 method connect*(

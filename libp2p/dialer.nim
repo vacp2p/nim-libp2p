@@ -179,47 +179,54 @@ proc internalConnect(
 
   # Ensure there's only one in-flight attempt per peer
   let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())
-  try:
-    await lock.acquire()
-
-    if reuseConnection:
-      peerId.withValue(peerId):
-        self.tryReusingConnection(peerId).withValue(mux):
-          return mux
-
-    let slot = self.connManager.getOutgoingSlot(forceDial)
-    let muxed =
-      try:
-        await self.dialAndUpgrade(peerId, addrs, dir)
-      except CatchableError as exc:
-        slot.release()
-        raise newException(DialFailedError, exc.msg)
-
-    slot.trackMuxer(muxed)
-    if isNil(muxed): # None of the addresses connected
-      raise newException(DialFailedError, "Unable to establish outgoing link")
-
-    try:
-      self.connManager.storeMuxer(muxed)
-      await self.peerStore.identify(muxed)
-      await self.connManager.triggerPeerEvents(
-        muxed.connection.peerId,
-        PeerEvent(kind: PeerEventKind.Identified, initiator: true),
-      )
-    except CatchableError as exc:
-      trace "Failed to finish outgoing upgrade", description = exc.msg
-      await muxed.close()
-      raise newException(DialFailedError, "Failed to finish outgoing upgrade")
-
-    return muxed
-  except TooManyConnectionsError as exc:
-    raise newException(DialFailedError, exc.msg)
-  finally:
+  await lock.acquire()
+  defer:
     if lock.locked():
       try:
         lock.release()
       except:
         raiseAssert "checked with if"
+
+  if reuseConnection:
+    peerId.withValue(peerId):
+      self.tryReusingConnection(peerId).withValue(mux):
+        return mux
+
+  let slot =
+    try:
+      self.connManager.getOutgoingSlot(forceDial)
+    except TooManyConnectionsError as exc:
+      raise newException(DialFailedError, exc.msg)
+
+  let muxed =
+    try:
+      await self.dialAndUpgrade(peerId, addrs, dir)
+    except CancelledError as exc:
+      slot.release()
+      raise exc
+    except CatchableError as exc:
+      slot.release()
+      raise newException(DialFailedError, exc.msg)
+
+  slot.trackMuxer(muxed)
+  if isNil(muxed): # None of the addresses connected
+    raise newException(DialFailedError, "Unable to establish outgoing link")
+
+  try:
+    self.connManager.storeMuxer(muxed)
+    await self.peerStore.identify(muxed)
+    await self.connManager.triggerPeerEvents(
+      muxed.connection.peerId,
+      PeerEvent(kind: PeerEventKind.Identified, initiator: true),
+    )
+    return muxed
+  except CancelledError as exc:
+    await muxed.close()
+    raise exc
+  except CatchableError as exc:
+    trace "Failed to finish outgoing upgrade", description = exc.msg
+    await muxed.close()
+    raise newException(DialFailedError, "Failed to finish outgoing upgrade")
 
 method connect*(
     self: Dialer,
