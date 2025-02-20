@@ -948,7 +948,7 @@ suite "Switch":
         .withRng(crypto.newRng())
         .withMplex()
         .withTransport(
-          proc(upgr: Upgrade): Transport =
+          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
             WsTransport.new(upgr)
         )
         .withNameResolver(resolver)
@@ -961,7 +961,7 @@ suite "Switch":
         .withRng(crypto.newRng())
         .withMplex()
         .withTransport(
-          proc(upgr: Upgrade): Transport =
+          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
             WsTransport.new(upgr)
         )
         .withTcpTransport()
@@ -1001,8 +1001,8 @@ suite "Switch":
         .withAddress(quicAddress1)
         .withRng(crypto.newRng())
         .withTransport(
-          proc(upgr: Upgrade): Transport =
-            QuicTransport.new(upgr)
+          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+            QuicTransport.new(upgr, privateKey)
         )
         .withNoise()
         .build()
@@ -1012,8 +1012,8 @@ suite "Switch":
         .withAddress(quicAddress2)
         .withRng(crypto.newRng())
         .withTransport(
-          proc(upgr: Upgrade): Transport =
-            QuicTransport.new(upgr)
+          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+            QuicTransport.new(upgr, privateKey)
         )
         .withNoise()
         .build()
