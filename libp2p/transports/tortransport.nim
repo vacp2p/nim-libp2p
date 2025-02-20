@@ -302,7 +302,7 @@ proc new*(
     flags: set[ServerFlags] = {},
 ): TorSwitch {.raises: [LPError], public.} =
   var builder = SwitchBuilder.new().withRng(rng).withTransport(
-      proc(upgr: Upgrade): Transport =
+      proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
         TorTransport.new(torServer, flags, upgr)
     )
   if addresses.len != 0:
