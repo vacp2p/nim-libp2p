@@ -33,7 +33,6 @@ proc anyCompleted*[T](
       )
     requests.del(requests.find(raceFut))
 
-
 proc anyCompletedCatchable*[T](
     futs: seq[T]
 ): Future[T] {.async: (raises: [AllFuturesFailedError, CancelledError]).} =
@@ -58,4 +57,3 @@ proc anyCompletedCatchable*[T](
       discard
 
     requests.del(requests.find(raceFut))
-
