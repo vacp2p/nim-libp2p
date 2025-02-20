@@ -765,7 +765,7 @@ proc collectPeersForPublish(
 
 method doPublish*(
     g: GossipSub, topic: string, data: seq[byte]
-): Future[Result[int, PublishOutcome]] {.async: (raises: []).} =
+): Future[PublishResult] {.async: (raises: []).} =
   logScope:
     topic
 
@@ -788,7 +788,7 @@ method doPublish*(
     return err(NoPeersToPublish)
 
   let (msg, msgId) = g.createMessage(topic, data).valueOr:
-    trace "Error generating message id, skipping publish", error = error
+    error "Error creating message, skipping publish", error = error
     return err(CannotGenerateMessageId)
 
   logScope:

@@ -179,34 +179,31 @@ proc hasBeforeSendObservers*(p: PubSubPeer): bool =
 
 proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
-  if not (isNil(p.observers)) and p.observers[].len > 0:
+  if not (isNil(p.observers)):
     for obs in p.observers[]:
-      if not (isNil(obs)): # TODO: should never be nil, but...
-        if not (isNil(obs.onRecv)):
-          obs.onRecv(p, msg)
+      if not (isNil(obs)) and not (isNil(obs.onRecv)):
+        obs.onRecv(p, msg)
 
 proc validatedObservers*(p: PubSubPeer, msg: Message, msgId: MessageId) =
   # trigger hooks
-  if not (isNil(p.observers)) and p.observers[].len > 0:
+  if not (isNil(p.observers)):
     for obs in p.observers[]:
-      if not (isNil(obs.onValidated)):
+      if not (isNil(obs)) and not (isNil(obs.onValidated)):
         obs.onValidated(p, msg, msgId)
 
 proc beforeSendObservers(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
-  if not (isNil(p.observers)) and p.observers[].len > 0:
+  if not (isNil(p.observers)):
     for obs in p.observers[]:
-      if not (isNil(obs)): # TODO: should never be nil, but...
-        if not (isNil(obs.onBeforeSend)):
-          obs.onBeforeSend(p, msg)
+      if not (isNil(obs)) and not (isNil(obs.onBeforeSend)):
+        obs.onBeforeSend(p, msg)
 
 proc afterSentObservers(p: PubSubPeer, msg: RPCMsg) =
   # trigger hooks
-  if not (isNil(p.observers)) and p.observers[].len > 0:
+  if not (isNil(p.observers)):
     for obs in p.observers[]:
-      if not (isNil(obs)): # TODO: should never be nil, but...
-        if not (isNil(obs.onAfterSent)):
-          obs.onAfterSent(p, msg)
+      if not (isNil(obs)) and not (isNil(obs.onAfterSent)):
+        obs.onAfterSent(p, msg)
 
 proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
   debug "starting pubsub read loop", conn, peer = p, closed = conn.closed

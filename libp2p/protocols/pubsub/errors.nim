@@ -13,16 +13,3 @@ type PublishOutcome* {.pure, public.} = enum
   DuplicateMessage
   NoPeersToPublish
   CannotGenerateMessageId
-
-proc `$`*(publishOutcome: PublishOutcome): string =
-  case publishOutcome
-  of NoTopicSpecified:
-    return "NoTopicSpecified"
-  of DuplicateMessage:
-    return "DuplicateMessage"
-  of NoPeersToPublish:
-    return "NoPeersToPublish"
-  of CannotGenerateMessageId:
-    return "CannotGenerateMessageId"
-  else:
-    return "unknown"

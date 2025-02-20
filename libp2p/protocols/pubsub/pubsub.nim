@@ -145,6 +145,8 @@ type
     ## we have to store it, which may be an attack vector.
     ## This callback can be used to reject topic we're not interested in
 
+  PublishResult* {.public.} = Result[int, PublishOutcome]
+
   PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
@@ -555,7 +557,7 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
 
 method createMessage*(
     p: PubSub, topic: string, data: seq[byte]
-): Result[(Message, MessageId), ValidationResult] {.base, gcsafe, raises: [].} =
+): Result[(Message, MessageId), string] {.base, gcsafe, raises: [].} =
   let
     msg =
       if p.anonymize:
@@ -563,7 +565,8 @@ method createMessage*(
       else:
         inc p.msgSeqno
         Message.init(some(p.peerInfo), data, topic, some(p.msgSeqno), p.sign)
-    msgId = ?p.msgIdProvider(msg)
+    msgId = p.msgIdProvider(msg).valueOr:
+      return err("Failed to generate message id")
 
   return ok((msg, msgId))
 
@@ -572,7 +575,7 @@ method createMessage*(
 # but call `publish`.
 method doPublish*(
     p: PubSub, topic: string, data: seq[byte]
-): Future[Result[int, PublishOutcome]] {.base, async: (raises: []).} =
+): Future[PublishResult] {.base, async: (raises: []).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the

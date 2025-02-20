@@ -195,7 +195,7 @@ method init*(f: FloodSub) =
 
 method doPublish*(
     f: FloodSub, topic: string, data: seq[byte]
-): Future[Result[int, PublishOutcome]] {.async: (raises: []).} =
+): Future[PublishResult] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).doPublish(topic, data)
 
@@ -212,7 +212,7 @@ method doPublish*(
     return err(NoPeersToPublish)
 
   let (msg, msgId) = f.createMessage(topic, data).valueOr:
-    trace "Error generating message id, skipping publish", error = error
+    trace "Error creating message, skipping publish", error = error
     return err(CannotGenerateMessageId)
 
   trace "Created new message", payload = shortLog(msg), peers = peers.len, topic, msgId
