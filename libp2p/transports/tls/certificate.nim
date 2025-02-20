@@ -61,6 +61,10 @@ type
     certificate*: mbedtls_x509_crt
     extension*: P2pExtension
 
+type EncodingFormat* = enum
+  DER
+  PEM
+
 proc ptrInc*(p: ptr byte, n: uint): ptr byte =
   ## Utility function to increment a pointer by n bytes.
   cast[ptr byte](cast[uint](p) + n)
@@ -84,7 +88,7 @@ proc initializeDRBG() =
       mbedtls_entropy_func,
       addr entropy,
       cast[ptr byte](personalization.cstring),
-      personalization.len.uint
+      personalization.len.uint,
     )
     if ret != 0:
       raise newException(KeyGenerationError, "Failed to seed CTR_DRBG")
@@ -247,7 +251,7 @@ proc makeLibp2pExtension(
   return generateSignedKey(signature, pubKeyBytes)
 
 proc generate*(
-    identityKeyPair: KeyPair
+    identityKeyPair: KeyPair, encodingFormat: EncodingFormat = EncodingFormat.DER
 ): (seq[byte], seq[byte]) {.
     raises: [
       KeyGenerationError, CertificateCreationError, ASN1EncodingError,
@@ -261,8 +265,8 @@ proc generate*(
   ##
   ## Returns:
   ## A tuple containing:
-  ## - The DER-encoded certificate.
-  ## - The DER-encoded private key.
+  ## - The certificate.
+  ## - The private key.
   ##
   ## Raises:
   ## - `KeyGenerationError` if key generation fails.
@@ -377,57 +381,78 @@ proc generate*(
   # Generate a random serial number
   const SERIAL_LEN = 20
   var serialBuffer: array[SERIAL_LEN, byte]
-  ret = mbedtls_ctr_drbg_random(addr ctrDrbg, addr serialBuffer[0], SERIAL_LEN);
+  ret = mbedtls_ctr_drbg_random(addr ctrDrbg, addr serialBuffer[0], SERIAL_LEN)
   if ret != 0:
     raise newException(CertificateCreationError, "Failed to generate serial number")
 
   # Set the serial number
-  ret = mbedtls_x509write_crt_set_serial_raw(addr crt, addr serialBuffer[0], SERIAL_LEN);
+  ret = mbedtls_x509write_crt_set_serial_raw(addr crt, addr serialBuffer[0], SERIAL_LEN)
   if ret != 0:
     raise newException(CertificateCreationError, "Failed to set serial number")
 
   # Prepare Buffer for Certificate Serialization
   const CERT_BUFFER_SIZE = 4096
-  var
-    certBuffer: array[CERT_BUFFER_SIZE, byte]
-    certLen: cint
+  var certBuffer: array[CERT_BUFFER_SIZE, byte]
+  var outputCertificate: seq[byte]
 
-  # Write the Certificate in DER Format
-  certLen = mbedtls_x509write_crt_der(
-    addr crt,
-    addr certBuffer[0],
-    CERT_BUFFER_SIZE.uint,
-    mbedtls_ctr_drbg_random,
-    addr ctrDrbg,
-  )
-  if certLen < 0:
-    raise newException(
-      CertificateCreationError, "Failed to write certificate in DER format"
+  if encodingFormat == EncodingFormat.DER:
+    let certLen: cint = mbedtls_x509write_crt_der(
+      addr crt,
+      addr certBuffer[0],
+      CERT_BUFFER_SIZE.uint,
+      mbedtls_ctr_drbg_random,
+      addr ctrDrbg,
     )
-
-  # Adjust the buffer to contain only the DER data
-  let certificateDer =
-    toSeq(certBuffer[(CERT_BUFFER_SIZE - certLen) ..< CERT_BUFFER_SIZE])
-
-  # Serialize the Private Key in DER Format (PKCS#8)
-  var
-    privKeyBuffer: array[2048, byte]
-    privKeyLen: cint
-
-  privKeyLen = mbedtls_pk_write_key_der(
-    addr certKey, addr privKeyBuffer[0], privKeyBuffer.len.uint
-  )
-  if privKeyLen < 0:
-    raise newException(
-      CertificateCreationError, "Failed to write private key in DER format"
+    if certLen < 0:
+      raise newException(
+        CertificateCreationError, "Failed to write certificate in DER format"
+      )
+    # Adjust the buffer to contain only the data
+    outputCertificate =
+      toSeq(certBuffer[(CERT_BUFFER_SIZE - certLen) ..< CERT_BUFFER_SIZE])
+  else:
+    let ret = mbedtls_x509write_crt_pem(
+      addr crt,
+      addr certBuffer[0],
+      CERT_BUFFER_SIZE.uint,
+      mbedtls_ctr_drbg_random,
+      addr ctrDrbg,
     )
+    if ret != 0:
+      raise newException(
+        CertificateCreationError, "Failed to write certificate in PEM format"
+      )
+    let n = certBuffer.find(0'u8) # Find the index of the first null byte
+    outputCertificate = certBuffer[0 .. n - 1].toSeq()
 
-  # Adjust the buffer to contain only the DER data
-  let privateKeyDer =
-    toSeq(privKeyBuffer[(privKeyBuffer.len - privKeyLen) ..< privKeyBuffer.len])
+  # Serialize the Private Key 
+  var privKeyBuffer: array[2048, byte]
+  var outputPrivateKey: seq[byte]
+
+  if encodingFormat == EncodingFormat.DER:
+    let privKeyLen = mbedtls_pk_write_key_der(
+      addr certKey, addr privKeyBuffer[0], privKeyBuffer.len.uint
+    )
+    if privKeyLen < 0:
+      raise newException(
+        CertificateCreationError, "Failed to write private key in DER format"
+      )
+    # Adjust the buffer to contain only the data
+    outputPrivateKey =
+      toSeq(privKeyBuffer[(privKeyBuffer.len - privKeyLen) ..< privKeyBuffer.len])
+  else:
+    let ret = mbedtls_pk_write_key_pem(
+      addr certKey, addr privKeyBuffer[0], privKeyBuffer.len.uint
+    )
+    if ret != 0:
+      raise newException(
+        CertificateCreationError, "Failed to write private key in PEM format"
+      )
+    let n = privKeyBuffer.find(0'u8) # Find the index of the first null byte
+    outputPrivateKey = privKeyBuffer[0 .. n - 1].toSeq()
 
   # Return the Serialized Certificate and Private Key
-  return (certificateDer, privateKeyDer)
+  return (outputCertificate, outputPrivateKey)
 
 proc libp2pext(
     p_ctx: pointer,
