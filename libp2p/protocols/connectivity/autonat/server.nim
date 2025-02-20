@@ -80,20 +80,15 @@ proc tryDial(
 
     # tryDial is to bypass the global max connections limit
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
-    while true:
-      let raceFut = await one(futs).wait(autonat.dialTimeout)
-      if raceFut.completed:
-        let ma = await raceFut
-        ma.withValue(maddr):
-          await conn.sendResponseOk(maddr)
-        else:
-          await conn.sendResponseError(DialError, "Missing observed address")
-        break
-      else:
-        futs.del(futs.find(raceFut))
+    let raceFut = await anyCompletedCatchable(futs).wait(autonat.dialTimeout)
+    let ma = await raceFut
+    ma.withValue(maddr):
+      await conn.sendResponseOk(maddr)
+    else:
+      await conn.sendResponseError(DialError, "Missing observed address")
   except CancelledError as exc:
     raise exc
-  except ValueError as exc:
+  except AllFuturesFailedError as exc:
     debug "All dial attempts failed", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
