@@ -40,7 +40,7 @@ proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.}
 
 proc sendResponseError(
     conn: Connection, status: ResponseStatus, text: string = ""
-) {.async.} =
+) {.async: (raises: [CancelledError]).} =
   let pb = AutonatDialResponse(
     status: status,
     text:
@@ -50,7 +50,10 @@ proc sendResponseError(
         Opt.some(text),
     ma: Opt.none(MultiAddress),
   ).encode()
-  await conn.writeLp(pb.buffer)
+  try:
+    await conn.writeLp(pb.buffer)
+  except LPStreamError as exc:
+    trace "autonat failed to send response error", description = exc.msg, conn
 
 proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
   let pb = AutonatDialResponse(
@@ -58,9 +61,11 @@ proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
   ).encode()
   await conn.writeLp(pb.buffer)
 
-proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
+proc tryDial(
+    autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]
+) {.async: (raises: [DialFailedError, CancelledError]).} =
   await autonat.sem.acquire()
-  var futs: seq[Future[Opt[MultiAddress]]]
+  var futs: seq[Future[Opt[MultiAddress]].Raising([DialFailedError, CancelledError])]
   try:
     # This is to bypass the per peer max connections limit
     let outgoingConnection =
@@ -71,18 +76,24 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
       return
     # Safer to always try to cancel cause we aren't sure if the connection was established
     defer:
-      outgoingConnection.cancel()
+      outgoingConnection.cancelSoon()
+
     # tryDial is to bypass the global max connections limit
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
-    let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
-    let ma = await fut
-    ma.withValue(maddr):
-      await conn.sendResponseOk(maddr)
-    else:
-      await conn.sendResponseError(DialError, "Missing observed address")
+    while true:
+      let raceFut = await one(futs).wait(autonat.dialTimeout)
+      if raceFut.completed:
+        let ma = await raceFut
+        ma.withValue(maddr):
+          await conn.sendResponseOk(maddr)
+        else:
+          await conn.sendResponseError(DialError, "Missing observed address")
+        break
+      else:
+        futs.del(futs.find(raceFut))
   except CancelledError as exc:
     raise exc
-  except AllFuturesFailedError as exc:
+  except ValueError as exc:
     debug "All dial attempts failed", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
@@ -163,8 +174,6 @@ proc new*(
       await autonat.handleDial(conn, msg)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
-      debug "exception in autonat handler", description = exc.msg, conn
     finally:
       trace "exiting autonat handler", conn
       await conn.close()
