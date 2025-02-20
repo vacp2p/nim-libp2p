@@ -12,7 +12,7 @@ suite "Certificate Tests":
     let keypair = KeyPair.random(Secp256k1, rng[]).tryGet()
     let peerId = PeerId.init(keypair.pubkey).tryGet()
 
-    let certBytes = generate(keypair)[0]
+    let (certBytes, _) = generate(keypair, EncodingFormat.DER)
     let cert = parse(certBytes)
     let ext = cert.extension
 
