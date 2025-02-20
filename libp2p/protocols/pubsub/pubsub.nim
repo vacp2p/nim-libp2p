@@ -145,6 +145,8 @@ type
     ## we have to store it, which may be an attack vector.
     ## This callback can be used to reject topic we're not interested in
 
+  PublishResult* {.public.} = Result[int, PublishOutcome]
+
   PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
@@ -259,7 +261,7 @@ proc broadcast*(
 
   trace "broadcasting messages to peers", peers = sendPeers.len, payload = shortLog(msg)
 
-  if anyIt(sendPeers, it.hasObservers):
+  if anyIt(sendPeers, it.hasBeforeSendObservers):
     for peer in sendPeers:
       p.send(peer, msg, isHighPriority)
   else:
@@ -378,7 +380,7 @@ method getOrCreatePeer*(
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
-  pubSubPeer.observers = p.observers
+  pubSubPeer.setObservers(p.observers)
 
   onNewPeer(p, pubSubPeer)
 
@@ -557,9 +559,27 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
 
   p.updateTopicMetrics(topic)
 
-method publish*(
+method createMessage*(
     p: PubSub, topic: string, data: seq[byte]
-): Future[int] {.base, async: (raises: []), public.} =
+): Result[(Message, MessageId), string] {.base, gcsafe, raises: [].} =
+  let
+    msg =
+      if p.anonymize:
+        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+      else:
+        inc p.msgSeqno
+        Message.init(some(p.peerInfo), data, topic, some(p.msgSeqno), p.sign)
+    msgId = p.msgIdProvider(msg).valueOr:
+      return err("Failed to generate message id")
+
+  return ok((msg, msgId))
+
+# `Non-public` overridable interface for publshing messages.
+# Although it must be exported, this not intended to call from outside by class users, 
+# but call `publish`.
+method doPublish*(
+    p: PubSub, topic: string, data: seq[byte]
+): Future[PublishResult] {.base, async: (raises: []).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
@@ -569,7 +589,13 @@ method publish*(
   if p.triggerSelf:
     await handleData(p, topic, data)
 
-  return 0
+  return ok(0)
+
+proc publish*(
+    p: PubSub, topic: string, data: seq[byte]
+): Future[int] {.async: (raises: []), public.} =
+  return (await p.doPublish(topic, data)).valueOr:
+    return 0
 
 method initPubSub*(p: PubSub) {.base, raises: [InitializationError].} =
   ## perform pubsub initialization
