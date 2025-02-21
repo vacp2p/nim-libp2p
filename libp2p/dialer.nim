@@ -306,6 +306,8 @@ method dial*(
 
   try:
     let stream = await self.connManager.getStream(peerId)
+    if isNil(stream):
+      raise newException(DialFailedError, "stream is nil")
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
     trace "Dial canceled"
