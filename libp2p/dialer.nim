@@ -311,7 +311,7 @@ method dial*(
     trace "Dial canceled"
     raise exc
   except CatchableError as exc:
-    trace "Error canceled", description = exc.msg
+    trace "Error dialing", description = exc.msg
     raise newException(DialFailedError, exc.msg)
 
 method dial*(
