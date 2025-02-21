@@ -833,7 +833,7 @@ proc maintainDirectPeer(
     except CancelledError as exc:
       trace "Direct peer dial canceled"
       raise exc
-    except CatchableError as exc:
+    except DialFailedError as exc:
       debug "Direct peer error dialing", description = exc.msg
 
 proc addDirectPeer*(

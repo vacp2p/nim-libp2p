@@ -114,7 +114,7 @@ suite "Dcutr":
         forceDial = false,
         reuseConnection = true,
         dir = Direction.Out,
-    ): Future[void] {.async.} =
+    ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
       await sleepAsync(100.millis)
 
     let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectTimeoutProc)
@@ -136,8 +136,8 @@ suite "Dcutr":
         forceDial = false,
         reuseConnection = true,
         dir = Direction.Out,
-    ): Future[void] {.async.} =
-      raise newException(CatchableError, "error")
+    ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
+      raise newException(DialFailedError, "error")
 
     let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectErrorProc)
     let publicSwitch = newStandardSwitch()
@@ -193,7 +193,7 @@ suite "Dcutr":
         forceDial = false,
         reuseConnection = true,
         dir = Direction.Out,
-    ): Future[void] {.async.} =
+    ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
       await sleepAsync(100.millis)
 
     await ductrServerTest(connectProc)
@@ -206,8 +206,8 @@ suite "Dcutr":
         forceDial = false,
         reuseConnection = true,
         dir = Direction.Out,
-    ): Future[void] {.async.} =
-      raise newException(CatchableError, "error")
+    ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
+      raise newException(DialFailedError, "error")
 
     await ductrServerTest(connectProc)
 

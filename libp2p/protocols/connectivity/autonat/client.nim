@@ -47,7 +47,7 @@ method dialMe*(
         await switch.dial(pid, @[AutonatCodec])
       else:
         await switch.dial(pid, addrs, AutonatCodec)
-    except CatchableError as err:
+    except DialFailedError as err:
       raise
         newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
 

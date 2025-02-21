@@ -26,7 +26,7 @@ type
     forceDial = false,
     reuseConnection = true,
     dir = Direction.Out,
-  ): Future[void] {.async.}
+  ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).}
 
 method connect*(
     self: SwitchStub,
@@ -35,7 +35,7 @@ method connect*(
     forceDial = false,
     reuseConnection = true,
     dir = Direction.Out,
-) {.async.} =
+) {.async: (raises: [DialFailedError, CancelledError]).} =
   if (self.connectStub != nil):
     await self.connectStub(self, peerId, addrs, forceDial, reuseConnection, dir)
   else:

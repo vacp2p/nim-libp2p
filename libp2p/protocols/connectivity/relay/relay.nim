@@ -166,7 +166,7 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
       await r.switch.dial(dst, RelayV2StopCodec)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except DialFailedError as exc:
       trace "error opening relay stream", dst, description = exc.msg
       await sendHopStatus(connSrc, ConnectionFailed)
       return
@@ -271,7 +271,7 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
       await r.switch.dial(dst.peerId, RelayV1Codec)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except DialFailedError as exc:
       trace "error opening relay stream", dst, description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantDialDst)
       return
