@@ -54,6 +54,6 @@ proc anyCompletedCatchable*[T](
     except CancelledError as exc:
       raise exc
     except CatchableError:
-      discard
+      continue
 
     requests.del(requests.find(raceFut))
