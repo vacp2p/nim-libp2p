@@ -137,7 +137,7 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
   ## peer attritubtes are available through the variable
   ## `peer`
 
-  proc forEachInternal(q: DiscoveryQuery) {.async.} =
+  proc forEachInternal(q: DiscoveryQuery) {.async: (raises: []).} =
     while true:
       let peer {.inject.} =
         try:
@@ -162,7 +162,11 @@ proc stop*(dm: DiscoveryManager) =
       continue
     i.advertiseLoop.cancel()
 
-proc getPeer*(query: DiscoveryQuery): Future[PeerAttributes] {.async.} =
+proc getPeer*(
+    query: DiscoveryQuery
+): Future[PeerAttributes] {.
+    async: (raises: [CancelledError, DiscoveryError, DiscoveryFinished])
+.} =
   let getter = query.peers.popFirst()
 
   try:
