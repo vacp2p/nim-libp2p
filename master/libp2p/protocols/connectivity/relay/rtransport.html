@@ -251,12 +251,14 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">start
       <li><a class="reference" href="#start.e%2CRelayTransport%2Cseq%5BMultiAddress%5D"
-    title="start(self: RelayTransport; ma: seq[MultiAddress]): Future[void]">start(self: RelayTransport; ma: seq[MultiAddress]): Future[void]</a></li>
+    title="start(self: RelayTransport; ma: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]">start(self: RelayTransport; ma: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">stop
       <li><a class="reference" href="#stop.e%2CRelayTransport"
-    title="stop(self: RelayTransport): Future[void]">stop(self: RelayTransport): Future[void]</a></li>
+    title="stop(self: RelayTransport): InternalRaisesFuture[void, void]">stop(self: RelayTransport): InternalRaisesFuture[void, void]</a></li>
 
   </ul>
 
@@ -312,9 +314,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L56"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L61"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L56" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L61" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -325,9 +327,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L107"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L112"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L107" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L112" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -343,9 +345,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L53"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L58"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L58" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -358,9 +360,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L93"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L98"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -371,36 +373,38 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L98"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L103"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L103" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="start.e,RelayTransport,seq[MultiAddress]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#start.e%2CRelayTransport%2Cseq%5BMultiAddress%5D"><span class="Identifier">start</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rtransport.html#RelayTransport"><span class="Identifier">RelayTransport</span></a><span class="Other">;</span> <span class="Identifier">ma</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">method</span> <a href="#start.e%2CRelayTransport%2Cseq%5BMultiAddress%5D"><span class="Identifier">start</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rtransport.html#RelayTransport"><span class="Identifier">RelayTransport</span></a><span class="Other">;</span> <span class="Identifier">ma</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><a href="../../../errors.html#LPError"><span class="Identifier">LPError</span></a><span class="Other">,</span> <a href="../../../upgrademngrs/upgrade.html#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L34"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L34" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="stop.e,RelayTransport" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#stop.e%2CRelayTransport"><span class="Identifier">stop</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rtransport.html#RelayTransport"><span class="Identifier">RelayTransport</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.
     <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L32"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L48"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L32" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="stop.e,RelayTransport" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#stop.e%2CRelayTransport"><span class="Identifier">stop</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="rtransport.html#RelayTransport"><span class="Identifier">RelayTransport</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L46"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L46" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -414,7 +418,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 14:35:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 15:44:52 UTC</small>
       </div>
     </div>
   </div>

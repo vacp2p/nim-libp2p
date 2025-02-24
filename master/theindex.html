@@ -4645,7 +4645,9 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="relay: start(r: Relay): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/connectivity/relay/relay.html#start.e%2CRelay">relay: start(r: Relay): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rtransport: start(self: RelayTransport; ma: seq[MultiAddress]): Future[void]" href="libp2p/protocols/connectivity/relay/rtransport.html#start.e%2CRelayTransport%2Cseq%5BMultiAddress%5D">rtransport: start(self: RelayTransport; ma: seq[MultiAddress]): Future[void]</a></li>
+          data-doc-search-tag="rtransport: start(self: RelayTransport; ma: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]" href="libp2p/protocols/connectivity/relay/rtransport.html#start.e%2CRelayTransport%2Cseq%5BMultiAddress%5D">rtransport: start(self: RelayTransport; ma: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="protocol: start(p: LPProtocol): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/protocols/protocol.html#start.e%2CLPProtocol">protocol: start(p: LPProtocol): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           <li><a class="reference external"
@@ -4655,11 +4657,17 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="switch: start(s: Switch): Future[void]" href="libp2p/switch.html#start%2CSwitch">switch: start(s: Switch): Future[void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="tcptransport: start(self: TcpTransport; addrs: seq[MultiAddress]): Future[void]" href="libp2p/transports/tcptransport.html#start.e%2CTcpTransport%2Cseq%5BMultiAddress%5D">tcptransport: start(self: TcpTransport; addrs: seq[MultiAddress]): Future[void]</a></li>
+          data-doc-search-tag="tcptransport: start(self: TcpTransport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]" href="libp2p/transports/tcptransport.html#start.e%2CTcpTransport%2Cseq%5BMultiAddress%5D">tcptransport: start(self: TcpTransport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="transport: start(self: Transport; addrs: seq[MultiAddress]): Future[void]" href="libp2p/transports/transport.html#start.e%2CTransport%2Cseq%5BMultiAddress%5D">transport: start(self: Transport; addrs: seq[MultiAddress]): Future[void]</a></li>
+          data-doc-search-tag="transport: start(self: Transport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]" href="libp2p/transports/transport.html#start.e%2CTransport%2Cseq%5BMultiAddress%5D">transport: start(self: Transport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="wstransport: start(self: WsTransport; addrs: seq[MultiAddress]): Future[void]" href="libp2p/transports/wstransport.html#start.e%2CWsTransport%2Cseq%5BMultiAddress%5D">wstransport: start(self: WsTransport; addrs: seq[MultiAddress]): Future[void]</a></li>
+          data-doc-search-tag="wstransport: start(self: WsTransport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]" href="libp2p/transports/wstransport.html#start.e%2CWsTransport%2Cseq%5BMultiAddress%5D">wstransport: start(self: WsTransport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError)]</a></li>
           </ul></dd>
 <dt><a name="StartGroup" href="#StartGroup"><span>StartGroup:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4679,7 +4687,7 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="relay: stop(r: Relay): InternalRaisesFuture[void, void]" href="libp2p/protocols/connectivity/relay/relay.html#stop.e%2CRelay">relay: stop(r: Relay): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rtransport: stop(self: RelayTransport): Future[void]" href="libp2p/protocols/connectivity/relay/rtransport.html#stop.e%2CRelayTransport">rtransport: stop(self: RelayTransport): Future[void]</a></li>
+          data-doc-search-tag="rtransport: stop(self: RelayTransport): InternalRaisesFuture[void, void]" href="libp2p/protocols/connectivity/relay/rtransport.html#stop.e%2CRelayTransport">rtransport: stop(self: RelayTransport): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="protocol: stop(p: LPProtocol): InternalRaisesFuture[void, void]" href="libp2p/protocols/protocol.html#stop.e%2CLPProtocol">protocol: stop(p: LPProtocol): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
@@ -4697,11 +4705,11 @@ window.addEventListener('DOMContentLoaded', main);
     (CancelledError,)]" href="libp2p/switch.html#stop.e%2CService%2CSwitch">switch: stop(self: Service; switch: Switch): InternalRaisesFuture[bool,
     (CancelledError,)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="tcptransport: stop(self: TcpTransport): Future[void]" href="libp2p/transports/tcptransport.html#stop.e%2CTcpTransport">tcptransport: stop(self: TcpTransport): Future[void]</a></li>
+          data-doc-search-tag="tcptransport: stop(self: TcpTransport): InternalRaisesFuture[void, void]" href="libp2p/transports/tcptransport.html#stop.e%2CTcpTransport">tcptransport: stop(self: TcpTransport): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="transport: stop(self: Transport): Future[void]" href="libp2p/transports/transport.html#stop.e%2CTransport">transport: stop(self: Transport): Future[void]</a></li>
+          data-doc-search-tag="transport: stop(self: Transport): InternalRaisesFuture[void, void]" href="libp2p/transports/transport.html#stop.e%2CTransport">transport: stop(self: Transport): InternalRaisesFuture[void, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="wstransport: stop(self: WsTransport): Future[void]" href="libp2p/transports/wstransport.html#stop.e%2CWsTransport">wstransport: stop(self: WsTransport): Future[void]</a></li>
+          data-doc-search-tag="wstransport: stop(self: WsTransport): InternalRaisesFuture[void, void]" href="libp2p/transports/wstransport.html#stop.e%2CWsTransport">wstransport: stop(self: WsTransport): InternalRaisesFuture[void, void]</a></li>
           </ul></dd>
 <dt><a name="StopMessage" href="#StopMessage"><span>StopMessage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5503,6 +5511,10 @@ window.addEventListener('DOMContentLoaded', main);
 <li><a class="reference external"
           data-doc-search-tag="wstransport: WsTransport" href="libp2p/transports/wstransport.html#WsTransport">wstransport: WsTransport</a></li>
           </ul></dd>
+<dt><a name="WsTransportError" href="#WsTransportError"><span>WsTransportError:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="wstransport: WsTransportError" href="libp2p/transports/wstransport.html#WsTransportError">wstransport: WsTransportError</a></li>
+          </ul></dd>
 <dt><a name="Yamux" href="#Yamux"><span>Yamux:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="yamux: Yamux" href="libp2p/muxers/yamux/yamux.html#Yamux">yamux: Yamux</a></li>
@@ -5544,7 +5556,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 14:35:54 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 15:44:55 UTC</small>
       </div>
     </div>
   </div>
