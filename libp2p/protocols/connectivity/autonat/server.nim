@@ -85,7 +85,7 @@ proc tryDial(
 
     # tryDial is to bypass the global max connections limit
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
-    let fut = await anyCompletedCatchable(futs).wait(autonat.dialTimeout)
+    let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
     let ma = await fut
     ma.withValue(maddr):
       await conn.sendResponseOk(maddr)

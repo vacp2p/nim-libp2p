@@ -71,7 +71,7 @@ proc new*(
         )
       )
       try:
-        discard await anyCompletedCatchable(futs).wait(connectTimeout)
+        discard await anyCompleted(futs).wait(connectTimeout)
         debug "Dcutr receiver has directly connected to the remote peer."
       finally:
         for fut in futs:
