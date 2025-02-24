@@ -249,7 +249,9 @@ method start*(
       "Tor Transport couldn't start, no supported addr was provided.",
     )
 
-method accept*(self: TorTransport): Future[Connection] {.async.} =
+method accept*(
+    self: TorTransport
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## accept a new Tor connection
   ##
   let conn = await self.tcpTransport.accept()
@@ -262,7 +264,7 @@ method stop*(self: TorTransport) {.async: (raises: []).} =
   await procCall Transport(self).stop() # call base
   await self.tcpTransport.stop()
 
-method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =
+method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):
     return handlesDial(address) or handlesStart(address)
 

@@ -55,7 +55,9 @@ method stop*(self: RelayTransport) {.async: (raises: []).} =
     except AsyncQueueEmptyError:
       continue # checked with self.queue.empty()
 
-method accept*(self: RelayTransport): Future[Connection] {.async.} =
+method accept*(
+    self: RelayTransport
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   result = await self.queue.popFirst()
 
 proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.} =

@@ -197,7 +197,9 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       "No incoming connections possible without start"
     await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
 
-method accept*(self: TcpTransport): Future[Connection] =
+method accept*(
+    self: TcpTransport
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## accept a new TCP connection, returning nil on non-fatal errors
   ##
   ## Raises an exception when the transport is broken and cannot be used for
@@ -206,75 +208,71 @@ method accept*(self: TcpTransport): Future[Connection] =
   #      information is lost and must be logged here instead of being
   #      available to the caller - further refactoring should propagate errors
   #      to the caller instead
-  proc impl(
-      self: TcpTransport
-  ): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
-    proc cancelAcceptFuts() =
-      for fut in self.acceptFuts:
-        if not fut.completed():
-          fut.cancel()
 
-    if not self.running:
-      raise newTransportClosedError()
+  proc cancelAcceptFuts() =
+    for fut in self.acceptFuts:
+      if not fut.completed():
+        fut.cancel()
 
-    if self.servers.len == 0:
-      raise (ref TcpTransportError)(msg: "No listeners configured")
-    elif self.acceptFuts.len == 0:
-      # Holds futures representing ongoing accept calls on multiple servers.
-      self.acceptFuts = self.servers.mapIt(it.accept())
+  if not self.running:
+    raise newTransportClosedError()
 
-    let
-      finished =
-        try:
-          # Waits for any one of these futures to complete, indicating that a new connection has been accepted on one of the servers.
-          await one(self.acceptFuts)
-        except ValueError:
-          raiseAssert "Accept futures should not be empty"
-        except CancelledError as exc:
-          cancelAcceptFuts()
-          raise exc
-      index = self.acceptFuts.find(finished)
+  if self.servers.len == 0:
+    raise (ref TcpTransportError)(msg: "No listeners configured")
+  elif self.acceptFuts.len == 0:
+    # Holds futures representing ongoing accept calls on multiple servers.
+    self.acceptFuts = self.servers.mapIt(it.accept())
 
-    # A new connection has been accepted. The corresponding server should immediately start accepting another connection.
-    # Thus we replace the completed future with a new one by calling accept on the same server again.
-    self.acceptFuts[index] = self.servers[index].accept()
-    let transp =
+  let
+    finished =
       try:
-        await finished
-      except TransportTooManyError as exc:
-        debug "Too many files opened", description = exc.msg
-        return nil
-      except TransportAbortedError as exc:
-        debug "Connection aborted", description = exc.msg
-        return nil
-      except TransportUseClosedError as exc:
-        raise newTransportClosedError(exc)
-      except TransportOsError as exc:
-        raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
-      except common.TransportError as exc: # Needed for chronos 4.0.0 support
-        raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+        # Waits for any one of these futures to complete, indicating that a new connection has been accepted on one of the servers.
+        await one(self.acceptFuts)
+      except ValueError:
+        raiseAssert "Accept futures should not be empty"
       except CancelledError as exc:
         cancelAcceptFuts()
         raise exc
+    index = self.acceptFuts.find(finished)
 
-    if not self.running: # Stopped while waiting
+  # A new connection has been accepted. The corresponding server should immediately start accepting another connection.
+  # Thus we replace the completed future with a new one by calling accept on the same server again.
+  self.acceptFuts[index] = self.servers[index].accept()
+  let transp =
+    try:
+      await finished
+    except TransportTooManyError as exc:
+      debug "Too many files opened", description = exc.msg
+      return nil
+    except TransportAbortedError as exc:
+      debug "Connection aborted", description = exc.msg
+      return nil
+    except TransportUseClosedError as exc:
+      raise newTransportClosedError(exc)
+    except TransportOsError as exc:
+      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+    except common.TransportError as exc: # Needed for chronos 4.0.0 support
+      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+    except CancelledError as exc:
+      cancelAcceptFuts()
+      raise exc
+
+  if not self.running: # Stopped while waiting
+    await transp.closeWait()
+    raise newTransportClosedError()
+
+  let remote =
+    try:
+      transp.remoteAddress
+    except TransportOsError as exc:
+      # The connection had errors / was closed before `await` returned control
       await transp.closeWait()
-      raise newTransportClosedError()
+      debug "Cannot read remote address", description = exc.msg
+      return nil
 
-    let remote =
-      try:
-        transp.remoteAddress
-      except TransportOsError as exc:
-        # The connection had errors / was closed before `await` returned control
-        await transp.closeWait()
-        debug "Cannot read remote address", description = exc.msg
-        return nil
-
-    let observedAddr =
-      MultiAddress.init(remote).expect("Can initialize from remote address")
-    self.connHandler(transp, Opt.some(observedAddr), Direction.In)
-
-  impl(self)
+  let observedAddr =
+    MultiAddress.init(remote).expect("Can initialize from remote address")
+  self.connHandler(transp, Opt.some(observedAddr), Direction.In)
 
 method dial*(
     self: TcpTransport,
@@ -329,7 +327,7 @@ method dial*(
 
   impl(self, hostname, address, peerId)
 
-method handles*(t: TcpTransport, address: MultiAddress): bool =
+method handles*(t: TcpTransport, address: MultiAddress): bool {.raises: [].} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
       return TCP.match(address)

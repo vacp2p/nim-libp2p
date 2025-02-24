@@ -57,7 +57,11 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   trace "stopping transport", address = $self.addrs
   self.running = false
 
-method accept*(self: Transport): Future[Connection] {.base, gcsafe.} =
+method accept*(
+    self: Transport
+): Future[Connection] {.
+    gcsafe, base, async: (raises: [TransportError, CancelledError])
+.} =
   ## accept incoming connections
   ##
 
@@ -87,7 +91,9 @@ method upgrade*(
   ##
   self.upgrader.upgrade(conn, peerId)
 
-method handles*(self: Transport, address: MultiAddress): bool {.base, gcsafe.} =
+method handles*(
+    self: Transport, address: MultiAddress
+): bool {.base, gcsafe, raises: [].} =
   ## check if transport supports the multiaddress
   ##
   # by default we skip circuit addresses to avoid

@@ -74,13 +74,16 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
 type QuicSession* = ref object of P2PConnection
   connection: QuicConnection
 
-method close*(session: QuicSession) {.async, base.} =
-  await session.connection.close()
+method close*(session: QuicSession) {.async: (raises: []).} =
+  try:
+    await session.connection.close()
+  except:
+    discard
   await procCall P2PConnection(session).close()
 
 proc getStream*(
     session: QuicSession, direction = Direction.In
-): Future[QuicStream] {.async.} =
+): Future[QuicStream] {.async: (raises: [CatchableError]).} =
   var stream: Stream
   case direction
   of Direction.In:
@@ -108,7 +111,7 @@ method newStream*(
   except CatchableError as exc:
     raise newException(MuxerError, exc.msg, exc)
 
-proc handleStream(m: QuicMuxer, chann: QuicStream) {.async.} =
+proc handleStream(m: QuicMuxer, chann: QuicStream) {.async: (raises: []).} =
   ## call the muxer stream handler for this channel
   ##
   try:
@@ -144,7 +147,7 @@ type QuicTransport* = ref object of Transport
 func new*(_: type QuicTransport, u: Upgrade): QuicTransport =
   QuicTransport(upgrader: QuicUpgrade(ms: u.ms))
 
-method handles*(transport: QuicTransport, address: MultiAddress): bool =
+method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
     return false
   QUIC_V1.match(address)
@@ -196,10 +199,17 @@ proc wrapConnection(
   asyncSpawn onClose()
   return conres
 
-method accept*(transport: QuicTransport): Future[P2PConnection] {.async.} =
-  doAssert not transport.listener.isNil, "call start() before calling accept()"
-  let connection = await transport.listener.accept()
-  return transport.wrapConnection(connection)
+method accept*(
+    self: QuicTransport
+): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  doAssert not self.listener.isNil, "call start() before calling accept()"
+  try:
+    let connection = await self.listener.accept()
+    return self.wrapConnection(connection)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    raise (ref QuicTransportError)(msg: e.msg, parent: e)
 
 method dial*(
     transport: QuicTransport,
