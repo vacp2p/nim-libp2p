@@ -181,11 +181,10 @@ proc internalConnect(
   let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())
   await lock.acquire()
   defer:
-    if lock.locked():
-      try:
-        lock.release()
-      except:
-        raiseAssert "checked with if"
+    try:
+      lock.release()
+    except AsyncLockError:
+      raiseAssert "lock must have been acquired in line above"
 
   if reuseConnection:
     peerId.withValue(peerId):
