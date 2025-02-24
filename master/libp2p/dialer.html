@@ -213,8 +213,6 @@ window.addEventListener("DOMContentLoaded", main2);
   transports: seq[Transport]
   peerStore: PeerStore
   nameResolver: NameResolver">Dialer</a></li>
-  <li><a class="reference" href="#DialFailedError"
-    title="DialFailedError = object of LPError">DialFailedError</a></li>
 
   </ul>
 </li>
@@ -243,22 +241,22 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">connect
       <li><a class="reference" href="#connect.e%2CDialer%2CMultiAddress"
-    title="connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]">connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]</a></li>
+    title="connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]">connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]</a></li>
   <li><a class="reference" href="#connect.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D"
     title="connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
-    void]">connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
-    void]</a></li>
+        forceDial = false; reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[
+    void, (DialFailedError, CancelledError)]">connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
+        forceDial = false; reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[
+    void, (DialFailedError, CancelledError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">tryDial
       <li><a class="reference" href="#tryDial.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D"
-    title="tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): Future[
-    Opt[MultiAddress]]">tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): Future[
-    Opt[MultiAddress]]</a></li>
+    title="tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    Opt[MultiAddress], (DialFailedError, CancelledError)]">tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    Opt[MultiAddress], (DialFailedError, CancelledError)]</a></li>
 
   </ul>
 
@@ -304,21 +302,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L42"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L39"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L42" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="DialFailedError" class="tohide">
-<dt><pre><a href="dialer.html#DialFailedError"><span class="Identifier">DialFailedError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="errors.html#LPError"><span class="Identifier">LPError</span></a></pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L40"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L40" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L39" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -335,9 +321,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L339"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L362"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L339" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L362" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -352,50 +338,52 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L336"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L359"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L336" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L359" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="connect.e,Dialer,MultiAddress" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#connect.e%2CDialer%2CMultiAddress"><span class="Identifier">connect</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="dialer.html#Dialer"><span class="Identifier">Dialer</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span> <span class="Identifier">allowUnknownPeerId</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#connect.e%2CDialer%2CMultiAddress"><span class="Identifier">connect</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="dialer.html#Dialer"><span class="Identifier">Dialer</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span> <span class="Identifier">allowUnknownPeerId</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">,</span> <span class="Other">(</span><a href="dial.html#DialFailedError"><span class="Identifier">DialFailedError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Connects to a peer and retrieve its PeerId
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L234"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L250"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L234" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L250" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="connect.e,Dialer,PeerId,seq[MultiAddress]" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#connect.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D"><span class="Identifier">connect</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="dialer.html#Dialer"><span class="Identifier">Dialer</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span>
-               <span class="Identifier">forceDial</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span> <span class="Identifier">reuseConnection</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span> <span class="Identifier">dir</span> <span class="Other">=</span> <a href="stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">.</span><span class="Identifier">Out</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+               <span class="Identifier">forceDial</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span> <span class="Identifier">reuseConnection</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span> <span class="Identifier">dir</span> <span class="Other">=</span> <a href="stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">.</span><span class="Identifier">Out</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><a href="dial.html#DialFailedError"><span class="Identifier">DialFailedError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 connect remote peer without negotiating a protocol 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L221"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L237"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L221" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L237" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="tryDial.e,Dialer,PeerId,seq[MultiAddress]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#tryDial.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D"><span class="Identifier">tryDial</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="dialer.html#Dialer"><span class="Identifier">Dialer</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">Opt</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-                         <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#tryDial.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D"><span class="Identifier">tryDial</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="dialer.html#Dialer"><span class="Identifier">Dialer</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">Opt</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">,</span> <span class="Other">(</span><a href="dial.html#DialFailedError"><span class="Identifier">DialFailedError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Create a protocol stream in order to check if a connection is possible. Doesn't use the Connection Manager to save it. 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L263"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/dialer.nim#L279"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L263" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/dialer.nim#L279" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -404,7 +392,7 @@ class="link-seesrc" target="_blank">Source</a>
 <div class="section" id="19">
 <h1><a class="toc-backref" href="#19">Exports</a></h1>
 <dl class="item">
-<a href="dial.html#dial.e,Dial,PeerId,seq[string]"><span class="Identifier">dial</span></a>, <a href="dial.html#dial.e,Dial,PeerId,seq[MultiAddress],seq[string]"><span class="Identifier">dial</span></a>, <a href="dial.html#connect.e,Dial,PeerId,seq[MultiAddress]"><span class="Identifier">connect</span></a>, <a href="dial.html#tryDial.e,Dial,PeerId,seq[MultiAddress]"><span class="Identifier">tryDial</span></a>, <a href="dial.html#addTransport.e,Dial,Transport"><span class="Identifier">addTransport</span></a>, <a href="dial.html#Dial"><span class="Identifier">Dial</span></a>, <a href="dial.html#connect.e,Dial,MultiAddress"><span class="Identifier">connect</span></a>, <a href="errors.html#toException,cstring"><span class="Identifier">toException</span></a>, <a href="errors.html#toException,string"><span class="Identifier">toException</span></a>, <a href="errors.html#checkFutures.m,seq[F],untyped"><span class="Identifier">checkFutures</span></a>, <a href="errors.html#LPError"><span class="Identifier">LPError</span></a>
+<a href="dial.html#dial.e,Dial,PeerId,seq[string]"><span class="Identifier">dial</span></a>, <a href="dial.html#dial.e,Dial,PeerId,seq[MultiAddress],seq[string]"><span class="Identifier">dial</span></a>, <a href="dial.html#connect.e,Dial,PeerId,seq[MultiAddress]"><span class="Identifier">connect</span></a>, <a href="dial.html#DialFailedError"><span class="Identifier">DialFailedError</span></a>, <a href="dial.html#tryDial.e,Dial,PeerId,seq[MultiAddress]"><span class="Identifier">tryDial</span></a>, <a href="dial.html#addTransport.e,Dial,Transport"><span class="Identifier">addTransport</span></a>, <a href="dial.html#Dial"><span class="Identifier">Dial</span></a>, <a href="dial.html#connect.e,Dial,MultiAddress"><span class="Identifier">connect</span></a>, <a href="errors.html#toException,cstring"><span class="Identifier">toException</span></a>, <a href="errors.html#toException,string"><span class="Identifier">toException</span></a>, <a href="errors.html#checkFutures.m,seq[F],untyped"><span class="Identifier">checkFutures</span></a>, <a href="errors.html#LPError"><span class="Identifier">LPError</span></a>
 </dl></div>
 
   </div>
@@ -414,7 +402,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 15:44:50 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 19:13:03 UTC</small>
       </div>
     </div>
   </div>

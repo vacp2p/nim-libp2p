@@ -355,8 +355,8 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="anyCompleted" href="#anyCompleted"><span>anyCompleted:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="future: anyCompleted[T](futs: seq[Future[T]]): InternalRaisesFuture[Future[T],
-    (AllFuturesFailedError, CancelledError)]" href="libp2p/utils/future.html#anyCompleted%2Cseq%5BFuture%5BT%5D%5D">future: anyCompleted[T](futs: seq[Future[T]]): InternalRaisesFuture[Future[T],
+          data-doc-search-tag="future: anyCompleted[T](futs: seq[T]): InternalRaisesFuture[T,
+    (AllFuturesFailedError, CancelledError)]" href="libp2p/utils/future.html#anyCompleted%2Cseq%5BT%5D">future: anyCompleted[T](futs: seq[T]): InternalRaisesFuture[T,
     (AllFuturesFailedError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="append" href="#append"><span>append:</span></a></dt><dd><ul class="simple">
@@ -751,33 +751,37 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="connect" href="#connect"><span>connect:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="dial: connect(self: Dial; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]" href="libp2p/dial.html#connect.e%2CDial%2CMultiAddress">dial: connect(self: Dial; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]</a></li>
+          data-doc-search-tag="dial: connect(self: Dial; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]" href="libp2p/dial.html#connect.e%2CDial%2CMultiAddress">dial: connect(self: Dial; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="dial: connect(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; dir = Direction.Out): Future[void]" href="libp2p/dial.html#connect.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D">dial: connect(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; dir = Direction.Out): Future[void]</a></li>
+        reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[void,
+    (DialFailedError, CancelledError)]" href="libp2p/dial.html#connect.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D">dial: connect(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
+        reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[void,
+    (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="dialer: connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]" href="libp2p/dialer.html#connect.e%2CDialer%2CMultiAddress">dialer: connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]</a></li>
+          data-doc-search-tag="dialer: connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]" href="libp2p/dialer.html#connect.e%2CDialer%2CMultiAddress">dialer: connect(self: Dialer; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="dialer: connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
-    void]" href="libp2p/dialer.html#connect.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D">dialer: connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
-        forceDial = false; reuseConnection = true; dir = Direction.Out): Future[
-    void]</a></li>
+        forceDial = false; reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[
+    void, (DialFailedError, CancelledError)]" href="libp2p/dialer.html#connect.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D">dialer: connect(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress];
+        forceDial = false; reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[
+    void, (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: connect(p: PubSubPeer)" href="libp2p/protocols/pubsub/pubsubpeer.html#connect%2CPubSubPeer">pubsubpeer: connect(p: PubSubPeer)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="switch: connect(s: Switch; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]" href="libp2p/switch.html#connect.e%2CSwitch%2CMultiAddress">switch: connect(s: Switch; address: MultiAddress; allowUnknownPeerId = false): Future[
-    PeerId]</a></li>
+          data-doc-search-tag="switch: connect(s: Switch; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]" href="libp2p/switch.html#connect.e%2CSwitch%2CMultiAddress">switch: connect(s: Switch; address: MultiAddress; allowUnknownPeerId = false): InternalRaisesFuture[
+    PeerId, (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="switch: connect(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; dir = Direction.Out): Future[void]" href="libp2p/switch.html#connect.e%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D">switch: connect(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
-        reuseConnection = true; dir = Direction.Out): Future[void]</a></li>
+        reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[void,
+    (DialFailedError, CancelledError)]" href="libp2p/switch.html#connect.e%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D">switch: connect(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; forceDial = false;
+        reuseConnection = true; dir = Direction.Out): InternalRaisesFuture[void,
+    (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wire: connect(ma: MultiAddress; bufferSize = DefaultStreamBufferSize;
         child: StreamTransport = nil; flags = default(set[SocketFlags]);
@@ -1114,10 +1118,14 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="dial" href="#dial"><span>dial:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="dial: dial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; protos: seq[string];
-     forceDial = false): Future[Connection]" href="libp2p/dial.html#dial.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D%2Cseq%5Bstring%5D">dial: dial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; protos: seq[string];
-     forceDial = false): Future[Connection]</a></li>
+     forceDial = false): InternalRaisesFuture[Connection,
+    (DialFailedError, CancelledError)]" href="libp2p/dial.html#dial.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D%2Cseq%5Bstring%5D">dial: dial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]; protos: seq[string];
+     forceDial = false): InternalRaisesFuture[Connection,
+    (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="dial: dial(self: Dial; peerId: PeerId; protos: seq[string]): Future[Connection]" href="libp2p/dial.html#dial.e%2CDial%2CPeerId%2Cseq%5Bstring%5D">dial: dial(self: Dial; peerId: PeerId; protos: seq[string]): Future[Connection]</a></li>
+          data-doc-search-tag="dial: dial(self: Dial; peerId: PeerId; protos: seq[string]): InternalRaisesFuture[
+    Connection, (DialFailedError, CancelledError)]" href="libp2p/dial.html#dial.e%2CDial%2CPeerId%2Cseq%5Bstring%5D">dial: dial(self: Dial; peerId: PeerId; protos: seq[string]): InternalRaisesFuture[
+    Connection, (DialFailedError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="Dial" href="#Dial"><span>Dial:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1131,17 +1139,23 @@ window.addEventListener('DOMContentLoaded', main);
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/protocols/connectivity/relay/rtransport.html#dial.e%2CRelayTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">rtransport: dial(self: RelayTransport; hostname: string; ma: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="switch: dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; proto: string): Future[
-    Connection]" href="libp2p/switch.html#dial%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D%2Cstring">switch: dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; proto: string): Future[
-    Connection]</a></li>
+          data-doc-search-tag="switch: dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; proto: string): InternalRaisesFuture[
+    Connection, (DialFailedError, CancelledError)]" href="libp2p/switch.html#dial%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D%2Cstring">switch: dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; proto: string): InternalRaisesFuture[
+    Connection, (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="switch: dial(s: Switch; peerId: PeerId; proto: string): Future[Connection]" href="libp2p/switch.html#dial%2CSwitch%2CPeerId%2Cstring">switch: dial(s: Switch; peerId: PeerId; proto: string): Future[Connection]</a></li>
+          data-doc-search-tag="switch: dial(s: Switch; peerId: PeerId; proto: string): InternalRaisesFuture[Connection,
+    (DialFailedError, CancelledError)]" href="libp2p/switch.html#dial%2CSwitch%2CPeerId%2Cstring">switch: dial(s: Switch; peerId: PeerId; proto: string): InternalRaisesFuture[Connection,
+    (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="switch: dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; protos: seq[string];
-     forceDial = false): Future[Connection]" href="libp2p/switch.html#dial.e%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D%2Cseq%5Bstring%5D">switch: dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; protos: seq[string];
-     forceDial = false): Future[Connection]</a></li>
+     forceDial = false): InternalRaisesFuture[Connection,
+    (DialFailedError, CancelledError)]" href="libp2p/switch.html#dial.e%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D%2Cseq%5Bstring%5D">switch: dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; protos: seq[string];
+     forceDial = false): InternalRaisesFuture[Connection,
+    (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="switch: dial(s: Switch; peerId: PeerId; protos: seq[string]): Future[Connection]" href="libp2p/switch.html#dial.e%2CSwitch%2CPeerId%2Cseq%5Bstring%5D">switch: dial(s: Switch; peerId: PeerId; protos: seq[string]): Future[Connection]</a></li>
+          data-doc-search-tag="switch: dial(s: Switch; peerId: PeerId; protos: seq[string]): InternalRaisesFuture[
+    Connection, (DialFailedError, CancelledError)]" href="libp2p/switch.html#dial.e%2CSwitch%2CPeerId%2Cseq%5Bstring%5D">switch: dial(s: Switch; peerId: PeerId; protos: seq[string]): InternalRaisesFuture[
+    Connection, (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="tcptransport: dial(self: TcpTransport; hostname: string; address: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]" href="libp2p/transports/tcptransport.html#dial.e%2CTcpTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">tcptransport: dial(self: TcpTransport; hostname: string; address: MultiAddress;
@@ -1169,7 +1183,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="DialFailedError" href="#DialFailedError"><span>DialFailedError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="dialer: DialFailedError" href="libp2p/dialer.html#DialFailedError">dialer: DialFailedError</a></li>
+          data-doc-search-tag="dial: DialFailedError" href="libp2p/dial.html#DialFailedError">dial: DialFailedError</a></li>
           </ul></dd>
 <dt><a name="dialPeerV1" href="#dialPeerV1"><span>dialPeerV1:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5017,13 +5031,13 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="tryDial" href="#tryDial"><span>tryDial:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="dial: tryDial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]): Future[
-    Opt[MultiAddress]]" href="libp2p/dial.html#tryDial.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D">dial: tryDial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]): Future[
-    Opt[MultiAddress]]</a></li>
+          data-doc-search-tag="dial: tryDial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    Opt[MultiAddress], (DialFailedError, CancelledError)]" href="libp2p/dial.html#tryDial.e%2CDial%2CPeerId%2Cseq%5BMultiAddress%5D">dial: tryDial(self: Dial; peerId: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    Opt[MultiAddress], (DialFailedError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="dialer: tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): Future[
-    Opt[MultiAddress]]" href="libp2p/dialer.html#tryDial.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D">dialer: tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): Future[
-    Opt[MultiAddress]]</a></li>
+          data-doc-search-tag="dialer: tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    Opt[MultiAddress], (DialFailedError, CancelledError)]" href="libp2p/dialer.html#tryDial.e%2CDialer%2CPeerId%2Cseq%5BMultiAddress%5D">dialer: tryDial(self: Dialer; peerId: PeerId; addrs: seq[MultiAddress]): InternalRaisesFuture[
+    Opt[MultiAddress], (DialFailedError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="UDP" href="#UDP"><span>UDP:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5556,7 +5570,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 15:44:55 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 19:13:07 UTC</small>
       </div>
     </div>
   </div>
