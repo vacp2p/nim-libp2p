@@ -15,6 +15,7 @@ import stew/byteutils
 import
   ../libp2p/[
     errors,
+    dial,
     switch,
     multistream,
     builders,
@@ -750,7 +751,7 @@ suite "Switch":
         1000.millis
       )
 
-    expect TooManyConnectionsError:
+    expect DialFailedError:
       await srcSwitch.connect(dstSwitch.peerInfo.peerId, dstSwitch.peerInfo.addrs)
 
     switches.add(srcSwitch)
@@ -803,7 +804,7 @@ suite "Switch":
         1000.millis
       )
 
-    expect TooManyConnectionsError:
+    expect DialFailedError:
       await srcSwitch.connect(dstSwitch.peerInfo.peerId, dstSwitch.peerInfo.addrs)
 
     switches.add(srcSwitch)
