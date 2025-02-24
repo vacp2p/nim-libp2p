@@ -89,13 +89,18 @@ proc newConnectedPeerHandler(
   except CatchableError as err:
     debug "Hole punching failed during dcutr", err = err.msg
 
-method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
+method setup*(
+    self: HPService, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError]).} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 
   if hasBeenSetup:
-    let dcutrProto = Dcutr.new(switch)
-    switch.mount(dcutrProto)
+    try:
+      let dcutrProto = Dcutr.new(switch)
+      switch.mount(dcutrProto)
+    except LPError as err:
+      error "Failed to mount Dcutr", err = err.msg
 
     self.newConnectedPeerHandler = proc(peerId: PeerId, event: PeerEvent) {.async.} =
       await newConnectedPeerHandler(self, switch, peerId, event)
@@ -106,7 +111,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
 
     self.onNewStatusHandler = proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and
           not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)
@@ -121,10 +126,14 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
   return hasBeenSetup
 
-method run*(self: HPService, switch: Switch) {.async, public.} =
+method run*(
+    self: HPService, switch: Switch
+) {.public, async: (raises: [CancelledError]).} =
   await self.autonatService.run(switch)
 
-method stop*(self: HPService, switch: Switch): Future[bool] {.async, public.} =
+method stop*(
+    self: HPService, switch: Switch
+): Future[bool] {.public, async: (raises: [CancelledError]).} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(
