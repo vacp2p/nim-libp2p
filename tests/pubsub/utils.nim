@@ -34,7 +34,7 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
       return await p.switch.dial(peerId, GossipSubCodec_12)
     except CancelledError as exc:
       raise exc
-    except CatchableError as e:
+    except DialFailedError as e:
       raise (ref GetConnDialError)(parent: e)
 
   let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)

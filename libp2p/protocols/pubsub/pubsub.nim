@@ -366,7 +366,7 @@ method getOrCreatePeer*(
       return await p.switch.dial(peerId, protosToDial)
     except CancelledError as exc:
       raise exc
-    except CatchableError as e:
+    except DialFailedError as e:
       raise (ref GetConnDialError)(parent: e)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
