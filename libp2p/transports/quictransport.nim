@@ -191,8 +191,8 @@ proc wrapConnection(
   conres.initStream()
 
   transport.connections.add(conres)
-  proc onClose() {.async.} =
-    await conres.join()
+  proc onClose() {.async: (raises: []).} =
+    await noCancel conres.join()
     transport.connections.keepItIf(it != conres)
     trace "Cleaned up client"
 

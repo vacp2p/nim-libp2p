@@ -245,8 +245,8 @@ proc connHandler(
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr))
 
   self.connections[dir].add(conn)
-  proc onClose() {.async: (raises: [CancelledError]).} =
-    await conn.session.stream.reader.join()
+  proc onClose() {.async: (raises: []).} =
+    await noCancel conn.session.stream.reader.join()
     self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
 
