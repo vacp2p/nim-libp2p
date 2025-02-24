@@ -105,113 +105,97 @@ proc new*(
     connectionsTimeout: connectionsTimeout,
   )
 
-method start*(self: TcpTransport, addrs: seq[MultiAddress]): Future[void] =
+method start*(
+    self: TcpTransport, addrs: seq[MultiAddress]
+): Future[void] {.async: (raises: [LPError, transport.TransportError]).} =
   ## Start transport listening to the given addresses - for dial-only transports,
   ## start with an empty list
 
-  # TODO remove `impl` indirection throughout when `raises` is added to base
+  if self.running:
+    warn "TCP transport already running"
+    return
 
-  proc impl(
-      self: TcpTransport, addrs: seq[MultiAddress]
-  ): Future[void] {.async: (raises: [transport.TransportError, CancelledError]).} =
-    if self.running:
-      warn "TCP transport already running"
-      return
+  trace "Starting TCP transport"
 
-    trace "Starting TCP transport"
+  self.flags.incl(ServerFlags.ReusePort)
 
-    self.flags.incl(ServerFlags.ReusePort)
+  var supported: seq[MultiAddress]
+  var initialized = false
+  try:
+    for i, ma in addrs:
+      if not self.handles(ma):
+        trace "Invalid address detected, skipping!", address = ma
+        continue
 
-    var supported: seq[MultiAddress]
-    var initialized = false
-    try:
-      for i, ma in addrs:
-        if not self.handles(ma):
-          trace "Invalid address detected, skipping!", address = ma
-          continue
+      let
+        ta = initTAddress(ma).expect("valid address per handles check above")
+        server =
+          try:
+            createStreamServer(ta, flags = self.flags)
+          except common.TransportError as exc:
+            raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
 
-        let
-          ta = initTAddress(ma).expect("valid address per handles check above")
-          server =
-            try:
-              createStreamServer(ta, flags = self.flags)
-            except common.TransportError as exc:
-              raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      self.servers &= server
 
-        self.servers &= server
-
-        trace "Listening on", address = ma
-        supported.add(
-          MultiAddress.init(server.sock.getLocalAddress()).expect(
-            "Can init from local address"
-          )
+      trace "Listening on", address = ma
+      supported.add(
+        MultiAddress.init(server.sock.getLocalAddress()).expect(
+          "Can init from local address"
         )
-
-      initialized = true
-    finally:
-      if not initialized:
-        # Clean up partial success on exception
-        await noCancel allFutures(self.servers.mapIt(it.closeWait()))
-        reset(self.servers)
-
-    try:
-      await procCall Transport(self).start(supported)
-    except CatchableError:
-      raiseAssert "Base method does not raise"
-
-    trackCounter(TcpTransportTrackerName)
-
-  impl(self, addrs)
-
-method stop*(self: TcpTransport): Future[void] =
-  ## Stop the transport and close all connections it created
-  proc impl(self: TcpTransport) {.async: (raises: []).} =
-    trace "Stopping TCP transport"
-    self.stopping = true
-    defer:
-      self.stopping = false
-
-    if self.running:
-      # Reset the running flag
-      try:
-        await noCancel procCall Transport(self).stop()
-      except CatchableError: # TODO remove when `accept` is annotated with raises
-        raiseAssert "doesn't actually raise"
-
-      # Stop each server by closing the socket - this will cause all accept loops
-      # to fail - since the running flag has been reset, it's also safe to close
-      # all known clients since no more of them will be added
-      await noCancel allFutures(
-        self.servers.mapIt(it.closeWait()) &
-          self.clients[Direction.In].mapIt(it.closeWait()) &
-          self.clients[Direction.Out].mapIt(it.closeWait())
       )
 
-      self.servers = @[]
+    initialized = true
+  finally:
+    if not initialized:
+      # Clean up partial success on exception
+      await noCancel allFutures(self.servers.mapIt(it.closeWait()))
+      reset(self.servers)
 
-      for acceptFut in self.acceptFuts:
-        if acceptFut.completed():
-          await acceptFut.value().closeWait()
-      self.acceptFuts = @[]
+  await procCall Transport(self).start(supported)
 
-      if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
-        # Future updates could consider turning this warn into an assert since
-        # it should never happen if the shutdown code is correct
-        warn "Couldn't clean up clients",
-          len = self.clients[Direction.In].len + self.clients[Direction.Out].len
+  trackCounter(TcpTransportTrackerName)
 
-      trace "Transport stopped"
-      untrackCounter(TcpTransportTrackerName)
-    else:
-      # For legacy reasons, `stop` on a transpart that wasn't started is
-      # expected to close outgoing connections created by the transport
-      warn "TCP transport already stopped"
+method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
+  trace "Stopping TCP transport"
+  self.stopping = true
+  defer:
+    self.stopping = false
 
-      doAssert self.clients[Direction.In].len == 0,
-        "No incoming connections possible without start"
-      await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
+  if self.running:
+    # Reset the running flag
+    await noCancel procCall Transport(self).stop()
+    # Stop each server by closing the socket - this will cause all accept loops
+    # to fail - since the running flag has been reset, it's also safe to close
+    # all known clients since no more of them will be added
+    await noCancel allFutures(
+      self.servers.mapIt(it.closeWait()) &
+        self.clients[Direction.In].mapIt(it.closeWait()) &
+        self.clients[Direction.Out].mapIt(it.closeWait())
+    )
 
-  impl(self)
+    self.servers = @[]
+
+    for acceptFut in self.acceptFuts:
+      if acceptFut.completed():
+        await acceptFut.value().closeWait()
+    self.acceptFuts = @[]
+
+    if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
+      # Future updates could consider turning this warn into an assert since
+      # it should never happen if the shutdown code is correct
+      warn "Couldn't clean up clients",
+        len = self.clients[Direction.In].len + self.clients[Direction.Out].len
+
+    trace "Transport stopped"
+    untrackCounter(TcpTransportTrackerName)
+  else:
+    # For legacy reasons, `stop` on a transpart that wasn't started is
+    # expected to close outgoing connections created by the transport
+    warn "TCP transport already stopped"
+
+    doAssert self.clients[Direction.In].len == 0,
+      "No incoming connections possible without start"
+    await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
 
 method accept*(self: TcpTransport): Future[Connection] =
   ## accept a new TCP connection, returning nil on non-fatal errors

@@ -34,8 +34,11 @@ export transport, websock, results
 
 const DefaultHeadersTimeout = 3.seconds
 
-type WsStream = ref object of Connection
-  session: WSSession
+type
+  WsStream = ref object of Connection
+    session: WSSession
+
+  WsTransportError* = object of transport.TransportError
 
 method initStream*(s: WsStream) =
   if s.objName.len == 0:
@@ -116,7 +119,9 @@ type WsTransport* = ref object of Transport
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
 
-method start*(self: WsTransport, addrs: seq[MultiAddress]) {.async.} =
+method start*(
+    self: WsTransport, addrs: seq[MultiAddress]
+) {.async: (raises: [LPError, transport.TransportError]).} =
   ## listen on the transport
   ##
 
@@ -140,19 +145,22 @@ method start*(self: WsTransport, addrs: seq[MultiAddress]) {.async.} =
       else:
         false
 
+    let address = ma.initTAddress().tryGet()
+
     let httpserver =
-      if isWss:
-        TlsHttpServer.create(
-          address = ma.initTAddress().tryGet(),
-          tlsPrivateKey = self.tlsPrivateKey,
-          tlsCertificate = self.tlsCertificate,
-          flags = self.flags,
-          handshakeTimeout = self.handshakeTimeout,
-        )
-      else:
-        HttpServer.create(
-          ma.initTAddress().tryGet(), handshakeTimeout = self.handshakeTimeout
-        )
+      try:
+        if isWss:
+          TlsHttpServer.create(
+            address = address,
+            tlsPrivateKey = self.tlsPrivateKey,
+            tlsCertificate = self.tlsCertificate,
+            flags = self.flags,
+            handshakeTimeout = self.handshakeTimeout,
+          )
+        else:
+          HttpServer.create(address, handshakeTimeout = self.handshakeTimeout)
+      except CatchableError as exc:
+        raise (ref WsTransportError)(msg: exc.msg, parent: exc)
 
     self.httpservers &= httpserver
 
@@ -173,7 +181,7 @@ method start*(self: WsTransport, addrs: seq[MultiAddress]) {.async.} =
 
   self.running = true
 
-method stop*(self: WsTransport) {.async.} =
+method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport
   ##
 
