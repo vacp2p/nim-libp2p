@@ -169,6 +169,7 @@ method readOnce*(
   ## channel must not be done from within a callback / read handler of another
   ## or the reads will lock each other.
   if s.remoteReset:
+    trace "reset stream in readOnce", s
     raise newLPStreamResetError()
   if s.localReset:
     raise newLPStreamClosedError()
@@ -201,6 +202,7 @@ proc prepareWrite(
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
   if s.remoteReset:
+    trace "stream is reset when prepareWrite", s
     raise newLPStreamResetError()
   if s.closedLocal:
     raise newLPStreamClosedError()

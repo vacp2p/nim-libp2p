@@ -269,10 +269,13 @@ method readOnce*(
   if channel.isReset:
     raise
       if channel.remoteReset:
+        trace "stream is remote reset when readOnce", channel = $channel
         newLPStreamResetError()
       elif channel.closedLocally:
+        trace "stream is closed locally when readOnce", channel = $channel
         newLPStreamClosedError()
       else:
+        trace "stream is down when readOnce", channel = $channel
         newLPStreamConnDownError()
   if channel.isEof:
     raise newLPStreamRemoteClosedError()
@@ -396,6 +399,7 @@ method write*(
   ##
   result = newFuture[void]("Yamux Send")
   if channel.remoteReset:
+    trace "stream is reset when write", channel = $channel
     result.fail(newLPStreamResetError())
     return result
   if channel.closedLocally or channel.isReset:
