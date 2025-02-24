@@ -185,7 +185,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       let daemonPeer = await daemonNode.identity()
 
       var testFuture = newFuture[void]("test.future")
-      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      proc daemonHandler(
+          api: DaemonAPI, stream: P2PStream
+      ) {.async: (raises: [CatchableError]).} =
         check string.fromBytes(await stream.transp.readLp()) == "test 1"
         discard await stream.transp.writeLp("test 2")
         check string.fromBytes(await stream.transp.readLp()) == "test 3"
@@ -227,7 +229,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       let daemonPeer = await daemonNode.identity()
 
       var testFuture = newFuture[string]("test.future")
-      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      proc daemonHandler(
+          api: DaemonAPI, stream: P2PStream
+      ) {.async: (raises: [CatchableError]).} =
         # We should perform `readLp()` instead of `readLine()`. `readLine()`
         # here reads actually length prefixed string.
         var line = await stream.transp.readLine()
@@ -351,7 +355,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       let daemonPeer = await daemonNode.identity()
 
       var testFuture = newFuture[string]("test.future")
-      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      proc daemonHandler(
+          api: DaemonAPI, stream: P2PStream
+      ) {.async: (raises: [CatchableError]).} =
         # We should perform `readLp()` instead of `readLine()`. `readLine()`
         # here reads actually length prefixed string.
         var line = await stream.transp.readLine()
@@ -485,7 +491,9 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       # TODO: This Future blocks the daemonHandler after sending the last message.
       # It exists because there's a strange behavior where stream.close sends
       # a Rst instead of Fin. We should investigate this at some point.
-      proc daemonHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+      proc daemonHandler(
+          api: DaemonAPI, stream: P2PStream
+      ) {.async: (raises: [CatchableError]).} =
         check "line1" == string.fromBytes(await stream.transp.readLp())
         discard await stream.transp.writeLp("line2")
         check "line3" == string.fromBytes(await stream.transp.readLp())

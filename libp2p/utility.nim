@@ -14,6 +14,7 @@ import stew/[byteutils, results]
 
 export results
 
+## public pragma is marker of "public" api subject to stronger stability guarantees.
 template public*() {.pragma.}
 
 const ShortDumpMax = 12
@@ -70,23 +71,6 @@ proc safeConvert*[T: SomeInteger](value: SomeOrdinal): T =
 proc capLen*[T](s: var seq[T], length: Natural) =
   if s.len > length:
     s.setLen(length)
-
-template exceptionToAssert*(body: untyped): untyped =
-  block:
-    var res: type(body)
-    when defined(nimHasWarnBareExcept):
-      {.push warning[BareExcept]: off.}
-    try:
-      res = body
-    except CatchableError as exc:
-      raise exc
-    except Defect as exc:
-      raise exc
-    except Exception as exc:
-      raiseAssert exc.msg
-    when defined(nimHasWarnBareExcept):
-      {.pop.}
-    res
 
 template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped =
   ## This template provides a convenient way to work with `Option` types in Nim.
