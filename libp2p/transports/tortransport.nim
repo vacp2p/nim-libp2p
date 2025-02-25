@@ -121,7 +121,7 @@ proc readServerReply(
     async: (
       raises: [
         Socks5VersionError, Socks5ServerReplyError, LPError, common.TransportError,
-        CancelledError, ValueError,
+        CancelledError,
       ]
     )
 .} =
@@ -158,7 +158,7 @@ proc readServerReply(
 
 proc parseOnion3(
     address: MultiAddress
-): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
   var addressArray = ($address).split('/')
   if addressArray.len < 2:
     raise newException(LPError, fmt"Onion address not supported {address}")
@@ -173,7 +173,7 @@ proc parseOnion3(
 
 proc parseIpTcp(
     address: MultiAddress
-): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
   let (codec, atyp) =
     if IPv4Tcp.match(address):
       (multiCodec("ip4"), Socks5AddressType.IPv4.byte)
@@ -188,7 +188,7 @@ proc parseIpTcp(
 
 proc parseDnsTcp(
     address: MultiAddress
-): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
   let
     dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
@@ -200,8 +200,8 @@ proc dialPeer(
 ) {.
     async: (
       raises: [
-        LPError, ValueError, common.TransportError, CancelledError,
-        Socks5ServerReplyError, Socks5VersionError,
+        LPError, common.TransportError, CancelledError, Socks5ServerReplyError,
+        Socks5VersionError,
       ]
     )
 .} =
