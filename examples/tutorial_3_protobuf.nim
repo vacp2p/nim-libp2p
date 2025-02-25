@@ -108,12 +108,16 @@ type
 
 proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
   var res: MetricProto
-  proc handle(conn: Connection, proto: string) {.async.} =
-    let
-      metrics = await res.metricGetter()
-      asProtobuf = metrics.encode()
-    await conn.writeLp(asProtobuf.buffer)
-    await conn.close()
+  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+    try:
+      let
+        metrics = await res.metricGetter()
+        asProtobuf = metrics.encode()
+      await conn.writeLp(asProtobuf.buffer)
+    except:
+      echo "exception in handler", getCurrentException().msg
+    finally:
+      await conn.close()
 
   res = MetricProto.new(@["/metric-getter/1.0.0"], handle)
   res.metricGetter = cb
