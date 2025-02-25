@@ -236,10 +236,7 @@ proc connHandler(
     except CatchableError as exc:
       trace "Failed to create observedAddr", description = exc.msg
       if not (isNil(stream) and stream.stream.reader.closed):
-        try:
-          await stream.close()
-        except CatchableError as e:
-          trace "Error closing stream", description = e.msg
+        safeClose(stream)
       raise exc
 
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr))
@@ -289,7 +286,7 @@ method accept*(
 
       return await self.connHandler(wstransp, isSecure, Direction.In)
     except CatchableError as exc:
-      await req.stream.closeWait()
+      await noCancel req.stream.closeWait()
       raise exc
   except WebSocketError as exc:
     debug "Websocket Error", description = exc.msg
@@ -337,13 +334,10 @@ method dial*(
     )
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
+    safeClose(transp)
     raise e
   except CatchableError as e:
-    if not isNil(transp):
-      try:
-        await noCancel transp.close()
-      except:
-        trace "Error closing websocket stream", description = e.msg
+    safeClose(transp)
     raise newException(transport.TransportDialError, e.msg, e)
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =

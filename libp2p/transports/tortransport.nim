@@ -121,7 +121,7 @@ proc readServerReply(
     async: (
       raises: [
         Socks5VersionError, Socks5ServerReplyError, LPError, common.TransportError,
-        CancelledError,
+        CancelledError, ValueError,
       ]
     )
 .} =
@@ -241,10 +241,10 @@ method dial*(
     await dialPeer(transp, address)
     return self.tcpTransport.connHandler(transp, Opt.none(MultiAddress), Direction.Out)
   except CancelledError as e:
+    safeCloseWait(transp)
     raise e
   except CatchableError as e:
-    if not isNil(transp):
-      await noCancel transp.closeWait()
+    safeCloseWait(transp)
     raise newException(transport.TransportDialError, e.msg, e)
 
 method start*(

@@ -86,10 +86,10 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.}
       rc = RelayConnection.new(conn, 0, 0)
       return await self.client.dialPeerV2(rc, dstPeerId, @[])
   except CancelledError as exc:
+    safeClose(rc)
     raise exc
   except CatchableError as exc:
-    if not rc.isNil:
-      await rc.close()
+    safeClose(rc)
     raise exc
 
 method dial*(

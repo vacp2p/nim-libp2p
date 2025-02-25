@@ -258,7 +258,7 @@ method accept*(
       raise exc
 
   if not self.running: # Stopped while waiting
-    await transp.closeWait()
+    safeCloseWait(transp)
     raise newTransportClosedError()
 
   let remote =
@@ -266,7 +266,7 @@ method accept*(
       transp.remoteAddress
     except TransportOsError as exc:
       # The connection had errors / was closed before `await` returned control
-      await transp.closeWait()
+      safeCloseWait(transp)
       debug "Cannot read remote address", description = exc.msg
       return nil
 
@@ -310,14 +310,14 @@ method dial*(
   # them
   if self.stopping:
     # Stopped while waiting for new connection
-    await transp.closeWait()
+    safeCloseWait(transp)
     raise newTransportClosedError()
 
   let observedAddr =
     try:
       MultiAddress.init(transp.remoteAddress).expect("remote address is valid")
     except TransportOsError as exc:
-      await noCancel transp.closeWait()
+      safeCloseWait(transp)
       raise (ref TcpTransportError)(msg: exc.msg)
 
   self.connHandler(transp, Opt.some(observedAddr), Direction.Out)

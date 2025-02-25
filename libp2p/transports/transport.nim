@@ -105,3 +105,17 @@ method handles*(
     return false
 
   protocols.filterIt(it == multiCodec("p2p-circuit")).len == 0
+
+template safeCloseWait*(stream: untyped) =
+  if not isNil(stream):
+    try:
+      await noCancel stream.closeWait()
+    except CatchableError as e:
+      trace "Error closing", description = e.msg
+
+template safeClose*(stream: untyped) =
+  if not isNil(stream):
+    try:
+      await noCancel stream.close()
+    except CatchableError as e:
+      trace "Error closing", description = e.msg

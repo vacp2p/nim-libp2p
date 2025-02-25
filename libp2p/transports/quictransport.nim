@@ -22,6 +22,7 @@ type
   P2PConnection = connection.Connection
   QuicConnection = quic.Connection
   QuicTransportError* = object of transport.TransportError
+  QuicTransportDialError* = object of transport.TransportDialError
 
 # Stream
 type QuicStream* = ref object of P2PConnection
@@ -75,10 +76,7 @@ type QuicSession* = ref object of P2PConnection
   connection: QuicConnection
 
 method close*(session: QuicSession) {.async: (raises: []).} =
-  try:
-    await session.connection.close()
-  except:
-    discard
+  safeClose(session.connection)
   await procCall P2PConnection(session).close()
 
 proc getStream*(
@@ -223,7 +221,7 @@ method dial*(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    raise newException(transport.TransportDialError, e.msg, e)
+    raise newException(QuicTransportDialError, e.msg, e)
 
 method upgrade*(
     self: QuicTransport, conn: P2PConnection, peerId: Opt[PeerId]
