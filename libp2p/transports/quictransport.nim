@@ -212,13 +212,18 @@ method accept*(
     raise (ref QuicTransportError)(msg: e.msg, parent: e)
 
 method dial*(
-    transport: QuicTransport,
+    self: QuicTransport,
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[P2PConnection] {.async.} =
-  let connection = await dial(initTAddress(address).tryGet)
-  return transport.wrapConnection(connection)
+): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  try:
+    let connection = await dial(initTAddress(address).tryGet)
+    return self.wrapConnection(connection)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    raise newException(transport.TransportDialError, e.msg, e)
 
 method upgrade*(
     self: QuicTransport, conn: P2PConnection, peerId: Opt[PeerId]

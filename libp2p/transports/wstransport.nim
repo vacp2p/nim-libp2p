@@ -319,14 +319,15 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   ##
 
   trace "Dialing remote peer", address = $address
+  var transp: websock.WSSession
 
-  let
-    secure = WSS.match(address)
+  try:
+    let secure = WSS.match(address)
     transp = await WebSocket.connect(
       address.initTAddress().tryGet(),
       "",
@@ -334,12 +335,16 @@ method dial*(
       hostName = hostname,
       flags = self.tlsFlags,
     )
-
-  try:
     return await self.connHandler(transp, secure, Direction.Out)
-  except CatchableError as exc:
-    await transp.close()
-    raise exc
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    if not isNil(transp):
+      try:
+        await noCancel transp.close()
+      except:
+        trace "Error closing websocket stream", description = e.msg
+    raise newException(transport.TransportDialError, e.msg, e)
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):

@@ -29,6 +29,7 @@ type
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
+  TransportDialError* = object of TransportError
 
   Transport* = ref object of RootObj
     addrs*: seq[MultiAddress]
@@ -72,7 +73,9 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.base, gcsafe.} =
+): Future[Connection] {.
+    base, gcsafe, async: (raises: [TransportError, CancelledError])
+.} =
   ## dial a peer
   ##
 

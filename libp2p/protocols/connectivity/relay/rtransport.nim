@@ -97,10 +97,15 @@ method dial*(
     hostname: string,
     ma: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   peerId.withValue(pid):
-    let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
-    result = await self.dial(address)
+    try:
+      let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
+      result = await self.dial(address)
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      raise newException(transport.TransportDialError, e.msg, e)
 
 method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
   try:

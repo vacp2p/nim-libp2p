@@ -279,53 +279,48 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] =
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
-  proc impl(
-      self: TcpTransport, hostname: string, address: MultiAddress, peerId: Opt[PeerId]
-  ): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
-    if self.stopping:
-      raise newTransportClosedError()
+  if self.stopping:
+    raise newTransportClosedError()
 
-    let ta = initTAddress(address).valueOr:
-      raise (ref TcpTransportError)(msg: "Unsupported address: " & $address)
+  let ta = initTAddress(address).valueOr:
+    raise (ref TcpTransportError)(msg: "Unsupported address: " & $address)
 
-    trace "Dialing remote peer", address = $address
-    let transp =
-      try:
-        await(
-          if self.networkReachability == NetworkReachability.NotReachable and
-              self.addrs.len > 0:
-            let local = initTAddress(self.addrs[0]).expect("self address is valid")
-            self.clientFlags.incl(SocketFlags.ReusePort)
-            connect(ta, flags = self.clientFlags, localAddress = local)
-          else:
-            connect(ta, flags = self.clientFlags)
-        )
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+  trace "Dialing remote peer", address = $address
+  let transp =
+    try:
+      await(
+        if self.networkReachability == NetworkReachability.NotReachable and
+            self.addrs.len > 0:
+          let local = initTAddress(self.addrs[0]).expect("self address is valid")
+          self.clientFlags.incl(SocketFlags.ReusePort)
+          connect(ta, flags = self.clientFlags, localAddress = local)
+        else:
+          connect(ta, flags = self.clientFlags)
+      )
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
 
-    # If `stop` is called after `connect` but before `await` returns, we might
-    # end up with a race condition where `stop` returns but not all connections
-    # have been closed - we drop connections in this case in order not to leak
-    # them
-    if self.stopping:
-      # Stopped while waiting for new connection
-      await transp.closeWait()
-      raise newTransportClosedError()
+  # If `stop` is called after `connect` but before `await` returns, we might
+  # end up with a race condition where `stop` returns but not all connections
+  # have been closed - we drop connections in this case in order not to leak
+  # them
+  if self.stopping:
+    # Stopped while waiting for new connection
+    await transp.closeWait()
+    raise newTransportClosedError()
 
-    let observedAddr =
-      try:
-        MultiAddress.init(transp.remoteAddress).expect("remote address is valid")
-      except TransportOsError as exc:
-        await transp.closeWait()
-        raise (ref TcpTransportError)(msg: exc.msg)
+  let observedAddr =
+    try:
+      MultiAddress.init(transp.remoteAddress).expect("remote address is valid")
+    except TransportOsError as exc:
+      await noCancel transp.closeWait()
+      raise (ref TcpTransportError)(msg: exc.msg)
 
-    self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
-
-  impl(self, hostname, address, peerId)
+  self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.raises: [].} =
   if procCall Transport(t).handles(address):
