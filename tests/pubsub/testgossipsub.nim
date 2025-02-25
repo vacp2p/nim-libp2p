@@ -223,7 +223,8 @@ suite "GossipSub":
   asyncTest "GossipSub's observers should run after message is sent, received and validated":
     var
       recvCounter = 0
-      sendCounter = 0
+      afterSentCounter = 0
+      beforeSendCounter = 0
       validatedCounter = 0
 
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -232,13 +233,16 @@ suite "GossipSub":
     proc onRecv(peer: PubSubPeer, msgs: var RPCMsg) =
       inc recvCounter
 
-    proc onSend(peer: PubSubPeer, msgs: var RPCMsg) =
-      inc sendCounter
+    proc onBeforeSend(peer: PubSubPeer, msgs: var RPCMsg) =
+      inc beforeSendCounter
+
+    proc onAfterSent(peer: PubSubPeer, msgs: RPCMsg) =
+      inc afterSentCounter
 
     proc onValidated(peer: PubSubPeer, msg: Message, msgId: MessageId) =
       inc validatedCounter
 
-    let obs0 = PubSubObserver(onSend: onSend)
+    let obs0 = PubSubObserver(onBeforeSend: onBeforeSend, onAfterSent: onAfterSent)
     let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
 
     let nodes = generateNodes(2, gossip = true)
@@ -265,7 +269,8 @@ suite "GossipSub":
     check:
       recvCounter == 1
       validatedCounter == 1
-      sendCounter == 1
+      afterSentCounter == 1
+      beforeSendCounter == 1
 
     # Send message that will be rejected by the receiver's validator
     tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
@@ -273,7 +278,8 @@ suite "GossipSub":
     check:
       recvCounter == 2
       validatedCounter == 1
-      sendCounter == 2
+      afterSentCounter == 2
+      beforeSendCounter == 2
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
@@ -417,12 +423,17 @@ suite "GossipSub":
           inc observed
       )
       obs2 = PubSubObserver(
-        onSend: proc(peer: PubSubPeer, msgs: var RPCMsg) =
+        onBeforeSend: proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          inc observed
+      )
+      obs3 = PubSubObserver(
+        onAfterSent: proc(peer: PubSubPeer, msgs: RPCMsg) =
           inc observed
       )
 
     nodes[1].addObserver(obs1)
     nodes[0].addObserver(obs2)
+    nodes[0].addObserver(obs3)
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
@@ -439,7 +450,7 @@ suite "GossipSub":
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
     await allFuturesThrowing(nodesFut.concat())
-    check observed == 2
+    check observed == 3
 
   asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
     var passed = newFuture[void]()
