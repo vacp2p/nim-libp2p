@@ -177,7 +177,9 @@ proc askConnectedPeers(
     if (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
 
-proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
+proc schedule(
+    service: AutonatService, switch: Switch, interval: Duration
+) {.async: (raises: [CancelledError]).} =
   heartbeat "Scheduling AutonatService run", interval:
     await service.run(switch)
 
@@ -214,15 +216,19 @@ method setup*(
     if self.askNewConnectedPeers:
       self.newConnectedPeerHandler = proc(
           peerId: PeerId, event: PeerEvent
-      ): Future[void] {.async.} =
+      ): Future[void] {.async: (raises: []).} =
         discard askPeer(self, switch, peerId)
+
       switch.connManager.addPeerEventHandler(
         self.newConnectedPeerHandler, PeerEventKind.Joined
       )
+
     self.scheduleInterval.withValue(interval):
       self.scheduleHandle = schedule(self, switch, interval)
+
     if self.enableAddressMapper:
       switch.peerInfo.addressMappers.add(self.addressMapper)
+
   return hasBeenSetup
 
 method run*(

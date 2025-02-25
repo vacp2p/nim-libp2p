@@ -32,7 +32,9 @@ type Autonat* = ref object of LPProtocol
   switch*: Switch
   dialTimeout: Duration
 
-proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc sendDial(
+    conn: Connection, pid: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: [LPStreamError, CancelledError]).} =
   let pb = AutonatDial(
     peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
   ).encode()
