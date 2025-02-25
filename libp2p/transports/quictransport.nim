@@ -22,6 +22,7 @@ type
   P2PConnection = connection.Connection
   QuicConnection = quic.Connection
   QuicTransportError* = object of transport.TransportError
+  QuicTransportDialError* = object of transport.TransportDialError
 
 # Stream
 type QuicStream* = ref object of P2PConnection
@@ -74,13 +75,13 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
 type QuicSession* = ref object of P2PConnection
   connection: QuicConnection
 
-method close*(session: QuicSession) {.async, base.} =
-  await session.connection.close()
+method close*(session: QuicSession) {.async: (raises: []).} =
+  safeClose(session.connection)
   await procCall P2PConnection(session).close()
 
 proc getStream*(
     session: QuicSession, direction = Direction.In
-): Future[QuicStream] {.async.} =
+): Future[QuicStream] {.async: (raises: [CatchableError]).} =
   var stream: Stream
   case direction
   of Direction.In:
@@ -108,7 +109,7 @@ method newStream*(
   except CatchableError as exc:
     raise newException(MuxerError, exc.msg, exc)
 
-proc handleStream(m: QuicMuxer, chann: QuicStream) {.async.} =
+proc handleStream(m: QuicMuxer, chann: QuicStream) {.async: (raises: []).} =
   ## call the muxer stream handler for this channel
   ##
   try:
@@ -144,7 +145,7 @@ type QuicTransport* = ref object of Transport
 func new*(_: type QuicTransport, u: Upgrade): QuicTransport =
   QuicTransport(upgrader: QuicUpgrade(ms: u.ms))
 
-method handles*(transport: QuicTransport, address: MultiAddress): bool =
+method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
     return false
   QUIC_V1.match(address)
@@ -188,27 +189,39 @@ proc wrapConnection(
   conres.initStream()
 
   transport.connections.add(conres)
-  proc onClose() {.async.} =
-    await conres.join()
+  proc onClose() {.async: (raises: []).} =
+    await noCancel conres.join()
     transport.connections.keepItIf(it != conres)
     trace "Cleaned up client"
 
   asyncSpawn onClose()
   return conres
 
-method accept*(transport: QuicTransport): Future[P2PConnection] {.async.} =
-  doAssert not transport.listener.isNil, "call start() before calling accept()"
-  let connection = await transport.listener.accept()
-  return transport.wrapConnection(connection)
+method accept*(
+    self: QuicTransport
+): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  doAssert not self.listener.isNil, "call start() before calling accept()"
+  try:
+    let connection = await self.listener.accept()
+    return self.wrapConnection(connection)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    raise (ref QuicTransportError)(msg: e.msg, parent: e)
 
 method dial*(
-    transport: QuicTransport,
+    self: QuicTransport,
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[P2PConnection] {.async.} =
-  let connection = await dial(initTAddress(address).tryGet)
-  return transport.wrapConnection(connection)
+): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  try:
+    let connection = await dial(initTAddress(address).tryGet)
+    return self.wrapConnection(connection)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    raise newException(QuicTransportDialError, e.msg, e)
 
 method upgrade*(
     self: QuicTransport, conn: P2PConnection, peerId: Opt[PeerId]

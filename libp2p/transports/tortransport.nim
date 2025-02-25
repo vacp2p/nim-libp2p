@@ -94,26 +94,37 @@ proc handlesStart(address: MultiAddress): bool {.gcsafe.} =
 
 proc connectToTorServer(
     transportAddress: TransportAddress
-): Future[StreamTransport] {.async.} =
-  let transp = await connect(transportAddress)
-  try:
-    discard await transp.write(
-      @[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte]
+): Future[StreamTransport] {.
+    async: (
+      raises: [
+        Socks5VersionError, Socks5AuthFailedError, Socks5ServerReplyError, LPError,
+        common.TransportError, CancelledError,
+      ]
     )
-    let
-      serverReply = await transp.read(2)
-      socks5ProtocolVersion = serverReply[0]
-      serverSelectedMethod = serverReply[1]
-    if socks5ProtocolVersion != Socks5ProtocolVersion:
-      raise newException(Socks5VersionError, "Unsupported socks version")
-    if serverSelectedMethod != Socks5AuthMethod.NoAuth.byte:
-      raise newException(Socks5AuthFailedError, "Unsupported auth method")
-    return transp
-  except CatchableError as err:
-    await transp.closeWait()
-    raise err
+.} =
+  let transp = await connect(transportAddress)
+  discard
+    await transp.write(@[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte])
+  let
+    serverReply = await transp.read(2)
+    socks5ProtocolVersion = serverReply[0]
+    serverSelectedMethod = serverReply[1]
+  if socks5ProtocolVersion != Socks5ProtocolVersion:
+    raise newException(Socks5VersionError, "Unsupported socks version")
+  if serverSelectedMethod != Socks5AuthMethod.NoAuth.byte:
+    raise newException(Socks5AuthFailedError, "Unsupported auth method")
+  return transp
 
-proc readServerReply(transp: StreamTransport) {.async.} =
+proc readServerReply(
+    transp: StreamTransport
+) {.
+    async: (
+      raises: [
+        Socks5VersionError, Socks5ServerReplyError, LPError, common.TransportError,
+        CancelledError,
+      ]
+    )
+.} =
   ## The specification for this code is defined on
   ## [link text](https://www.rfc-editor.org/rfc/rfc1928#section-5)
   ## and [link text](https://www.rfc-editor.org/rfc/rfc1928#section-6).
@@ -129,10 +140,9 @@ proc readServerReply(transp: StreamTransport) {.async.} =
   if serverReply != Socks5ReplyType.Succeeded.byte:
     var socks5ReplyType: Socks5ReplyType
     if socks5ReplyType.checkedEnumAssign(serverReply):
-      raise
-        newException(Socks5ServerReplyError, fmt"Server reply error: {socks5ReplyType}")
+      raise newException(Socks5ServerReplyError, "Server reply error")
     else:
-      raise newException(LPError, fmt"Unexpected server reply: {serverReply}")
+      raise newException(LPError, "Unexpected server reply")
   let atyp = firstFourOctets[3]
   case atyp
   of Socks5AddressType.IPv4.byte:
@@ -147,13 +157,13 @@ proc readServerReply(transp: StreamTransport) {.async.} =
 
 proc parseOnion3(
     address: MultiAddress
-): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
   var addressArray = ($address).split('/')
   if addressArray.len < 2:
-    raise newException(LPError, fmt"Onion address not supported {address}")
+    raise newException(LPError, "Onion address not supported")
   addressArray = addressArray[2].split(':')
   if addressArray.len == 0:
-    raise newException(LPError, fmt"Onion address not supported {address}")
+    raise newException(LPError, "Onion address not supported")
   let
     addressStr = addressArray[0] & ".onion"
     dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
@@ -162,14 +172,14 @@ proc parseOnion3(
 
 proc parseIpTcp(
     address: MultiAddress
-): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
   let (codec, atyp) =
     if IPv4Tcp.match(address):
       (multiCodec("ip4"), Socks5AddressType.IPv4.byte)
     elif IPv6Tcp.match(address):
       (multiCodec("ip6"), Socks5AddressType.IPv6.byte)
     else:
-      raise newException(LPError, fmt"IP address not supported {address}")
+      raise newException(LPError, "IP address not supported")
   let
     dstAddr = address[codec].tryGet().protoArgument().tryGet()
     dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
@@ -177,14 +187,23 @@ proc parseIpTcp(
 
 proc parseDnsTcp(
     address: MultiAddress
-): (byte, seq[byte], seq[byte]) {.raises: [LPError, ValueError].} =
+): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
   let
     dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
     dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
   (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
-proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async.} =
+proc dialPeer(
+    transp: StreamTransport, address: MultiAddress
+) {.
+    async: (
+      raises: [
+        LPError, common.TransportError, CancelledError, Socks5ServerReplyError,
+        Socks5VersionError,
+      ]
+    )
+.} =
   let (atyp, dstAddr, dstPort) =
     if Onion3.match(address):
       parseOnion3(address)
@@ -193,7 +212,7 @@ proc dialPeer(transp: StreamTransport, address: MultiAddress) {.async.} =
     elif DnsTcp.match(address):
       parseDnsTcp(address)
     else:
-      raise newException(LPError, fmt"Address not supported: {address}")
+      raise newException(LPError, "Address not supported")
 
   let reserved = byte(0)
   let request =
@@ -207,20 +226,25 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   ##
   if not handlesDial(address):
-    raise newException(LPError, fmt"Address not supported: {address}")
+    raise newException(TransportDialError, "Address not supported")
   trace "Dialing remote peer", address = $address
-  let transp = await connectToTorServer(self.transportAddress)
+
+  var transp: StreamTransport
 
   try:
+    transp = await connectToTorServer(self.transportAddress)
     await dialPeer(transp, address)
     return self.tcpTransport.connHandler(transp, Opt.none(MultiAddress), Direction.Out)
-  except CatchableError as err:
-    await transp.closeWait()
-    raise err
+  except CancelledError as e:
+    safeCloseWait(transp)
+    raise e
+  except CatchableError as e:
+    safeCloseWait(transp)
+    raise newException(transport.TransportDialError, e.msg, e)
 
 method start*(
     self: TorTransport, addrs: seq[MultiAddress]
@@ -249,7 +273,9 @@ method start*(
       "Tor Transport couldn't start, no supported addr was provided.",
     )
 
-method accept*(self: TorTransport): Future[Connection] {.async.} =
+method accept*(
+    self: TorTransport
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## accept a new Tor connection
   ##
   let conn = await self.tcpTransport.accept()
@@ -262,7 +288,7 @@ method stop*(self: TorTransport) {.async: (raises: []).} =
   await procCall Transport(self).stop() # call base
   await self.tcpTransport.stop()
 
-method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe.} =
+method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):
     return handlesDial(address) or handlesStart(address)
 
