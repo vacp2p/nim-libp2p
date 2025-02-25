@@ -212,7 +212,8 @@ window.addEventListener("DOMContentLoaded", main2);
   started*: bool
   maxIncomingStreams: Opt[int]">LPProtocol</a></li>
   <li><a class="reference" href="#LPProtoHandler"
-    title="LPProtoHandler = proc (conn: Connection; proto: string): Future[void] {.async.}">LPProtoHandler</a></li>
+    title="LPProtoHandler = proc (conn: Connection; proto: string): Future[void] {.
+    async: (raises: []).}">LPProtoHandler</a></li>
 
   </ul>
 </li>
@@ -338,14 +339,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L22"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L23"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L22" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L23" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="LPProtoHandler" class="tohide">
-<dt><pre><a href="protocol.html#LPProtoHandler"><span class="Identifier">LPProtoHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <span class="Identifier">Connection</span><span class="Other">;</span> <span class="Identifier">proto</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">async</span>.}</pre></dt>
+<dt><pre><a href="protocol.html#LPProtoHandler"><span class="Identifier">LPProtoHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <span class="Identifier">Connection</span><span class="Other">;</span> <span class="Identifier">proto</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
@@ -384,9 +386,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L49"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L50"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L49" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L50" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -396,9 +398,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L53"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L54"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L54" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -408,9 +410,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L64"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L65"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L64" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L65" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -421,9 +423,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L73"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L74"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L73" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L74" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -433,9 +435,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L43"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L44"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L43" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L44" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -445,9 +447,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L46"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L47"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L46" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L47" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -459,9 +461,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L82"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L83"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L82" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -474,9 +476,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L98"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L99"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L99" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -491,9 +493,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L28"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L29"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L28" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L29" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -505,9 +507,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L31"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L32"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L31" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L32" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -518,9 +520,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L37"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L38"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L37" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L38" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -535,9 +537,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L58"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L59"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L58" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -547,9 +549,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L61"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/protocol.nim#L62"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L61" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/protocol.nim#L62" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -563,7 +565,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-24 19:12:05 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-25 21:35:06 UTC</small>
       </div>
     </div>
   </div>
