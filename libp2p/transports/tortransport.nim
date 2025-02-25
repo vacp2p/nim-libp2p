@@ -97,15 +97,14 @@ proc connectToTorServer(
 ): Future[StreamTransport] {.
     async: (
       raises: [
-        Socks5VersionError,Socks5AuthFailedError, Socks5ServerReplyError, LPError, common.TransportError,
-        CancelledError,
+        Socks5VersionError, Socks5AuthFailedError, Socks5ServerReplyError, LPError,
+        common.TransportError, CancelledError,
       ]
     )
 .} =
   let transp = await connect(transportAddress)
-  discard await transp.write(
-    @[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte]
-  )
+  discard
+    await transp.write(@[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte])
   let
     serverReply = await transp.read(2)
     socks5ProtocolVersion = serverReply[0]
