@@ -140,10 +140,9 @@ proc readServerReply(
   if serverReply != Socks5ReplyType.Succeeded.byte:
     var socks5ReplyType: Socks5ReplyType
     if socks5ReplyType.checkedEnumAssign(serverReply):
-      raise
-        newException(Socks5ServerReplyError, fmt"Server reply error: {socks5ReplyType}")
+      raise newException(Socks5ServerReplyError, "Server reply error")
     else:
-      raise newException(LPError, fmt"Unexpected server reply: {serverReply}")
+      raise newException(LPError, "Unexpected server reply")
   let atyp = firstFourOctets[3]
   case atyp
   of Socks5AddressType.IPv4.byte:
@@ -161,10 +160,10 @@ proc parseOnion3(
 ): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
   var addressArray = ($address).split('/')
   if addressArray.len < 2:
-    raise newException(LPError, fmt"Onion address not supported {address}")
+    raise newException(LPError, "Onion address not supported")
   addressArray = addressArray[2].split(':')
   if addressArray.len == 0:
-    raise newException(LPError, fmt"Onion address not supported {address}")
+    raise newException(LPError, "Onion address not supported")
   let
     addressStr = addressArray[0] & ".onion"
     dstAddr = @(uint8(addressStr.len).toBytes()) & addressStr.toBytes()
@@ -180,7 +179,7 @@ proc parseIpTcp(
     elif IPv6Tcp.match(address):
       (multiCodec("ip6"), Socks5AddressType.IPv6.byte)
     else:
-      raise newException(LPError, fmt"IP address not supported {address}")
+      raise newException(LPError, "IP address not supported")
   let
     dstAddr = address[codec].tryGet().protoArgument().tryGet()
     dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
@@ -213,7 +212,7 @@ proc dialPeer(
     elif DnsTcp.match(address):
       parseDnsTcp(address)
     else:
-      raise newException(LPError, fmt"Address not supported: {address}")
+      raise newException(LPError, "Address not supported")
 
   let reserved = byte(0)
   let request =
@@ -231,7 +230,7 @@ method dial*(
   ## dial a peer
   ##
   if not handlesDial(address):
-    raise newException(TransportDialError, fmt"Address not supported: {address}")
+    raise newException(TransportDialError, "Address not supported")
   trace "Dialing remote peer", address = $address
 
   var transp: StreamTransport
