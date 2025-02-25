@@ -308,7 +308,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: []).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -356,7 +356,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async.} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: []).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -404,7 +404,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -451,7 +451,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -504,7 +504,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handler(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -562,14 +562,17 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async.} =
-      case event.kind
-      of ConnEventKind.Connected:
-        await onConnect
-        await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
-      of ConnEventKind.Disconnected:
-        check not switches[0].isConnected(peerInfo.peerId)
-        done.complete()
+    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: []).} =
+      try:
+        case event.kind
+        of ConnEventKind.Connected:
+          await onConnect
+          await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
+        of ConnEventKind.Disconnected:
+          check not switches[0].isConnected(peerInfo.peerId)
+          done.complete()
+      except:
+        check false # should not get here
 
     switches.add(newStandardSwitch(rng = rng))
 
@@ -597,20 +600,23 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId2: PeerId, event: ConnEvent) {.async.} =
-      case event.kind
-      of ConnEventKind.Connected:
-        if conns == 5:
-          await onConnect
-          await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
-          return
+    proc hook(peerId2: PeerId, event: ConnEvent) {.async: (raises: []).} =
+      try:
+        case event.kind
+        of ConnEventKind.Connected:
+          if conns == 5:
+            await onConnect
+            await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
+            return
 
-        conns.inc
-      of ConnEventKind.Disconnected:
-        if conns == 1:
-          check not switches[0].isConnected(peerInfo.peerId)
-          done.complete()
-        conns.dec
+          conns.inc
+        of ConnEventKind.Disconnected:
+          if conns == 1:
+            check not switches[0].isConnected(peerInfo.peerId)
+            done.complete()
+          conns.dec
+      except:
+        check false # should not get here
 
     switches.add(newStandardSwitch(maxConnsPerPeer = 10, rng = rng))
 

@@ -43,7 +43,7 @@ type
       discard
 
   ConnEventHandler* =
-    proc(peerId: PeerId, event: ConnEvent): Future[void] {.gcsafe, raises: [].}
+    proc(peerId: PeerId, event: ConnEvent): Future[void] {.gcsafe, async: (raises: []).}
 
   PeerEventKind* {.pure.} = enum
     Left
@@ -58,7 +58,7 @@ type
       discard
 
   PeerEventHandler* =
-    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, raises: [].}
+    proc(peerId: PeerId, event: PeerEvent): Future[void] {.gcsafe, async: (raises: []).}
 
   ConnManager* = ref object of RootObj
     maxConnsPerPeer: int

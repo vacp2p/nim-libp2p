@@ -680,7 +680,7 @@ proc init*[PubParams: object | bool](
         topicsHigh: int.high,
       )
 
-  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
     if event.kind == PeerEventKind.Joined:
       pubsub.subscribePeer(peerId)
     else:

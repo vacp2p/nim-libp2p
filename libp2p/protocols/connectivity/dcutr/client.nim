@@ -34,7 +34,7 @@ proc new*(
 
 proc startSync*(
     self: DcutrClient, switch: Switch, remotePeerId: PeerId, addrs: seq[MultiAddress]
-) {.async.} =
+) {.async: (raises: [DcutrError, CancelledError]).} =
   logScope:
     peerId = switch.peerInfo.peerId
 

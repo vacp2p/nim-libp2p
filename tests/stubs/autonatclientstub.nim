@@ -37,14 +37,16 @@ method dialMe*(
     switch: Switch,
     pid: PeerId,
     addrs: seq[MultiAddress] = newSeq[MultiAddress](),
-): Future[MultiAddress] {.async.} =
+): Future[MultiAddress] {.
+    async: (raises: [AutonatError, AutonatUnreachableError, CancelledError])
+.} =
   self.dials += 1
 
   if self.dials == self.expectedDials:
     self.finished.complete()
   case self.answer
   of Reachable:
-    return MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    return MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
   of NotReachable:
     raise newException(AutonatUnreachableError, "")
   of Unknown:
