@@ -141,7 +141,7 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
   ## peer attritubtes are available through the variable
   ## `peer`
 
-  proc forEachInternal(q: DiscoveryQuery) {.async: (raises: []).} =
+  proc forEachInternal(q: DiscoveryQuery) {.async: (raises: [CancelledError]).} =
     while true:
       let peer {.inject.} =
         try:
