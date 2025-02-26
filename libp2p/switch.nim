@@ -335,7 +335,7 @@ proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.public, async: (raises: [CancelledError, CatchableError]).} =
+proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
   ## Start listening on every transport
 
   if s.started:
@@ -357,7 +357,7 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, CatchableError
   for fut in startFuts:
     if fut.failed:
       await s.stop()
-      raise fut.error
+      raise newException(LPError, "starting transports failed", fut.error)
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:
