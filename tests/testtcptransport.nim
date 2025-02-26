@@ -75,7 +75,9 @@ suite "TCP transport":
   asyncTest "test dialer: handle write":
     let address = initTAddress("0.0.0.0:0")
     let handlerWait = newFuture[void]()
-    proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
+    proc serveClient(
+        server: StreamServer, transp: StreamTransport
+    ) {.async: (raises: [CatchableError]).} =
       var wstream = newAsyncStreamWriter(transp)
       await wstream.write("Hello!")
       await wstream.finish()
@@ -107,7 +109,9 @@ suite "TCP transport":
   asyncTest "test dialer: handle write":
     let address = initTAddress("0.0.0.0:0")
     let handlerWait = newFuture[void]()
-    proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
+    proc serveClient(
+        server: StreamServer, transp: StreamTransport
+    ) {.async: (raises: [CatchableError]).} =
       var rstream = newAsyncStreamReader(transp)
       let msg = await rstream.read(6)
       check string.fromBytes(msg) == "Hello!"

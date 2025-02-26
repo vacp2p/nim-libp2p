@@ -276,7 +276,7 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
     trace "connection not found", peerId
   return mux
 
-proc storeMuxer*(c: ConnManager, muxer: Muxer) {.raises: [CatchableError].} =
+proc storeMuxer*(c: ConnManager, muxer: Muxer) {.raises: [LPError].} =
   ## store the connection and muxer
   ##
 

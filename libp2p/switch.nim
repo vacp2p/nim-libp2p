@@ -27,6 +27,7 @@ import
   protocols/secure/secure,
   peerinfo,
   utils/semaphore,
+  ./muxers/muxer,
   connmanager,
   nameresolving/nameresolver,
   peerid,
@@ -60,6 +61,8 @@ type
     nameResolver*: NameResolver
     started: bool
     services*: seq[Service]
+
+  UpgradeError* = object of LPError
 
   Service* = ref object of RootObj
     inUse: bool
@@ -216,30 +219,44 @@ proc mount*[T: LPProtocol](
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
 
-proc upgrader(switch: Switch, trans: Transport, conn: Connection) {.async.} =
-  let muxed = await trans.upgrade(conn, Opt.none(PeerId))
-  switch.connManager.storeMuxer(muxed)
-  await switch.peerStore.identify(muxed)
-  await switch.connManager.triggerPeerEvents(
-    muxed.connection.peerId, PeerEvent(kind: PeerEventKind.Identified, initiator: false)
-  )
-  trace "Connection upgrade succeeded"
+proc upgrader(
+    switch: Switch, trans: Transport, conn: Connection
+) {.async: (raises: [CancelledError, UpgradeError]).} =
+  try:
+    let muxed = await trans.upgrade(conn, Opt.none(PeerId))
+    switch.connManager.storeMuxer(muxed)
+    await switch.peerStore.identify(muxed)
+    await switch.connManager.triggerPeerEvents(
+      muxed.connection.peerId,
+      PeerEvent(kind: PeerEventKind.Identified, initiator: false),
+    )
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    raise newException(UpgradeError, e.msg, e)
 
 proc upgradeMonitor(
     switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
-) {.async.} =
+) {.async: (raises: []).} =
+  var upgradeSuccessful = false
   try:
     await switch.upgrader(trans, conn).wait(30.seconds)
-  except CatchableError as exc:
-    if exc isnot CancelledError:
-      libp2p_failed_upgrades_incoming.inc()
-    if not isNil(conn):
-      await conn.close()
-    trace "Exception awaiting connection upgrade", description = exc.msg, conn
+    trace "Connection upgrade succeeded"
+    upgradeSuccessful = true
+  except CancelledError:
+    trace "Connection upgrade cancelled", conn
+  except AsyncTimeoutError:
+    trace "Connection upgrade timeout", conn
+    libp2p_failed_upgrades_incoming.inc()
+  except UpgradeError as e:
+    trace "Connection upgrade failed", description = e.msg, conn
+    libp2p_failed_upgrades_incoming.inc()
   finally:
+    if (not upgradeSuccessful) and (not isNil(conn)):
+      await conn.close()
     upgrades.release()
 
-proc accept(s: Switch, transport: Transport) {.async.} = # noraises
+proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
 
@@ -286,7 +303,7 @@ proc accept(s: Switch, transport: Transport) {.async.} = # noraises
         await conn.close()
       return
 
-proc stop*(s: Switch) {.async, public.} =
+proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
   ## Stop listening on every transport, and
   ## close every active connections
 
@@ -318,7 +335,7 @@ proc stop*(s: Switch) {.async, public.} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.async, public.} =
+proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
   ## Start listening on every transport
 
   if s.started:
@@ -340,7 +357,7 @@ proc start*(s: Switch) {.async, public.} =
   for fut in startFuts:
     if fut.failed:
       await s.stop()
-      raise fut.error
+      raise newException(LPError, "starting transports failed", fut.error)
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:
