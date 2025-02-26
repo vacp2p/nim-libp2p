@@ -79,16 +79,20 @@ type
     advertisementUpdated*: AsyncEvent
     advertiseLoop*: Future[void]
 
-method request*(self: DiscoveryInterface, pa: PeerAttributes) {.async, base.} =
-  doAssert(false, "Not implemented!")
-
-method advertise*(self: DiscoveryInterface) {.async, base.} =
-  doAssert(false, "Not implemented!")
-
-type
   DiscoveryError* = object of LPError
   DiscoveryFinished* = object of LPError
 
+method request*(
+    self: DiscoveryInterface, pa: PeerAttributes
+) {.base, async: (raises: [DiscoveryError, CancelledError]).} =
+  doAssert(false, "Not implemented!")
+
+method advertise*(
+    self: DiscoveryInterface
+) {.base, async: (raises: [CancelledError]).} =
+  doAssert(false, "Not implemented!")
+
+type
   DiscoveryQuery* = ref object
     attr: PeerAttributes
     peers: AsyncQueue[PeerAttributes]

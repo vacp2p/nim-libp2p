@@ -20,7 +20,8 @@ import
   ../utils/heartbeat,
   ../stream/connection,
   ../utils/offsettedseq,
-  ../utils/semaphore
+  ../utils/semaphore,
+  ../discovery/discoverymngr
 
 export chronicles
 
@@ -295,7 +296,7 @@ proc decode(_: typedesc[Message], buf: seq[byte]): Opt[Message] =
   Opt.some(msg)
 
 type
-  RendezVousError* = object of LPError
+  RendezVousError* = object of DiscoveryError
   RegisteredData = object
     expiration: Moment
     peerId: PeerId
@@ -555,7 +556,7 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
 
 proc request*(
     rdv: RendezVous, ns: string, l: int = DiscoverLimit.int, peers: seq[PeerId]
-): Future[seq[PeerRecord]] {.async.} =
+): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
   var
     s: Table[PeerId, (PeerRecord, Register)]
     limit: uint64
@@ -634,7 +635,7 @@ proc request*(
 
 proc request*(
     rdv: RendezVous, ns: string, l: int = DiscoverLimit.int
-): Future[seq[PeerRecord]] {.async.} =
+): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
   await rdv.request(ns, l, rdv.peers)
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
