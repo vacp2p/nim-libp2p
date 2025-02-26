@@ -303,7 +303,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         await conn.close()
       return
 
-proc stop*(s: Switch) {.async, public.} =
+proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
   ## Stop listening on every transport, and
   ## close every active connections
 
@@ -335,7 +335,7 @@ proc stop*(s: Switch) {.async, public.} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.async, public.} =
+proc start*(s: Switch) {.public, async: (raises: [CancelledError, CatchableError]).} =
   ## Start listening on every transport
 
   if s.started:
