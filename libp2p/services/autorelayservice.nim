@@ -41,7 +41,7 @@ proc addressMapper(
 
 proc reserveAndUpdate(
     self: AutoRelayService, relayPid: PeerId, switch: Switch
-) {.async.} =
+) {.async: (raises: [CatchableError]).} =
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
@@ -86,7 +86,9 @@ method setup*(
     await self.run(switch)
   return hasBeenSetUp
 
-proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
+proc manageBackedOff(
+    self: AutoRelayService, pid: PeerId
+) {.async: (raises: [CancelledError]).} =
   await sleepAsync(chronos.seconds(5))
   self.backingOff.keepItIf(it != pid)
   self.peerAvailable.fire()

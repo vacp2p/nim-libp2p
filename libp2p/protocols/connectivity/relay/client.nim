@@ -80,7 +80,7 @@ proc handleRelayedConnect(
 
 proc reserve*(
     cl: RelayClient, peerId: PeerId, addrs: seq[MultiAddress] = @[]
-): Future[Rsvp] {.async.} =
+): Future[Rsvp] {.async: (raises: [ReservationError, DialFailedError, CancelledError]).} =
   let conn = await cl.switch.dial(peerId, addrs, RelayV2HopCodec)
   defer:
     await conn.close()
