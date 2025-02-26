@@ -188,7 +188,16 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
     peerStore.del(peerStore.toClean[0])
     peerStore.toClean.delete(0)
 
-proc identify*(peerStore: PeerStore, muxer: Muxer) {.async.} =
+proc identify*(
+    peerStore: PeerStore, muxer: Muxer
+) {.
+    async: (
+      raises: [
+        CancelledError, IdentityNoMatchError, IdentityInvalidMsgError, MultiStreamError,
+        LPStreamError, MuxerError,
+      ]
+    )
+.} =
   # new stream for identify
   var stream = await muxer.newStream()
   if stream == nil:

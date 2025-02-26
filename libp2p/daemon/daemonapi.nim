@@ -971,7 +971,9 @@ proc openStream*(
     await api.closeConnection(transp)
     raise newException(DaemonLocalError, "Wrong message type!")
 
-proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
+proc streamHandler(
+    server: StreamServer, transp: StreamTransport
+) {.async: (raises: [CatchableError]).} =
   var api = getUserData[DaemonAPI](server)
   var message = await transp.recvMessage()
   var pb = initProtoBuffer(message)
