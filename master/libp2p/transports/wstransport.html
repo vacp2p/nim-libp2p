@@ -260,7 +260,9 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">accept
       <li><a class="reference" href="#accept.e%2CWsTransport"
-    title="accept(self: WsTransport): Future[Connection]">accept(self: WsTransport): Future[Connection]</a></li>
+    title="accept(self: WsTransport): InternalRaisesFuture[Connection,
+    (TransportError, CancelledError)]">accept(self: WsTransport): InternalRaisesFuture[Connection,
+    (TransportError, CancelledError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">closeImpl
@@ -271,8 +273,10 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple nested-toc-section">dial
       <li><a class="reference" href="#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D"
     title="dial(self: WsTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]">dial(self: WsTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): Future[Connection]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (TransportError, CancelledError)]">dial(self: WsTransport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
+    (TransportError, CancelledError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">getWrapped
@@ -410,9 +414,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Creates a clear-text WebSocket transport
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L360"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L372"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L360" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L372" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -426,9 +430,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Creates a secure WebSocket transport
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L336"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L348"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L336" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L348" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -450,15 +454,17 @@ class="link-seesrc" target="_blank">Source</a>
 <h1><a class="toc-backref" href="#14">Methods</a></h1>
 <dl class="item">
 <div id="accept.e,WsTransport" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#accept.e%2CWsTransport"><span class="Identifier">accept</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="wstransport.html#WsTransport"><span class="Identifier">WsTransport</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#accept.e%2CWsTransport"><span class="Identifier">accept</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="wstransport.html#WsTransport"><span class="Identifier">WsTransport</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">,</span>
+    <span class="Other">(</span><a href="../upgrademngrs/upgrade.html#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                        <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 accept a new WS connection 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L250"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L255"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L250" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L255" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -478,16 +484,16 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="dial.e,WsTransport,string,MultiAddress,Opt[PeerId]" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D"><span class="Identifier">dial</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="wstransport.html#WsTransport"><span class="Identifier">WsTransport</span></a><span class="Other">;</span> <span class="Identifier">hostname</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span>
-            <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">PeerId</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+            <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">PeerId</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">,</span> <span class="Other">(</span><a href="../upgrademngrs/upgrade.html#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 dial a peer 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L309"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L319"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L309" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L319" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -505,14 +511,14 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 <div id="handles.e,WsTransport,MultiAddress" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#handles.e%2CWsTransport%2CMultiAddress"><span class="Identifier">handles</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <a href="wstransport.html#WsTransport"><span class="Identifier">WsTransport</span></a><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L331"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L343"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L331" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L343" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -591,7 +597,7 @@ class="link-seesrc" target="_blank">Source</a>
 <div class="section" id="19">
 <h1><a class="toc-backref" href="#19">Exports</a></h1>
 <dl class="item">
-<a href="../upgrademngrs/upgrade.html#TransportInvalidAddrError"><span class="Identifier">TransportInvalidAddrError</span></a>, <a href="../upgrademngrs/upgrade.html#dial,Transport,MultiAddress,Opt[PeerId]"><span class="Identifier">dial</span></a>, <a href="../upgrademngrs/upgrade.html#upgrade.e,Transport,Connection,Opt[PeerId]"><span class="Identifier">upgrade</span></a>, <a href="../upgrademngrs/upgrade.html#Transport"><span class="Identifier">Transport</span></a>, <a href="../upgrademngrs/upgrade.html#newTransportClosedError,ref.Exception"><span class="Identifier">newTransportClosedError</span></a>, <a href="../upgrademngrs/upgrade.html#stop.e,Transport"><span class="Identifier">stop</span></a>, <a href="../upgrademngrs/upgrade.html#accept.e,Transport"><span class="Identifier">accept</span></a>, <a href="../upgrademngrs/upgrade.html#TransportError"><span class="Identifier">TransportError</span></a>, <a href="../upgrademngrs/upgrade.html#TransportClosedError"><span class="Identifier">TransportClosedError</span></a>, <a href="../protocols/connectivity/autonat/core.html#NetworkReachability"><span class="Identifier">NetworkReachability</span></a>, <a href="../upgrademngrs/upgrade.html#handles.e,Transport,MultiAddress"><span class="Identifier">handles</span></a>, <a href="../upgrademngrs/upgrade.html#dial.e,Transport,string,MultiAddress,Opt[PeerId]"><span class="Identifier">dial</span></a>, <a href="../upgrademngrs/upgrade.html#start.e,Transport,seq[MultiAddress]"><span class="Identifier">start</span></a>
+<a href="../upgrademngrs/upgrade.html#TransportInvalidAddrError"><span class="Identifier">TransportInvalidAddrError</span></a>, <a href="../upgrademngrs/upgrade.html#dial,Transport,MultiAddress,Opt[PeerId]"><span class="Identifier">dial</span></a>, <a href="../upgrademngrs/upgrade.html#upgrade.e,Transport,Connection,Opt[PeerId]"><span class="Identifier">upgrade</span></a>, <a href="../upgrademngrs/upgrade.html#Transport"><span class="Identifier">Transport</span></a>, <a href="../upgrademngrs/upgrade.html#newTransportClosedError,ref.Exception"><span class="Identifier">newTransportClosedError</span></a>, <a href="../upgrademngrs/upgrade.html#TransportDialError"><span class="Identifier">TransportDialError</span></a>, <a href="../upgrademngrs/upgrade.html#safeCloseWait.t,untyped"><span class="Identifier">safeCloseWait</span></a>, <a href="../upgrademngrs/upgrade.html#stop.e,Transport"><span class="Identifier">stop</span></a>, <a href="../upgrademngrs/upgrade.html#accept.e,Transport"><span class="Identifier">accept</span></a>, <a href="../upgrademngrs/upgrade.html#TransportError"><span class="Identifier">TransportError</span></a>, <a href="../upgrademngrs/upgrade.html#TransportClosedError"><span class="Identifier">TransportClosedError</span></a>, <a href="../protocols/connectivity/autonat/core.html#NetworkReachability"><span class="Identifier">NetworkReachability</span></a>, <a href="../upgrademngrs/upgrade.html#handles.e,Transport,MultiAddress"><span class="Identifier">handles</span></a>, <a href="../upgrademngrs/upgrade.html#dial.e,Transport,string,MultiAddress,Opt[PeerId]"><span class="Identifier">dial</span></a>, <a href="../upgrademngrs/upgrade.html#safeClose.t,untyped"><span class="Identifier">safeClose</span></a>, <a href="../upgrademngrs/upgrade.html#start.e,Transport,seq[MultiAddress]"><span class="Identifier">start</span></a>
 </dl></div>
 
   </div>
@@ -601,7 +607,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-25 21:36:02 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-27 09:44:25 UTC</small>
       </div>
     </div>
   </div>
