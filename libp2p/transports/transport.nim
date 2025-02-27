@@ -29,6 +29,7 @@ type
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
+  TransportDialError* = object of TransportError
 
   Transport* = ref object of RootObj
     addrs*: seq[MultiAddress]
@@ -57,7 +58,11 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   trace "stopping transport", address = $self.addrs
   self.running = false
 
-method accept*(self: Transport): Future[Connection] {.base, gcsafe.} =
+method accept*(
+    self: Transport
+): Future[Connection] {.
+    gcsafe, base, async: (raises: [TransportError, CancelledError])
+.} =
   ## accept incoming connections
   ##
 
@@ -68,7 +73,9 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.base, gcsafe.} =
+): Future[Connection] {.
+    base, gcsafe, async: (raises: [TransportError, CancelledError])
+.} =
   ## dial a peer
   ##
 
@@ -87,7 +94,9 @@ method upgrade*(
   ##
   self.upgrader.upgrade(conn, peerId)
 
-method handles*(self: Transport, address: MultiAddress): bool {.base, gcsafe.} =
+method handles*(
+    self: Transport, address: MultiAddress
+): bool {.base, gcsafe, raises: [].} =
   ## check if transport supports the multiaddress
   ##
   # by default we skip circuit addresses to avoid
@@ -96,3 +105,17 @@ method handles*(self: Transport, address: MultiAddress): bool {.base, gcsafe.} =
     return false
 
   protocols.filterIt(it == multiCodec("p2p-circuit")).len == 0
+
+template safeCloseWait*(stream: untyped) =
+  if not isNil(stream):
+    try:
+      await noCancel stream.closeWait()
+    except CatchableError as e:
+      trace "Error closing", description = e.msg
+
+template safeClose*(stream: untyped) =
+  if not isNil(stream):
+    try:
+      await noCancel stream.close()
+    except CatchableError as e:
+      trace "Error closing", description = e.msg
