@@ -55,7 +55,9 @@ method stop*(self: RelayTransport) {.async: (raises: []).} =
     except AsyncQueueEmptyError:
       continue # checked with self.queue.empty()
 
-method accept*(self: RelayTransport): Future[Connection] {.async.} =
+method accept*(
+    self: RelayTransport
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   result = await self.queue.popFirst()
 
 proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.} =
@@ -84,10 +86,10 @@ proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.}
       rc = RelayConnection.new(conn, 0, 0)
       return await self.client.dialPeerV2(rc, dstPeerId, @[])
   except CancelledError as exc:
+    safeClose(rc)
     raise exc
   except CatchableError as exc:
-    if not rc.isNil:
-      await rc.close()
+    safeClose(rc)
     raise exc
 
 method dial*(
@@ -95,10 +97,15 @@ method dial*(
     hostname: string,
     ma: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   peerId.withValue(pid):
-    let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
-    result = await self.dial(address)
+    try:
+      let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
+      result = await self.dial(address)
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      raise newException(transport.TransportDialError, e.msg, e)
 
 method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
   try:
