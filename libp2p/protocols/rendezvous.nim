@@ -543,7 +543,7 @@ proc advertise*(
 
 method advertise*(
     rdv: RendezVous, ns: string, ttl: Duration = rdv.minDuration
-) {.async, base.} =
+) {.base, async: (raises: [CancelledError]).} =
   await rdv.advertise(ns, ttl, rdv.peers)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
