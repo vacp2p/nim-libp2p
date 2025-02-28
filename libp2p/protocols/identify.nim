@@ -166,7 +166,12 @@ method init*(p: Identify) =
 
 proc identify*(
     self: Identify, conn: Connection, remotePeerId: PeerId
-): Future[IdentifyInfo] {.async.} =
+): Future[IdentifyInfo] {.
+    async: (
+      raises:
+        [IdentityInvalidMsgError, IdentityNoMatchError, LPStreamError, CancelledError]
+    )
+.} =
   trace "initiating identify", conn
   var message = await conn.readLp(64 * 1024)
   if len(message) == 0:

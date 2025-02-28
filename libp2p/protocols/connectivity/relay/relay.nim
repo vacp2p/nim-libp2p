@@ -333,7 +333,7 @@ proc handleStreamV1(r: Relay, conn: Connection) {.async.} =
 proc setup*(r: Relay, switch: Switch) =
   r.switch = switch
   r.switch.addPeerEventHandler(
-    proc(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
       r.rsvp.del(peerId),
     Left,
   )

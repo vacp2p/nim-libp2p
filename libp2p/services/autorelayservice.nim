@@ -68,12 +68,14 @@ method setup*(
 
   let hasBeenSetUp = await procCall Service(self).setup(switch)
   if hasBeenSetUp:
-    proc handlePeerIdentified(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handlePeerIdentified(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: []).} =
       trace "Peer Identified", peerId
       if self.relayPeers.len < self.maxNumRelays:
         self.peerAvailable.fire()
 
-    proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
       trace "Peer Left", peerId
       self.relayPeers.withValue(peerId, future):
         future[].cancel()

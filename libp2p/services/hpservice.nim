@@ -39,8 +39,10 @@ proc new*(
 
 proc tryStartingDirectConn(
     self: HPService, switch: Switch, peerId: PeerId
-): Future[bool] {.async.} =
-  proc tryConnect(address: MultiAddress): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  proc tryConnect(
+      address: MultiAddress
+  ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
     debug "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
     debug "Direct connection created."
@@ -57,13 +59,13 @@ proc tryStartingDirectConn(
       continue
   return false
 
-proc closeRelayConn(relayedConn: Connection) {.async.} =
+proc closeRelayConn(relayedConn: Connection) {.async: (raises: [CancelledError]).} =
   await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
   await relayedConn.close()
 
 proc newConnectedPeerHandler(
     self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent
-) {.async.} =
+) {.async: (raises: []).} =
   try:
     # Get all connections to the peer. If there is at least one non-relayed connection, return.
     let connections = switch.connManager.getConnections()[peerId].mapIt(it.connection)
@@ -102,8 +104,13 @@ method setup*(
     except LPError as err:
       error "Failed to mount Dcutr", err = err.msg
 
-    self.newConnectedPeerHandler = proc(peerId: PeerId, event: PeerEvent) {.async.} =
-      await newConnectedPeerHandler(self, switch, peerId, event)
+    self.newConnectedPeerHandler = proc(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: []).} =
+      try:
+        await newConnectedPeerHandler(self, switch, peerId, event)
+      except CancelledError:
+        trace "hole punching cancelled"
 
     switch.connManager.addPeerEventHandler(
       self.newConnectedPeerHandler, PeerEventKind.Joined

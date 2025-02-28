@@ -19,7 +19,9 @@ logScope:
 
 type AutonatClient* = ref object of RootObj
 
-proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc sendDial(
+    conn: Connection, pid: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = AutonatDial(
     peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
   ).encode()
@@ -30,7 +32,9 @@ method dialMe*(
     switch: Switch,
     pid: PeerId,
     addrs: seq[MultiAddress] = newSeq[MultiAddress](),
-): Future[MultiAddress] {.base, async.} =
+): Future[MultiAddress] {.
+    base, async: (raises: [AutonatError, AutonatUnreachableError, CancelledError])
+.} =
   proc getResponseOrRaise(
       autonatMsg: Opt[AutonatMsg]
   ): AutonatDialResponse {.raises: [AutonatError].} =
@@ -47,6 +51,8 @@ method dialMe*(
         await switch.dial(pid, @[AutonatCodec])
       else:
         await switch.dial(pid, addrs, AutonatCodec)
+    except CancelledError as err:
+      raise err
     except DialFailedError as err:
       raise
         newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
@@ -61,14 +67,37 @@ method dialMe*(
     incomingConnection.cancel()
       # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
     if incomingConnection.completed():
-      await (await incomingConnection).connection.close()
-  trace "sending Dial", addrs = switch.peerInfo.addrs
-  await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
-  let response = getResponseOrRaise(AutonatMsg.decode(await conn.readLp(1024)))
+      try:
+        await (await incomingConnection).connection.close()
+      except AlreadyExpectingConnectionError as e:
+        # this err is already handled above and could not happen later
+        error "Unexpected error", description = e.msg
+
+  try:
+    trace "sending Dial", addrs = switch.peerInfo.addrs
+    await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    raise newException(AutonatError, "Sending dial failed", e)
+
+  var respBytes: seq[byte]
+  try:
+    respBytes = await conn.readLp(1024)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    raise newException(AutonatError, "read Dial response failed", e)
+
+  let response = getResponseOrRaise(AutonatMsg.decode(respBytes))
+
   return
     case response.status
     of ResponseStatus.Ok:
-      response.ma.tryGet()
+      try:
+        response.ma.tryGet()
+      except:
+        raiseAssert("checked with if")
     of ResponseStatus.DialError:
       raise newException(
         AutonatUnreachableError, "Peer could not dial us back: " & response.text.get("")
