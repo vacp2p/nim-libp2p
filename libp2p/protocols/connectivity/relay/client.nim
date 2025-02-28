@@ -29,7 +29,7 @@ const RelayClientMsgSize = 4096
 type
   RelayClientError* = object of LPError
   ReservationError* = object of RelayClientError
-  RelayDialError* = object of RelayClientError
+  RelayDialError* = object of DialFailedError
   RelayV1DialError* = object of RelayDialError
   RelayV2DialError* = object of RelayDialError
   RelayClientAddConn* = proc(
@@ -224,7 +224,9 @@ proc handleStopStreamV2(
     trace "Unexpected client / relayv2 handshake", msgType = msg.msgType
     await sendStopError(conn, MalformedMessage)
 
-proc handleStop(cl: RelayClient, conn: Connection, msg: RelayMessage) {.async.} =
+proc handleStop(
+    cl: RelayClient, conn: Connection, msg: RelayMessage
+) {.async: (raises: [CancelledError]).} =
   let src = msg.srcPeer.valueOr:
     await sendStatus(conn, StatusV1.StopSrcMultiaddrInvalid)
     return
@@ -251,7 +253,9 @@ proc handleStop(cl: RelayClient, conn: Connection, msg: RelayMessage) {.async.} 
   else:
     await conn.close()
 
-proc handleStreamV1(cl: RelayClient, conn: Connection) {.async.} =
+proc handleStreamV1(
+    cl: RelayClient, conn: Connection
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = RelayMessage.decode(await conn.readLp(RelayClientMsgSize)).valueOr:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
