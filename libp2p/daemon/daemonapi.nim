@@ -972,6 +972,7 @@ proc openStream*(
     raise newException(DaemonLocalError, "Wrong message type!")
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
+  # must not specify raised exceptions as this is StreamCallback from chronos
   var api = getUserData[DaemonAPI](server)
   var message = await transp.recvMessage()
   var pb = initProtoBuffer(message)

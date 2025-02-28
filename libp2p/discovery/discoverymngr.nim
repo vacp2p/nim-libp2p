@@ -79,16 +79,20 @@ type
     advertisementUpdated*: AsyncEvent
     advertiseLoop*: Future[void]
 
-method request*(self: DiscoveryInterface, pa: PeerAttributes) {.async, base.} =
-  doAssert(false, "Not implemented!")
-
-method advertise*(self: DiscoveryInterface) {.async, base.} =
-  doAssert(false, "Not implemented!")
-
-type
   DiscoveryError* = object of LPError
   DiscoveryFinished* = object of LPError
 
+method request*(
+    self: DiscoveryInterface, pa: PeerAttributes
+) {.base, async: (raises: [DiscoveryError, CancelledError]).} =
+  doAssert(false, "Not implemented!")
+
+method advertise*(
+    self: DiscoveryInterface
+) {.base, async: (raises: [CancelledError]).} =
+  doAssert(false, "Not implemented!")
+
+type
   DiscoveryQuery* = ref object
     attr: PeerAttributes
     peers: AsyncQueue[PeerAttributes]
@@ -137,7 +141,9 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
   ## peer attritubtes are available through the variable
   ## `peer`
 
-  proc forEachInternal(q: DiscoveryQuery) {.async.} =
+  proc forEachInternal(
+      q: DiscoveryQuery
+  ) {.async: (raises: [CancelledError, DiscoveryError]).} =
     while true:
       let peer {.inject.} =
         try:
@@ -162,7 +168,11 @@ proc stop*(dm: DiscoveryManager) =
       continue
     i.advertiseLoop.cancel()
 
-proc getPeer*(query: DiscoveryQuery): Future[PeerAttributes] {.async.} =
+proc getPeer*(
+    query: DiscoveryQuery
+): Future[PeerAttributes] {.
+    async: (raises: [CancelledError, DiscoveryError, DiscoveryFinished])
+.} =
   let getter = query.peers.popFirst()
 
   try:
