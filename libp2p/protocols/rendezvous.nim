@@ -333,7 +333,9 @@ proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
     return err("Bad Peer ID")
   return ok()
 
-proc sendRegisterResponse(conn: Connection, ttl: uint64) {.async.} =
+proc sendRegisterResponse(
+    conn: Connection, ttl: uint64
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = encode(
     Message(
       msgType: MessageType.RegisterResponse,
@@ -344,7 +346,7 @@ proc sendRegisterResponse(conn: Connection, ttl: uint64) {.async.} =
 
 proc sendRegisterResponseError(
     conn: Connection, status: ResponseStatus, text: string = ""
-) {.async.} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = encode(
     Message(
       msgType: MessageType.RegisterResponse,
@@ -355,7 +357,7 @@ proc sendRegisterResponseError(
 
 proc sendDiscoverResponse(
     conn: Connection, s: seq[Register], cookie: Cookie
-) {.async.} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = encode(
     Message(
       msgType: MessageType.DiscoverResponse,
@@ -370,7 +372,7 @@ proc sendDiscoverResponse(
 
 proc sendDiscoverResponseError(
     conn: Connection, status: ResponseStatus, text: string = ""
-) {.async.} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = encode(
     Message(
       msgType: MessageType.DiscoverResponse,
@@ -437,7 +439,9 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   except KeyError:
     return
 
-proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
+proc discover(
+    rdv: RendezVous, conn: Connection, d: Discover
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
   libp2p_rendezvous_discover.inc()
   if d.ns.len notin 0 .. 255:
@@ -486,8 +490,10 @@ proc discover(rdv: RendezVous, conn: Connection, d: Discover) {.async.} =
   rdv.rng.shuffle(s)
   await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
 
-proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
-  proc advertiseWrap() {.async.} =
+proc advertisePeer(
+    rdv: RendezVous, peer: PeerId, msg: seq[byte]
+) {.async: (raises: [CancelledError]).} =
+  proc advertiseWrap() {.async: (raises: []).} =
     try:
       let conn = await rdv.switch.dial(peer, RendezVousCodec)
       defer:
@@ -512,7 +518,7 @@ proc advertisePeer(rdv: RendezVous, peer: PeerId, msg: seq[byte]) {.async.} =
 
 proc advertise*(
     rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
-) {.async.} =
+) {.async: (raises: [CancelledError, RendezVousError]).} =
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
 
@@ -567,7 +573,9 @@ proc request*(
   if ns.len notin 0 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
   limit = l.uint64
-  proc requestPeer(peer: PeerId) {.async.} =
+  proc requestPeer(
+      peer: PeerId
+  ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
     defer:
       await conn.close()
@@ -597,7 +605,10 @@ proc request*(
     resp.cookie.withValue(cookie):
       if cookie.len() < 1000 and
           rdv.cookiesSaved.hasKeyOrPut(peer, {ns: cookie}.toTable()):
-        rdv.cookiesSaved[peer][ns] = cookie
+        try:
+          rdv.cookiesSaved[peer][ns] = cookie
+        except KeyError:
+          raiseAssert "checked with hasKeyOrPut"
     for r in resp.registrations:
       if limit == 0:
         return
@@ -609,7 +620,11 @@ proc request*(
           continue
         pr = spr.data
       if s.hasKey(pr.peerId):
-        let (prSaved, rSaved) = s[pr.peerId]
+        let (prSaved, rSaved) =
+          try:
+            s[pr.peerId]
+          except KeyError:
+            raiseAssert "checked with hasKey"
         if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
             prSaved.seqNo < pr.seqNo:
           s[pr.peerId] = (pr, r)
@@ -627,10 +642,12 @@ proc request*(
     try:
       trace "Send Request", peerId = peer, ns
       await peer.requestPeer()
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "exception catch in request", description = exc.msg
+    except CancelledError as e:
+      raise e
+    except DialFailedError as e:
+      trace "failed to dial a peer", description = e.msg
+    except LPStreamError as e:
+      trace "failed to communicate with a peer", description = e.msg
   return toSeq(s.values()).mapIt(it[0])
 
 proc request*(
@@ -647,7 +664,9 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   except KeyError:
     return
 
-proc unsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
+proc unsubscribe*(
+    rdv: RendezVous, ns: string, peerIds: seq[PeerId]
+) {.async: (raises: [RendezVousError, CancelledError]).} =
   if ns.len notin 1 .. 255:
     raise newException(RendezVousError, "Invalid namespace")
 
@@ -655,7 +674,7 @@ proc unsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
     Message(msgType: MessageType.Unregister, unregister: Opt.some(Unregister(ns: ns)))
   )
 
-  proc unsubscribePeer(peerId: PeerId) {.async.} =
+  proc unsubscribePeer(peerId: PeerId) {.async: (raises: []).} =
     try:
       let conn = await rdv.switch.dial(peerId, RendezVousCodec)
       defer:
@@ -670,7 +689,9 @@ proc unsubscribe*(rdv: RendezVous, ns: string, peerIds: seq[PeerId]) {.async.} =
 
   discard await allFutures(futs).withTimeout(5.seconds)
 
-proc unsubscribe*(rdv: RendezVous, ns: string) {.async.} =
+proc unsubscribe*(
+    rdv: RendezVous, ns: string
+) {.async: (raises: [RendezVousError, CancelledError]).} =
   rdv.unsubscribeLocally(ns)
 
   await rdv.unsubscribe(ns, rdv.peers)
@@ -757,7 +778,7 @@ proc new*(
   rdv.setup(switch)
   return rdv
 
-proc deletesRegister(rdv: RendezVous) {.async.} =
+proc deletesRegister(rdv: RendezVous) {.async: (raises: [CancelledError]).} =
   heartbeat "Register timeout", 1.minutes:
     let n = Moment.now()
     var total = 0

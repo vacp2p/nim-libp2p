@@ -33,7 +33,7 @@ type
   RelayV2DialError* = object of RelayClientError
   RelayClientAddConn* = proc(
     conn: Connection, duration: uint32, data: uint64
-  ): Future[void] {.gcsafe, raises: [].}
+  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
   RelayClient* = ref object of Relay
     onNewConnection*: RelayClientAddConn
     canHop: bool
@@ -45,14 +45,21 @@ type
     limitDuration*: uint32 # seconds
     limitData*: uint64 # bytes
 
-proc sendStopError(conn: Connection, code: StatusV2) {.async.} =
+proc sendStopError(
+    conn: Connection, code: StatusV2
+) {.async: (raises: [CancelledError]).} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
-  let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
-  await conn.writeLp(encode(msg).buffer)
+  try:
+    let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
+    await conn.writeLp(encode(msg).buffer)
+  except CancelledError as e:
+    raise e
+  except LPStreamError as e:
+    trace "failed to send stop status", description = e.msg
 
 proc handleRelayedConnect(
     cl: RelayClient, conn: Connection, msg: StopMessage
-) {.async.} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let
     # TODO: check the go version to see in which way this could fail
     # it's unclear in the spec
@@ -202,7 +209,9 @@ proc dialPeerV2*(
   conn.limitData = msgRcvFromRelay.limit.data
   return conn
 
-proc handleStopStreamV2(cl: RelayClient, conn: Connection) {.async.} =
+proc handleStopStreamV2(
+    cl: RelayClient, conn: Connection
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = StopMessage.decode(await conn.readLp(RelayClientMsgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return

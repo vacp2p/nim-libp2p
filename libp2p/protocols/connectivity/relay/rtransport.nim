@@ -38,7 +38,7 @@ method start*(
 
   self.client.onNewConnection = proc(
       conn: Connection, duration: uint32 = 0, data: uint64 = 0
-  ) {.async.} =
+  ) {.async: (raises: [CancelledError]).} =
     await self.queue.addLast(RelayConnection.new(conn, duration, data))
     await conn.join()
   self.selfRunning = true
