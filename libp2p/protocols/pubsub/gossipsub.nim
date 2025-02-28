@@ -424,18 +424,9 @@ proc validateAndRelay(
     template topic(): string =
       msg.topic
 
-    proc addToSendPeers(toSendPeers: var HashSet[PubSubPeer]) =
-      g.floodsub.withValue(topic, peers):
-        toSendPeers.incl(peers[])
-      g.mesh.withValue(topic, peers):
-        toSendPeers.incl(peers[])
-      g.subscribedDirectPeers.withValue(topic, peers):
-        toSendPeers.incl(peers[])
-      toSendPeers.excl(peer)
-
     if isLargeMessage(msg, msgId):
-      var peersToSendIDontWant = HashSet[PubSubPeer]()
-      addToSendPeers(peersToSendIDontWant)
+      var peersToSendIDontWant = g.mesh.getOrDefault(topic)
+      peersToSendIDontWant.excl(peer)
       g.sendIDontWant(msg, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
@@ -471,8 +462,15 @@ proc validateAndRelay(
     # trigger hooks
     peer.validatedObservers(msg, msgId)
 
-    # The send list typically matches the idontwant list from above, but
-    # might differ if validation takes time
+    proc addToSendPeers(toSendPeers: var HashSet[PubSubPeer]) =
+      g.floodsub.withValue(topic, peers):
+        toSendPeers.incl(peers[])
+      g.mesh.withValue(topic, peers):
+        toSendPeers.incl(peers[])
+      g.subscribedDirectPeers.withValue(topic, peers):
+        toSendPeers.incl(peers[])
+      toSendPeers.excl(peer)
+
     var toSendPeers = HashSet[PubSubPeer]()
     addToSendPeers(toSendPeers)
     # Don't send it to peers that sent it during validation
@@ -806,7 +804,7 @@ method publish*(
   g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
-    g.sendIDontWant(msg, msgId, peers)
+    g.sendIDontWant(msg, msgId, g.mesh.getOrDefault(topic))
 
   g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
 
