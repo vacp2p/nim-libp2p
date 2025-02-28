@@ -518,15 +518,15 @@ proc advertisePeer(
 
 proc advertise*(
     rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
-) {.async: (raises: [CancelledError, RendezVousError]).} =
+) {.async: (raises: [CancelledError, AdvertiseError]).} =
   if ns.len notin 1 .. 255:
-    raise newException(RendezVousError, "Invalid namespace")
+    raise newException(AdvertiseError, "Invalid namespace")
 
   if ttl notin rdv.minDuration .. rdv.maxDuration:
-    raise newException(RendezVousError, "Invalid time to live: " & $ttl)
+    raise newException(AdvertiseError, "Invalid time to live: " & $ttl)
 
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
-    raise newException(RendezVousError, "Wrong Signed Peer Record")
+    raise newException(AdvertiseError, "Wrong Signed Peer Record")
 
   let
     r = Register(ns: ns, signedPeerRecord: sprBuff, ttl: Opt.some(ttl.seconds.uint64))
@@ -543,7 +543,7 @@ proc advertise*(
 
 method advertise*(
     rdv: RendezVous, ns: string, ttl: Duration = rdv.minDuration
-) {.base, async: (raises: [CancelledError]).} =
+) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
   await rdv.advertise(ns, ttl, rdv.peers)
 
 proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
@@ -569,9 +569,10 @@ proc request*(
     d = Discover(ns: ns)
 
   if l <= 0 or l > DiscoverLimit.int:
-    raise newException(RendezVousError, "Invalid limit")
+    raise newException(AdvertiseError, "Invalid limit")
   if ns.len notin 0 .. 255:
-    raise newException(RendezVousError, "Invalid namespace")
+    raise newException(AdvertiseError, "Invalid namespace")
+
   limit = l.uint64
   proc requestPeer(
       peer: PeerId
