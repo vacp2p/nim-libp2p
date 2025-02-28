@@ -72,13 +72,13 @@ proc dial*(
     let sma = toSeq(ma.items())
     relayAddrs = sma[0 .. sma.len - 4].mapIt(it.tryGet()).foldl(a & b)
     if not relayPeerId.init(($(sma[^3].tryGet())).split('/')[2]):
-      raise newException(RelayV2DialError, "Relay doesn't exist")
+      raise newException(RelayDialError, "Relay doesn't exist")
     if not dstPeerId.init(($(sma[^1].tryGet())).split('/')[2]):
-      raise newException(RelayV2DialError, "Destination doesn't exist")
-  except RelayV2DialError as e:
+      raise newException(RelayDialError, "Destination doesn't exist")
+  except RelayDialError as e:
     raise e
   except CatchableError:
-    raise newException(RelayV2DialError, "dial address now valid")
+    raise newException(RelayDialError, "dial address not valid")
 
   trace "Dial", relayPeerId, dstPeerId
 
@@ -100,8 +100,11 @@ proc dial*(
     raise e
   except DialFailedError as e:
     safeClose(rc)
-    raise newException(RelayV2DialError, "dial relay peer failed", e)
+    raise newException(RelayDialError, "dial relay peer failed", e)
   except RelayV1DialError as e:
+    safeClose(rc)
+    raise e
+  except RelayV2DialError as e:
     safeClose(rc)
     raise e
 
