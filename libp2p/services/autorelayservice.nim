@@ -42,6 +42,8 @@ proc addressMapper(
 proc reserveAndUpdate(
     self: AutoRelayService, relayPid: PeerId, switch: Switch
 ) {.async: (raises: [CatchableError]).} =
+  # CatchableError used to simplify raised errors here, as there could be 
+  # many different errors raised but caller don't really care what is cause of error
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
