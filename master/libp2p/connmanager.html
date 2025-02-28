@@ -215,7 +215,7 @@ window.addEventListener("DOMContentLoaded", main2);
       nil">ConnEvent</a></li>
   <li><a class="reference" href="#ConnEventHandler"
     title="ConnEventHandler = proc (peerId: PeerId; event: ConnEvent): Future[void] {.
-    gcsafe, raises: [].}">ConnEventHandler</a></li>
+    gcsafe, async: (raises: []).}">ConnEventHandler</a></li>
   <li><a class="reference" href="#ConnEventKind"
     title="ConnEventKind {.pure.} = enum
   Connected, Disconnected">ConnEventKind</a></li>
@@ -239,7 +239,7 @@ window.addEventListener("DOMContentLoaded", main2);
       nil">PeerEvent</a></li>
   <li><a class="reference" href="#PeerEventHandler"
     title="PeerEventHandler = proc (peerId: PeerId; event: PeerEvent): Future[void] {.
-    gcsafe, raises: [].}">PeerEventHandler</a></li>
+    gcsafe, async: (raises: []).}">PeerEventHandler</a></li>
   <li><a class="reference" href="#PeerEventKind"
     title="PeerEventKind {.pure.} = enum
   Left, Joined, Identified">PeerEventKind</a></li>
@@ -443,8 +443,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="ConnEventHandler" class="tohide">
-<dt><pre><a href="peerstore.html#ConnEventHandler"><span class="Identifier">ConnEventHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">event</span><span class="Other">:</span> <a href="peerstore.html#ConnEvent"><span class="Identifier">ConnEvent</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><a href="peerstore.html#ConnEventHandler"><span class="Identifier">ConnEventHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">PeerId</span><span class="Other">;</span> <span class="Identifier">event</span><span class="Other">:</span> <span class="Identifier">ConnEvent</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
@@ -510,8 +510,8 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="PeerEventHandler" class="tohide">
-<dt><pre><a href="peerstore.html#PeerEventHandler"><span class="Identifier">PeerEventHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">event</span><span class="Other">:</span> <a href="peerstore.html#PeerEvent"><span class="Identifier">PeerEvent</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><a href="peerstore.html#PeerEventHandler"><span class="Identifier">PeerEventHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">PeerId</span><span class="Other">;</span> <span class="Identifier">event</span><span class="Other">:</span> <span class="Identifier">PeerEvent</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
@@ -851,7 +851,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-27 09:44:03 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-28 12:09:06 UTC</small>
       </div>
     </div>
   </div>

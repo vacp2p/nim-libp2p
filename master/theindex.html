@@ -2167,9 +2167,11 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="identify" href="#identify"><span>identify:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): Future[
-    IdentifyInfo]" href="libp2p/protocols/identify.html#identify%2CIdentify%2CConnection%2CPeerId">identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): Future[
-    IdentifyInfo]</a></li>
+          data-doc-search-tag="identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): InternalRaisesFuture[
+    IdentifyInfo, (IdentityInvalidMsgError, IdentityNoMatchError, LPStreamError,
+                   CancelledError)]" href="libp2p/protocols/identify.html#identify%2CIdentify%2CConnection%2CPeerId">identify: identify(self: Identify; conn: Connection; remotePeerId: PeerId): InternalRaisesFuture[
+    IdentifyInfo, (IdentityInvalidMsgError, IdentityNoMatchError, LPStreamError,
+                   CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="IdentifyCodec" href="#IdentifyCodec"><span>IdentifyCodec:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5598,7 +5600,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-27 09:44:26 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-28 12:09:29 UTC</small>
       </div>
     </div>
   </div>
