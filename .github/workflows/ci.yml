@@ -96,9 +96,15 @@ jobs:
           # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
           key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
+      - name: Setup python
+        run: |
+          mkdir .venv
+          python -m venv .venv
+
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
+          source .venv/bin/activate
           nimble install_pinned
 
       - name: Use gcc 14
@@ -112,6 +118,8 @@ jobs:
 
       - name: Run tests
         run: |
+          source .venv/bin/activate
+
           nim --version
           nimble --version
           gcc --version
