@@ -60,37 +60,50 @@ method accept*(
 ): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   result = await self.queue.popFirst()
 
-proc dial*(self: RelayTransport, ma: MultiAddress): Future[Connection] {.async.} =
-  let
-    sma = toSeq(ma.items())
-    relayAddrs = sma[0 .. sma.len - 4].mapIt(it.tryGet()).foldl(a & b)
+proc dial*(
+    self: RelayTransport, ma: MultiAddress
+): Future[Connection] {.async: (raises: [RelayDialError, CancelledError]).} =
   var
+    relayAddrs: MultiAddress
     relayPeerId: PeerId
     dstPeerId: PeerId
-  if not relayPeerId.init(($(sma[^3].tryGet())).split('/')[2]):
-    raise newException(RelayV2DialError, "Relay doesn't exist")
-  if not dstPeerId.init(($(sma[^1].tryGet())).split('/')[2]):
-    raise newException(RelayV2DialError, "Destination doesn't exist")
+
+  try:
+    let sma = toSeq(ma.items())
+    relayAddrs = sma[0 .. sma.len - 4].mapIt(it.tryGet()).foldl(a & b)
+    if not relayPeerId.init(($(sma[^3].tryGet())).split('/')[2]):
+      raise newException(RelayV2DialError, "Relay doesn't exist")
+    if not dstPeerId.init(($(sma[^1].tryGet())).split('/')[2]):
+      raise newException(RelayV2DialError, "Destination doesn't exist")
+  except RelayV2DialError as e:
+    raise e
+  except CatchableError:
+    raise newException(RelayV2DialError, "dial address now valid")
+
   trace "Dial", relayPeerId, dstPeerId
 
-  let conn = await self.client.switch.dial(
-    relayPeerId, @[relayAddrs], @[RelayV2HopCodec, RelayV1Codec]
-  )
-  conn.dir = Direction.Out
   var rc: RelayConnection
   try:
+    let conn = await self.client.switch.dial(
+      relayPeerId, @[relayAddrs], @[RelayV2HopCodec, RelayV1Codec]
+    )
+    conn.dir = Direction.Out
+
     case conn.protocol
     of RelayV1Codec:
       return await self.client.dialPeerV1(conn, dstPeerId, @[])
     of RelayV2HopCodec:
       rc = RelayConnection.new(conn, 0, 0)
       return await self.client.dialPeerV2(rc, dstPeerId, @[])
-  except CancelledError as exc:
+  except CancelledError as e:
     safeClose(rc)
-    raise exc
-  except CatchableError as exc:
+    raise e
+  except DialFailedError as e:
     safeClose(rc)
-    raise exc
+    raise newException(RelayV2DialError, "dial relay peer failed", e)
+  except RelayV1DialError as e:
+    safeClose(rc)
+    raise e
 
 method dial*(
     self: RelayTransport,

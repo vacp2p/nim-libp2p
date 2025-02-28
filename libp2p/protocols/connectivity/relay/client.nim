@@ -29,8 +29,9 @@ const RelayClientMsgSize = 4096
 type
   RelayClientError* = object of LPError
   ReservationError* = object of RelayClientError
-  RelayV1DialError* = object of RelayClientError
-  RelayV2DialError* = object of RelayClientError
+  RelayDialError* = object of RelayClientError
+  RelayV1DialError* = object of RelayDialError
+  RelayV2DialError* = object of RelayDialError
   RelayClientAddConn* = proc(
     conn: Connection, duration: uint32, data: uint64
   ): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
@@ -128,7 +129,7 @@ proc reserve*(
 
 proc dialPeerV1*(
     cl: RelayClient, conn: Connection, dstPeerId: PeerId, dstAddrs: seq[MultiAddress]
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [CancelledError, RelayV1DialError]).} =
   var
     msg = RelayMessage(
       msgType: Opt.some(RelayType.Hop),
@@ -145,19 +146,19 @@ proc dialPeerV1*(
     await conn.writeLp(pb.buffer)
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     trace "error writing hop request", description = exc.msg
-    raise exc
+    raise newException(RelayV1DialError, "error writing hop request", exc)
 
   let msgRcvFromRelayOpt =
     try:
       RelayMessage.decode(await conn.readLp(RelayClientMsgSize))
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
+    except LPStreamError as exc:
       trace "error reading stop response", description = exc.msg
       await sendStatus(conn, StatusV1.HopCantOpenDstStream)
-      raise exc
+      raise newException(RelayV1DialError, "error reading stop response", exc)
 
   try:
     let msgRcvFromRelay = msgRcvFromRelayOpt.valueOr:
@@ -183,7 +184,7 @@ proc dialPeerV2*(
     conn: RelayConnection,
     dstPeerId: PeerId,
     dstAddrs: seq[MultiAddress],
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [RelayV2DialError, CancelledError]).} =
   let
     p = Peer(peerId: dstPeerId, addrs: dstAddrs)
     pb = encode(HopMessage(msgType: HopMessageType.Connect, peer: Opt.some(p)))
