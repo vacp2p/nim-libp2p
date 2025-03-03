@@ -369,15 +369,18 @@ proc new*(
     isCircuitRelayV1: circuitRelayV1,
   )
 
-  proc handleStream(conn: Connection, proto: string) {.async: (raises: []).} =
+  proc handleStream(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     try:
       case proto
       of RelayV2HopCodec:
         await r.handleHopStreamV2(conn)
       of RelayV1Codec:
         await r.handleStreamV1(conn)
-    except CancelledError:
+    except CancelledError as exc:
       trace "cancelled relayv2 handler"
+      raise exc
     except CatchableError as exc:
       debug "exception in relayv2 handler", description = exc.msg, conn
     finally:

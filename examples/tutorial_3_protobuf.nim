@@ -108,14 +108,16 @@ type
 
 proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
   var res: MetricProto
-  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       let
         metrics = await res.metricGetter()
         asProtobuf = metrics.encode()
       await conn.writeLp(asProtobuf.buffer)
-    except:
-      echo "exception in handler", getCurrentException().msg
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
     finally:
       await conn.close()
 

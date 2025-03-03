@@ -26,7 +26,9 @@ proc main() {.async.} =
   let customProtoCodec = "/test"
   var proto = new LPProtocol
   proto.codec = customProtoCodec
-  proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+  proto.handler = proc(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     try:
       var msg = string.fromBytes(await conn.readLp(1024))
       echo "1 - Dst Received: ", msg
@@ -36,8 +38,10 @@ proc main() {.async.} =
       echo "2 - Dst Received: ", msg
       assert "test3" == msg
       await conn.writeLp("test4")
-    except:
-      echo "exception in handler", getCurrentException().msg
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
 
   let
     relay = Relay.new()

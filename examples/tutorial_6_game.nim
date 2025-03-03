@@ -152,7 +152,7 @@ proc draw(g: Game) =
 ## peer know that we are available, check that he is also available,
 ## and launch the game.
 proc new(T: typedesc[GameProto], g: Game): T =
-  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     defer:
       await conn.closeWithEof()
     try:
@@ -168,8 +168,10 @@ proc new(T: typedesc[GameProto], g: Game): T =
       # The handler of a protocol must wait for the stream to
       # be finished before returning
       await conn.join()
-    except:
-      echo "exception in handler", getCurrentException().msg
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
 
   return T.new(codecs = @["/tron/1.0.0"], handler = handle)
 
