@@ -128,17 +128,17 @@ suite "RendezVous":
     let
       rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
       switch = createSwitch(rdv)
-    expect RendezVousError:
+    expect AdvertiseError:
       discard await rdv.request("A".repeat(300))
-    expect RendezVousError:
+    expect AdvertiseError:
       discard await rdv.request("A", -1)
-    expect RendezVousError:
+    expect AdvertiseError:
       discard await rdv.request("A", 3000)
-    expect RendezVousError:
+    expect AdvertiseError:
       await rdv.advertise("A".repeat(300))
-    expect RendezVousError:
+    expect AdvertiseError:
       await rdv.advertise("A", 73.hours)
-    expect RendezVousError:
+    expect AdvertiseError:
       await rdv.advertise("A", 30.seconds)
 
   test "Various config error":

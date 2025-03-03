@@ -571,7 +571,7 @@ suite "Switch":
         of ConnEventKind.Disconnected:
           check not switches[0].isConnected(peerInfo.peerId)
           done.complete()
-      except:
+      except CatchableError:
         check false # should not get here
 
     switches.add(newStandardSwitch(rng = rng))
@@ -615,7 +615,7 @@ suite "Switch":
             check not switches[0].isConnected(peerInfo.peerId)
             done.complete()
           conns.dec
-      except:
+      except CatchableError:
         check false # should not get here
 
     switches.add(newStandardSwitch(maxConnsPerPeer = 10, rng = rng))

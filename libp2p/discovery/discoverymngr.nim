@@ -81,6 +81,7 @@ type
 
   DiscoveryError* = object of LPError
   DiscoveryFinished* = object of LPError
+  AdvertiseError* = object of DiscoveryError
 
 method request*(
     self: DiscoveryInterface, pa: PeerAttributes
@@ -89,7 +90,7 @@ method request*(
 
 method advertise*(
     self: DiscoveryInterface
-) {.base, async: (raises: [CancelledError]).} =
+) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
   doAssert(false, "Not implemented!")
 
 type

@@ -50,7 +50,9 @@ method request*(
 
     await sleepAsync(self.timeToRequest)
 
-method advertise*(self: RendezVousInterface) {.async: (raises: [CancelledError]).} =
+method advertise*(
+    self: RendezVousInterface
+) {.async: (raises: [CancelledError, AdvertiseError]).} =
   while true:
     var toAdvertise: seq[string]
     for attr in self.toAdvertise:

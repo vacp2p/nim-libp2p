@@ -68,7 +68,11 @@ method init*(p: Ping) =
   p.handler = handle
   p.codec = PingCodec
 
-proc ping*(p: Ping, conn: Connection): Future[Duration] {.async, public.} =
+proc ping*(
+    p: Ping, conn: Connection
+): Future[Duration] {.
+    public, async: (raises: [CancelledError, LPStreamError, WrongPingAckError])
+.} =
   ## Sends ping to `conn`, returns the delay
 
   trace "initiating ping", conn

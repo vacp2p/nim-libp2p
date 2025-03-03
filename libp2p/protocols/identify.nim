@@ -239,7 +239,9 @@ proc init*(p: IdentifyPush) =
   p.handler = handle
   p.codec = IdentifyPushCodec
 
-proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async, public.} =
+proc push*(
+    p: IdentifyPush, peerInfo: PeerInfo, conn: Connection
+) {.public, async: (raises: [CancelledError, LPStreamError]).} =
   ## Send new `peerInfo`s to a connection
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
