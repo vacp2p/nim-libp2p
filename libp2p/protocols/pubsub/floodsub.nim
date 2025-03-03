@@ -177,17 +177,16 @@ method rpcHandler*(
   f.updateMetrics(rpcMsg)
 
 method init*(f: FloodSub) =
-  proc handler(conn: Connection, proto: string) {.async: (raises: []).} =
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
     try:
       await f.handleConn(conn, proto)
-    except CancelledError:
-      # This is top-level procedure which will work as separate task, so it
-      # do not need to propagate CancelledError.
+    except CancelledError as exc:
       trace "Unexpected cancellation in floodsub handler", conn
+      raise exc
 
   f.handler = handler
   f.codec = FloodSubCodec

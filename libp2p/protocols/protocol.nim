@@ -17,8 +17,9 @@ export results
 const DefaultMaxIncomingStreams* = 10
 
 type
-  LPProtoHandler* =
-    proc(conn: Connection, proto: string): Future[void] {.async: (raises: []).}
+  LPProtoHandler* = proc(conn: Connection, proto: string): Future[void] {.
+    async: (raises: [CancelledError])
+  .}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
@@ -29,13 +30,13 @@ type
 method init*(p: LPProtocol) {.base, gcsafe.} =
   discard
 
-method start*(p: LPProtocol) {.async: (raises: [CancelledError], raw: true), base.} =
+method start*(p: LPProtocol) {.base, async: (raises: [CancelledError], raw: true).} =
   let fut = newFuture[void]()
   fut.complete()
   p.started = true
   fut
 
-method stop*(p: LPProtocol) {.async: (raises: [], raw: true), base.} =
+method stop*(p: LPProtocol) {.base, async: (raises: [], raw: true).} =
   let fut = newFuture[void]()
   fut.complete()
   p.started = false
@@ -65,21 +66,6 @@ template `handler`*(p: LPProtocol, conn: Connection, proto: string): Future[void
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
 
-# Callbacks that are annotated with `{.async: (raises).}` explicitly
-# document the types of errors that they may raise, but are not compatible
-# with `LPProtoHandler` and need to use a custom `proc` type.
-# They are internally wrapped into a `LPProtoHandler`, but still allow the
-# compiler to check that their `{.async: (raises).}` annotation is correct.
-# https://github.com/nim-lang/Nim/issues/23432
-func `handler=`*[E](
-    p: LPProtocol,
-    handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
-) =
-  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
-    await handler(conn, proto)
-
-  p.handlerImpl = wrap
-
 proc new*(
     T: type LPProtocol,
     codecs: seq[string],
@@ -95,14 +81,3 @@ proc new*(
       else:
         maxIncomingStreams,
   )
-
-proc new*[E](
-    T: type LPProtocol,
-    codecs: seq[string],
-    handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
-    maxIncomingStreams: Opt[int] | int = Opt.none(int),
-): T =
-  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
-    await handler(conn, proto)
-
-  T.new(codec, wrap, maxIncomingStreams)

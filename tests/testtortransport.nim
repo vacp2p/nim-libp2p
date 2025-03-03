@@ -94,13 +94,17 @@ suite "Tor transport":
 
     proc new(T: typedesc[TestProto]): T =
       # every incoming connections will be in handled in this closure
-      proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+      proc handle(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           var resp: array[6, byte]
           await conn.readExactly(addr resp, 6)
           check string.fromBytes(resp) == "client"
           await conn.write("server")
-        except:
+        except CancelledError as e:
+          raise e
+        except CatchableError:
           check false # should not be here
         finally:
           await conn.close()

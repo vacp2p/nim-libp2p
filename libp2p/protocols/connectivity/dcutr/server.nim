@@ -30,7 +30,9 @@ proc new*(
     connectTimeout = 15.seconds,
     maxDialableAddrs = 8,
 ): T =
-  proc handleStream(stream: Connection, proto: string) {.async: (raises: []).} =
+  proc handleStream(
+      stream: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     var peerDialableAddrs: seq[MultiAddress]
     try:
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024))
@@ -78,6 +80,7 @@ proc new*(
           fut.cancel()
     except CancelledError as err:
       trace "cancelled Dcutr receiver"
+      raise err
     except AllFuturesFailedError as err:
       debug "Dcutr receiver could not connect to the remote peer, " &
         "all connect attempts failed", peerDialableAddrs, description = err.msg

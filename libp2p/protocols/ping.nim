@@ -51,7 +51,7 @@ proc new*(
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async: (raises: []).} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling ping", conn
       var buf: array[PingSize, byte]
@@ -62,6 +62,7 @@ method init*(p: Ping) =
         await p.pingHandler(conn.peerId)
     except CancelledError as exc:
       trace "cancelled ping handler"
+      raise exc
     except CatchableError as exc:
       trace "exception in ping handler", description = exc.msg, conn
 

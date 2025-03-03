@@ -81,13 +81,17 @@ suite "Circuit Relay":
     check:
       m.dstPeer == dst
 
-  proc customHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+  proc customHandler(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     try:
       check "line1" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("line2")
       check "line3" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("line4")
-    except:
+    except CancelledError as e:
+      raise e
+    except CatchableError:
       check false # should not be here
     finally:
       await conn.close()
