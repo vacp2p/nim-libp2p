@@ -205,7 +205,9 @@ window.addEventListener("DOMContentLoaded", main2);
 <li>
   <a class="reference reference-toplevel" href="#7" id="57">Types</a>
   <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#DiscoveryError"
+      <li><a class="reference" href="#AdvertiseError"
+    title="AdvertiseError = object of DiscoveryError">AdvertiseError</a></li>
+  <li><a class="reference" href="#DiscoveryError"
     title="DiscoveryError = object of LPError">DiscoveryError</a></li>
   <li><a class="reference" href="#DiscoveryFinished"
     title="DiscoveryFinished = object of LPError">DiscoveryFinished</a></li>
@@ -315,8 +317,8 @@ window.addEventListener("DOMContentLoaded", main2);
       <ul class="simple nested-toc-section">advertise
       <li><a class="reference" href="#advertise.e%2CDiscoveryInterface"
     title="advertise(self: DiscoveryInterface): InternalRaisesFuture[void,
-    (CancelledError,)]">advertise(self: DiscoveryInterface): InternalRaisesFuture[void,
-    (CancelledError,)]</a></li>
+    (CancelledError, AdvertiseError)]">advertise(self: DiscoveryInterface): InternalRaisesFuture[void,
+    (CancelledError, AdvertiseError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">request
@@ -372,6 +374,18 @@ class="link-seesrc" target="_blank">Source</a>
 <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
 <dl class="item">
+<div id="AdvertiseError" class="tohide">
+<dt><pre><a href="discoverymngr.html#AdvertiseError"><span class="Identifier">AdvertiseError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="discoverymngr.html#DiscoveryError"><span class="Identifier">DiscoveryError</span></a></pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L84"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L84" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="DiscoveryError" class="tohide">
 <dt><pre><a href="discoverymngr.html#DiscoveryError"><span class="Identifier">DiscoveryError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a></pre></dt>
 <dd>
@@ -422,9 +436,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L102"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L103"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L102" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L103" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -439,9 +453,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L96"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L97"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L96" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L97" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -531,9 +545,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L106"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L107"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L106" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L107" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -555,9 +569,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L130"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L131"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L130" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L131" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -581,9 +595,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L174"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L175"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L174" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L175" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -618,9 +632,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L117"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L118"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L117" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L118" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -630,9 +644,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L125"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L126"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L125" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -642,9 +656,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L163"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L164"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L163" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L164" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -654,9 +668,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L157"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L158"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L157" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L158" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -679,15 +693,16 @@ class="link-seesrc" target="_blank">Source</a>
 <dl class="item">
 <div id="advertise.e,DiscoveryInterface" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#advertise.e%2CDiscoveryInterface"><span class="Identifier">advertise</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="discoverymngr.html#DiscoveryInterface"><span class="Identifier">DiscoveryInterface</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
-    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-                         <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="discoverymngr.html#AdvertiseError"><span class="Identifier">AdvertiseError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L92"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L93"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L92" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -699,9 +714,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L87"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L88"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L88" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -733,9 +748,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Will execute <tt class="docutils literal"><span class="pre"><span class="Identifier">code</span></span></tt> for each discovered peer. The peer attritubtes are available through the variable <tt class="docutils literal"><span class="pre"><span class="Identifier">peer</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L139"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/discovery/discoverymngr.nim#L140"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L139" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/discovery/discoverymngr.nim#L140" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -749,7 +764,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-28 13:22:06 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-03-03 14:20:53 UTC</small>
       </div>
     </div>
   </div>

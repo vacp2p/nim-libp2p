@@ -238,7 +238,9 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">ping
       <li><a class="reference" href="#ping%2CPing%2CConnection"
-    title="ping(p: Ping; conn: Connection): Future[Duration]">ping(p: Ping; conn: Connection): Future[Duration]</a></li>
+    title="ping(p: Ping; conn: Connection): InternalRaisesFuture[Duration,
+    (CancelledError, LPStreamError, WrongPingAckError)]">ping(p: Ping; conn: Connection): InternalRaisesFuture[Duration,
+    (CancelledError, LPStreamError, WrongPingAckError)]</a></li>
 
   </ul>
 
@@ -369,16 +371,17 @@ class="link-seesrc" target="_blank">Source</a>
 </dd>
 </div>
 <div id="ping,Ping,Connection" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#ping%2CPing%2CConnection"><span class="Identifier">ping</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="ping.html#Ping"><span class="Identifier">Ping</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">Duration</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#ping%2CPing%2CConnection"><span class="Identifier">ping</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="ping.html#Ping"><span class="Identifier">Ping</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">Duration</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">,</span> <a href="ping.html#WrongPingAckError"><span class="Identifier">WrongPingAckError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span>
     <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Sends ping to <tt class="docutils literal"><span class="pre"><span class="Identifier">conn</span></span></tt>, returns the delay
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/ping.nim#L71"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/ping.nim#L74"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L71" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/ping.nim#L74" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -414,7 +417,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-28 13:22:08 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-03-03 14:20:56 UTC</small>
       </div>
     </div>
   </div>

@@ -211,13 +211,15 @@ window.addEventListener("DOMContentLoaded", main2);
   canHop: bool">RelayClient</a></li>
   <li><a class="reference" href="#RelayClientAddConn"
     title="RelayClientAddConn = proc (conn: Connection; duration: uint32; data: uint64): Future[
-    void] {.gcsafe, raises: [].}">RelayClientAddConn</a></li>
+    void] {.gcsafe, async: (raises: [CancelledError]).}">RelayClientAddConn</a></li>
   <li><a class="reference" href="#RelayClientError"
     title="RelayClientError = object of LPError">RelayClientError</a></li>
+  <li><a class="reference" href="#RelayDialError"
+    title="RelayDialError = object of DialFailedError">RelayDialError</a></li>
   <li><a class="reference" href="#RelayV1DialError"
-    title="RelayV1DialError = object of RelayClientError">RelayV1DialError</a></li>
+    title="RelayV1DialError = object of RelayDialError">RelayV1DialError</a></li>
   <li><a class="reference" href="#RelayV2DialError"
-    title="RelayV2DialError = object of RelayClientError">RelayV2DialError</a></li>
+    title="RelayV2DialError = object of RelayDialError">RelayV2DialError</a></li>
   <li><a class="reference" href="#ReservationError"
     title="ReservationError = object of RelayClientError">ReservationError</a></li>
   <li><a class="reference" href="#Rsvp"
@@ -236,15 +238,19 @@ window.addEventListener("DOMContentLoaded", main2);
       <ul class="simple nested-toc-section">dialPeerV1
       <li><a class="reference" href="#dialPeerV1%2CRelayClient%2CConnection%2CPeerId%2Cseq%5BMultiAddress%5D"
     title="dialPeerV1(cl: RelayClient; conn: Connection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]">dialPeerV1(cl: RelayClient; conn: Connection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]</a></li>
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (CancelledError, RelayV1DialError)]">dialPeerV1(cl: RelayClient; conn: Connection; dstPeerId: PeerId;
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (CancelledError, RelayV1DialError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">dialPeerV2
       <li><a class="reference" href="#dialPeerV2%2CRelayClient%2CRelayConnection%2CPeerId%2Cseq%5BMultiAddress%5D"
     title="dialPeerV2(cl: RelayClient; conn: RelayConnection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]">dialPeerV2(cl: RelayClient; conn: RelayConnection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]</a></li>
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (RelayV2DialError, CancelledError)]">dialPeerV2(cl: RelayClient; conn: RelayConnection; dstPeerId: PeerId;
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (RelayV2DialError, CancelledError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">new
@@ -304,22 +310,22 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L37"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L38"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L37" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L38" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="RelayClientAddConn" class="tohide">
-<dt><pre><a href="client.html#RelayClientAddConn"><span class="Identifier">RelayClientAddConn</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">duration</span><span class="Other">:</span> <span class="Identifier">uint32</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">uint64</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><a href="client.html#RelayClientAddConn"><span class="Identifier">RelayClientAddConn</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <span class="Identifier">Connection</span><span class="Other">;</span> <span class="Identifier">duration</span><span class="Other">:</span> <span class="Identifier">uint32</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">uint64</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">CancelledError</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L34"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L35"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L34" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L35" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -335,8 +341,8 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="RelayV1DialError" class="tohide">
-<dt><pre><a href="client.html#RelayV1DialError"><span class="Identifier">RelayV1DialError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="client.html#RelayClientError"><span class="Identifier">RelayClientError</span></a></pre></dt>
+<div id="RelayDialError" class="tohide">
+<dt><pre><a href="client.html#RelayDialError"><span class="Identifier">RelayDialError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../../../dial.html#DialFailedError"><span class="Identifier">DialFailedError</span></a></pre></dt>
 <dd>
 
 
@@ -347,8 +353,8 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="RelayV2DialError" class="tohide">
-<dt><pre><a href="client.html#RelayV2DialError"><span class="Identifier">RelayV2DialError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="client.html#RelayClientError"><span class="Identifier">RelayClientError</span></a></pre></dt>
+<div id="RelayV1DialError" class="tohide">
+<dt><pre><a href="client.html#RelayV1DialError"><span class="Identifier">RelayV1DialError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="client.html#RelayDialError"><span class="Identifier">RelayDialError</span></a></pre></dt>
 <dd>
 
 
@@ -356,6 +362,18 @@ class="link-seesrc" target="_blank">Source</a>
 href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L33"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L33" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="RelayV2DialError" class="tohide">
+<dt><pre><a href="client.html#RelayV2DialError"><span class="Identifier">RelayV2DialError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="client.html#RelayDialError"><span class="Identifier">RelayDialError</span></a></pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L34"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L34" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -383,9 +401,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L41"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L42"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L41" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L42" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -396,31 +414,31 @@ class="link-seesrc" target="_blank">Source</a>
 <dl class="item">
 <div id="dialPeerV1,RelayClient,Connection,PeerId,seq[MultiAddress]" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#dialPeerV1%2CRelayClient%2CConnection%2CPeerId%2Cseq%5BMultiAddress%5D"><span class="Identifier">dialPeerV1</span></a><span class="Other">(</span><span class="Identifier">cl</span><span class="Other">:</span> <a href="client.html#RelayClient"><span class="Identifier">RelayClient</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">dstPeerId</span><span class="Other">:</span> <a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span>
-                <span class="Identifier">dstAddrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+                <span class="Identifier">dstAddrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="client.html#RelayV1DialError"><span class="Identifier">RelayV1DialError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L124"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L132"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L124" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L132" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="dialPeerV2,RelayClient,RelayConnection,PeerId,seq[MultiAddress]" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#dialPeerV2%2CRelayClient%2CRelayConnection%2CPeerId%2Cseq%5BMultiAddress%5D"><span class="Identifier">dialPeerV2</span></a><span class="Other">(</span><span class="Identifier">cl</span><span class="Other">:</span> <a href="client.html#RelayClient"><span class="Identifier">RelayClient</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="rconn.html#RelayConnection"><span class="Identifier">RelayConnection</span></a><span class="Other">;</span> <span class="Identifier">dstPeerId</span><span class="Other">:</span> <a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span>
-                <span class="Identifier">dstAddrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+                <span class="Identifier">dstAddrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><a href="../../../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">,</span>
+    <span class="Other">(</span><a href="client.html#RelayV2DialError"><span class="Identifier">RelayV2DialError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L179"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L187"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L179" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L187" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -438,9 +456,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L271"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L285"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L271" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L285" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -453,9 +471,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L83"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/client.nim#L91"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L83" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/client.nim#L91" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -469,7 +487,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-28 13:22:07 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-03-03 14:20:54 UTC</small>
       </div>
     </div>
   </div>

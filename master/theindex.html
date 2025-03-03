@@ -344,16 +344,20 @@ window.addEventListener('DOMContentLoaded', main);
           data-doc-search-tag="discoverymngr: advertise[T](dm: DiscoveryManager; value: T)" href="libp2p/discovery/discoverymngr.html#advertise%2CDiscoveryManager%2CT">discoverymngr: advertise[T](dm: DiscoveryManager; value: T)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="discoverymngr: advertise(self: DiscoveryInterface): InternalRaisesFuture[void,
-    (CancelledError,)]" href="libp2p/discovery/discoverymngr.html#advertise.e%2CDiscoveryInterface">discoverymngr: advertise(self: DiscoveryInterface): InternalRaisesFuture[void,
-    (CancelledError,)]</a></li>
+    (CancelledError, AdvertiseError)]" href="libp2p/discovery/discoverymngr.html#advertise.e%2CDiscoveryInterface">discoverymngr: advertise(self: DiscoveryInterface): InternalRaisesFuture[void,
+    (CancelledError, AdvertiseError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): Future[
-    void]" href="libp2p/protocols/rendezvous.html#advertise%2CRendezVous%2Cstring%2CDuration%2Cseq%5BPeerId%5D">rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): Future[
-    void]</a></li>
+          data-doc-search-tag="rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]" href="libp2p/protocols/rendezvous.html#advertise%2CRendezVous%2Cstring%2CDuration%2Cseq%5BPeerId%5D">rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): Future[
-    void]" href="libp2p/protocols/rendezvous.html#advertise.e%2CRendezVous%2Cstring%2CDuration">rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): Future[
-    void]</a></li>
+          data-doc-search-tag="rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]" href="libp2p/protocols/rendezvous.html#advertise.e%2CRendezVous%2Cstring%2CDuration">rendezvous: advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]</a></li>
+          </ul></dd>
+<dt><a name="AdvertiseError" href="#AdvertiseError"><span>AdvertiseError:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="discoverymngr: AdvertiseError" href="libp2p/discovery/discoverymngr.html#AdvertiseError">discoverymngr: AdvertiseError</a></li>
           </ul></dd>
 <dt><a name="AgentVersion" href="#AgentVersion"><span>AgentVersion:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1159,7 +1163,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="dial" href="#dial"><span>dial:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="rtransport: dial(self: RelayTransport; ma: MultiAddress): Future[Connection]" href="libp2p/protocols/connectivity/relay/rtransport.html#dial%2CRelayTransport%2CMultiAddress">rtransport: dial(self: RelayTransport; ma: MultiAddress): Future[Connection]</a></li>
+          data-doc-search-tag="rtransport: dial(self: RelayTransport; ma: MultiAddress): InternalRaisesFuture[Connection,
+    (RelayDialError, CancelledError)]" href="libp2p/protocols/connectivity/relay/rtransport.html#dial%2CRelayTransport%2CMultiAddress">rtransport: dial(self: RelayTransport; ma: MultiAddress): InternalRaisesFuture[Connection,
+    (RelayDialError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rtransport: dial(self: RelayTransport; hostname: string; ma: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[Connection,
@@ -1222,14 +1228,18 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="dialPeerV1" href="#dialPeerV1"><span>dialPeerV1:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="client: dialPeerV1(cl: RelayClient; conn: Connection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]" href="libp2p/protocols/connectivity/relay/client.html#dialPeerV1%2CRelayClient%2CConnection%2CPeerId%2Cseq%5BMultiAddress%5D">client: dialPeerV1(cl: RelayClient; conn: Connection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]</a></li>
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (CancelledError, RelayV1DialError)]" href="libp2p/protocols/connectivity/relay/client.html#dialPeerV1%2CRelayClient%2CConnection%2CPeerId%2Cseq%5BMultiAddress%5D">client: dialPeerV1(cl: RelayClient; conn: Connection; dstPeerId: PeerId;
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (CancelledError, RelayV1DialError)]</a></li>
           </ul></dd>
 <dt><a name="dialPeerV2" href="#dialPeerV2"><span>dialPeerV2:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="client: dialPeerV2(cl: RelayClient; conn: RelayConnection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]" href="libp2p/protocols/connectivity/relay/client.html#dialPeerV2%2CRelayClient%2CRelayConnection%2CPeerId%2Cseq%5BMultiAddress%5D">client: dialPeerV2(cl: RelayClient; conn: RelayConnection; dstPeerId: PeerId;
-           dstAddrs: seq[MultiAddress]): Future[Connection]</a></li>
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (RelayV2DialError, CancelledError)]" href="libp2p/protocols/connectivity/relay/client.html#dialPeerV2%2CRelayClient%2CRelayConnection%2CPeerId%2Cseq%5BMultiAddress%5D">client: dialPeerV2(cl: RelayClient; conn: RelayConnection; dstPeerId: PeerId;
+           dstAddrs: seq[MultiAddress]): InternalRaisesFuture[Connection,
+    (RelayV2DialError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="DialRefused" href="#DialRefused"><span>DialRefused:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2055,11 +2065,15 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="handleHop" href="#handleHop"><span>handleHop:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="relay: handleHop(r: Relay; connSrc: Connection; msg: RelayMessage): Future[void]" href="libp2p/protocols/connectivity/relay/relay.html#handleHop%2CRelay%2CConnection%2CRelayMessage">relay: handleHop(r: Relay; connSrc: Connection; msg: RelayMessage): Future[void]</a></li>
+          data-doc-search-tag="relay: handleHop(r: Relay; connSrc: Connection; msg: RelayMessage): InternalRaisesFuture[
+    void, (CancelledError,)]" href="libp2p/protocols/connectivity/relay/relay.html#handleHop%2CRelay%2CConnection%2CRelayMessage">relay: handleHop(r: Relay; connSrc: Connection; msg: RelayMessage): InternalRaisesFuture[
+    void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="handleHopStreamV2" href="#handleHopStreamV2"><span>handleHopStreamV2:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="relay: handleHopStreamV2(r: Relay; conn: Connection): Future[void]" href="libp2p/protocols/connectivity/relay/relay.html#handleHopStreamV2%2CRelay%2CConnection">relay: handleHopStreamV2(r: Relay; conn: Connection): Future[void]</a></li>
+          data-doc-search-tag="relay: handleHopStreamV2(r: Relay; conn: Connection): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/relay.html#handleHopStreamV2%2CRelay%2CConnection">relay: handleHopStreamV2(r: Relay; conn: Connection): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="handleIDontWant" href="#handleIDontWant"><span>handleIDontWant:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3721,7 +3735,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="ping" href="#ping"><span>ping:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="ping: ping(p: Ping; conn: Connection): Future[Duration]" href="libp2p/protocols/ping.html#ping%2CPing%2CConnection">ping: ping(p: Ping; conn: Connection): Future[Duration]</a></li>
+          data-doc-search-tag="ping: ping(p: Ping; conn: Connection): InternalRaisesFuture[Duration,
+    (CancelledError, LPStreamError, WrongPingAckError)]" href="libp2p/protocols/ping.html#ping%2CPing%2CConnection">ping: ping(p: Ping; conn: Connection): InternalRaisesFuture[Duration,
+    (CancelledError, LPStreamError, WrongPingAckError)]</a></li>
           </ul></dd>
 <dt><a name="PingCodec" href="#PingCodec"><span>PingCodec:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3885,7 +3901,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="push" href="#push"><span>push:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): Future[void]" href="libp2p/protocols/identify.html#push%2CIdentifyPush%2CPeerInfo%2CConnection">identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): Future[void]</a></li>
+          data-doc-search-tag="identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]" href="libp2p/protocols/identify.html#push%2CIdentifyPush%2CPeerInfo%2CConnection">identify: push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="pushData" href="#pushData"><span>pushData:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4110,6 +4128,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="RelayConnection" href="#RelayConnection"><span>RelayConnection:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="rconn: RelayConnection" href="libp2p/protocols/connectivity/relay/rconn.html#RelayConnection">rconn: RelayConnection</a></li>
+          </ul></dd>
+<dt><a name="RelayDialError" href="#RelayDialError"><span>RelayDialError:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="client: RelayDialError" href="libp2p/protocols/connectivity/relay/client.html#RelayDialError">client: RelayDialError</a></li>
           </ul></dd>
 <dt><a name="RelayMessage" href="#RelayMessage"><span>RelayMessage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4570,8 +4592,8 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="sendStatus" href="#sendStatus"><span>sendStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="utils: sendStatus(conn: Connection; code: StatusV1): InternalRaisesFuture[void,
-    (CancelledError, LPStreamError)]" href="libp2p/protocols/connectivity/relay/utils.html#sendStatus%2CConnection%2CStatusV1">utils: sendStatus(conn: Connection; code: StatusV1): InternalRaisesFuture[void,
-    (CancelledError, LPStreamError)]</a></li>
+    (CancelledError,)]" href="libp2p/protocols/connectivity/relay/utils.html#sendStatus%2CConnection%2CStatusV1">utils: sendStatus(conn: Connection; code: StatusV1): InternalRaisesFuture[void,
+    (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="sendStopStatus" href="#sendStopStatus"><span>sendStopStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5191,9 +5213,13 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="pubsub: unsubscribe(p: PubSub; topic: string; handler: TopicHandler)" href="libp2p/protocols/pubsub/pubsub.html#unsubscribe%2CPubSub%2Cstring%2CTopicHandler">pubsub: unsubscribe(p: PubSub; topic: string; handler: TopicHandler)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: unsubscribe(rdv: RendezVous; ns: string): Future[void]" href="libp2p/protocols/rendezvous.html#unsubscribe%2CRendezVous%2Cstring">rendezvous: unsubscribe(rdv: RendezVous; ns: string): Future[void]</a></li>
+          data-doc-search-tag="rendezvous: unsubscribe(rdv: RendezVous; ns: string): InternalRaisesFuture[void,
+    (RendezVousError, CancelledError)]" href="libp2p/protocols/rendezvous.html#unsubscribe%2CRendezVous%2Cstring">rendezvous: unsubscribe(rdv: RendezVous; ns: string): InternalRaisesFuture[void,
+    (RendezVousError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): Future[void]" href="libp2p/protocols/rendezvous.html#unsubscribe%2CRendezVous%2Cstring%2Cseq%5BPeerId%5D">rendezvous: unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): Future[void]</a></li>
+          data-doc-search-tag="rendezvous: unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): InternalRaisesFuture[
+    void, (RendezVousError, CancelledError)]" href="libp2p/protocols/rendezvous.html#unsubscribe%2CRendezVous%2Cstring%2Cseq%5BPeerId%5D">rendezvous: unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): InternalRaisesFuture[
+    void, (RendezVousError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="unsubscribeAll" href="#unsubscribeAll"><span>unsubscribeAll:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5692,7 +5718,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-28 13:22:09 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-03-03 14:20:57 UTC</small>
       </div>
     </div>
   </div>

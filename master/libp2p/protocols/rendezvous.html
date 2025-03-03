@@ -241,9 +241,9 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">advertise
       <li><a class="reference" href="#advertise%2CRendezVous%2Cstring%2CDuration%2Cseq%5BPeerId%5D"
-    title="advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): Future[
-    void]">advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): Future[
-    void]</a></li>
+    title="advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]">advertise(rdv: RendezVous; ns: string; ttl: Duration; peers: seq[PeerId]): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">new
@@ -282,9 +282,13 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
   <ul class="simple nested-toc-section">unsubscribe
       <li><a class="reference" href="#unsubscribe%2CRendezVous%2Cstring"
-    title="unsubscribe(rdv: RendezVous; ns: string): Future[void]">unsubscribe(rdv: RendezVous; ns: string): Future[void]</a></li>
+    title="unsubscribe(rdv: RendezVous; ns: string): InternalRaisesFuture[void,
+    (RendezVousError, CancelledError)]">unsubscribe(rdv: RendezVous; ns: string): InternalRaisesFuture[void,
+    (RendezVousError, CancelledError)]</a></li>
   <li><a class="reference" href="#unsubscribe%2CRendezVous%2Cstring%2Cseq%5BPeerId%5D"
-    title="unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): Future[void]">unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): Future[void]</a></li>
+    title="unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): InternalRaisesFuture[
+    void, (RendezVousError, CancelledError)]">unsubscribe(rdv: RendezVous; ns: string; peerIds: seq[PeerId]): InternalRaisesFuture[
+    void, (RendezVousError, CancelledError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">unsubscribeLocally
@@ -300,9 +304,9 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">advertise
       <li><a class="reference" href="#advertise.e%2CRendezVous%2Cstring%2CDuration"
-    title="advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): Future[
-    void]">advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): Future[
-    void]</a></li>
+    title="advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]">advertise(rdv: RendezVous; ns: string; ttl: Duration = rdv.minDuration): InternalRaisesFuture[
+    void, (CancelledError, AdvertiseError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">start
@@ -413,16 +417,16 @@ class="link-seesrc" target="_blank">Source</a>
 <h1><a class="toc-backref" href="#12">Procs</a></h1>
 <dl class="item">
 <div id="advertise,RendezVous,string,Duration,seq[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#advertise%2CRendezVous%2Cstring%2CDuration%2Cseq%5BPeerId%5D"><span class="Identifier">advertise</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">ttl</span><span class="Other">:</span> <span class="Identifier">Duration</span><span class="Other">;</span> <span class="Identifier">peers</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-            <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#advertise%2CRendezVous%2Cstring%2CDuration%2Cseq%5BPeerId%5D"><span class="Identifier">advertise</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">ttl</span><span class="Other">:</span> <span class="Identifier">Duration</span><span class="Other">;</span> <span class="Identifier">peers</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../discovery/discoverymngr.html#AdvertiseError"><span class="Identifier">AdvertiseError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L515"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L521"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L515" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L521" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -434,9 +438,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L689"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L711"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L689" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L711" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -449,9 +453,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L749"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L771"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L749" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L771" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -463,9 +467,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L638"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L656"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L638" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L656" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -479,9 +483,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L559"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L565"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L559" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L565" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -492,9 +496,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L543"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L549"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L543" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L549" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -504,36 +508,37 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L678"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L700"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L678" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L700" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="unsubscribe,RendezVous,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#unsubscribe%2CRendezVous%2Cstring"><span class="Identifier">unsubscribe</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#unsubscribe%2CRendezVous%2Cstring"><span class="Identifier">unsubscribe</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+    <span class="Other">(</span><a href="rendezvous.html#RendezVousError"><span class="Identifier">RendezVousError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L673"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L695"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L673" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L695" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="unsubscribe,RendezVous,string,seq[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#unsubscribe%2CRendezVous%2Cstring%2Cseq%5BPeerId%5D"><span class="Identifier">unsubscribe</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">peerIds</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#unsubscribe%2CRendezVous%2Cstring%2Cseq%5BPeerId%5D"><span class="Identifier">unsubscribe</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">peerIds</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><a href="rendezvous.html#RendezVousError"><span class="Identifier">RendezVousError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L650"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L670"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L650" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L670" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -543,9 +548,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L641"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L659"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L641" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L659" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -555,16 +560,16 @@ class="link-seesrc" target="_blank">Source</a>
 <h1><a class="toc-backref" href="#14">Methods</a></h1>
 <dl class="item">
 <div id="advertise.e,RendezVous,string,Duration" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#advertise.e%2CRendezVous%2Cstring%2CDuration"><span class="Identifier">advertise</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">ttl</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">rdv</span><span class="Other">.</span><span class="Identifier">minDuration</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-            <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#advertise.e%2CRendezVous%2Cstring%2CDuration"><span class="Identifier">advertise</span></a><span class="Other">(</span><span class="Identifier">rdv</span><span class="Other">:</span> <a href="rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">;</span> <span class="Identifier">ns</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">ttl</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">rdv</span><span class="Other">.</span><span class="Identifier">minDuration</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../discovery/discoverymngr.html#AdvertiseError"><span class="Identifier">AdvertiseError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L540"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L546"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L540" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L546" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -576,9 +581,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L773"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L795"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L773" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L795" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -590,9 +595,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L783"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/rendezvous.nim#L805"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L783" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/rendezvous.nim#L805" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -606,7 +611,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-02-28 13:22:06 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-03-03 14:20:54 UTC</small>
       </div>
     </div>
   </div>
