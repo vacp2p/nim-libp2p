@@ -75,7 +75,7 @@ var
   ctrDrbg: mbedtls_ctr_drbg_context
   drbgInitialized = false
 
-proc initializeDRBG() =
+proc initializeDRBG() {.raises: [KeyGenerationError].} =
   ## Function to initialize entropy and DRBG context if not already initialized.
   if not drbgInitialized:
     mbedtls_entropy_init(addr entropy)
