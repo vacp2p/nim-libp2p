@@ -316,7 +316,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: []).} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -364,7 +364,7 @@ suite "Switch":
 
     var step = 0
     var kinds: set[ConnEventKind]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: []).} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -412,7 +412,9 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
+    proc handler(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -459,7 +461,9 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
+    proc handler(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -512,7 +516,9 @@ suite "Switch":
 
     var step = 0
     var kinds: set[PeerEventKind]
-    proc handler(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
+    proc handler(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
       kinds = kinds + {event.kind}
       case step
       of 0:
@@ -570,7 +576,7 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: []).} =
+    proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       try:
         case event.kind
         of ConnEventKind.Connected:
@@ -579,6 +585,8 @@ suite "Switch":
         of ConnEventKind.Disconnected:
           check not switches[0].isConnected(peerInfo.peerId)
           done.complete()
+      except CancelledError as e:
+        raise e
       except CatchableError:
         check false # should not get here
 
@@ -608,7 +616,7 @@ suite "Switch":
     var switches: seq[Switch]
     var done = newFuture[void]()
     var onConnect: Future[void]
-    proc hook(peerId2: PeerId, event: ConnEvent) {.async: (raises: []).} =
+    proc hook(peerId2: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       try:
         case event.kind
         of ConnEventKind.Connected:
@@ -623,6 +631,8 @@ suite "Switch":
             check not switches[0].isConnected(peerInfo.peerId)
             done.complete()
           conns.dec
+      except CancelledError as e:
+        raise e
       except CatchableError:
         check false # should not get here
 

@@ -699,7 +699,9 @@ proc unsubscribe*(
 
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
-  proc handlePeer(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
+  proc handlePeer(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
     if event.kind == PeerEventKind.Joined:
       rdv.peers.add(peerId)
     elif event.kind == PeerEventKind.Left:
