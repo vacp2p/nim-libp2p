@@ -173,7 +173,9 @@ suite "Circuit Relay V2":
         rel = createSwitch(nil, useYamux)
 
       asyncTest "Connection succeed":
-        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+        proto.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: [CancelledError]).} =
           try:
             check:
               "test1" == string.fromBytes(await conn.readLp(1024))
@@ -181,7 +183,9 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except:
+          except CancelledError as e:
+            raise e
+          except CatchableError:
             check false # should not be here
           finally:
             await conn.close()
@@ -221,7 +225,9 @@ suite "Circuit Relay V2":
 
       asyncTest "Connection duration exceeded":
         ldur = 3
-        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+        proto.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: [CancelledError]).} =
           try:
             check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("yeah!")
@@ -229,6 +235,8 @@ suite "Circuit Relay V2":
             await sleepAsync(chronos.timer.seconds(ldur + 1))
             await conn.writeLp("that was a cool power nap")
             check false # must not be here - should timeout
+          except CancelledError as e:
+            raise e
           except CatchableError:
             discard # will get here after timeout
           finally:
@@ -268,7 +276,9 @@ suite "Circuit Relay V2":
 
       asyncTest "Connection data exceeded":
         ldata = 1000
-        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+        proto.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: [CancelledError]).} =
           try:
             check "count me the better story you know" ==
               string.fromBytes(await conn.readLp(1024))
@@ -291,6 +301,8 @@ suite "Circuit Relay V2":
     philosophical flourish Cato throws himself upon his sword; I quietly
     take to the ship."""
             )
+          except CancelledError as e:
+            raise e
           except CatchableError:
             discard # will get here after data exceeded
           finally:
@@ -331,7 +343,9 @@ suite "Circuit Relay V2":
 
       asyncTest "Reservation ttl expire during connection":
         ttl = 3
-        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+        proto.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: [CancelledError]).} =
           try:
             check:
               "test1" == string.fromBytes(await conn.readLp(1024))
@@ -339,7 +353,9 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except:
+          except CancelledError as e:
+            raise e
+          except CatchableError:
             check false # should not be here
           finally:
             await conn.close()
@@ -388,7 +404,9 @@ suite "Circuit Relay V2":
         # rel2 reserve rel
         # dst reserve rel2
         # src try to connect with dst
-        proto.handler = proc(conn: Connection, proto: string) {.async: (raises: []).} =
+        proto.handler = proc(
+            conn: Connection, proto: string
+        ) {.async: (raises: [CancelledError]).} =
           check false # should not be here
 
         let
@@ -435,7 +453,7 @@ suite "Circuit Relay V2":
         protoABC.codec = "/abctest"
         protoABC.handler = proc(
             conn: Connection, proto: string
-        ) {.async: (raises: []).} =
+        ) {.async: (raises: [CancelledError]).} =
           try:
             check:
               "testABC1" == string.fromBytes(await conn.readLp(1024))
@@ -443,14 +461,16 @@ suite "Circuit Relay V2":
             check:
               "testABC3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testABC4")
-          except:
+          except CancelledError as e:
+            raise e
+          except CatchableError:
             check false # should not be here
           finally:
             await conn.close()
         protoBCA.codec = "/bcatest"
         protoBCA.handler = proc(
             conn: Connection, proto: string
-        ) {.async: (raises: []).} =
+        ) {.async: (raises: [CancelledError]).} =
           try:
             check:
               "testBCA1" == string.fromBytes(await conn.readLp(1024))
@@ -458,14 +478,16 @@ suite "Circuit Relay V2":
             check:
               "testBCA3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testBCA4")
-          except:
+          except CancelledError as e:
+            raise e
+          except CatchableError:
             check false # should not be here
           finally:
             await conn.close()
         protoCAB.codec = "/cabtest"
         protoCAB.handler = proc(
             conn: Connection, proto: string
-        ) {.async: (raises: []).} =
+        ) {.async: (raises: [CancelledError]).} =
           try:
             check:
               "testCAB1" == string.fromBytes(await conn.readLp(1024))
@@ -473,7 +495,9 @@ suite "Circuit Relay V2":
             check:
               "testCAB3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testCAB4")
-          except:
+          except CancelledError as e:
+            raise e
+          except CatchableError:
             check false # should not be here
           finally:
             await conn.close()

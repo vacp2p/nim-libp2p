@@ -43,14 +43,16 @@ proc new(T: typedesc[ChatProto], c: Chat): T =
   let chatproto = T()
 
   # create handler for incoming connection
-  proc handle(stream: Connection, proto: string) {.async: (raises: []).} =
+  proc handle(stream: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       if c.connected and not c.conn.closed:
         c.writeStdout "a chat session is already in progress - refusing incoming peer!"
       else:
         await c.handlePeer(stream)
-    except:
-      echo "exception in handler", getCurrentException().msg
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
     finally:
       await stream.close()
 

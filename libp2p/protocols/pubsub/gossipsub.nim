@@ -210,17 +210,16 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
     ok()
 
 method init*(g: GossipSub) =
-  proc handler(conn: Connection, proto: string) {.async: (raises: []).} =
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
     try:
       await g.handleConn(conn, proto)
-    except CancelledError:
-      # This is top-level procedure which will work as separate task, so it
-      # do not need to propogate CancelledError.
+    except CancelledError as exc:
       trace "Unexpected cancellation in gossipsub handler", conn
+      raise exc
 
   g.handler = handler
   g.codecs &= GossipSubCodec_12
