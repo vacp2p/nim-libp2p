@@ -343,7 +343,7 @@ proc handleStreamV1(
 proc setup*(r: Relay, switch: Switch) =
   r.switch = switch
   r.switch.addPeerEventHandler(
-    proc(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
+    proc(peerId: PeerId, event: PeerEvent) {.async: (raises: [CancelledError]).} =
       r.rsvp.del(peerId),
     Left,
   )

@@ -65,7 +65,7 @@ proc closeRelayConn(relayedConn: Connection) {.async: (raises: [CancelledError])
 
 proc newConnectedPeerHandler(
     self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   try:
     # Get all connections to the peer. If there is at least one non-relayed connection, return.
     let connections = switch.connManager.getConnections()[peerId].mapIt(it.connection)
@@ -88,6 +88,8 @@ proc newConnectedPeerHandler(
         switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
     await dcutrClient.startSync(switch, peerId, natAddrs)
     await closeRelayConn(relayedConn)
+  except CancelledError as err:
+    raise err
   except CatchableError as err:
     debug "Hole punching failed during dcutr", err = err.msg
 
@@ -106,11 +108,8 @@ method setup*(
 
     self.newConnectedPeerHandler = proc(
         peerId: PeerId, event: PeerEvent
-    ) {.async: (raises: []).} =
-      try:
-        await newConnectedPeerHandler(self, switch, peerId, event)
-      except CancelledError:
-        trace "hole punching cancelled"
+    ) {.async: (raises: [CancelledError]).} =
+      await newConnectedPeerHandler(self, switch, peerId, event)
 
     switch.connManager.addPeerEventHandler(
       self.newConnectedPeerHandler, PeerEventKind.Joined

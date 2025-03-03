@@ -72,12 +72,14 @@ method setup*(
   if hasBeenSetUp:
     proc handlePeerIdentified(
         peerId: PeerId, event: PeerEvent
-    ) {.async: (raises: []).} =
+    ) {.async: (raises: [CancelledError]).} =
       trace "Peer Identified", peerId
       if self.relayPeers.len < self.maxNumRelays:
         self.peerAvailable.fire()
 
-    proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async: (raises: []).} =
+    proc handlePeerLeft(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
       trace "Peer Left", peerId
       self.relayPeers.withValue(peerId, future):
         future[].cancel()
