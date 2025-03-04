@@ -142,14 +142,20 @@ type QuicUpgrade = ref object of Upgrade
 
 type QuicTransport* = ref object of Transport
   listener: Listener
+  client: QuicClient
   privateKey: PrivateKey
   connections: seq[P2PConnection]
 
 func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
-  QuicTransport(
-    upgrader: QuicUpgrade(ms: u.ms),
-    privateKey: privateKey,
-  )
+  try:
+    let tlsConfig = TLSConfig.init()
+    return QuicTransport(
+      upgrader: QuicUpgrade(ms: u.ms),
+      privateKey: privateKey,
+      client: QuicClient.init(tlsConfig)
+    )
+  except QuicConfigError as exc:
+    doAssert false, "invalid quic setup: " & $exc.msg
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
@@ -172,17 +178,19 @@ method start*(
   )
 
   let certPair = generate(keypair, EncodingFormat.PEM)
-  let tlsConfig = TLSConfig(
-    certificate: certPair[0],
-    key: certPair[1],
-  )
 
-  try: 
-    self.listener = listen(initTAddress(addrs[0]).tryGet, tlsConfig)
+  try:
+    let tlsConfig = TLSConfig.init(certPair[0], certPair[1])
+    let server = QuicServer.init(tlsConfig)
+    self.listener = server.listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
-    transport.addrs[0] =
+    self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()
+  except QuicConfigError as exc:
+    doAssert false, "invalid quic setup: " & $exc.msg
+  except QuicError as exc:
+    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
   except TransportOsError as exc:
     raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
   self.running = true
@@ -238,7 +246,7 @@ method dial*(
     peerId: Opt[PeerId] = Opt.none(PeerId),
 ): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   try:
-    let connection = await dial(initTAddress(address).tryGet)
+    let connection = await self.client.dial(initTAddress(address).tryGet)
     return self.wrapConnection(connection)
   except CancelledError as e:
     raise e
