@@ -32,6 +32,8 @@ jobs:
         uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-head
+          # without suffix action fails because "hole-punching-interop" artifacts have 
+          # the same name as "transport-interop" artifacts
           test-results-suffix: transport-interop
           extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
           s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
