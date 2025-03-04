@@ -32,6 +32,7 @@ jobs:
         uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-head
+          test-results-suffix: transport-interop
           extra-versions: ${{ github.workspace }}/tests/transport-interop/version.json
           s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
           s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
