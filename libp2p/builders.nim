@@ -38,7 +38,8 @@ import services/wildcardresolverservice
 export switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
 type
-  TransportProvider* {.public.} = proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
+  TransportProvider* {.public.} =
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
 
   SecureProtocol* {.pure.} = enum
     Noise
