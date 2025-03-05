@@ -45,7 +45,7 @@ type
 method upgrade*(
     self: Upgrade, conn: Connection, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError], raw: true), base.} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Upgrade.upgrade] abstract method not implemented!")
 
 proc secure*(
     self: Upgrade, conn: Connection, peerId: Opt[PeerId]
