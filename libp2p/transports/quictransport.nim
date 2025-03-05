@@ -83,15 +83,19 @@ method close*(session: QuicSession) {.async: (raises: []).} =
 
 proc getStream*(
     session: QuicSession, direction = Direction.In
-): Future[QuicStream] {.async: (raises: [CatchableError]).} =
-  var stream: Stream
-  case direction
-  of Direction.In:
-    stream = await session.connection.incomingStream()
-  of Direction.Out:
-    stream = await session.connection.openStream()
-    await stream.write(@[]) # QUIC streams do not exist until data is sent
-  return QuicStream.new(stream, session.observedAddr, session.peerId)
+): Future[QuicStream] {.async: (raises: [QuicTransportError]).} =
+  try: 
+    var stream: Stream
+    case direction
+    of Direction.In:
+      stream = await session.connection.incomingStream()
+    of Direction.Out:
+      stream = await session.connection.openStream()
+      await stream.write(@[]) # QUIC streams do not exist until data is sent
+    return QuicStream.new(stream, session.observedAddr, session.peerId)
+  except CatchableError as exc:
+    # TODO: incomingStream is using {.async.} with no raises
+    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
 
 method getWrapped*(self: QuicSession): P2PConnection =
   nil
@@ -208,32 +212,37 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
     transport.listener = nil
 
 proc wrapConnection(
-    transport: QuicTransport, connection: QuicConnection
-): P2PConnection {.raises: [TransportOsError, LPError].} =
+    transport: QuicTransport, connection: QuicConnection, dir: Direction
+): Future[QuicStream] {.async: (raises: [TransportOsError, LPError]).} =
   let
     remoteAddr = connection.remoteAddress()
     observedAddr =
       MultiAddress.init(remoteAddr, IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
-    conres = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
-  conres.initStream()
+    session = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
 
-  transport.connections.add(conres)
+  session.initStream()
+
+  let stream = session.getStream(dir)
+
+  transport.connections.add(session)
+
   proc onClose() {.async: (raises: []).} =
-    await noCancel conres.join()
-    transport.connections.keepItIf(it != conres)
+    await noCancel session.join()
+    transport.connections.keepItIf(it != session)
     trace "Cleaned up client"
 
   asyncSpawn onClose()
-  return conres
+
+  return await stream
 
 method accept*(
     self: QuicTransport
-): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[connection.Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   doAssert not self.listener.isNil, "call start() before calling accept()"
   try:
     let connection = await self.listener.accept()
-    return self.wrapConnection(connection)
+    return await self.wrapConnection(connection, Direction.Out)
   except CancelledError as e:
     raise e
   except CatchableError as e:
@@ -244,10 +253,10 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[connection.Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   try:
-    let connection = await self.client.dial(initTAddress(address).tryGet)
-    return self.wrapConnection(connection)
+    let quicConnection = await self.client.dial(initTAddress(address).tryGet)
+    return await self.wrapConnection(quicConnection,  Direction.In)
   except CancelledError as e:
     raise e
   except CatchableError as e:
