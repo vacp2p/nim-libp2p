@@ -184,8 +184,8 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
   let prefixLen = P2P_SIGNING_PREFIX.len.int
   let msg = newSeq[byte](prefixLen + pubKey.len)
 
-  copyMem(addr msg[0], addr P2P_SIGNING_PREFIX[0], prefixLen)
-  copyMem(addr msg[prefixLen], addr pubKey[0], pubKey.len.int)
+  copyMem(msg[0].unsafeAddr, P2P_SIGNING_PREFIX[0].unsafeAddr, prefixLen)
+  copyMem(msg[prefixLen].unsafeAddr, pubKey[0].unsafeAddr, pubKey.len.int)
 
   return msg
 
@@ -219,7 +219,7 @@ func parseCertificatePublicKey(
   let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
 
   let pkDer = newSeq[byte](certPubKeyDerLen.int)
-  copyMem(addr pkDer[0], certPubKeyDerPtr, certPubKeyDerLen.int)
+  copyMem(pkDer[0].unsafeAddr, certPubKeyDerPtr, certPubKeyDerLen.int)
 
   return pkDer
 
