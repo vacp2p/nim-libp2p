@@ -8,7 +8,7 @@ import ../libp2p/protocols/connectivity/relay/[relay, client, utils]
 type
   SwitchCreator = proc(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport =
+    prov: TransportProvider = proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true),
   ): Switch {.gcsafe, raises: [LPError].}
@@ -319,7 +319,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       let nativeNode = swCreator(
         ma = wsAddress,
-        prov = proc(upgr: Upgrade): Transport =
+        prov = proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
           WsTransport.new(upgr),
       )
 
@@ -359,7 +359,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
         .withRng(crypto.newRng())
         .withMplex()
         .withTransport(
-          proc(upgr: Upgrade): Transport =
+          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
             WsTransport.new(upgr)
         )
         .withNoise()
