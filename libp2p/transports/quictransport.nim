@@ -84,7 +84,7 @@ method close*(session: QuicSession) {.async: (raises: []).} =
 proc getStream*(
     session: QuicSession, direction = Direction.In
 ): Future[QuicStream] {.async: (raises: [QuicTransportError]).} =
-  try: 
+  try:
     var stream: Stream
     case direction
     of Direction.In:
@@ -156,7 +156,7 @@ func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransp
     return QuicTransport(
       upgrader: QuicUpgrade(ms: u.ms),
       privateKey: privateKey,
-      client: QuicClient.init(tlsConfig)
+      client: QuicClient.init(tlsConfig),
     )
   except QuicConfigError as exc:
     doAssert false, "invalid quic setup: " & $exc.msg
@@ -173,13 +173,10 @@ method start*(
   #TODO handle multiple addr
 
   let pubkey = self.privateKey.getPublicKey().valueOr:
-      doAssert false, "could not obtain public key"
-      return
+    doAssert false, "could not obtain public key"
+    return
 
-  let keypair = KeyPair(
-    seckey: self.privateKey,
-    pubkey: pubkey
-  )
+  let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
 
   let certPair = generate(keypair, EncodingFormat.PEM)
 
@@ -238,7 +235,9 @@ proc wrapConnection(
 
 method accept*(
     self: QuicTransport
-): Future[connection.Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[connection.Connection] {.
+    async: (raises: [transport.TransportError, CancelledError])
+.} =
   doAssert not self.listener.isNil, "call start() before calling accept()"
   try:
     let connection = await self.listener.accept()
@@ -253,10 +252,12 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[connection.Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[connection.Connection] {.
+    async: (raises: [transport.TransportError, CancelledError])
+.} =
   try:
     let quicConnection = await self.client.dial(initTAddress(address).tryGet)
-    return await self.wrapConnection(quicConnection,  Direction.In)
+    return await self.wrapConnection(quicConnection, Direction.In)
   except CancelledError as e:
     raise e
   except CatchableError as e:
