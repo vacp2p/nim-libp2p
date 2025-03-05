@@ -325,7 +325,7 @@ proc new*(
   return torSwitch
 
 method addTransport*(s: TorSwitch, t: Transport) =
-  doAssert(false, "not implemented!")
+  doAssert(false, "[TorSwitch.addTransport ] abstract method not implemented!")
 
 method getTorTransport*(s: TorSwitch): Transport {.base.} =
   return s.transports[0]
