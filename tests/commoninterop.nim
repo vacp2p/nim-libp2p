@@ -253,12 +253,16 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       var test = "TEST STRING"
 
       var testFuture = newFuture[string]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           var line = string.fromBytes(await conn.readLp(1024))
           check line == test
           testFuture.complete(line)
-        except:
+        except CancelledError as e:
+          raise e
+        except CatchableError:
           check false # should not be here
         finally:
           await conn.close()
@@ -292,12 +296,16 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       var test = "TEST STRING"
 
       var testFuture = newFuture[string]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           var line = string.fromBytes(await conn.readLp(1024))
           check line == test
           testFuture.complete(line)
-        except:
+        except CancelledError as e:
+          raise e
+        except CatchableError:
           check false # should not be here
         finally:
           await conn.close()
@@ -386,7 +394,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       var protos = @["/test-stream"]
 
       var testFuture = newFuture[void]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           check "test 1" == string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("test 2".toBytes())
@@ -395,7 +405,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
           await conn.writeLp("test 4".toBytes())
 
           testFuture.complete()
-        except:
+        except CancelledError as e:
+          raise e
+        except CatchableError:
           check false # should not be here
         finally:
           await conn.close()
@@ -434,7 +446,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       var count = 0
       var testFuture = newFuture[int]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           while count < 10:
             var line = string.fromBytes(await conn.readLp(1024))
@@ -443,7 +457,9 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
             count.inc()
 
           testFuture.complete(count)
-        except:
+        except CancelledError as e:
+          raise e
+        except CatchableError:
           check false # should not be here
         finally:
           await conn.close()
@@ -548,13 +564,17 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await daemonNode.close()
 
     asyncTest "DaemonSrc -> NativeRelay -> NativeDst":
-      proc customHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+      proc customHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           check "line1" == string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("line2")
           check "line3" == string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("line4")
-        except:
+        except CancelledError as e:
+          raise e
+        except CatchableError:
           check false # should not be here
         finally:
           await conn.close()
@@ -591,13 +611,17 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await daemonNode.close()
 
     asyncTest "NativeSrc -> DaemonRelay -> NativeDst":
-      proc customHandler(conn: Connection, proto: string) {.async: (raises: []).} =
+      proc customHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           check "line1" == string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("line2")
           check "line3" == string.fromBytes(await conn.readLp(1024))
           await conn.writeLp("line4")
-        except:
+        except CancelledError as e:
+          raise e
+        except CatchableError:
           check false # should not be here
         finally:
           await conn.close()
