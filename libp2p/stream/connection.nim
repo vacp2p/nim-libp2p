@@ -124,7 +124,7 @@ proc timeoutMonitor(s: Connection) {.async: (raises: []).} =
       return
 
 method getWrapped*(s: Connection): Connection {.base.} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Connection.getWrapped] abstract method not implemented!")
 
 when defined(libp2p_agents_metrics):
   proc setShortAgent*(s: Connection, shortAgent: string) =

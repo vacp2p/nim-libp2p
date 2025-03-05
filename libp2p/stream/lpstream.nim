@@ -133,7 +133,7 @@ method readOnce*(
   ## Reads whatever is available in the stream,
   ## up to `nbytes`. Will block if nothing is
   ## available
-  raiseAssert("Not implemented!")
+  raiseAssert("[LPStream.readOnce] abstract method not implemented!")
 
 proc readExactly*(
     s: LPStream, pbytes: pointer, nbytes: int
@@ -242,7 +242,7 @@ method write*(
     async: (raises: [CancelledError, LPStreamError], raw: true), base, public
 .} =
   # Write `msg` to stream, waiting for the write to be finished
-  raiseAssert("Not implemented!")
+  raiseAssert("[LPStream.write] abstract method not implemented!")
 
 proc writeLp*(
     s: LPStream, msg: openArray[byte]
