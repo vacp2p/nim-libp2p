@@ -209,8 +209,8 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
     transport.listener = nil
 
 proc wrapConnection(
-    transport: QuicTransport, connection: QuicConnection, dir: Direction
-): Future[QuicStream] {.async: (raises: [TransportOsError, LPError]).} =
+    transport: QuicTransport, connection: QuicConnection
+): QuicSession {.raises: [TransportOsError, LPError].} =
   let
     remoteAddr = connection.remoteAddress()
     observedAddr =
@@ -219,8 +219,6 @@ proc wrapConnection(
     session = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
 
   session.initStream()
-
-  let stream = session.getStream(dir)
 
   transport.connections.add(session)
 
@@ -231,7 +229,7 @@ proc wrapConnection(
 
   asyncSpawn onClose()
 
-  return await stream
+  return session
 
 method accept*(
     self: QuicTransport
@@ -241,7 +239,7 @@ method accept*(
   doAssert not self.listener.isNil, "call start() before calling accept()"
   try:
     let connection = await self.listener.accept()
-    return await self.wrapConnection(connection, Direction.Out)
+    return self.wrapConnection(connection)
   except CancelledError as e:
     raise e
   except CatchableError as e:
@@ -257,7 +255,7 @@ method dial*(
 .} =
   try:
     let quicConnection = await self.client.dial(initTAddress(address).tryGet)
-    return await self.wrapConnection(quicConnection, Direction.In)
+    return self.wrapConnection(quicConnection)
   except CancelledError as e:
     raise e
   except CatchableError as e:
