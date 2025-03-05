@@ -216,7 +216,7 @@ method setup*(
     if self.askNewConnectedPeers:
       self.newConnectedPeerHandler = proc(
           peerId: PeerId, event: PeerEvent
-      ): Future[void] {.async: (raises: []).} =
+      ): Future[void] {.async: (raises: [CancelledError]).} =
         discard askPeer(self, switch, peerId)
 
       switch.connManager.addPeerEventHandler(
