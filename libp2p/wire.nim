@@ -20,7 +20,7 @@ when defined(windows): import winlean else: import posix
 const
   RTRANSPMA* = mapOr(TCP, WebSockets, UNIX)
 
-  TRANSPMA* = mapOr(RTRANSPMA, QUIC, UDP)
+  TRANSPMA* = mapOr(RTRANSPMA, QUIC, QUIC_V1, UDP)
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
@@ -75,7 +75,7 @@ proc connect*(
   ## ``bufferSize`` is size of internal buffer for transport.
   ##
 
-  if not (RTRANSPMA.match(ma)):
+  if not (TRANSPMA.match(ma)):
     raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
 
   let transportAddress = initTAddress(ma).tryGet()
