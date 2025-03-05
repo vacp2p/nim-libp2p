@@ -5,6 +5,10 @@ WORKDIR /app
 
 COPY .pinned libp2p.nimble nim-libp2p/
 
+RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y python python3 python3-pip python3-venv curl
+
+RUN  mkdir .venv && python3 -m venv .venv && . .venv/bin/activate
+
 RUN cd nim-libp2p && nimble install_pinned && nimble install "redis@#b341fe240dbf11c544011dd0e033d3c3acca56af" -y
 
 COPY . nim-libp2p/
