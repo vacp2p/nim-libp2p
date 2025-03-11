@@ -31,14 +31,14 @@ method connect*(
   ## a protocol
   ##
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Dial.connect] abstract method not implemented!")
 
 method connect*(
     self: Dial, address: MultiAddress, allowUnknownPeerId = false
 ): Future[PeerId] {.base, async: (raises: [DialFailedError, CancelledError]).} =
   ## Connects to a peer and retrieve its PeerId
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Dial.connect] abstract method not implemented!")
 
 method dial*(
     self: Dial, peerId: PeerId, protos: seq[string]
@@ -47,7 +47,7 @@ method dial*(
   ## existing connection
   ##
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Dial.dial] abstract method not implemented!")
 
 method dial*(
     self: Dial,
@@ -60,14 +60,14 @@ method dial*(
   ## a connection if one doesn't exist already
   ##
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Dial.dial] abstract method not implemented!")
 
 method addTransport*(self: Dial, transport: Transport) {.base.} =
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Dial.addTransport] abstract method not implemented!")
 
 method tryDial*(
     self: Dial, peerId: PeerId, addrs: seq[MultiAddress]
 ): Future[Opt[MultiAddress]] {.
     base, async: (raises: [DialFailedError, CancelledError])
 .} =
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Dial.tryDial] abstract method not implemented!")
