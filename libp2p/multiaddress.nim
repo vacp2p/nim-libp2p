@@ -318,6 +318,33 @@ proc dnsVB(vb: var VBuffer): bool =
   ## DNS name validateBuffer() implementation.
   pathValidateBufferNoSlash(vb)
 
+proc certHashStB(s: string, vb: var VBuffer): bool =
+  ## CertHash address stringToBuffer() implementation.
+  var data = MultiBase.decode(s).valueOr:
+    return false
+  var mh: MultiHash
+  if MultiHash.decode(data, mh).isOk:
+    vb.writeSeq(data)
+    result = true
+
+proc certHashBtS(vb: var VBuffer, s: var string): bool =
+  ## CertHash address bufferToString() implementation.
+  var address = newSeq[byte]()
+  if vb.readSeq(address) > 0:
+    var mh: MultiHash
+    if MultiHash.decode(address, mh).isOk:
+      s = MultiBase.encode("base64url", address).valueOr:
+        return false
+      result = true
+
+proc certHashVB(vb: var VBuffer): bool =
+  ## CertHash address validateBuffer() implementation.
+  var address = newSeq[byte]()
+  if vb.readSeq(address) > 0:
+    var mh: MultiHash
+    if MultiHash.decode(address, mh).isOk:
+      result = true
+
 proc mapEq*(codec: string): MaPattern =
   ## ``Equal`` operator for pattern
   result.operator = Eq
@@ -355,6 +382,11 @@ const
   )
   TranscoderDNS* =
     Transcoder(stringToBuffer: dnsStB, bufferToString: dnsBtS, validateBuffer: dnsVB)
+  TranscoderCertHash* = Transcoder(
+    stringToBuffer: certHashStB,
+    bufferToString: certHashBtS,
+    validateBuffer: certHashVB
+  )
   ProtocolsList = [
     MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderIP4),
     MAProtocol(mcodec: multiCodec("tcp"), kind: Fixed, size: 2, coder: TranscoderPort),
@@ -393,6 +425,9 @@ const
     MAProtocol(mcodec: multiCodec("p2p-websocket-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("webrtc"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("webrtc-direct"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("certhash"), kind: Length, size: 0, coder: TranscoderCertHash),
   ]
 
   DNSANY* = mapEq("dns")
@@ -447,9 +482,11 @@ const
     mapAnd(TCP, mapEq("https")), mapAnd(IP, mapEq("https")), mapAnd(DNS, mapEq("https"))
   )
 
-  WebRTCDirect* = mapOr(
+  WebRTCDirect* {.deprecated.} = mapOr(
     mapAnd(HTTP, mapEq("p2p-webrtc-direct")), mapAnd(HTTPS, mapEq("p2p-webrtc-direct"))
   )
+
+  WebRTCDirect2* = mapAnd(UDP, mapEq("webrtc-direct"), mapEq("certhash"))
 
   CircuitRelay* = mapEq("p2p-circuit")
 
