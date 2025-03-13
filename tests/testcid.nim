@@ -13,7 +13,7 @@ import unittest2
 import std/sequtils
 import ../libp2p/[cid, multihash, multicodec]
 
-const MultiHashCodecsList* = HashesList.mapIt( it.mcodec )
+const MultiHashCodecsList* = HashesList.mapIt(it.mcodec)
 
 suite "Content identifier CID test suite":
   test "CIDv0 test vector":
