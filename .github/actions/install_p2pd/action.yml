@@ -28,19 +28,28 @@ runs:
             
             # The binary might be in bin/p2pd-win32-amd64.exe
             if [ -f "bin/p2pd-win32-amd64.exe" ]; then
-              mv "bin/p2pd-win32-amd64.exe" .ci-bin/p2pd.exe
+              cp "bin/p2pd-win32-amd64.exe" .ci-bin/p2pd.real.exe
             elif [ -f "p2pd.exe" ]; then
-              mv p2pd.exe .ci-bin/p2pd.exe
+              cp p2pd.exe .ci-bin/p2pd.real.exe
             else
               # Try to find the exe
               EXE_PATH=$(find . -name "*.exe" -type f | head -1)
               if [ -n "$EXE_PATH" ]; then
-                mv "$EXE_PATH" .ci-bin/p2pd.exe
+                cp "$EXE_PATH" .ci-bin/p2pd.real.exe
               else
                 echo "Could not find p2pd.exe in the extracted files!"
                 exit 1
               fi
             fi
+            
+            # Create a Windows batch wrapper for the binary
+            cat > .ci-bin/p2pd.bat << 'EOF'
+            @echo off
+            "%~dp0p2pd.real.exe" %*
+            EOF
+            
+            # Create a symlink or copy for p2pd.exe (the tests may look for this)
+            cp .ci-bin/p2pd.real.exe .ci-bin/p2pd.exe
 
           elif [ "${{ inputs.cpu }}" = "arm64" ]; then
             curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-win32-arm64.zip" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-win32-arm64.zip"
@@ -51,27 +60,30 @@ runs:
             
             # The binary might be in bin/p2pd-win32-arm64.exe
             if [ -f "bin/p2pd-win32-arm64.exe" ]; then
-              mv "bin/p2pd-win32-arm64.exe" .ci-bin/p2pd.exe
+              cp "bin/p2pd-win32-arm64.exe" .ci-bin/p2pd.real.exe
             elif [ -f "p2pd.exe" ]; then
-              mv p2pd.exe .ci-bin/p2pd.exe
+              cp p2pd.exe .ci-bin/p2pd.real.exe
             else
               # Try to find the exe
               EXE_PATH=$(find . -name "*.exe" -type f | head -1)
               if [ -n "$EXE_PATH" ]; then
-                mv "$EXE_PATH" .ci-bin/p2pd.exe
+                cp "$EXE_PATH" .ci-bin/p2pd.real.exe
               else
                 echo "Could not find p2pd.exe in the extracted files!"
                 exit 1
               fi
             fi
+            
+            # Create a Windows batch wrapper for the binary
+            cat > .ci-bin/p2pd.bat << 'EOF'
+            @echo off
+            "%~dp0p2pd.real.exe" %*
+            EOF
+            
+            # Create a symlink or copy for p2pd.exe (the tests may look for this)
+            cp .ci-bin/p2pd.real.exe .ci-bin/p2pd.exe
           else
             echo "No official Windows build for ${{ inputs.cpu }}. Exiting..."
-            exit 1
-          fi
-
-          # Verify the binary exists
-          if [ ! -f .ci-bin/p2pd.exe ]; then
-            echo "Failed to install p2pd.exe"
             exit 1
           fi
 
@@ -98,31 +110,33 @@ runs:
             
             # The tarball might extract different file names
             if [ -f "./p2pd-darwin" ]; then
-              mv "./p2pd-darwin" ../.ci-bin/p2pd
+              cp "./p2pd-darwin" ../.ci-bin/p2pd.real
             elif [ -f "./p2pd" ]; then
-              mv "./p2pd" ../.ci-bin/p2pd
+              cp "./p2pd" ../.ci-bin/p2pd.real
             else
               # Try to find any executable
               BINARY=$(find . -type f -perm -u+x | head -1)
               if [ -n "$BINARY" ]; then
-                mv "$BINARY" ../.ci-bin/p2pd
+                cp "$BINARY" ../.ci-bin/p2pd.real
               else
                 echo "Could not find p2pd binary in the extracted tarball!"
                 exit 1
               fi
             fi
             cd ..
+            
+            # Create wrapper script
+            cat > .ci-bin/p2pd << 'EOF'
+            #!/bin/bash
+            # Wrapper script to ensure p2pd is called correctly
+            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            exec "$SCRIPT_DIR/p2pd.real" "$@"
+            EOF
+            
+            chmod +x .ci-bin/p2pd.real
+            chmod +x .ci-bin/p2pd
           else
             echo "No official macOS build for ${{ inputs.cpu }}. Exiting..."
-            exit 1
-          fi
-          
-          chmod +x .ci-bin/p2pd
-          
-          # Verify the binary exists and is executable
-          if [ ! -f .ci-bin/p2pd ] || [ ! -x .ci-bin/p2pd ]; then
-            echo "Failed to install executable p2pd for macOS"
-            ls -la .ci-bin/
             exit 1
           fi
 
@@ -136,12 +150,12 @@ runs:
             # Find the binary
             find . -type f -not -name "*.md" -not -name "LICENSE" | sort
             if [ -f "./p2pd-linux-386" ]; then
-              mv "./p2pd-linux-386" ../.ci-bin/p2pd
+              cp "./p2pd-linux-386" ../.ci-bin/p2pd.real
             else
               # Find any executable
               BINARY=$(find . -type f -perm -u+x | head -1)
               if [ -n "$BINARY" ]; then
-                mv "$BINARY" ../.ci-bin/p2pd
+                cp "$BINARY" ../.ci-bin/p2pd.real
               else
                 echo "Could not find p2pd binary in the extracted tarball!"
                 exit 1
@@ -156,12 +170,12 @@ runs:
             # Find the binary
             find . -type f -not -name "*.md" -not -name "LICENSE" | sort
             if [ -f "./p2pd-linux-arm64" ]; then
-              mv "./p2pd-linux-arm64" ../.ci-bin/p2pd
+              cp "./p2pd-linux-arm64" ../.ci-bin/p2pd.real
             else
               # Find any executable
               BINARY=$(find . -type f -perm -u+x | head -1)
               if [ -n "$BINARY" ]; then
-                mv "$BINARY" ../.ci-bin/p2pd
+                cp "$BINARY" ../.ci-bin/p2pd.real
               else
                 echo "Could not find p2pd binary in the extracted tarball!"
                 exit 1
@@ -177,12 +191,12 @@ runs:
             # Find the binary
             find . -type f -not -name "*.md" -not -name "LICENSE" | sort
             if [ -f "./p2pd-linux-amd64" ]; then
-              mv "./p2pd-linux-amd64" ../.ci-bin/p2pd
+              cp "./p2pd-linux-amd64" ../.ci-bin/p2pd.real
             else
               # Find any executable
               BINARY=$(find . -type f -perm -u+x | head -1)
               if [ -n "$BINARY" ]; then
-                mv "$BINARY" ../.ci-bin/p2pd
+                cp "$BINARY" ../.ci-bin/p2pd.real
               else
                 echo "Could not find p2pd binary in the extracted tarball!"
                 exit 1
@@ -191,14 +205,16 @@ runs:
             cd ..
           fi
           
-          chmod +x .ci-bin/p2pd
+          # Create wrapper script for Linux
+          cat > .ci-bin/p2pd << 'EOF'
+          #!/bin/bash
+          # Wrapper script to ensure p2pd is called correctly
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          exec "$SCRIPT_DIR/p2pd.real" "$@"
+          EOF
           
-          # Verify the binary exists and is executable
-          if [ ! -f .ci-bin/p2pd ] || [ ! -x .ci-bin/p2pd ]; then
-            echo "Failed to install executable p2pd for Linux"
-            ls -la .ci-bin/
-            exit 1
-          fi
+          chmod +x .ci-bin/p2pd.real
+          chmod +x .ci-bin/p2pd
         fi
 
         # Test the binary to make sure it works (but don't fail the job if it doesn't)

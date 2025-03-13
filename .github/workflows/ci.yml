@@ -84,84 +84,187 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .ci-bin
-          key: p2pd-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-2  # Increment version to invalidate old cache
+          key: p2pd-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-4
 
-      # For macOS arm64, always build from source, it's more reliable
-      - name: Setup Go for macOS arm64
-        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '~1.16.0'
-
-      - name: Build p2pd from source for macOS arm64
-        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64'
+      # For most platforms - use pre-built binaries
+      - name: Download pre-built p2pd binary
+        if: steps.p2pd-cache.outputs.cache-hit != 'true' && !(matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64')
         run: |
           mkdir -p .ci-bin
-          # Remove any placeholder script from previous runs
-          rm -f .ci-bin/p2pd
           
-          # Build from source
-          echo "Building p2pd from source for macOS arm64..."
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
-          
-          # Debug to see where the binary ended up
-          echo "Checking for built binaries:"
-          find . -name "p2pd*" -type f
-          
-          # Ensure binary was built and is in .ci-bin
-          if [ -f p2pd ]; then
-            echo "Moving p2pd to .ci-bin directory"
-            mv p2pd .ci-bin/p2pd
-            chmod +x .ci-bin/p2pd
-          else
-            echo "ERROR: p2pd binary not found after build!"
-            exit 1
+          # Determine binary URL and download appropriate file
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            if [ "${{ matrix.platform.cpu }}" = "amd64" ]; then
+              curl -fsSL -o "p2pd.zip" "https://github.com/libp2p/go-libp2p-daemon/releases/download/v0.9.1/p2pd-v0.9.1-win32-amd64.zip"
+              unzip -o "p2pd.zip"
+              
+              # Handle Windows binary path
+              find . -name "*.exe" -type f
+              if [ -f "bin/p2pd-win32-amd64.exe" ]; then
+                cp "bin/p2pd-win32-amd64.exe" .ci-bin/p2pd.exe
+              else
+                # Find any exe
+                EXE_PATH=$(find . -name "*.exe" -type f | head -1)
+                if [ -n "$EXE_PATH" ]; then
+                  cp "$EXE_PATH" .ci-bin/p2pd.exe
+                else
+                  echo "No exe found in zip!"
+                  exit 1
+                fi
+              fi
+            fi
+            
+          elif [[ "${{ matrix.platform.os }}" == macos* ]]; then
+            if [ "${{ matrix.platform.cpu }}" = "amd64" ]; then
+              curl -fsSL -o "p2pd.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/v0.9.1/p2pd-v0.9.1-darwin.tar.gz"
+              mkdir -p extract_temp
+              cd extract_temp
+              tar -xf "../p2pd.tar.gz"
+              find . -type f -not -name "*.md" -not -name "LICENSE"
+              BINARY=$(find . -type f -executable | head -1)
+              if [ -n "$BINARY" ]; then
+                cp "$BINARY" ../.ci-bin/p2pd
+              else
+                echo "No executable binary found in tarball!"
+                exit 1
+              fi
+              cd ..
+            fi
+            
+          else # Linux
+            if [ "${{ matrix.platform.cpu }}" = "amd64" ]; then
+              curl -fsSL -o "p2pd.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/v0.9.1/p2pd-v0.9.1-linux-amd64.tar.gz"
+              mkdir -p extract_temp
+              cd extract_temp
+              tar -xf "../p2pd.tar.gz"
+              find . -type f -not -name "*.md" -not -name "LICENSE"
+              BINARY=$(find . -type f -executable | head -1)
+              if [ -n "$BINARY" ]; then
+                cp "$BINARY" ../.ci-bin/p2pd
+              else
+                echo "No executable binary found in tarball!"
+                exit 1
+              fi
+              cd ..
+            elif [ "${{ matrix.platform.cpu }}" = "i386" ]; then
+              curl -fsSL -o "p2pd.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/v0.9.1/p2pd-v0.9.1-linux-386.tar.gz"
+              mkdir -p extract_temp
+              cd extract_temp
+              tar -xf "../p2pd.tar.gz"
+              find . -type f -not -name "*.md" -not -name "LICENSE"
+              BINARY=$(find . -type f -executable | head -1)
+              if [ -n "$BINARY" ]; then
+                cp "$BINARY" ../.ci-bin/p2pd
+              else
+                echo "No executable binary found in tarball!"
+                exit 1
+              fi
+              cd ..
+            fi
           fi
           
-          # Add to PATH and verify it works
-          export PATH="${{ github.workspace }}/.ci-bin:$PATH"
-          echo "Verifying p2pd is working:"
-          .ci-bin/p2pd --version || echo "Warning: p2pd version check failed"
-          
-          echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
-
-      # For all other platforms, use pre-built binaries
-      - name: Install p2pd binary for non-macOS-arm64 platforms
-        if: (!(matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64')) && steps.p2pd-cache.outputs.cache-hit != 'true'
-        uses: "./.github/actions/install_p2pd"
-        with:
-          os: ${{ matrix.platform.os }}
-          cpu: ${{ matrix.platform.cpu }}
-
-      # Verify p2pd installation for all platforms
-      - name: Verify p2pd installation
-        run: |
-          echo "Verifying p2pd installation in .ci-bin:"
-          mkdir -p .ci-bin
-          ls -la .ci-bin/
-          
-          # Make sure binary is executable
+          # Set executable permissions for Unix systems
           if [[ "${{ matrix.platform.os }}" != windows* ]]; then
-            chmod +x .ci-bin/p2pd || true
+            chmod +x .ci-bin/p2pd
+            ls -la .ci-bin/
+          fi
+          
+          # Create wrapper script - IMPORTANT to match expected behavior
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            # Windows wrapper (batch file)
+            cat > .ci-bin/p2pd-wrapper.bat << 'EOF'
+            @echo off
+            echo Running p2pd: %*
+            "%~dp0p2pd.exe" %*
+            EOF
+            mv .ci-bin/p2pd-wrapper.bat .ci-bin/p2pd.bat
+          else
+            # Unix wrapper (bash script)
+            mv .ci-bin/p2pd .ci-bin/p2pd.real
+            cat > .ci-bin/p2pd << 'EOF'
+            #!/bin/bash
+            # Wrapper script to ensure p2pd is called correctly
+            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            exec "$SCRIPT_DIR/p2pd.real" "$@"
+            EOF
+            chmod +x .ci-bin/p2pd
           fi
           
           # Add to PATH
           echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
           export PATH="${{ github.workspace }}/.ci-bin:$PATH"
           
-          # Test and validate the binary
-          echo "Testing p2pd from PATH:"
-          which p2pd || which p2pd.exe || echo "p2pd not found in PATH!"
-          
+          # Verify installation
           if [[ "${{ matrix.platform.os }}" == windows* ]]; then
-            .ci-bin/p2pd.exe --version || echo "Warning: p2pd version check failed!"
+            .ci-bin/p2pd.exe --version || echo "p2pd version check failed"
           else
-            .ci-bin/p2pd --version || echo "Warning: p2pd version check failed!"
+            .ci-bin/p2pd --version || echo "p2pd version check failed"
+          fi
+
+      # Only build from source for macOS arm64
+      - name: Setup Go for macOS arm64
+        if: (matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64' && steps.p2pd-cache.outputs.cache-hit != 'true')
+        uses: actions/setup-go@v5
+        with:
+          go-version: '~1.16.0'
+
+      - name: Build p2pd from source for macOS arm64
+        if: (matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64' && steps.p2pd-cache.outputs.cache-hit != 'true')
+        run: |
+          mkdir -p .ci-bin
+          
+          # Build from source
+          echo "Building p2pd from source for macOS arm64..."
+          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+          
+          # Find the binary
+          if [ -f "p2pd" ]; then
+            cp p2pd .ci-bin/p2pd.real
+          elif [ -f "p2pdCache/p2pd" ]; then
+            cp p2pdCache/p2pd .ci-bin/p2pd.real
+          else
+            P2PD_PATH=$(find . -name "p2pd" -type f | grep -v "\.proto\|\.go" | head -1)
+            if [ -n "$P2PD_PATH" ]; then
+              cp "$P2PD_PATH" .ci-bin/p2pd.real
+            else
+              echo "ERROR: p2pd binary not found after build!"
+              exit 1
+            fi
           fi
           
-          # Debug: display PATH
-          echo "PATH environment variable:"
-          echo $PATH
+          # Create a wrapper script
+          cat > .ci-bin/p2pd << 'EOF'
+          #!/bin/bash
+          # Wrapper script to ensure p2pd is called correctly
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          exec "$SCRIPT_DIR/p2pd.real" "$@"
+          EOF
+          
+          chmod +x .ci-bin/p2pd.real
+          chmod +x .ci-bin/p2pd
+          
+          # Add to PATH
+          echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
+          export PATH="${{ github.workspace }}/.ci-bin:$PATH"
+          
+          # Verify installation
+          .ci-bin/p2pd --version || echo "p2pd version check failed"
+
+      # Verify p2pd is in PATH for all methods
+      - name: Verify p2pd installation
+        run: |
+          echo "Setting PATH:"
+          echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
+          export PATH="${{ github.workspace }}/.ci-bin:$PATH"
+          
+          echo "Verifying p2pd installation:"
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            which p2pd.exe || echo "p2pd not found in PATH!"
+            .ci-bin/p2pd.exe --version || echo "p2pd version check failed"
+          else
+            which p2pd || echo "p2pd not found in PATH!"
+            .ci-bin/p2pd --version || echo "p2pd version check failed"
+          fi
 
       # Rest of the CI steps
       - name: Restore deps from cache
@@ -193,18 +296,22 @@ jobs:
       - name: Run tests
         run: |
           source .venv/bin/activate
+          
+          # Display versions
           nim --version
           nimble --version
           gcc --version
           
-          # Debug: Verify p2pd is still in PATH before running tests
-          which p2pd || which p2pd.exe || echo "Warning: p2pd not found in PATH before tests!"
-          
+          # Debugging before tests run
+          echo "PATH: $PATH"
           if [[ "${{ matrix.platform.os }}" == windows* ]]; then
-            p2pd.exe --version || echo "Warning: p2pd version check failed before tests!"
+            which p2pd.exe || echo "p2pd not found in PATH!"
+            .ci-bin/p2pd.exe --version || echo "p2pd version check failed"
           else
-            p2pd --version || echo "Warning: p2pd version check failed before tests!"
+            which p2pd || echo "p2pd not found in PATH!"
+            .ci-bin/p2pd --version || echo "p2pd version check failed"
           fi
           
+          # Run tests
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
