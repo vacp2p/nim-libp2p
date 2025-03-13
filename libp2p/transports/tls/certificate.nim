@@ -221,7 +221,6 @@ proc makeLibp2pExtension(
   # Copy the public key DER into msg
   copyMem(addr msg[P2P_SIGNING_PREFIX.len], certPubKeyDerPtr, certPubKeyDerLen.int)
 
-
   # Sign the hash with the Identity Key
   let signatureResult = identityKeypair.seckey.sign(msg)
   if signatureResult.isErr:

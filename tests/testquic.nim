@@ -1,6 +1,5 @@
 {.used.}
 
-import sequtils
 import chronos, stew/byteutils
 import
   ../libp2p/[
@@ -25,9 +24,7 @@ suite "Quic transport":
     await transport1.stop()
   #
   asyncTest "transport e2e":
-    let serverMA =
-      @[MultiAddress.init("/ip4/127.0.0.1/udp/50001/quic-v1").tryGet()]
-        # todo: HANDLE 0 port
+    let serverMA = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
     let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
     let server: QuicTransport = QuicTransport.new(Upgrade(), privateKey)
     await server.start(serverMA)
