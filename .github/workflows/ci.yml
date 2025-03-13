@@ -172,21 +172,17 @@ jobs:
           # Create wrapper script - IMPORTANT to match expected behavior
           if [[ "${{ matrix.platform.os }}" == windows* ]]; then
             # Windows wrapper (batch file)
-            cat > .ci-bin/p2pd-wrapper.bat << EOF
-@echo off
-echo Running p2pd: %*
-"%~dp0p2pd.exe" %*
-EOF
+            echo '@echo off' > .ci-bin/p2pd-wrapper.bat
+            echo 'echo Running p2pd: %*' >> .ci-bin/p2pd-wrapper.bat
+            echo '"%~dp0p2pd.exe" %*' >> .ci-bin/p2pd-wrapper.bat
             mv .ci-bin/p2pd-wrapper.bat .ci-bin/p2pd.bat
           else
             # Unix wrapper (bash script)
             mv .ci-bin/p2pd .ci-bin/p2pd.real
-            cat > .ci-bin/p2pd << EOF
-#!/bin/bash
-# Wrapper script to ensure p2pd is called correctly
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-exec "\$SCRIPT_DIR/p2pd.real" "\$@"
-EOF
+            echo '#!/bin/bash' > .ci-bin/p2pd
+            echo '# Wrapper script to ensure p2pd is called correctly' >> .ci-bin/p2pd
+            echo 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' >> .ci-bin/p2pd
+            echo 'exec "$SCRIPT_DIR/p2pd.real" "$@"' >> .ci-bin/p2pd
             chmod +x .ci-bin/p2pd
           fi
           
@@ -233,12 +229,10 @@ EOF
           fi
           
           # Create a wrapper script
-          cat > .ci-bin/p2pd << EOF
-#!/bin/bash
-# Wrapper script to ensure p2pd is called correctly
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-exec "\$SCRIPT_DIR/p2pd.real" "\$@"
-EOF
+          echo '#!/bin/bash' > .ci-bin/p2pd
+          echo '# Wrapper script to ensure p2pd is called correctly' >> .ci-bin/p2pd
+          echo 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' >> .ci-bin/p2pd
+          echo 'exec "$SCRIPT_DIR/p2pd.real" "$@"' >> .ci-bin/p2pd
           
           chmod +x .ci-bin/p2pd.real
           chmod +x .ci-bin/p2pd
