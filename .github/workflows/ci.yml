@@ -78,27 +78,79 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_ref: ${{ matrix.nim.ref }}
 
+      # Cache the p2pd source checkout and build
+      - name: Cache p2pd source and build
+        id: p2pd-source-cache
+        uses: actions/cache@v3
+        with:
+          path: p2pdCache
+          key: p2pd-source-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-7
+
+      # Setup Go (needed for all platforms)
       - name: Setup Go
+        if: steps.p2pd-source-cache.outputs.cache-hit != 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.16.0' # That's the minimum Go version that works with arm.
+          go-version: '~1.16.0'
 
-      - name: Install p2pd
+      # Build p2pd from source but use caching
+      - name: Build p2pd from source with caching
         run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+          # Check if p2pd is already in path from cache
+          if [ -f "p2pdCache/p2pd" ] || [ -f "p2pdCache/p2pd.exe" ]; then
+            echo "Using p2pd from cache"
+          else
+            echo "Building p2pd from source..."
+            V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+          fi
+          
+          # Make sure it's in PATH
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            if [ -f "p2pdCache/p2pd.exe" ]; then
+              echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+            elif [ -f "p2pd.exe" ]; then
+              # Copy to p2pdCache if it was built in a different location
+              mkdir -p p2pdCache
+              cp p2pd.exe p2pdCache/
+              echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+            fi
+          else
+            if [ -f "p2pdCache/p2pd" ]; then
+              chmod +x p2pdCache/p2pd
+              echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+            elif [ -f "p2pd" ]; then
+              # Copy to p2pdCache if it was built in a different location
+              mkdir -p p2pdCache
+              cp p2pd p2pdCache/
+              chmod +x p2pdCache/p2pd
+              echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+            fi
+          fi
+          
+          # Ensure executable permissions
+          if [[ "${{ matrix.platform.os }}" != windows* ]]; then
+            chmod +x p2pdCache/p2pd || true
+          fi
+          
+          # Verify it's working
+          export PATH="${{ github.workspace }}/p2pdCache:$PATH"
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            p2pdCache/p2pd.exe --version || echo "p2pd version check failed"
+          else
+            p2pdCache/p2pd --version || echo "p2pd version check failed"
+          fi
 
+      # Rest of the CI steps
       - name: Restore deps from cache
         id: deps-cache
         uses: actions/cache@v3
         with:
           path: nimbledeps
-          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
-          # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
-          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }}
 
       - name: Setup python
         run: |
-          mkdir .venv
+          mkdir -p .venv
           python -m venv .venv
 
       - name: Install deps
@@ -108,21 +160,33 @@ jobs:
           nimble install_pinned
 
       - name: Use gcc 14
-        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
+        if: ${{ matrix.platform.os == 'linux-gcc-14' }}
         run: |
           # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
-
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
       - name: Run tests
         run: |
           source .venv/bin/activate
-
+          
+          # Display versions
           nim --version
           nimble --version
           gcc --version
-
+          
+          # Verify p2pd before running tests
+          export PATH="${{ github.workspace }}/p2pdCache:$PATH"
+          echo "PATH: $PATH"
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            which p2pd.exe || echo "p2pd not found in PATH!"
+            p2pdCache/p2pd.exe --version || echo "p2pd version check failed"
+          else
+            which p2pd || echo "p2pd not found in PATH!"
+            p2pdCache/p2pd --version || echo "p2pd version check failed"
+          fi
+          
+          # Run tests
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test

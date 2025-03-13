@@ -1,0 +1,57 @@
+name: "Install p2pd"
+inputs:
+  os:
+    required: true
+  cpu:
+    required: true
+  version:
+    default: v0.9.1
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '~1.16.0'
+    
+    - name: Build p2pd from source
+      shell: bash
+      run: |
+        # Build p2pd from source using the project's build script
+        # This is the most reliable method that works across all platforms
+        mkdir -p p2pdCache
+        
+        echo "Building p2pd from source..."
+        V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+        
+        # Make sure it's in PATH
+        if [[ "${{ inputs.os }}" == windows* ]]; then
+          if [ -f "p2pdCache/p2pd.exe" ]; then
+            echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+          elif [ -f "p2pd.exe" ]; then
+            mkdir -p p2pdCache
+            cp p2pd.exe p2pdCache/
+            echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+          fi
+        else
+          if [ -f "p2pdCache/p2pd" ]; then
+            chmod +x p2pdCache/p2pd
+            echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+          elif [ -f "p2pd" ]; then
+            mkdir -p p2pdCache
+            cp p2pd p2pdCache/
+            chmod +x p2pdCache/p2pd
+            echo "${{ github.workspace }}/p2pdCache" >> $GITHUB_PATH
+          fi
+        fi
+        
+        # Verify it's working
+        export PATH="${{ github.workspace }}/p2pdCache:$PATH"
+        echo "Testing p2pd installation..."
+        if [[ "${{ inputs.os }}" == windows* ]]; then
+          p2pdCache/p2pd.exe --version || echo "p2pd version check failed"
+        else
+          p2pdCache/p2pd --version || echo "p2pd version check failed"
+        fi
