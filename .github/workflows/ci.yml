@@ -84,58 +84,84 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .ci-bin
-          key: p2pd-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-1
+          key: p2pd-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-2  # Increment version to invalidate old cache
 
-      # For macOS arm64, build from source
+      # For macOS arm64, always build from source, it's more reliable
       - name: Setup Go for macOS arm64
-        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64' && steps.p2pd-cache.outputs.cache-hit != 'true'
+        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64'
         uses: actions/setup-go@v5
         with:
           go-version: '~1.16.0'
 
       - name: Build p2pd from source for macOS arm64
-        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64' && steps.p2pd-cache.outputs.cache-hit != 'true'
+        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64'
         run: |
           mkdir -p .ci-bin
+          # Remove any placeholder script from previous runs
+          rm -f .ci-bin/p2pd
+          
+          # Build from source
+          echo "Building p2pd from source for macOS arm64..."
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+          
+          # Debug to see where the binary ended up
+          echo "Checking for built binaries:"
+          find . -name "p2pd*" -type f
           
           # Ensure binary was built and is in .ci-bin
           if [ -f p2pd ]; then
+            echo "Moving p2pd to .ci-bin directory"
             mv p2pd .ci-bin/p2pd
             chmod +x .ci-bin/p2pd
+          else
+            echo "ERROR: p2pd binary not found after build!"
+            exit 1
           fi
           
-          # Verify it works
+          # Add to PATH and verify it works
+          export PATH="${{ github.workspace }}/.ci-bin:$PATH"
+          echo "Verifying p2pd is working:"
           .ci-bin/p2pd --version || echo "Warning: p2pd version check failed"
           
-          # Add to PATH
           echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
-          export PATH="${{ github.workspace }}/.ci-bin:$PATH"
 
       # For all other platforms, use pre-built binaries
-      - name: Install p2pd binary
+      - name: Install p2pd binary for non-macOS-arm64 platforms
         if: (!(matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64')) && steps.p2pd-cache.outputs.cache-hit != 'true'
         uses: "./.github/actions/install_p2pd"
         with:
           os: ${{ matrix.platform.os }}
           cpu: ${{ matrix.platform.cpu }}
 
-      # Ensure p2pd is in PATH for all platforms
-      - name: Add p2pd to PATH
+      # Verify p2pd installation for all platforms
+      - name: Verify p2pd installation
         run: |
+          echo "Verifying p2pd installation in .ci-bin:"
           mkdir -p .ci-bin
+          ls -la .ci-bin/
+          
+          # Make sure binary is executable
           if [[ "${{ matrix.platform.os }}" != windows* ]]; then
             chmod +x .ci-bin/p2pd || true
           fi
+          
+          # Add to PATH
           echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
           export PATH="${{ github.workspace }}/.ci-bin:$PATH"
           
-          # Test p2pd
+          # Test and validate the binary
+          echo "Testing p2pd from PATH:"
+          which p2pd || which p2pd.exe || echo "p2pd not found in PATH!"
+          
           if [[ "${{ matrix.platform.os }}" == windows* ]]; then
-            .ci-bin/p2pd.exe --version || echo "Warning: p2pd version check failed"
+            .ci-bin/p2pd.exe --version || echo "Warning: p2pd version check failed!"
           else
-            .ci-bin/p2pd --version || echo "Warning: p2pd version check failed"
+            .ci-bin/p2pd --version || echo "Warning: p2pd version check failed!"
           fi
+          
+          # Debug: display PATH
+          echo "PATH environment variable:"
+          echo $PATH
 
       # Rest of the CI steps
       - name: Restore deps from cache
@@ -170,5 +196,15 @@ jobs:
           nim --version
           nimble --version
           gcc --version
+          
+          # Debug: Verify p2pd is still in PATH before running tests
+          which p2pd || which p2pd.exe || echo "Warning: p2pd not found in PATH before tests!"
+          
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            p2pd.exe --version || echo "Warning: p2pd version check failed before tests!"
+          else
+            p2pd --version || echo "Warning: p2pd version check failed before tests!"
+          fi
+          
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test

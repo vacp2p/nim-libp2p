@@ -22,57 +22,191 @@ runs:
           if [ "${{ inputs.cpu }}" = "amd64" ]; then
             curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-win32-amd64.zip" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-win32-amd64.zip"
             unzip -o "p2pd-${{ inputs.version }}-win32-amd64.zip"
-            mv p2pd.exe .ci-bin/p2pd.exe
+            
+            # Debug: show all extracted files
+            find . -name "*.exe" -type f
+            
+            # The binary might be in bin/p2pd-win32-amd64.exe
+            if [ -f "bin/p2pd-win32-amd64.exe" ]; then
+              mv "bin/p2pd-win32-amd64.exe" .ci-bin/p2pd.exe
+            elif [ -f "p2pd.exe" ]; then
+              mv p2pd.exe .ci-bin/p2pd.exe
+            else
+              # Try to find the exe
+              EXE_PATH=$(find . -name "*.exe" -type f | head -1)
+              if [ -n "$EXE_PATH" ]; then
+                mv "$EXE_PATH" .ci-bin/p2pd.exe
+              else
+                echo "Could not find p2pd.exe in the extracted files!"
+                exit 1
+              fi
+            fi
+
           elif [ "${{ inputs.cpu }}" = "arm64" ]; then
             curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-win32-arm64.zip" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-win32-arm64.zip"
             unzip -o "p2pd-${{ inputs.version }}-win32-arm64.zip"
-            mv p2pd.exe .ci-bin/p2pd.exe
+            
+            # Debug: show all extracted files
+            find . -name "*.exe" -type f
+            
+            # The binary might be in bin/p2pd-win32-arm64.exe
+            if [ -f "bin/p2pd-win32-arm64.exe" ]; then
+              mv "bin/p2pd-win32-arm64.exe" .ci-bin/p2pd.exe
+            elif [ -f "p2pd.exe" ]; then
+              mv p2pd.exe .ci-bin/p2pd.exe
+            else
+              # Try to find the exe
+              EXE_PATH=$(find . -name "*.exe" -type f | head -1)
+              if [ -n "$EXE_PATH" ]; then
+                mv "$EXE_PATH" .ci-bin/p2pd.exe
+              else
+                echo "Could not find p2pd.exe in the extracted files!"
+                exit 1
+              fi
+            fi
           else
             echo "No official Windows build for ${{ inputs.cpu }}. Exiting..."
+            exit 1
+          fi
+
+          # Verify the binary exists
+          if [ ! -f .ci-bin/p2pd.exe ]; then
+            echo "Failed to install p2pd.exe"
             exit 1
           fi
 
         elif [[ "${{ inputs.os }}" == macos* ]]; then
           # macOS: download and extract the tarball
           if [ "${{ inputs.cpu }}" = "arm64" ]; then
-            echo "No official macOS arm64 build available for p2pd v${{ inputs.version }}. Skipping installation."
-            # Create a dummy script so later steps don't fail.
+            echo "No official macOS arm64 build available for p2pd v${{ inputs.version }}. Will need to build from source."
+            # Create a dummy script to indicate this needs to be built from source
             echo "#!/bin/bash" > .ci-bin/p2pd
-            echo "echo 'p2pd is not installed on macOS arm64'" >> .ci-bin/p2pd
+            echo "echo 'ERROR: p2pd for macOS arm64 should be built from source'" >&2 >> .ci-bin/p2pd
+            echo "exit 1" >> .ci-bin/p2pd
+            chmod +x .ci-bin/p2pd
           elif [ "${{ inputs.cpu }}" = "amd64" ]; then
             curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-darwin.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-darwin.tar.gz"
-            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-darwin.tar.gz"
-            # The tarball should extract a file named “p2pd-darwin” or “p2pd”
-            if [ -f p2pd-darwin ]; then
-              mv p2pd-darwin .ci-bin/p2pd
+            
+            # Debug: list the tar contents before extracting
+            mkdir -p extract_temp
+            cd extract_temp
+            tar -tvf "../p2pd-${{ inputs.version }}-darwin.tar.gz"
+            tar -xf "../p2pd-${{ inputs.version }}-darwin.tar.gz"
+            
+            # Find the binary regardless of name
+            find . -type f -not -name "*.md" -not -name "LICENSE" | sort
+            
+            # The tarball might extract different file names
+            if [ -f "./p2pd-darwin" ]; then
+              mv "./p2pd-darwin" ../.ci-bin/p2pd
+            elif [ -f "./p2pd" ]; then
+              mv "./p2pd" ../.ci-bin/p2pd
             else
-              mv p2pd .ci-bin/p2pd
+              # Try to find any executable
+              BINARY=$(find . -type f -perm -u+x | head -1)
+              if [ -n "$BINARY" ]; then
+                mv "$BINARY" ../.ci-bin/p2pd
+              else
+                echo "Could not find p2pd binary in the extracted tarball!"
+                exit 1
+              fi
             fi
+            cd ..
           else
             echo "No official macOS build for ${{ inputs.cpu }}. Exiting..."
             exit 1
           fi
+          
           chmod +x .ci-bin/p2pd
+          
+          # Verify the binary exists and is executable
+          if [ ! -f .ci-bin/p2pd ] || [ ! -x .ci-bin/p2pd ]; then
+            echo "Failed to install executable p2pd for macOS"
+            ls -la .ci-bin/
+            exit 1
+          fi
 
         else
           # Linux: download and extract the tar archive
           if [ "${{ inputs.cpu }}" = "i386" ]; then
             curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-linux-386.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-linux-386.tar.gz"
-            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-linux-386.tar.gz"
-            mv p2pd-linux-386 .ci-bin/p2pd
-            chmod +x .ci-bin/p2pd
+            mkdir -p extract_temp
+            cd extract_temp
+            tar -xf "../p2pd-${{ inputs.version }}-linux-386.tar.gz"
+            # Find the binary
+            find . -type f -not -name "*.md" -not -name "LICENSE" | sort
+            if [ -f "./p2pd-linux-386" ]; then
+              mv "./p2pd-linux-386" ../.ci-bin/p2pd
+            else
+              # Find any executable
+              BINARY=$(find . -type f -perm -u+x | head -1)
+              if [ -n "$BINARY" ]; then
+                mv "$BINARY" ../.ci-bin/p2pd
+              else
+                echo "Could not find p2pd binary in the extracted tarball!"
+                exit 1
+              fi
+            fi
+            cd ..
           elif [ "${{ inputs.cpu }}" = "arm64" ]; then
             curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-linux-arm64.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-linux-arm64.tar.gz"
-            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-linux-arm64.tar.gz"
-            mv p2pd-linux-arm64 .ci-bin/p2pd
-            chmod +x .ci-bin/p2pd
+            mkdir -p extract_temp
+            cd extract_temp
+            tar -xf "../p2pd-${{ inputs.version }}-linux-arm64.tar.gz"
+            # Find the binary
+            find . -type f -not -name "*.md" -not -name "LICENSE" | sort
+            if [ -f "./p2pd-linux-arm64" ]; then
+              mv "./p2pd-linux-arm64" ../.ci-bin/p2pd
+            else
+              # Find any executable
+              BINARY=$(find . -type f -perm -u+x | head -1)
+              if [ -n "$BINARY" ]; then
+                mv "$BINARY" ../.ci-bin/p2pd
+              else
+                echo "Could not find p2pd binary in the extracted tarball!"
+                exit 1
+              fi
+            fi
+            cd ..
           else
             # Assume amd64
             curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-linux-amd64.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-linux-amd64.tar.gz"
-            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-linux-amd64.tar.gz"
-            mv p2pd-linux-amd64 .ci-bin/p2pd
-            chmod +x .ci-bin/p2pd
+            mkdir -p extract_temp
+            cd extract_temp
+            tar -xf "../p2pd-${{ inputs.version }}-linux-amd64.tar.gz"
+            # Find the binary
+            find . -type f -not -name "*.md" -not -name "LICENSE" | sort
+            if [ -f "./p2pd-linux-amd64" ]; then
+              mv "./p2pd-linux-amd64" ../.ci-bin/p2pd
+            else
+              # Find any executable
+              BINARY=$(find . -type f -perm -u+x | head -1)
+              if [ -n "$BINARY" ]; then
+                mv "$BINARY" ../.ci-bin/p2pd
+              else
+                echo "Could not find p2pd binary in the extracted tarball!"
+                exit 1
+              fi
+            fi
+            cd ..
           fi
+          
+          chmod +x .ci-bin/p2pd
+          
+          # Verify the binary exists and is executable
+          if [ ! -f .ci-bin/p2pd ] || [ ! -x .ci-bin/p2pd ]; then
+            echo "Failed to install executable p2pd for Linux"
+            ls -la .ci-bin/
+            exit 1
+          fi
+        fi
+
+        # Test the binary to make sure it works (but don't fail the job if it doesn't)
+        echo "Testing p2pd installation..."
+        if [[ "${{ inputs.os }}" == windows* ]]; then
+          .ci-bin/p2pd.exe --version || echo "Warning: p2pd version check failed"
+        else
+          .ci-bin/p2pd --version || echo "Warning: p2pd version check failed"
         fi
 
         echo "${PWD}/.ci-bin" >> $GITHUB_PATH
