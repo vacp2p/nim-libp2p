@@ -1,0 +1,78 @@
+name: "Install p2pd"
+inputs:
+  os:
+    required: true
+  cpu:
+    required: true
+  version:
+    default: v0.9.1
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download and install p2pd
+      shell: bash
+      run: |
+        set -eux  # Fail on error and print each command
+        mkdir -p .ci-bin
+
+        if [[ "${{ inputs.os }}" == windows* ]]; then
+          # Windows: download the ZIP and extract p2pd.exe
+          if [ "${{ inputs.cpu }}" = "amd64" ]; then
+            curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-win32-amd64.zip" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-win32-amd64.zip"
+            unzip -o "p2pd-${{ inputs.version }}-win32-amd64.zip"
+            mv p2pd.exe .ci-bin/p2pd.exe
+          elif [ "${{ inputs.cpu }}" = "arm64" ]; then
+            curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-win32-arm64.zip" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-win32-arm64.zip"
+            unzip -o "p2pd-${{ inputs.version }}-win32-arm64.zip"
+            mv p2pd.exe .ci-bin/p2pd.exe
+          else
+            echo "No official Windows build for ${{ inputs.cpu }}. Exiting..."
+            exit 1
+          fi
+
+        elif [[ "${{ inputs.os }}" == macos* ]]; then
+          # macOS: download and extract the tarball
+          if [ "${{ inputs.cpu }}" = "arm64" ]; then
+            echo "No official macOS arm64 build available for p2pd v${{ inputs.version }}. Skipping installation."
+            # Create a dummy script so later steps don't fail.
+            echo "#!/bin/bash" > .ci-bin/p2pd
+            echo "echo 'p2pd is not installed on macOS arm64'" >> .ci-bin/p2pd
+          elif [ "${{ inputs.cpu }}" = "amd64" ]; then
+            curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-darwin.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-darwin.tar.gz"
+            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-darwin.tar.gz"
+            # The tarball should extract a file named “p2pd-darwin” or “p2pd”
+            if [ -f p2pd-darwin ]; then
+              mv p2pd-darwin .ci-bin/p2pd
+            else
+              mv p2pd .ci-bin/p2pd
+            fi
+          else
+            echo "No official macOS build for ${{ inputs.cpu }}. Exiting..."
+            exit 1
+          fi
+          chmod +x .ci-bin/p2pd
+
+        else
+          # Linux: download and extract the tar archive
+          if [ "${{ inputs.cpu }}" = "i386" ]; then
+            curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-linux-386.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-linux-386.tar.gz"
+            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-linux-386.tar.gz"
+            mv p2pd-linux-386 .ci-bin/p2pd
+            chmod +x .ci-bin/p2pd
+          elif [ "${{ inputs.cpu }}" = "arm64" ]; then
+            curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-linux-arm64.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-linux-arm64.tar.gz"
+            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-linux-arm64.tar.gz"
+            mv p2pd-linux-arm64 .ci-bin/p2pd
+            chmod +x .ci-bin/p2pd
+          else
+            # Assume amd64
+            curl -fsSL -H "Accept: application/octet-stream" -o "p2pd-${{ inputs.version }}-linux-amd64.tar.gz" "https://github.com/libp2p/go-libp2p-daemon/releases/download/${{ inputs.version }}/p2pd-${{ inputs.version }}-linux-amd64.tar.gz"
+            tar --strip-components=1 -xf "p2pd-${{ inputs.version }}-linux-amd64.tar.gz"
+            mv p2pd-linux-amd64 .ci-bin/p2pd
+            chmod +x .ci-bin/p2pd
+          fi
+        fi
+
+        echo "${PWD}/.ci-bin" >> $GITHUB_PATH

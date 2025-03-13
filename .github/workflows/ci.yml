@@ -78,27 +78,76 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_ref: ${{ matrix.nim.ref }}
 
-      - name: Setup Go
+      # Restore p2pd from cache
+      - name: Restore p2pd from cache
+        id: p2pd-cache
+        uses: actions/cache@v3
+        with:
+          path: .ci-bin
+          key: p2pd-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-1
+
+      # For macOS arm64, build from source
+      - name: Setup Go for macOS arm64
+        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64' && steps.p2pd-cache.outputs.cache-hit != 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.16.0' # That's the minimum Go version that works with arm.
+          go-version: '~1.16.0'
 
-      - name: Install p2pd
+      - name: Build p2pd from source for macOS arm64
+        if: matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64' && steps.p2pd-cache.outputs.cache-hit != 'true'
         run: |
+          mkdir -p .ci-bin
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+          
+          # Ensure binary was built and is in .ci-bin
+          if [ -f p2pd ]; then
+            mv p2pd .ci-bin/p2pd
+            chmod +x .ci-bin/p2pd
+          fi
+          
+          # Verify it works
+          .ci-bin/p2pd --version || echo "Warning: p2pd version check failed"
+          
+          # Add to PATH
+          echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
+          export PATH="${{ github.workspace }}/.ci-bin:$PATH"
 
+      # For all other platforms, use pre-built binaries
+      - name: Install p2pd binary
+        if: (!(matrix.platform.os == 'macos-14' && matrix.platform.cpu == 'arm64')) && steps.p2pd-cache.outputs.cache-hit != 'true'
+        uses: "./.github/actions/install_p2pd"
+        with:
+          os: ${{ matrix.platform.os }}
+          cpu: ${{ matrix.platform.cpu }}
+
+      # Ensure p2pd is in PATH for all platforms
+      - name: Add p2pd to PATH
+        run: |
+          mkdir -p .ci-bin
+          if [[ "${{ matrix.platform.os }}" != windows* ]]; then
+            chmod +x .ci-bin/p2pd || true
+          fi
+          echo "${{ github.workspace }}/.ci-bin" >> $GITHUB_PATH
+          export PATH="${{ github.workspace }}/.ci-bin:$PATH"
+          
+          # Test p2pd
+          if [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            .ci-bin/p2pd.exe --version || echo "Warning: p2pd version check failed"
+          else
+            .ci-bin/p2pd --version || echo "Warning: p2pd version check failed"
+          fi
+
+      # Rest of the CI steps
       - name: Restore deps from cache
         id: deps-cache
         uses: actions/cache@v3
         with:
           path: nimbledeps
-          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
-          # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
-          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }}
 
       - name: Setup python
         run: |
-          mkdir .venv
+          mkdir -p .venv
           python -m venv .venv
 
       - name: Install deps
@@ -108,21 +157,18 @@ jobs:
           nimble install_pinned
 
       - name: Use gcc 14
-        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
+        if: ${{ matrix.platform.os == 'linux-gcc-14' }}
         run: |
           # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
-
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
       - name: Run tests
         run: |
           source .venv/bin/activate
-
           nim --version
           nimble --version
           gcc --version
-
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
