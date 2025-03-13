@@ -566,19 +566,22 @@ suite "GossipSub":
     proc slowValidator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      await cRelayed
-      # Empty A & C caches to detect duplicates
-      gossip1.seen = TimedCache[SaltedId].init()
-      gossip3.seen = TimedCache[SaltedId].init()
-      let msgId = toSeq(gossip2.validationSeen.keys)[0]
-      checkUntilTimeout(
-        try:
-          gossip2.validationSeen[msgId].len > 0
-        except:
-          false
-      )
-      result = ValidationResult.Accept
-      bFinished.complete()
+      try:
+        await cRelayed
+        # Empty A & C caches to detect duplicates
+        gossip1.seen = TimedCache[SaltedId].init()
+        gossip3.seen = TimedCache[SaltedId].init()
+        let msgId = toSeq(gossip2.validationSeen.keys)[0]
+        checkUntilTimeout(
+          try:
+            gossip2.validationSeen[msgId].len > 0
+          except:
+            false
+        )
+        result = ValidationResult.Accept
+        bFinished.complete()
+      except CatchableError:
+        raiseAssert "err on slowValidator"
 
     nodes[1].addValidator("foobar", slowValidator)
 
@@ -721,10 +724,8 @@ suite "GossipSub":
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
-          if peerName notin seen:
-            seen[peerName] = 0
-          seen[peerName].inc
+        handler = proc(topic: string, data: seq[byte]) {.async.} =
+          seen.mgetOrPut(peerName, 0).inc()
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
             seenFut.complete()
@@ -771,10 +772,13 @@ suite "GossipSub":
       var handler: TopicHandler
       capture dialer, i:
         var peerName = $dialer.peerInfo.peerId
-        handler = proc(topic: string, data: seq[byte]) {.async, closure.} =
-          if peerName notin seen:
-            seen[peerName] = 0
-          seen[peerName].inc
+        handler = proc(topic: string, data: seq[byte]) {.async.} =
+          try:
+            if peerName notin seen:
+              seen[peerName] = 0
+            seen[peerName].inc
+          except KeyError:
+            raiseAssert "seen checked before"
           check topic == "foobar"
           if not seenFut.finished() and seen.len >= runs:
             seenFut.complete()
@@ -928,6 +932,44 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodesFut.concat())
 
+  asyncTest "e2e - iDontWant is broadcasted on publish":
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let
+      nodes = generateNodes(
+        2,
+        gossip = true,
+        msgIdProvider = dumbMsgIdProvider,
+        sendIDontWantOnPublish = true,
+      )
+
+      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+
+    await nodes[0].switch.connect(
+      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
+    )
+
+    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip2: GossipSub = GossipSub(nodes[1])
+
+    tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
+
+    checkUntilTimeout:
+      gossip2.mesh.getOrDefault("foobar").anyIt(it.iDontWants[^1].len == 1)
+
+    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
+
+    await allFuturesThrowing(nodesFut.concat())
+
   asyncTest "e2e - iDontWant is sent only for 1.2":
     # 3 nodes: A <=> B <=> C
     # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
@@ -1059,7 +1101,7 @@ suite "GossipSub":
 
     # Simulate sending an undecodable message
     await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(
-      newSeqWith[byte](33, 1.byte), isHighPriority = true
+      newSeqWith(33, 1.byte), isHighPriority = true
     )
     await sleepAsync(300.millis)
 
@@ -1069,7 +1111,7 @@ suite "GossipSub":
     # Disconnect peer when rate limiting is enabled
     gossip1.parameters.disconnectPeerAboveRateLimit = true
     await gossip0.peers[gossip1.switch.peerInfo.peerId].sendEncoded(
-      newSeqWith[byte](35, 1.byte), isHighPriority = true
+      newSeqWith(35, 1.byte), isHighPriority = true
     )
 
     checkUntilTimeout gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == false
@@ -1131,7 +1173,7 @@ suite "GossipSub":
     let topic = "foobar"
     proc execValidator(
         topic: string, message: messages.Message
-    ): Future[ValidationResult] {.raises: [].} =
+    ): Future[ValidationResult] {.async: (raw: true).} =
       let res = newFuture[ValidationResult]()
       res.complete(ValidationResult.Reject)
       res

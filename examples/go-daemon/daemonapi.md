@@ -13,7 +13,7 @@ For more information about the go daemon, check out [this repository](https://gi
 > **Required only** for running the tests.
 
 # Prerequisites
-Go with version `1.15.15`.
+Go with version `1.16.0`.
 > You will *likely* be able to build `go-libp2p-daemon` with different Go versions, but **they haven't been tested**.
 
 # Installation
@@ -21,7 +21,7 @@ Follow one of the methods below:
 
 ## Script
 Run the build script while having the `go` command pointing to the correct Go version.
-We recommend using `1.15.15`, as previously stated.
+We recommend using `1.16.0`, as previously stated.
 ```sh
 ./scripts/build_p2pd.sh
 ```

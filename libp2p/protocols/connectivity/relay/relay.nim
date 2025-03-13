@@ -112,7 +112,9 @@ proc isRelayed*(conn: Connection): bool =
     wrappedConn = wrappedConn.getWrapped()
   return false
 
-proc handleReserve(r: Relay, conn: Connection) {.async.} =
+proc handleReserve(
+    r: Relay, conn: Connection
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   if conn.isRelayed():
     trace "reservation attempt over relay connection", pid = conn.peerId
     await sendHopStatus(conn, PermissionDenied)
@@ -133,7 +135,9 @@ proc handleReserve(r: Relay, conn: Connection) {.async.} =
   r.rsvp[pid] = expire
   await conn.writeLp(encode(msg).buffer)
 
-proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
+proc handleConnect(
+    r: Relay, connSrc: Connection, msg: HopMessage
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   if connSrc.isRelayed():
     trace "connection attempt over relay connection"
     await sendHopStatus(connSrc, PermissionDenied)
@@ -166,14 +170,14 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
       await r.switch.dial(dst, RelayV2StopCodec)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
-      trace "error opening relay stream", dst, exc = exc.msg
+    except DialFailedError as exc:
+      trace "error opening relay stream", dst, description = exc.msg
       await sendHopStatus(connSrc, ConnectionFailed)
       return
   defer:
     await connDst.close()
 
-  proc sendStopMsg() {.async.} =
+  proc sendStopMsg() {.async: (raises: [SendStopError, CancelledError, LPStreamError]).} =
     let stopMsg = StopMessage(
       msgType: StopMessageType.Connect,
       peer: Opt.some(Peer(peerId: src, addrs: @[])),
@@ -196,7 +200,7 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "error sending stop message", msg = exc.msg
+    trace "error sending stop message", description = exc.msg
     await sendHopStatus(connSrc, ConnectionFailed)
     return
 
@@ -209,11 +213,13 @@ proc handleConnect(r: Relay, connSrc: Connection, msg: HopMessage) {.async.} =
     await rconnDst.close()
   await bridge(rconnSrc, rconnDst)
 
-proc handleHopStreamV2*(r: Relay, conn: Connection) {.async.} =
+proc handleHopStreamV2*(
+    r: Relay, conn: Connection
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = HopMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendHopStatus(conn, MalformedMessage)
     return
-  trace "relayv2 handle stream", msg = msg
+  trace "relayv2 handle stream", hopMsg = msg
   case msg.msgType
   of HopMessageType.Reserve:
     await r.handleReserve(conn)
@@ -225,7 +231,9 @@ proc handleHopStreamV2*(r: Relay, conn: Connection) {.async.} =
 
 # Relay V1
 
-proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
+proc handleHop*(
+    r: Relay, connSrc: Connection, msg: RelayMessage
+) {.async: (raises: [CancelledError]).} =
   r.streamCount.inc()
   defer:
     r.streamCount.dec()
@@ -271,8 +279,8 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
       await r.switch.dial(dst.peerId, RelayV1Codec)
     except CancelledError as exc:
       raise exc
-    except CatchableError as exc:
-      trace "error opening relay stream", dst, exc = exc.msg
+    except DialFailedError as exc:
+      trace "error opening relay stream", dst, description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantDialDst)
       return
   defer:
@@ -289,12 +297,13 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error writing stop handshake or reading stop response", exc = exc.msg
+      trace "error writing stop handshake or reading stop response",
+        description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
       return
 
   let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
-    trace "error reading stop response", msg = msgRcvFromDstOpt
+    trace "error reading stop response", response = msgRcvFromDstOpt
     await sendStatus(connSrc, StatusV1.HopCantOpenDstStream)
     return
 
@@ -308,7 +317,9 @@ proc handleHop*(r: Relay, connSrc: Connection, msg: RelayMessage) {.async.} =
   trace "relaying connection", src, dst
   await bridge(connSrc, connDst)
 
-proc handleStreamV1(r: Relay, conn: Connection) {.async.} =
+proc handleStreamV1(
+    r: Relay, conn: Connection
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let msg = RelayMessage.decode(await conn.readLp(r.msgSize)).valueOr:
     await sendStatus(conn, StatusV1.MalformedMessage)
     return
@@ -332,9 +343,8 @@ proc handleStreamV1(r: Relay, conn: Connection) {.async.} =
 proc setup*(r: Relay, switch: Switch) =
   r.switch = switch
   r.switch.addPeerEventHandler(
-    proc(peerId: PeerId, event: PeerEvent) {.async.} =
-      r.rsvp.del(peerId)
-    ,
+    proc(peerId: PeerId, event: PeerEvent) {.async: (raises: [CancelledError]).} =
+      r.rsvp.del(peerId),
     Left,
   )
 
@@ -359,7 +369,9 @@ proc new*(
     isCircuitRelayV1: circuitRelayV1,
   )
 
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     try:
       case proto
       of RelayV2HopCodec:
@@ -367,9 +379,10 @@ proc new*(
       of RelayV1Codec:
         await r.handleStreamV1(conn)
     except CancelledError as exc:
+      trace "cancelled relayv2 handler"
       raise exc
     except CatchableError as exc:
-      debug "exception in relayv2 handler", exc = exc.msg, conn
+      debug "exception in relayv2 handler", description = exc.msg, conn
     finally:
       trace "exiting relayv2 handler", conn
       await conn.close()
@@ -382,12 +395,15 @@ proc new*(
   r.handler = handleStream
   r
 
-proc deletesReservation(r: Relay) {.async.} =
+proc deletesReservation(r: Relay) {.async: (raises: [CancelledError]).} =
   heartbeat "Reservation timeout", r.heartbeatSleepTime.seconds():
-    let n = now().utc
-    for k in toSeq(r.rsvp.keys):
-      if n > r.rsvp[k]:
-        r.rsvp.del(k)
+    try:
+      let n = now().utc
+      for k in toSeq(r.rsvp.keys):
+        if n > r.rsvp[k]:
+          r.rsvp.del(k)
+    except KeyError:
+      raiseAssert "checked with in"
 
 method start*(r: Relay): Future[void] {.async: (raises: [CancelledError], raw: true).} =
   let fut = newFuture[void]()

@@ -1,16 +1,18 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.4.0"
+version = "1.8.0"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
 skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.6.0",
-  "nimcrypto >= 0.4.1", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
-  "chronicles >= 0.10.2", "chronos >= 4.0.2", "metrics", "secp256k1", "stew#head",
-  "websock", "unittest2"
+  "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
+  "chronicles >= 0.10.2", "chronos >= 4.0.3", "metrics", "secp256k1", "stew#head",
+  "websock", "unittest2",
+  "https://github.com/status-im/nim-quic.git#ddcb31ffb74b5460ab37fd13547eca90594248bc",
+  "https://github.com/status-im/nim-mbedtls.git"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
@@ -19,8 +21,8 @@ let verbose = getEnv("V", "") notin ["", "0"]
 
 let cfg =
   " --styleCheck:usages --styleCheck:error" &
-  (if verbose: "" else: " --verbosity:0 --hints:off") &
-  " --skipParentCfg --skipUserCfg -f" & " --threads:on --opt:speed"
+  (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
+  " --threads:on --opt:speed"
 
 import hashes, strutils
 
@@ -124,9 +126,8 @@ task examples_build, "Build the samples":
   buildSample("tutorial_3_protobuf", true)
   buildSample("tutorial_4_gossipsub", true)
   buildSample("tutorial_5_discovery", true)
-  exec "nimble install -y nimpng@#HEAD"
-    # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
-  exec "nimble install -y nico@#af99dd60bf2b395038ece815ea1012330a80d6e6"
+  exec "nimble install -y nimpng"
+  exec "nimble install -y nico --passNim=--skipParentCfg"
   buildSample("tutorial_6_game", false, "--styleCheck:off")
 
 # pin system

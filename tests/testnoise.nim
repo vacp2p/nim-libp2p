@@ -42,11 +42,17 @@ type TestProto = ref object of LPProtocol
 {.push raises: [].}
 
 method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async.} =
-    let msg = string.fromBytes(await conn.readLp(1024))
-    check "Hello!" == msg
-    await conn.writeLp("Hello!")
-    await conn.close()
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    try:
+      let msg = string.fromBytes(await conn.readLp(1024))
+      check "Hello!" == msg
+      await conn.writeLp("Hello!")
+    except CancelledError as e:
+      raise e
+    except CatchableError:
+      check false # should not be here
+    finally:
+      await conn.close()
 
   p.codec = TestCodec
   p.handler = handle

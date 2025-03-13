@@ -39,8 +39,10 @@ proc new*(
 
 proc tryStartingDirectConn(
     self: HPService, switch: Switch, peerId: PeerId
-): Future[bool] {.async.} =
-  proc tryConnect(address: MultiAddress): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  proc tryConnect(
+      address: MultiAddress
+  ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
     debug "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
     debug "Direct connection created."
@@ -57,13 +59,13 @@ proc tryStartingDirectConn(
       continue
   return false
 
-proc closeRelayConn(relayedConn: Connection) {.async.} =
+proc closeRelayConn(relayedConn: Connection) {.async: (raises: [CancelledError]).} =
   await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
   await relayedConn.close()
 
 proc newConnectedPeerHandler(
     self: HPService, switch: Switch, peerId: PeerId, event: PeerEvent
-) {.async.} =
+) {.async: (raises: [CancelledError]).} =
   try:
     # Get all connections to the peer. If there is at least one non-relayed connection, return.
     let connections = switch.connManager.getConnections()[peerId].mapIt(it.connection)
@@ -86,18 +88,27 @@ proc newConnectedPeerHandler(
         switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
     await dcutrClient.startSync(switch, peerId, natAddrs)
     await closeRelayConn(relayedConn)
+  except CancelledError as err:
+    raise err
   except CatchableError as err:
     debug "Hole punching failed during dcutr", err = err.msg
 
-method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
+method setup*(
+    self: HPService, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError]).} =
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 
   if hasBeenSetup:
-    let dcutrProto = Dcutr.new(switch)
-    switch.mount(dcutrProto)
+    try:
+      let dcutrProto = Dcutr.new(switch)
+      switch.mount(dcutrProto)
+    except LPError as err:
+      error "Failed to mount Dcutr", err = err.msg
 
-    self.newConnectedPeerHandler = proc(peerId: PeerId, event: PeerEvent) {.async.} =
+    self.newConnectedPeerHandler = proc(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
       await newConnectedPeerHandler(self, switch, peerId, event)
 
     switch.connManager.addPeerEventHandler(
@@ -106,7 +117,7 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
 
     self.onNewStatusHandler = proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and
           not self.autoRelayService.isRunning():
         discard await self.autoRelayService.setup(switch)
@@ -121,10 +132,14 @@ method setup*(self: HPService, switch: Switch): Future[bool] {.async.} =
     self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
   return hasBeenSetup
 
-method run*(self: HPService, switch: Switch) {.async, public.} =
+method run*(
+    self: HPService, switch: Switch
+) {.public, async: (raises: [CancelledError]).} =
   await self.autonatService.run(switch)
 
-method stop*(self: HPService, switch: Switch): Future[bool] {.async, public.} =
+method stop*(
+    self: HPService, switch: Switch
+): Future[bool] {.public, async: (raises: [CancelledError]).} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(

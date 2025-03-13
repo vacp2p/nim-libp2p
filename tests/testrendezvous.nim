@@ -126,17 +126,25 @@ suite "RendezVous":
 
   asyncTest "Various local error":
     let
-      rdv = RendezVous.new()
+      rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
       switch = createSwitch(rdv)
-    expect RendezVousError:
+    expect AdvertiseError:
       discard await rdv.request("A".repeat(300))
-    expect RendezVousError:
+    expect AdvertiseError:
       discard await rdv.request("A", -1)
-    expect RendezVousError:
+    expect AdvertiseError:
       discard await rdv.request("A", 3000)
-    expect RendezVousError:
+    expect AdvertiseError:
       await rdv.advertise("A".repeat(300))
+    expect AdvertiseError:
+      await rdv.advertise("A", 73.hours)
+    expect AdvertiseError:
+      await rdv.advertise("A", 30.seconds)
+
+  test "Various config error":
     expect RendezVousError:
-      await rdv.advertise("A", 2.weeks)
+      discard RendezVous.new(minDuration = 30.seconds)
     expect RendezVousError:
-      await rdv.advertise("A", 5.minutes)
+      discard RendezVous.new(maxDuration = 73.hours)
+    expect RendezVousError:
+      discard RendezVous.new(minDuration = 15.minutes, maxDuration = 10.minutes)

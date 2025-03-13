@@ -28,8 +28,7 @@ proc hkdf*[T: sha256, len: static int](
     if salt.len > 0:
       unsafeAddr salt[0]
     else:
-      nil
-    ,
+      nil,
     csize_t(salt.len),
   )
   hkdfInject(
@@ -37,8 +36,7 @@ proc hkdf*[T: sha256, len: static int](
     if ikm.len > 0:
       unsafeAddr ikm[0]
     else:
-      nil
-    ,
+      nil,
     csize_t(ikm.len),
   )
   hkdfFlip(ctx)
@@ -48,8 +46,7 @@ proc hkdf*[T: sha256, len: static int](
       if info.len > 0:
         unsafeAddr info[0]
       else:
-        nil
-      ,
+        nil,
       csize_t(info.len),
       addr outputs[i][0],
       csize_t(outputs[i].len),

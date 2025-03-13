@@ -20,7 +20,7 @@ when defined(windows): import winlean else: import posix
 const
   RTRANSPMA* = mapOr(TCP, WebSockets, UNIX)
 
-  TRANSPMA* = mapOr(RTRANSPMA, UDP)
+  TRANSPMA* = mapOr(RTRANSPMA, QUIC, UDP)
 
 proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## Initialize ``TransportAddress`` with MultiAddress ``ma``.
@@ -28,7 +28,7 @@ proc initTAddress*(ma: MultiAddress): MaResult[TransportAddress] =
   ## MultiAddress must be wire address, e.g. ``{IP4, IP6, UNIX}/{TCP, UDP}``.
   ##
 
-  if mapOr(TCP_IP, WebSockets_IP, UNIX, UDP_IP).match(ma):
+  if mapOr(TCP_IP, WebSockets_IP, UNIX, UDP_IP, QUIC_V1_IP).match(ma):
     var pbuf: array[2, byte]
     let code = (?(?ma[0]).protoCode())
     if code == multiCodec("unix"):
@@ -67,7 +67,9 @@ proc connect*(
     child: StreamTransport = nil,
     flags = default(set[SocketFlags]),
     localAddress: Opt[MultiAddress] = Opt.none(MultiAddress),
-): Future[StreamTransport] {.async.} =
+): Future[StreamTransport] {.
+    async: (raises: [MaInvalidAddress, TransportError, CancelledError, LPError])
+.} =
   ## Open new connection to remote peer with address ``ma`` and create
   ## new transport object ``StreamTransport`` for established connection.
   ## ``bufferSize`` is size of internal buffer for transport.
@@ -86,8 +88,7 @@ proc connect*(
       if localAddress.isSome():
         initTAddress(localAddress.expect("just checked")).tryGet()
       else:
-        TransportAddress()
-      ,
+        TransportAddress(),
       flags,
     )
   do:

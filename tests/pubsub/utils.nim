@@ -27,8 +27,15 @@ randomize()
 type TestGossipSub* = ref object of GossipSub
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
-  proc getConn(): Future[Connection] =
-    p.switch.dial(peerId, GossipSubCodec_12)
+  proc getConn(): Future[Connection] {.
+      async: (raises: [CancelledError, GetConnDialError])
+  .} =
+    try:
+      return await p.switch.dial(peerId, GossipSubCodec_12)
+    except CancelledError as exc:
+      raise exc
+    except DialFailedError as e:
+      raise (ref GetConnDialError)(parent: e)
 
   let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)
   debug "created new pubsub peer", peerId
@@ -71,6 +78,7 @@ proc generateNodes*(
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
+    sendIDontWantOnPublish: bool = false,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -94,6 +102,7 @@ proc generateNodes*(
             p.unsubscribeBackoff = unsubscribeBackoff
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
+            p.sendIDontWantOnPublish = sendIDontWantOnPublish
             p
           ),
         )

@@ -28,7 +28,9 @@ proc connectStreamTest(): Future[bool] {.async.} =
 
   var testFuture = newFuture[string]("test.future")
 
-  proc streamHandler(api: DaemonAPI, stream: P2PStream) {.async.} =
+  proc streamHandler(
+      api: DaemonAPI, stream: P2PStream
+  ) {.async: (raises: [CatchableError]).} =
     var line = await stream.transp.readLine()
     testFuture.complete(line)
 
@@ -62,7 +64,7 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
 
   proc pubsubHandler1(
       api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.async.} =
+  ): Future[bool] {.async: (raises: [CatchableError]).} =
     let smsg = cast[string](message.data)
     if smsg == pubsubData:
       inc(resultsCount)
@@ -72,7 +74,7 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
 
   proc pubsubHandler2(
       api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.async.} =
+  ): Future[bool] {.async: (raises: [CatchableError]).} =
     let smsg = cast[string](message.data)
     if smsg == pubsubData:
       inc(resultsCount)

@@ -60,7 +60,9 @@ suite "Future":
     proc fut2() {.async.} =
       await sleepAsync(200.milliseconds)
 
-    proc fut3() {.async.} =
+    proc fut3() {.async: (raises: [ValueError]).} =
+      # fut3 intentionally specifies raised ValueError 
+      # so that it's type is of InternalRaisesFuture     
       raise newException(ValueError, "fut3")
 
     var f1 = fut1()

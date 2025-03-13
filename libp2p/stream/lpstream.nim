@@ -43,6 +43,7 @@ type
     oid*: Oid
     dir*: Direction
     closedWithEOF: bool # prevent concurrent calls
+    isClosedRemotely*: bool
 
   LPStreamError* = object of LPError
   LPStreamIncompleteError* = object of LPStreamError
@@ -326,4 +327,4 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []), public.} =
   except LPStreamEOFError:
     trace "Expected EOF came", s
   except LPStreamError as exc:
-    debug "Unexpected error while waiting for EOF", s, msg = exc.msg
+    debug "Unexpected error while waiting for EOF", s, description = exc.msg

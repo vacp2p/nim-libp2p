@@ -102,6 +102,7 @@ proc init*(
     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
+    sendIDontWantOnPublish = false,
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -139,6 +140,7 @@ proc init*(
     overheadRateLimit: overheadRateLimit,
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    sendIDontWantOnPublish: sendIDontWantOnPublish,
   )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -208,19 +210,16 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
     ok()
 
 method init*(g: GossipSub) =
-  proc handler(conn: Connection, proto: string) {.async.} =
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
     try:
       await g.handleConn(conn, proto)
-    except CancelledError:
-      # This is top-level procedure which will work as separate task, so it
-      # do not need to propogate CancelledError.
+    except CancelledError as exc:
       trace "Unexpected cancellation in gossipsub handler", conn
-    except CatchableError as exc:
-      trace "GossipSub handler leaks an error", exc = exc.msg, conn
+      raise exc
 
   g.handler = handler
   g.codecs &= GossipSubCodec_12
@@ -368,7 +367,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         else:
           libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
 
-    trace "sending control message", msg = shortLog(respControl), peer
+    trace "sending control message", payload = shortLog(respControl), peer
     g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
 
   if messages.len > 0:
@@ -383,9 +382,43 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     trace "sending iwant reply messages", peer
     g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
 
+proc sendIDontWant(
+    g: GossipSub,
+    msg: Message,
+    msgId: MessageId,
+    peersToSendIDontWant: HashSet[PubSubPeer],
+) =
+  # If the message is "large enough", let the mesh know that we do not want
+  # any more copies of it, regardless if it is valid or not.
+  #
+  # In the case that it is not valid, this leads to some redundancy
+  # (since the other peer should not send us an invalid message regardless),
+  # but the expectation is that this is rare (due to such peers getting
+  # descored) and that the savings from honest peers are greater than the
+  # cost a dishonest peer can incur in short time (since the IDONTWANT is
+  # small).
+
+  # IDONTWANT is only supported by >= GossipSubCodec_12
+  let peers = peersToSendIDontWant.filterIt(
+    it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11
+  )
+
+  g.broadcast(
+    peers,
+    RPCMsg(
+      control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+    ),
+    isHighPriority = true,
+  )
+
+const iDontWantMessageSizeThreshold* = 512
+
+proc isLargeMessage(msg: Message, msgId: MessageId): bool =
+  msg.data.len > max(iDontWantMessageSizeThreshold, msgId.len * 10)
+
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
-) {.async.} =
+) {.async: (raises: []).} =
   try:
     template topic(): string =
       msg.topic
@@ -399,29 +432,10 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
 
-    if msg.data.len > max(512, msgId.len * 10):
-      # If the message is "large enough", let the mesh know that we do not want
-      # any more copies of it, regardless if it is valid or not.
-      #
-      # In the case that it is not valid, this leads to some redundancy
-      # (since the other peer should not send us an invalid message regardless),
-      # but the expectation is that this is rare (due to such peers getting
-      # descored) and that the savings from honest peers are greater than the
-      # cost a dishonest peer can incur in short time (since the IDONTWANT is
-      # small).
+    if isLargeMessage(msg, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
-      peersToSendIDontWant.exclIfIt(
-        it.codec == GossipSubCodec_10 or it.codec == GossipSubCodec_11
-      )
-      g.broadcast(
-        peersToSendIDontWant,
-        RPCMsg(
-          control:
-            some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
-        ),
-        isHighPriority = true,
-      )
+      g.sendIDontWant(msg, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
 
@@ -490,8 +504,10 @@ proc validateAndRelay(
       )
 
     await handleData(g, topic, msg.data)
-  except CatchableError as exc:
-    info "validateAndRelay failed", msg = exc.msg
+  except CancelledError as exc:
+    info "validateAndRelay failed", description = exc.msg
+  except PeerRateLimitError as exc:
+    info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
@@ -511,7 +527,9 @@ proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
 
   msgSize - payloadSize - controlSize
 
-proc rateLimit*(g: GossipSub, peer: PubSubPeer, overhead: int) {.async.} =
+proc rateLimit*(
+    g: GossipSub, peer: PubSubPeer, overhead: int
+) {.async: (raises: [PeerRateLimitError]).} =
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(overhead):
       libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
@@ -524,7 +542,9 @@ proc rateLimit*(g: GossipSub, peer: PubSubPeer, overhead: int) {.async.} =
           PeerRateLimitError, "Peer disconnected because it's above rate limit."
         )
 
-method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
+method rpcHandler*(
+    g: GossipSub, peer: PubSubPeer, data: seq[byte]
+) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
@@ -534,13 +554,13 @@ method rpcHandler*(g: GossipSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
     # TODO evaluate behaviour penalty values
     peer.behaviourPenalty += 0.1
 
-    raise newException(CatchableError, "Peer msg couldn't be decoded")
+    raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
   when defined(libp2p_expensive_metrics):
     for m in rpcMsg.messages:
       libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
-  trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
   # trigger hooks - these may modify the message
@@ -682,7 +702,9 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.async.} =
+method publish*(
+    g: GossipSub, topic: string, data: seq[byte]
+): Future[int] {.async: (raises: []).} =
   logScope:
     topic
 
@@ -771,7 +793,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   logScope:
     msgId = shortLog(msgId)
 
-  trace "Created new message", msg = shortLog(msg), peers = peers.len
+  trace "Created new message", payload = shortLog(msg), peers = peers.len
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
@@ -781,6 +803,9 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
     return 0
 
   g.mcache.put(msgId, msg)
+
+  if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
+    g.sendIDontWant(msg, msgId, peers)
 
   g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
 
@@ -792,7 +817,9 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   trace "Published message to peers", peers = peers.len
   return peers.len
 
-proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc maintainDirectPeer(
+    g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: [CancelledError]).} =
   if id notin g.peers:
     trace "Attempting to dial a direct peer", peer = id
     if g.switch.isConnected(id):
@@ -805,14 +832,16 @@ proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.as
     except CancelledError as exc:
       trace "Direct peer dial canceled"
       raise exc
-    except CatchableError as exc:
-      debug "Direct peer error dialing", msg = exc.msg
+    except DialFailedError as exc:
+      debug "Direct peer error dialing", description = exc.msg
 
-proc addDirectPeer*(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc addDirectPeer*(
+    g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: [CancelledError]).} =
   g.parameters.directPeers[id] = addrs
   await g.maintainDirectPeer(id, addrs)
 
-proc maintainDirectPeers(g: GossipSub) {.async.} =
+proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub DirectPeers", 1.minutes:
     for id, addrs in g.parameters.directPeers:
       await g.addDirectPeer(id, addrs)
@@ -846,9 +875,9 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
     return fut
 
   # stop heartbeat interval
-  g.directPeersLoop.cancel()
-  g.scoringHeartbeatFut.cancel()
-  g.heartbeatFut.cancel()
+  g.directPeersLoop.cancelSoon()
+  g.scoringHeartbeatFut.cancelSoon()
+  g.heartbeatFut.cancelSoon()
   g.heartbeatFut = nil
   fut
 

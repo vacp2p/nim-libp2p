@@ -101,12 +101,14 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
   procCall PubSub(f).unsubscribePeer(peer)
 
-method rpcHandler*(f: FloodSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
+method rpcHandler*(
+    f: FloodSub, peer: PubSubPeer, data: seq[byte]
+) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
-    raise newException(CatchableError, "Peer msg couldn't be decoded")
+    raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
-  trace "decoded msg from peer", peer, msg = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
   # trigger hooks
   peer.recvObservers(rpcMsg)
 
@@ -175,24 +177,23 @@ method rpcHandler*(f: FloodSub, peer: PubSubPeer, data: seq[byte]) {.async.} =
   f.updateMetrics(rpcMsg)
 
 method init*(f: FloodSub) =
-  proc handler(conn: Connection, proto: string) {.async.} =
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
     try:
       await f.handleConn(conn, proto)
-    except CancelledError:
-      # This is top-level procedure which will work as separate task, so it
-      # do not need to propagate CancelledError.
+    except CancelledError as exc:
       trace "Unexpected cancellation in floodsub handler", conn
-    except CatchableError as exc:
-      trace "FloodSub handler leaks an error", exc = exc.msg, conn
+      raise exc
 
   f.handler = handler
   f.codec = FloodSubCodec
 
-method publish*(f: FloodSub, topic: string, data: seq[byte]): Future[int] {.async.} =
+method publish*(
+    f: FloodSub, topic: string, data: seq[byte]
+): Future[int] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
 
@@ -219,7 +220,7 @@ method publish*(f: FloodSub, topic: string, data: seq[byte]): Future[int] {.asyn
       trace "Error generating message id, skipping publish", error = error
       return 0
 
-  trace "Created new message", msg = shortLog(msg), peers = peers.len, topic, msgId
+  trace "Created new message", payload = shortLog(msg), peers = peers.len, topic, msgId
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this

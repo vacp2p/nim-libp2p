@@ -9,6 +9,7 @@
 
 import std/options
 import chronos
+import sequtils
 import unittest2
 import ../libp2p/[builders, switch]
 import ./helpers
@@ -34,3 +35,25 @@ suite "Dialer":
     check src.connManager.connCount(dst.peerInfo.peerId) == 2
 
     await allFutures(src.stop(), dst.stop())
+
+  asyncTest "Max connections reached":
+    var switches: seq[Switch]
+
+    let dst = newStandardSwitch(maxConnections = 2)
+    await dst.start()
+    switches.add(dst)
+
+    for i in 1 ..< 3:
+      let src = newStandardSwitch()
+      switches.add(src)
+      await src.start()
+      await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs, true, false)
+
+    let src = newStandardSwitch()
+    switches.add(src)
+    await src.start()
+    check not await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs).withTimeout(
+      1000.millis
+    )
+
+    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))

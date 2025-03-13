@@ -11,12 +11,17 @@ type TestProto = ref object of LPProtocol # declare a custom protocol
 
 proc new(T: typedesc[TestProto]): T =
   # every incoming connections will be in handled in this closure
-  proc handle(conn: Connection, proto: string) {.async.} =
-    echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
-    await conn.writeLp("Roger p2p!")
-
-    # We must close the connections ourselves when we're done with it
-    await conn.close()
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    try:
+      echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
+      await conn.writeLp("Roger p2p!")
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
+    finally:
+      # We must close the connections ourselves when we're done with it
+      await conn.close()
 
   return T.new(codecs = @[TestCodec], handler = handle)
 

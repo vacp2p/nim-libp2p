@@ -126,8 +126,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] =
         if x.peerId in sprBook:
           sprBook[x.peerId].encode().get(default(seq[byte]))
         else:
-          default(seq[byte])
-      ,
+          default(seq[byte]),
     )
 
 proc handleGraft*(
@@ -770,7 +769,7 @@ proc onHeartbeat(g: GossipSub) =
 
   g.mcache.shift() # shift the cache
 
-proc heartbeat*(g: GossipSub) {.async.} =
+proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:
     trace "running heartbeat", instance = cast[int](g)
     g.onHeartbeat()

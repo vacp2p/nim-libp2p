@@ -36,12 +36,14 @@ proc isRunning*(self: AutoRelayService): bool =
 
 proc addressMapper(
     self: AutoRelayService, listenAddrs: seq[MultiAddress]
-): Future[seq[MultiAddress]] {.async.} =
+): Future[seq[MultiAddress]] {.async: (raises: []).} =
   return concat(toSeq(self.relayAddresses.values)) & listenAddrs
 
 proc reserveAndUpdate(
     self: AutoRelayService, relayPid: PeerId, switch: Switch
-) {.async.} =
+) {.async: (raises: [CatchableError]).} =
+  # CatchableError used to simplify raised errors here, as there could be 
+  # many different errors raised but caller don't really care what is cause of error
   while self.running:
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
@@ -58,20 +60,26 @@ proc reserveAndUpdate(
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
-method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
+method setup*(
+    self: AutoRelayService, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError]).} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
-  ): Future[seq[MultiAddress]] {.async.} =
+  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return await addressMapper(self, listenAddrs)
 
   let hasBeenSetUp = await procCall Service(self).setup(switch)
   if hasBeenSetUp:
-    proc handlePeerIdentified(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handlePeerIdentified(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
       trace "Peer Identified", peerId
       if self.relayPeers.len < self.maxNumRelays:
         self.peerAvailable.fire()
 
-    proc handlePeerLeft(peerId: PeerId, event: PeerEvent) {.async.} =
+    proc handlePeerLeft(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
       trace "Peer Left", peerId
       self.relayPeers.withValue(peerId, future):
         future[].cancel()
@@ -82,24 +90,31 @@ method setup*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
     await self.run(switch)
   return hasBeenSetUp
 
-proc manageBackedOff(self: AutoRelayService, pid: PeerId) {.async.} =
+proc manageBackedOff(
+    self: AutoRelayService, pid: PeerId
+) {.async: (raises: [CancelledError]).} =
   await sleepAsync(chronos.seconds(5))
   self.backingOff.keepItIf(it != pid)
   self.peerAvailable.fire()
 
-proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
+proc innerRun(
+    self: AutoRelayService, switch: Switch
+) {.async: (raises: [CancelledError]).} =
   while true:
     # Remove relayPeers that failed
     let peers = toSeq(self.relayPeers.keys())
     for k in peers:
-      if self.relayPeers[k].finished():
-        self.relayPeers.del(k)
-        self.relayAddresses.del(k)
-        if not self.onReservation.isNil():
-          self.onReservation(concat(toSeq(self.relayAddresses.values)))
-        # To avoid ddosing our peers in certain conditions
-        self.backingOff.add(k)
-        asyncSpawn self.manageBackedOff(k)
+      try:
+        if self.relayPeers[k].finished():
+          self.relayPeers.del(k)
+          self.relayAddresses.del(k)
+          if not self.onReservation.isNil():
+            self.onReservation(concat(toSeq(self.relayAddresses.values)))
+          # To avoid ddosing our peers in certain conditions
+          self.backingOff.add(k)
+          asyncSpawn self.manageBackedOff(k)
+      except KeyError:
+        raiseAssert "checked with in"
 
     # Get all connected relayPeers
     self.peerAvailable.clear()
@@ -116,18 +131,25 @@ proc innerRun(self: AutoRelayService, switch: Switch) {.async.} =
       self.relayPeers[relayPid] = self.reserveAndUpdate(relayPid, switch)
 
     if self.relayPeers.len() > 0:
-      await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
+      try:
+        await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
+      except ValueError:
+        raiseAssert "checked with relayPeers.len()"
     else:
       await self.peerAvailable.wait()
 
-method run*(self: AutoRelayService, switch: Switch) {.async.} =
+method run*(
+    self: AutoRelayService, switch: Switch
+) {.async: (raises: [CancelledError]).} =
   if self.running:
     trace "Autorelay is already running"
     return
   self.running = true
   self.runner = self.innerRun(switch)
 
-method stop*(self: AutoRelayService, switch: Switch): Future[bool] {.async.} =
+method stop*(
+    self: AutoRelayService, switch: Switch
+): Future[bool] {.public, async: (raises: [CancelledError]).} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     self.running = false

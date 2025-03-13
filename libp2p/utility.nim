@@ -14,6 +14,7 @@ import stew/[byteutils, results]
 
 export results
 
+## public pragma is marker of "public" api subject to stronger stability guarantees.
 template public*() {.pragma.}
 
 const ShortDumpMax = 12
@@ -59,7 +60,8 @@ when defined(libp2p_agents_metrics):
     KnownLibP2PAgents* {.strdefine.} = "nim-libp2p"
     KnownLibP2PAgentsSeq* = KnownLibP2PAgents.safeToLowerAscii().tryGet().split(",")
 
-template safeConvert*[T: SomeInteger, S: Ordinal](value: S): T =
+proc safeConvert*[T: SomeInteger](value: SomeOrdinal): T =
+  type S = typeof(value)
   ## Converts `value` from S to `T` iff `value` is guaranteed to be preserved.
   when int64(T.low) <= int64(S.low()) and uint64(T.high) >= uint64(S.high):
     T(value)
@@ -69,23 +71,6 @@ template safeConvert*[T: SomeInteger, S: Ordinal](value: S): T =
 proc capLen*[T](s: var seq[T], length: Natural) =
   if s.len > length:
     s.setLen(length)
-
-template exceptionToAssert*(body: untyped): untyped =
-  block:
-    var res: type(body)
-    when defined(nimHasWarnBareExcept):
-      {.push warning[BareExcept]: off.}
-    try:
-      res = body
-    except CatchableError as exc:
-      raise exc
-    except Defect as exc:
-      raise exc
-    except Exception as exc:
-      raiseAssert exc.msg
-    when defined(nimHasWarnBareExcept):
-      {.pop.}
-    res
 
 template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped =
   ## This template provides a convenient way to work with `Option` types in Nim.
@@ -148,3 +133,11 @@ template exclIfIt*[T](set: var HashSet[T], condition: untyped) =
       if condition:
         toExcl.incl(it)
     set.excl(toExcl)
+
+template filterIt*[T](set: HashSet[T], condition: untyped): HashSet[T] =
+  var filtered = HashSet[T]()
+  if set.len != 0:
+    for it {.inject.} in set:
+      if condition:
+        filtered.incl(it)
+  filtered

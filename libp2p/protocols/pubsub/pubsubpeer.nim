@@ -64,6 +64,8 @@ const DefaultMaxNumElementsInNonPriorityQueue* = 1024
 type
   PeerRateLimitError* = object of CatchableError
 
+  GetConnDialError* = object of CatchableError
+
   PubSubObserver* = ref object
     onRecv*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
     onSend*: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
@@ -79,7 +81,8 @@ type
   PubSubPeerEvent* = object
     kind*: PubSubPeerEventKind
 
-  GetConn* = proc(): Future[Connection] {.gcsafe, raises: [].}
+  GetConn* =
+    proc(): Future[Connection] {.async: (raises: [CancelledError, GetConnDialError]).}
   DropConn* = proc(peer: PubSubPeer) {.gcsafe, raises: [].}
     # have to pass peer as it's unknown during init
   OnEvent* = proc(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe, raises: [].}
@@ -122,7 +125,7 @@ type
     disconnected: bool
 
   RPCHandler* =
-    proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.gcsafe, raises: [].}
+    proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.async: (raises: []).}
 
 when defined(libp2p_agents_metrics):
   func shortAgent*(p: PubSubPeer): string =
@@ -190,7 +193,7 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
         if not (isNil(obs.onSend)):
           obs.onSend(p, msg)
 
-proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
+proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
   debug "starting pubsub read loop", conn, peer = p, closed = conn.closed
   try:
     try:
@@ -205,23 +208,22 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async.} =
         data = newSeq[byte]() # Release memory
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
-        conn, peer = p, error = exc.msg
-    except CatchableError as exc:
+        conn, peer = p, description = exc.msg
+    except LPStreamError as exc:
       debug "Exception occurred in PubSubPeer.handle",
-        conn, peer = p, closed = conn.closed, exc = exc.msg
+        conn, peer = p, closed = conn.closed, description = exc.msg
     finally:
       await conn.close()
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
     trace "Unexpected cancellation in PubSubPeer.handle"
-  except CatchableError as exc:
-    trace "Exception occurred in PubSubPeer.handle",
-      conn, peer = p, closed = conn.closed, exc = exc.msg
   finally:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
 
-proc closeSendConn(p: PubSubPeer, event: PubSubPeerEventKind) {.async.} =
+proc closeSendConn(
+    p: PubSubPeer, event: PubSubPeerEventKind
+) {.async: (raises: [CancelledError]).} =
   if p.sendConn != nil:
     trace "Removing send connection", p, conn = p.sendConn
     await p.sendConn.close()
@@ -235,17 +237,20 @@ proc closeSendConn(p: PubSubPeer, event: PubSubPeerEventKind) {.async.} =
       p.onEvent(p, PubSubPeerEvent(kind: event))
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
-    debug "Errors during diconnection events", error = exc.msg
   # don't cleanup p.address else we leak some gossip stat table
 
-proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
+proc connectOnce(
+    p: PubSubPeer
+): Future[void] {.async: (raises: [CancelledError, GetConnDialError, LPError]).} =
   try:
     if p.connectedFut.finished:
       p.connectedFut = newFuture[void]()
-    let newConn = await p.getConn().wait(5.seconds)
-    if newConn.isNil:
-      raise (ref LPError)(msg: "Cannot establish send connection")
+    let newConn =
+      try:
+        await p.getConn().wait(5.seconds)
+      except AsyncTimeoutError as error:
+        trace "getConn timed out", description = error.msg
+        raise (ref LPError)(msg: "Cannot establish send connection")
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
@@ -271,7 +276,7 @@ proc connectOnce(p: PubSubPeer): Future[void] {.async.} =
   finally:
     await p.closeSendConn(PubSubPeerEventKind.StreamClosed)
 
-proc connectImpl(p: PubSubPeer) {.async.} =
+proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
   try:
     # Keep trying to establish a connection while it's possible to do so - the
     # send connection might get disconnected due to a timeout or an unrelated
@@ -282,8 +287,12 @@ proc connectImpl(p: PubSubPeer) {.async.} =
           p.connectedFut.complete()
         return
       await connectOnce(p)
-  except CatchableError as exc: # never cancelled
-    debug "Could not establish send connection", msg = exc.msg
+  except CancelledError as exc:
+    debug "Could not establish send connection", description = exc.msg
+  except LPError as exc:
+    debug "Could not establish send connection", description = exc.msg
+  except GetConnDialError as exc:
+    debug "Could not establish send connection", description = exc.msg
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
@@ -317,7 +326,7 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
-proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
+proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
   # Continuation for a pending `sendMsg` future from below
   try:
     await msgFut
@@ -325,13 +334,13 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async.} =
   except CatchableError as exc: # never cancelled
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, msg = exc.msg
+    trace "Unable to send to remote", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
 
     await conn.close() # This will clean up the send connection
 
-proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
+proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledError]).} =
   # Slow path of `sendMsg` where msg is held in memory while send connection is
   # being set up
   if p.sendConn == nil:
@@ -341,13 +350,13 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async.} =
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection", p, msg = shortLog(msg)
+    debug "No send connection", p, payload = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
   await sendMsgContinue(conn, conn.writeLp(msg))
 
-proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] =
+proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] {.async: (raises: []).} =
   if p.sendConn != nil and not p.sendConn.closed():
     # Fast path that avoids copying msg (which happens for {.async.})
     let conn = p.sendConn
@@ -383,7 +392,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
     ) == 0
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, msg = shortLog(msg)
+    debug "empty message, skipping", p, payload = shortLog(msg)
     Future[void].completed()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub",
@@ -493,7 +502,7 @@ proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
       return true
   return false
 
-proc sendNonPriorityTask(p: PubSubPeer) {.async.} =
+proc sendNonPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).} =
   while true:
     # we send non-priority messages only if there are no pending priority messages
     let msg = await p.rpcmessagequeue.nonPriorityQueue.popFirst()

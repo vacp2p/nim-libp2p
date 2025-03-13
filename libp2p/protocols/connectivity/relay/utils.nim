@@ -22,12 +22,17 @@ const
 
 proc sendStatus*(
     conn: Connection, code: StatusV1
-) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+) {.async: (raises: [CancelledError]).} =
   trace "send relay/v1 status", status = $code & "(" & $ord(code) & ")"
-  let
-    msg = RelayMessage(msgType: Opt.some(RelayType.Status), status: Opt.some(code))
-    pb = encode(msg)
-  conn.writeLp(pb.buffer)
+  try:
+    let
+      msg = RelayMessage(msgType: Opt.some(RelayType.Status), status: Opt.some(code))
+      pb = encode(msg)
+    await conn.writeLp(pb.buffer)
+  except CancelledError as e:
+    raise e
+  except LPStreamError as e:
+    trace "error sending relay status", description = e.msg
 
 proc sendHopStatus*(
     conn: Connection, code: StatusV2
@@ -87,7 +92,7 @@ proc bridge*(
       trace "relay src closed connection", src = connSrc.peerId
     if connDst.closed() or connDst.atEof():
       trace "relay dst closed connection", dst = connDst.peerId
-    trace "relay error", exc = exc.msg
+    trace "relay error", description = exc.msg
   trace "end relaying", bytesSentFromSrcToDst, bytesSentFromDstToSrc
   await futSrc.cancelAndWait()
   await futDst.cancelAndWait()

@@ -17,7 +17,9 @@ export results
 const DefaultMaxIncomingStreams* = 10
 
 type
-  LPProtoHandler* = proc(conn: Connection, proto: string): Future[void] {.async.}
+  LPProtoHandler* = proc(conn: Connection, proto: string): Future[void] {.
+    async: (raises: [CancelledError])
+  .}
 
   LPProtocol* = ref object of RootObj
     codecs*: seq[string]
@@ -28,13 +30,13 @@ type
 method init*(p: LPProtocol) {.base, gcsafe.} =
   discard
 
-method start*(p: LPProtocol) {.async: (raises: [CancelledError], raw: true), base.} =
+method start*(p: LPProtocol) {.base, async: (raises: [CancelledError], raw: true).} =
   let fut = newFuture[void]()
   fut.complete()
   p.started = true
   fut
 
-method stop*(p: LPProtocol) {.async: (raises: [], raw: true), base.} =
+method stop*(p: LPProtocol) {.base, async: (raises: [], raw: true).} =
   let fut = newFuture[void]()
   fut.complete()
   p.started = false
@@ -73,7 +75,7 @@ func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
 func `handler=`*[E](
     p: LPProtocol,
     handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
-) =
+) {.deprecated: "Use `LPProtoHandler` that explicitly specifies raised exceptions.".} =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)
 
@@ -92,8 +94,7 @@ proc new*(
       when maxIncomingStreams is int:
         Opt.some(maxIncomingStreams)
       else:
-        maxIncomingStreams
-    ,
+        maxIncomingStreams,
   )
 
 proc new*[E](
@@ -101,7 +102,10 @@ proc new*[E](
     codecs: seq[string],
     handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
     maxIncomingStreams: Opt[int] | int = Opt.none(int),
-): T =
+): T {.
+    deprecated:
+      "Use `new` with `LPProtoHandler` that explicitly specifies raised exceptions."
+.} =
   proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
     await handler(conn, proto)
 

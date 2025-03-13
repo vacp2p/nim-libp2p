@@ -23,7 +23,9 @@ type
 
 proc `==`*(a, b: RdvNamespace): bool {.borrow.}
 
-method request*(self: RendezVousInterface, pa: PeerAttributes) {.async.} =
+method request*(
+    self: RendezVousInterface, pa: PeerAttributes
+) {.async: (raises: [DiscoveryError, CancelledError]).} =
   var namespace = ""
   for attr in pa:
     if attr.ofType(RdvNamespace):
@@ -48,7 +50,9 @@ method request*(self: RendezVousInterface, pa: PeerAttributes) {.async.} =
 
     await sleepAsync(self.timeToRequest)
 
-method advertise*(self: RendezVousInterface) {.async.} =
+method advertise*(
+    self: RendezVousInterface
+) {.async: (raises: [CancelledError, AdvertiseError]).} =
   while true:
     var toAdvertise: seq[string]
     for attr in self.toAdvertise:
@@ -64,7 +68,7 @@ method advertise*(self: RendezVousInterface) {.async.} =
       try:
         await self.rdv.advertise(toAdv, self.ttl)
       except CatchableError as error:
-        debug "RendezVous advertise error: ", msg = error.msg
+        debug "RendezVous advertise error: ", description = error.msg
 
     await sleepAsync(self.timeToAdvertise) or self.advertisementUpdated.wait()
 

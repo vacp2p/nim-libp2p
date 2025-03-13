@@ -40,14 +40,22 @@ proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
 
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
-  autonatProtocol.handler = proc(conn: Connection, proto: string) {.async.} =
-    discard await conn.readLp(1024)
-    await conn.writeLp(
-      AutonatDialResponse(
-        status: DialError, text: Opt.some("dial failed"), ma: Opt.none(MultiAddress)
-      ).encode().buffer
-    )
-    await conn.close()
+  autonatProtocol.handler = proc(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
+    try:
+      discard await conn.readLp(1024)
+      await conn.writeLp(
+        AutonatDialResponse(
+          status: DialError, text: Opt.some("dial failed"), ma: Opt.none(MultiAddress)
+        ).encode().buffer
+      )
+    except CancelledError as e:
+      raise e
+    except CatchableError:
+      check false # should not be here
+    finally:
+      await conn.close()
   autonatProtocol.codec = AutonatCodec
   result = newStandardSwitch()
   result.mount(autonatProtocol)

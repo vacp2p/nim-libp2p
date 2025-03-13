@@ -32,7 +32,9 @@ type Autonat* = ref object of LPProtocol
   switch*: Switch
   dialTimeout: Duration
 
-proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.} =
+proc sendDial(
+    conn: Connection, pid: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: [LPStreamError, CancelledError]).} =
   let pb = AutonatDial(
     peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
   ).encode()
@@ -40,28 +42,37 @@ proc sendDial(conn: Connection, pid: PeerId, addrs: seq[MultiAddress]) {.async.}
 
 proc sendResponseError(
     conn: Connection, status: ResponseStatus, text: string = ""
-) {.async.} =
+) {.async: (raises: [CancelledError]).} =
   let pb = AutonatDialResponse(
     status: status,
     text:
       if text == "":
         Opt.none(string)
       else:
-        Opt.some(text)
-    ,
+        Opt.some(text),
     ma: Opt.none(MultiAddress),
   ).encode()
-  await conn.writeLp(pb.buffer)
+  try:
+    await conn.writeLp(pb.buffer)
+  except LPStreamError as exc:
+    trace "autonat failed to send response error", description = exc.msg, conn
 
-proc sendResponseOk(conn: Connection, ma: MultiAddress) {.async.} =
+proc sendResponseOk(
+    conn: Connection, ma: MultiAddress
+) {.async: (raises: [CancelledError]).} =
   let pb = AutonatDialResponse(
     status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
   ).encode()
-  await conn.writeLp(pb.buffer)
+  try:
+    await conn.writeLp(pb.buffer)
+  except LPStreamError as exc:
+    trace "autonat failed to send response ok", description = exc.msg, conn
 
-proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.async.} =
+proc tryDial(
+    autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]
+) {.async: (raises: [DialFailedError, CancelledError]).} =
   await autonat.sem.acquire()
-  var futs: seq[Future[Opt[MultiAddress]]]
+  var futs: seq[Future[Opt[MultiAddress]].Raising([DialFailedError, CancelledError])]
   try:
     # This is to bypass the per peer max connections limit
     let outgoingConnection =
@@ -72,7 +83,8 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
       return
     # Safer to always try to cancel cause we aren't sure if the connection was established
     defer:
-      outgoingConnection.cancel()
+      outgoingConnection.cancelSoon()
+
     # tryDial is to bypass the global max connections limit
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(conn.peerId, @[it]))
     let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
@@ -84,14 +96,11 @@ proc tryDial(autonat: Autonat, conn: Connection, addrs: seq[MultiAddress]) {.asy
   except CancelledError as exc:
     raise exc
   except AllFuturesFailedError as exc:
-    debug "All dial attempts failed", addrs, exc = exc.msg
+    debug "All dial attempts failed", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
-    debug "Dial timeout", addrs, exc = exc.msg
+    debug "Dial timeout", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "Dial timeout")
-  except CatchableError as exc:
-    debug "Unexpected error", addrs, exc = exc.msg
-    await conn.sendResponseError(DialError, "Unexpected error")
   finally:
     autonat.sem.release()
     for f in futs:
@@ -155,7 +164,9 @@ proc new*(
 ): T =
   let autonat =
     T(switch: switch, sem: newAsyncSemaphore(semSize), dialTimeout: dialTimeout)
-  proc handleStream(conn: Connection, proto: string) {.async.} =
+  proc handleStream(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     try:
       let msg = AutonatMsg.decode(await conn.readLp(1024)).valueOr:
         raise newException(AutonatError, "Received malformed message")
@@ -163,9 +174,10 @@ proc new*(
         raise newException(AutonatError, "Message type should be dial")
       await autonat.handleDial(conn, msg)
     except CancelledError as exc:
+      trace "cancelled autonat handler"
       raise exc
     except CatchableError as exc:
-      debug "exception in autonat handler", exc = exc.msg, conn
+      debug "exception in autonat handler", description = exc.msg, conn
     finally:
       trace "exiting autonat handler", conn
       await conn.close()

@@ -152,21 +152,26 @@ proc draw(g: Game) =
 ## peer know that we are available, check that he is also available,
 ## and launch the game.
 proc new(T: typedesc[GameProto], g: Game): T =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     defer:
       await conn.closeWithEof()
-    if g.peerFound.finished or g.hasCandidate:
-      await conn.close()
-      return
-    g.hasCandidate = true
-    await conn.writeLp("ok")
-    if "ok" != string.fromBytes(await conn.readLp(1024)):
-      g.hasCandidate = false
-      return
-    g.peerFound.complete(conn)
-    # The handler of a protocol must wait for the stream to
-    # be finished before returning
-    await conn.join()
+    try:
+      if g.peerFound.finished or g.hasCandidate:
+        await conn.close()
+        return
+      g.hasCandidate = true
+      await conn.writeLp("ok")
+      if "ok" != string.fromBytes(await conn.readLp(1024)):
+        g.hasCandidate = false
+        return
+      g.peerFound.complete(conn)
+      # The handler of a protocol must wait for the stream to
+      # be finished before returning
+      await conn.join()
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
 
   return T.new(codecs = @["/tron/1.0.0"], handler = handle)
 
@@ -214,8 +219,7 @@ proc networking(g: Game) {.async.} =
         # We are "player 2"
         swap(g.localPlayer, g.remotePlayer)
       except CatchableError as exc:
-        discard
-    ,
+        discard,
   )
 
   await switch.start()
@@ -268,14 +272,11 @@ nico.init("Status", "Tron")
 nico.createWindow("Tron", mapSize * 4, mapSize * 4, 4, false)
 nico.run(
   proc() =
-    discard
-  ,
+    discard,
   proc(dt: float32) =
-    game.update(dt)
-  ,
+    game.update(dt),
   proc() =
-    game.draw()
-  ,
+    game.draw(),
 )
 waitFor(netFut.cancelAndWait())
 

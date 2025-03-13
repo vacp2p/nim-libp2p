@@ -303,15 +303,14 @@ proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] {.inline.} =
   if ?pb.getRepeatedField(2, msgpbs):
     trace "decodeMessages: read messages", count = len(msgpbs)
     for item in msgpbs:
-      # size is constrained at the network level
-      msgs.add(?decodeMessage(initProtoBuffer(item, maxSize = uint.high)))
+      msgs.add(?decodeMessage(initProtoBuffer(item)))
   else:
     trace "decodeMessages: no messages found"
   ok(msgs)
 
 proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
-  trace "encodeRpcMsg: encoding message", msg = msg.shortLog()
-  var pb = initProtoBuffer(maxSize = uint.high)
+  trace "encodeRpcMsg: encoding message", payload = msg.shortLog()
+  var pb = initProtoBuffer()
   for item in msg.subscriptions:
     pb.write(1, item)
   for item in msg.messages:
@@ -329,8 +328,8 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   pb.buffer
 
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
-  trace "decodeRpcMsg: decoding message", msg = msg.shortLog()
-  var pb = initProtoBuffer(msg, maxSize = uint.high)
+  trace "decodeRpcMsg: decoding message", payload = msg.shortLog()
+  var pb = initProtoBuffer(msg)
   var rpcMsg = RPCMsg()
   assign(rpcMsg.messages, ?pb.decodeMessages())
   assign(rpcMsg.subscriptions, ?pb.decodeSubscriptions())

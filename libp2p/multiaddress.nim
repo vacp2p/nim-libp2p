@@ -12,7 +12,7 @@
 {.push raises: [].}
 {.push public.}
 
-import pkg/chronos, chronicles
+import pkg/[chronos, chronicles, results]
 import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
@@ -25,8 +25,8 @@ import
   protobuf/minprotobuf,
   errors,
   utility
-import stew/[base58, base32, endians2, results]
-export results, minprotobuf, vbuffer, utility
+import stew/[base58, base32, endians2]
+export results, vbuffer, errors, utility
 
 logScope:
   topics = "libp2p multiaddress"
@@ -70,6 +70,9 @@ type
   IpTransportProtocol* = enum
     tcpProtocol
     udpProtocol
+
+func maErr*(msg: string): ref MaError =
+  (ref MaError)(msg: msg)
 
 const
   # These are needed in order to avoid an ambiguity error stemming from
@@ -408,7 +411,12 @@ const
   UDP_IP* = mapAnd(IP, mapEq("udp"))
   UDP* = mapOr(UDP_DNS, UDP_IP)
   UTP* = mapAnd(UDP, mapEq("utp"))
-  QUIC* = mapAnd(UDP, mapEq("quic"))
+  QUIC_IP* = mapAnd(UDP_IP, mapEq("quic"))
+  QUIC_DNS* = mapAnd(UDP_DNS, mapEq("quic"))
+  QUIC* = mapOr(QUIC_DNS, QUIC_IP)
+  QUIC_V1_IP* = mapAnd(UDP_IP, mapEq("quic-v1"))
+  QUIC_V1_DNS* = mapAnd(UDP_DNS, mapEq("quic-v1"))
+  QUIC_V1* = mapOr(QUIC_V1_DNS, QUIC_V1_IP)
   UNIX* = mapEq("unix")
   WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
   WS_IP* = mapAnd(TCP_IP, mapEq("ws"))
@@ -970,23 +978,21 @@ proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
   else:
     ok()
 
-proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [LPError].} =
+proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  ##
+  concat(m1, m2).valueOr:
+    raise maErr error
 
-  concat(m1, m2).tryGet()
-
-proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [LPError].} =
+proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  ##
-
-  m1.append(m2).tryGet()
+  m1.append(m2).isOkOr:
+    raise maErr error
 
 proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
   ## Check of two MultiAddress are equal
