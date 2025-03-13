@@ -359,8 +359,16 @@ const HashesList* = [
   MHash(mcodec: multiCodec("blake2s-240"), size: 30, coder: blake2Shash),
   MHash(mcodec: multiCodec("blake2s-248"), size: 31, coder: blake2Shash),
   MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash),
-  MHash(mcodec: multiCodec("poseidon2-alt_bn_128-sponge-r2"), size: 32, coder: poseidon2_sponge_rate2),
-  MHash(mcodec: multiCodec("poseidon2-alt_bn_128-merkle-2kb"), size: 32, coder: poseidon2_merkle_2kb_sponge)
+  MHash(
+    mcodec: multiCodec("poseidon2-alt_bn_128-sponge-r2"),
+    size: 32,
+    coder: poseidon2_sponge_rate2,
+  ),
+  MHash(
+    mcodec: multiCodec("poseidon2-alt_bn_128-merkle-2kb"),
+    size: 32,
+    coder: poseidon2_merkle_2kb_sponge,
+  ),
 ]
 
 proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
