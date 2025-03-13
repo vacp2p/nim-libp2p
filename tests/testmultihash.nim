@@ -78,7 +78,6 @@ const RustTestVectors = [
 ]
 
 suite "MultiHash test suite":
-
   template checkTestVector(vector) =
     var msg = vector[1]
     var bmsg = cast[seq[byte]](msg)
