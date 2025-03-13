@@ -84,7 +84,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .ci-bin
-          key: p2pd-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-4
+          key: p2pd-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-v0.9.1-5
 
       # For most platforms - use pre-built binaries
       - name: Download pre-built p2pd binary
@@ -172,21 +172,21 @@ jobs:
           # Create wrapper script - IMPORTANT to match expected behavior
           if [[ "${{ matrix.platform.os }}" == windows* ]]; then
             # Windows wrapper (batch file)
-            cat > .ci-bin/p2pd-wrapper.bat << 'EOF'
-            @echo off
-            echo Running p2pd: %*
-            "%~dp0p2pd.exe" %*
-            EOF
+            cat > .ci-bin/p2pd-wrapper.bat << EOF
+@echo off
+echo Running p2pd: %*
+"%~dp0p2pd.exe" %*
+EOF
             mv .ci-bin/p2pd-wrapper.bat .ci-bin/p2pd.bat
           else
             # Unix wrapper (bash script)
             mv .ci-bin/p2pd .ci-bin/p2pd.real
-            cat > .ci-bin/p2pd << 'EOF'
-            #!/bin/bash
-            # Wrapper script to ensure p2pd is called correctly
-            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            exec "$SCRIPT_DIR/p2pd.real" "$@"
-            EOF
+            cat > .ci-bin/p2pd << EOF
+#!/bin/bash
+# Wrapper script to ensure p2pd is called correctly
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+exec "\$SCRIPT_DIR/p2pd.real" "\$@"
+EOF
             chmod +x .ci-bin/p2pd
           fi
           
@@ -233,12 +233,12 @@ jobs:
           fi
           
           # Create a wrapper script
-          cat > .ci-bin/p2pd << 'EOF'
-          #!/bin/bash
-          # Wrapper script to ensure p2pd is called correctly
-          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-          exec "$SCRIPT_DIR/p2pd.real" "$@"
-          EOF
+          cat > .ci-bin/p2pd << EOF
+#!/bin/bash
+# Wrapper script to ensure p2pd is called correctly
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+exec "\$SCRIPT_DIR/p2pd.real" "\$@"
+EOF
           
           chmod +x .ci-bin/p2pd.real
           chmod +x .ci-bin/p2pd
