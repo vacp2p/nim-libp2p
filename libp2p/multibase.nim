@@ -386,7 +386,7 @@ proc initMultiBaseNameTable(): Table[string, MBCodec] {.compileTime.} =
 const
   CodeMultiBases = initMultiBaseCodeTable()
   NameMultiBases = initMultiBaseNameTable()
-  MultibaseList* = MultiBaseCodecs.mapIt( it.name )
+  MultibaseList* = MultiBaseCodecs.mapIt(it.name)
 
 proc encodedLength*(mbtype: typedesc[MultiBase], encoding: string, length: int): int =
   ## Return estimated size of buffer to store MultiBase encoded value with
