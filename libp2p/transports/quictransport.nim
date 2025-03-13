@@ -1,4 +1,4 @@
-import std/sequtils
+import std/[sequtils, sets]
 import pkg/chronos
 import pkg/chronicles
 import pkg/quic
@@ -25,6 +25,8 @@ type
   QuicConnection = quic.Connection
   QuicTransportError* = object of transport.TransportError
   QuicTransportDialError* = object of transport.TransportDialError
+
+const alpn = "libp2p"
 
 # Stream
 type QuicStream* = ref object of P2PConnection
@@ -137,7 +139,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
     await m.quicSession.close()
-    m.handleFut.cancel()
+    m.handleFut.cancelSoon()
   except CatchableError as exc:
     discard
 
@@ -153,11 +155,7 @@ type QuicTransport* = ref object of Transport
 func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
   try:
     let tlsConfig = TLSConfig.init()
-    return QuicTransport(
-      upgrader: QuicUpgrade(ms: u.ms),
-      privateKey: privateKey,
-      client: QuicClient.init(tlsConfig),
-    )
+    return QuicTransport(upgrader: QuicUpgrade(ms: u.ms), privateKey: privateKey)
   except QuicConfigError as exc:
     doAssert false, "invalid quic setup: " & $exc.msg
 
@@ -181,9 +179,9 @@ method start*(
   let certPair = generate(keypair, EncodingFormat.PEM)
 
   try:
-    let tlsConfig = TLSConfig.init(certPair[0], certPair[1])
-    let server = QuicServer.init(tlsConfig)
-    self.listener = server.listen(initTAddress(addrs[0]).tryGet)
+    let tlsConfig = TLSConfig.init(certPair[0], certPair[1], @[alpn])
+    self.client = QuicClient.init(tlsConfig)
+    self.listener = QuicServer.init(tlsConfig).listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
@@ -205,6 +203,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
       await transport.listener.stop()
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
+    transport.listener.destroy()
     transport.running = false
     transport.listener = nil
 

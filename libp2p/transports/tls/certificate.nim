@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sequtils, strutils, exitprocs]
+import std/[sequtils, exitprocs]
 
 import stew/byteutils
 import chronicles
@@ -25,7 +25,6 @@ import mbedtls/x509_crt
 import mbedtls/oid
 import mbedtls/debug
 import mbedtls/error
-import nimcrypto/utils
 import ../../crypto/crypto
 import ../../errors
 
@@ -222,17 +221,8 @@ proc makeLibp2pExtension(
   # Copy the public key DER into msg
   copyMem(addr msg[P2P_SIGNING_PREFIX.len], certPubKeyDerPtr, certPubKeyDerLen.int)
 
-  # Compute SHA-256 hash of the message
-  var hash: array[32, byte]
-  let hashRet = mbedtls_sha256(
-    msg[0].addr, msg.len.uint, addr hash[0], 0 # 0 for SHA-256
-  )
-  if hashRet != 0:
-    # Since hashing failure is critical and unlikely, we can raise a general exception
-    raise newException(TLSCertificateError, "Failed to compute SHA-256 hash")
-
   # Sign the hash with the Identity Key
-  let signatureResult = identityKeypair.seckey.sign(hash)
+  let signatureResult = identityKeypair.seckey.sign(msg)
   if signatureResult.isErr:
     raise newException(
       IdentitySigningError, "Failed to sign the hash with the identity key"
@@ -348,7 +338,7 @@ proc generate*(
   let oid = string.fromBytes(LIBP2P_EXT_OID_DER)
   ret = mbedtls_x509write_crt_set_extension(
     addr crt,
-    oid, # OID
+    oid.cstring, # OID
     oid.len.uint, # OID length
     0, # Critical flag
     unsafeAddr libp2pExtension[0], # Extension data
