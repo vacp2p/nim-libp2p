@@ -85,11 +85,9 @@ suite "Content identifier CID test suite":
     var msg = cast[seq[byte]]("Hello World!")
     for cidCodec in ContentIdsList:
       for mhashCodec in MultiHashCodecsList:
-        let
-          cid = Cid.init(
-            CidVersion.CIDv1,
-            cidCodec,
-            MultiHash.digest($mhashCodec, msg).get()).get()
+        let cid = Cid
+          .init(CidVersion.CIDv1, cidCodec, MultiHash.digest($mhashCodec, msg).get())
+          .get()
         check:
           cid.mcodec == cidCodec
           cid.mhash().get().mcodec == mhashCodec
