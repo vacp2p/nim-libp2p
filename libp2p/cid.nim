@@ -36,7 +36,7 @@ type
     hpos*: int
     data*: VBuffer
 
-const ContentIdsList = [
+const ContentIdsList* = [
   multiCodec("raw"),
   multiCodec("dag-pb"),
   multiCodec("dag-cbor"),
@@ -64,6 +64,12 @@ const ContentIdsList = [
   multiCodec("torrent-info"),
   multiCodec("torrent-file"),
   multiCodec("ed25519-pub"),
+  multiCodec("codex-root"),
+  multiCodec("codex-manifest"),
+  multiCodec("codex-block"),
+  multiCodec("codex-slot-root"),
+  multiCodec("codex-proving-root"),
+  multiCodec("codex-slot-cell"),
 ]
 
 proc initCidCodeTable(): Table[int, MultiCodec] {.compileTime.} =
