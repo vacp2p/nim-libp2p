@@ -96,7 +96,7 @@ method dialMe*(
     of ResponseStatus.Ok:
       try:
         response.ma.tryGet()
-      except:
+      except ResultError[void]:
         raiseAssert("checked with if")
     of ResponseStatus.DialError:
       raise newException(
