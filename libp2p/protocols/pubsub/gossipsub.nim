@@ -491,7 +491,12 @@ proc validateAndRelay(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    g.broadcast(
+      toSendPeers,
+      RPCMsg(messages: @[msg]),
+      isHighPriority = false,
+      useCustomConn = false,
+    )
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     if g.knownTopics.contains(topic):
@@ -692,7 +697,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
         )
       )
     )
-    g.broadcast(mpeers, msg, isHighPriority = true)
+    g.broadcast(mpeers, msg, isHighPriority = true, useCustomConn = false)
 
     for peer in mpeers:
       g.pruned(peer, topic, backoff = some(g.parameters.unsubscribeBackoff))
@@ -703,7 +708,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
 method publish*(
-    g: GossipSub, topic: string, data: seq[byte]
+    g: GossipSub, topic: string, data: seq[byte], useCustomConn: bool = false
 ): Future[int] {.async: (raises: []).} =
   logScope:
     topic
@@ -807,7 +812,9 @@ method publish*(
   if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
     g.sendIDontWant(msg, msgId, peers)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  g.broadcast(
+    peers, RPCMsg(messages: @[msg]), isHighPriority = true, useCustomConn = false
+  )
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
