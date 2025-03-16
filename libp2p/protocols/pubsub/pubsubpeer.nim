@@ -95,6 +95,10 @@ type
     # Task for processing non-priority message queue.
     sendNonPriorityTask: Future[void]
 
+  CustomConn* = proc(
+    destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+  ): Connection {.gcsafe, raises: [].}
+
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn # callback to establish a new send connection
     onEvent*: OnEvent # Connectivity updates for peer
@@ -123,6 +127,7 @@ type
     maxNumElementsInNonPriorityQueue*: int
       # The max number of elements allowed in the non-priority queue.
     disconnected: bool
+    customConn*: Option[CustomConn]
 
   RPCHandler* =
     proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.async: (raises: []).}
@@ -356,21 +361,34 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
   await sendMsgContinue(conn, conn.writeLp(msg))
 
-proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] {.async: (raises: []).} =
-  if p.sendConn != nil and not p.sendConn.closed():
-    # Fast path that avoids copying msg (which happens for {.async.})
-    let conn = p.sendConn
-
-    trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-    let f = conn.writeLp(msg)
-    if not f.completed():
-      sendMsgContinue(conn, f)
+proc sendMsg(
+    p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
+): Future[void] {.async: (raises: []).} =
+  let (conn, connType) =
+    if useCustomConn and p.customConn.isSome:
+      let address =
+        if p.address.isSome:
+          some(p.address.get)
+        else:
+          none(MultiAddress)
+      (p.customConn.get()(address, p.peerId, p.codec), "custom connection")
+    elif p.sendConn != nil and not p.sendConn.closed():
+      (p.sendConn, "send connection")
     else:
-      f
-  else:
-    sendMsgSlow(p, msg)
+      trace "sending encoded msg to peer via slow path"
+      return sendMsgSlow(p, msg)
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[void] =
+  trace "sending encoded msg to peer",
+    conntype = connType, conn = conn, encoded = shortLog(msg)
+  let f = conn.writeLp(msg)
+  if not f.completed():
+    sendMsgContinue(conn, f)
+  else:
+    f
+
+proc sendEncoded*(
+    p: PubSubPeer, msg: seq[byte], isHighPriority: bool, useCustomConn: bool
+): Future[void] =
   ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
   ##
   ## Parameters:
@@ -399,7 +417,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
       maxSize = p.maxMessageSize, msgSize = msg.len
     Future[void].completed()
   elif isHighPriority or emptyQueues:
-    let f = p.sendMsg(msg)
+    let f = p.sendMsg(msg, useCustomConn)
     if not f.finished:
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
       when defined(pubsubpeer_queue_metrics):
@@ -458,7 +476,11 @@ iterator splitRPCMsg(
     trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
 proc send*(
-    p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool
+    p: PubSubPeer,
+    msg: RPCMsg,
+    anonymize: bool,
+    isHighPriority: bool,
+    useCustomConn: bool,
 ) {.raises: [].} =
   ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
   ##
@@ -489,11 +511,11 @@ proc send*(
 
   if encoded.len > p.maxMessageSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
-      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority)
+      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority, useCustomConn)
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    asyncSpawn p.sendEncoded(encoded, isHighPriority)
+    asyncSpawn p.sendEncoded(encoded, isHighPriority, useCustomConn)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -552,6 +574,7 @@ proc new*(
     maxMessageSize: int,
     maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
+    customConn: Option[CustomConn] = none(CustomConn),
 ): T =
   result = T(
     getConn: getConn,
@@ -563,6 +586,7 @@ proc new*(
     overheadRateLimitOpt: overheadRateLimitOpt,
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    customConn: customConn,
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
