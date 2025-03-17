@@ -724,55 +724,68 @@ method publish*(
 
   var peers: HashSet[PubSubPeer]
 
-  # add always direct peers
-  peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
+  if useCustomConn:
+    if g.customConnCallbacks.isSome:
+      g.customConnCallbacks.get().peerSelectionCB(
+        g.gossipsub.getOrDefault(topic),
+        g.subscribedDirectPeers.getOrDefault(topic),
+        g.mesh.getOrDefault(topic),
+        g.fanout.getOrDefault(topic),
+      )
+    else:
+      trace "No custom connection callbacks provided, skipping publish"
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
+  else:
+    # add always direct peers
+    peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
-  if topic in g.topics: # if we're subscribed use the mesh
-    peers.incl(g.mesh.getOrDefault(topic))
+    if topic in g.topics: # if we're subscribed use the mesh
+      peers.incl(g.mesh.getOrDefault(topic))
 
-  if g.parameters.floodPublish:
-    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
-    # but a peer's own messages will always be published to all known peers in the topic, limited
-    # to the amount of peers we can send it to in one heartbeat
+    if g.parameters.floodPublish:
+      # With flood publishing enabled, the mesh is used when propagating messages from other peers,
+      # but a peer's own messages will always be published to all known peers in the topic, limited
+      # to the amount of peers we can send it to in one heartbeat
 
-    let maxPeersToFlood =
-      if g.parameters.bandwidthEstimatebps > 0:
-        let
-          bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000
-            # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
-          msToTransmit = max(data.len div bandwidth, 1)
-        max(
-          g.parameters.heartbeatInterval.milliseconds div msToTransmit,
-          g.parameters.dLow,
-        )
-      else:
-        int.high() # unlimited
+      let maxPeersToFlood =
+        if g.parameters.bandwidthEstimatebps > 0:
+          let
+            bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000
+              # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
+            msToTransmit = max(data.len div bandwidth, 1)
+          max(
+            g.parameters.heartbeatInterval.milliseconds div msToTransmit,
+            g.parameters.dLow,
+          )
+        else:
+          int.high() # unlimited
 
-    for peer in g.gossipsub.getOrDefault(topic):
-      if peers.len >= maxPeersToFlood:
-        break
+      for peer in g.gossipsub.getOrDefault(topic):
+        if peers.len >= maxPeersToFlood:
+          break
 
-      if peer.score >= g.parameters.publishThreshold:
-        trace "publish: including flood/high score peer", peer
-        peers.incl(peer)
-  elif peers.len < g.parameters.dLow:
-    # not subscribed or bad mesh, send to fanout peers
-    # when flood-publishing, fanout won't help since all potential peers have
-    # already been added
+        if peer.score >= g.parameters.publishThreshold:
+          trace "publish: including flood/high score peer", peer
+          peers.incl(peer)
+    elif peers.len < g.parameters.dLow:
+      # not subscribed or bad mesh, send to fanout peers
+      # when flood-publishing, fanout won't help since all potential peers have
+      # already been added
 
-    g.replenishFanout(topic) # Make sure fanout is populated
+      g.replenishFanout(topic) # Make sure fanout is populated
 
-    var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-    g.rng.shuffle(fanoutPeers)
+      var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+      g.rng.shuffle(fanoutPeers)
 
-    for fanPeer in fanoutPeers:
-      peers.incl(fanPeer)
-      if peers.len > g.parameters.d:
-        break
+      for fanPeer in fanoutPeers:
+        peers.incl(fanPeer)
+        if peers.len > g.parameters.d:
+          break
 
-    # Attempting to publish counts as fanout send (even if the message
-    # ultimately is not sent)
-    g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
+      # Attempting to publish counts as fanout send (even if the message
+      # ultimately is not sent)
+      g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
