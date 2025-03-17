@@ -30,9 +30,11 @@ import poseidon2
 import varint, vbuffer, multicodec, multibase
 import stew/base58
 import stew/results
+import blscurve/bls_public_exports
+
 export results
 # This is workaround for Nim `import` bug.
-export sha, sha2, keccak, blake2, hash, utils
+export sha, sha2, keccak, blake2, hash, utils, bls_public_exports
 
 const
   MaxHashSize* = 128
@@ -111,13 +113,9 @@ proc blake2Shash(data: openArray[byte], output: var openArray[byte]) =
 
 proc sha2_256hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
-    var digest = sha256.digest(data)
-    var length =
-      if sha256.sizeDigest > len(output):
-        len(output)
-      else:
-        sha256.sizeDigest
-    copyMem(addr output[0], addr digest.data[0], length)
+    var digest: array[32, byte]
+    digest.bls_sha256_digest(data)
+    copyMem(addr output[0], addr digest[0], 32)
 
 proc sha2_512hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
