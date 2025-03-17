@@ -95,9 +95,16 @@ type
     # Task for processing non-priority message queue.
     sendNonPriorityTask: Future[void]
 
-  CustomConn* = proc(
-    destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
-  ): Connection {.gcsafe, raises: [].}
+  CustomConnectionCallbacks* = object
+    customConnCreationCB*: proc(
+      destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+    ): Connection {.gcsafe, raises: [].}
+    peerSelectionCB*: proc(
+      allPeers: HashSet[PubSubPeer],
+      directPeers: HashSet[PubSubPeer],
+      meshPeers: HashSet[PubSubPeer],
+      fanoutPeers: HashSet[PubSubPeer],
+    ): HashSet[PubSubPeer]
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn # callback to establish a new send connection
@@ -127,7 +134,7 @@ type
     maxNumElementsInNonPriorityQueue*: int
       # The max number of elements allowed in the non-priority queue.
     disconnected: bool
-    customConn*: Option[CustomConn]
+    customConnCallbacks*: Option[CustomConnectionCallbacks]
 
   RPCHandler* =
     proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.async: (raises: []).}
@@ -365,13 +372,16 @@ proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
 ): Future[void] {.async: (raises: []).} =
   let (conn, connType) =
-    if useCustomConn and p.customConn.isSome:
+    if useCustomConn and p.customConnCallbacks.isSome:
       let address =
         if p.address.isSome:
           some(p.address.get)
         else:
           none(MultiAddress)
-      (p.customConn.get()(address, p.peerId, p.codec), "custom connection")
+      (
+        p.customConnCallbacks.get().customConnCreationCB(address, p.peerId, p.codec),
+        "custom connection",
+      )
     elif p.sendConn != nil and not p.sendConn.closed():
       (p.sendConn, "send connection")
     else:
@@ -574,7 +584,8 @@ proc new*(
     maxMessageSize: int,
     maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
-    customConn: Option[CustomConn] = none(CustomConn),
+    customConnCallbacks: Option[CustomConnectionCallbacks] =
+      none(CustomConnectionCallbacks),
 ): T =
   result = T(
     getConn: getConn,
@@ -586,7 +597,7 @@ proc new*(
     overheadRateLimitOpt: overheadRateLimitOpt,
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
-    customConn: customConn,
+    customConnCallbacks: customConnCallbacks,
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
