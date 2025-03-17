@@ -104,7 +104,7 @@ type
       directPeers: HashSet[PubSubPeer],
       meshPeers: HashSet[PubSubPeer],
       fanoutPeers: HashSet[PubSubPeer],
-    ): HashSet[PubSubPeer]
+    ): HashSet[PubSubPeer] {.gcsafe, raises: [].}
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn # callback to establish a new send connection
