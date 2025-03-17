@@ -726,11 +726,13 @@ method publish*(
 
   if useCustomConn:
     if g.customConnCallbacks.isSome:
-      g.customConnCallbacks.get().peerSelectionCB(
-        g.gossipsub.getOrDefault(topic),
-        g.subscribedDirectPeers.getOrDefault(topic),
-        g.mesh.getOrDefault(topic),
-        g.fanout.getOrDefault(topic),
+      peers.incl(
+        g.customConnCallbacks.get().peerSelectionCB(
+          g.gossipsub.getOrDefault(topic),
+          g.subscribedDirectPeers.getOrDefault(topic),
+          g.mesh.getOrDefault(topic),
+          g.fanout.getOrDefault(topic),
+        )
       )
     else:
       trace "No custom connection callbacks provided, skipping publish"
