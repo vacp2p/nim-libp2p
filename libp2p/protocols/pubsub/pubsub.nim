@@ -677,7 +677,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
-        customConnectionCallbacks: customConnectionCallbacks,
+        customConnCallbacks: customConnCallbacks,
       )
     else:
       P(
@@ -693,7 +693,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
-        customConnectionCallbacks: customConnectionCallbacks,
+        customConnCallbacks: customConnCallbacks,
       )
 
   proc peerEventHandler(
