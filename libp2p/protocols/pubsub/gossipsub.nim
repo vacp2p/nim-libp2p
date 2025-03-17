@@ -813,7 +813,10 @@ method publish*(
     g.sendIDontWant(msg, msgId, peers)
 
   g.broadcast(
-    peers, RPCMsg(messages: @[msg]), isHighPriority = true, useCustomConn = false
+    peers,
+    RPCMsg(messages: @[msg]),
+    isHighPriority = true,
+    useCustomConn = useCustomConn,
   )
 
   if g.knownTopics.contains(topic):
