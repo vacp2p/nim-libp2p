@@ -93,8 +93,8 @@ proc serveThread(udata: CustomData) {.async.} =
           pending.add(item.write(msg))
         if len(pending) > 0:
           var results = await all(pending)
-    except:
-      echo getCurrentException().msg
+    except CatchableError as err:
+      echo err.msg
 
 proc main() {.async.} =
   var data = new CustomData

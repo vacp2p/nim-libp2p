@@ -156,7 +156,6 @@ jobs:
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          source .venv/bin/activate
           nimble install_pinned
 
       - name: Use gcc 14
