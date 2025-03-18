@@ -552,20 +552,6 @@ proc libp2pext(
 
   return 0 # Success
 
-proc parseRaw*(
-    certificate: seq[byte]
-): P2pCertificate {.raises: [CertificateParsingError].} =
-  var crt: mbedtls_x509_crt
-  mbedtls_x509_crt_init(addr crt)
-  defer:
-    mbedtls_x509_crt_free(addr crt)
-
-  let ret =
-    mbedtls_x509_crt_parse(addr crt, unsafeAddr certificate[0], certificate.len.uint)
-  if ret != 0:
-    raise newException(
-      CertificateParsingError, "Failed to parse certificate, error code: " & $ret
-    )
 
 proc parse*(
     certificateDer: seq[byte]
