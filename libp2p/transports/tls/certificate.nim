@@ -201,11 +201,9 @@ func parseCertificatePublicKey(pk: mbedtls_pk_context): seq[byte] =
   ## Parses public key from certificate encoded in DER format.
   ## 
 
-  var
-    certPubKeyDer: array[512, byte]
-    certPubKeyDerLen: cint
+  var certPubKeyDer: array[512, byte]
 
-  certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
+  let certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
     unsafeAddr pk, addr certPubKeyDer[0], certPubKeyDer.len.uint
   )
   if certPubKeyDerLen < 0:
