@@ -251,7 +251,6 @@ proc makeLibp2pExtension(
   ## - `IdentitySigningError` if signing the hash fails.
   ## - `ASN1EncodingError` if ASN.1 encoding fails.
 
-  # Serialize the Certificate's Public Key
   let cerPubKeyDer = parseCertificatePublicKey(certificateKeypair)
   let msg = makeSignatureMessage(cerPubKeyDer)
   let hash = hashSignatureMessage(msg)
@@ -551,7 +550,6 @@ proc libp2pext(
   extension[].signature = signature
 
   return 0 # Success
-
 
 proc parse*(
     certificateDer: seq[byte]
