@@ -575,7 +575,7 @@ suite "GossipSub":
         checkUntilTimeout(
           try:
             gossip2.validationSeen[msgId].len > 0
-          except:
+          except KeyError:
             false
         )
         result = ValidationResult.Accept

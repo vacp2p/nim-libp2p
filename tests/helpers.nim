@@ -47,7 +47,7 @@ template checkTrackers*() =
     {.push warning[BareExcept]: off.}
   try:
     GC_fullCollect()
-  except:
+  except CatchableError:
     discard
   when defined(nimHasWarnBareExcept):
     {.pop.}
