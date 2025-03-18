@@ -575,9 +575,10 @@ proc parse*(
   )
   if certPubKeyDerLen < 0:
     raise newException(
-      CertificateParsingError, "Failed to parse certificate public key der, error code: " & $certPubKeyDerLen
+      CertificateParsingError,
+      "Failed to parse certificate public key der, error code: " & $certPubKeyDerLen,
     )
-  
+
   # Adjust pointer to the start of the data
   let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
 
@@ -598,11 +599,10 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] =
 
   return msg
 
-
 proc verify*(self: P2pCertificate): bool =
   var sig: Signature
   var key: PublicKey
-  
+
   if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
     let msg = makeSignatureMessage(self.pubKeyDer)
     echo "\nparse:"
