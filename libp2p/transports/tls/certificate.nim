@@ -171,6 +171,19 @@ proc generateSignedKey(
   # Return the extension content
   return extValueSeq
 
+func hashSignatureMessage(
+    msg: seq[byte]
+): array[32, byte] {.raises: [TLSCertificateError].} =
+  var hash: array[32, byte]
+  let hashRet = mbedtls_sha256(
+    msg[0].addr, msg.len.uint, addr hash[0], 0 # 0 for SHA-256
+  )
+  if hashRet != 0:
+    # Since hashing failure is critical and unlikely, we can raise a general exception
+    raise newException(TLSCertificateError, "Failed to compute SHA-256 hash")
+
+  return hash
+
 proc makeLibp2pExtension(
     identityKeypair: KeyPair, certificateKeypair: mbedtls_pk_context
 ): seq[byte] {.
@@ -224,13 +237,7 @@ proc makeLibp2pExtension(
   copyMem(addr msg[P2P_SIGNING_PREFIX.len], certPubKeyDerPtr, certPubKeyDerLen.int)
 
   # Compute SHA-256 hash of the message
-  var hash: array[32, byte]
-  let hashRet = mbedtls_sha256(
-    msg[0].addr, msg.len.uint, addr hash[0], 0 # 0 for SHA-256
-  )
-  if hashRet != 0:
-    # Since hashing failure is critical and unlikely, we can raise a general exception
-    raise newException(TLSCertificateError, "Failed to compute SHA-256 hash")
+  let hash = hashSignatureMessage(msg)
 
   # Sign the hash with the Identity Key
   let signatureResult = identityKeypair.seckey.sign(hash)
@@ -247,12 +254,6 @@ proc makeLibp2pExtension(
       IdentityPubKeySerializationError, "Failed to get identity public key bytes"
     )
   let pubKeyBytes = pubKeyBytesResult.get()
-
-  echo "\n gen:"
-  echo "\n     sig:", utils.toHex(signature)
-  echo "\n     pubkey: ", utils.toHex(pubKeyBytes)
-  echo "\n     msg:", utils.toHex(msg)
-  echo "\n     priv:", utils.toHex(identityKeypair.seckey.getBytes().get())
 
   # Generate the SignedKey ASN.1 structure
   return generateSignedKey(signature, pubKeyBytes)
@@ -534,6 +535,21 @@ proc libp2pext(
 
   return 0 # Success
 
+proc parseRaw*(
+    certificate: seq[byte]
+): P2pCertificate {.raises: [CertificateParsingError].} =
+  var crt: mbedtls_x509_crt
+  mbedtls_x509_crt_init(addr crt)
+  defer:
+    mbedtls_x509_crt_free(addr crt)
+
+  let ret =
+    mbedtls_x509_crt_parse(addr crt, unsafeAddr certificate[0], certificate.len.uint)
+  if ret != 0:
+    raise newException(
+      CertificateParsingError, "Failed to parse certificate, error code: " & $ret
+    )
+
 proc parse*(
     certificateDer: seq[byte]
 ): P2pCertificate {.raises: [CertificateParsingError].} =
@@ -603,12 +619,12 @@ proc verify*(self: P2pCertificate): bool =
   var sig: Signature
   var key: PublicKey
 
-  if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
-    let msg = makeSignatureMessage(self.pubKeyDer)
-    echo "\nparse:"
-    echo "\n     sig:", utils.toHex(self.extension.signature)
-    echo "\n     pubkey: ", utils.toHex(self.extension.publicKey)
-    echo "\n     msg:", utils.toHex(msg)
-    return sig.verify(msg, key)
+  try:
+    if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
+      let msg = makeSignatureMessage(self.pubKeyDer)
+      let hash = hashSignatureMessage(msg)
+      return sig.verify(hash, key)
+  except TLSCertificateError:
+    return false
 
   return false
