@@ -58,7 +58,6 @@ type
     signature*: seq[byte]
 
   P2pCertificate* = object
-    certificate*: mbedtls_x509_crt
     extension*: P2pExtension
     pubKeyDer*: seq[byte]
 
@@ -174,6 +173,8 @@ proc generateSignedKey(
 func hashSignatureMessage(
     msg: seq[byte]
 ): array[32, byte] {.raises: [TLSCertificateError].} =
+  ## Creates SHA-256 hash of the message
+
   var hash: array[32, byte]
   let hashRet = mbedtls_sha256(
     msg[0].addr, msg.len.uint, addr hash[0], 0 # 0 for SHA-256
@@ -183,6 +184,46 @@ func hashSignatureMessage(
     raise newException(TLSCertificateError, "Failed to compute SHA-256 hash")
 
   return hash
+
+func makeSignatureMessage(pubKey: seq[byte]): seq[byte] =
+  ## Creates message used for certificate signature.
+  ##
+
+  let prefixLen = P2P_SIGNING_PREFIX.len
+  var msg = newSeq[byte](prefixLen + pubKey.len)
+
+  for i in 0 ..< prefixLen:
+    msg[i] = byte(P2P_SIGNING_PREFIX[i])
+
+  for i in 0 ..< pubKey.len:
+    msg[i + prefixLen] = byte(pubKey[i])
+
+  return msg
+
+func parseCertificatePublicKey(pk: mbedtls_pk_context): seq[byte] =
+  ## Parses public key from certificate encoded in DER format.
+  ## 
+
+  var
+    certPubKeyDer: array[512, byte]
+    certPubKeyDerLen: cint
+
+  certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
+    unsafeAddr pk, addr certPubKeyDer[0], certPubKeyDer.len.uint
+  )
+  if certPubKeyDerLen < 0:
+    raise newException(
+      CertificateParsingError,
+      "Failed to parse certificate public key der, error code: " & $certPubKeyDerLen,
+    )
+
+  # Adjust pointer to the start of the data
+  let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
+
+  let pkDer = newSeq[byte](certPubKeyDerLen.int)
+  copyMem(addr pkDer[0], certPubKeyDerPtr, certPubKeyDerLen.int)
+
+  return pkDer
 
 proc makeLibp2pExtension(
     identityKeypair: KeyPair, certificateKeypair: mbedtls_pk_context
@@ -211,32 +252,8 @@ proc makeLibp2pExtension(
   ## - `ASN1EncodingError` if ASN.1 encoding fails.
 
   # Serialize the Certificate's Public Key
-  var
-    certPubKeyDer: array[512, byte]
-    certPubKeyDerLen: cint
-
-  certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
-    unsafeAddr certificateKeypair, addr certPubKeyDer[0], certPubKeyDer.len.uint
-  )
-  if certPubKeyDerLen < 0:
-    raise newException(
-      CertificateCreationError, "Failed to write certificate public key in DER format"
-    )
-
-  # Adjust pointer to the start of the data
-  let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
-
-  # Create the Message to Sign
-  var msg = newSeq[byte](P2P_SIGNING_PREFIX.len + certPubKeyDerLen.int.int)
-
-  # Copy the prefix into msg
-  for i in 0 ..< P2P_SIGNING_PREFIX.len:
-    msg[i] = byte(P2P_SIGNING_PREFIX[i])
-
-  # Copy the public key DER into msg
-  copyMem(addr msg[P2P_SIGNING_PREFIX.len], certPubKeyDerPtr, certPubKeyDerLen.int)
-
-  # Compute SHA-256 hash of the message
+  let cerPubKeyDer = parseCertificatePublicKey(certificateKeypair)
+  let msg = makeSignatureMessage(cerPubKeyDer)
   let hash = hashSignatureMessage(msg)
 
   # Sign the hash with the Identity Key
@@ -582,38 +599,9 @@ proc parse*(
       CertificateParsingError, "Failed to parse certificate, error code: " & $ret
     )
 
-  var
-    certPubKeyDer: array[512, byte]
-    certPubKeyDerLen: cint
+  let pkDer = parseCertificatePublicKey(crt.pk)
 
-  certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
-    unsafeAddr crt.pk, addr certPubKeyDer[0], certPubKeyDer.len.uint
-  )
-  if certPubKeyDerLen < 0:
-    raise newException(
-      CertificateParsingError,
-      "Failed to parse certificate public key der, error code: " & $certPubKeyDerLen,
-    )
-
-  # Adjust pointer to the start of the data
-  let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
-
-  let pkDer = newSeq[byte](certPubKeyDerLen.int)
-  copyMem(addr pkDer[0], certPubKeyDerPtr, certPubKeyDerLen.int)
-
-  return P2pCertificate(certificate: crt, extension: extension, pubKeyDer: pkDer)
-
-func makeSignatureMessage(pubKey: seq[byte]): seq[byte] =
-  let prefixLen = P2P_SIGNING_PREFIX.len
-  var msg = newSeq[byte](prefixLen + pubKey.len)
-
-  for i in 0 ..< prefixLen:
-    msg[i] = byte(P2P_SIGNING_PREFIX[i])
-
-  for i in 0 ..< pubKey.len:
-    msg[i + prefixLen] = byte(pubKey[i])
-
-  return msg
+  return P2pCertificate(extension: extension, pubKeyDer: pkDer)
 
 proc verify*(self: P2pCertificate): bool =
   var sig: Signature
