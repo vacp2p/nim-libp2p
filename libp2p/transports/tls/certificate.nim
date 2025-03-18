@@ -60,6 +60,7 @@ type
   P2pCertificate* = object
     certificate*: mbedtls_x509_crt
     extension*: P2pExtension
+    pubKeyDer*: seq[byte]
 
 type EncodingFormat* = enum
   DER
@@ -246,6 +247,12 @@ proc makeLibp2pExtension(
       IdentityPubKeySerializationError, "Failed to get identity public key bytes"
     )
   let pubKeyBytes = pubKeyBytesResult.get()
+
+  echo "\n gen:"
+  echo "\n     sig:", utils.toHex(signature)
+  echo "\n     pubkey: ", utils.toHex(pubKeyBytes)
+  echo "\n     msg:", utils.toHex(msg)
+  echo "\n     priv:", utils.toHex(identityKeypair.seckey.getBytes().get())
 
   # Generate the SignedKey ASN.1 structure
   return generateSignedKey(signature, pubKeyBytes)
@@ -559,4 +566,49 @@ proc parse*(
       CertificateParsingError, "Failed to parse certificate, error code: " & $ret
     )
 
-  return P2pCertificate(certificate: crt, extension: extension)
+  var
+    certPubKeyDer: array[512, byte]
+    certPubKeyDerLen: cint
+
+  certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
+    unsafeAddr crt.pk, addr certPubKeyDer[0], certPubKeyDer.len.uint
+  )
+  if certPubKeyDerLen < 0:
+    raise newException(
+      CertificateParsingError, "Failed to parse certificate public key der, error code: " & $certPubKeyDerLen
+    )
+  
+  # Adjust pointer to the start of the data
+  let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
+
+  let pkDer = newSeq[byte](certPubKeyDerLen.int)
+  copyMem(addr pkDer[0], certPubKeyDerPtr, certPubKeyDerLen.int)
+
+  return P2pCertificate(certificate: crt, extension: extension, pubKeyDer: pkDer)
+
+func makeSignatureMessage(pubKey: seq[byte]): seq[byte] =
+  let prefixLen = P2P_SIGNING_PREFIX.len
+  var msg = newSeq[byte](prefixLen + pubKey.len)
+
+  for i in 0 ..< prefixLen:
+    msg[i] = byte(P2P_SIGNING_PREFIX[i])
+
+  for i in 0 ..< pubKey.len:
+    msg[i + prefixLen] = byte(pubKey[i])
+
+  return msg
+
+
+proc verify*(self: P2pCertificate): bool =
+  var sig: Signature
+  var key: PublicKey
+  
+  if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
+    let msg = makeSignatureMessage(self.pubKeyDer)
+    echo "\nparse:"
+    echo "\n     sig:", utils.toHex(self.extension.signature)
+    echo "\n     pubkey: ", utils.toHex(self.extension.publicKey)
+    echo "\n     msg:", utils.toHex(msg)
+    return sig.verify(msg, key)
+
+  return false
