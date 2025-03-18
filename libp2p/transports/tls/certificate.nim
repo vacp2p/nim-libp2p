@@ -172,7 +172,7 @@ proc generateSignedKey(
 
 func hashSignatureMessage(
     msg: seq[byte]
-): array[32, byte] {.raises: [TLSCertificateError].} =
+): array[32, byte] {.inline, raises: [TLSCertificateError].} =
   ## Creates SHA-256 hash of the message
 
   var hash: array[32, byte]
