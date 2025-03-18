@@ -34,7 +34,7 @@ logScope:
 
 # Constants and OIDs
 const
-  P2P_SIGNING_PREFIX = "libp2p-tls-handshake:"
+  P2P_SIGNING_PREFIX = "libp2p-tls-handshake:".toBytes()
   SIGNATURE_ALG = MBEDTLS_MD_SHA256
   EC_GROUP_ID = MBEDTLS_ECP_DP_SECP256R1
   LIBP2P_EXT_OID_DER: array[10, byte] =
@@ -185,18 +185,15 @@ func hashSignatureMessage(
 
   return hash
 
-func makeSignatureMessage(pubKey: seq[byte]): seq[byte] =
+func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
   ## Creates message used for certificate signature.
   ##
 
-  let prefixLen = P2P_SIGNING_PREFIX.len
-  var msg = newSeq[byte](prefixLen + pubKey.len)
+  let prefixLen = P2P_SIGNING_PREFIX.len.int
+  let msg = newSeq[byte](prefixLen + pubKey.len)
 
-  for i in 0 ..< prefixLen:
-    msg[i] = byte(P2P_SIGNING_PREFIX[i])
-
-  for i in 0 ..< pubKey.len:
-    msg[i + prefixLen] = byte(pubKey[i])
+  copyMem(addr msg[0], addr P2P_SIGNING_PREFIX[0], prefixLen)
+  copyMem(addr msg[prefixLen], addr pubKey[0], pubKey.len.int)
 
   return msg
 
