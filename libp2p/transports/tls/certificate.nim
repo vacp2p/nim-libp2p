@@ -591,12 +591,12 @@ proc verify*(self: P2pCertificate): bool =
   var sig: Signature
   var key: PublicKey
 
-  try:
-    if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
+  if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
+    try:
       let msg = makeSignatureMessage(self.pubKeyDer)
       let hash = hashSignatureMessage(msg)
       return sig.verify(hash, key)
-  except TLSCertificateError:
-    return false
+    except TLSCertificateError:
+      return false
 
   return false
