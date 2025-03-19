@@ -567,6 +567,14 @@ proc parse*(
   return P2pCertificate(extension: extension, pubKeyDer: pkDer)
 
 proc verify*(self: P2pCertificate): bool =
+  ## Verifies that P2pCertificate has signature that was signed by owner of the certificate.
+  ##
+  ## Parameters:
+  ## - `self`: The P2pCertificate.
+  ## 
+  ## Returns:
+  ## `true` if certificate is valid.
+
   var sig: Signature
   var key: PublicKey
 
