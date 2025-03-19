@@ -211,7 +211,7 @@ proc makeLibp2pExtension(
     identityKeypair: KeyPair, certificateKeypair: mbedtls_pk_context
 ): seq[byte] {.
     raises: [
-      CertificateParsingError, IdentityPubKeySerializationError, IdentitySigningError,
+      CertificateCreationError, IdentityPubKeySerializationError, IdentitySigningError,
       ASN1EncodingError,
     ]
 .} =
@@ -233,7 +233,11 @@ proc makeLibp2pExtension(
   ## - `IdentitySigningError` if signing the message fails.
   ## - `ASN1EncodingError` if ASN.1 encoding fails.
 
-  let cerPubKeyDer = parseCertificatePublicKey(certificateKeypair)
+  let cerPubKeyDer =
+    try:
+      parseCertificatePublicKey(certificateKeypair)
+    except CertificateParsingError as e:
+      raise newException(CertificateCreationError, e.msg)
   let msg = makeSignatureMessage(cerPubKeyDer)
 
   # Sign the message with the Identity Key
