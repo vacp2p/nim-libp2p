@@ -170,21 +170,6 @@ proc generateSignedKey(
   # Return the extension content
   return extValueSeq
 
-func hashSignatureMessage(
-    msg: seq[byte]
-): array[32, byte] {.inline, raises: [TLSCertificateError].} =
-  ## Creates SHA-256 hash of the message
-
-  var hash: array[32, byte]
-  let hashRet = mbedtls_sha256(
-    msg[0].addr, msg.len.uint, addr hash[0], 0 # 0 for SHA-256
-  )
-  if hashRet != 0:
-    # Since hashing failure is critical and unlikely, we can raise a general exception
-    raise newException(TLSCertificateError, "Failed to compute SHA-256 hash")
-
-  return hash
-
 func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
   ## Creates message used for certificate signature.
   ##
@@ -248,10 +233,9 @@ proc makeLibp2pExtension(
 
   let cerPubKeyDer = parseCertificatePublicKey(certificateKeypair)
   let msg = makeSignatureMessage(cerPubKeyDer)
-  let hash = hashSignatureMessage(msg)
 
   # Sign the hash with the Identity Key
-  let signatureResult = identityKeypair.seckey.sign(hash)
+  let signatureResult = identityKeypair.seckey.sign(msg)
   if signatureResult.isErr:
     raise newException(
       IdentitySigningError, "Failed to sign the hash with the identity key"
@@ -587,11 +571,7 @@ proc verify*(self: P2pCertificate): bool =
   var key: PublicKey
 
   if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
-    try:
-      let msg = makeSignatureMessage(self.pubKeyDer)
-      let hash = hashSignatureMessage(msg)
-      return sig.verify(hash, key)
-    except TLSCertificateError:
-      return false
+    let msg = makeSignatureMessage(self.pubKeyDer)
+    return sig.verify(msg, key)
 
   return false
