@@ -59,7 +59,7 @@ type
 
   P2pCertificate* = object
     extension*: P2pExtension
-    pubKeyDer*: seq[byte]
+    pubKeyDer: seq[byte]
 
 type EncodingFormat* = enum
   DER
@@ -182,7 +182,9 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
 
   return msg
 
-func parseCertificatePublicKey(pk: mbedtls_pk_context): seq[byte] =
+func parseCertificatePublicKey(
+    pk: mbedtls_pk_context
+): seq[byte] {.raises: [CertificateParsingError].} =
   ## Parses public key from certificate encoded in DER format.
   ## 
 
@@ -209,8 +211,8 @@ proc makeLibp2pExtension(
     identityKeypair: KeyPair, certificateKeypair: mbedtls_pk_context
 ): seq[byte] {.
     raises: [
-      CertificateCreationError, IdentityPubKeySerializationError, IdentitySigningError,
-      ASN1EncodingError, TLSCertificateError,
+      CertificateParsingError, IdentityPubKeySerializationError, IdentitySigningError,
+      ASN1EncodingError,
     ]
 .} =
   ## Creates the libp2p extension containing the SignedKey.
@@ -228,17 +230,17 @@ proc makeLibp2pExtension(
   ## Raises:
   ## - `CertificateCreationError` if public key serialization fails.
   ## - `IdentityPubKeySerializationError` if serialization of identity public key fails.
-  ## - `IdentitySigningError` if signing the hash fails.
+  ## - `IdentitySigningError` if signing the message fails.
   ## - `ASN1EncodingError` if ASN.1 encoding fails.
 
   let cerPubKeyDer = parseCertificatePublicKey(certificateKeypair)
   let msg = makeSignatureMessage(cerPubKeyDer)
 
-  # Sign the hash with the Identity Key
+  # Sign the message with the Identity Key
   let signatureResult = identityKeypair.seckey.sign(msg)
   if signatureResult.isErr:
     raise newException(
-      IdentitySigningError, "Failed to sign the hash with the identity key"
+      IdentitySigningError, "Failed to sign the message with the identity key"
     )
   let signature = signatureResult.get().data
 
