@@ -34,7 +34,7 @@ logScope:
 
 # Constants and OIDs
 const
-  P2P_SIGNING_PREFIX = "libp2p-tls-handshake:"
+  P2P_SIGNING_PREFIX = "libp2p-tls-handshake:".toBytes()
   SIGNATURE_ALG = MBEDTLS_MD_SHA256
   EC_GROUP_ID = MBEDTLS_ECP_DP_SECP256R1
   LIBP2P_EXT_OID_DER: array[10, byte] =
@@ -58,8 +58,8 @@ type
     signature*: seq[byte]
 
   P2pCertificate* = object
-    certificate*: mbedtls_x509_crt
     extension*: P2pExtension
+    pubKeyDer: seq[byte]
 
 type EncodingFormat* = enum
   DER
@@ -170,12 +170,49 @@ proc generateSignedKey(
   # Return the extension content
   return extValueSeq
 
+func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
+  ## Creates message used for certificate signature.
+  ##
+
+  let prefixLen = P2P_SIGNING_PREFIX.len.int
+  let msg = newSeq[byte](prefixLen + pubKey.len)
+
+  copyMem(addr msg[0], addr P2P_SIGNING_PREFIX[0], prefixLen)
+  copyMem(addr msg[prefixLen], addr pubKey[0], pubKey.len.int)
+
+  return msg
+
+func parseCertificatePublicKey(
+    pk: mbedtls_pk_context
+): seq[byte] {.raises: [CertificateParsingError].} =
+  ## Parses public key from certificate encoded in DER format.
+  ## 
+
+  var certPubKeyDer: array[512, byte]
+
+  let certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
+    unsafeAddr pk, addr certPubKeyDer[0], certPubKeyDer.len.uint
+  )
+  if certPubKeyDerLen < 0:
+    raise newException(
+      CertificateParsingError,
+      "Failed to parse certificate public key der, error code: " & $certPubKeyDerLen,
+    )
+
+  # Adjust pointer to the start of the data
+  let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
+
+  let pkDer = newSeq[byte](certPubKeyDerLen.int)
+  copyMem(addr pkDer[0], certPubKeyDerPtr, certPubKeyDerLen.int)
+
+  return pkDer
+
 proc makeLibp2pExtension(
     identityKeypair: KeyPair, certificateKeypair: mbedtls_pk_context
 ): seq[byte] {.
     raises: [
-      CertificateCreationError, IdentityPubKeySerializationError, IdentitySigningError,
-      ASN1EncodingError, TLSCertificateError,
+      CertificateParsingError, IdentityPubKeySerializationError, IdentitySigningError,
+      ASN1EncodingError,
     ]
 .} =
   ## Creates the libp2p extension containing the SignedKey.
@@ -193,49 +230,17 @@ proc makeLibp2pExtension(
   ## Raises:
   ## - `CertificateCreationError` if public key serialization fails.
   ## - `IdentityPubKeySerializationError` if serialization of identity public key fails.
-  ## - `IdentitySigningError` if signing the hash fails.
+  ## - `IdentitySigningError` if signing the message fails.
   ## - `ASN1EncodingError` if ASN.1 encoding fails.
 
-  # Serialize the Certificate's Public Key
-  var
-    certPubKeyDer: array[512, byte]
-    certPubKeyDerLen: cint
+  let cerPubKeyDer = parseCertificatePublicKey(certificateKeypair)
+  let msg = makeSignatureMessage(cerPubKeyDer)
 
-  certPubKeyDerLen = mbedtls_pk_write_pubkey_der(
-    unsafeAddr certificateKeypair, addr certPubKeyDer[0], certPubKeyDer.len.uint
-  )
-  if certPubKeyDerLen < 0:
-    raise newException(
-      CertificateCreationError, "Failed to write certificate public key in DER format"
-    )
-
-  # Adjust pointer to the start of the data
-  let certPubKeyDerPtr = addr certPubKeyDer[certPubKeyDer.len - certPubKeyDerLen]
-
-  # Create the Message to Sign
-  var msg = newSeq[byte](P2P_SIGNING_PREFIX.len + certPubKeyDerLen.int.int)
-
-  # Copy the prefix into msg
-  for i in 0 ..< P2P_SIGNING_PREFIX.len:
-    msg[i] = byte(P2P_SIGNING_PREFIX[i])
-
-  # Copy the public key DER into msg
-  copyMem(addr msg[P2P_SIGNING_PREFIX.len], certPubKeyDerPtr, certPubKeyDerLen.int)
-
-  # Compute SHA-256 hash of the message
-  var hash: array[32, byte]
-  let hashRet = mbedtls_sha256(
-    msg[0].addr, msg.len.uint, addr hash[0], 0 # 0 for SHA-256
-  )
-  if hashRet != 0:
-    # Since hashing failure is critical and unlikely, we can raise a general exception
-    raise newException(TLSCertificateError, "Failed to compute SHA-256 hash")
-
-  # Sign the hash with the Identity Key
-  let signatureResult = identityKeypair.seckey.sign(hash)
+  # Sign the message with the Identity Key
+  let signatureResult = identityKeypair.seckey.sign(msg)
   if signatureResult.isErr:
     raise newException(
-      IdentitySigningError, "Failed to sign the hash with the identity key"
+      IdentitySigningError, "Failed to sign the message with the identity key"
     )
   let signature = signatureResult.get().data
 
@@ -559,4 +564,24 @@ proc parse*(
       CertificateParsingError, "Failed to parse certificate, error code: " & $ret
     )
 
-  return P2pCertificate(certificate: crt, extension: extension)
+  let pkDer = parseCertificatePublicKey(crt.pk)
+
+  return P2pCertificate(extension: extension, pubKeyDer: pkDer)
+
+proc verify*(self: P2pCertificate): bool =
+  ## Verifies that P2pCertificate has signature that was signed by owner of the certificate.
+  ##
+  ## Parameters:
+  ## - `self`: The P2pCertificate.
+  ## 
+  ## Returns:
+  ## `true` if certificate is valid.
+
+  var sig: Signature
+  var key: PublicKey
+
+  if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
+    let msg = makeSignatureMessage(self.pubKeyDer)
+    return sig.verify(msg, key)
+
+  return false
