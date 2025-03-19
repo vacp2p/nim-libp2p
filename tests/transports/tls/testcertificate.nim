@@ -18,8 +18,8 @@ suite "Certificate roundtrip tests":
       let keypair = KeyPair.random(scheme, rng[]).tryGet()
       let peerId = PeerId.init(keypair.pubkey).tryGet()
 
-      let certTyple = generate(keypair, EncodingFormat.DER)
-      let cert = parse(certTyple.raw)
+      let certTuple = generate(keypair, EncodingFormat.DER)
+      let cert = parse(certTuple.raw)
 
       check peerId == cert.peerId()
       check cert.publicKey().scheme == scheme
