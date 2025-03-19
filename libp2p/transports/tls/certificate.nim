@@ -211,7 +211,7 @@ proc makeLibp2pExtension(
     identityKeypair: KeyPair, certificateKeypair: mbedtls_pk_context
 ): seq[byte] {.
     raises: [
-      CertificateParsingError, IdentityPubKeySerializationError, IdentitySigningError,
+      CertificateCreationError, IdentityPubKeySerializationError, IdentitySigningError,
       ASN1EncodingError,
     ]
 .} =
@@ -233,7 +233,11 @@ proc makeLibp2pExtension(
   ## - `IdentitySigningError` if signing the message fails.
   ## - `ASN1EncodingError` if ASN.1 encoding fails.
 
-  let cerPubKeyDer = parseCertificatePublicKey(certificateKeypair)
+  let cerPubKeyDer =
+    try:
+      parseCertificatePublicKey(certificateKeypair)
+    except CertificateParsingError as e:
+      raise newException(CertificateCreationError, e.msg)
   let msg = makeSignatureMessage(cerPubKeyDer)
 
   # Sign the message with the Identity Key
@@ -257,21 +261,22 @@ proc makeLibp2pExtension(
 
 proc generate*(
     identityKeyPair: KeyPair, encodingFormat: EncodingFormat = EncodingFormat.DER
-): (seq[byte], seq[byte]) {.
+): tuple[raw: seq[byte], privateKey: seq[byte]] {.
     raises: [
       KeyGenerationError, CertificateCreationError, ASN1EncodingError,
-      IdentityPubKeySerializationError, IdentitySigningError, TLSCertificateError,
+      IdentityPubKeySerializationError, IdentitySigningError,
     ]
 .} =
   ## Generates a self-signed X.509 certificate with the libp2p extension.
   ##
   ## Parameters:
   ## - `identityKeyPair`: The peer's identity key pair.
+  ## - `encodingFormat`: The encoding format of generated certificate.
   ##
   ## Returns:
   ## A tuple containing:
-  ## - The certificate.
-  ## - The private key.
+  ## - `raw` - The certificate content (encoded using encodingFormat).
+  ## - `privateKey` - The private key.
   ##
   ## Raises:
   ## - `KeyGenerationError` if key generation fails.
