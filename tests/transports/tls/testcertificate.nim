@@ -7,8 +7,8 @@ import ../../../libp2p/peerid
 proc peerId*(cert: P2pCertificate): PeerId =
   return PeerId.init(PublicKey.init(cert.extension.publicKey).tryGet).tryGet()
 
-suite "Certificate Tests":
-  test "Generate with DER ecoding":
+suite "Certificate roundtrip tests":
+  test "generate then parse with DER ecoding":
     let schemes = @[Ed25519, Secp256k1, ECDSA]
     for scheme in schemes:
       var rng = newRng()
