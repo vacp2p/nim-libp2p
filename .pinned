@@ -1,4 +1,5 @@
 bearssl;https://github.com/status-im/nim-bearssl@#667b40440a53a58e9f922e29e20818720c62d9ac
+blscurve;https://github.com/status-im/nim-blscurve@#52ae4332c749d89fa05226f5493decae568f682c
 chronicles;https://github.com/status-im/nim-chronicles@#32ac8679680ea699f7dbc046e8e0131cac97d41a
 chronos;https://github.com/status-im/nim-chronos@#c04576d829b8a0a1b12baaa8bc92037501b3a4a0
 dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153379ea557c8
@@ -18,5 +19,5 @@ testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014d
 unittest2;https://github.com/status-im/nim-unittest2@#2300fa9924a76e6c96bc4ea79d043e3a0f27120c
 websock;https://github.com/status-im/nim-websock@#f8ed9b40a5ff27ad02a3c237c4905b0924e3f982
 zlib;https://github.com/status-im/nim-zlib@#38b72eda9d70067df4a953f56b5ed59630f2a17b
-constantine;https://github.com/mratsim/constantine@#1e34ec22929eaba7bcf1681350ec21aed8f370f7
+constantine;https://github.com/mratsim/constantine@#v0.2.0
 poseidon2;https://github.com/codex-storage/nim-poseidon2@#e173dd817b794d2bdadaa7ed45583798aaa91f0d
