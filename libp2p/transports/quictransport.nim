@@ -178,10 +178,10 @@ method start*(
 
   let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
 
-  let certPair = generate(keypair, EncodingFormat.PEM)
+  let certTuple = generate(keypair, EncodingFormat.PEM)
 
   try:
-    let tlsConfig = TLSConfig.init(certPair[0], certPair[1])
+    let tlsConfig = TLSConfig.init(certTuple.raw, certTuple.privateKey)
     let server = QuicServer.init(tlsConfig)
     self.listener = server.listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
