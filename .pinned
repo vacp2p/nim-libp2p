@@ -9,7 +9,7 @@ mbedtls;https://github.com/status-im/nim-mbedtls.git@#b9ee2b8cd8990d32afc227a4d6
 metrics;https://github.com/status-im/nim-metrics@#6142e433fc8ea9b73379770a788017ac528d46ff
 ngtcp2;https://github.com/status-im/nim-ngtcp2@#b9dbc3ad58bc31bc1767f0030f136859a753ccbc
 nimcrypto;https://github.com/cheatfate/nimcrypto@#1c8d6e3caf3abc572136ae9a1da81730c4eb4288
-quic;https://github.com/status-im/nim-quic.git@#f5f13c441a60ed54f37e656616c8cd3346cc46f5
+quic;https://github.com/status-im/nim-quic.git@#856efda5f4090a524abc49fc60397bc88c8ef356
 results;https://github.com/arnetheduck/nim-results@#f3c666a272c69d70cb41e7245e7f6844797303ad
 secp256k1;https://github.com/status-im/nim-secp256k1@#7246d91c667f4cc3759fdd50339caa45a2ecd8be
 serialization;https://github.com/status-im/nim-serialization@#4bdbc29e54fe54049950e352bb969aab97173b35
