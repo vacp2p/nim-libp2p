@@ -150,9 +150,28 @@ type QuicTransport* = ref object of Transport
   privateKey: PrivateKey
   connections: seq[P2PConnection]
 
-func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
+proc makeCertificateVerifier(): CertificateVerifier =
+  proc certificateVerifier(certificatesDer: seq[seq[byte]]): bool =
+    if certificatesDer.len != 1:
+      trace "CertificateVerifier: expected one certificate in the chain",
+        cert_count = certificatesDer.len
+      return false
+
+    let cert =
+      try:
+        parse(certificatesDer[0])
+      except CertificateParsingError as e:
+        trace "CertificateVerifier: failed to parse certificate", msg = e.msg
+        return false
+
+    return cert.verify()
+
+  return CustomCertificateVerifier.init(certificateVerifier)
+
+proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
   try:
-    let tlsConfig = TLSConfig.init()
+    let tlsConfig =
+      TLSConfig.init(certificateVerifier = Opt.some(makeCertificateVerifier()))
     return QuicTransport(
       upgrader: QuicUpgrade(ms: u.ms),
       privateKey: privateKey,
