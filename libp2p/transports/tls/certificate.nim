@@ -189,6 +189,15 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
 
   return msg
 
+func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
+  let issuerDN =
+    try:
+      "CN=" & $(PeerId.init(identityKeyPair.pubkey).tryGet())
+    except LPError:
+      raiseAssert "pubkey must be set"
+
+  return issuerDN
+
 func parseCertificatePublicKey(
     pk: mbedtls_pk_context
 ): seq[byte] {.raises: [CertificateParsingError].} =
@@ -271,7 +280,7 @@ proc generate*(
 ): tuple[raw: seq[byte], privateKey: seq[byte]] {.
     raises: [
       KeyGenerationError, CertificateCreationError, ASN1EncodingError,
-      IdentityPubKeySerializationError, IdentitySigningError, 
+      IdentityPubKeySerializationError, IdentitySigningError,
     ]
 .} =
   ## Generates a self-signed X.509 certificate with the libp2p extension.
@@ -339,11 +348,7 @@ proc generate*(
   let libp2pExtension = makeLibp2pExtension(identityKeyPair, certKey)
 
   # Set the Subject and Issuer Name (self-signed)
-  let issuerDN =
-    try:
-      "CN=" & $(PeerId.init(identityKeyPair.pubkey).tryGet())
-    except LPError:
-      raiseAssert "pubkey must be set"
+  let issuerDN = makeIssuerDN(identityKeyPair)
   ret = mbedtls_x509write_crt_set_subject_name(addr crt, issuerDN)
   if ret != 0:
     raise newException(CertificateCreationError, "Failed to set subject name")
