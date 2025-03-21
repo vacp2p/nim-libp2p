@@ -4,12 +4,6 @@ import ../../../libp2p/transports/tls/certificate
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/peerid
 
-func publicKey*(cert: P2pCertificate): PublicKey =
-  return PublicKey.init(cert.extension.publicKey).get()
-
-func peerId*(cert: P2pCertificate): PeerId =
-  return PeerId.init(cert.publicKey()).tryGet()
-
 suite "Certificate roundtrip tests":
   test "generate then parse with DER ecoding":
     let schemes = @[Ed25519, Secp256k1, ECDSA]
