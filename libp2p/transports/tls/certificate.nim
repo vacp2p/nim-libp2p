@@ -28,6 +28,7 @@ import mbedtls/error
 import nimcrypto/utils
 import ../../crypto/crypto
 import ../../errors
+import ../../../libp2p/peerid
 
 logScope:
   topics = "libp2p tls certificate"
@@ -74,6 +75,12 @@ var
   entropy: mbedtls_entropy_context
   ctrDrbg: mbedtls_ctr_drbg_context
   drbgInitialized = false
+
+func publicKey*(cert: P2pCertificate): PublicKey =
+  return PublicKey.init(cert.extension.publicKey).get()
+
+func peerId*(cert: P2pCertificate): PeerId =
+  return PeerId.init(cert.publicKey()).tryGet()
 
 proc initializeDRBG() {.raises: [KeyGenerationError].} =
   ## Function to initialize entropy and DRBG context if not already initialized.
@@ -264,7 +271,7 @@ proc generate*(
 ): tuple[raw: seq[byte], privateKey: seq[byte]] {.
     raises: [
       KeyGenerationError, CertificateCreationError, ASN1EncodingError,
-      IdentityPubKeySerializationError, IdentitySigningError,
+      IdentityPubKeySerializationError, IdentitySigningError, 
     ]
 .} =
   ## Generates a self-signed X.509 certificate with the libp2p extension.
@@ -332,11 +339,16 @@ proc generate*(
   let libp2pExtension = makeLibp2pExtension(identityKeyPair, certKey)
 
   # Set the Subject and Issuer Name (self-signed)
-  ret = mbedtls_x509write_crt_set_subject_name(addr crt, "CN=libp2p.io")
+  let issuerDN =
+    try:
+      "CN=" & $(PeerId.init(identityKeyPair.pubkey).tryGet())
+    except LPError:
+      raiseAssert "pubkey must be set"
+  ret = mbedtls_x509write_crt_set_subject_name(addr crt, issuerDN)
   if ret != 0:
     raise newException(CertificateCreationError, "Failed to set subject name")
 
-  ret = mbedtls_x509write_crt_set_issuer_name(addr crt, "CN=libp2p.io")
+  ret = mbedtls_x509write_crt_set_issuer_name(addr crt, issuerDN)
   if ret != 0:
     raise newException(CertificateCreationError, "Failed to set issuer name")
 
