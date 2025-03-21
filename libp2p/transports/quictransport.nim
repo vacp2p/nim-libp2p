@@ -146,12 +146,16 @@ method close*(m: QuicMuxer) {.async: (raises: []).} =
 # Transport
 type QuicUpgrade = ref object of Upgrade
 
+type CertGenerator =
+  proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].}
+
 type QuicTransport* = ref object of Transport
   listener: Listener
   client: QuicClient
   privateKey: PrivateKey
   connections: seq[P2PConnection]
   rng: ref HmacDrbgContext
+  certGenerator: CertGenerator
 
 proc makeCertificateVerifier(): CertificateVerifier =
   proc certificateVerifier(certificatesDer: seq[seq[byte]]): bool =
@@ -171,8 +175,19 @@ proc makeCertificateVerifier(): CertificateVerifier =
 
   return CustomCertificateVerifier.init(certificateVerifier)
 
-func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
-  return QuicTransport(upgrader: QuicUpgrade(ms: u.ms), privateKey: privateKey)
+proc makeDefaultCertGenerator(): CertGenerator =
+  return proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+    return generateX509(kp, encodingFormat = EncodingFormat.PEM)
+
+proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
+  return QuicTransport(
+    upgrader: QuicUpgrade(ms: u.ms),
+    privateKey: privateKey,
+    certGenerator: makeDefaultCertGenerator(),
+  )
+
+proc setCertificateGenerator*(self: QuicTransport, certGenerator: CertGenerator) =
+  self.certGenerator = certGenerator
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
@@ -189,14 +204,13 @@ method start*(
     doAssert false, "could not obtain public key"
     return
 
-  let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
-  let certTuple = generate(keypair, encodingFormat = EncodingFormat.PEM)
-
   try:
     if self.rng.isNil:
       self.rng = newRng()
+
+    let cert = self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
     let tlsConfig = TLSConfig.init(
-      certTuple[0], certTuple[1], @[alpn], Opt.some(makeCertificateVerifier())
+      cert.certificate, cert.privateKey, @[alpn], Opt.some(makeCertificateVerifier())
     )
     self.client = QuicClient.init(tlsConfig, rng = self.rng)
     self.listener =
@@ -207,6 +221,8 @@ method start*(
       MultiAddress.init("/quic-v1").get()
   except QuicConfigError as exc:
     doAssert false, "invalid quic setup: " & $exc.msg
+  except TLSCertificateError as exc:
+    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
   except QuicError as exc:
     raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
   except TransportOsError as exc:
