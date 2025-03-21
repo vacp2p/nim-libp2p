@@ -7,6 +7,7 @@ import
     stream/connection,
     transports/transport,
     transports/quictransport,
+    transports/tls/certificate,
     upgrademngrs/upgrade,
     multiaddress,
     errors,
@@ -14,6 +15,18 @@ import
   ]
 
 import ./helpers, ./commontransport
+
+proc invalidCertGenerator(
+    kp: KeyPair
+): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+  try:
+    let keyNew = PrivateKey.random(ECDSA, (newRng())[]).get()
+    let pubkey = keyNew.getPublicKey().get()
+    # invalidKp has pubkey that does not match seckey
+    let invalidKp = KeyPair(seckey: kp.seckey, pubkey: pubkey)
+    return generateX509(invalidKp, EncodingFormat.PEM)
+  except ResultError[crypto.CryptoError]:
+    raiseAssert "private key should be set"
 
 suite "Quic transport":
   asyncTest "can handle local address":
@@ -57,3 +70,75 @@ suite "Quic transport":
 
     asyncSpawn serverAcceptHandler()
     await runClient()
+
+  asyncTest "transport e2e - server invalid cert":
+    let serverMA =
+      @[MultiAddress.init("/ip4/127.0.0.1/udp/50002/quic-v1").tryGet()]
+        # todo: HANDLE 0 port
+    let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+    let server: QuicTransport =
+      QuicTransport.new(Upgrade(), privateKey, certGenerator = invalidCertGenerator)
+    await server.start(serverMA)
+
+    proc runClient() {.async.} =
+      # TODO handle invalid cert???
+      let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+      let client: QuicTransport = QuicTransport.new(Upgrade(), privateKey)
+      let conn = await client.dial("", server.addrs[0])
+      let stream = await getStream(QuicSession(conn), Direction.Out)
+      await stream.write("client")
+      var resp: array[6, byte]
+      await stream.readExactly(addr resp, 6)
+      await stream.close()
+      check string.fromBytes(resp) == "server"
+      await client.stop()
+
+    proc serverAcceptHandler() {.async.} =
+      let conn = await server.accept()
+      let stream = await getStream(QuicSession(conn), Direction.In)
+      var resp: array[6, byte]
+      await stream.readExactly(addr resp, 6)
+      check string.fromBytes(resp) == "client"
+
+      await stream.write("server")
+      await stream.close()
+      await server.stop()
+
+    asyncSpawn serverAcceptHandler()
+    await runClient()
+
+    asyncTest "transport e2e - client invalid cert":
+      let serverMA =
+        @[MultiAddress.init("/ip4/127.0.0.1/udp/50002/quic-v1").tryGet()]
+          # todo: HANDLE 0 port
+      let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+      let server: QuicTransport = QuicTransport.new(Upgrade(), privateKey)
+      await server.start(serverMA)
+
+      proc runClient() {.async.} =
+        # TODO handle invalid cert???
+        let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+        let client: QuicTransport =
+          QuicTransport.new(Upgrade(), privateKey, certGenerator = invalidCertGenerator)
+        let conn = await client.dial("", server.addrs[0])
+        let stream = await getStream(QuicSession(conn), Direction.Out)
+        await stream.write("client")
+        var resp: array[6, byte]
+        await stream.readExactly(addr resp, 6)
+        await stream.close()
+        check string.fromBytes(resp) == "server"
+        await client.stop()
+
+      proc serverAcceptHandler() {.async.} =
+        let conn = await server.accept()
+        let stream = await getStream(QuicSession(conn), Direction.In)
+        var resp: array[6, byte]
+        await stream.readExactly(addr resp, 6)
+        check string.fromBytes(resp) == "client"
+
+        await stream.write("server")
+        await stream.close()
+        await server.stop()
+
+      asyncSpawn serverAcceptHandler()
+      await runClient()

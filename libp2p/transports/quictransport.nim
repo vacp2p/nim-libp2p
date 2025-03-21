@@ -144,11 +144,15 @@ method close*(m: QuicMuxer) {.async: (raises: []).} =
 # Transport
 type QuicUpgrade = ref object of Upgrade
 
+type CertGenerator =
+  proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].}
+
 type QuicTransport* = ref object of Transport
   listener: Listener
   client: QuicClient
   privateKey: PrivateKey
   connections: seq[P2PConnection]
+  certGenerator: CertGenerator
 
 proc makeCertificateVerifier(): CertificateVerifier =
   proc certificateVerifier(certificatesDer: seq[seq[byte]]): bool =
@@ -168,7 +172,16 @@ proc makeCertificateVerifier(): CertificateVerifier =
 
   return CustomCertificateVerifier.init(certificateVerifier)
 
-proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
+proc makeDefaultCertGenerator(): CertGenerator =
+  return proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+    return generateX509(kp, EncodingFormat.PEM)
+
+proc new*(
+    _: type QuicTransport,
+    u: Upgrade,
+    privateKey: PrivateKey,
+    certGenerator: CertGenerator = makeDefaultCertGenerator(),
+): QuicTransport =
   try:
     let tlsConfig =
       TLSConfig.init(certificateVerifier = Opt.some(makeCertificateVerifier()))
@@ -176,6 +189,7 @@ proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransp
       upgrader: QuicUpgrade(ms: u.ms),
       privateKey: privateKey,
       client: QuicClient.init(tlsConfig),
+      certGenerator: certGenerator,
     )
   except QuicConfigError as exc:
     doAssert false, "invalid quic setup: " & $exc.msg
@@ -195,12 +209,14 @@ method start*(
     doAssert false, "could not obtain public key"
     return
 
-  let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
-
-  let certTuple = generate(keypair, EncodingFormat.PEM)
+  let cert =
+    try:
+      self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
+    except TLSCertificateError as exc:
+      raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
 
   try:
-    let tlsConfig = TLSConfig.init(certTuple.raw, certTuple.privateKey)
+    let tlsConfig = TLSConfig.init(cert.certificate, cert.privateKey)
     let server = QuicServer.init(tlsConfig)
     self.listener = server.listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
