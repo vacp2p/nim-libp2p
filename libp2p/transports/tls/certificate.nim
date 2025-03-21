@@ -61,6 +61,11 @@ type
     extension*: P2pExtension
     pubKeyDer: seq[byte]
 
+  CertificateX509* = object
+    certificate*: seq[byte]
+      # Complete ASN.1 DER content (certificate, signature algorithm and signature).
+    privateKey*: seq[byte] # Private key used to sign certificate
+
 type EncodingFormat* = enum
   DER
   PEM
@@ -259,9 +264,9 @@ proc makeLibp2pExtension(
   # Generate the SignedKey ASN.1 structure
   return generateSignedKey(signature, pubKeyBytes)
 
-proc generate*(
+proc generateX509*(
     identityKeyPair: KeyPair, encodingFormat: EncodingFormat = EncodingFormat.DER
-): tuple[raw: seq[byte], privateKey: seq[byte]] {.
+): CertificateX509 {.
     raises: [
       KeyGenerationError, CertificateCreationError, ASN1EncodingError,
       IdentityPubKeySerializationError, IdentitySigningError,
@@ -461,8 +466,7 @@ proc generate*(
     let n = privKeyBuffer.find(0'u8) # Find the index of the first null byte
     outputPrivateKey = privKeyBuffer[0 .. n - 1].toSeq()
 
-  # Return the Serialized Certificate and Private Key
-  return (outputCertificate, outputPrivateKey)
+  return CertificateX509(certificate: outputCertificate, privateKey: outputPrivateKey)
 
 proc libp2pext(
     p_ctx: pointer,
