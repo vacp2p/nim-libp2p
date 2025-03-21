@@ -10,7 +10,10 @@
 # those terms.
 
 import unittest2
+import std/sequtils
 import ../libp2p/[cid, multihash, multicodec]
+
+const MultiHashCodecsList* = HashesList.mapIt(it.mcodec)
 
 suite "Content identifier CID test suite":
   test "CIDv0 test vector":
@@ -66,3 +69,25 @@ suite "Content identifier CID test suite":
       cid1 != cid5
       cid2 != cid4
       cid3 != cid6
+
+  test "Check all cids and hashes":
+    var msg = cast[seq[byte]]("Hello World!")
+    for cidCodec in ContentIdsList:
+      for mhashCodec in MultiHashCodecsList:
+        let cid = Cid
+          .init(CidVersion.CIDv1, cidCodec, MultiHash.digest($mhashCodec, msg).get())
+          .get()
+        check:
+          cid.mcodec == cidCodec
+          cid.mhash().get().mcodec == mhashCodec
+
+  test "Check all cids and hashes base encode":
+    var msg = cast[seq[byte]]("Hello World!")
+    for cidCodec in ContentIdsList:
+      for mhashCodec in MultiHashCodecsList:
+        let cid = Cid
+          .init(CidVersion.CIDv1, cidCodec, MultiHash.digest($mhashCodec, msg).get())
+          .get()
+        check:
+          cid.mcodec == cidCodec
+          cid.mhash().get().mcodec == mhashCodec

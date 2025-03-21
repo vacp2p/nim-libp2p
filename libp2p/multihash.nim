@@ -24,10 +24,14 @@
 {.push raises: [].}
 
 import tables
+import sequtils
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
+import poseidon2
 import varint, vbuffer, multicodec, multibase
 import stew/base58
 import stew/results
+import blscurve/bls_public_exports
+
 export results
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils
@@ -109,13 +113,9 @@ proc blake2Shash(data: openArray[byte], output: var openArray[byte]) =
 
 proc sha2_256hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
-    var digest = sha256.digest(data)
-    var length =
-      if sha256.sizeDigest > len(output):
-        len(output)
-      else:
-        sha256.sizeDigest
-    copyMem(addr output[0], addr digest.data[0], length)
+    var digest: array[32, byte]
+    digest.bls_sha256_digest(data)
+    copyMem(addr output[0], addr digest[0], 32)
 
 proc sha2_512hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
@@ -225,7 +225,17 @@ proc shake_256hash(data: openArray[byte], output: var openArray[byte]) =
     discard sctx.output(addr output[0], uint(len(output)))
     sctx.clear()
 
-const HashesList = [
+proc poseidon2_sponge_rate2(data: openArray[byte], output: var openArray[byte]) =
+  if len(output) > 0:
+    var digest = poseidon2.Sponge.digest(data).toBytes()
+    copyMem(addr output[0], addr digest[0], uint(len(output)))
+
+proc poseidon2_merkle_2kb_sponge(data: openArray[byte], output: var openArray[byte]) =
+  if len(output) > 0:
+    var digest = poseidon2.SpongeMerkle.digest(data, 2048).toBytes()
+    copyMem(addr output[0], addr digest[0], uint(len(output)))
+
+const HashesList* = [
   MHash(mcodec: multiCodec("identity"), size: 0, coder: identhash),
   MHash(mcodec: multiCodec("sha1"), size: sha1.sizeDigest, coder: sha1hash),
   MHash(
@@ -347,6 +357,16 @@ const HashesList = [
   MHash(mcodec: multiCodec("blake2s-240"), size: 30, coder: blake2Shash),
   MHash(mcodec: multiCodec("blake2s-248"), size: 31, coder: blake2Shash),
   MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash),
+  MHash(
+    mcodec: multiCodec("poseidon2-alt_bn_128-sponge-r2"),
+    size: 32,
+    coder: poseidon2_sponge_rate2,
+  ),
+  MHash(
+    mcodec: multiCodec("poseidon2-alt_bn_128-merkle-2kb"),
+    size: 32,
+    coder: poseidon2_merkle_2kb_sponge,
+  ),
 ]
 
 proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =

@@ -10,6 +10,7 @@ switch("warning", "LockLevel:off")
 --styleCheck:
   usages
 switch("warningAsError", "UseBase:on")
+--excludePath:nimbledeps/
 --styleCheck:
   error
 --mm:
