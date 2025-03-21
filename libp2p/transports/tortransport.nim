@@ -302,7 +302,7 @@ proc new*(
     flags: set[ServerFlags] = {},
 ): TorSwitch {.raises: [LPError], public.} =
   var builder = SwitchBuilder.new().withRng(rng).withTransport(
-      proc(upgr: Upgrade): Transport =
+      proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
         TorTransport.new(torServer, flags, upgr)
     )
   if addresses.len != 0:
@@ -325,7 +325,7 @@ proc new*(
   return torSwitch
 
 method addTransport*(s: TorSwitch, t: Transport) =
-  doAssert(false, "not implemented!")
+  doAssert(false, "[TorSwitch.addTransport ] abstract method not implemented!")
 
 method getTorTransport*(s: TorSwitch): Transport {.base.} =
   return s.transports[0]

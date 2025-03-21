@@ -77,7 +77,7 @@ method setup*(
   return true
 
 method run*(self: Service, switch: Switch) {.base, async: (raises: [CancelledError]).} =
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Service.run] abstract method not implemented!")
 
 method stop*(
     self: Service, switch: Switch
