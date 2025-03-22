@@ -26,3 +26,5 @@ import
   testrendezvous, testdiscovery, testyamux, testautonat, testautonatservice,
   testautorelay, testdcutr, testhpservice, testutility, testhelpers,
   testwildcardresolverservice
+
+import transports/tls/testcertificate
