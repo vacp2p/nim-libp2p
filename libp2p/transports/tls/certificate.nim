@@ -19,9 +19,6 @@ import ../../../libp2p/peerid
 logScope:
   topics = "libp2p tls certificate"
 
-# Constants and OIDs
-const P2P_SIGNING_PREFIX = "libp2p-tls-handshake:".toBytes()
-
 # Exception types for TLS certificate errors
 type
   TLSCertificateError* = object of LPError
@@ -50,7 +47,7 @@ proc cert_format_t(self: EncodingFormat): cert_format_t =
   if self == EncodingFormat.DER: CERT_FORMAT_DER else: CERT_FORMAT_PEM
 
 proc toCertBuffer(self: seq[uint8]): cert_buffer =
-  cert_buffer(data: self[0].addr, length: self.len.csize_t)
+  cert_buffer(data: self[0].unsafeAddr, length: self.len.csize_t)
 
 proc toSeq(self: ptr cert_buffer): seq[byte] =
   toOpenArray(cast[ptr UncheckedArray[byte]](self.data), 0, self.length.int - 1).toSeq()
@@ -90,10 +87,9 @@ addExitProc(cleanupDRBG)
 func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
   ## Creates message used for certificate signature.
   ##
-
+  let P2P_SIGNING_PREFIX = "libp2p-tls-handshake:".toBytes()
   let prefixLen = P2P_SIGNING_PREFIX.len.int
   let msg = newSeq[byte](prefixLen + pubKey.len)
-
   copyMem(msg[0].unsafeAddr, P2P_SIGNING_PREFIX[0].unsafeAddr, prefixLen)
   copyMem(msg[prefixLen].unsafeAddr, pubKey[0].unsafeAddr, pubKey.len.int)
 
@@ -196,8 +192,8 @@ proc generate*(
   var certificate: ptr cert_buffer = nil
 
   ret = cert_generate(
-    cert_ctx, certKey, certificate.addr, libp2pExtension.signature.addr,
-    libp2pExtension.pubkey.addr, issuerDN.cstring, encodingFormat.cert_format_t,
+    cert_ctx, certKey, certificate.addr, libp2pExtension.signature.unsafeAddr,
+    libp2pExtension.pubkey.unsafeAddr, issuerDN.cstring, encodingFormat.cert_format_t,
   )
   if ret != CERT_SUCCESS:
     raise
@@ -236,7 +232,8 @@ proc parse*(
   defer:
     cert_free_parsed(certParsed)
 
-  let ret = cert_parse(certDerBuffer.addr, DER.cert_format_t(), certParsed.addr)
+  let ret =
+    cert_parse(certDerBuffer.unsafeAddr, DER.cert_format_t(), certParsed.unsafeAddr)
   if ret != CERT_SUCCESS:
     raise newException(
       CertificateParsingError, "Failed to parse certificate, error code: " & $ret
