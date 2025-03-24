@@ -13,12 +13,37 @@ suite "Certificate roundtrip tests":
       let keypair = KeyPair.random(scheme, rng[]).tryGet()
       let peerId = PeerId.init(keypair.pubkey).tryGet()
 
-      let certTuple = generate(keypair, EncodingFormat.DER)
+      let certTuple = generate(keypair)
       let cert = parse(certTuple.raw)
 
       check peerId == cert.peerId()
       check cert.publicKey().scheme == scheme
       check cert.verify()
+
+  test "gnerate with invalid validity time":
+    var rng = newRng()
+    let keypair = KeyPair.random(Ed25519, rng[]).tryGet()
+
+    # past
+    var validFrom = (now() - 3.days).toTime()
+    var validTo = (now() - 1.days).toTime()
+    var certTuple = generate(keypair, validFrom, validTo)
+    var cert = parse(certTuple.raw)
+    check not cert.verify()
+
+    # future
+    validFrom = (now() + 1.days).toTime()
+    validTo = (now() + 3.days).toTime()
+    certTuple = generate(keypair, validFrom, validTo)
+    cert = parse(certTuple.raw)
+    check not cert.verify()
+
+    # twisted from-to
+    validFrom = (now() + 3.days).toTime()
+    validTo = (now() - 3.days).toTime()
+    certTuple = generate(keypair, validFrom, validTo)
+    cert = parse(certTuple.raw)
+    check not cert.verify()
 
 ## Test vectors are equivalents to https://github.com/libp2p/specs/blob/master/tls/tls.md#test-vectors.
 ## Since certificates in those don't have Issuer and Subject, they are empty,
@@ -72,10 +97,22 @@ suite "Test vectors":
     # should not verify
     check not cert.verify()
 
+  test "Expired certificate":
+    let certBytesHex =
+      "30820214308201BBA003020102021412A974B8DE545B54729BF8393EFFFB00AEF69FB5300A06082A8648CE3D04030230423140303E06035504030C37434E3D313244334B6F6F574A7A564657566869746861656A395172374E6A4A4642626A44447942475351737146317361734342635841483022180F32303234313232343038303030345A180F32303235303232343038303030345A30423140303E06035504030C37434E3D313244334B6F6F574A7A564657566869746861656A395172374E6A4A4642626A44447942475351737146317361734342635841483059301306072A8648CE3D020106082A8648CE3D03010703420004C1DB5D2F5D4697386B723993D5499DB50E80E3F970135381B25FDBCA0660797F79FCE818EDDEFF6D27F56C6505F3F3F439E5D78F355293A5215718FA91DA0263A3818A3081873078060A2B0601040183A25A0101046A30680424080112208850FF8CF0E751088411ECF49A34DDBB50EEE0584F1B8CA6F9BBC93752FD6D4A04401ACF48FCFC7CA932C316E21DC986B366531D158E1499194D8601AE9FEF65D6E41198D4FC14B5AEA6BC67B06D28AFA13B759477048FF887CC26C0F197FB227B0F300B0603551D0F0101FF0401A0300A06082A8648CE3D040302034700304402206B1C01813E0A3CF0777D564A8090386B324660E703F6120E7C387DF23F94323B0220206E6BCC1213EF2A15E01B16F30DF45653B84AE6CEA87271A9301E055DB65FCB"
+    let cert = parse(fromHex(certBytesHex))
+
+    # should have valid key
+    check $cert.peerId() == "12D3KooWJzVFWVhithaej9Qr7NjJFBbjDDyBGSQsqF1sasCBcXAH"
+    check cert.publicKey().scheme == PKScheme.Ed25519
+
+    # should not verify
+    check not cert.verify()
+
 suite "utilities test":
   test "parseASN1Time":
     var dt = parseASN1Time("Mar 19 11:54:31 2025 GMT")
-    check "2025-03-19T11:54:31Z" == $dt
+    check 1742385271 == dt.toUnix()
 
     dt = parseASN1Time("Jan  1 00:00:00 1975 GMT")
-    check "1975-01-01T00:00:00Z" == $dt
+    check 157766400 == dt.toUnix()

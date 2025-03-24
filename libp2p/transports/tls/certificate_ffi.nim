@@ -57,6 +57,8 @@ proc cert_generate*(
   signature: ptr cert_buffer,
   ident_pubk: ptr cert_buffer,
   cn: cstring,
+  validFrom: cstring,
+  validTo: cstring,
   format: cert_format_t,
 ): cert_error_t {.cdecl, importc: "cert_generate".}
 
