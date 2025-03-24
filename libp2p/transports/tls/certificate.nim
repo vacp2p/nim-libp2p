@@ -114,7 +114,7 @@ proc makeASN1Time(time: Time): cstring {.inline.} =
       let f = initTimeFormat("yyyyMMddhhmmss")
       format(time.utc(), f)
     except TimeFormatParseError:
-      raiseAssert "time format is const"
+      raiseAssert "time format is const and checked with test"
 
   return (str & "Z").cstring
 
