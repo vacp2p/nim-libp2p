@@ -149,17 +149,10 @@ type QuicTransport* = ref object of Transport
   client: QuicClient
   privateKey: PrivateKey
   connections: seq[P2PConnection]
+  rng: ref HmacDrbgContext
 
 func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
-  try:
-    let tlsConfig = TLSConfig.init()
-    return QuicTransport(
-      upgrader: QuicUpgrade(ms: u.ms),
-      privateKey: privateKey,
-      client: QuicClient.init(tlsConfig),
-    )
-  except QuicConfigError as exc:
-    doAssert false, "invalid quic setup: " & $exc.msg
+  return QuicTransport(upgrader: QuicUpgrade(ms: u.ms), privateKey: privateKey)
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
@@ -171,6 +164,14 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError]).} =
   doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
+
+  try:
+    let tlsConfig = TLSConfig.init()
+    if self.rng.isNil:
+      self.rng = newRng()
+    self.client = QuicClient.init(tlsConfig, rng = self.rng)
+  except QuicConfigError as exc:
+    doAssert false, "invalid quic setup: " & $exc.msg
 
   let pubkey = self.privateKey.getPublicKey().valueOr:
     doAssert false, "could not obtain public key"
