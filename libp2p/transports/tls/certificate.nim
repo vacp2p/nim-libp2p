@@ -9,6 +9,8 @@
 
 import std/[sequtils, exitprocs]
 
+import strutils
+import times
 import stew/byteutils
 import chronicles
 import ../../crypto/crypto
@@ -38,6 +40,8 @@ type
   P2pCertificate* = object
     extension*: P2pExtension
     pubKeyDer: seq[byte]
+    validFrom: DateTime
+    validTo: DateTime
 
 type EncodingFormat* = enum
   DER
@@ -213,6 +217,15 @@ proc generate*(
   # Return the Serialized Certificate and Private Key
   return (outputCertificate, outputPrivateKey)
 
+proc parseASN1Time*(asn1Time: string): DateTime {.raises: [TimeParseError].} =
+  var ans1TimeNoZone = asn1Time[0 ..^ 5] # removes GMT part
+  # days with 1 digit have additional space -> strip it
+  ans1TimeNoZone = ans1TimeNoZone.replace("  ", " ")
+
+  const certTimeFormat = "MMM d hh:mm:ss yyyy"
+  const f = initTimeFormat(certTimeFormat)
+  return parse(ans1TimeNoZone, f, utc())
+
 proc parse*(
     certificateDer: seq[byte]
 ): P2pCertificate {.raises: [CertificateParsingError].} =
@@ -239,11 +252,22 @@ proc parse*(
       CertificateParsingError, "Failed to parse certificate, error code: " & $ret
     )
 
+  var validFrom, validTo: DateTime
+  try:
+    validFrom = parseASN1Time($certParsed.valid_from)
+    validTo = parseASN1Time($certParsed.valid_to)
+  except TimeParseError as e:
+    raise newException(
+      CertificateParsingError, "Failed to parse certificate validity time, " & $e.msg
+    )
+
   P2pCertificate(
     extension: P2pExtension(
       signature: certParsed.signature.toSeq(), publicKey: certParsed.ident_pubk.toSeq()
     ),
     pubKeyDer: certParsed.cert_pbuk.toSeq(),
+    validFrom: validFrom,
+    validTo: validTo,
   )
 
 proc verify*(self: P2pCertificate): bool =
@@ -255,11 +279,12 @@ proc verify*(self: P2pCertificate): bool =
   ## Returns:
   ## `true` if certificate is valid.
 
+  let currentDate = now().utc()
+  if not (currentDate >= self.validFrom and currentDate < self.validTo):
+    return false
+
   var sig: Signature
   var key: PublicKey
-
-  # TODO: validate dates
-
   if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
     let msg = makeSignatureMessage(self.pubKeyDer)
     return sig.verify(msg, key)

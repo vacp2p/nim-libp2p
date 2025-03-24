@@ -1,5 +1,6 @@
 import unittest2
 
+import times
 import ../../../libp2p/transports/tls/certificate
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/peerid
@@ -70,3 +71,11 @@ suite "Test vectors":
 
     # should not verify
     check not cert.verify()
+
+suite "utilities test":
+  test "parseASN1Time":
+    var dt = parseASN1Time("Mar 19 11:54:31 2025 GMT")
+    check "2025-03-19T11:54:31Z" == $dt
+
+    dt = parseASN1Time("Jan  1 00:00:00 1975 GMT")
+    check "1975-01-01T00:00:00Z" == $dt
