@@ -103,7 +103,7 @@ int ensure_libp2p_oid() {
     // OID not yet registered, create it
     nid = OBJ_create(LIBP2P_OID, "libp2p_tls", "libp2p TLS extension");
     if (!nid) {
-      return 0;
+      return CERT_ERROR_NID;
     }
   }
   return nid;
@@ -336,7 +336,8 @@ cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
 
   // Add custom extension
   int nid = ensure_libp2p_oid();
-  if (!nid) {
+  if (nid <= 0) {
+    ret_code = nid;
     goto cleanup;
   }
 
@@ -592,7 +593,6 @@ cert_error_t cert_parse(cert_buffer *cert, cert_format_t format,
 
   // Check if we have exactly two items in the sequence
   if (sk_ASN1_TYPE_num(seq) != 2) {
-    printf("Expected 2 items in sequence, found %d\n", sk_ASN1_TYPE_num(seq));
     ret_code = CERT_ERROR_NOT_ENOUGH_SEQ_ELEMS;
     goto cleanup;
   }
@@ -636,7 +636,7 @@ cert_error_t cert_parse(cert_buffer *cert, cert_format_t format,
   // Get public key length
   int pubkey_len = i2d_PUBKEY(pkey, NULL);
   if (pubkey_len <= 0) {
-    fprintf(stderr, "Failed to determine public key length\n");
+    ret_code = CERT_ERROR_PUBKEY_DER_LEN;
     goto cleanup;
   }
 
@@ -648,7 +648,7 @@ cert_error_t cert_parse(cert_buffer *cert, cert_format_t format,
 
   unsigned char *temp = pubkey_buf;
   if (i2d_PUBKEY(pkey, &temp) <= 0) {
-    fprintf(stderr, "Failed to convert public key to DER\n");
+    ret_code = CERT_ERROR_PUBKEY_DER_CONV;
     goto cleanup;
   }
 

@@ -49,6 +49,9 @@ typedef int32_t cert_error_t;
 #define CERT_ERROR_DECODE_SEQUENCE -36
 #define CERT_ERROR_NOT_ENOUGH_SEQ_ELEMS -37
 #define CERT_ERROR_NOT_OCTET_STR -38
+#define CERT_ERROR_NID -39
+#define CERT_ERROR_PUBKEY_DER_LEN -40
+#define CERT_ERROR_PUBKEY_DER_CONV -41
 
 typedef enum { CERT_FORMAT_DER = 0, CERT_FORMAT_PEM = 1 } cert_format_t;
 
