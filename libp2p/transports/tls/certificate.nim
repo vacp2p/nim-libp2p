@@ -233,14 +233,14 @@ proc generate*(
   # Return the Serialized Certificate and Private Key
   return (outputCertificate, outputPrivateKey)
 
-proc parseASN1Time*(asn1Time: string): Time {.raises: [TimeParseError].} =
-  var ans1TimeNoZone = asn1Time[0 ..^ 5] # removes GMT part
+proc parseCertTime*(certTime: string): Time {.raises: [TimeParseError].} =
+  var timeNoZone = certTime[0 ..^ 5] # removes GMT part
   # days with 1 digit have additional space -> strip it
-  ans1TimeNoZone = ans1TimeNoZone.replace("  ", " ")
+  timeNoZone = timeNoZone.replace("  ", " ")
 
   const certTimeFormat = "MMM d hh:mm:ss yyyy"
   const f = initTimeFormat(certTimeFormat)
-  return parse(ans1TimeNoZone, f, utc()).toTime()
+  return parse(timeNoZone, f, utc()).toTime()
 
 proc parse*(
     certificateDer: seq[byte]
@@ -270,8 +270,8 @@ proc parse*(
 
   var validFrom, validTo: Time
   try:
-    validFrom = parseASN1Time($certParsed.valid_from)
-    validTo = parseASN1Time($certParsed.valid_to)
+    validFrom = parseCertTime($certParsed.valid_from)
+    validTo = parseCertTime($certParsed.valid_to)
   except TimeParseError as e:
     raise newException(
       CertificateParsingError, "Failed to parse certificate validity time, " & $e.msg

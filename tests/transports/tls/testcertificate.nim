@@ -110,9 +110,9 @@ suite "Test vectors":
     check not cert.verify()
 
 suite "utilities test":
-  test "parseASN1Time":
-    var dt = parseASN1Time("Mar 19 11:54:31 2025 GMT")
+  test "parseCertTime":
+    var dt = parseCertTime("Mar 19 11:54:31 2025 GMT")
     check 1742385271 == dt.toUnix()
 
-    dt = parseASN1Time("Jan  1 00:00:00 1975 GMT")
+    dt = parseCertTime("Jan  1 00:00:00 1975 GMT")
     check 157766400 == dt.toUnix()
