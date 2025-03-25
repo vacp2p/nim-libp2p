@@ -215,6 +215,7 @@ int init_cert_buffer(cert_buffer **buffer, const unsigned char *src_data,
 cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
                            cert_buffer **out, cert_buffer *signature,
                            cert_buffer *ident_pubk, const char *cn,
+                           const char *validFrom, const char *validTo, 
                            cert_format_t format) {
   X509 *x509 = NULL;
   BIO *bio = NULL;
@@ -317,8 +318,8 @@ cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
     ret_code = CERT_ERROR_AS1_TIME_GEN;
     goto cleanup;
   }
-  if (!ASN1_TIME_set_string(start_time, "19750101000000Z") ||
-      !ASN1_TIME_set_string(end_time, "40960101000000Z")) {
+  if (!ASN1_TIME_set_string(start_time, validFrom) ||
+      !ASN1_TIME_set_string(end_time, validTo)) {
     ret_code = CERT_ERROR_VALIDITY_PERIOD;
     goto cleanup;
   }

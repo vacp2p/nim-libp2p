@@ -129,6 +129,8 @@ cert_error_t cert_serialize_pubk(cert_key_t key, cert_buffer **out,
  * @param signature buffer that contains a signature
  * @param ident_pubk buffer that contains the bytes of an identity pubk
  * @param common_name Common name to use for the certificate subject/issuer
+ * @param validFrom Date from which certificate is issued
+ * @param validTo Date to which certificate is issued
  * @param format Certificate format
  *
  * @return CERT_SUCCESS on successful execution, an error code otherwise
@@ -136,6 +138,7 @@ cert_error_t cert_serialize_pubk(cert_key_t key, cert_buffer **out,
 cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
                            cert_buffer **out, cert_buffer *signature,
                            cert_buffer *ident_pubk, const char *cn,
+                           const char *validFrom, const char *validTo, 
                            cert_format_t format);
 
 /**

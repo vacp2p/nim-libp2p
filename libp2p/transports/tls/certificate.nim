@@ -9,6 +9,8 @@
 
 import std/[sequtils, exitprocs]
 
+import strutils
+import times
 import stew/byteutils
 import chronicles
 import ../../crypto/crypto
@@ -38,6 +40,8 @@ type
   P2pCertificate* = object
     extension*: P2pExtension
     pubKeyDer: seq[byte]
+    validFrom: Time
+    validTo: Time
 
 type EncodingFormat* = enum
   DER
@@ -104,6 +108,16 @@ func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
 
   return issuerDN
 
+proc makeASN1Time(time: Time): cstring {.inline.} =
+  let str =
+    try:
+      let f = initTimeFormat("yyyyMMddhhmmss")
+      format(time.utc(), f)
+    except TimeFormatParseError:
+      raiseAssert "time format is const and checked with test"
+
+  return (str & "Z").cstring
+
 proc makeExtValues(
     identityKeypair: KeyPair, certKey: cert_key_t
 ): tuple[signature: cert_buffer, pubkey: cert_buffer] {.
@@ -156,7 +170,10 @@ proc makeExtValues(
   return (signature.toCertBuffer(), pubKeyBytes.toCertBuffer())
 
 proc generate*(
-    identityKeyPair: KeyPair, encodingFormat: EncodingFormat = EncodingFormat.DER
+    identityKeyPair: KeyPair,
+    validFrom: Time = fromUnix(157813200),
+    validTo: Time = fromUnix(67090165200),
+    encodingFormat: EncodingFormat = EncodingFormat.DER,
 ): tuple[raw: seq[byte], privateKey: seq[byte]] {.
     raises: [
       KeyGenerationError, IdentitySigningError, IdentityPubKeySerializationError,
@@ -189,11 +206,14 @@ proc generate*(
 
   let issuerDN = makeIssuerDN(identityKeyPair)
   let libp2pExtension = makeExtValues(identityKeyPair, certKey)
+  let validFromAsn1 = makeASN1Time(validFrom)
+  let validToAsn1 = makeASN1Time(validTo)
   var certificate: ptr cert_buffer = nil
 
   ret = cert_generate(
     cert_ctx, certKey, certificate.addr, libp2pExtension.signature.unsafeAddr,
-    libp2pExtension.pubkey.unsafeAddr, issuerDN.cstring, encodingFormat.cert_format_t,
+    libp2pExtension.pubkey.unsafeAddr, issuerDN.cstring, validFromAsn1, validToAsn1,
+    encodingFormat.cert_format_t,
   )
   if ret != CERT_SUCCESS:
     raise
@@ -212,6 +232,15 @@ proc generate*(
 
   # Return the Serialized Certificate and Private Key
   return (outputCertificate, outputPrivateKey)
+
+proc parseCertTime*(certTime: string): Time {.raises: [TimeParseError].} =
+  var timeNoZone = certTime[0 ..^ 5] # removes GMT part
+  # days with 1 digit have additional space -> strip it
+  timeNoZone = timeNoZone.replace("  ", " ")
+
+  const certTimeFormat = "MMM d hh:mm:ss yyyy"
+  const f = initTimeFormat(certTimeFormat)
+  return parse(timeNoZone, f, utc()).toTime()
 
 proc parse*(
     certificateDer: seq[byte]
@@ -239,11 +268,22 @@ proc parse*(
       CertificateParsingError, "Failed to parse certificate, error code: " & $ret
     )
 
+  var validFrom, validTo: Time
+  try:
+    validFrom = parseCertTime($certParsed.valid_from)
+    validTo = parseCertTime($certParsed.valid_to)
+  except TimeParseError as e:
+    raise newException(
+      CertificateParsingError, "Failed to parse certificate validity time, " & $e.msg
+    )
+
   P2pCertificate(
     extension: P2pExtension(
       signature: certParsed.signature.toSeq(), publicKey: certParsed.ident_pubk.toSeq()
     ),
     pubKeyDer: certParsed.cert_pbuk.toSeq(),
+    validFrom: validFrom,
+    validTo: validTo,
   )
 
 proc verify*(self: P2pCertificate): bool =
@@ -255,11 +295,12 @@ proc verify*(self: P2pCertificate): bool =
   ## Returns:
   ## `true` if certificate is valid.
 
+  let currentTime = now().utc().toTime()
+  if not (currentTime >= self.validFrom and currentTime < self.validTo):
+    return false
+
   var sig: Signature
   var key: PublicKey
-
-  # TODO: validate dates
-
   if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
     let msg = makeSignatureMessage(self.pubKeyDer)
     return sig.verify(msg, key)
