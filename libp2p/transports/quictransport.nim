@@ -167,26 +167,20 @@ method start*(
   doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
 
-  try:
-    let tlsConfig = TLSConfig.init()
-    if self.rng.isNil:
-      self.rng = newRng()
-    self.client = QuicClient.init(tlsConfig, rng = self.rng)
-  except QuicConfigError as exc:
-    doAssert false, "invalid quic setup: " & $exc.msg
-
   let pubkey = self.privateKey.getPublicKey().valueOr:
     doAssert false, "could not obtain public key"
     return
 
   let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
-
   let certPair = generate(keypair, EncodingFormat.PEM)
 
   try:
+    if self.rng.isNil:
+      self.rng = newRng()
     let tlsConfig = TLSConfig.init(certPair[0], certPair[1], @[alpn])
-    self.client = QuicClient.init(tlsConfig)
-    self.listener = QuicServer.init(tlsConfig).listen(initTAddress(addrs[0]).tryGet)
+    self.client = QuicClient.init(tlsConfig, rng = self.rng)
+    self.listener =
+      QuicServer.init(tlsConfig, rng = self.rng).listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
