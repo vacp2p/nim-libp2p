@@ -26,6 +26,8 @@ type
   QuicTransportError* = object of transport.TransportError
   QuicTransportDialError* = object of transport.TransportDialError
 
+const alpn = "libp2p"
+
 # Stream
 type QuicStream* = ref object of P2PConnection
   stream: Stream
@@ -137,7 +139,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
     await m.quicSession.close()
-    m.handleFut.cancel()
+    m.handleFut.cancelSoon()
   except CatchableError as exc:
     discard
 
@@ -165,26 +167,20 @@ method start*(
   doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
 
-  try:
-    let tlsConfig = TLSConfig.init()
-    if self.rng.isNil:
-      self.rng = newRng()
-    self.client = QuicClient.init(tlsConfig, rng = self.rng)
-  except QuicConfigError as exc:
-    doAssert false, "invalid quic setup: " & $exc.msg
-
   let pubkey = self.privateKey.getPublicKey().valueOr:
     doAssert false, "could not obtain public key"
     return
 
   let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
-
   let certPair = generate(keypair, EncodingFormat.PEM)
 
   try:
-    let tlsConfig = TLSConfig.init(certPair[0], certPair[1])
-    let server = QuicServer.init(tlsConfig)
-    self.listener = server.listen(initTAddress(addrs[0]).tryGet)
+    if self.rng.isNil:
+      self.rng = newRng()
+    let tlsConfig = TLSConfig.init(certPair[0], certPair[1], @[alpn])
+    self.client = QuicClient.init(tlsConfig, rng = self.rng)
+    self.listener =
+      QuicServer.init(tlsConfig, rng = self.rng).listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
@@ -206,6 +202,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
       await transport.listener.stop()
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
+    transport.listener.destroy()
     transport.running = false
     transport.listener = nil
 
