@@ -175,19 +175,29 @@ proc makeCertificateVerifier(): CertificateVerifier =
 
   return CustomCertificateVerifier.init(certificateVerifier)
 
-proc makeDefaultCertGenerator(): CertGenerator =
-  return proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
-    return generateX509(kp, encodingFormat = EncodingFormat.PEM)
+proc defaultCertGenerator(
+    kp: KeyPair
+): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+  return generateX509(kp, encodingFormat = EncodingFormat.PEM)
 
 proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
   return QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms),
     privateKey: privateKey,
-    certGenerator: makeDefaultCertGenerator(),
+    certGenerator: defaultCertGenerator,
   )
 
-proc setCertificateGenerator*(self: QuicTransport, certGenerator: CertGenerator) =
-  self.certGenerator = certGenerator
+proc new*(
+    _: type QuicTransport,
+    u: Upgrade,
+    privateKey: PrivateKey,
+    certGenerator: CertGenerator,
+): QuicTransport =
+  return QuicTransport(
+    upgrader: QuicUpgrade(ms: u.ms),
+    privateKey: privateKey,
+    certGenerator: certGenerator,
+  )
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):

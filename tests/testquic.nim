@@ -49,9 +49,11 @@ proc invalidCertGenerator(
 proc createTransport(withInvalidCert: bool = false): Future[QuicTransport] {.async.} =
   let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
   let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
-  let trans = QuicTransport.new(Upgrade(), privateKey)
-  if withInvalidCert:
-    trans.setCertificateGenerator(invalidCertGenerator)
+  let trans =
+    if withInvalidCert:
+      QuicTransport.new(Upgrade(), privateKey, invalidCertGenerator)
+    else:
+      QuicTransport.new(Upgrade(), privateKey)
   await trans.start(ma)
 
   return trans
