@@ -25,13 +25,16 @@ suite "Quic transport":
   #
   asyncTest "transport e2e":
     let serverMA = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
+    let clientMA = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
     let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
     let server: QuicTransport = QuicTransport.new(Upgrade(), privateKey)
     await server.start(serverMA)
 
     proc runClient() {.async.} =
-      let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+      let rng = newRng()
+      let privateKey = PrivateKey.random(ECDSA, (rng)[]).tryGet()
       let client: QuicTransport = QuicTransport.new(Upgrade(), privateKey)
+      await client.start(clientMA)
       let conn = await client.dial("", server.addrs[0])
       let stream = await getStream(QuicSession(conn), Direction.Out)
       await stream.write("client")

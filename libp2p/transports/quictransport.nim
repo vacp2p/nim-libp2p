@@ -193,11 +193,14 @@ method start*(
   let certTuple = generate(keypair, encodingFormat = EncodingFormat.PEM)
 
   try:
+    if self.rng.isNil:
+      self.rng = newRng()
     let tlsConfig = TLSConfig.init(
-      certTuple.raw, certTuple.privateKey, @[alpn], Opt.some(makeCertificateVerifier())
+      certTuple[0], certTuple[1], @[alpn], Opt.some(makeCertificateVerifier())
     )
-    self.client = QuicClient.init(tlsConfig)
-    self.listener = QuicServer.init(tlsConfig).listen(initTAddress(addrs[0]).tryGet)
+    self.client = QuicClient.init(tlsConfig, rng = self.rng)
+    self.listener =
+      QuicServer.init(tlsConfig, rng = self.rng).listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
