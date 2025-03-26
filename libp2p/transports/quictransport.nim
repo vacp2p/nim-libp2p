@@ -190,7 +190,7 @@ method start*(
     return
 
   let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
-  let certTuple = generate(keypair, EncodingFormat.PEM)
+  let certTuple = generate(keypair, encodingFormat = EncodingFormat.PEM)
 
   try:
     let tlsConfig = TLSConfig.init(
