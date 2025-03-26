@@ -153,6 +153,24 @@ type QuicTransport* = ref object of Transport
   connections: seq[P2PConnection]
   rng: ref HmacDrbgContext
 
+proc makeCertificateVerifier(): CertificateVerifier =
+  proc certificateVerifier(certificatesDer: seq[seq[byte]]): bool =
+    if certificatesDer.len != 1:
+      trace "CertificateVerifier: expected one certificate in the chain",
+        cert_count = certificatesDer.len
+      return false
+
+    let cert =
+      try:
+        parse(certificatesDer[0])
+      except CertificateParsingError as e:
+        trace "CertificateVerifier: failed to parse certificate", msg = e.msg
+        return false
+
+    return cert.verify()
+
+  return CustomCertificateVerifier.init(certificateVerifier)
+
 func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
   return QuicTransport(upgrader: QuicUpgrade(ms: u.ms), privateKey: privateKey)
 
@@ -172,15 +190,14 @@ method start*(
     return
 
   let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
-  let certPair = generate(keypair, EncodingFormat.PEM)
+  let certTuple = generate(keypair, EncodingFormat.PEM)
 
   try:
-    if self.rng.isNil:
-      self.rng = newRng()
-    let tlsConfig = TLSConfig.init(certPair[0], certPair[1], @[alpn])
-    self.client = QuicClient.init(tlsConfig, rng = self.rng)
-    self.listener =
-      QuicServer.init(tlsConfig, rng = self.rng).listen(initTAddress(addrs[0]).tryGet)
+    let tlsConfig = TLSConfig.init(
+      certTuple.raw, certTuple.privateKey, @[alpn], Opt.some(makeCertificateVerifier())
+    )
+    self.client = QuicClient.init(tlsConfig)
+    self.listener = QuicServer.init(tlsConfig).listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
