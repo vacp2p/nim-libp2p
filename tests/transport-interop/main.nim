@@ -45,7 +45,7 @@ proc main() {.async.} =
   of "ws":
     discard switchBuilder
       .withTransport(
-        proc(upgr: Upgrade): Transport =
+        proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
           WsTransport.new(upgr)
       )
       .withAddress(MultiAddress.init("/ip4/" & ip & "/tcp/0/ws").tryGet())

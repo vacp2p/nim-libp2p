@@ -2,6 +2,7 @@ import std/sequtils
 import pkg/chronos
 import pkg/chronicles
 import pkg/quic
+import results
 import ../multiaddress
 import ../multicodec
 import ../stream/connection
@@ -9,6 +10,7 @@ import ../wire
 import ../muxers/muxer
 import ../upgrademngrs/upgrade
 import ./transport
+import tls/certificate
 
 export multiaddress
 export multicodec
@@ -23,6 +25,8 @@ type
   QuicConnection = quic.Connection
   QuicTransportError* = object of transport.TransportError
   QuicTransportDialError* = object of transport.TransportDialError
+
+const alpn = "libp2p"
 
 # Stream
 type QuicStream* = ref object of P2PConnection
@@ -81,15 +85,19 @@ method close*(session: QuicSession) {.async: (raises: []).} =
 
 proc getStream*(
     session: QuicSession, direction = Direction.In
-): Future[QuicStream] {.async: (raises: [CatchableError]).} =
-  var stream: Stream
-  case direction
-  of Direction.In:
-    stream = await session.connection.incomingStream()
-  of Direction.Out:
-    stream = await session.connection.openStream()
-    await stream.write(@[]) # QUIC streams do not exist until data is sent
-  return QuicStream.new(stream, session.observedAddr, session.peerId)
+): Future[QuicStream] {.async: (raises: [QuicTransportError]).} =
+  try:
+    var stream: Stream
+    case direction
+    of Direction.In:
+      stream = await session.connection.incomingStream()
+    of Direction.Out:
+      stream = await session.connection.openStream()
+      await stream.write(@[]) # QUIC streams do not exist until data is sent
+    return QuicStream.new(stream, session.observedAddr, session.peerId)
+  except CatchableError as exc:
+    # TODO: incomingStream is using {.async.} with no raises
+    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
 
 method getWrapped*(self: QuicSession): P2PConnection =
   nil
@@ -131,7 +139,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
     await m.quicSession.close()
-    m.handleFut.cancel()
+    m.handleFut.cancelSoon()
   except CatchableError as exc:
     discard
 
@@ -140,10 +148,31 @@ type QuicUpgrade = ref object of Upgrade
 
 type QuicTransport* = ref object of Transport
   listener: Listener
+  client: QuicClient
+  privateKey: PrivateKey
   connections: seq[P2PConnection]
+  rng: ref HmacDrbgContext
 
-func new*(_: type QuicTransport, u: Upgrade): QuicTransport =
-  QuicTransport(upgrader: QuicUpgrade(ms: u.ms))
+proc makeCertificateVerifier(): CertificateVerifier =
+  proc certificateVerifier(certificatesDer: seq[seq[byte]]): bool =
+    if certificatesDer.len != 1:
+      trace "CertificateVerifier: expected one certificate in the chain",
+        cert_count = certificatesDer.len
+      return false
+
+    let cert =
+      try:
+        parse(certificatesDer[0])
+      except CertificateParsingError as e:
+        trace "CertificateVerifier: failed to parse certificate", msg = e.msg
+        return false
+
+    return cert.verify()
+
+  return CustomCertificateVerifier.init(certificateVerifier)
+
+func new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
+  return QuicTransport(upgrader: QuicUpgrade(ms: u.ms), privateKey: privateKey)
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
@@ -155,12 +184,31 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError]).} =
   doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
+
+  let pubkey = self.privateKey.getPublicKey().valueOr:
+    doAssert false, "could not obtain public key"
+    return
+
+  let keypair = KeyPair(seckey: self.privateKey, pubkey: pubkey)
+  let certTuple = generate(keypair, encodingFormat = EncodingFormat.PEM)
+
   try:
-    self.listener = listen(initTAddress(addrs[0]).tryGet)
+    if self.rng.isNil:
+      self.rng = newRng()
+    let tlsConfig = TLSConfig.init(
+      certTuple[0], certTuple[1], @[alpn], Opt.some(makeCertificateVerifier())
+    )
+    self.client = QuicClient.init(tlsConfig, rng = self.rng)
+    self.listener =
+      QuicServer.init(tlsConfig, rng = self.rng).listen(initTAddress(addrs[0]).tryGet)
     await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()
+  except QuicConfigError as exc:
+    doAssert false, "invalid quic setup: " & $exc.msg
+  except QuicError as exc:
+    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
   except TransportOsError as exc:
     raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
   self.running = true
@@ -174,32 +222,38 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
       await transport.listener.stop()
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
+    transport.listener.destroy()
     transport.running = false
     transport.listener = nil
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection
-): P2PConnection {.raises: [Defect, TransportOsError, LPError].} =
+): QuicSession {.raises: [TransportOsError, LPError].} =
   let
     remoteAddr = connection.remoteAddress()
     observedAddr =
       MultiAddress.init(remoteAddr, IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
-    conres = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
-  conres.initStream()
+    session = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
 
-  transport.connections.add(conres)
+  session.initStream()
+
+  transport.connections.add(session)
+
   proc onClose() {.async: (raises: []).} =
-    await noCancel conres.join()
-    transport.connections.keepItIf(it != conres)
+    await noCancel session.join()
+    transport.connections.keepItIf(it != session)
     trace "Cleaned up client"
 
   asyncSpawn onClose()
-  return conres
+
+  return session
 
 method accept*(
     self: QuicTransport
-): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[connection.Connection] {.
+    async: (raises: [transport.TransportError, CancelledError])
+.} =
   doAssert not self.listener.isNil, "call start() before calling accept()"
   try:
     let connection = await self.listener.accept()
@@ -214,10 +268,12 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[P2PConnection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[connection.Connection] {.
+    async: (raises: [transport.TransportError, CancelledError])
+.} =
   try:
-    let connection = await dial(initTAddress(address).tryGet)
-    return self.wrapConnection(connection)
+    let quicConnection = await self.client.dial(initTAddress(address).tryGet)
+    return self.wrapConnection(quicConnection)
   except CancelledError as e:
     raise e
   except CatchableError as e:
