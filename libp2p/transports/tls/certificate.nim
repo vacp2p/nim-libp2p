@@ -43,6 +43,11 @@ type
     validFrom: Time
     validTo: Time
 
+  CertificateX509* = object
+    certificate*: seq[byte]
+      # Complete ASN.1 DER content (certificate, signature algorithm and signature).
+    privateKey*: seq[byte] # Private key used to sign certificate
+
 type EncodingFormat* = enum
   DER
   PEM
@@ -169,12 +174,12 @@ proc makeExtValues(
 
   return (signature.toCertBuffer(), pubKeyBytes.toCertBuffer())
 
-proc generate*(
+proc generateX509*(
     identityKeyPair: KeyPair,
     validFrom: Time = fromUnix(157813200),
     validTo: Time = fromUnix(67090165200),
     encodingFormat: EncodingFormat = EncodingFormat.DER,
-): tuple[raw: seq[byte], privateKey: seq[byte]] {.
+): CertificateX509 {.
     raises: [
       KeyGenerationError, IdentitySigningError, IdentityPubKeySerializationError,
       CertificateCreationError, CertificatePubKeySerializationError,
@@ -230,8 +235,7 @@ proc generate*(
   cert_free_buffer(certificate)
   cert_free_buffer(privKDer)
 
-  # Return the Serialized Certificate and Private Key
-  return (outputCertificate, outputPrivateKey)
+  return CertificateX509(certificate: outputCertificate, privateKey: outputPrivateKey)
 
 proc parseCertTime*(certTime: string): Time {.raises: [TimeParseError].} =
   var timeNoZone = certTime[0 ..^ 5] # removes GMT part

@@ -13,8 +13,8 @@ suite "Certificate roundtrip tests":
       let keypair = KeyPair.random(scheme, rng[]).tryGet()
       let peerId = PeerId.init(keypair.pubkey).tryGet()
 
-      let certTuple = generate(keypair)
-      let cert = parse(certTuple.raw)
+      let certX509 = generateX509(keypair, encodingFormat = EncodingFormat.DER)
+      let cert = parse(certX509.certificate)
 
       check peerId == cert.peerId()
       check cert.publicKey().scheme == scheme
@@ -27,22 +27,22 @@ suite "Certificate roundtrip tests":
     # past
     var validFrom = (now() - 3.days).toTime()
     var validTo = (now() - 1.days).toTime()
-    var certTuple = generate(keypair, validFrom, validTo)
-    var cert = parse(certTuple.raw)
+    var certX509 = generateX509(keypair, validFrom, validTo)
+    var cert = parse(certX509.certificate)
     check not cert.verify()
 
     # future
     validFrom = (now() + 1.days).toTime()
     validTo = (now() + 3.days).toTime()
-    certTuple = generate(keypair, validFrom, validTo)
-    cert = parse(certTuple.raw)
+    certX509 = generateX509(keypair, validFrom, validTo)
+    cert = parse(certX509.certificate)
     check not cert.verify()
 
     # twisted from-to
     validFrom = (now() + 3.days).toTime()
     validTo = (now() - 3.days).toTime()
-    certTuple = generate(keypair, validFrom, validTo)
-    cert = parse(certTuple.raw)
+    certX509 = generateX509(keypair, validFrom, validTo)
+    cert = parse(certX509.certificate)
     check not cert.verify()
 
 ## Test vectors are equivalents to https://github.com/libp2p/specs/blob/master/tls/tls.md#test-vectors.
