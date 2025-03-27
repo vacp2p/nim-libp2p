@@ -102,8 +102,12 @@ suite "Quic transport":
 
     proc runClient() {.async.} =
       let client = await createTransport(true)
-      let connFut = client.dial("", server.addrs[0])
-      # conn should be refused by server
-      check not await connFut.withTimeout(1.seconds)
+      try:
+        let conn = await client.dial("", server.addrs[0])
+        check false # conn should be refused by client
+      except QuicTransportDialError:
+        discard
+
+      await client.stop()
 
     await runClient()
