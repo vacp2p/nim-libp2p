@@ -104,7 +104,7 @@ suite "Quic transport":
       let client = await createTransport(true)
       try:
         let conn = await client.dial("", server.addrs[0])
-        await conn.close()
+        check false # conn should be refused by client
       except QuicTransportDialError:
         discard
 
