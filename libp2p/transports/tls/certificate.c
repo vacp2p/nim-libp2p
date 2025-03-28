@@ -1,26 +1,35 @@
 #include <openssl/bn.h>
-#include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/objects.h>
-#include <openssl/param_build.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
-#include <openssl/types.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/core_names.h>
+#include <openssl/param_build.h>
+#include <openssl/types.h>
+#else
+#include <openssl/rand_drbg.h>
+#endif
+
 #include "certificate.h"
 
 #define LIBP2P_OID "1.3.6.1.4.1.53594.1.1"
 
 struct cert_context_s {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
   OSSL_LIB_CTX *lib_ctx; /* OpenSSL library context */
   EVP_RAND_CTX *drbg;    /* DRBG context */
+#else
+  RAND_DRBG *drbg;
+#endif
 };
 
 struct cert_key_s {
@@ -40,6 +49,7 @@ cert_error_t cert_init_drbg(const char *seed, size_t seed_len,
     return CERT_ERROR_MEMORY;
   }
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
   EVP_RAND_CTX *drbg = NULL;
   EVP_RAND *rand_algo = NULL;
   OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new(); // Create a new library context
@@ -80,6 +90,20 @@ cert_error_t cert_init_drbg(const char *seed, size_t seed_len,
 
   c->lib_ctx = libctx;
   c->drbg = drbg;
+
+#else
+  RAND_DRBG *drbg = RAND_DRBG_new(NID_aes_256_ctr, 0, NULL);
+  if (!drbg)
+    return CERT_ERROR_DRBG_INIT;
+
+  if (RAND_DRBG_instantiate(drbg, (const unsigned char *)seed, seed_len) != 1) {
+    RAND_DRBG_free(drbg);
+    return CERT_ERROR_DRBG_SEED;
+  }
+
+  c->drbg = drbg;
+#endif
+
   *ctx = c;
 
   return CERT_SUCCESS;
@@ -91,8 +115,12 @@ void cert_free_ctr_drbg(cert_context_t ctx) {
     return;
 
   struct cert_context_s *c = (struct cert_context_s *)ctx;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
   EVP_RAND_CTX_free(c->drbg);
   OSSL_LIB_CTX_free(c->lib_ctx);
+#else
+  RAND_DRBG_free(c->drbg);
+#endif
   free(c);
 }
 
@@ -127,12 +155,19 @@ cert_error_t cert_generate_key(cert_context_t ctx, cert_key_t *out) {
     return CERT_ERROR_MEMORY;
   }
 
-  // Generate random bytes for private key using our RNG
+// Generate random bytes for private key using our RNG
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
   if (EVP_RAND_generate(ctx->drbg, priv_key_bytes, sizeof(priv_key_bytes), 0, 0,
                         NULL, 0) <= 0) {
     ret_code = CERT_ERROR_RAND;
     goto cleanup;
   }
+#else
+  if (RAND_DRBG_bytes(ctx->drbg, priv_key_bytes, sizeof(priv_key_bytes)) != 1) {
+    ret_code = CERT_ERROR_RAND;
+    goto cleanup;
+  }
+#endif
 
   // Create EC key from random bytes
   ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
@@ -215,7 +250,7 @@ int init_cert_buffer(cert_buffer **buffer, const unsigned char *src_data,
 cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
                            cert_buffer **out, cert_buffer *signature,
                            cert_buffer *ident_pubk, const char *cn,
-                           const char *validFrom, const char *validTo, 
+                           const char *validFrom, const char *validTo,
                            cert_format_t format) {
   X509 *x509 = NULL;
   BIO *bio = NULL;
@@ -276,11 +311,19 @@ cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
   }
 
   unsigned char serial_bytes[20]; // Adjust size as needed
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
   if (EVP_RAND_generate(ctx->drbg, serial_bytes, sizeof(serial_bytes), 0, 0,
                         NULL, 0) <= 0) {
     ret_code = CERT_ERROR_RAND;
     goto cleanup;
   }
+#else
+  if (RAND_DRBG_bytes(ctx->drbg, serial_bytes, sizeof(serial_bytes)) != 1) {
+    ret_code = CERT_ERROR_RAND;
+    goto cleanup;
+  }
+#endif
+
   if (!BN_bin2bn(serial_bytes, sizeof(serial_bytes), serial_bn)) {
     ret_code = CERT_ERROR_BIGNUM_CONV;
     goto cleanup;
