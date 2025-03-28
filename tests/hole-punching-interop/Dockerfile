@@ -5,7 +5,7 @@ WORKDIR /workspace
 
 COPY .pinned libp2p.nimble nim-libp2p/
 
-RUN --mount=type=cache,target=/var/cache/apt apt-get update
+RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt install -y --no-install-recommends libssl-dev
 
 RUN cd nim-libp2p && nimble install_pinned && nimble install redis -y
 
