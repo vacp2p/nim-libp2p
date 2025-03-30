@@ -158,7 +158,7 @@ type QuicTransport* = ref object of Transport
   certGenerator: CertGenerator
 
 proc makeCertificateVerifier(): CertificateVerifier =
-  proc certificateVerifier(certificatesDer: seq[seq[byte]]): bool =
+  proc certificateVerifier(serverName: string, certificatesDer: seq[seq[byte]]): bool =
     if certificatesDer.len != 1:
       trace "CertificateVerifier: expected one certificate in the chain",
         cert_count = certificatesDer.len
@@ -309,8 +309,13 @@ method upgrade*(
     self: QuicTransport, conn: P2PConnection, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   let qs = QuicSession(conn)
-  if peerId.isSome:
-    qs.peerId = peerId.get()
+  qs.peerId =
+    if peerId.isSome:
+      peerId.get()
+    else:
+      let certificates = qs.connection.certificates()
+      let cert = parse(certificates[0])
+      cert.peerId()
 
   let muxer = QuicMuxer(quicSession: qs, connection: conn)
   muxer.streamHandler = proc(conn: P2PConnection) {.async: (raises: []).} =
