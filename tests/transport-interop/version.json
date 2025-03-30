@@ -3,7 +3,8 @@
   "containerImageID": "nim-libp2p-head",
   "transports": [
     "tcp",
-    "ws"
+    "ws",
+    "quic-v1"
   ],
   "secureChannels": [
     "noise"
