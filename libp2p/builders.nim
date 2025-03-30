@@ -262,6 +262,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   let pkRes = PrivateKey.random(b.rng[])
   let seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
+  if b.secureManagers.len == 0:
+    debug "no secure managers defined. Adding noise by default"
+    b.secureManagers.add(SecureProtocol.Noise)
+
   var secureManagerInstances: seq[Secure]
   if SecureProtocol.Noise in b.secureManagers:
     secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
