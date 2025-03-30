@@ -349,6 +349,11 @@ window.addEventListener("DOMContentLoaded", main2);
     title="withProtoVersion(b: SwitchBuilder; protoVersion: string): SwitchBuilder">withProtoVersion(b: SwitchBuilder; protoVersion: string): SwitchBuilder</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">withQuicTransport
+      <li><a class="reference" href="#withQuicTransport%2CSwitchBuilder"
+    title="withQuicTransport(b: SwitchBuilder): SwitchBuilder">withQuicTransport(b: SwitchBuilder): SwitchBuilder</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">withRendezVous
       <li><a class="reference" href="#withRendezVous%2CSwitchBuilder%2CRendezVous"
     title="withRendezVous(b: SwitchBuilder; rdv: RendezVous = RendezVous.new()): SwitchBuilder">withRendezVous(b: SwitchBuilder; rdv: RendezVous = RendezVous.new()): SwitchBuilder</a></li>
@@ -408,7 +413,7 @@ class="link-seesrc" target="_blank">Source</a>
   <div class="section" id="6">
 <h1><a class="toc-backref" href="#6">Imports</a></h1>
 <dl class="item">
-<a class="reference external" href="switch.html">switch</a>, <a class="reference external" href="peerid.html">peerid</a>, <a class="reference external" href="peerinfo.html">peerinfo</a>, <a class="reference external" href="stream/connection.html">stream/connection</a>, <a class="reference external" href="multiaddress.html">multiaddress</a>, <a class="reference external" href="crypto/crypto.html">crypto/crypto</a>, <a class="reference external" href="transports/transport.html">transports/transport</a>, <a class="reference external" href="transports/tcptransport.html">transports/tcptransport</a>, <a class="reference external" href="muxers/muxer.html">muxers/muxer</a>, <a class="reference external" href="muxers/mplex/mplex.html">muxers/mplex/mplex</a>, <a class="reference external" href="muxers/yamux/yamux.html">muxers/yamux/yamux</a>, <a class="reference external" href="protocols/identify.html">protocols/identify</a>, <a class="reference external" href="protocols/secure/secure.html">protocols/secure/secure</a>, <a class="reference external" href="protocols/secure/noise.html">protocols/secure/noise</a>, <a class="reference external" href="protocols/rendezvous.html">protocols/rendezvous</a>, <a class="reference external" href="protocols/connectivity/autonat/server.html">protocols/connectivity/autonat/server</a>, <a class="reference external" href="protocols/connectivity/relay/relay.html">protocols/connectivity/relay/relay</a>, <a class="reference external" href="protocols/connectivity/relay/client.html">protocols/connectivity/relay/client</a>, <a class="reference external" href="protocols/connectivity/relay/rtransport.html">protocols/connectivity/relay/rtransport</a>, <a class="reference external" href="connmanager.html">connmanager</a>, <a class="reference external" href="upgrademngrs/muxedupgrade.html">upgrademngrs/muxedupgrade</a>, <a class="reference external" href="observedaddrmanager.html">observedaddrmanager</a>, <a class="reference external" href="nameresolving/nameresolver.html">nameresolving/nameresolver</a>, <a class="reference external" href="errors.html">errors</a>, <a class="reference external" href="utility.html">utility</a>, <a class="reference external" href="services/wildcardresolverservice.html">services/wildcardresolverservice</a>
+<a class="reference external" href="switch.html">switch</a>, <a class="reference external" href="peerid.html">peerid</a>, <a class="reference external" href="peerinfo.html">peerinfo</a>, <a class="reference external" href="stream/connection.html">stream/connection</a>, <a class="reference external" href="multiaddress.html">multiaddress</a>, <a class="reference external" href="crypto/crypto.html">crypto/crypto</a>, <a class="reference external" href="transports/transport.html">transports/transport</a>, <a class="reference external" href="transports/tcptransport.html">transports/tcptransport</a>, <a class="reference external" href="transports/quictransport.html">transports/quictransport</a>, <a class="reference external" href="muxers/muxer.html">muxers/muxer</a>, <a class="reference external" href="muxers/mplex/mplex.html">muxers/mplex/mplex</a>, <a class="reference external" href="muxers/yamux/yamux.html">muxers/yamux/yamux</a>, <a class="reference external" href="protocols/identify.html">protocols/identify</a>, <a class="reference external" href="protocols/secure/secure.html">protocols/secure/secure</a>, <a class="reference external" href="protocols/secure/noise.html">protocols/secure/noise</a>, <a class="reference external" href="protocols/rendezvous.html">protocols/rendezvous</a>, <a class="reference external" href="protocols/connectivity/autonat/server.html">protocols/connectivity/autonat/server</a>, <a class="reference external" href="protocols/connectivity/relay/relay.html">protocols/connectivity/relay/relay</a>, <a class="reference external" href="protocols/connectivity/relay/client.html">protocols/connectivity/relay/client</a>, <a class="reference external" href="protocols/connectivity/relay/rtransport.html">protocols/connectivity/relay/rtransport</a>, <a class="reference external" href="connmanager.html">connmanager</a>, <a class="reference external" href="upgrademngrs/muxedupgrade.html">upgrademngrs/muxedupgrade</a>, <a class="reference external" href="observedaddrmanager.html">observedaddrmanager</a>, <a class="reference external" href="nameresolving/nameresolver.html">nameresolving/nameresolver</a>, <a class="reference external" href="errors.html">errors</a>, <a class="reference external" href="utility.html">utility</a>, <a class="reference external" href="services/wildcardresolverservice.html">services/wildcardresolverservice</a>
 </dl></div>
 <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
@@ -506,9 +511,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Helper for common switch configurations.
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L321"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L327"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L321" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L327" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -547,9 +552,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L208"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L214"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L208" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L214" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -559,9 +564,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L220"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L226"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L220" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L226" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -572,9 +577,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L224"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L230"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L224" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L230" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -585,9 +590,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent connections of the switch. You should either use this, or <a class="reference external" href="#withMaxIn,SwitchBuilder,int">withMaxIn</a> &amp; <a class="reference external" href="#withMaxOut,SwitchBuilder,int">withMaxOut</a>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L174"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L180"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L174" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L180" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -598,9 +603,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L192"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L198"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L192" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L198" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -611,9 +616,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent incoming connections. Should be used with <a class="reference external" href="#withMaxOut,SwitchBuilder,int">withMaxOut</a>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L182"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L188"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L182" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L188" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -624,9 +629,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent outgoing connections. Should be used with <a class="reference external" href="#withMaxIn,SwitchBuilder,int">withMaxIn</a>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L187"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L193"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L187" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L193" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -637,9 +642,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L214"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L220"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L214" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L220" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -663,9 +668,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L238"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L244"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L238" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L244" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -676,9 +681,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L198"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L204"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L198" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L204" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -702,28 +707,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L202"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L208"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L202" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L208" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="withRendezVous,SwitchBuilder,RendezVous" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#withRendezVous%2CSwitchBuilder%2CRendezVous"><span class="Identifier">withRendezVous</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">rdv</span><span class="Other">:</span> <a href="protocols/rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a> <span class="Other">=</span> <a href="protocols/rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">.</span><span class="Identifier">new</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L228"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L228" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="withRng,SwitchBuilder,ref.HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#withRng%2CSwitchBuilder%2Cref.HmacDrbgContext"><span class="Identifier">withRng</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
-    <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="withQuicTransport,SwitchBuilder" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withQuicTransport%2CSwitchBuilder"><span class="Identifier">withQuicTransport</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -734,8 +726,8 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="withServices,SwitchBuilder,seq[Service]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#withServices%2CSwitchBuilder%2Cseq%5BService%5D"><span class="Identifier">withServices</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">services</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="transports/transport.html#Service"><span class="Identifier">Service</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
+<div id="withRendezVous,SwitchBuilder,RendezVous" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withRendezVous%2CSwitchBuilder%2CRendezVous"><span class="Identifier">withRendezVous</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">rdv</span><span class="Other">:</span> <a href="protocols/rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a> <span class="Other">=</span> <a href="protocols/rendezvous.html#RendezVous"><span class="Identifier">RendezVous</span></a><span class="Other">.</span><span class="Identifier">new</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -744,6 +736,32 @@ class="link-seesrc" target="_blank">Source</a>
 href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L234"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L234" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="withRng,SwitchBuilder,ref.HmacDrbgContext" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withRng%2CSwitchBuilder%2Cref.HmacDrbgContext"><span class="Identifier">withRng</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
+    <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L176"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L176" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="withServices,SwitchBuilder,seq[Service]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withServices%2CSwitchBuilder%2Cseq%5BService%5D"><span class="Identifier">withServices</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">services</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="transports/transport.html#Service"><span class="Identifier">Service</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L240"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L240" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -809,7 +827,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-03-27 16:22:19 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-03-30 04:47:08 UTC</small>
       </div>
     </div>
   </div>
