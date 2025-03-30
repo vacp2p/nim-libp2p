@@ -1046,10 +1046,7 @@ suite "Switch":
         .new()
         .withAddress(quicAddress1)
         .withRng(crypto.newRng())
-        .withTransport(
-          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-            QuicTransport.new(upgr, privateKey)
-        )
+        .withQuicTransport()
         .withNoise()
         .build()
 
@@ -1057,10 +1054,7 @@ suite "Switch":
         .new()
         .withAddress(quicAddress2)
         .withRng(crypto.newRng())
-        .withTransport(
-          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-            QuicTransport.new(upgr, privateKey)
-        )
+        .withQuicTransport()
         .withNoise()
         .build()
 

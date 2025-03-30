@@ -52,6 +52,8 @@ typedef int32_t cert_error_t;
 #define CERT_ERROR_NID -39
 #define CERT_ERROR_PUBKEY_DER_LEN -40
 #define CERT_ERROR_PUBKEY_DER_CONV -41
+#define CERT_ERROR_INIT_KEYGEN -42
+#define CERT_ERROR_SET_CURVE -43
 
 typedef enum { CERT_FORMAT_DER = 0, CERT_FORMAT_PEM = 1 } cert_format_t;
 
@@ -138,7 +140,7 @@ cert_error_t cert_serialize_pubk(cert_key_t key, cert_buffer **out,
 cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
                            cert_buffer **out, cert_buffer *signature,
                            cert_buffer *ident_pubk, const char *cn,
-                           const char *validFrom, const char *validTo, 
+                           const char *validFrom, const char *validTo,
                            cert_format_t format);
 
 /**
