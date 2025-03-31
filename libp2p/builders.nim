@@ -23,7 +23,7 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport, quictransport],
+  transports/[transport, tcptransport, quictransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
@@ -171,6 +171,12 @@ proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
     proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       QuicTransport.new(upgr, privateKey)
+  )
+
+proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  b.withTransport(
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+      MemoryTransport.new(upgr)
   )
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
