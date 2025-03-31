@@ -491,6 +491,7 @@ cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
     goto cleanup;
   }
 
+  /*
   // Add Key Usage extension
   usage = ASN1_BIT_STRING_new();
   if (!usage) {
@@ -504,9 +505,10 @@ cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
     ret_code = CERT_ERROR_EXTENSION_DATA;
     goto cleanup;
   }
+  */
 
   // Create Key Usage extension
-  ku_ex = X509_EXTENSION_create_by_NID(NULL, NID_key_usage, 1,
+  /*ku_ex = X509_EXTENSION_create_by_NID(NULL, NID_key_usage, 1,
                                        usage); // 1 for  critical
   if (!ku_ex) {
     ret_code = CERT_ERROR_EXTENSION_GEN;
@@ -517,7 +519,7 @@ cert_error_t cert_generate(cert_context_t ctx, cert_key_t key,
   if (!X509_add_ext(x509, ku_ex, -1)) {
     ret_code = CERT_ERROR_EXTENSION_ADD;
     goto cleanup;
-  }
+  }*/
 
   // Sign the certificate with SHA256
   if (!X509_sign(x509, pkey, EVP_sha256())) {
@@ -557,8 +559,8 @@ cleanup:
     BIO_free(bio);
   if (ex)
     X509_EXTENSION_free(ex);
-  if (usage)
-    ASN1_BIT_STRING_free(usage);
+  // if (usage)
+  //  ASN1_BIT_STRING_free(usage);
   if (ku_ex)
     X509_EXTENSION_free(ku_ex);
   if (oct_sign)
