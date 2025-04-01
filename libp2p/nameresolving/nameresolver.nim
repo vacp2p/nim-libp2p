@@ -22,7 +22,7 @@ method resolveTxt*(
     self: NameResolver, address: string
 ): Future[seq[string]] {.async: (raises: [CancelledError]), base.} =
   ## Get TXT record
-  raiseAssert "Not implemented!"
+  raiseAssert "[NameResolver.resolveTxt] abstract method not implemented!"
 
 method resolveIp*(
     self: NameResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
@@ -30,7 +30,7 @@ method resolveIp*(
     async: (raises: [CancelledError, TransportAddressError]), base
 .} =
   ## Resolve the specified address
-  raiseAssert "Not implemented!"
+  raiseAssert "[NameResolver.resolveIp] abstract method not implemented!"
 
 proc getHostname*(ma: MultiAddress): string =
   let
