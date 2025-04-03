@@ -114,8 +114,7 @@ proc dial*(
     raise newException(MemoryTransportError, "No memory listener found")
 
   try:
-    let listener = self.listeners[address]
-    return listener
+    return self.listeners[address]
   except KeyError:
     raiseAssert "checked with if"
 

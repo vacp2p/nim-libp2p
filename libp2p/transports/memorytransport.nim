@@ -43,7 +43,7 @@ proc listenAddress(self: MemoryTransport, ma: MultiAddress): string =
   if address != "/memory/0":
     return address
 
-  var randomBuf: array[20, byte]
+  var randomBuf: array[10, byte]
   hmacDrbgGenerate(self.rng[], randomBuf)
 
   return "/memory/" & toHex(randomBuf)
@@ -67,8 +67,9 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
   trace "stopping memory transport", address = $self.addrs
   self.running = false
 
-  if self.listener.isSome:
-    self.listener.get().close()
+  let listener = self.listener
+  if listener.isSome:
+    listener.get().close()
   await noCancel allFutures(self.connections.mapIt(it.close()))
 
 method accept*(
@@ -77,14 +78,16 @@ method accept*(
   if not self.running:
     raise newException(MemoryTransportError, "Transport closed, no more connections!")
 
+  var listener: MemoryListener
   try:
-    let listener = getInstance().accept($self.addrs[0])
+    listener = getInstance().accept($self.addrs[0])
     self.listener = Opt.some(listener)
     let conn = await listener.accept()
     self.connections.add(conn)
     self.listener = Opt.none(MemoryListener)
     return conn
   except CancelledError as e:
+    listener.close()
     raise e
   except MemoryTransportError as e:
     raise e
