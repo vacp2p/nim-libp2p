@@ -67,9 +67,9 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
   trace "stopping memory transport", address = $self.addrs
   self.running = false
 
-  await noCancel allFutures(self.connections.mapIt(it.close()))
   if self.listener.isSome:
     self.listener.get().close()
+  await noCancel allFutures(self.connections.mapIt(it.close()))
 
 method accept*(
     self: MemoryTransport
