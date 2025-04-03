@@ -43,6 +43,8 @@ proc listenAddress(self: MemoryTransport, ma: MultiAddress): string =
   if address != "/memory/0":
     return address
 
+  # when special address is used `/memory/0` use any free address. 
+  # here we assume that any random generated address will be free.
   var randomBuf: array[10, byte]
   hmacDrbgGenerate(self.rng[], randomBuf)
 
@@ -65,12 +67,16 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
     return
 
   trace "stopping memory transport", address = $self.addrs
-  self.running = false
 
+  # closing listener will throw interruption error to caller of accept()
   let listener = self.listener
   if listener.isSome:
     listener.get().close()
+
+  # end all connections
   await noCancel allFutures(self.connections.mapIt(it.close()))
+
+  self.running = false
 
 method accept*(
     self: MemoryTransport
