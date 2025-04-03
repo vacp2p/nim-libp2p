@@ -113,7 +113,7 @@ func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
 
   return issuerDN
 
-proc makeASN1Time(time: Time): cstring {.inline.} =
+proc makeASN1Time(time: Time): string {.inline.} =
   let str =
     try:
       let f = initTimeFormat("yyyyMMddhhmmss")
@@ -121,7 +121,7 @@ proc makeASN1Time(time: Time): cstring {.inline.} =
     except TimeFormatParseError:
       raiseAssert "time format is const and checked with test"
 
-  return (str & "Z").cstring
+  return str & "Z"
 
 proc makeExtValues(
     identityKeypair: KeyPair, certKey: cert_key_t
@@ -217,8 +217,8 @@ proc generateX509*(
 
   ret = cert_generate(
     cert_ctx, certKey, certificate.addr, libp2pExtension.signature.unsafeAddr,
-    libp2pExtension.pubkey.unsafeAddr, issuerDN.cstring, validFromAsn1, validToAsn1,
-    encodingFormat.cert_format_t,
+    libp2pExtension.pubkey.unsafeAddr, issuerDN.cstring, validFromAsn1.cstring,
+    validToAsn1.cstring, encodingFormat.cert_format_t,
   )
   if ret != CERT_SUCCESS:
     raise
