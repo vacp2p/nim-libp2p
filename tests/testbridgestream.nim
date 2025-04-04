@@ -15,7 +15,7 @@ import ../libp2p/stream/bridgestream
 
 suite "BridgeStream":
   asyncTest "send-receive":
-    let (c1, c2) = bridgestream.bridgedConnections()
+    let (c1, c2) = bridgedConnections()
     var msg: array[8, byte]
 
     # c1 -> c2
@@ -33,13 +33,13 @@ suite "BridgeStream":
 
   asyncTest "closing":
     # closing c1, should also close c2
-    var (c1, c2) = bridgestream.bridgedConnections()
+    var (c1, c2) = bridgedConnections()
     await c1.close()
     expect LPStreamEOFError:
       await c2.write("hello c1")
 
     # closing c2, should also close c1
-    (c1, c2) = bridgestream.bridgedConnections()
+    (c1, c2) = bridgedConnections()
     await c2.close()
     expect LPStreamEOFError:
       await c1.write("hello c2")

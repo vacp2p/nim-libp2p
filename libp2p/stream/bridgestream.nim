@@ -35,11 +35,13 @@ method closeImpl*(s: BridgeStream): Future[void] {.async: (raises: [], raw: true
 method getWrapped*(s: BridgeStream): Connection =
   nil
 
-proc bridgedConnections*(): (BridgeStream, BridgeStream) =
+proc bridgedConnections*(
+    closeTogether: bool = true, dirA = Direction.In, dirB = Direction.In
+): (BridgeStream, BridgeStream) =
   let connA = BridgeStream()
   let connB = BridgeStream()
-  connA.dir = Direction.In
-  connB.dir = Direction.In
+  connA.dir = dirA
+  connB.dir = dirB
   connA.initStream()
   connB.initStream()
 
@@ -47,14 +49,16 @@ proc bridgedConnections*(): (BridgeStream, BridgeStream) =
       data: seq[byte]
   ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
     connB.pushData(data)
-  connA.closeHandler = proc(): Future[void] {.async: (raises: []).} =
-    await noCancel connB.close()
+  if closeTogether:
+    connA.closeHandler = proc(): Future[void] {.async: (raises: []).} =
+      await noCancel connB.close()
 
   connB.writeHandler = proc(
       data: seq[byte]
   ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
     connA.pushData(data)
-  connB.closeHandler = proc(): Future[void] {.async: (raises: []).} =
-    await noCancel connA.close()
+  if closeTogether:
+    connB.closeHandler = proc(): Future[void] {.async: (raises: []).} =
+      await noCancel connA.close()
 
   return (connA, connB)
