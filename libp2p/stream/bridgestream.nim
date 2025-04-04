@@ -49,15 +49,14 @@ proc bridgedConnections*(
       data: seq[byte]
   ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
     connB.pushData(data)
-  if closeTogether:
-    connA.closeHandler = proc(): Future[void] {.async: (raises: []).} =
-      await noCancel connB.close()
-
   connB.writeHandler = proc(
       data: seq[byte]
   ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
     connA.pushData(data)
+
   if closeTogether:
+    connA.closeHandler = proc(): Future[void] {.async: (raises: []).} =
+      await noCancel connB.close()
     connB.closeHandler = proc(): Future[void] {.async: (raises: []).} =
       await noCancel connA.close()
 
