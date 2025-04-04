@@ -11,7 +11,7 @@
 
 import tables, sequtils, sugar, sets
 import metrics except collect
-import chronos, chronicles, bearssl/rand, stew/[byteutils, objects, results]
+import chronos, chronicles, bearssl/rand, stew/[byteutils, objects]
 import
   ./protocol,
   ../protobuf/minprotobuf,
@@ -37,6 +37,8 @@ const
   RendezVousCodec* = "/rendezvous/1.0.0"
   MinimumDuration* = 2.hours
   MaximumDuration = 72.hours
+  MinimumNamespaceLen = 1
+  MaximumNamespaceLen = 255
   RegistrationLimitPerPeer = 1000
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize = 5
@@ -413,10 +415,10 @@ proc save(
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   trace "Received Register", peerId = conn.peerId, ns = r.ns
   libp2p_rendezvous_register.inc()
-  if r.ns.len notin 1 .. 255:
+  if r.ns.len < MinimumNamespaceLen or r.ns.len > MaximumNamespaceLen:
     return conn.sendRegisterResponseError(InvalidNamespace)
   let ttl = r.ttl.get(rdv.minTTL)
-  if ttl notin rdv.minTTL .. rdv.maxTTL:
+  if ttl < rdv.minTTL or ttl > rdv.maxTTL:
     return conn.sendRegisterResponseError(InvalidTTL)
   let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
   if pr.isErr():
@@ -444,7 +446,7 @@ proc discover(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
   libp2p_rendezvous_discover.inc()
-  if d.ns.len notin 0 .. 255:
+  if d.ns.len > MaximumNamespaceLen:
     await conn.sendDiscoverResponseError(InvalidNamespace)
     return
   var limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
@@ -457,8 +459,8 @@ proc discover(
         return
     else:
       Cookie(offset: rdv.registered.low().uint64 - 1)
-  if cookie.ns != d.ns or
-      cookie.offset notin rdv.registered.low().uint64 .. rdv.registered.high().uint64:
+  if cookie.ns != d.ns or cookie.offset < rdv.registered.low().uint64 or
+      cookie.offset > rdv.registered.high().uint64:
     cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
   let
     nsSalted = d.ns & rdv.salt
@@ -519,10 +521,10 @@ proc advertisePeer(
 proc advertise*(
     rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
 ) {.async: (raises: [CancelledError, AdvertiseError]).} =
-  if ns.len notin 1 .. 255:
+  if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(AdvertiseError, "Invalid namespace")
 
-  if ttl notin rdv.minDuration .. rdv.maxDuration:
+  if ttl < rdv.minDuration or ttl > rdv.maxDuration:
     raise newException(AdvertiseError, "Invalid time to live: " & $ttl)
 
   let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
@@ -570,7 +572,7 @@ proc request*(
 
   if l <= 0 or l > DiscoverLimit.int:
     raise newException(AdvertiseError, "Invalid limit")
-  if ns.len notin 0 .. 255:
+  if ns.len > MaximumNamespaceLen:
     raise newException(AdvertiseError, "Invalid namespace")
 
   limit = l.uint64
@@ -668,7 +670,7 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
 proc unsubscribe*(
     rdv: RendezVous, ns: string, peerIds: seq[PeerId]
 ) {.async: (raises: [RendezVousError, CancelledError]).} =
-  if ns.len notin 1 .. 255:
+  if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(RendezVousError, "Invalid namespace")
 
   let msg = encode(
