@@ -287,11 +287,10 @@ method accept*(
       return self.wrapConnection(connection)
     except CancelledError as e:
       raise e
+    except QuicError as e:
+      # continue accepting instead until connection is established
+      continue
     except CatchableError as e:
-      if e.msg == "connection error: ERR_CRYPTO":
-        # when there is issue with certificate in connection, don't propagate it
-        # and continue accepting instead
-        continue
       raise (ref QuicTransportError)(msg: e.msg, parent: e)
 
 method dial*(
