@@ -12,7 +12,7 @@ import
     errors,
     wire,
   ]
-import ./helpers, ./commontransport
+import ./helpers
 
 proc createServerAcceptConn(
     server: QuicTransport
