@@ -23,7 +23,7 @@ import
   testtcptransport,
   testtortransport,
   testwstransport,
-  # testquic TODO
+  testquic,
   testmemorytransport,
   transports/tls/testcertificate
 
