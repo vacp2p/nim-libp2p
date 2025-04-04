@@ -24,7 +24,7 @@ proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
   .new()
   .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/memory/0").tryGet()])
+  .withAddresses(@[MultiAddress.init("/memory/*").tryGet()])
   .withMemoryTransport()
   .withMplex()
   .withNoise()

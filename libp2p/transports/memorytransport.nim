@@ -38,17 +38,16 @@ proc new*(
 ): T =
   T(upgrader: upgrade, rng: rng)
 
-proc listenAddress(self: MemoryTransport, ma: MultiAddress): string =
-  let address = $ma
-  if address != "/memory/0":
-    return address
+proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
+  if $ma != "/memory/*":
+    return ma
 
-  # when special address is used `/memory/0` use any free address. 
+  # when special address is used `/memory/*` use any free address. 
   # here we assume that any random generated address will be free.
   var randomBuf: array[10, byte]
   hmacDrbgGenerate(self.rng[], randomBuf)
 
-  return "/memory/" & toHex(randomBuf)
+  return MultiAddress.init("/memory/" & toHex(randomBuf)).get()
 
 method start*(
     self: MemoryTransport, addrs: seq[MultiAddress]
@@ -58,8 +57,7 @@ method start*(
 
   trace "starting memory transport on addrs", address = $addrs
 
-  self.addrs =
-    addrs.mapIt(self.listenAddress(it)).mapIt(MultiAddress.init(it)).mapIt(it.get())
+  self.addrs = addrs.mapIt(self.listenAddress(it))
   self.running = true
 
 method stop*(self: MemoryTransport) {.async: (raises: []).} =
@@ -67,6 +65,7 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
     return
 
   trace "stopping memory transport", address = $self.addrs
+  self.running = false
 
   # closing listener will throw interruption error to caller of accept()
   let listener = self.listener
@@ -75,8 +74,6 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
 
   # end all connections
   await noCancel allFutures(self.connections.mapIt(it.close()))
-
-  self.running = false
 
 method accept*(
     self: MemoryTransport
