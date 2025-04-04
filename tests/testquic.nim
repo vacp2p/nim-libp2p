@@ -12,7 +12,7 @@ import
     errors,
     wire,
   ]
-import ./helpers, ./commontransport
+import ./helpers
 
 proc createServerAcceptConn(
     server: QuicTransport
@@ -30,7 +30,6 @@ proc createServerAcceptConn(
 
     await stream.write("server")
     await stream.close()
-    await server.stop()
 
   return handler
 
@@ -59,6 +58,9 @@ proc createTransport(withInvalidCert: bool = false): Future[QuicTransport] {.asy
   return trans
 
 suite "Quic transport":
+  teardown:
+    checkTrackers()
+
   asyncTest "can handle local address":
     let trans = await createTransport()
     check trans.handles(trans.addrs[0])
@@ -80,6 +82,7 @@ suite "Quic transport":
       await client.stop()
 
     await runClient()
+    await server.stop()
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createTransport(true)
@@ -87,14 +90,12 @@ suite "Quic transport":
 
     proc runClient() {.async.} =
       let client = await createTransport()
-      try:
+      expect QuicTransportDialError:
         discard await client.dial("", server.addrs[0])
-        check false # conn should be refused by client
-      except QuicTransportDialError:
-        discard
       await client.stop()
 
     await runClient()
+    await server.stop()
 
   asyncTest "transport e2e - invalid cert - client":
     let server = await createTransport()
@@ -102,12 +103,9 @@ suite "Quic transport":
 
     proc runClient() {.async.} =
       let client = await createTransport(true)
-      try:
-        let conn = await client.dial("", server.addrs[0])
-        check false # conn should be refused by client
-      except QuicTransportDialError:
-        discard
-
+      expect QuicTransportDialError:
+        discard await client.dial("", server.addrs[0])
       await client.stop()
 
     await runClient()
+    await server.stop()
