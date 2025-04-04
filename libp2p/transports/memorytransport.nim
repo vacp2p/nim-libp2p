@@ -23,6 +23,8 @@ import ./memorymanager
 export connection
 export MemoryTransportError, MemoryTransportAcceptStopped
 
+const MemoryAutoAddress* = "/memory/*"
+
 logScope:
   topics = "libp2p memorytransport"
 
@@ -39,7 +41,7 @@ proc new*(
   T(upgrader: upgrade, rng: rng)
 
 proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
-  if $ma != "/memory/*":
+  if $ma != MemoryAutoAddress:
     return ma
 
   # when special address is used `/memory/*` use any free address. 

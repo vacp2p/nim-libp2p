@@ -37,6 +37,8 @@ import services/wildcardresolverservice
 
 export switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
+const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
+
 type
   TransportProvider* {.public.} =
     proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
