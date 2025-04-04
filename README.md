@@ -69,6 +69,7 @@ List of packages modules implemented in nim-libp2p:
 | **Transports**                                             |                                                                                                                  |
 | [libp2p-tcp](libp2p/transports/tcptransport.nim)           | TCP transport                                                                                                    |
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |
+| [libp2p-tor](libp2p/transports/tortransport.nim)           | Tor Transport                                                                                                    |
 | [libp2p-quic](libp2p/transports/quictransport.nim)         | Quic Transport                                                                                                   |
 | [libp2p-memory](libp2p/transports/memorytransport.nim)     | Memory Transport                                                                                                 |
 | **Secure Channels**                                        |                                                                                                                  |
