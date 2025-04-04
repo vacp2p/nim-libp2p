@@ -288,7 +288,7 @@ method accept*(
     except CancelledError as e:
       raise e
     except QuicError as e:
-      # continue accepting instead until connection is established
+      # continue accepting until connection is established
       continue
     except CatchableError as e:
       raise (ref QuicTransportError)(msg: e.msg, parent: e)
