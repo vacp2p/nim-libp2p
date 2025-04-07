@@ -409,6 +409,7 @@ proc sendIDontWant(
       control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
     ),
     isHighPriority = true,
+    false,
   )
 
 const iDontWantMessageSizeThreshold* = 512
@@ -709,7 +710,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
 
 method publish*(
     g: GossipSub, topic: string, data: seq[byte], useCustomConn: bool = false
-): Future[int] {.async: (raises: []).} =
+): Future[int] {.base, async: (raises: []).} =
   logScope:
     topic
 
