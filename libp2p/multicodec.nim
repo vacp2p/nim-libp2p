@@ -396,6 +396,7 @@ const MultiCodecList = [
   ("onion3", 0x01BD),
   ("p2p-circuit", 0x0122),
   ("libp2p-peer-record", 0x0301),
+  ("memory", 0x0309),
   ("dns", 0x35),
   ("dns4", 0x36),
   ("dns6", 0x37),
