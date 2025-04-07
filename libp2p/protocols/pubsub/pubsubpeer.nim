@@ -371,6 +371,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
 ): Future[void] {.async: (raises: []).} =
+  var slowPath = false
   let (conn, connType) =
     if useCustomConn and p.customConnCallbacks.isSome:
       let address =
@@ -385,16 +386,20 @@ proc sendMsg(
     elif p.sendConn != nil and not p.sendConn.closed():
       (p.sendConn, "send connection")
     else:
-      trace "sending encoded msg to peer via slow path"
-      return sendMsgSlow(p, msg)
+      slowPath = true
+      (nil, "slow path")
 
-  trace "sending encoded msg to peer",
-    conntype = connType, conn = conn, encoded = shortLog(msg)
-  let f = conn.writeLp(msg)
-  if not f.completed():
-    sendMsgContinue(conn, f)
+  if not slowPath:
+    trace "sending encoded msg to peer",
+      conntype = connType, conn = conn, encoded = shortLog(msg)
+    let f = conn.writeLp(msg)
+    if not f.completed():
+      sendMsgContinue(conn, f)
+    else:
+      f
   else:
-    f
+    trace "sending encoded msg to peer via slow path"
+    sendMsgSlow(p, msg)
 
 proc sendEncoded*(
     p: PubSubPeer, msg: seq[byte], isHighPriority: bool, useCustomConn: bool
