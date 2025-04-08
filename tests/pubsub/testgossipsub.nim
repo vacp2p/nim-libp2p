@@ -31,7 +31,7 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers
+import ../helpers, ../utils/[futures]
 
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
@@ -831,7 +831,7 @@ suite "GossipSub":
     var
       gossip0 = GossipSub(nodes[0])
       gossip1 = GossipSub(nodes[1])
-      gossip2 = GossipSub(nodes[1])
+      gossip2 = GossipSub(nodes[2])
 
     await subscribeNodes(nodes)
 
@@ -843,18 +843,40 @@ suite "GossipSub":
         if x != y:
           await waitSub(nodes[x], nodes[y], "foobar")
 
-    var passed: Future[void] = newFuture[void]()
+    # Setup record handlers for all nodes
+    var
+      passed0: Future[void] = newFuture[void]()
+      passed1: Future[void] = newFuture[void]()
+      passed2: Future[void] = newFuture[void]()
     gossip0.routingRecordsHandler.add(
       proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
         check:
           tag == "foobar"
           peers.len == 2
           peers[0].record.isSome() xor peers[1].record.isSome()
-        passed.complete()
+        passed0.complete()
     )
+    gossip1.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        passed1.complete()
+    )
+    gossip2.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == "foobar"
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed2.complete()
+    )
+
+    # Unsubscribe from the topic
     nodes[1].unsubscribe("foobar", handler)
 
-    await passed.wait(5.seconds)
+    # Then verify what nodes receive the PX
+    check:
+      (await passed0.waitForResult()).isOk
+      not (await passed1.waitForResult()).isOk
+      (await passed2.waitForResult()).isOk
 
     await allFuturesThrowing(
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
