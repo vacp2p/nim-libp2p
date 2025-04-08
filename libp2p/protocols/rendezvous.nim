@@ -516,7 +516,7 @@ proc advertisePeer(
       rdv.sema.release()
 
   await rdv.sema.acquire()
-  discard await advertiseWrap().withTimeout(5.seconds)
+  await advertiseWrap()
 
 proc advertise*(
     rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
@@ -539,7 +539,7 @@ proc advertise*(
   let futs = collect(newSeq()):
     for peer in peers:
       trace "Send Advertise", peerId = peer, ns
-      rdv.advertisePeer(peer, msg.buffer)
+      rdv.advertisePeer(peer, msg.buffer).withTimeout(5.seconds)
 
   await allFutures(futs)
 
@@ -668,7 +668,7 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
     return
 
 proc unsubscribe*(
-    rdv: RendezVous, ns: string, peerIds: seq[PeerId]
+  rdv: RendezVous, ns: string, peerIds: seq[PeerId]
 ) {.async: (raises: [RendezVousError, CancelledError]).} =
   if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(RendezVousError, "Invalid namespace")
@@ -690,14 +690,14 @@ proc unsubscribe*(
     for peer in peerIds:
       unsubscribePeer(peer)
 
-  discard await allFutures(futs).withTimeout(5.seconds)
+  await allFutures(futs)
 
 proc unsubscribe*(
     rdv: RendezVous, ns: string
 ) {.async: (raises: [RendezVousError, CancelledError]).} =
   rdv.unsubscribeLocally(ns)
 
-  await rdv.unsubscribe(ns, rdv.peers)
+  discard await rdv.unsubscribe(ns, rdv.peers).withTimeout(5.seconds)
 
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
@@ -786,8 +786,8 @@ proc new*(
   rdv.setup(switch)
   return rdv
 
-proc deletesRegister(rdv: RendezVous) {.async: (raises: [CancelledError]).} =
-  heartbeat "Register timeout", 1.minutes:
+proc deletesRegister(rdv: RendezVous, interval = 1.minutes) {.async: (raises: [CancelledError]).} =
+  heartbeat "Register timeout", interval:
     let n = Moment.now()
     var total = 0
     rdv.registered.flushIfIt(it.expiration < n)
