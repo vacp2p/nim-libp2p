@@ -8,7 +8,7 @@ json_serialization;https://github.com/status-im/nim-json-serialization@#85b7ea09
 metrics;https://github.com/status-im/nim-metrics@#6142e433fc8ea9b73379770a788017ac528d46ff
 ngtcp2;https://github.com/status-im/nim-ngtcp2@#9456daa178c655bccd4a3c78ad3b8cce1f0add73
 nimcrypto;https://github.com/cheatfate/nimcrypto@#1c8d6e3caf3abc572136ae9a1da81730c4eb4288
-quic;https://github.com/status-im/nim-quic.git@#c80a963d055add75cca6bd376d8f1093f124d33d
+quic;https://github.com/status-im/nim-quic.git@#8cba8d8a5b3d82d52870c8341bd36e51c48e0bde
 results;https://github.com/arnetheduck/nim-results@#f3c666a272c69d70cb41e7245e7f6844797303ad
 secp256k1;https://github.com/status-im/nim-secp256k1@#7246d91c667f4cc3759fdd50339caa45a2ecd8be
 serialization;https://github.com/status-im/nim-serialization@#4bdbc29e54fe54049950e352bb969aab97173b35
