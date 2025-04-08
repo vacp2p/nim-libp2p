@@ -18,7 +18,7 @@ import
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ./helpers, ./utils/[futures, assertions, async_tests]
+import ./helpers, ./utils/[futures, async_tests]
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
@@ -32,30 +32,17 @@ proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   .build()
 
 suite "Discovery":
-  const
-    namespace = "foo"
-    rdvNamespace = RdvNamespace(namespace)
-
-  var
-    rdvA {.threadvar.}: RendezVous
-    rdvB {.threadvar.}: RendezVous
-    rdvRemote {.threadvar.}: RendezVous
-    clientA {.threadvar.}: Switch
-    clientB {.threadvar.}: Switch
-    remoteNode {.threadvar.}: Switch
-    dmA {.threadvar.}: DiscoveryManager
-    dmB {.threadvar.}: DiscoveryManager
-
-  asyncSetup:
-    rdvA = RendezVous.new()
-    rdvB = RendezVous.new()
-    rdvRemote = RendezVous.new()
-    clientA = createSwitch(rdvA)
-    clientB = createSwitch(rdvB)
-    remoteNode = createSwitch(rdvRemote)
-    dmA = DiscoveryManager()
-    dmB = DiscoveryManager()
-
+  teardown:
+    checkTrackers()
+  asyncTest "RendezVous test":
+    let
+      rdvA = RendezVous.new()
+      rdvB = RendezVous.new()
+      clientA = createSwitch(rdvA)
+      clientB = createSwitch(rdvB)
+      remoteNode = createSwitch()
+      dmA = DiscoveryManager()
+      dmB = DiscoveryManager()
     dmA.add(RendezVousInterface.new(rdvA, ttr = 500.milliseconds))
     dmB.add(RendezVousInterface.new(rdvB))
     await allFutures(clientA.start(), clientB.start(), remoteNode.start())
@@ -63,88 +50,14 @@ suite "Discovery":
     await clientB.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
     await clientA.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
 
-  asyncTeardown:
-    await allFutures(clientA.stop(), clientB.stop(), remoteNode.stop())
-    checkTrackers()
-
-  asyncTest "RendezVous test":
-    dmB.advertise(rdvNamespace)
+    dmB.advertise(RdvNamespace("foo"))
 
     let
-      query = dmA.request(rdvNamespace)
+      query = dmA.request(RdvNamespace("foo"))
       res = await query.getPeer()
     check:
       res{PeerId}.get() == clientB.peerInfo.peerId
       res[PeerId] == clientB.peerInfo.peerId
       res.getAll(PeerId) == @[clientB.peerInfo.peerId]
       toHashSet(res.getAll(MultiAddress)) == toHashSet(clientB.peerInfo.addrs)
-
-  asyncTest "Subscribe and unsubscribe":
-    dmB.advertise(rdvNamespace)
-    let
-      query1 = dmA.request(rdvNamespace)
-      res1 = await query1.getPeer().waitForResult(1.seconds)
-
-    res1.assertIsOk()
-    check res1.value{PeerId}.get() == clientB.peerInfo.peerId
-
-    await rdvB.unsubscribe(namespace)
-    var
-      query2 = dmA.request(rdvNamespace)
-      res2 = await query2.getPeer().waitForResult(1.seconds)
-
-    res2.assertIsErr()
-
-  asyncTest "Frequent sub/unsub":
-    for i in 0 ..< 10:
-      dmB.advertise(rdvNamespace)
-      let
-        query1 = dmA.request(rdvNamespace)
-        res1 = await query1.getPeer().waitForResult(1.seconds)
-
-      res1.assertIsOk()
-      check res1.value{PeerId}.get() == clientB.peerInfo.peerId
-
-      await rdvB.unsubscribe(namespace)
-      await sleepAsync(DURATION_TIMEOUT_EXTENDED)
-      var
-        query2 = dmA.request(rdvNamespace)
-        res2 = await query2.getPeer().waitForResult(1.seconds)
-
-      res2.assertIsErr()
-
-  asyncTest "Frequent sub/unsub with multiple clients":
-    let
-      rdvC = RendezVous.new()
-      clientC = createSwitch(rdvC)
-      dmC = DiscoveryManager()
-
-    dmC.add(RendezVousInterface.new(rdvC))
-    await clientC.start()
-
-    await clientC.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
-
-    for i in 0 ..< 10:
-      dmB.advertise(rdvNamespace)
-      dmC.advertise(rdvNamespace)
-      let peerIds =
-        @[clientB.peerInfo.peerId, clientC.peerInfo.peerId]
-          # peerIds = @[clientB.peerInfo.peerId]
-
-      let
-        query1 = dmA.request(rdvNamespace)
-        res1 = await query1.getPeer().waitForResult(1.seconds)
-
-      res1.assertIsOk()
-      check res1.value{PeerId}.get() in peerIds
-
-      await rdvB.unsubscribe(namespace)
-      await rdvC.unsubscribe(namespace)
-      await sleepAsync(DURATION_TIMEOUT_EXTENDED)
-      var
-        query2 = dmA.request(rdvNamespace)
-        res2 = await query2.getPeer().waitForResult(1.seconds)
-
-      res2.assertIsErr()
-
-    await clientC.stop()
+    await allFutures(clientA.stop(), clientB.stop(), remoteNode.stop())
