@@ -283,22 +283,19 @@ method accept*(
 .} =
   doAssert not self.listener.isNil, "call start() before calling accept()"
 
-  while true:
-    if not self.running:
-      # stop accept only when transport is stopped (not when error occurs)
-      raise newException(QuicTransportAcceptStopped, "Quic transport stopped")
+  if not self.running:
+    # stop accept only when transport is stopped (not when error occurs)
+    raise newException(QuicTransportAcceptStopped, "Quic transport stopped")
 
-    try:
-      let connection = await self.listener.accept()
-      return self.wrapConnection(connection)
-    except CancelledError as e:
-      raise e
-    except QuicError as e:
-      trace "Quic accept connection error", msg = e.msg
-      # swallow all errors and continue accepting until connection is established
-      continue
-    except CatchableError as e:
-      raise (ref QuicTransportError)(msg: e.msg, parent: e)
+  try:
+    let connection = await self.listener.accept()
+    return self.wrapConnection(connection)
+  except CancelledError as e:
+    raise e
+  except QuicError as e:
+    raise (ref QuicTransportError)(msg: e.msg, parent: e)
+  except CatchableError as e:
+    raise (ref QuicTransportError)(msg: e.msg, parent: e)
 
 method dial*(
     self: QuicTransport,

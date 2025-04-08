@@ -12,6 +12,7 @@ import
     errors,
     wire,
   ]
+import quic
 import ./helpers
 
 proc createServerAcceptConn(
@@ -31,6 +32,8 @@ proc createServerAcceptConn(
 
       await stream.write("server")
       await stream.close()
+    except QuicTransportError:
+      discard # Transport failed (maybe dial error / handshake err, etc)
     except QuicTransportAcceptStopped:
       discard # Transport is stopped
 
