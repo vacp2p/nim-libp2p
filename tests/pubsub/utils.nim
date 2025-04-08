@@ -73,16 +73,20 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
 proc applyDValues(parameters: var GossipSubParams, dValues: Option[DValues]) =
   if dValues.isNone:
     return
-    
   let values = dValues.get
-  
   # Apply each value if it exists
-  if values.d.isSome: parameters.d = values.d.get
-  if values.dLow.isSome: parameters.dLow = values.dLow.get
-  if values.dHigh.isSome: parameters.dHigh = values.dHigh.get
-  if values.dScore.isSome: parameters.dScore = values.dScore.get
-  if values.dOut.isSome: parameters.dOut = values.dOut.get
-  if values.dLazy.isSome: parameters.dLazy = values.dLazy.get
+  if values.d.isSome:
+    parameters.d = values.d.get
+  if values.dLow.isSome:
+    parameters.dLow = values.dLow.get
+  if values.dHigh.isSome:
+    parameters.dHigh = values.dHigh.get
+  if values.dScore.isSome:
+    parameters.dScore = values.dScore.get
+  if values.dOut.isSome:
+    parameters.dOut = values.dOut.get
+  if values.dLazy.isSome:
+    parameters.dLazy = values.dLazy.get
 
 proc generateNodes*(
     num: Natural,
