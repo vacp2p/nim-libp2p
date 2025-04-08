@@ -156,12 +156,6 @@ proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
           await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
           dialed.add(node.peerInfo.peerId)
 
-proc activeWait(
-    interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
-) {.async.} =
-  await sleepAsync(interval)
-  doAssert Moment.now() < maximum, timeoutErrorMessage
-
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
     return

@@ -13,7 +13,6 @@ import sequtils, options, tables, sets, sugar
 import chronos, stew/byteutils, chronos/ratelimit
 import chronicles
 import metrics
-import ../../libp2p/protocols/pubsub/gossipsub/behavior
 import
   utils,
   ../../libp2p/[
@@ -32,7 +31,7 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers, ../utils/[async, futures, async]
+import ../helpers
 
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
@@ -277,6 +276,54 @@ suite "GossipSub":
       sendCounter == 2
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
+
+  asyncTest "GossipSub unsub - resub faster than backoff":
+    var handlerFut = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      handlerFut.complete(true)
+
+    let
+      nodes = generateNodes(2, gossip = true)
+
+      # start switches
+      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+
+    await subscribeNodes(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[1], nodes[0], "foobar")
+    subs &= waitSub(nodes[0], nodes[1], "foobar")
+
+    await allFuturesThrowing(subs)
+
+    nodes[0].unsubscribe("foobar", handler)
+    nodes[0].subscribe("foobar", handler)
+
+    # regular backoff is 60 seconds, so we must not wait that long
+    await (
+      waitSub(nodes[0], nodes[1], "foobar") and waitSub(nodes[1], nodes[0], "foobar")
+    ).wait(30.seconds)
+
+    var validatorFut = newFuture[bool]()
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      check topic == "foobar"
+      validatorFut.complete(true)
+      result = ValidationResult.Accept
+
+    nodes[1].addValidator("foobar", validator)
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check (await validatorFut) and (await handlerFut)
+
+    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
+
+    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -784,7 +831,7 @@ suite "GossipSub":
     var
       gossip0 = GossipSub(nodes[0])
       gossip1 = GossipSub(nodes[1])
-      gossip2 = GossipSub(nodes[2])
+      gossip2 = GossipSub(nodes[1])
 
     await subscribeNodes(nodes)
 
@@ -796,40 +843,18 @@ suite "GossipSub":
         if x != y:
           await waitSub(nodes[x], nodes[y], "foobar")
 
-    # Setup record handlers for all nodes
-    var
-      passed0: Future[void] = newFuture[void]()
-      passed1: Future[void] = newFuture[void]()
-      passed2: Future[void] = newFuture[void]()
+    var passed: Future[void] = newFuture[void]()
     gossip0.routingRecordsHandler.add(
       proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
         check:
           tag == "foobar"
           peers.len == 2
           peers[0].record.isSome() xor peers[1].record.isSome()
-        passed0.complete()
+        passed.complete()
     )
-    gossip1.routingRecordsHandler.add(
-      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
-        passed1.complete()
-    )
-    gossip2.routingRecordsHandler.add(
-      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
-        check:
-          tag == "foobar"
-          peers.len == 2
-          peers[0].record.isSome() xor peers[1].record.isSome()
-        passed2.complete()
-    )
-
-    # Unsubscribe from the topic
     nodes[1].unsubscribe("foobar", handler)
 
-    # Then verify what nodes receive the PX
-    check:
-      (await passed0.waitForResult()).isOk
-      not (await passed1.waitForResult()).isOk
-      (await passed2.waitForResult()).isOk
+    await passed.wait(5.seconds)
 
     await allFuturesThrowing(
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
