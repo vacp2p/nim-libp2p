@@ -37,6 +37,7 @@ const
   RendezVousCodec* = "/rendezvous/1.0.0"
   MinimumDuration* = 2.hours
   MaximumDuration = 72.hours
+  MaximumMessageLen = 1 shl 22 # 4MB
   MinimumNamespaceLen = 1
   MaximumNamespaceLen = 255
   RegistrationLimitPerPeer = 1000
@@ -468,19 +469,19 @@ proc discover(
         return
     else:
       Cookie(offset: rdv.registered.low().uint64 - 1)
-  if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get() or cookie.offset < rdv.registered.low().uint64 or
+  if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get() or
+      cookie.offset < rdv.registered.low().uint64 or
       cookie.offset > rdv.registered.high().uint64:
     cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
-  let
-    namespaces =
-      if d.ns.isSome():
-        try:
-          rdv.namespaces[d.ns.get() & rdv.salt]
-        except KeyError:
-          await conn.sendDiscoverResponseError(InvalidNamespace)
-          return
-      else:
-        toSeq(max(cookie.offset.int, rdv.registered.offset) .. rdv.registered.high())
+  let namespaces =
+    if d.ns.isSome():
+      try:
+        rdv.namespaces[d.ns.get() & rdv.salt]
+      except KeyError:
+        await conn.sendDiscoverResponseError(InvalidNamespace)
+        return
+    else:
+      toSeq(max(cookie.offset.int, rdv.registered.offset) .. rdv.registered.high())
   if namespaces.len() == 0:
     await conn.sendDiscoverResponse(@[], Cookie())
     return
@@ -603,7 +604,7 @@ proc request*(
       encode(Message(msgType: MessageType.Discover, discover: Opt.some(d))).buffer
     )
     let
-      buf = await conn.readLp(65536)
+      buf = await conn.readLp(MaximumMessageLen)
       msgRcv = Message.decode(buf).valueOr:
         debug "Message undecodable"
         return
@@ -687,7 +688,7 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
     return
 
 proc unsubscribe*(
-  rdv: RendezVous, ns: string, peerIds: seq[PeerId]
+    rdv: RendezVous, ns: string, peerIds: seq[PeerId]
 ) {.async: (raises: [RendezVousError, CancelledError]).} =
   if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(RendezVousError, "Invalid namespace")
@@ -716,7 +717,7 @@ proc unsubscribe*(
 ) {.async: (raises: [RendezVousError, CancelledError]).} =
   rdv.unsubscribeLocally(ns)
 
-  discard await rdv.unsubscribe(ns, rdv.peers).withTimeout(5.seconds)
+  await rdv.unsubscribe(ns, rdv.peers)
 
 proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch = switch
@@ -805,7 +806,9 @@ proc new*(
   rdv.setup(switch)
   return rdv
 
-proc deletesRegister(rdv: RendezVous, interval = 1.minutes) {.async: (raises: [CancelledError]).} =
+proc deletesRegister(
+    rdv: RendezVous, interval = 1.minutes
+) {.async: (raises: [CancelledError]).} =
   heartbeat "Register timeout", interval:
     let n = Moment.now()
     var total = 0
