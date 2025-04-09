@@ -238,7 +238,6 @@ suite "Gossipsub Parameters":
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
     # Given 20 nodes

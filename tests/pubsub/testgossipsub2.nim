@@ -93,8 +93,6 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "GossipSub invalid topic subscription":
     var handlerFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -129,8 +127,6 @@ suite "GossipSub":
     await invalidDetected.wait(10.seconds)
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub test directPeers":
     let nodes = generateNodes(2, gossip = true)
@@ -209,8 +205,6 @@ suite "GossipSub":
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
     )
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "GossipSub directPeers: don't kick direct peer with low score":
     let
       nodes = generateNodes(2, gossip = true)
@@ -254,8 +248,6 @@ suite "GossipSub":
     await handlerFut.wait(1.seconds)
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub directPeers: send message to unsubscribed direct peer":
     # Given 2 nodes
@@ -303,7 +295,6 @@ suite "GossipSub":
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "GossipSub peers disconnections mechanics":
     var runs = 10
@@ -393,8 +384,6 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "GossipSub scoring - decayInterval":
     let nodes = generateNodes(2, gossip = true)
 
@@ -432,5 +421,3 @@ suite "GossipSub":
         50.0 .. 66.0
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())

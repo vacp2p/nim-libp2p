@@ -73,8 +73,6 @@ suite "FloodSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "FloodSub basic publish/subscribe B -> A":
     var completionFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -97,8 +95,6 @@ suite "FloodSub":
     check (await completionFut.wait(5.seconds)) == true
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub validation should succeed":
     var handlerFut = newFuture[bool]()
@@ -132,8 +128,6 @@ suite "FloodSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "FloodSub validation should fail":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check false # if we get here, it should fail
@@ -160,8 +154,6 @@ suite "FloodSub":
     discard await nodes[0].publish("foobar", "Hello!".toBytes())
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub validation one fails and one succeeds":
     var handlerFut = newFuture[bool]()
@@ -195,8 +187,6 @@ suite "FloodSub":
     check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub multiple peers, no self trigger":
     var runs = 10
@@ -242,8 +232,6 @@ suite "FloodSub":
 
     await allFuturesThrowing(futs.mapIt(it[0]))
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub multiple peers, with self trigger":
     var runs = 10
@@ -301,8 +289,6 @@ suite "FloodSub":
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -339,8 +325,6 @@ suite "FloodSub":
 
     await allFuturesThrowing(smallNode[0].switch.stop(), bigNode[0].switch.stop())
 
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "FloodSub message size validation 2":
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -366,5 +350,3 @@ suite "FloodSub":
       messageReceived == 1
 
     await allFuturesThrowing(bigNode1[0].switch.stop(), bigNode2[0].switch.stop())
-
-    await allFuturesThrowing(nodesFut)

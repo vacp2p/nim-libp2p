@@ -92,8 +92,6 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "GossipSub validation should fail (reject)":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check false # if we get here, it should fail
@@ -132,8 +130,6 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "GossipSub validation should fail (ignore)":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check false # if we get here, it should fail
@@ -171,8 +167,6 @@ suite "GossipSub":
     check (await validatorFut) == true
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub validation one fails and one succeeds":
     var handlerFut = newFuture[bool]()
@@ -219,8 +213,6 @@ suite "GossipSub":
       "bar" notin gossip2.mesh and "bar" notin gossip2.fanout
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "GossipSub's observers should run after message is sent, received and validated":
     var
@@ -361,7 +353,6 @@ suite "GossipSub":
       handlerFut0.toResult().error() == Pending
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -386,8 +377,6 @@ suite "GossipSub":
       gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -428,8 +417,6 @@ suite "GossipSub":
         gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub send over fanout A -> B":
     var passed = newFuture[void]()
@@ -476,7 +463,6 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-    await allFuturesThrowing(nodesFut.concat())
     check observed == 2
 
   asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
@@ -521,8 +507,6 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "e2e - GossipSub send over mesh A -> B":
     var passed: Future[bool] = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -557,8 +541,6 @@ suite "GossipSub":
       not gossip2.fanout.hasPeerId("foobar", gossip1.peerInfo.peerId)
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - GossipSub should not send to source & peers who already seen":
     # 3 nodes: A, B, C
@@ -635,8 +617,6 @@ suite "GossipSub":
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
     )
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "e2e - GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -670,8 +650,6 @@ suite "GossipSub":
       not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   # Helper procedures to avoid repetition
   proc setupNodes(count: int): seq[PubSub] =
@@ -791,8 +769,6 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
 
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "e2e - GossipSub with multiple peers (sparse)":
     var runs = 10
 
@@ -844,8 +820,6 @@ suite "GossipSub":
         gossip.mesh["foobar"].len > 0
 
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "e2e - GossipSub peer exchange":
     # A, B & C are subscribed to something
@@ -920,8 +894,6 @@ suite "GossipSub":
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
     )
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "e2e - iDontWant":
     # 3 nodes: A <=> B <=> C
     # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
@@ -990,8 +962,6 @@ suite "GossipSub":
       nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
     )
 
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "e2e - iDontWant is broadcasted on publish":
     func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
       ok(newSeq[byte](10))
@@ -1027,8 +997,6 @@ suite "GossipSub":
       gossip2.mesh.getOrDefault("foobar").anyIt(it.iDontWants[^1].len == 1)
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
 
   asyncTest "e2e - iDontWant is sent only for 1.2":
     # 3 nodes: A <=> B <=> C
@@ -1091,8 +1059,6 @@ suite "GossipSub":
     await allFuturesThrowing(
       nodeA.switch.stop(), nodeB.switch.stop(), nodeC.switch.stop()
     )
-
-    await allFuturesThrowing(nodesFut.concat())
 
   proc initializeGossipTest(): Future[(seq[PubSub], GossipSub, GossipSub)] {.async.} =
     let nodes =
@@ -1295,5 +1261,3 @@ suite "GossipSub":
       gossip1.mesh.getOrDefault("foobar").toSeq[0].codec == GossipSubCodec_10
 
     await allFuturesThrowing(node0.switch.stop(), node1.switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
