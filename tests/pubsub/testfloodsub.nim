@@ -55,7 +55,7 @@ suite "FloodSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
@@ -87,7 +87,7 @@ suite "FloodSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     await waitSub(nodes[1], nodes[0], "foobar")
@@ -112,7 +112,7 @@ suite "FloodSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
@@ -144,7 +144,7 @@ suite "FloodSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -175,7 +175,7 @@ suite "FloodSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
     nodes[1].subscribe("foo", handler)
     await waitSub(nodes[0], nodes[1], "foo")
     nodes[1].subscribe("bar", handler)
@@ -223,7 +223,7 @@ suite "FloodSub":
       nodes = generateNodes(runs, triggerSelf = false)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     for i in 0 ..< runs:
       nodes[i].subscribe("foobar", futs[i][1])
@@ -270,7 +270,7 @@ suite "FloodSub":
       nodes = generateNodes(runs, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     for i in 0 ..< runs:
       nodes[i].subscribe("foobar", futs[i][1])
@@ -317,7 +317,7 @@ suite "FloodSub":
       nodesFut =
         await allFinished(bigNode[0].switch.start(), smallNode[0].switch.start())
 
-    await subscribeNodes(bigNode & smallNode)
+    await connectNodesStar(bigNode & smallNode)
     bigNode[0].subscribe("foo", handler)
     smallNode[0].subscribe("foo", handler)
     await waitSub(bigNode[0], smallNode[0], "foo")
@@ -354,7 +354,7 @@ suite "FloodSub":
       nodesFut =
         await allFinished(bigNode1[0].switch.start(), bigNode2[0].switch.start())
 
-    await subscribeNodes(bigNode1 & bigNode2)
+    await connectNodesStar(bigNode1 & bigNode2)
     bigNode2[0].subscribe("foo", handler)
     await waitSub(bigNode1[0], bigNode2[0], "foo")
 

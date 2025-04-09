@@ -66,7 +66,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -104,7 +104,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -144,7 +144,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -186,7 +186,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foo", handler)
     nodes[1].subscribe("bar", handler)
@@ -247,7 +247,7 @@ suite "GossipSub":
     # start switches
     discard await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].addObserver(obs0)
     nodes[1].addObserver(obs1)
@@ -311,7 +311,7 @@ suite "GossipSub":
       topic = "foobar"
 
     # Connect nodes
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
     await sleepAsync(DURATION_TIMEOUT)
 
     # Subscribe both nodes to the topic and node1 (receiver) to the validator
@@ -373,7 +373,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
 
@@ -399,7 +399,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -443,7 +443,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
@@ -495,7 +495,7 @@ suite "GossipSub":
     GossipSub(nodes[1]).parameters.dHigh = 0
     GossipSub(nodes[1]).parameters.dLow = 0
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -535,7 +535,7 @@ suite "GossipSub":
       # start switches
       nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -573,7 +573,7 @@ suite "GossipSub":
         nodes[0].switch.start(), nodes[1].switch.start(), nodes[2].switch.start()
       )
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     var cRelayed: Future[void] = newFuture[void]()
     var bFinished: Future[void] = newFuture[void]()
@@ -654,7 +654,7 @@ suite "GossipSub":
     var gossip2: GossipSub = GossipSub(nodes[1])
     gossip2.parameters.floodPublish = true
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -753,7 +753,7 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -800,7 +800,7 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await subscribeSparseNodes(nodes)
+    await connectNodesSparse(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -871,7 +871,7 @@ suite "GossipSub":
       gossip1 = GossipSub(nodes[1])
       gossip2 = GossipSub(nodes[2])
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -1100,7 +1100,7 @@ suite "GossipSub":
 
     discard await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     proc handle(topic: string, data: seq[byte]) {.async.} =
       discard

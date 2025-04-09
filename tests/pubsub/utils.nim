@@ -158,13 +158,13 @@ proc generateNodes*(
     switch.mount(pubsub)
     result.add(pubsub)
 
-proc subscribeNodes*(nodes: seq[PubSub]) {.async.} =
+proc connectNodesStar*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
 
-proc subscribeSparseNodes*(nodes: seq[PubSub], degree: int = 2) {.async.} =
+proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
   if nodes.len < degree:
     raise
       (ref CatchableError)(msg: "nodes count needs to be greater or equal to degree!")
@@ -177,7 +177,7 @@ proc subscribeSparseNodes*(nodes: seq[PubSub], degree: int = 2) {.async.} =
       if dialer.switch.peerInfo.peerId != node.peerInfo.peerId:
         await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
 
-proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
+proc connectNodesRandom*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
     var dialed: seq[PeerId]
     while dialed.len < nodes.len - 1:

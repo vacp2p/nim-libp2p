@@ -52,7 +52,7 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await subscribeSparseNodes(nodes)
+    await connectNodesSparse(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -122,7 +122,7 @@ suite "GossipSub":
       else:
         true
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
 
@@ -151,7 +151,7 @@ suite "GossipSub":
         true
 
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
-    ### await subscribeNodes(nodes)
+    ### await connectNodesStar(nodes)
 
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
@@ -312,7 +312,7 @@ suite "GossipSub":
       nodes = generateNodes(runs, gossip = true, triggerSelf = true)
       nodesFut = nodes.mapIt(it.switch.start())
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -412,7 +412,7 @@ suite "GossipSub":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       handlerFut.complete()
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)

@@ -38,7 +38,7 @@ suite "Gossipsub Parameters":
       nodes = generateNodes(numberOfNodes, gossip = true)
       nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
@@ -65,7 +65,7 @@ suite "Gossipsub Parameters":
       nodes = generateNodes(numberofNodes, gossip = true)
       nodesFut = await allFinished(nodes.mapIt(it.switch.start()))
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
@@ -121,7 +121,7 @@ suite "Gossipsub Parameters":
       nodes[i].addObserver(pubsubObserver)
 
     # All of them are interconnected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And subscribed to the same topic
     for node in nodes:
