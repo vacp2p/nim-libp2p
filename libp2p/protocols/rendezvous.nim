@@ -63,7 +63,7 @@ type
 
   Cookie = object
     offset: uint64
-    ns: string
+    ns: Opt[string]
 
   Register = object
     ns: string
@@ -79,7 +79,7 @@ type
     ns: string
 
   Discover = object
-    ns: string
+    ns: Opt[string]
     limit: Opt[uint64]
     cookie: Opt[seq[byte]]
 
@@ -100,7 +100,8 @@ type
 proc encode(c: Cookie): ProtoBuffer =
   result = initProtoBuffer()
   result.write(1, c.offset)
-  result.write(2, c.ns)
+  if c.ns.isSome():
+    result.write(2, c.ns.get())
   result.finish()
 
 proc encode(r: Register): ProtoBuffer =
@@ -127,7 +128,8 @@ proc encode(u: Unregister): ProtoBuffer =
 
 proc encode(d: Discover): ProtoBuffer =
   result = initProtoBuffer()
-  result.write(1, d.ns)
+  if d.ns.isSome():
+    result.write(1, d.ns.get())
   d.limit.withValue(limit):
     result.write(2, limit)
   d.cookie.withValue(cookie):
@@ -161,13 +163,17 @@ proc encode(msg: Message): ProtoBuffer =
   result.finish()
 
 proc decode(_: typedesc[Cookie], buf: seq[byte]): Opt[Cookie] =
-  var c: Cookie
+  var
+    c: Cookie
+    ns: string
   let
     pb = initProtoBuffer(buf)
     r1 = pb.getRequiredField(1, c.offset)
-    r2 = pb.getRequiredField(2, c.ns)
+    r2 = pb.getField(2, ns)
   if r1.isErr() or r2.isErr():
     return Opt.none(Cookie)
+  if r2.get(false):
+    c.ns = Opt.some(ns)
   Opt.some(c)
 
 proc decode(_: typedesc[Register], buf: seq[byte]): Opt[Register] =
@@ -219,13 +225,16 @@ proc decode(_: typedesc[Discover], buf: seq[byte]): Opt[Discover] =
     d: Discover
     limit: uint64
     cookie: seq[byte]
+    ns: string
   let
     pb = initProtoBuffer(buf)
-    r1 = pb.getRequiredField(1, d.ns)
+    r1 = pb.getField(1, ns)
     r2 = pb.getField(2, limit)
     r3 = pb.getField(3, cookie)
   if r1.isErr() or r2.isErr() or r3.isErr:
     return Opt.none(Discover)
+  if r1.get(false):
+    d.ns = Opt.some(ns)
   if r2.get(false):
     d.limit = Opt.some(limit)
   if r3.get(false):
@@ -446,7 +455,7 @@ proc discover(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
   libp2p_rendezvous_discover.inc()
-  if d.ns.len > MaximumNamespaceLen:
+  if d.ns.isSome() and d.ns.get().len > MaximumNamespaceLen:
     await conn.sendDiscoverResponseError(InvalidNamespace)
     return
   var limit = min(DiscoverLimit, d.limit.get(DiscoverLimit))
@@ -459,20 +468,19 @@ proc discover(
         return
     else:
       Cookie(offset: rdv.registered.low().uint64 - 1)
-  if cookie.ns != d.ns or cookie.offset < rdv.registered.low().uint64 or
+  if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get() or cookie.offset < rdv.registered.low().uint64 or
       cookie.offset > rdv.registered.high().uint64:
     cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
   let
-    nsSalted = d.ns & rdv.salt
     namespaces =
-      if d.ns != "":
+      if d.ns.isSome():
         try:
-          rdv.namespaces[nsSalted]
+          rdv.namespaces[d.ns.get() & rdv.salt]
         except KeyError:
           await conn.sendDiscoverResponseError(InvalidNamespace)
           return
       else:
-        toSeq(cookie.offset.int .. rdv.registered.high())
+        toSeq(max(cookie.offset.int, rdv.registered.offset) .. rdv.registered.high())
   if namespaces.len() == 0:
     await conn.sendDiscoverResponse(@[], Cookie())
     return
@@ -563,7 +571,7 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
     @[]
 
 proc request*(
-    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int, peers: seq[PeerId]
+    rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int, peers: seq[PeerId]
 ): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
   var
     s: Table[PeerId, (PeerRecord, Register)]
@@ -572,7 +580,7 @@ proc request*(
 
   if l <= 0 or l > DiscoverLimit.int:
     raise newException(AdvertiseError, "Invalid limit")
-  if ns.len > MaximumNamespaceLen:
+  if ns.isSome() and ns.get().len > MaximumNamespaceLen:
     raise newException(AdvertiseError, "Invalid namespace")
 
   limit = l.uint64
@@ -584,9 +592,12 @@ proc request*(
       await conn.close()
     d.limit = Opt.some(limit)
     d.cookie =
-      try:
-        Opt.some(rdv.cookiesSaved[peer][ns])
-      except KeyError as exc:
+      if ns.isSome():
+        try:
+          Opt.some(rdv.cookiesSaved[peer][ns.get()])
+        except KeyError, CatchableError:
+          Opt.none(seq[byte])
+      else:
         Opt.none(seq[byte])
     await conn.writeLp(
       encode(Message(msgType: MessageType.Discover, discover: Opt.some(d))).buffer
@@ -606,12 +617,14 @@ proc request*(
       trace "Cannot discover", ns, status = resp.status, text = resp.text
       return
     resp.cookie.withValue(cookie):
-      if cookie.len() < 1000 and
-          rdv.cookiesSaved.hasKeyOrPut(peer, {ns: cookie}.toTable()):
-        try:
-          rdv.cookiesSaved[peer][ns] = cookie
-        except KeyError:
-          raiseAssert "checked with hasKeyOrPut"
+      if ns.isSome:
+        let namespace = ns.get()
+        if cookie.len() < 1000 and
+            rdv.cookiesSaved.hasKeyOrPut(peer, {namespace: cookie}.toTable()):
+          try:
+            rdv.cookiesSaved[peer][namespace] = cookie
+          except KeyError:
+            raiseAssert "checked with hasKeyOrPut"
     for r in resp.registrations:
       if limit == 0:
         return
@@ -634,8 +647,9 @@ proc request*(
       else:
         s[pr.peerId] = (pr, r)
       limit.dec()
-    for (_, r) in s.values():
-      rdv.save(ns, peer, r, false)
+    if ns.isSome():
+      for (_, r) in s.values():
+        rdv.save(ns.get(), peer, r, false)
 
   for peer in peers:
     if limit == 0:
@@ -654,9 +668,14 @@ proc request*(
   return toSeq(s.values()).mapIt(it[0])
 
 proc request*(
-    rdv: RendezVous, ns: string, l: int = DiscoverLimit.int
+    rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int
 ): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
   await rdv.request(ns, l, rdv.peers)
+
+proc request*(
+    rdv: RendezVous, l: int = DiscoverLimit.int
+): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+  await rdv.request(Opt.none(string), l, rdv.peers)
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
