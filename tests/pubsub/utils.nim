@@ -241,3 +241,24 @@ proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
 
     await sleepAsync(5.milliseconds)
     doAssert Moment.now() < timeout, "waitSubGraph timeout!"
+
+proc activeWait(
+    interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
+) {.async.} =
+  await sleepAsync(interval)
+  doAssert Moment.now() < maximum, timeoutErrorMessage
+
+proc waitForMesh*(
+    sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
+) {.async.} =
+  if sender == receiver:
+    return
+
+  let
+    timeoutMoment = Moment.now() + timeoutDuration
+    gossipsubSender = GossipSub(sender)
+    receiverPeerId = receiver.peerInfo.peerId
+
+  while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
+    trace "waitForMesh sleeping..."
+    await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")

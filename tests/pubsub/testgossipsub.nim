@@ -31,7 +31,7 @@ import
     protocols/pubsub/rpc/messages,
   ]
 import ../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../helpers, ../utils/[futures, async_tests, xtests]
+import ../helpers, ../utils/[futures, async_tests]
 
 from ../../libp2p/protocols/pubsub/mcache import window
 
@@ -279,9 +279,11 @@ suite "GossipSub":
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
 
-  xasyncTest "GossipSub unsub - resub faster than backoff":
+  asyncTest "GossipSub unsub - resub faster than backoff":
     # For this test to work we'd require a way to disable fanout.
     # There's not a way to toggle it, and mocking it didn't work as there's not a reliable mock available.
+    skip()
+    return
 
     # Instantiate handlers and validators
     var handlerFut0 = newFuture[bool]()
@@ -338,9 +340,9 @@ suite "GossipSub":
 
     # Then the message should not be received:
     check:
-      validatorFut.toResult().error() == "Future still not finished."
-      handlerFut1.toResult().error() == "Future still not finished."
-      handlerFut0.toResult().error() == "Future still not finished."
+      validatorFut.toResult().error() == Pending
+      handlerFut1.toResult().error() == Pending
+      handlerFut0.toResult().error() == Pending
 
     validatorFut.reset()
     handlerFut0.reset()
@@ -356,7 +358,7 @@ suite "GossipSub":
     check:
       validatorFut.toResult().isOk()
       handlerFut1.toResult().isOk()
-      handlerFut0.toResult().error() == "Future still not finished."
+      handlerFut0.toResult().error() == Pending
 
     await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
     await allFuturesThrowing(nodesFut.concat())
