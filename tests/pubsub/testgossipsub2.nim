@@ -292,12 +292,14 @@ suite "GossipSub":
 
     # When node 0 sends a message
     let message = "Hello!".toBytes()
-    discard node0.publish("foobar", message)
+    let publishResult = await node0.publish("foobar", message)
 
     # None should receive the message as they are not subscribed to the topic
+    let results = await waitForResults(@[messageReceived0, messageReceived1])
     check:
-      (await messageReceived0.waitForResult()).isErr
-      (await messageReceived1.waitForResult()).isErr
+      publishResult == 0
+      results[0].isErr
+      results[1].isErr
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
