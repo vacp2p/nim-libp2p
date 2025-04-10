@@ -12,7 +12,6 @@ import
     errors,
     wire,
   ]
-import quic
 import ./helpers
 
 proc createServerAcceptConn(
@@ -25,6 +24,9 @@ proc createServerAcceptConn(
   .} =
     try:
       let conn = await server.accept()
+      if conn == nil:
+        return
+
       let stream = await getStream(QuicSession(conn), Direction.In)
       var resp: array[6, byte]
       await stream.readExactly(addr resp, 6)
@@ -32,8 +34,6 @@ proc createServerAcceptConn(
 
       await stream.write("server")
       await stream.close()
-    except QuicTransportError:
-      discard # Transport failed (maybe dial error / handshake err, etc)
     except QuicTransportAcceptStopped:
       discard # Transport is stopped
 
