@@ -17,3 +17,12 @@ examples/*.md
 nimble.develop
 nimble.paths
 go-libp2p-daemon/
+
+# Ignore all test build files in tests folder (auto generated when running tests), 
+# by ignoring anything that does not have following file name scheme
+# has extension .nim, .nims, .json, or is Dockerfile...
+/tests/*
+!/tests/*.nim
+!/tests/*.nims
+!/tests/*.json
+!/tests/Dockerfile
