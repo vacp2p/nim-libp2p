@@ -90,25 +90,6 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   testBufferStream.initStream()
   testBufferStream
 
-proc bridgedConnections*(): (Connection, Connection) =
-  let
-    connA = TestBufferStream()
-    connB = TestBufferStream()
-  connA.dir = Direction.Out
-  connB.dir = Direction.In
-  connA.initStream()
-  connB.initStream()
-  connA.writeHandler = proc(
-      data: seq[byte]
-  ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-    connB.pushData(data)
-
-  connB.writeHandler = proc(
-      data: seq[byte]
-  ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-    connA.pushData(data)
-  return (connA, connB)
-
 macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
   ## Periodically checks a given condition until it is true or a timeout occurs.
   ##
