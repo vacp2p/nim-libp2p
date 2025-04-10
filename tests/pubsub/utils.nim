@@ -187,6 +187,12 @@ proc connectNodesRandom*(nodes: seq[PubSub]) {.async.} =
           await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
           dialed.add(node.peerInfo.peerId)
 
+proc activeWait(
+    interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
+) {.async.} =
+  await sleepAsync(interval)
+  doAssert Moment.now() < maximum, timeoutErrorMessage
+
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
     return
@@ -208,10 +214,7 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   )
   :
     trace "waitSub sleeping..."
-
-    # await
-    await sleepAsync(5.milliseconds)
-    doAssert Moment.now() < timeout, "waitSub timeout!"
+    await activeWait(5.milliseconds, timeout, "waitSub timeout!")
 
 proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
   let timeout = Moment.now() + 5.seconds
@@ -238,15 +241,7 @@ proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
     if ok == nodes.len:
       return
     trace "waitSubGraph sleeping..."
-
-    await sleepAsync(5.milliseconds)
-    doAssert Moment.now() < timeout, "waitSubGraph timeout!"
-
-proc activeWait(
-    interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
-) {.async.} =
-  await sleepAsync(interval)
-  doAssert Moment.now() < maximum, timeoutErrorMessage
+    await activeWait(5.milliseconds, timeout, "waitSubGraph timeout!")
 
 proc waitForMesh*(
     sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
@@ -262,3 +257,9 @@ proc waitForMesh*(
   while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
     trace "waitForMesh sleeping..."
     await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
+
+proc startNodes*(nodes: seq[PubSub]) {.async.} =
+  await allFuturesThrowing(nodes.mapIt(it.switch.start()))
+
+proc stopNodes*(nodes: seq[PubSub]) {.async.} =
+  await allFuturesThrowing(nodes.mapIt(it.switch.stop()))

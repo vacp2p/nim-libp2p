@@ -655,12 +655,6 @@ suite "GossipSub":
   proc setupNodes(count: int): seq[PubSub] =
     generateNodes(count, gossip = true)
 
-  proc startNodes(nodes: seq[PubSub]) {.async.} =
-    await allFuturesThrowing(nodes.mapIt(it.switch.start()))
-
-  proc stopNodes(nodes: seq[PubSub]) {.async.} =
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
-
   proc connectNodes(nodes: seq[PubSub], target: PubSub) {.async.} =
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
