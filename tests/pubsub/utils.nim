@@ -216,6 +216,13 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
     trace "waitSub sleeping..."
     await activeWait(5.milliseconds, timeout, "waitSub timeout!")
 
+proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
+  let numberOfNodes = nodes.len
+  for x in 0 ..< numberOfNodes:
+    for y in 0 ..< numberOfNodes:
+      if x != y:
+        await waitSub(nodes[x], nodes[y], topic)
+
 proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
   let timeout = Moment.now() + 5.seconds
   while true:

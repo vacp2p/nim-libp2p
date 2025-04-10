@@ -1,5 +1,5 @@
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -27,6 +27,47 @@ from ../../libp2p/protocols/pubsub/mcache import window
 proc voidTopicHandler(topic: string, data: seq[byte]) {.async.} =
   discard
 
+proc createCompleteHandler(): (
+  Future[bool], proc(topic: string, data: seq[byte]) {.async.}
+) =
+  var fut = newFuture[bool]()
+  proc handler(topic: string, data: seq[byte]) {.async.} =
+    fut.complete(true)
+
+  return (fut, handler)
+
+proc addIHaveObservers(nodes: seq[auto], topic: string, receivedIHaves: ref seq[int]) =
+  let numberOfNodes = nodes.len
+  receivedIHaves[] = repeat(0, numberOfNodes)
+
+  for i in 0 ..< numberOfNodes:
+    var pubsubObserver: PubSubObserver
+    capture i:
+      let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+        if msgs.control.isSome:
+          let iHave = msgs.control.get.ihave
+          if iHave.len > 0:
+            for msg in iHave:
+              if msg.topicID == topic:
+                receivedIHaves[i] += 1
+      pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+    nodes[i].addObserver(pubsubObserver)
+
+proc addIDontWantObservers(nodes: seq[auto], receivedIDontWants: ref seq[int]) =
+  let numberOfNodes = nodes.len
+  receivedIDontWants[] = repeat(0, numberOfNodes)
+
+  for i in 0 ..< numberOfNodes:
+    var pubsubObserver: PubSubObserver
+    capture i:
+      let checkForIDontWant = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+        if msgs.control.isSome:
+          let iDontWant = msgs.control.get.idontwant
+          if iDontWant.len > 0:
+            receivedIDontWants[i] += 1
+      pubsubObserver = PubSubObserver(onRecv: checkForIDontWant)
+    nodes[i].addObserver(pubsubObserver)
+
 suite "Gossipsub Parameters":
   teardown:
     checkTrackers()
@@ -42,11 +83,7 @@ suite "Gossipsub Parameters":
 
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
-
-    for x in 0 ..< numberOfNodes:
-      for y in 0 ..< numberOfNodes:
-        if x != y:
-          await waitSub(nodes[x], nodes[y], topic)
+    await waitSubAllNodes(nodes, topic)
 
     let expectedNumberOfPeers = numberOfNodes - 1
     for i in 0 ..< numberOfNodes:
@@ -69,11 +106,7 @@ suite "Gossipsub Parameters":
 
     for node in nodes:
       node.subscribe(topic, voidTopicHandler)
-
-    for x in 0 ..< numberofNodes:
-      for y in 0 ..< numberofNodes:
-        if x != y:
-          await waitSub(nodes[x], nodes[y], topic)
+    await waitSubAllNodes(nodes, topic)
 
     # Give it time for a heartbeat
     await sleepAsync(DURATION_TIMEOUT)
@@ -105,21 +138,8 @@ suite "Gossipsub Parameters":
     await startNodes(nodes)
 
     # All of them are checking for iHave messages
-    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
-    for i in 0 ..< numberOfNodes:
-      var pubsubObserver: PubSubObserver
-      capture i:
-        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
-          if msgs.control.isSome:
-            let iHave = msgs.control.get.ihave
-            if iHave.len > 0:
-              for msg in iHave:
-                if msg.topicID == topic:
-                  receivedIHaves[i] += 1
-
-        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
-
-      nodes[i].addObserver(pubsubObserver)
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
 
     # All of them are interconnected
     await connectNodesStar(nodes)
@@ -135,8 +155,9 @@ suite "Gossipsub Parameters":
 
     # At least one of the nodes should have received an iHave message
     # The check is made this way because the mesh structure changes from run to run
+    let receivedIHaves = receivedIHavesRef[]
     check:
-      anyIt(receivedIHaves, it > 0)
+      anyIt(receivedIHavesRef[], it > 0)
 
     await stopNodes(nodes)
 
@@ -153,19 +174,9 @@ suite "Gossipsub Parameters":
     await startNodes(nodes)
 
     # Each node with a handler
-    var
-      handlerFuture0 = newFuture[bool]()
-      handlerFuture1 = newFuture[bool]()
-      handlerFuture2 = newFuture[bool]()
-
-    proc handler0(topic: string, data: seq[byte]) {.async.} =
-      handlerFuture0.complete(true)
-
-    proc handler1(topic: string, data: seq[byte]) {.async.} =
-      handlerFuture1.complete(true)
-
-    proc handler2(topic: string, data: seq[byte]) {.async.} =
-      handlerFuture2.complete(true)
+    let (handlerFut0, handler0) = createCompleteHandler()
+    let (handlerFut1, handler1) = createCompleteHandler()
+    let (handlerFut2, handler2) = createCompleteHandler()
 
     # Connect them in a ring
     await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
@@ -184,10 +195,11 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
+    let results = await waitForResults(@[handlerFut0, handlerFut1, handlerFut2])
     check:
-      (await handlerFuture0.waitForResult()).isErr
-      (await handlerFuture1.waitForResult()).isOk
-      (await handlerFuture2.waitForResult()).isOk
+      results[0].isErr
+      results[1].isOk
+      results[2].isOk
 
     await stopNodes(nodes)
 
@@ -202,25 +214,16 @@ suite "Gossipsub Parameters":
     await startNodes(nodes)
 
     # Nodes 1 and 2 are connected to node 0
-    await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[
-        1].peerInfo.addrs)
-    await nodes[0].switch.connect(nodes[2].peerInfo.peerId, nodes[
-        2].peerInfo.addrs)
+    await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
+    await nodes[0].switch.connect(nodes[2].peerInfo.peerId, nodes[2].peerInfo.addrs)
 
     # Given 2 handlers
-    var
-      handlerFut1 = newFuture[bool]()
-      handlerFut2 = newFuture[bool]()
-
-    proc handler1(topic: string, data: seq[byte]) {.async.} =
-      handlerFut1.complete(true)
-
-    proc handler2(topic: string, data: seq[byte]) {.async.} =
-      handlerFut2.complete(true)
+    let (handlerFut0, handler0) = createCompleteHandler()
+    let (handlerFut1, handler1) = createCompleteHandler()
 
     # Nodes are subscribed to the same topic
-    nodes[1].subscribe(topic, handler1)
-    nodes[2].subscribe(topic, handler2)
+    nodes[1].subscribe(topic, handler0)
+    nodes[2].subscribe(topic, handler1)
     await sleepAsync(1.seconds)
 
     # Given node 2's score is below the threshold
@@ -234,12 +237,10 @@ suite "Gossipsub Parameters":
     await sleepAsync(3.seconds)
 
     # Then only node 1 should receive the message
-    let
-      result1 = await handlerFut1.waitForResult(DURATION_TIMEOUT)
-      result2 = await handlerFut2.waitForResult(DURATION_TIMEOUT)
+    let results = await waitForResults(@[handlerFut0, handlerFut1])
     check:
-      result1.isOk and result1.get == true
-      result2.isErr
+      results[0].isOk and results[0].get == true
+      results[1].isErr
 
     # Cleanup
     await stopNodes(nodes)
@@ -262,26 +263,12 @@ suite "Gossipsub Parameters":
     await startNodes(nodes)
 
     # All of them are checking for iHave messages
-    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
-    for i in 0 ..< numberOfNodes:
-      var pubsubObserver: PubSubObserver
-      capture i:
-        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
-          if msgs.control.isSome:
-            let iHave = msgs.control.get.ihave
-            if iHave.len > 0:
-              for msg in iHave:
-                if msg.topicID == topic:
-                  receivedIHaves[i] += 1
-
-        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
-
-      nodes[i].addObserver(pubsubObserver)
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
 
     # All of them are connected to node 0
     for i in 1 ..< numberOfNodes:
-      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[
-          i].peerInfo.addrs)
+      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
 
     # And subscribed to the same topic
     for node in nodes:
@@ -293,6 +280,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # None of the nodes should have received an iHave message
+    let receivedIHaves = receivedIHavesRef[]
     check:
       filterIt(receivedIHaves, it > 0).len == 0
 
@@ -307,33 +295,18 @@ suite "Gossipsub Parameters":
         dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(4)
       )
       nodes = generateNodes(
-        numberOfNodes, gossip = true, dValues = some(dValues),
-            gossipFactor = some(0.5)
+        numberOfNodes, gossip = true, dValues = some(dValues), gossipFactor = some(0.5)
       )
 
     await startNodes(nodes)
 
     # All of them are checking for iHave messages
-    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
-    for i in 0 ..< numberOfNodes:
-      var pubsubObserver: PubSubObserver
-      capture i:
-        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
-          if msgs.control.isSome:
-            let iHave = msgs.control.get.ihave
-            if iHave.len > 0:
-              for msg in iHave:
-                if msg.topicID == topic:
-                  receivedIHaves[i] += 1
-
-        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
-
-      nodes[i].addObserver(pubsubObserver)
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
 
     # All of them are connected to node 0
     for i in 1 ..< numberOfNodes:
-      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[
-          i].peerInfo.addrs)
+      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
 
     # And subscribed to the same topic
     for node in nodes:
@@ -346,6 +319,7 @@ suite "Gossipsub Parameters":
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
+    let receivedIHaves = receivedIHavesRef[]
     check:
       filterIt(receivedIHaves, it > 0).len >= 8
 
@@ -369,26 +343,12 @@ suite "Gossipsub Parameters":
     await startNodes(nodes)
 
     # All of them are checking for iHave messages
-    var receivedIHaves: seq[int] = repeat(0, numberOfNodes)
-    for i in 0 ..< numberOfNodes:
-      var pubsubObserver: PubSubObserver
-      capture i:
-        let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
-          if msgs.control.isSome:
-            let iHave = msgs.control.get.ihave
-            if iHave.len > 0:
-              for msg in iHave:
-                if msg.topicID == topic:
-                  receivedIHaves[i] += 1
-
-        pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
-
-      nodes[i].addObserver(pubsubObserver)
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
 
     # All of them are connected to node 0
     for i in 1 ..< numberOfNodes:
-      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[
-          i].peerInfo.addrs)
+      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
 
     # And subscribed to the same topic
     for node in nodes:
@@ -401,6 +361,7 @@ suite "Gossipsub Parameters":
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
+    let receivedIHaves = receivedIHavesRef[]
     check:
       filterIt(receivedIHaves, it > 0).len == dValues.dLazy.get()
 
@@ -412,43 +373,16 @@ suite "Gossipsub Parameters":
       numberOfNodes = 3
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true)
-      node0 = nodes[0]
-      node1 = nodes[1]
-      node2 = nodes[2]
 
     await startNodes(nodes)
 
     # And with iDontWant observers
-    var
-      iDontWantReceived0 = newFuture[bool]()
-      iDontWantReceived1 = newFuture[bool]()
-      iDontWantReceived2 = newFuture[bool]()
-
-    proc observer0(peer: PubSubPeer, msgs: var RPCMsg) =
-      if msgs.control.isSome:
-        let iDontWant = msgs.control.get.idontwant
-        if iDontWant.len > 0:
-          iDontWantReceived0.complete(true)
-
-    proc observer1(peer: PubSubPeer, msgs: var RPCMsg) =
-      if msgs.control.isSome:
-        let iDontWant = msgs.control.get.idontwant
-        if iDontWant.len > 0:
-          iDontWantReceived1.complete(true)
-
-    proc observer2(peer: PubSubPeer, msgs: var RPCMsg) =
-      if msgs.control.isSome:
-        let iDontWant = msgs.control.get.idontwant
-        if iDontWant.len > 0:
-          iDontWantReceived2.complete(true)
-
-    node0.addObserver(PubSubObserver(onRecv: observer0))
-    node1.addObserver(PubSubObserver(onRecv: observer1))
-    node2.addObserver(PubSubObserver(onRecv: observer2))
+    var receivedIDontWantsRef = new seq[int]
+    addIDontWantObservers(nodes, receivedIDontWantsRef)
 
     # Connect them in a line
-    await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
-    await node1.switch.connect(node2.peerInfo.peerId, node2.peerInfo.addrs)
+    await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
+    await nodes[1].switch.connect(nodes[2].peerInfo.peerId, nodes[2].peerInfo.addrs)
     await sleepAsync(DURATION_TIMEOUT)
 
     # Subscribe them all to the same topic
@@ -463,9 +397,10 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # Only node 2 should have received the iDontWant message
+    let receivedIDontWants = receivedIDontWantsRef[]
     check:
-      (await iDontWantReceived0.waitForResult()).isErr
-      (await iDontWantReceived1.waitForResult()).isErr
-      (await iDontWantReceived2.waitForResult()).isOk
+      receivedIDontWants[0] == 0
+      receivedIDontWants[1] == 0
+      receivedIDontWants[2] == 1
 
     await stopNodes(nodes)
