@@ -80,9 +80,7 @@ suite "Gossipsub Parameters":
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
-
-    for node in nodes:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitSubAllNodes(nodes, topic)
 
     let expectedNumberOfPeers = numberOfNodes - 1
@@ -101,9 +99,7 @@ suite "Gossipsub Parameters":
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
-
-    for node in nodes:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitSubAllNodes(nodes, topic)
 
     # Give it time for a heartbeat
@@ -140,8 +136,7 @@ suite "Gossipsub Parameters":
     await connectNodesStar(nodes)
 
     # And subscribed to the same topic
-    for node in nodes:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
@@ -173,9 +168,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # And subscribed to the same topic
-    nodes[0].subscribe(topic, handler0)
-    nodes[1].subscribe(topic, handler1)
-    nodes[2].subscribe(topic, handler2)
+    subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
@@ -251,8 +244,7 @@ suite "Gossipsub Parameters":
       await connectNodes(nodes[0], nodes[i])
 
     # And subscribed to the same topic
-    for node in nodes:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
@@ -286,8 +278,7 @@ suite "Gossipsub Parameters":
       await connectNodes(nodes[0], nodes[i])
 
     # And subscribed to the same topic
-    for node in nodes:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
@@ -325,8 +316,7 @@ suite "Gossipsub Parameters":
       await connectNodes(nodes[0], nodes[i])
 
     # And subscribed to the same topic
-    for node in nodes:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
@@ -357,9 +347,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # And subscribed to the same topic
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
-    nodes[2].subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a large message

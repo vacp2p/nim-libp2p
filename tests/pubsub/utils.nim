@@ -267,3 +267,16 @@ template startNodesAndDeferStop*(nodes: seq[PubSub]): untyped =
   await startNodes(nodes)
   defer:
     await stopNodes(nodes)
+
+proc subscribeAllNodes*(nodes: seq[PubSub], topic: string, topicHandler: TopicHandler) =
+  for node in nodes:
+    node.subscribe(topic, topicHandler)
+
+proc subscribeAllNodes*(
+    nodes: seq[PubSub], topic: string, topicHandlers: seq[TopicHandler]
+) =
+  if nodes.len != topicHandlers.len:
+    raise (ref CatchableError)(msg: "nodes and topicHandlers count needs to match!")
+
+  for i in 0 ..< nodes.len:
+    nodes[i].subscribe(topic, topicHandlers[i])
