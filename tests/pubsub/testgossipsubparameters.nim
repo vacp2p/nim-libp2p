@@ -128,7 +128,6 @@ suite "Gossipsub Parameters":
     await stopNodes(nodes)
 
   asyncTest "messages sent to peers not in the mesh are propagated via gossip":
-    # Given 5 nodes
     let
       numberOfNodes = 5
       topic = "foobar"
@@ -137,11 +136,11 @@ suite "Gossipsub Parameters":
 
     await startNodes(nodes)
 
-    # All of them are checking for iHave messages
+    # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
     addIHaveObservers(nodes, topic, receivedIHavesRef)
 
-    # All of them are interconnected
+    # And are interconnected
     await connectNodesStar(nodes)
 
     # And subscribed to the same topic
@@ -162,7 +161,6 @@ suite "Gossipsub Parameters":
     await stopNodes(nodes)
 
   asyncTest "messages are not sent back to source or forwarding peer":
-    # Instantiate 3 nodes
     let
       numberOfNodes = 3
       topic = "foobar"
@@ -173,18 +171,17 @@ suite "Gossipsub Parameters":
 
     await startNodes(nodes)
 
-    # Each node with a handler
     let (handlerFut0, handler0) = createCompleteHandler()
     let (handlerFut1, handler1) = createCompleteHandler()
     let (handlerFut2, handler2) = createCompleteHandler()
 
-    # Connect them in a ring
+    # Nodes are connected in a ring
     await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
     await node1.switch.connect(node2.peerInfo.peerId, node2.peerInfo.addrs)
     await node2.switch.connect(node0.peerInfo.peerId, node0.peerInfo.addrs)
     await sleepAsync(DURATION_TIMEOUT)
 
-    # Subscribe them all to the same topic
+    # And subscribed to the same topic
     nodes[0].subscribe(topic, handler0)
     nodes[1].subscribe(topic, handler1)
     nodes[2].subscribe(topic, handler2)
@@ -204,7 +201,6 @@ suite "Gossipsub Parameters":
     await stopNodes(nodes)
 
   asyncTest "flood publish to all peers with score above threshold, regardless of subscription":
-    # Given 3 nodes
     let
       numberOfNodes = 3
       topic = "foobar"
@@ -217,7 +213,6 @@ suite "Gossipsub Parameters":
     await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
     await nodes[0].switch.connect(nodes[2].peerInfo.peerId, nodes[2].peerInfo.addrs)
 
-    # Given 2 handlers
     let (handlerFut0, handler0) = createCompleteHandler()
     let (handlerFut1, handler1) = createCompleteHandler()
 
@@ -242,11 +237,9 @@ suite "Gossipsub Parameters":
       results[0].isOk and results[0].get == true
       results[1].isErr
 
-    # Cleanup
     await stopNodes(nodes)
 
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
-    # Given 20 nodes
     let
       numberOfNodes = 20
       topic = "foobar"
@@ -262,11 +255,11 @@ suite "Gossipsub Parameters":
 
     await startNodes(nodes)
 
-    # All of them are checking for iHave messages
+    # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
     addIHaveObservers(nodes, topic, receivedIHavesRef)
 
-    # All of them are connected to node 0
+    # And are connected to node 0
     for i in 1 ..< numberOfNodes:
       await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
 
@@ -287,7 +280,6 @@ suite "Gossipsub Parameters":
     await stopNodes(nodes)
 
   asyncTest "adaptive gossip dissemination, with gossipFactor priority":
-    # Given 20 nodes
     let
       numberOfNodes = 20
       topic = "foobar"
@@ -300,11 +292,11 @@ suite "Gossipsub Parameters":
 
     await startNodes(nodes)
 
-    # All of them are checking for iHave messages
+    # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
     addIHaveObservers(nodes, topic, receivedIHavesRef)
 
-    # All of them are connected to node 0
+    # And are connected to node 0
     for i in 1 ..< numberOfNodes:
       await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
 
@@ -326,7 +318,6 @@ suite "Gossipsub Parameters":
     await stopNodes(nodes)
 
   asyncTest "adaptive gossip dissemination, with dLazy priority":
-    # Given 20 nodes
     let
       numberOfNodes = 20
       topic = "foobar"
@@ -342,11 +333,11 @@ suite "Gossipsub Parameters":
 
     await startNodes(nodes)
 
-    # All of them are checking for iHave messages
+    # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
     addIHaveObservers(nodes, topic, receivedIHavesRef)
 
-    # All of them are connected to node 0
+    # And are connected to node 0
     for i in 1 ..< numberOfNodes:
       await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
 
@@ -368,7 +359,6 @@ suite "Gossipsub Parameters":
     await stopNodes(nodes)
 
   asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
-    # Given 3 nodes
     let
       numberOfNodes = 3
       topic = "foobar"
@@ -376,16 +366,16 @@ suite "Gossipsub Parameters":
 
     await startNodes(nodes)
 
-    # And with iDontWant observers
+    # All nodes are checking for iDontWant messages
     var receivedIDontWantsRef = new seq[int]
     addIDontWantObservers(nodes, receivedIDontWantsRef)
 
-    # Connect them in a line
+    # And are connected in a line
     await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
     await nodes[1].switch.connect(nodes[2].peerInfo.peerId, nodes[2].peerInfo.addrs)
     await sleepAsync(DURATION_TIMEOUT)
 
-    # Subscribe them all to the same topic
+    # And subscribed to the same topic
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
     nodes[2].subscribe(topic, voidTopicHandler)
