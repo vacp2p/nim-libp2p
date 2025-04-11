@@ -159,9 +159,6 @@ suite "Gossipsub Parameters":
       numberOfNodes = 3
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true)
-      node0 = nodes[0]
-      node1 = nodes[1]
-      node2 = nodes[2]
 
     startNodesAndDeferStop(nodes)
 
@@ -170,9 +167,9 @@ suite "Gossipsub Parameters":
     let (handlerFut2, handler2) = createCompleteHandler()
 
     # Nodes are connected in a ring
-    await node0.switch.connect(node1.peerInfo.peerId, node1.peerInfo.addrs)
-    await node1.switch.connect(node2.peerInfo.peerId, node2.peerInfo.addrs)
-    await node2.switch.connect(node0.peerInfo.peerId, node0.peerInfo.addrs)
+    await connectNodes(nodes[0], nodes[1])
+    await connectNodes(nodes[1], nodes[2])
+    await connectNodes(nodes[2], nodes[0])
     await sleepAsync(DURATION_TIMEOUT)
 
     # And subscribed to the same topic
@@ -202,8 +199,8 @@ suite "Gossipsub Parameters":
     startNodesAndDeferStop(nodes)
 
     # Nodes 1 and 2 are connected to node 0
-    await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
-    await nodes[0].switch.connect(nodes[2].peerInfo.peerId, nodes[2].peerInfo.addrs)
+    await connectNodes(nodes[0], nodes[1])
+    await connectNodes(nodes[0], nodes[2])
 
     let (handlerFut0, handler0) = createCompleteHandler()
     let (handlerFut1, handler1) = createCompleteHandler()
@@ -251,7 +248,7 @@ suite "Gossipsub Parameters":
 
     # And are connected to node 0
     for i in 1 ..< numberOfNodes:
-      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
+      await connectNodes(nodes[0], nodes[i])
 
     # And subscribed to the same topic
     for node in nodes:
@@ -286,7 +283,7 @@ suite "Gossipsub Parameters":
 
     # And are connected to node 0
     for i in 1 ..< numberOfNodes:
-      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
+      await connectNodes(nodes[0], nodes[i])
 
     # And subscribed to the same topic
     for node in nodes:
@@ -325,7 +322,7 @@ suite "Gossipsub Parameters":
 
     # And are connected to node 0
     for i in 1 ..< numberOfNodes:
-      await nodes[0].switch.connect(nodes[i].peerInfo.peerId, nodes[i].peerInfo.addrs)
+      await connectNodes(nodes[0], nodes[i])
 
     # And subscribed to the same topic
     for node in nodes:
@@ -355,8 +352,8 @@ suite "Gossipsub Parameters":
     addIDontWantObservers(nodes, receivedIDontWantsRef)
 
     # And are connected in a line
-    await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
-    await nodes[1].switch.connect(nodes[2].peerInfo.peerId, nodes[2].peerInfo.addrs)
+    await connectNodes(nodes[0], nodes[1])
+    await connectNodes(nodes[1], nodes[2])
     await sleepAsync(DURATION_TIMEOUT)
 
     # And subscribed to the same topic

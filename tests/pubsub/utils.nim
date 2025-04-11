@@ -158,11 +158,14 @@ proc generateNodes*(
     switch.mount(pubsub)
     result.add(pubsub)
 
+proc connectNodes*(dialer: PubSub, target: PubSub) {.async.} =
+  if dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId:
+    await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+
 proc connectNodesStar*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
     for node in nodes:
-      if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
-        await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+      await connectNodes(dialer, node)
 
 proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
   if nodes.len < degree:
@@ -174,18 +177,7 @@ proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
       continue
 
     for node in nodes:
-      if dialer.switch.peerInfo.peerId != node.peerInfo.peerId:
-        await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
-
-proc connectNodesRandom*(nodes: seq[PubSub]) {.async.} =
-  for dialer in nodes:
-    var dialed: seq[PeerId]
-    while dialed.len < nodes.len - 1:
-      let node = sample(nodes)
-      if node.peerInfo.peerId notin dialed:
-        if dialer.peerInfo.peerId != node.peerInfo.peerId:
-          await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
-          dialed.add(node.peerInfo.peerId)
+      await connectNodes(dialer, node)
 
 proc activeWait(
     interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
