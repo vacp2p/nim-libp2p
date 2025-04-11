@@ -308,9 +308,9 @@ suite "GossipSub":
 
     # Then the message should not be received:
     check:
-      validatorFut.toResult().error() == Pending
-      handlerFut1.toResult().error() == Pending
-      handlerFut0.toResult().error() == Pending
+      validatorFut.toResult().isErr()
+      handlerFut1.toResult().isErr()
+      handlerFut0.toResult().isErr()
 
     validatorFut.reset()
     handlerFut0.reset()
@@ -326,7 +326,7 @@ suite "GossipSub":
     check:
       validatorFut.toResult().isOk()
       handlerFut1.toResult().isOk()
-      handlerFut0.toResult().error() == Pending
+      handlerFut0.toResult().isErr()
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -789,7 +789,7 @@ suite "GossipSub":
     )
     gossip1.routingRecordsHandler.add(
       proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
-        passed1.complete()
+        raiseAssert "should not get here"
     )
     gossip2.routingRecordsHandler.add(
       proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
@@ -804,10 +804,11 @@ suite "GossipSub":
     nodes[1].unsubscribe("foobar", handler)
 
     # Then verify what nodes receive the PX
+    let results = await waitForResults(@[passed0, passed1, passed2])
     check:
-      (await passed0.waitForResult()).isOk
-      not (await passed1.waitForResult()).isOk
-      (await passed2.waitForResult()).isOk
+      results[0].isOk
+      results[1].isErr
+      results[2].isOk
 
   asyncTest "e2e - iDontWant":
     # 3 nodes: A <=> B <=> C
