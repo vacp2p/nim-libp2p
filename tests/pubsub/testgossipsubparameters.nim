@@ -140,7 +140,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
-    discard nodes[0].publish(topic, "Hello!".toBytes())
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
     await sleepAsync(DURATION_TIMEOUT)
 
     # At least one of the nodes should have received an iHave message
@@ -172,7 +172,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
-    discard nodes[0].publish(topic, "Hello!".toBytes())
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
     await sleepAsync(DURATION_TIMEOUT)
 
     # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
@@ -210,7 +210,7 @@ suite "Gossipsub Parameters":
 
     # When node 0 publishes a message to topic "foo"
     let message = "Hello!".toBytes()
-    check (await nodes[0].publish(topic, message)) > 0
+    check (await nodes[0].publish(topic, message)) == 1
     await sleepAsync(3.seconds)
 
     # Then only node 1 should receive the message
@@ -248,7 +248,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
-    discard nodes[0].publish(topic, "Hello!".toBytes())
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
     await sleepAsync(DURATION_TIMEOUT)
 
     # None of the nodes should have received an iHave message
@@ -282,7 +282,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
-    discard nodes[0].publish(topic, "Hello!".toBytes())
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
     await sleepAsync(DURATION_TIMEOUT)
 
     # At least 8 of the nodes should have received an iHave message
@@ -320,7 +320,7 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # When node 0 sends a message
-    discard nodes[0].publish(topic, "Hello!".toBytes())
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
     await sleepAsync(DURATION_TIMEOUT)
 
     # At least 6 of the nodes should have received an iHave message
@@ -352,7 +352,7 @@ suite "Gossipsub Parameters":
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)
-    discard nodes[0].publish(topic, largeMsg)
+    check (await nodes[0].publish(topic, largeMsg)) == 1
     await sleepAsync(DURATION_TIMEOUT)
 
     # Only node 2 should have received the iDontWant message
