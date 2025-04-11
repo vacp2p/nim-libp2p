@@ -270,3 +270,8 @@ proc startNodes*(nodes: seq[PubSub]) {.async.} =
 
 proc stopNodes*(nodes: seq[PubSub]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+template startNodesAndDeferStop*(nodes: seq[PubSub]): untyped =
+  await startNodes(nodes)
+  defer:
+    await stopNodes(nodes)

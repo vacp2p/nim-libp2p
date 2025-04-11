@@ -78,7 +78,7 @@ suite "Gossipsub Parameters":
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true)
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     for node in nodes:
@@ -93,15 +93,13 @@ suite "Gossipsub Parameters":
         gossip.mesh[topic].len == expectedNumberOfPeers
         gossip.fanout.len == 0
 
-    await stopNodes(nodes)
-
   asyncTest "prune peers if mesh len is higher than d_high":
     let
       numberofNodes = 15
       topic = "foobar"
       nodes = generateNodes(numberofNodes, gossip = true)
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     for node in nodes:
@@ -125,8 +123,6 @@ suite "Gossipsub Parameters":
         gossip.mesh[topic].len >= dLow and gossip.mesh[topic].len <= dHigh
         gossip.fanout.len == 0
 
-    await stopNodes(nodes)
-
   asyncTest "messages sent to peers not in the mesh are propagated via gossip":
     let
       numberOfNodes = 5
@@ -134,7 +130,7 @@ suite "Gossipsub Parameters":
       dValues = DValues(dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1))
       nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
@@ -158,8 +154,6 @@ suite "Gossipsub Parameters":
     check:
       anyIt(receivedIHavesRef[], it > 0)
 
-    await stopNodes(nodes)
-
   asyncTest "messages are not sent back to source or forwarding peer":
     let
       numberOfNodes = 3
@@ -169,7 +163,7 @@ suite "Gossipsub Parameters":
       node1 = nodes[1]
       node2 = nodes[2]
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
 
     let (handlerFut0, handler0) = createCompleteHandler()
     let (handlerFut1, handler1) = createCompleteHandler()
@@ -198,8 +192,6 @@ suite "Gossipsub Parameters":
       results[1].isOk
       results[2].isOk
 
-    await stopNodes(nodes)
-
   asyncTest "flood publish to all peers with score above threshold, regardless of subscription":
     let
       numberOfNodes = 3
@@ -207,7 +199,7 @@ suite "Gossipsub Parameters":
       nodes = generateNodes(numberOfNodes, gossip = true, floodPublish = true)
       g0 = GossipSub(nodes[0])
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
 
     # Nodes 1 and 2 are connected to node 0
     await nodes[0].switch.connect(nodes[1].peerInfo.peerId, nodes[1].peerInfo.addrs)
@@ -237,8 +229,6 @@ suite "Gossipsub Parameters":
       results[0].isOk and results[0].get == true
       results[1].isErr
 
-    await stopNodes(nodes)
-
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
     let
       numberOfNodes = 20
@@ -253,7 +243,7 @@ suite "Gossipsub Parameters":
         gossipFactor = some(0.float),
       )
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
@@ -277,8 +267,6 @@ suite "Gossipsub Parameters":
     check:
       filterIt(receivedIHaves, it > 0).len == 0
 
-    await stopNodes(nodes)
-
   asyncTest "adaptive gossip dissemination, with gossipFactor priority":
     let
       numberOfNodes = 20
@@ -290,7 +278,7 @@ suite "Gossipsub Parameters":
         numberOfNodes, gossip = true, dValues = some(dValues), gossipFactor = some(0.5)
       )
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
@@ -315,8 +303,6 @@ suite "Gossipsub Parameters":
     check:
       filterIt(receivedIHaves, it > 0).len >= 8
 
-    await stopNodes(nodes)
-
   asyncTest "adaptive gossip dissemination, with dLazy priority":
     let
       numberOfNodes = 20
@@ -331,7 +317,7 @@ suite "Gossipsub Parameters":
         gossipFactor = some(0.float),
       )
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var receivedIHavesRef = new seq[int]
@@ -356,15 +342,13 @@ suite "Gossipsub Parameters":
     check:
       filterIt(receivedIHaves, it > 0).len == dValues.dLazy.get()
 
-    await stopNodes(nodes)
-
   asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
     let
       numberOfNodes = 3
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true)
 
-    await startNodes(nodes)
+    startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iDontWant messages
     var receivedIDontWantsRef = new seq[int]
@@ -392,5 +376,3 @@ suite "Gossipsub Parameters":
       receivedIDontWants[0] == 0
       receivedIDontWants[1] == 0
       receivedIDontWants[2] == 1
-
-    await stopNodes(nodes)
