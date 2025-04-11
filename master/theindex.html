@@ -4531,13 +4531,19 @@ window.addEventListener('DOMContentLoaded', main);
     void, (DiscoveryError, CancelledError)]" href="libp2p/discovery/discoverymngr.html#request.e%2CDiscoveryInterface%2CPeerAttributes">discoverymngr: request(self: DiscoveryInterface; pa: PeerAttributes): InternalRaisesFuture[
     void, (DiscoveryError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int): InternalRaisesFuture[
-    seq[PeerRecord], (DiscoveryError, CancelledError)]" href="libp2p/protocols/rendezvous.html#request%2CRendezVous%2Cstring%2Cint">rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int): InternalRaisesFuture[
+          data-doc-search-tag="rendezvous: request(rdv: RendezVous; l: int = 1000&apos;u64.int): InternalRaisesFuture[
+    seq[PeerRecord], (DiscoveryError, CancelledError)]" href="libp2p/protocols/rendezvous.html#request%2CRendezVous%2Cint">rendezvous: request(rdv: RendezVous; l: int = 1000&apos;u64.int): InternalRaisesFuture[
     seq[PeerRecord], (DiscoveryError, CancelledError)]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int; peers: seq[PeerId]): InternalRaisesFuture[
-    seq[PeerRecord], (DiscoveryError, CancelledError)]" href="libp2p/protocols/rendezvous.html#request%2CRendezVous%2Cstring%2Cint%2Cseq%5BPeerId%5D">rendezvous: request(rdv: RendezVous; ns: string; l: int = 1000&apos;u64.int; peers: seq[PeerId]): InternalRaisesFuture[
+          data-doc-search-tag="rendezvous: request(rdv: RendezVous; ns: Opt[string]; l: int = 1000&apos;u64.int): InternalRaisesFuture[
+    seq[PeerRecord], (DiscoveryError, CancelledError)]" href="libp2p/protocols/rendezvous.html#request%2CRendezVous%2COpt%5Bstring%5D%2Cint">rendezvous: request(rdv: RendezVous; ns: Opt[string]; l: int = 1000&apos;u64.int): InternalRaisesFuture[
     seq[PeerRecord], (DiscoveryError, CancelledError)]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="rendezvous: request(rdv: RendezVous; ns: Opt[string]; l: int = 1000&apos;u64.int;
+        peers: seq[PeerId]): InternalRaisesFuture[seq[PeerRecord],
+    (DiscoveryError, CancelledError)]" href="libp2p/protocols/rendezvous.html#request%2CRendezVous%2COpt%5Bstring%5D%2Cint%2Cseq%5BPeerId%5D">rendezvous: request(rdv: RendezVous; ns: Opt[string]; l: int = 1000&apos;u64.int;
+        peers: seq[PeerId]): InternalRaisesFuture[seq[PeerRecord],
+    (DiscoveryError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="requestLocally" href="#requestLocally"><span>requestLocally:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -6050,7 +6056,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-04-10 21:56:41 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-04-11 13:34:18 UTC</small>
       </div>
     </div>
   </div>
