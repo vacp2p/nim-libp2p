@@ -194,12 +194,12 @@ suite "Gossipsub Parameters":
     await connectNodes(nodes[0], nodes[1])
     await connectNodes(nodes[0], nodes[2])
 
-    let (handlerFut0, handler0) = createCompleteHandler()
     let (handlerFut1, handler1) = createCompleteHandler()
+    let (handlerFut2, handler2) = createCompleteHandler()
 
     # Nodes are subscribed to the same topic
-    nodes[1].subscribe(topic, handler0)
-    nodes[2].subscribe(topic, handler1)
+    nodes[1].subscribe(topic, handler1)
+    nodes[2].subscribe(topic, handler2)
     await sleepAsync(1.seconds)
 
     # Given node 2's score is below the threshold
@@ -213,9 +213,9 @@ suite "Gossipsub Parameters":
     await sleepAsync(3.seconds)
 
     # Then only node 1 should receive the message
-    let results = await waitForResults(@[handlerFut0, handlerFut1])
+    let results = await waitForResults(@[handlerFut1, handlerFut2])
     check:
-      results[0].isOk and results[0].get == true
+      results[0].get == true
       results[1].isErr
 
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
