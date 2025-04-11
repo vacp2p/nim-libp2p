@@ -49,13 +49,10 @@ suite "FloodSub":
       check topic == "foobar"
       completionFut.complete(true)
 
-    let
-      nodes = generateNodes(2)
+    let nodes = generateNodes(2)
 
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
-
-    await subscribeNodes(nodes)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
@@ -71,34 +68,22 @@ suite "FloodSub":
         agentA == "nim-libp2p"
         agentB == "nim-libp2p"
 
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "FloodSub basic publish/subscribe B -> A":
     var completionFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       completionFut.complete(true)
 
-    let
-      nodes = generateNodes(2)
+    let nodes = generateNodes(2)
 
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
-
-    await subscribeNodes(nodes)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     await waitSub(nodes[1], nodes[0], "foobar")
 
     check (await nodes[1].publish("foobar", "Hello!".toBytes())) > 0
-
     check (await completionFut.wait(5.seconds)) == true
-
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub validation should succeed":
     var handlerFut = newFuture[bool]()
@@ -106,13 +91,10 @@ suite "FloodSub":
       check topic == "foobar"
       handlerFut.complete(true)
 
-    let
-      nodes = generateNodes(2)
+    let nodes = generateNodes(2)
 
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
-
-    await subscribeNodes(nodes)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
@@ -130,21 +112,15 @@ suite "FloodSub":
     check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
     check (await handlerFut) == true
 
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "FloodSub validation should fail":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check false # if we get here, it should fail
 
-    let
-      nodes = generateNodes(2)
+    let nodes = generateNodes(2)
 
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
-    await subscribeNodes(nodes)
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -159,23 +135,17 @@ suite "FloodSub":
 
     discard await nodes[0].publish("foobar", "Hello!".toBytes())
 
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "FloodSub validation one fails and one succeeds":
     var handlerFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foo"
       handlerFut.complete(true)
 
-    let
-      nodes = generateNodes(2)
+    let nodes = generateNodes(2)
 
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
-    await subscribeNodes(nodes)
     nodes[1].subscribe("foo", handler)
     await waitSub(nodes[0], nodes[1], "foo")
     nodes[1].subscribe("bar", handler)
@@ -193,10 +163,6 @@ suite "FloodSub":
 
     check (await nodes[0].publish("foo", "Hello!".toBytes())) > 0
     check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
-
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub multiple peers, no self trigger":
     var runs = 10
@@ -219,11 +185,10 @@ suite "FloodSub":
           counter,
         )
 
-    let
-      nodes = generateNodes(runs, triggerSelf = false)
-      nodesFut = nodes.mapIt(it.switch.start())
+    let nodes = generateNodes(runs, triggerSelf = false)
 
-    await subscribeNodes(nodes)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
     for i in 0 ..< runs:
       nodes[i].subscribe("foobar", futs[i][1])
@@ -241,9 +206,6 @@ suite "FloodSub":
     await allFuturesThrowing(pubs)
 
     await allFuturesThrowing(futs.mapIt(it[0]))
-    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
-
-    await allFuturesThrowing(nodesFut)
 
   asyncTest "FloodSub multiple peers, with self trigger":
     var runs = 10
@@ -266,11 +228,10 @@ suite "FloodSub":
           counter,
         )
 
-    let
-      nodes = generateNodes(runs, triggerSelf = true)
-      nodesFut = nodes.mapIt(it.switch.start())
+    let nodes = generateNodes(runs, triggerSelf = true)
 
-    await subscribeNodes(nodes)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
     for i in 0 ..< runs:
       nodes[i].subscribe("foobar", futs[i][1])
@@ -299,10 +260,6 @@ suite "FloodSub":
         # remove the topic tho
         node.topics.len == 0
 
-    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
-
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -313,11 +270,9 @@ suite "FloodSub":
       bigNode = generateNodes(1)
       smallNode = generateNodes(1, maxMessageSize = 200)
 
-      # start switches
-      nodesFut =
-        await allFinished(bigNode[0].switch.start(), smallNode[0].switch.start())
+    startNodesAndDeferStop(bigNode & smallNode)
+    await connectNodesStar(bigNode & smallNode)
 
-    await subscribeNodes(bigNode & smallNode)
     bigNode[0].subscribe("foo", handler)
     smallNode[0].subscribe("foo", handler)
     await waitSub(bigNode[0], smallNode[0], "foo")
@@ -337,10 +292,6 @@ suite "FloodSub":
     check (await smallNode[0].publish("foo", bigMessage)) > 0
     check (await bigNode[0].publish("foo", bigMessage)) > 0
 
-    await allFuturesThrowing(smallNode[0].switch.stop(), bigNode[0].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "FloodSub message size validation 2":
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -350,11 +301,9 @@ suite "FloodSub":
       bigNode1 = generateNodes(1, maxMessageSize = 20000000)
       bigNode2 = generateNodes(1, maxMessageSize = 20000000)
 
-      # start switches
-      nodesFut =
-        await allFinished(bigNode1[0].switch.start(), bigNode2[0].switch.start())
+    startNodesAndDeferStop(bigNode1 & bigNode2)
+    await connectNodesStar(bigNode1 & bigNode2)
 
-    await subscribeNodes(bigNode1 & bigNode2)
     bigNode2[0].subscribe("foo", handler)
     await waitSub(bigNode1[0], bigNode2[0], "foo")
 
@@ -364,7 +313,3 @@ suite "FloodSub":
 
     checkUntilTimeout:
       messageReceived == 1
-
-    await allFuturesThrowing(bigNode1[0].switch.stop(), bigNode2[0].switch.stop())
-
-    await allFuturesThrowing(nodesFut)
