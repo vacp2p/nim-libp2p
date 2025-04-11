@@ -42,6 +42,10 @@ proc main() {.async.} =
     discard switchBuilder.withTcpTransport().withAddress(
         MultiAddress.init("/ip4/" & ip & "/tcp/0").tryGet()
       )
+  of "quic-v1":
+    discard switchBuilder.withQuicTransport().withAddress(
+        MultiAddress.init("/ip4/" & ip & "/udp/0/quic-v1").tryGet()
+      )
   of "ws":
     discard switchBuilder
       .withTransport(
@@ -55,16 +59,12 @@ proc main() {.async.} =
   case secureChannel
   of "noise":
     discard switchBuilder.withNoise()
-  else:
-    doAssert false
 
   case muxer
   of "yamux":
     discard switchBuilder.withYamux()
   of "mplex":
     discard switchBuilder.withMplex()
-  else:
-    doAssert false
 
   let
     rng = newRng()
