@@ -165,7 +165,6 @@ suite "Gossipsub Parameters":
     await connectNodes(nodes[0], nodes[1])
     await connectNodes(nodes[1], nodes[2])
     await connectNodes(nodes[2], nodes[0])
-    await sleepAsync(DURATION_TIMEOUT)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
@@ -344,7 +343,6 @@ suite "Gossipsub Parameters":
     # And are connected in a line
     await connectNodes(nodes[0], nodes[1])
     await connectNodes(nodes[1], nodes[2])
-    await sleepAsync(DURATION_TIMEOUT)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
