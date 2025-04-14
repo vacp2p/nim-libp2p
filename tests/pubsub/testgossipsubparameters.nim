@@ -175,11 +175,11 @@ suite "Gossipsub Parameters":
     await sleepAsync(DURATION_TIMEOUT)
 
     # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
-    let results = await waitForResults(@[handlerFut0, handlerFut1, handlerFut2])
+    let results = await waitForStates(@[handlerFut0, handlerFut1, handlerFut2])
     check:
-      results[0].isErr
-      results[1].isOk
-      results[2].isOk
+      results[0].isPending()
+      results[1].isCompleted()
+      results[2].isCompleted()
 
   asyncTest "flood publish to all peers with score above threshold, regardless of subscription":
     let
@@ -213,10 +213,10 @@ suite "Gossipsub Parameters":
     await sleepAsync(3.seconds)
 
     # Then only node 1 should receive the message
-    let results = await waitForResults(@[handlerFut1, handlerFut2])
+    let results = await waitForStates(@[handlerFut1, handlerFut2])
     check:
-      results[0].get == true
-      results[1].isErr
+      results[0].isCompleted(true)
+      results[1].isPending()
 
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
     let

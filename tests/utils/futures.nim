@@ -4,31 +4,58 @@ const
   DURATION_TIMEOUT* = 1.seconds
   DURATION_TIMEOUT_EXTENDED* = 1500.milliseconds
 
-proc toOk(future: Future[void]): Result[void, FutureState] =
-  return results.ok()
+type FutureStateWrapper*[T] = object
+  future: Future[T]
+  state: FutureState
+  when T is void:
+    discard
+  else:
+    value: T
 
-proc toOk[T](future: Future[T]): Result[T, FutureState] =
-  return results.ok(future.read())
+proc isPending*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Pending
 
-proc toResult*[T](future: Future[T]): Result[T, FutureState] =
+proc isCompleted*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Completed
+
+proc isCompleted*[T](wrapper: FutureStateWrapper[T], expectedValue: T): bool =
+  when T is void:
+    wrapper.state == Completed
+  else:
+    wrapper.state == Completed and wrapper.value == expectedValue
+
+proc isCancelled*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Cancelled
+
+proc isFailed*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Failed
+
+proc toState*[T](future: Future[T]): FutureStateWrapper[T] =
+  var wrapper: FutureStateWrapper[T]
+  wrapper.future = future
+
   if future.cancelled():
-    return results.err(Cancelled)
+    wrapper.state = Cancelled
   elif future.finished():
     if future.failed():
-      return results.err(Failed)
+      wrapper.state = Failed
     else:
-      return future.toOk()
+      wrapper.state = Completed
+      when T isnot void:
+        wrapper.value = future.read()
   else:
-    return results.err(Pending)
+    wrapper.state = Pending
 
-proc waitForResult*[T](
+  return wrapper
+
+proc waitForState*[T](
     future: Future[T], timeout = DURATION_TIMEOUT
-): Future[Result[T, FutureState]] {.async.} =
+): Future[FutureStateWrapper[T]] {.async.} =
   discard await future.withTimeout(timeout)
-  return future.toResult()
+  return future.toState()
 
-proc waitForResults*[T](
+proc waitForStates*[T](
     futures: seq[Future[T]], timeout = DURATION_TIMEOUT
-): Future[seq[Result[T, FutureState]]] {.async.} =
+): Future[seq[FutureStateWrapper[T]]] {.async.} =
   await sleepAsync(timeout)
-  return futures.mapIt(it.toResult())
+  return futures.mapIt(it.toState())

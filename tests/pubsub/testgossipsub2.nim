@@ -268,11 +268,11 @@ suite "GossipSub":
     let publishResult = await node0.publish("foobar", message)
 
     # None should receive the message as they are not subscribed to the topic
-    let results = await waitForResults(@[messageReceived0, messageReceived1])
+    let results = await waitForStates(@[messageReceived0, messageReceived1])
     check:
       publishResult == 0
-      results[0].isErr
-      results[1].isErr
+      results[0].isPending()
+      results[1].isPending()
 
   asyncTest "GossipSub peers disconnections mechanics":
     var runs = 10
