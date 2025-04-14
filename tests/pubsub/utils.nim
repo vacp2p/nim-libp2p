@@ -24,7 +24,15 @@ export builders
 
 randomize()
 
-type TestGossipSub* = ref object of GossipSub
+type
+  TestGossipSub* = ref object of GossipSub
+  DValues* = object
+    d*: Option[int]
+    dLow*: Option[int]
+    dHigh*: Option[int]
+    dScore*: Option[int]
+    dOut*: Option[int]
+    dLazy*: Option[int]
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] {.
@@ -62,6 +70,24 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
       $m.data.hash & $m.topic.hash
   ok mid.toBytes()
 
+proc applyDValues(parameters: var GossipSubParams, dValues: Option[DValues]) =
+  if dValues.isNone:
+    return
+  let values = dValues.get
+  # Apply each value if it exists
+  if values.d.isSome:
+    parameters.d = values.d.get
+  if values.dLow.isSome:
+    parameters.dLow = values.dLow.get
+  if values.dHigh.isSome:
+    parameters.dHigh = values.dHigh.get
+  if values.dScore.isSome:
+    parameters.dScore = values.dScore.get
+  if values.dOut.isSome:
+    parameters.dOut = values.dOut.get
+  if values.dLazy.isSome:
+    parameters.dLazy = values.dLazy.get
+
 proc generateNodes*(
     num: Natural,
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
@@ -79,6 +105,9 @@ proc generateNodes*(
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
     sendIDontWantOnPublish: bool = false,
+    floodPublish: bool = false,
+    dValues: Option[DValues] = DValues.none(),
+    gossipFactor: Option[float] = float.none(),
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -96,13 +125,15 @@ proc generateNodes*(
           maxMessageSize = maxMessageSize,
           parameters = (
             var p = GossipSubParams.init()
-            p.floodPublish = false
+            p.floodPublish = floodPublish
             p.historyLength = 20
             p.historyGossip = 20
             p.unsubscribeBackoff = unsubscribeBackoff
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
+            if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
+            applyDValues(p, dValues)
             p
           ),
         )
@@ -127,13 +158,18 @@ proc generateNodes*(
     switch.mount(pubsub)
     result.add(pubsub)
 
-proc subscribeNodes*(nodes: seq[PubSub]) {.async.} =
+proc connectNodes*(dialer: PubSub, target: PubSub) {.async.} =
+  doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
+    "Could not connect same peer"
+  await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+
+proc connectNodesStar*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
-        await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+        await connectNodes(dialer, node)
 
-proc subscribeSparseNodes*(nodes: seq[PubSub], degree: int = 2) {.async.} =
+proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
   if nodes.len < degree:
     raise
       (ref CatchableError)(msg: "nodes count needs to be greater or equal to degree!")
@@ -143,18 +179,14 @@ proc subscribeSparseNodes*(nodes: seq[PubSub], degree: int = 2) {.async.} =
       continue
 
     for node in nodes:
-      if dialer.switch.peerInfo.peerId != node.peerInfo.peerId:
-        await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+      if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
+        await connectNodes(dialer, node)
 
-proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
-  for dialer in nodes:
-    var dialed: seq[PeerId]
-    while dialed.len < nodes.len - 1:
-      let node = sample(nodes)
-      if node.peerInfo.peerId notin dialed:
-        if dialer.peerInfo.peerId != node.peerInfo.peerId:
-          await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
-          dialed.add(node.peerInfo.peerId)
+proc activeWait(
+    interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
+) {.async.} =
+  await sleepAsync(interval)
+  doAssert Moment.now() < maximum, timeoutErrorMessage
 
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
@@ -177,10 +209,14 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   )
   :
     trace "waitSub sleeping..."
+    await activeWait(5.milliseconds, timeout, "waitSub timeout!")
 
-    # await
-    await sleepAsync(5.milliseconds)
-    doAssert Moment.now() < timeout, "waitSub timeout!"
+proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
+  let numberOfNodes = nodes.len
+  for x in 0 ..< numberOfNodes:
+    for y in 0 ..< numberOfNodes:
+      if x != y:
+        await waitSub(nodes[x], nodes[y], topic)
 
 proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
   let timeout = Moment.now() + 5.seconds
@@ -207,6 +243,43 @@ proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
     if ok == nodes.len:
       return
     trace "waitSubGraph sleeping..."
+    await activeWait(5.milliseconds, timeout, "waitSubGraph timeout!")
 
-    await sleepAsync(5.milliseconds)
-    doAssert Moment.now() < timeout, "waitSubGraph timeout!"
+proc waitForMesh*(
+    sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
+) {.async.} =
+  if sender == receiver:
+    return
+
+  let
+    timeoutMoment = Moment.now() + timeoutDuration
+    gossipsubSender = GossipSub(sender)
+    receiverPeerId = receiver.peerInfo.peerId
+
+  while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
+    trace "waitForMesh sleeping..."
+    await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
+
+proc startNodes*(nodes: seq[PubSub]) {.async.} =
+  await allFuturesThrowing(nodes.mapIt(it.switch.start()))
+
+proc stopNodes*(nodes: seq[PubSub]) {.async.} =
+  await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+template startNodesAndDeferStop*(nodes: seq[PubSub]): untyped =
+  await startNodes(nodes)
+  defer:
+    await stopNodes(nodes)
+
+proc subscribeAllNodes*(nodes: seq[PubSub], topic: string, topicHandler: TopicHandler) =
+  for node in nodes:
+    node.subscribe(topic, topicHandler)
+
+proc subscribeAllNodes*(
+    nodes: seq[PubSub], topic: string, topicHandlers: seq[TopicHandler]
+) =
+  if nodes.len != topicHandlers.len:
+    raise (ref CatchableError)(msg: "nodes and topicHandlers count needs to match!")
+
+  for i in 0 ..< nodes.len:
+    nodes[i].subscribe(topic, topicHandlers[i])

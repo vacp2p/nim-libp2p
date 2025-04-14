@@ -25,8 +25,9 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/peertable,
     protocols/pubsub/rpc/messages,
-  ]
-import ../helpers
+  ],
+  ../utils/[futures, async_tests],
+  ../helpers
 
 template tryPublish(
     call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds
@@ -47,11 +48,10 @@ suite "GossipSub":
   asyncTest "e2e - GossipSub with multiple peers - control deliver (sparse)":
     var runs = 10
 
-    let
-      nodes = generateNodes(runs, gossip = true, triggerSelf = true)
-      nodesFut = nodes.mapIt(it.switch.start())
+    let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
 
-    await subscribeSparseNodes(nodes)
+    startNodesAndDeferStop(nodes)
+    await connectNodesSparse(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -90,21 +90,15 @@ suite "GossipSub":
       check:
         v >= 1
 
-    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
-
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "GossipSub invalid topic subscription":
     var handlerFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
       handlerFut.complete(true)
 
-    let
-      nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true)
 
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+    startNodesAndDeferStop(nodes)
 
     # We must subscribe before setting the validator
     nodes[0].subscribe("foobar", handler)
@@ -121,19 +115,16 @@ suite "GossipSub":
       else:
         true
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
 
     await invalidDetected.wait(10.seconds)
 
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "GossipSub test directPeers":
     let nodes = generateNodes(2, gossip = true)
-    await allFutures(nodes[0].switch.start(), nodes[1].switch.start())
+    startNodesAndDeferStop(nodes)
+
     await GossipSub(nodes[0]).addDirectPeer(
       nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
     )
@@ -150,7 +141,7 @@ suite "GossipSub":
         true
 
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
-    ### await subscribeNodes(nodes)
+    ### await connectNodesStar(nodes)
 
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
@@ -159,16 +150,10 @@ suite "GossipSub":
 
     await invalidDetected.wait(10.seconds)
 
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
   asyncTest "GossipSub directPeers: always forward messages":
-    let
-      nodes = generateNodes(3, gossip = true)
+    let nodes = generateNodes(3, gossip = true)
 
-      # start switches
-      nodesFut = await allFinished(
-        nodes[0].switch.start(), nodes[1].switch.start(), nodes[2].switch.start()
-      )
+    startNodesAndDeferStop(nodes)
 
     await GossipSub(nodes[0]).addDirectPeer(
       nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
@@ -204,18 +189,10 @@ suite "GossipSub":
     check "foobar" notin GossipSub(nodes[1]).mesh
     check "foobar" notin GossipSub(nodes[2]).mesh
 
-    await allFuturesThrowing(
-      nodes[0].switch.stop(), nodes[1].switch.stop(), nodes[2].switch.stop()
-    )
-
-    await allFuturesThrowing(nodesFut.concat())
-
   asyncTest "GossipSub directPeers: don't kick direct peer with low score":
-    let
-      nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true)
 
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+    startNodesAndDeferStop(nodes)
 
     await GossipSub(nodes[0]).addDirectPeer(
       nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
@@ -252,18 +229,58 @@ suite "GossipSub":
     # Without directPeers, this would fail
     await handlerFut.wait(1.seconds)
 
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
+  asyncTest "GossipSub directPeers: send message to unsubscribed direct peer":
+    # Given 2 nodes
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true)
+      node0 = nodes[0]
+      node1 = nodes[1]
+      g0 = GossipSub(node0)
+      g1 = GossipSub(node1)
 
-    await allFuturesThrowing(nodesFut.concat())
+    startNodesAndDeferStop(nodes)
+
+    # With message observers
+    var
+      messageReceived0 = newFuture[bool]()
+      messageReceived1 = newFuture[bool]()
+
+    proc observer0(peer: PubSubPeer, msgs: var RPCMsg) =
+      for message in msgs.messages:
+        if message.topic == "foobar":
+          messageReceived0.complete(true)
+
+    proc observer1(peer: PubSubPeer, msgs: var RPCMsg) =
+      for message in msgs.messages:
+        if message.topic == "foobar":
+          messageReceived1.complete(true)
+
+    node0.addObserver(PubSubObserver(onRecv: observer0))
+    node1.addObserver(PubSubObserver(onRecv: observer1))
+
+    # Connect them as direct peers
+    await g0.addDirectPeer(node1.peerInfo.peerId, node1.peerInfo.addrs)
+    await g1.addDirectPeer(node0.peerInfo.peerId, node0.peerInfo.addrs)
+
+    # When node 0 sends a message
+    let message = "Hello!".toBytes()
+    let publishResult = await node0.publish("foobar", message)
+
+    # None should receive the message as they are not subscribed to the topic
+    let results = await waitForStates(@[messageReceived0, messageReceived1])
+    check:
+      publishResult == 0
+      results[0].isPending()
+      results[1].isPending()
 
   asyncTest "GossipSub peers disconnections mechanics":
     var runs = 10
 
-    let
-      nodes = generateNodes(runs, gossip = true, triggerSelf = true)
-      nodesFut = nodes.mapIt(it.switch.start())
+    let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
 
-    await subscribeNodes(nodes)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -342,10 +359,6 @@ suite "GossipSub":
     check:
       GossipSub(nodes[0]).peerStats.len == runs - 1 # minus self
 
-    await allFuturesThrowing(nodes.mapIt(allFutures(it.switch.stop())))
-
-    await allFuturesThrowing(nodesFut)
-
   asyncTest "GossipSub scoring - decayInterval":
     let nodes = generateNodes(2, gossip = true)
 
@@ -355,15 +368,13 @@ suite "GossipSub":
     # sleeps to be safe here
     gossip.parameters.decayInterval = 300.milliseconds
 
-    let
-      # start switches
-      nodesFut = await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+    startNodesAndDeferStop(nodes)
 
     var handlerFut = newFuture[void]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
       handlerFut.complete()
 
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
@@ -381,7 +392,3 @@ suite "GossipSub":
     check:
       gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries in
         50.0 .. 66.0
-
-    await allFuturesThrowing(nodes[0].switch.stop(), nodes[1].switch.stop())
-
-    await allFuturesThrowing(nodesFut.concat())
