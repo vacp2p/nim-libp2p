@@ -24,6 +24,9 @@ proc createServerAcceptConn(
   .} =
     try:
       let conn = await server.accept()
+      if conn == nil:
+        return
+
       let stream = await getStream(QuicSession(conn), Direction.In)
       var resp: array[6, byte]
       await stream.readExactly(addr resp, 6)
