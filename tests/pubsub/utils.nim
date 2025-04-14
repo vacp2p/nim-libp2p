@@ -159,7 +159,7 @@ proc generateNodes*(
     result.add(pubsub)
 
 proc connectNodes*(dialer: PubSub, target: PubSub) {.async.} =
-  doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId, 
+  doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not connect same peer"
   await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
 
