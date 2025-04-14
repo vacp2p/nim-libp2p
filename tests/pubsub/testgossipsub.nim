@@ -777,7 +777,6 @@ suite "GossipSub":
     # Setup record handlers for all nodes
     var
       passed0: Future[void] = newFuture[void]()
-      passed1: Future[void] = newFuture[void]()
       passed2: Future[void] = newFuture[void]()
     gossip0.routingRecordsHandler.add(
       proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
@@ -804,11 +803,10 @@ suite "GossipSub":
     nodes[1].unsubscribe("foobar", handler)
 
     # Then verify what nodes receive the PX
-    let results = await waitForResults(@[passed0, passed1, passed2])
+    let results = await waitForResults(@[passed0, passed2])
     check:
       results[0].isOk
-      results[1].isErr
-      results[2].isOk
+      results[1].isOk
 
   asyncTest "e2e - iDontWant":
     # 3 nodes: A <=> B <=> C
