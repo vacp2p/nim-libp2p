@@ -159,13 +159,14 @@ proc generateNodes*(
     result.add(pubsub)
 
 proc connectNodes*(dialer: PubSub, target: PubSub) {.async.} =
-  if dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId:
-    await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+  doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId, "Could not connect same peer"
+  await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
 
 proc connectNodesStar*(nodes: seq[PubSub]) {.async.} =
   for dialer in nodes:
     for node in nodes:
-      await connectNodes(dialer, node)
+      if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
+        await connectNodes(dialer, node)
 
 proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
   if nodes.len < degree:
@@ -177,7 +178,8 @@ proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
       continue
 
     for node in nodes:
-      await connectNodes(dialer, node)
+      if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
+        await connectNodes(dialer, node)
 
 proc activeWait(
     interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
