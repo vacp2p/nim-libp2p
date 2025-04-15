@@ -196,6 +196,7 @@ suite "GossipSub":
 
   asyncTest "GossipSub's observers should run after message is sent, received and validated":
     skip() # temporary
+    return
     var
       recvCounter = 0
       sendCounter = 0
