@@ -61,7 +61,6 @@ task testnative3, "Runs libp2p native tests":
 
 task testnative4, "Runs libp2p native tests":
   runTest("testnative4")
-  
 task testnative5, "Runs libp2p native tests":
   runTest("testnative5")
 

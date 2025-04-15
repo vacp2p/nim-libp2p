@@ -16,4 +16,3 @@ import
   testquic,
   testmemorytransport,
   transports/tls/testcertificate
-  
