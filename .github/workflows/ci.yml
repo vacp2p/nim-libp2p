@@ -112,26 +112,12 @@ jobs:
 
       - name: Install GNU Parallel
         run: |
-            OS_TYPE=""
             if [[ "${{ matrix.platform.os }}" == linux* ]]; then
-              OS_TYPE="linux"
-            elif [[ "${{ matrix.platform.os }}" == macos* ]]; then
-              OS_TYPE="macos"
-            elif [[ "${{ matrix.platform.os }}" == windows* ]]; then
-              OS_TYPE="windows"
-            fi
-
-            echo "Detected OS type: ${OS_TYPE}"
-
-            if [[ "${OS_TYPE}" == "linux" ]]; then
-              sudo apt update
               sudo apt install parallel
-      
-            elif [[ "${OS_TYPE}" == "macos" ]]; then
+            elif [[ "${{ matrix.platform.os }}" == macos* ]]; then
               brew install parallel
-              
-            elif [[ "${OS_TYPE}" == "windows" ]]; then
-              pacman -S parallel
+            elif [[ "${{ matrix.platform.os }}" == windows* ]]; then
+              pacman -S --noconfirm parallel
             fi
 
       - name: Run tests
@@ -142,6 +128,4 @@ jobs:
 
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           # nimble test
-          parallel ::: \           
-            "nimble testnative" \
-            "nimble testfilter"
+          parallel ::: "nimble testnative" "nimble testfilter"
