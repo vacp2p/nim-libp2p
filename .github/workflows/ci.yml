@@ -112,13 +112,13 @@ jobs:
 
       - name: Install GNU Parallel
         run: |
-            if [[ "${{ matrix.platform.os }}" == linux* ]]; then
-              sudo apt install parallel
-            elif [[ "${{ matrix.platform.os }}" == macos* ]]; then
-              brew install parallel
-            elif [[ "${{ matrix.platform.os }}" == windows* ]]; then
-              pacman -S --noconfirm parallel
-            fi
+          if [[ "${{ matrix.platform.os }}" == linux* ]]; then
+            sudo apt install parallel
+          elif [[ "${{ matrix.platform.os }}" == macos* ]]; then
+            brew install parallel
+          elif [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            pacman -S --noconfirm parallel
+          fi
 
       - name: Run tests
         run: |
@@ -128,4 +128,4 @@ jobs:
 
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           # nimble test
-          parallel ::: "nimble testnative" "nimble testpubsub" "nimble testdaemon" "nimble testinterop" "nimble testfilter" "nimble examples_build"
+          parallel --halt now,fail=1 ::: "nimble testnative" "nimble testpubsub" "nimble testdaemon" "nimble testinterop" "nimble testfilter" "nimble examples_build"
