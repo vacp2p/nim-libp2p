@@ -9,7 +9,4 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import
-  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
-  testsemaphore, testheartbeat, testfuture
-  
+import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto

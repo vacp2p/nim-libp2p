@@ -10,6 +10,10 @@
 # those terms.
 
 import
-  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
-  testsemaphore, testheartbeat, testfuture
+  testtcptransport,
+  testtortransport,
+  testwstransport,
+  testquic,
+  testmemorytransport,
+  transports/tls/testcertificate
   

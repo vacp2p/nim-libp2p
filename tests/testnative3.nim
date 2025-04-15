@@ -10,6 +10,6 @@
 # those terms.
 
 import
-  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
-  testsemaphore, testheartbeat, testfuture
+  testmultibase, testmultihash, testmultiaddress, testcid, testpeerid,
+  testsigned_envelope, testrouting_record
   
