@@ -128,4 +128,5 @@ jobs:
 
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           # nimble test
-          parallel --halt now,fail=1 --jobs 2 ::: "nimble testnative" "nimble testpubsub" "nimble testdaemon" "nimble testinterop" "nimble testfilter" "nimble examples_build"
+          "nimble testfilter"
+          parallel --halt now,fail=1 ::: "nimble testnative" "nimble testpubsub" "nimble testdaemon" "nimble testinterop" "nimble examples_build"
