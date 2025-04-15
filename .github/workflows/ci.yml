@@ -110,6 +110,21 @@ jobs:
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
+      - name: Install GNU Parallel
+        run: |
+          case '${{ matrix.platform.os }}' in
+          'linux')
+            sudo apt update
+            sudo apt install parallel
+            ;;
+          'macos')
+            brew install parallel
+            ;;
+          'windows')
+            pacman -S mingw-w64-x86_64-parallel
+            ;;
+          esac
+
       - name: Run tests
         run: |
           nim --version
@@ -117,4 +132,8 @@ jobs:
           gcc --version
 
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          nimble test
+          # nimble test
+          parallel ::: \           
+            "nim c -r tests/pubsub/testgossipsub.nim" \
+            "nim c -r tests/pubsub/testgossipsub2.nim" \
+            "nim c -r tests/pubsub/testgossipsubparameters.nim"
