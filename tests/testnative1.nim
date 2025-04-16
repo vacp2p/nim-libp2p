@@ -10,4 +10,6 @@
 # those terms.
 
 import
-  testnative1, testnative2, testnative3, testnative4, testnative5
+  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
+  testsemaphore, testheartbeat, testfuture
+  

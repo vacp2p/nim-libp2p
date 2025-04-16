@@ -62,7 +62,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})'
+    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -81,7 +81,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.16.0' # That's the minimum Go version that works with arm.
+          go-version: "~1.16.0" # That's the minimum Go version that works with arm.
 
       - name: Install p2pd
         run: |
@@ -102,7 +102,7 @@ jobs:
           nimble install_pinned
 
       - name: Use gcc 14
-        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
+        if: ${{ matrix.platform.os == 'linux-gcc-14'}}
         run: |
           # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
@@ -130,7 +130,7 @@ jobs:
           # nimble test
           nimble testfilter
           # parallel --halt now,fail=1 --joblog joblog.txt ::: "nimble testnative" "nimble testpubsub" "nimble testdaemon" "nimble testinterop" "nimble examples_build"
-          parallel --halt now,fail=1 --joblog joblog.txt --jobs 4 < tests.txt
+          parallel --halt now,fail=1 --joblog joblog.txt < tests.txt
 
       - name: Output joblog
         if: always()

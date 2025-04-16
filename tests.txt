@@ -15,6 +15,6 @@ nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUs
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/tutorial_3_protobuf
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/tutorial_4_gossipsub
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/tutorial_5_discovery
-nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:. --styleCheck:off examples/tutorial_6_game
+nimble install -y nimpng; nimble install -y nico --passNim=--skipParentCfg; nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:. --styleCheck:off examples/tutorial_6_game
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:pubsub_internal_testing  -r  tests/pubsub/testgossipinternal
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:libp2p_pubsub_anonymize=true  -r  tests/pubsub/testpubsub
