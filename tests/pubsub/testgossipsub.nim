@@ -195,8 +195,9 @@ suite "GossipSub":
       "bar" notin gossip2.mesh and "bar" notin gossip2.fanout
 
   asyncTest "GossipSub's observers should run after message is sent, received and validated":
-    skip() # temporary
-    return
+    when defined(macosx):
+      skip() # temporary
+      return
     var
       recvCounter = 0
       sendCounter = 0

@@ -50,8 +50,9 @@ when not defined(macosx):
         i in 8 .. 11
 
     asyncTest "catch up on slow heartbeat":
-      skip() # temporary
-      return
+      when defined(windows):
+        skip() # temporary
+        return
       var i = 0
       proc t() {.async.} =
         heartbeat "this is normal", 30.milliseconds:
