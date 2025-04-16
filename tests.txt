@@ -1,6 +1,6 @@
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testdaemon
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testinterop
-nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative1
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/pubsub/testpubsub
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative2
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative3
