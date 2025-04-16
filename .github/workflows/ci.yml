@@ -130,7 +130,7 @@ jobs:
           # nimble test
           nimble testfilter
           # parallel --halt now,fail=1 --joblog joblog.txt ::: "nimble testnative" "nimble testpubsub" "nimble testdaemon" "nimble testinterop" "nimble examples_build"
-          parallel --halt now,fail=1 --joblog joblog.txt --jobs 200% < tests.txt
+          parallel --halt now,fail=1 --joblog joblog.txt < tests.txt
 
       - name: Output joblog
         if: always()
