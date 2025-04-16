@@ -9,4 +9,4 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import testnative1, testnative2, testnative3, testnative4, testnative5
+import testnative1, testnative2, testnative3, testnative4, testnative5, testnative6, testnative7

@@ -10,5 +10,5 @@
 # those terms.
 
 import
-  testnameresolve, testmultistream, testbufferstream, testidentify,
-  testobservedaddrmanager, testconnmngr, testswitch, testnoise
+  testyamux, testautonat, testautonatservice, testautorelay, testdcutr, testhpservice,
+  testutility, testhelpers, testwildcardresolverservice

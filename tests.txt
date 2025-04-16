@@ -1,15 +1,25 @@
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testdaemon
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testinterop
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative1
-nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/pubsub/testpubsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/pubsub/testfloodsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/pubsub/testgossipsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/pubsub/testgossipsub2
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/pubsub/testgossipsubparameters
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/pubsub/testpubsubmisc
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative2
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative3
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative4
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative5
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative6
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=true -d:libp2p_pubsub_verify=true   -r  tests/testnative7
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/directchat
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/helloworld
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/circuitrelay
-nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false   -r  tests/pubsub/testpubsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false   -r  tests/pubsub/testfloodsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false   -r  tests/pubsub/testgossipsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false   -r  tests/pubsub/testgossipsub2
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false   -r  tests/pubsub/testgossipsubparameters
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false   -r  tests/pubsub/testpubsubmisc
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/tutorial_1_connect
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/tutorial_2_customproto
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/tutorial_3_protobuf
@@ -17,4 +27,8 @@ nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUs
 nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:.  examples/tutorial_5_discovery
 nimble install -y nimpng; nimble install -y nico --passNim=--skipParentCfg; nim c  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -p:. --styleCheck:off examples/tutorial_6_game
 nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:pubsub_internal_testing  -r  tests/pubsub/testgossipinternal
-nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:libp2p_pubsub_anonymize=true  -r  tests/pubsub/testpubsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:libp2p_pubsub_anonymize=true  -r  tests/pubsub/testfloodsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:libp2p_pubsub_anonymize=true  -r  tests/pubsub/testgossipsub
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:libp2p_pubsub_anonymize=true  -r  tests/pubsub/testgossipsub2
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:libp2p_pubsub_anonymize=true  -r  tests/pubsub/testgossipsubparameters
+nim c -d:debug  --styleCheck:usages --styleCheck:error --verbosity:0 --hints:off --skipUserCfg -f --threads:on --opt:speed  -d:libp2p_pubsub_sign=false -d:libp2p_pubsub_verify=false -d:libp2p_pubsub_anonymize=true  -r  tests/pubsub/testpubsubmisc
