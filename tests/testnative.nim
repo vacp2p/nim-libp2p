@@ -10,5 +10,26 @@
 # those terms.
 
 import
-  testnative1, testnative2, testnative3, testnative4, testnative5, testnative6,
-  testnative7
+  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
+  testsemaphore, testheartbeat, testfuture
+
+import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
+
+import
+  testmultibase, testmultihash, testmultiaddress, testcid, testpeerid,
+  testsigned_envelope, testrouting_record
+
+import
+  testtcptransport,
+  testtortransport,
+  testwstransport,
+  testquic,
+  testmemorytransport,
+  transports/tls/testcertificate
+
+import
+  testnameresolve, testmultistream, testbufferstream, testidentify,
+  testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
+  testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
+  testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
+  testhpservice, testutility, testhelpers, testwildcardresolverservice
