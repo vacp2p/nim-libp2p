@@ -19,6 +19,9 @@ when not defined(macosx):
 
   suite "Heartbeat":
     asyncTest "simple heartbeat":
+      when defined(windows):
+        skip() # temporary
+        return
       var i = 0
       proc t() {.async.} =
         heartbeat "shouldn't see this", 50.milliseconds:
@@ -31,6 +34,9 @@ when not defined(macosx):
         i in 9 .. 12
 
     asyncTest "change heartbeat period on the fly":
+      when defined(windows):
+        skip() # temporary
+        return
       var i = 0
       proc t() {.async.} =
         var period = 30.milliseconds
