@@ -158,8 +158,8 @@ waitFor(main())
 ## This is John receiving & logging everyone's metrics.
 ##
 ## ## Going further
-## Building efficient & safe GossipSub networks is a tricky subject. By tweaking the [gossip params](https://status-im.github.io/nim-libp2p/master/libp2p/protocols/pubsub/gossipsub/types.html#GossipSubParams)
-## and [topic params](https://status-im.github.io/nim-libp2p/master/libp2p/protocols/pubsub/gossipsub/types.html#TopicParams),
+## Building efficient & safe GossipSub networks is a tricky subject. By tweaking the [gossip params](https://vacp2p.github.io/nim-libp2p/master/libp2p/protocols/pubsub/gossipsub/types.html#GossipSubParams)
+## and [topic params](https://vacp2p.github.io/nim-libp2p/master/libp2p/protocols/pubsub/gossipsub/types.html#TopicParams),
 ## you can achieve very different properties.
 ##
 ## Also see reports for [GossipSub v1.1](https://gateway.ipfs.io/ipfs/QmRAFP5DBnvNjdYSbWhEhVRJJDFCLpPyvew5GwCCB4VxM4)
