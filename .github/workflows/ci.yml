@@ -62,7 +62,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})'
+    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -81,7 +81,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.16.0' # That's the minimum Go version that works with arm.
+          go-version: "~1.16.0" # That's the minimum Go version that works with arm.
 
       - name: Install p2pd
         run: |
@@ -102,13 +102,23 @@ jobs:
           nimble install_pinned
 
       - name: Use gcc 14
-        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
+        if: ${{ matrix.platform.os == 'linux-gcc-14'}}
         run: |
           # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
 
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
+
+      - name: Install GNU Parallel
+        run: |
+          if [[ "${{ matrix.platform.os }}" == linux* ]]; then
+            sudo apt install parallel
+          elif [[ "${{ matrix.platform.os }}" == macos* ]]; then
+            brew install parallel
+          elif [[ "${{ matrix.platform.os }}" == windows* ]]; then
+            pacman -S --noconfirm parallel
+          fi
 
       - name: Run tests
         run: |
@@ -117,4 +127,12 @@ jobs:
           gcc --version
 
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          nimble test
+          # nimble test
+          nimble testfilter
+          # parallel --halt now,fail=1 --joblog joblog.txt ::: "nimble testnative" "nimble testpubsub" "nimble testdaemon" "nimble testinterop" "nimble examples_build"
+          parallel --halt now,fail=1 --joblog joblog.txt ::: "nimble testall" "nimble examples_build" "nimble testpubsub"
+
+      - name: Output joblog
+        if: always()
+        run: |
+          cat joblog.txt
