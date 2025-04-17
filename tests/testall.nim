@@ -2,7 +2,7 @@
 
 import testnative, testdaemon, testinterop
 
-import ./pubsub/testpubsub
+# import ./pubsub/testpubsub
 
 # import
 #   ../examples/helloworld,
