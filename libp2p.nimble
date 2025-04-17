@@ -50,6 +50,9 @@ proc tutorialToMd(filename: string) =
     " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
   writeFile(filename.replace(".nim", ".md"), markdown)
 
+task testall, "Runs all tests":
+  runTest("testall", moreoptions = "--parallelBuild:0")
+
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
 
@@ -117,14 +120,15 @@ task website, "Build the website":
   exec "mkdocs build"
 
 task examples_build, "Build the samples":
-  buildSample("directchat")
-  buildSample("helloworld", true)
-  buildSample("circuitrelay", true)
-  buildSample("tutorial_1_connect", true)
-  buildSample("tutorial_2_customproto", true)
-  buildSample("tutorial_3_protobuf", true)
-  buildSample("tutorial_4_gossipsub", true)
-  buildSample("tutorial_5_discovery", true)
+  # buildSample("directchat")
+  # buildSample("helloworld", true)
+  # buildSample("circuitrelay", true)
+  # buildSample("tutorial_1_connect", true)
+  # buildSample("tutorial_2_customproto", true)
+  # buildSample("tutorial_3_protobuf", true)
+  # buildSample("tutorial_4_gossipsub", true)
+  # buildSample("tutorial_5_discovery", true)
+  buildSample("examplesall", true, "--parallelBuild:0")
   exec "nimble install -y nimpng"
   exec "nimble install -y nico --passNim=--skipParentCfg"
   buildSample("tutorial_6_game", false, "--styleCheck:off")
