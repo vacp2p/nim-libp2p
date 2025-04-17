@@ -25,12 +25,8 @@ let cfg =
 
 import hashes, strutils
 
-proc runTest(
-    filename: string, verify: bool = true, sign: bool = true, moreoptions: string = ""
-) =
+proc runTest(filename: string, moreoptions: string = "") =
   var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
-  excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
-  excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
@@ -63,28 +59,7 @@ task testinterop, "Runs interop tests":
   runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
-  runTest(
-    "pubsub/testgossipinternal",
-    sign = false,
-    verify = false,
-    moreoptions = "-d:pubsub_internal_testing",
-  )
-  runTest("pubsub/testpubsub")
-  runTest("pubsub/testpubsub", sign = false, verify = false)
-  runTest(
-    "pubsub/testpubsub",
-    sign = false,
-    verify = false,
-    moreoptions = "-d:libp2p_pubsub_anonymize=true",
-  )
-
-task testpubsub_slim, "Runs pubsub tests":
-  runTest(
-    "pubsub/testgossipinternal",
-    sign = false,
-    verify = false,
-    moreoptions = "-d:pubsub_internal_testing",
-  )
+  runTest("pubsub/testgossipinternal")
   runTest("pubsub/testpubsub")
 
 task testfilter, "Run PKI filter test":
