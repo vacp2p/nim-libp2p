@@ -68,7 +68,7 @@ task testfilter, "Run PKI filter test":
   runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
 task test, "Runs the test suite":
-  runTest("testall", moreoptions = "--parallelBuild:0")
+  runTest("testall")
   exec "nimble testfilter"
 
 task test_slim, "Runs the (slimmed down) test suite":
