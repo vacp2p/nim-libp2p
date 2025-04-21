@@ -92,7 +92,7 @@ task website, "Build the website":
 task examples_build, "Build the samples":
   exec "nimble install -y nimpng"
   exec "nimble install -y nico --passNim=--skipParentCfg"
-  buildSample("examples_build", false) # build only
+  buildSample("examples_build", false, "--styleCheck:off") # build only
 
   buildSample("examples_run", true)
 
