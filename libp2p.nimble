@@ -89,7 +89,7 @@ task website, "Build the website":
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
-task examples_build, "Build the samples":
+task examples, "Build and run examples":
   exec "nimble install -y nimpng"
   exec "nimble install -y nico --passNim=--skipParentCfg"
   buildSample("examples_build", false, "--styleCheck:off") # build only
