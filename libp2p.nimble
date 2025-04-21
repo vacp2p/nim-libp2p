@@ -91,13 +91,7 @@ task website, "Build the website":
 
 task examples_build, "Build the samples":
   buildSample("directchat")
-  buildSample("helloworld", true)
-  buildSample("circuitrelay", true)
-  buildSample("tutorial_1_connect", true)
-  buildSample("tutorial_2_customproto", true)
-  buildSample("tutorial_3_protobuf", true)
-  buildSample("tutorial_4_gossipsub", true)
-  buildSample("tutorial_5_discovery", true)
+  buildSample("examples_all", true)
   exec "nimble install -y nimpng"
   exec "nimble install -y nico --passNim=--skipParentCfg"
   buildSample("tutorial_6_game", false, "--styleCheck:off")
