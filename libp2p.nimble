@@ -73,13 +73,11 @@ task test, "Runs the test suite":
   exec "nimble testdaemon"
   exec "nimble testinterop"
   exec "nimble testfilter"
-  exec "nimble examples_build"
 
 task test_slim, "Runs the (slimmed down) test suite":
   exec "nimble testnative"
-  exec "nimble testpubsub_slim"
+  exec "nimble testpubsub"
   exec "nimble testfilter"
-  exec "nimble examples_build"
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
@@ -91,18 +89,12 @@ task website, "Build the website":
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
-task examples_build, "Build the samples":
-  buildSample("directchat")
-  buildSample("helloworld", true)
-  buildSample("circuitrelay", true)
-  buildSample("tutorial_1_connect", true)
-  buildSample("tutorial_2_customproto", true)
-  buildSample("tutorial_3_protobuf", true)
-  buildSample("tutorial_4_gossipsub", true)
-  buildSample("tutorial_5_discovery", true)
+task examples, "Build and run examples":
   exec "nimble install -y nimpng"
   exec "nimble install -y nico --passNim=--skipParentCfg"
-  buildSample("tutorial_6_game", false, "--styleCheck:off")
+  buildSample("examples_build", false, "--styleCheck:off") # build only
+
+  buildSample("examples_run", true)
 
 # pin system
 # while nimble lockfile
