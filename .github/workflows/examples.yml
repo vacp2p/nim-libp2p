@@ -1,0 +1,71 @@
+name: Examples
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  examples:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "Build Examples"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          shell: bash
+          os: linux
+          cpu: amd64
+          nim_ref: version-1-6
+
+      # - name: Setup Go
+      #   uses: actions/setup-go@v5
+      #   with:
+      #     go-version: "~1.16.0" # That's the minimum Go version that works with arm.
+
+      # - name: Install p2pd
+      #   run: |
+      #     V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v3
+        with:
+          path: nimbledeps
+          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
+          # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
+          key: nimbledeps-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Run tests
+        run: |
+          nim --version
+          nimble --version
+          gcc --version
+
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          nimble examples_build
