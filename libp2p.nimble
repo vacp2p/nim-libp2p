@@ -90,11 +90,11 @@ task website, "Build the website":
   exec "mkdocs build"
 
 task examples_build, "Build the samples":
-  buildSample("directchat")
-  buildSample("examples_all", true)
   exec "nimble install -y nimpng"
   exec "nimble install -y nico --passNim=--skipParentCfg"
-  buildSample("tutorial_6_game", false, "--styleCheck:off")
+  buildSample("examples_build", false) # build only
+
+  buildSample("examples_run", true)
 
 # pin system
 # while nimble lockfile
