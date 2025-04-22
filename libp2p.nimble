@@ -71,11 +71,6 @@ task test, "Runs the test suite":
   runTest("testall")
   exec "nimble testfilter"
 
-task test_slim, "Runs the (slimmed down) test suite":
-  exec "nimble testnative"
-  exec "nimble testpubsub"
-  exec "nimble testfilter"
-
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
   tutorialToMd("examples/tutorial_2_customproto.nim")
