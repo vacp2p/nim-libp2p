@@ -644,7 +644,6 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         return ok(field)
       else:
         return err(Asn1Error.NoSupport)
-
     else:
       return err(Asn1Error.NoSupport)
 

@@ -2,13 +2,7 @@
 
 import chronos, results, stew/byteutils
 import
-  ../libp2p/
-    [
-      stream/connection,
-      transports/transport,
-      upgrademngrs/upgrade,
-      multiaddress,
-    ]
+  ../libp2p/[stream/connection, transports/transport, upgrademngrs/upgrade, multiaddress]
 
 import ./helpers
 
