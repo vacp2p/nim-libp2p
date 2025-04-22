@@ -1,6 +1,6 @@
 {.used.}
 
-import chronos, stew/[byteutils, results]
+import chronos, results, stew/byteutils
 import
   ../libp2p/
     [
@@ -8,7 +8,6 @@ import
       transports/transport,
       upgrademngrs/upgrade,
       multiaddress,
-      errors,
     ]
 
 import ./helpers

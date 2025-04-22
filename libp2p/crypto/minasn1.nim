@@ -11,7 +11,8 @@
 
 {.push raises: [].}
 
-import stew/[endians2, results, ctops]
+import stew/[endians2, ctops]
+import results
 export results
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils

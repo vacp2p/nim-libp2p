@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import chronos
-import stew/results
+import results
 import peerid, stream/connection, transports/transport
 
 export results

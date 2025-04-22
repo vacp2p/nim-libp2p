@@ -11,7 +11,7 @@
 {.push raises: [].}
 
 import std/[strformat]
-import stew/results
+import results
 import chronos, chronicles
 import
   ../protocol,

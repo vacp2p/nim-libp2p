@@ -10,8 +10,8 @@
 {.push raises: [].}
 
 import std/sequtils
-import stew/[byteutils, results, endians2]
-import chronos, chronos/transports/[osnet, ipnet], chronicles
+import stew/endians2
+import chronos, chronos/transports/[osnet, ipnet], chronicles, results
 import ../[multiaddress, multicodec]
 import ../switch
 
@@ -73,7 +73,6 @@ proc new*(
   return T(networkInterfaceProvider: networkInterfaceProvider)
 
 proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byte]] =
-  var buffer: seq[byte]
   for item in ma:
     let
       ritem = ?item
