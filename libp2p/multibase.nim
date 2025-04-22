@@ -16,7 +16,8 @@
 {.push raises: [].}
 
 import tables
-import stew/[base32, base58, base64, results]
+import results
+import stew/[base32, base58, base64]
 
 type
   MultiBaseStatus* {.pure.} = enum

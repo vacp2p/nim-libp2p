@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[sets, sequtils]
-import stew/results
+import results
 import chronos, chronicles
 import
   ../../protocol,

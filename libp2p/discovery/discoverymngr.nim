@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/sequtils
-import chronos, chronicles, stew/results
+import chronos, chronicles, results
 import ../errors
 
 type
