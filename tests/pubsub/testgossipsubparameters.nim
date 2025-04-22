@@ -103,7 +103,7 @@ suite "Gossipsub Parameters":
     await waitSubAllNodes(nodes, topic)
 
     # Give it time for a heartbeat
-    await waitForHeartbeat()
+    await waitForHeartbeat(WAIT_FOR_HEARTBEAT_TIMEOUT * 2)
 
     let
       expectedNumberOfPeers = numberofNodes - 1
