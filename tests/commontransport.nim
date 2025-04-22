@@ -7,8 +7,7 @@ import
       stream/connection,
       transports/transport,
       upgrademngrs/upgrade,
-      multiaddress,
-      errors,
+      multiaddress
     ]
 
 import ./helpers

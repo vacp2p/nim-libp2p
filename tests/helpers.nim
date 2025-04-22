@@ -12,7 +12,7 @@ import ../libp2p/stream/chronosstream
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
 import ../libp2p/switch
-import ../libp2p/nameresolving/[nameresolver, mockresolver]
+import ../libp2p/nameresolving/[mockresolver]
 
 import errorhelpers
 import utils/async_tests

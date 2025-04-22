@@ -14,7 +14,7 @@ import stew/results
 import chronos
 import
   ../libp2p/
-    [connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo, errors]
+    [connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
 
 import helpers
 

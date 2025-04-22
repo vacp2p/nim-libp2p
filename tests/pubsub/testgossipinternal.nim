@@ -9,7 +9,7 @@
 
 {.used.}
 
-import std/[options, deques, sequtils, enumerate, algorithm]
+import std/[options, deques, sequtils, enumerate]
 import stew/byteutils
 import ../../libp2p/builders
 import ../../libp2p/errors

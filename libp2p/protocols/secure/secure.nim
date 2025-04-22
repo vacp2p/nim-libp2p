@@ -18,8 +18,7 @@ import
   ../../stream/streamseq,
   ../../stream/connection,
   ../../multiaddress,
-  ../../peerinfo,
-  ../../errors
+  ../../peerinfo
 
 export protocol, results
 

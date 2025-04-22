@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/sequtils
-import stew/[byteutils, results, endians2]
+import stew/[results, endians2]
 import chronos, chronos/transports/[osnet, ipnet], chronicles
 import ../[multiaddress, multicodec]
 import ../switch

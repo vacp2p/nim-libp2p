@@ -14,7 +14,6 @@ import chronos, stew/byteutils, chronicles
 import
   utils,
   ../../libp2p/[
-    errors,
     peerid,
     peerinfo,
     stream/connection,
