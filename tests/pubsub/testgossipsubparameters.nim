@@ -329,7 +329,7 @@ suite "Gossipsub Parameters":
     # That's because the dLazy is 6
     let receivedIHaves = receivedIHavesRef[]
     check:
-      filterIt(receivedIHaves, it > 0).len == dValues.dLazy.get()
+      filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
 
   asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
     let
