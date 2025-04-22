@@ -60,11 +60,7 @@ task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub")
 
 task testfilter, "Run PKI filter test":
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1\"")
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519\"")
-  runTest(
-    "testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519;ecnist\""
-  )
+  runTest("testpkifilter")
   runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
 task test, "Runs the test suite":
