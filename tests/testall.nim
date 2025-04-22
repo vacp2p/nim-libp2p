@@ -1,3 +1,4 @@
 {.used.}
 
-import testnative, testdaemon, ./pubsub/testpubsub, testinterop
+import
+  testnative, testdaemon, ./pubsub/testgossipinternal, ./pubsub/testpubsub, testinterop
