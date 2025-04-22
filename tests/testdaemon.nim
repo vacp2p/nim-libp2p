@@ -1,7 +1,5 @@
 import chronos, helpers
-import
-  ../libp2p/daemon/daemonapi,
-  ../libp2p/multiaddress
+import ../libp2p/daemon/daemonapi, ../libp2p/multiaddress
 
 when defined(nimHasUsed):
   {.used.}
