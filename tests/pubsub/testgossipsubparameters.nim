@@ -103,7 +103,7 @@ suite "Gossipsub Parameters":
     await waitSubAllNodes(nodes, topic)
 
     # Give it time for a heartbeat
-    await sleepAsync(DURATION_TIMEOUT_EXTENDED)
+    await waitForHeartbeat()
 
     let
       expectedNumberOfPeers = numberofNodes - 1
@@ -137,11 +137,11 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # At least one of the nodes should have received an iHave message
     # The check is made this way because the mesh structure changes from run to run
@@ -168,14 +168,16 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
-    let results = await waitForStates(@[handlerFut0, handlerFut1, handlerFut2])
+    let results = await waitForStates(
+      @[handlerFut0, handlerFut1, handlerFut2], WAIT_FOR_HEARTBEAT_TIMEOUT
+    )
     check:
       results[0].isPending()
       results[1].isCompleted()
@@ -213,7 +215,8 @@ suite "Gossipsub Parameters":
     await sleepAsync(3.seconds)
 
     # Then only node 1 should receive the message
-    let results = await waitForStates(@[handlerFut1, handlerFut2])
+    let results =
+      await waitForStates(@[handlerFut1, handlerFut2], WAIT_FOR_HEARTBEAT_TIMEOUT)
     check:
       results[0].isCompleted(true)
       results[1].isPending()
@@ -244,11 +247,11 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # None of the nodes should have received an iHave message
     let receivedIHaves = receivedIHavesRef[]
@@ -278,11 +281,11 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
@@ -316,11 +319,11 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
@@ -346,12 +349,12 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)
     check (await nodes[0].publish(topic, largeMsg)) == 1
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Only node 2 should have received the iDontWant message
     let receivedIDontWants = receivedIDontWantsRef[]

@@ -1,10 +1,8 @@
 import chronos/futures, stew/results, chronos, sequtils
 import ../pubsub/utils
 const
-  TEST_GOSSIPSUB_HEARTBEAT_INTERVAL* = 50.milliseconds
-  DURATION_TIMEOUT* =
-    int64(float64(TEST_GOSSIPSUB_HEARTBEAT_INTERVAL.milliseconds) * 1.2).milliseconds
-  DURATION_TIMEOUT_EXTENDED* = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL * 2
+  DURATION_TIMEOUT* = 1.seconds
+  DURATION_TIMEOUT_EXTENDED* = 1500.milliseconds
 
 type FutureStateWrapper*[T] = object
   future: Future[T]

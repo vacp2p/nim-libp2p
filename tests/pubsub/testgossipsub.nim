@@ -274,7 +274,7 @@ suite "GossipSub":
     nodes[0].subscribe(topic, handler0)
     nodes[1].subscribe(topic, handler1)
     nodes[1].addValidator("foobar", validator)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Wait for both nodes to verify others' subscription
     var subs: seq[Future[void]]
@@ -284,15 +284,15 @@ suite "GossipSub":
 
     # When unsubscribing and resubscribing in a short time frame, the backoff period should be triggered
     nodes[1].unsubscribe(topic, handler1)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
     nodes[1].subscribe(topic, handler1)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Backoff is set to 5 seconds, and the amount of sleeping time since the unsubsribe until now is 3-4s~
     # Meaning, the subscription shouldn't have been processed yet because it's still in backoff period
     # When publishing under this condition
     discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Then the message should not be received:
     check:
@@ -308,7 +308,7 @@ suite "GossipSub":
     await waitForMesh(nodes[0], nodes[1], topic, 3.seconds)
 
     discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Then the message should be received
     check:
@@ -791,7 +791,7 @@ suite "GossipSub":
     nodes[1].unsubscribe("foobar", handler)
 
     # Then verify what nodes receive the PX
-    let results = await waitForStates(@[passed0, passed2])
+    let results = await waitForStates(@[passed0, passed2], WAIT_FOR_HEARTBEAT_TIMEOUT)
     check:
       results[0].isCompleted()
       results[1].isCompleted()
@@ -938,7 +938,7 @@ suite "GossipSub":
 
     # "check" alone isn't suitable for testing that a condition is true after some time has passed. Below we verify that
     # peers A and C haven't received an IDONTWANT message from B, but we need wait some time for potential in flight messages to arrive.
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
     check:
       toSeq(gossipC.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
       toSeq(gossipA.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
@@ -983,7 +983,7 @@ suite "GossipSub":
       RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](10))]),
       isHighPriority = true,
     )
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -995,7 +995,7 @@ suite "GossipSub":
       RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](12))]),
       isHighPriority = true,
     )
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
     check currentRateLimitHits() == rateLimitHits
@@ -1011,7 +1011,7 @@ suite "GossipSub":
     await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(
       newSeqWith(33, 1.byte), isHighPriority = true
     )
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits + 1
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -1046,7 +1046,7 @@ suite "GossipSub":
       )
     )
     gossip0.broadcast(gossip0.mesh["foobar"], msg, isHighPriority = true)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits + 1
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -1092,7 +1092,7 @@ suite "GossipSub":
     let msg = RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](40))])
 
     gossip0.broadcast(gossip0.mesh[topic], msg, isHighPriority = true)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits + 1
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
