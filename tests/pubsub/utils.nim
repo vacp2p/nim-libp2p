@@ -25,7 +25,8 @@ export builders
 randomize()
 
 const TEST_GOSSIPSUB_HEARTBEAT_INTERVAL* = 60.milliseconds
-const WAIT_FOR_HEARTBEAT_TIMEOUT* = # Test Heartbeat interval + 20%
+# Test Heartbeat interval + 20%
+const WAIT_FOR_HEARTBEAT_TIMEOUT* =
   int64(float64(TEST_GOSSIPSUB_HEARTBEAT_INTERVAL.milliseconds) * 1.2).milliseconds
 
 proc waitForHeartbeat*(interval: Duration = WAIT_FOR_HEARTBEAT_TIMEOUT) {.async.} =
