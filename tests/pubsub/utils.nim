@@ -17,7 +17,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../helpers
+import ../helpers, ../utils/futures
 import chronicles
 
 export builders
@@ -125,6 +125,7 @@ proc generateNodes*(
           maxMessageSize = maxMessageSize,
           parameters = (
             var p = GossipSubParams.init()
+            p.heartbeatInterval = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL
             p.floodPublish = floodPublish
             p.historyLength = 20
             p.historyGossip = 20
@@ -283,3 +284,15 @@ proc subscribeAllNodes*(
 
   for i in 0 ..< nodes.len:
     nodes[i].subscribe(topic, topicHandlers[i])
+
+template tryPublish*(
+    call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds
+): untyped =
+  var
+    expiration = Moment.now() + timeout
+    pubs = 0
+  while pubs < require and Moment.now() < expiration:
+    pubs = pubs + call
+    await sleepAsync(wait)
+
+  doAssert pubs >= require, "Failed to publish!"
