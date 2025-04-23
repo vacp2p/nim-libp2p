@@ -351,9 +351,6 @@ suite "GossipSub":
     let nodes = generateNodes(2, gossip = true)
 
     var gossip = GossipSub(nodes[0])
-    # MacOs has some nasty jitter when sleeping
-    # (up to 7 ms), so we need some pretty long
-    # sleeps to be safe here
     const testDecayInterval = 50.milliseconds
     gossip.parameters.decayInterval = testDecayInterval
 
@@ -375,9 +372,9 @@ suite "GossipSub":
     gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries =
       100
     gossip.topicParams["foobar"].meshMessageDeliveriesDecay = 0.9
-    await sleepAsync(testDecayInterval * 5)
 
     # We should have decayed 5 times, though allowing 4..6
+    await sleepAsync(testDecayInterval * 5)
     check:
       gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries in
         50.0 .. 66.0
