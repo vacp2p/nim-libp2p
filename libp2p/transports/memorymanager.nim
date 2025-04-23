@@ -9,15 +9,12 @@
 
 import locks
 import tables
-import std/sequtils
-import stew/byteutils
 import pkg/chronos
 import pkg/chronicles
 import ./transport
 import ../multiaddress
 import ../stream/connection
 import ../stream/bridgestream
-import ../muxers/muxer
 
 type
   MemoryTransportError* = object of transport.TransportError

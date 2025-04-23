@@ -14,7 +14,8 @@
 
 import
   std/[hashes, strutils],
-  stew/[base58, results],
+  stew/base58,
+  results,
   chronicles,
   nimcrypto/utils,
   utility,

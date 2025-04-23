@@ -11,15 +11,14 @@
 {.push raises: [].}
 
 import std/[strformat]
-import stew/results
+import results
 import chronos, chronicles
 import
   ../protocol,
   ../../stream/streamseq,
   ../../stream/connection,
   ../../multiaddress,
-  ../../peerinfo,
-  ../../errors
+  ../../peerinfo
 
 export protocol, results
 
