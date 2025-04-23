@@ -220,6 +220,59 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
     trace "waitSub sleeping..."
     await activeWait(5.milliseconds, timeout, "waitSub timeout!")
 
+proc waitForPeersInTable*(
+    nodes: seq[auto],
+    topic: string,
+    peerCounts: seq[int],
+    table: string = "mesh", # Can be "mesh", "gossipsub", or "fanout"
+    timeout = 5.seconds,
+) {.async.} =
+  ## Wait until each node in `nodes` has at least the corresponding number of peers from `peerCounts`
+  ## in the specified table (mesh, gossipsub, or fanout) for the given topic
+
+  doAssert nodes.len == peerCounts.len, "Node count must match peer count expectations"
+  doAssert table in ["mesh", "gossipsub", "fanout"],
+    "Table must be 'mesh', 'gossipsub', or 'fanout'"
+
+  # Helper proc to check current state and update satisfaction status
+  proc checkState(
+      nodes: seq[auto],
+      topic: string,
+      peerCounts: seq[int],
+      table: string,
+      satisfied: var seq[bool],
+  ): bool =
+    for i in 0 ..< nodes.len:
+      if not satisfied[i]:
+        let fsub = GossipSub(nodes[i])
+        let currentCount =
+          case table
+          of "mesh":
+            fsub.mesh.getOrDefault(topic).len
+          of "gossipsub":
+            fsub.gossipsub.getOrDefault(topic).len
+          of "fanout":
+            fsub.fanout.getOrDefault(topic).len
+          else:
+            0 # Should never happen due to earlier assertion
+        satisfied[i] = currentCount >= peerCounts[i]
+    return satisfied.allIt(it)
+
+  let timeoutMoment = Moment.now() + timeout
+  var
+    satisfied = newSeq[bool](nodes.len)
+    allSatisfied = false
+
+  allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied) # Initial check
+  # Continue checking until all requirements are met or timeout
+  while not allSatisfied:
+    await activeWait(
+      5.milliseconds,
+      timeoutMoment,
+      "Timeout waiting for peer counts in " & table & " for topic " & topic,
+    )
+    allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied)
+
 proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
   let numberOfNodes = nodes.len
   for x in 0 ..< numberOfNodes:
