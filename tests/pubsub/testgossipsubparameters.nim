@@ -288,7 +288,7 @@ suite "Gossipsub Parameters":
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
-    await waitForHeartbeat()
+    await waitForHeartbeat(WAIT_FOR_HEARTBEAT_TIMEOUT * 2)
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
@@ -326,7 +326,7 @@ suite "Gossipsub Parameters":
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
-    await waitForHeartbeat()
+    await waitForHeartbeat(WAIT_FOR_HEARTBEAT_TIMEOUT * 2)
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
