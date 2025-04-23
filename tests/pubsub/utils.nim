@@ -113,6 +113,7 @@ proc generateNodes*(
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
     sendIDontWantOnPublish: bool = false,
+    heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
     floodPublish: bool = false,
     dValues: Option[DValues] = DValues.none(),
     gossipFactor: Option[float] = float.none(),
@@ -133,7 +134,7 @@ proc generateNodes*(
           maxMessageSize = maxMessageSize,
           parameters = (
             var p = GossipSubParams.init()
-            p.heartbeatInterval = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL
+            p.heartbeatInterval = heartbeatInterval
             p.floodPublish = floodPublish
             p.historyLength = 20
             p.historyGossip = 20
@@ -220,6 +221,55 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
     trace "waitSub sleeping..."
     await activeWait(5.milliseconds, timeout, "waitSub timeout!")
 
+proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
+  let numberOfNodes = nodes.len
+  for x in 0 ..< numberOfNodes:
+    for y in 0 ..< numberOfNodes:
+      if x != y:
+        await waitSub(nodes[x], nodes[y], topic)
+
+proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
+  let timeout = Moment.now() + 5.seconds
+  while true:
+    var
+      nodesMesh: Table[PeerId, seq[PeerId]]
+      seen: HashSet[PeerId]
+    for n in nodes:
+      nodesMesh[n.peerInfo.peerId] =
+        toSeq(GossipSub(n).mesh.getOrDefault(key).items()).mapIt(it.peerId)
+    var ok = 0
+    for n in nodes:
+      seen.clear()
+      proc explore(p: PeerId) =
+        if p in seen:
+          return
+        seen.incl(p)
+        for peer in nodesMesh.getOrDefault(p):
+          explore(peer)
+
+      explore(n.peerInfo.peerId)
+      if seen.len == nodes.len:
+        ok.inc()
+    if ok == nodes.len:
+      return
+    trace "waitSubGraph sleeping..."
+    await activeWait(5.milliseconds, timeout, "waitSubGraph timeout!")
+
+proc waitForMesh*(
+    sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
+) {.async.} =
+  if sender == receiver:
+    return
+
+  let
+    timeoutMoment = Moment.now() + timeoutDuration
+    gossipsubSender = GossipSub(sender)
+    receiverPeerId = receiver.peerInfo.peerId
+
+  while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
+    trace "waitForMesh sleeping..."
+    await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
+
 proc waitForPeersInTable*(
     nodes: seq[auto],
     topic: string,
@@ -272,55 +322,6 @@ proc waitForPeersInTable*(
       "Timeout waiting for peer counts in " & table & " for topic " & topic,
     )
     allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied)
-
-proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
-  let numberOfNodes = nodes.len
-  for x in 0 ..< numberOfNodes:
-    for y in 0 ..< numberOfNodes:
-      if x != y:
-        await waitSub(nodes[x], nodes[y], topic)
-
-proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
-  let timeout = Moment.now() + 5.seconds
-  while true:
-    var
-      nodesMesh: Table[PeerId, seq[PeerId]]
-      seen: HashSet[PeerId]
-    for n in nodes:
-      nodesMesh[n.peerInfo.peerId] =
-        toSeq(GossipSub(n).mesh.getOrDefault(key).items()).mapIt(it.peerId)
-    var ok = 0
-    for n in nodes:
-      seen.clear()
-      proc explore(p: PeerId) =
-        if p in seen:
-          return
-        seen.incl(p)
-        for peer in nodesMesh.getOrDefault(p):
-          explore(peer)
-
-      explore(n.peerInfo.peerId)
-      if seen.len == nodes.len:
-        ok.inc()
-    if ok == nodes.len:
-      return
-    trace "waitSubGraph sleeping..."
-    await activeWait(5.milliseconds, timeout, "waitSubGraph timeout!")
-
-proc waitForMesh*(
-    sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
-) {.async.} =
-  if sender == receiver:
-    return
-
-  let
-    timeoutMoment = Moment.now() + timeoutDuration
-    gossipsubSender = GossipSub(sender)
-    receiverPeerId = receiver.peerInfo.peerId
-
-  while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
-    trace "waitForMesh sleeping..."
-    await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
 
 proc startNodes*(nodes: seq[PubSub]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
