@@ -274,7 +274,7 @@ suite "GossipSub":
     nodes[0].subscribe(topic, handler0)
     nodes[1].subscribe(topic, handler1)
     nodes[1].addValidator("foobar", validator)
-    await waitForHeartbeat()
+    await sleepAsync(DURATION_TIMEOUT)
 
     # Wait for both nodes to verify others' subscription
     var subs: seq[Future[void]]
@@ -284,15 +284,15 @@ suite "GossipSub":
 
     # When unsubscribing and resubscribing in a short time frame, the backoff period should be triggered
     nodes[1].unsubscribe(topic, handler1)
-    await waitForHeartbeat()
+    await sleepAsync(DURATION_TIMEOUT)
     nodes[1].subscribe(topic, handler1)
-    await waitForHeartbeat()
+    await sleepAsync(DURATION_TIMEOUT)
 
     # Backoff is set to 5 seconds, and the amount of sleeping time since the unsubsribe until now is 3-4s~
     # Meaning, the subscription shouldn't have been processed yet because it's still in backoff period
     # When publishing under this condition
     discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await waitForHeartbeat()
+    await sleepAsync(DURATION_TIMEOUT)
 
     # Then the message should not be received:
     check:
@@ -308,7 +308,7 @@ suite "GossipSub":
     await waitForMesh(nodes[0], nodes[1], topic, 3.seconds)
 
     discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await waitForHeartbeat()
+    await sleepAsync(DURATION_TIMEOUT)
 
     # Then the message should be received
     check:
