@@ -84,7 +84,10 @@ suite "Gossipsub Parameters":
 
     let expectedNumberOfPeers = numberOfNodes - 1
     await waitForPeersInTable(
-      nodes, topic, newSeqWith(numberOfNodes, expectedNumberOfPeers), "gossipsub"
+      nodes,
+      topic,
+      newSeqWith(numberOfNodes, expectedNumberOfPeers),
+      PeerTableType.Gossipsub,
     )
 
     for i in 0 ..< numberOfNodes:
@@ -111,7 +114,10 @@ suite "Gossipsub Parameters":
       dLow = 4
 
     await waitForPeersInTable(
-      nodes, topic, newSeqWith(numberOfNodes, expectedNumberOfPeers), "gossipsub"
+      nodes,
+      topic,
+      newSeqWith(numberOfNodes, expectedNumberOfPeers),
+      PeerTableType.Gossipsub,
     )
 
     for i in 0 ..< numberOfNodes:
@@ -140,7 +146,9 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(nodes, topic, newSeqWith(numberOfNodes, 4), "gossipsub")
+    await waitForPeersInTable(
+      nodes, topic, newSeqWith(numberOfNodes, 4), PeerTableType.Gossipsub
+    )
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
@@ -171,7 +179,9 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-    await waitForPeersInTable(nodes, topic, newSeqWith(numberOfNodes, 2), "mesh")
+    await waitForPeersInTable(
+      nodes, topic, newSeqWith(numberOfNodes, 2), PeerTableType.Mesh
+    )
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
@@ -282,7 +292,7 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(@[nodes[0]], topic, @[19], "gossipsub")
+    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
@@ -320,7 +330,7 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(@[nodes[0]], topic, @[19], "gossipsub")
+    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
@@ -350,7 +360,7 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(nodes, topic, @[1, 2, 1], "gossipsub")
+    await waitForPeersInTable(nodes, topic, @[1, 2, 1], PeerTableType.Gossipsub)
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)
