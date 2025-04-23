@@ -791,7 +791,7 @@ suite "GossipSub":
     nodes[1].unsubscribe("foobar", handler)
 
     # Then verify what nodes receive the PX
-    let results = await waitForStates(@[passed0, passed2], WAIT_FOR_HEARTBEAT_TIMEOUT)
+    let results = await waitForStates(@[passed0, passed2], HEARTBEAT_TIMEOUT)
     check:
       results[0].isCompleted()
       results[1].isCompleted()

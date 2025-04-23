@@ -25,12 +25,11 @@ export builders
 randomize()
 
 const TEST_GOSSIPSUB_HEARTBEAT_INTERVAL* = 60.milliseconds
-# Test Heartbeat interval + 20%
-const WAIT_FOR_HEARTBEAT_TIMEOUT* =
+const HEARTBEAT_TIMEOUT* = # TEST_GOSSIPSUB_HEARTBEAT_INTERVAL + 20%
   int64(float64(TEST_GOSSIPSUB_HEARTBEAT_INTERVAL.milliseconds) * 1.2).milliseconds
 
-proc waitForHeartbeat*(interval: Duration = WAIT_FOR_HEARTBEAT_TIMEOUT) {.async.} =
-  await sleepAsync(interval)
+proc waitForHeartbeat*(multiplier: int = 1) {.async.} =
+  await sleepAsync(HEARTBEAT_TIMEOUT * multiplier)
 
 type
   TestGossipSub* = ref object of GossipSub

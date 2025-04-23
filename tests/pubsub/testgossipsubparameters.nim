@@ -178,9 +178,8 @@ suite "Gossipsub Parameters":
     await waitForHeartbeat()
 
     # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
-    let results = await waitForStates(
-      @[handlerFut0, handlerFut1, handlerFut2], WAIT_FOR_HEARTBEAT_TIMEOUT
-    )
+    let results =
+      await waitForStates(@[handlerFut0, handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
     check:
       results[0].isPending()
       results[1].isCompleted()
@@ -215,11 +214,10 @@ suite "Gossipsub Parameters":
     # When node 0 publishes a message to topic "foo"
     let message = "Hello!".toBytes()
     check (await nodes[0].publish(topic, message)) == 1
-    await waitForHeartbeat(WAIT_FOR_HEARTBEAT_TIMEOUT * 2)
+    await waitForHeartbeat(2)
 
     # Then only node 1 should receive the message
-    let results =
-      await waitForStates(@[handlerFut1, handlerFut2], WAIT_FOR_HEARTBEAT_TIMEOUT)
+    let results = await waitForStates(@[handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
     check:
       results[0].isCompleted(true)
       results[1].isPending()
@@ -288,7 +286,7 @@ suite "Gossipsub Parameters":
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
-    await waitForHeartbeat(WAIT_FOR_HEARTBEAT_TIMEOUT * 2)
+    await waitForHeartbeat(2)
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
@@ -326,7 +324,7 @@ suite "Gossipsub Parameters":
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
-    await waitForHeartbeat(WAIT_FOR_HEARTBEAT_TIMEOUT * 2)
+    await waitForHeartbeat(2)
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
