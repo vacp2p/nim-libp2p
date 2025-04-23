@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[strformat]
-import stew/results
+import results
 import chronos, chronicles, metrics
 import connection
 import ../utility

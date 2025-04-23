@@ -17,7 +17,8 @@
 
 import bearssl/[rsa, rand, hash]
 import minasn1
-import stew/[results, ctops]
+import results
+import stew/ctops
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 

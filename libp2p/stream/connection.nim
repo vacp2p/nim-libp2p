@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[hashes, oids, strformat]
-import stew/results
+import results
 import chronicles, chronos, metrics
 import lpstream, ../multiaddress, ../peerinfo, ../errors
 
