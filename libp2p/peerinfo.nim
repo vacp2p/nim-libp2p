@@ -11,7 +11,7 @@
 {.push public.}
 
 import std/sequtils
-import pkg/[chronos, chronicles, stew/results]
+import pkg/[chronos, chronicles, results]
 import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 
 export peerid, multiaddress, crypto, routing_record, errors, results

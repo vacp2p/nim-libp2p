@@ -12,8 +12,8 @@
 {.push raises: [].}
 
 import tables, hashes
-import multibase, multicodec, multihash, vbuffer, varint
-import stew/[base58, results]
+import multibase, multicodec, multihash, vbuffer, varint, results
+import stew/base58
 
 export results
 

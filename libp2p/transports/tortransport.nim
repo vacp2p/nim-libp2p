@@ -11,9 +11,8 @@
 
 {.push raises: [].}
 
-import std/strformat
-import chronos, chronicles, strutils
-import stew/[byteutils, endians2, results, objects]
+import chronos, chronicles, strutils, results
+import stew/[byteutils, endians2, objects]
 import ../multicodec
 import
   transport,

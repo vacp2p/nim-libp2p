@@ -38,18 +38,6 @@ from ../../libp2p/protocols/pubsub/mcache import window
 proc `$`(peer: PubSubPeer): string =
   shortLog(peer)
 
-template tryPublish(
-    call: untyped, require: int, wait = 10.milliseconds, timeout = 5.seconds
-): untyped =
-  var
-    expiration = Moment.now() + timeout
-    pubs = 0
-  while pubs < require and Moment.now() < expiration:
-    pubs = pubs + call
-    await sleepAsync(wait)
-
-  doAssert pubs >= require, "Failed to publish!"
-
 suite "GossipSub":
   teardown:
     checkTrackers()
@@ -803,7 +791,7 @@ suite "GossipSub":
     nodes[1].unsubscribe("foobar", handler)
 
     # Then verify what nodes receive the PX
-    let results = await waitForStates(@[passed0, passed2])
+    let results = await waitForStates(@[passed0, passed2], HEARTBEAT_TIMEOUT)
     check:
       results[0].isCompleted()
       results[1].isCompleted()
@@ -950,7 +938,7 @@ suite "GossipSub":
 
     # "check" alone isn't suitable for testing that a condition is true after some time has passed. Below we verify that
     # peers A and C haven't received an IDONTWANT message from B, but we need wait some time for potential in flight messages to arrive.
-    await sleepAsync(500.millis)
+    await waitForHeartbeat()
     check:
       toSeq(gossipC.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
       toSeq(gossipA.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
@@ -995,7 +983,7 @@ suite "GossipSub":
       RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](10))]),
       isHighPriority = true,
     )
-    await sleepAsync(300.millis)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -1007,7 +995,7 @@ suite "GossipSub":
       RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](12))]),
       isHighPriority = true,
     )
-    await sleepAsync(300.millis)
+    await waitForHeartbeat()
 
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
     check currentRateLimitHits() == rateLimitHits
@@ -1023,7 +1011,7 @@ suite "GossipSub":
     await gossip1.peers[gossip0.switch.peerInfo.peerId].sendEncoded(
       newSeqWith(33, 1.byte), isHighPriority = true
     )
-    await sleepAsync(300.millis)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits + 1
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -1058,7 +1046,7 @@ suite "GossipSub":
       )
     )
     gossip0.broadcast(gossip0.mesh["foobar"], msg, isHighPriority = true)
-    await sleepAsync(300.millis)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits + 1
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true
@@ -1104,7 +1092,7 @@ suite "GossipSub":
     let msg = RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](40))])
 
     gossip0.broadcast(gossip0.mesh[topic], msg, isHighPriority = true)
-    await sleepAsync(300.millis)
+    await waitForHeartbeat()
 
     check currentRateLimitHits() == rateLimitHits + 1
     check gossip1.switch.isConnected(gossip0.switch.peerInfo.peerId) == true

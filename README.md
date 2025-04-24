@@ -149,6 +149,7 @@ The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-st
     <tr>
       <td align="center"><a href="https://github.com/richard-ramos"><img src="https://avatars.githubusercontent.com/u/1106587?v=4?s=100" width="100px;" alt="Richard"/><br /><sub><b>Richard</b></sub></a></td>
       <td align="center"><a href="https://github.com/vladopajic"><img src="https://avatars.githubusercontent.com/u/4353513?v=4?s=100" width="100px;" alt="Vlado"/><br /><sub><b>Vlado</b></sub></a></td>
+      <td align="center"><a href="https://github.com/gmelodie"><img src="https://avatars.githubusercontent.com/u/8129788?v=4?s=100" width="100px;" alt="Gabe"/><br /><sub><b>Gabe</b></sub></a></td>
     </tr>
   </tbody>
 </table>

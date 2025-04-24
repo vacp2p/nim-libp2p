@@ -11,7 +11,7 @@
 
 {.push raises: [].}
 
-import ../varint, ../utility, stew/[endians2, results]
+import ../varint, ../utility, stew/endians2, results
 export results, utility
 
 {.push public.}

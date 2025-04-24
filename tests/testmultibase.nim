@@ -11,7 +11,7 @@
 
 import unittest2
 import ../libp2p/multibase
-import stew/results
+import results
 
 const GoTestVectors = [
   ["identity", "\x00Decentralize everything!!!", "Decentralize everything!!!"],

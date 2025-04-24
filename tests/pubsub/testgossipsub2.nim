@@ -29,18 +29,6 @@ import
   ../utils/[futures, async_tests],
   ../helpers
 
-template tryPublish(
-    call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds
-): untyped =
-  var
-    expiration = Moment.now() + timeout
-    pubs = 0
-  while pubs < require and Moment.now() < expiration:
-    pubs = pubs + call
-    await sleepAsync(wait)
-
-  doAssert pubs >= require, "Failed to publish!"
-
 suite "GossipSub":
   teardown:
     checkTrackers()
@@ -363,10 +351,8 @@ suite "GossipSub":
     let nodes = generateNodes(2, gossip = true)
 
     var gossip = GossipSub(nodes[0])
-    # MacOs has some nasty jitter when sleeping
-    # (up to 7 ms), so we need some pretty long
-    # sleeps to be safe here
-    gossip.parameters.decayInterval = 300.milliseconds
+    const testDecayInterval = 50.milliseconds
+    gossip.parameters.decayInterval = testDecayInterval
 
     startNodesAndDeferStop(nodes)
 
@@ -386,9 +372,9 @@ suite "GossipSub":
     gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries =
       100
     gossip.topicParams["foobar"].meshMessageDeliveriesDecay = 0.9
-    await sleepAsync(1500.milliseconds)
 
     # We should have decayed 5 times, though allowing 4..6
+    await sleepAsync(testDecayInterval * 5)
     check:
       gossip.peerStats[nodes[1].peerInfo.peerId].topicInfos["foobar"].meshMessageDeliveries in
         50.0 .. 66.0

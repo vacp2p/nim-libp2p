@@ -27,7 +27,7 @@ import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, multicodec, multibase
 import stew/base58
-import stew/results
+import results
 export results
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils
