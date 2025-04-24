@@ -954,7 +954,7 @@ suite "GossipSub internal":
     discard await allFinished(nodesFut)
 
     # And the nodes are connected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And both subscribe to the topic
     g0.subscribe(topic, voidTopicHandler)
@@ -1018,7 +1018,7 @@ suite "GossipSub internal":
     discard await allFinished(nodesFut)
 
     # And the nodes are connected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And both subscribe to the topic
     g0.subscribe(topic, voidTopicHandler)
@@ -1085,7 +1085,7 @@ suite "GossipSub internal":
     g1.addObserver(PubSubObserver(onRecv: checkForIhaves))
 
     # And the nodes are connected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And both subscribe to the topic
     n0.subscribe(topic, voidTopicHandler)
@@ -1099,12 +1099,12 @@ suite "GossipSub internal":
     # When an IHAVE message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
-    await sleepAsync(DURATION_TIMEOUT_SHORT)
+    await sleepAsync(500.milliseconds)
 
     # Then the peer has the message ID
-    let r = await receivedIHave.waitForResult(DURATION_TIMEOUT)
+    let r = await receivedIHave.waitForState(DURATION_TIMEOUT)
     check:
-      r.isOk and r.value == (topic, @[messageID])
+      r.isCompleted((topic, @[messageID]))
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
@@ -1137,7 +1137,7 @@ suite "GossipSub internal":
     g1.addObserver(PubSubObserver(onRecv: checkForIwants))
 
     # And the nodes are connected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And both subscribe to the topic
     n0.subscribe(topic, voidTopicHandler)
@@ -1151,12 +1151,12 @@ suite "GossipSub internal":
     # When an IWANT message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
-    await sleepAsync(DURATION_TIMEOUT_SHORT)
+    await sleepAsync(500.milliseconds)
 
     # Then the peer has the message ID
-    let r = await receivedIWant.waitForResult(DURATION_TIMEOUT)
+    let r = await receivedIWant.waitForState(DURATION_TIMEOUT)
     check:
-      r.isOk and r.value == @[messageID]
+      r.isCompleted(@[messageID])
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
@@ -1179,7 +1179,7 @@ suite "GossipSub internal":
     discard await allFinished(nodesFut)
 
     # And the nodes are connected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And only node0 subscribes to the topic
     n0.subscribe(topic, voidTopicHandler)
@@ -1196,7 +1196,7 @@ suite "GossipSub internal":
     # When a GRAFT message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
-    await sleepAsync(DURATION_TIMEOUT_SHORT)
+    await sleepAsync(500.milliseconds)
 
     # Then the peer is not GRAFTed
     check:
@@ -1229,7 +1229,7 @@ suite "GossipSub internal":
     discard await allFinished(nodesFut)
 
     # And the nodes are connected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And only node0 subscribes to the topic
     n0.subscribe(topic, voidTopicHandler)
@@ -1246,7 +1246,7 @@ suite "GossipSub internal":
     # When a PRUNE message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await sleepAsync(DURATION_TIMEOUT_SHORT)
+    await sleepAsync(500.milliseconds)
 
     # Then the peer is not PRUNEd
     check:
@@ -1291,7 +1291,7 @@ suite "GossipSub internal":
     g0.addObserver(PubSubObserver(onRecv: checkForIwants))
 
     # And the nodes are connected
-    await subscribeNodes(nodes)
+    await connectNodesStar(nodes)
 
     # And both nodes subscribe to the topic
     n0.subscribe(topic, voidTopicHandler)
@@ -1301,12 +1301,12 @@ suite "GossipSub internal":
     # When an IHAVE message is sent from node0
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
-    await sleepAsync(DURATION_TIMEOUT_SHORT)
+    await sleepAsync(500.milliseconds)
 
     # Then node0 should receive an IWANT message from node1 (as node1 doesn't have the message)
-    let iWantResult = await receivedIWant.waitForResult(DURATION_TIMEOUT)
+    let iWantResult = await receivedIWant.waitForState(DURATION_TIMEOUT)
     check:
-      iWantResult.isOk and iWantResult.value == @[messageID]
+      iWantResult.isCompleted(@[messageID])
 
     # Cleanup
     await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
