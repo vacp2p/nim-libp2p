@@ -13,7 +13,7 @@
 
 import tables, hashes
 import vbuffer
-import stew/results
+import results
 export results
 
 ## List of officially supported codecs can BE found here

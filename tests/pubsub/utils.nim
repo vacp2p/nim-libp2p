@@ -17,12 +17,19 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../helpers
+import ../helpers, ../utils/futures
 import chronicles
 
 export builders
 
 randomize()
+
+const TEST_GOSSIPSUB_HEARTBEAT_INTERVAL* = 60.milliseconds
+const HEARTBEAT_TIMEOUT* = # TEST_GOSSIPSUB_HEARTBEAT_INTERVAL + 20%
+  int64(float64(TEST_GOSSIPSUB_HEARTBEAT_INTERVAL.milliseconds) * 1.2).milliseconds
+
+proc waitForHeartbeat*(multiplier: int = 1) {.async.} =
+  await sleepAsync(HEARTBEAT_TIMEOUT * multiplier)
 
 type
   TestGossipSub* = ref object of GossipSub
@@ -105,6 +112,7 @@ proc generateNodes*(
       Opt.none(tuple[bytes: int, interval: Duration]),
     gossipSubVersion: string = "",
     sendIDontWantOnPublish: bool = false,
+    heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
     floodPublish: bool = false,
     dValues: Option[DValues] = DValues.none(),
     gossipFactor: Option[float] = float.none(),
@@ -125,6 +133,7 @@ proc generateNodes*(
           maxMessageSize = maxMessageSize,
           parameters = (
             var p = GossipSubParams.init()
+            p.heartbeatInterval = heartbeatInterval
             p.floodPublish = floodPublish
             p.historyLength = 20
             p.historyGossip = 20
@@ -260,6 +269,60 @@ proc waitForMesh*(
     trace "waitForMesh sleeping..."
     await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
 
+type PeerTableType* {.pure.} = enum
+  Gossipsub = "gossipsub"
+  Mesh = "mesh"
+  Fanout = "fanout"
+
+proc waitForPeersInTable*(
+    nodes: seq[auto],
+    topic: string,
+    peerCounts: seq[int],
+    table: PeerTableType,
+    timeout = 5.seconds,
+) {.async.} =
+  ## Wait until each node in `nodes` has at least the corresponding number of peers from `peerCounts`
+  ## in the specified table (mesh, gossipsub, or fanout) for the given topic
+
+  doAssert nodes.len == peerCounts.len, "Node count must match peer count expectations"
+
+  # Helper proc to check current state and update satisfaction status
+  proc checkState(
+      nodes: seq[auto],
+      topic: string,
+      peerCounts: seq[int],
+      table: PeerTableType,
+      satisfied: var seq[bool],
+  ): bool =
+    for i in 0 ..< nodes.len:
+      if not satisfied[i]:
+        let fsub = GossipSub(nodes[i])
+        let currentCount =
+          case table
+          of PeerTableType.Mesh:
+            fsub.mesh.getOrDefault(topic).len
+          of PeerTableType.Gossipsub:
+            fsub.gossipsub.getOrDefault(topic).len
+          of PeerTableType.Fanout:
+            fsub.fanout.getOrDefault(topic).len
+        satisfied[i] = currentCount >= peerCounts[i]
+    return satisfied.allIt(it)
+
+  let timeoutMoment = Moment.now() + timeout
+  var
+    satisfied = newSeq[bool](nodes.len)
+    allSatisfied = false
+
+  allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied) # Initial check
+  # Continue checking until all requirements are met or timeout
+  while not allSatisfied:
+    await activeWait(
+      5.milliseconds,
+      timeoutMoment,
+      "Timeout waiting for peer counts in " & $table & " for topic " & topic,
+    )
+    allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied)
+
 proc startNodes*(nodes: seq[PubSub]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
@@ -283,3 +346,15 @@ proc subscribeAllNodes*(
 
   for i in 0 ..< nodes.len:
     nodes[i].subscribe(topic, topicHandlers[i])
+
+template tryPublish*(
+    call: untyped, require: int, wait = 10.milliseconds, timeout = 10.seconds
+): untyped =
+  var
+    expiration = Moment.now() + timeout
+    pubs = 0
+  while pubs < require and Moment.now() < expiration:
+    pubs = pubs + call
+    await sleepAsync(wait)
+
+  doAssert pubs >= require, "Failed to publish!"

@@ -160,10 +160,10 @@ proc updatePeerInfo*(
     peerStore[KeyBook][info.peerId] = pubkey
 
   info.agentVersion.withValue(agentVersion):
-    peerStore[AgentBook][info.peerId] = agentVersion.string
+    peerStore[AgentBook][info.peerId] = agentVersion
 
   info.protoVersion.withValue(protoVersion):
-    peerStore[ProtoVersionBook][info.peerId] = protoVersion.string
+    peerStore[ProtoVersionBook][info.peerId] = protoVersion
 
   if info.protos.len > 0:
     peerStore[ProtoBook][info.peerId] = info.protos

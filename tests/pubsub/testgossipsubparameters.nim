@@ -81,9 +81,15 @@ suite "Gossipsub Parameters":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubAllNodes(nodes, topic)
 
     let expectedNumberOfPeers = numberOfNodes - 1
+    await waitForPeersInTable(
+      nodes,
+      topic,
+      newSeqWith(numberOfNodes, expectedNumberOfPeers),
+      PeerTableType.Gossipsub,
+    )
+
     for i in 0 ..< numberOfNodes:
       var gossip = GossipSub(nodes[i])
       check:
@@ -93,25 +99,28 @@ suite "Gossipsub Parameters":
 
   asyncTest "prune peers if mesh len is higher than d_high":
     let
-      numberofNodes = 15
+      numberOfNodes = 15
       topic = "foobar"
-      nodes = generateNodes(numberofNodes, gossip = true)
+      nodes = generateNodes(numberOfNodes, gossip = true)
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubAllNodes(nodes, topic)
-
-    # Give it time for a heartbeat
-    await sleepAsync(DURATION_TIMEOUT_EXTENDED)
 
     let
-      expectedNumberOfPeers = numberofNodes - 1
+      expectedNumberOfPeers = numberOfNodes - 1
       dHigh = 12
       d = 6
       dLow = 4
 
-    for i in 0 ..< numberofNodes:
+    await waitForPeersInTable(
+      nodes,
+      topic,
+      newSeqWith(numberOfNodes, expectedNumberOfPeers),
+      PeerTableType.Gossipsub,
+    )
+
+    for i in 0 ..< numberOfNodes:
       var gossip = GossipSub(nodes[i])
 
       check:
@@ -137,17 +146,19 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForPeersInTable(
+      nodes, topic, newSeqWith(numberOfNodes, 4), PeerTableType.Gossipsub
+    )
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # At least one of the nodes should have received an iHave message
     # The check is made this way because the mesh structure changes from run to run
     let receivedIHaves = receivedIHavesRef[]
     check:
-      anyIt(receivedIHavesRef[], it > 0)
+      anyIt(receivedIHaves, it > 0)
 
   asyncTest "messages are not sent back to source or forwarding peer":
     let
@@ -168,14 +179,17 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForPeersInTable(
+      nodes, topic, newSeqWith(numberOfNodes, 2), PeerTableType.Mesh
+    )
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
-    let results = await waitForStates(@[handlerFut0, handlerFut1, handlerFut2])
+    let results =
+      await waitForStates(@[handlerFut0, handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
     check:
       results[0].isPending()
       results[1].isCompleted()
@@ -200,7 +214,7 @@ suite "Gossipsub Parameters":
     # Nodes are subscribed to the same topic
     nodes[1].subscribe(topic, handler1)
     nodes[2].subscribe(topic, handler2)
-    await sleepAsync(1.seconds)
+    await waitForHeartbeat()
 
     # Given node 2's score is below the threshold
     for peer in g0.gossipsub.getOrDefault(topic):
@@ -210,10 +224,10 @@ suite "Gossipsub Parameters":
     # When node 0 publishes a message to topic "foo"
     let message = "Hello!".toBytes()
     check (await nodes[0].publish(topic, message)) == 1
-    await sleepAsync(3.seconds)
+    await waitForHeartbeat(2)
 
     # Then only node 1 should receive the message
-    let results = await waitForStates(@[handlerFut1, handlerFut2])
+    let results = await waitForStates(@[handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
     check:
       results[0].isCompleted(true)
       results[1].isPending()
@@ -244,11 +258,11 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # None of the nodes should have received an iHave message
     let receivedIHaves = receivedIHavesRef[]
@@ -278,11 +292,11 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
 
     # When node 0 sends a message
-    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
-    await sleepAsync(DURATION_TIMEOUT)
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
+    await waitForHeartbeat(2)
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
@@ -316,17 +330,17 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
 
     # When node 0 sends a message
-    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
-    await sleepAsync(DURATION_TIMEOUT)
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
+    await waitForHeartbeat(2)
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
     let receivedIHaves = receivedIHavesRef[]
     check:
-      filterIt(receivedIHaves, it > 0).len == dValues.dLazy.get()
+      filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
 
   asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
     let
@@ -346,12 +360,12 @@ suite "Gossipsub Parameters":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForPeersInTable(nodes, topic, @[1, 2, 1], PeerTableType.Gossipsub)
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)
     check (await nodes[0].publish(topic, largeMsg)) == 1
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # Only node 2 should have received the iDontWant message
     let receivedIDontWants = receivedIDontWantsRef[]

@@ -10,7 +10,8 @@
 {.push raises: [].}
 
 import std/[sets, options, macros]
-import stew/[byteutils, results]
+import stew/byteutils
+import results
 
 export results
 

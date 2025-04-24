@@ -17,7 +17,6 @@ import ../multiaddress
 import ../stream/connection
 import ../crypto/crypto
 import ../upgrademngrs/upgrade
-import ../muxers/muxer
 import ./memorymanager
 
 export connection
