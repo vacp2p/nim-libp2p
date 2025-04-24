@@ -18,6 +18,11 @@ nimble.develop
 nimble.paths
 go-libp2p-daemon/
 
-# Ignore all test build files in tests folder (auto generated when running tests)
-tests/**/test*[^.]*
+# Ignore all test build files in tests folder (auto generated when running tests).
+# First rule (`tests/**/test*[^.]*`) will ignore all binaries: has prefix test + 
+# does not have dot in name.
+# Second and third rules are here to un-ignores all files with extension and Docker file
+# because it appears that vs code is skipping text search is some tests files without this.
+tests/**/test*[^.]* 
 !tests/**/*.*
+!tests/**/Dockerfile
