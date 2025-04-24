@@ -20,3 +20,4 @@ go-libp2p-daemon/
 
 # Ignore all test build files in tests folder (auto generated when running tests)
 tests/**/test*[^.]*
+!tests/**/*.*
