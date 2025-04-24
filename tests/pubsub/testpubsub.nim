@@ -1,5 +1,5 @@
 {.used.}
 
 import
-  testfloodsub, testgossipsub, testgossipsub2, testgossipsubparameters, testmcache,
-  testtimedcache, testmessage
+  testfloodsub, testgossipinternal, testgossipsub, testgossipsub2,
+  testgossipsubparameters, testmcache, testtimedcache, testmessage
