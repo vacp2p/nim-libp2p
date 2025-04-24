@@ -9,9 +9,10 @@
 
 {.push raises: [].}
 
-import stew/[results, objects]
-import chronos, chronicles
+import stew/objects
+import results, chronos, chronicles
 import ../../../multiaddress, ../../../peerid, ../../../errors
+import ../../../protobuf/minprotobuf
 
 logScope:
   topics = "libp2p autonat"

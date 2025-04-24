@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[hashes, oids, strformat]
-import stew/results
+import results
 import chronicles, chronos, metrics
 import lpstream, ../multiaddress, ../peerinfo, ../errors
 
@@ -124,7 +124,7 @@ proc timeoutMonitor(s: Connection) {.async: (raises: []).} =
       return
 
 method getWrapped*(s: Connection): Connection {.base.} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Connection.getWrapped] abstract method not implemented!")
 
 when defined(libp2p_agents_metrics):
   proc setShortAgent*(s: Connection, shortAgent: string) =

@@ -25,12 +25,17 @@ type TestProto = ref object of LPProtocol
 
 proc new(T: typedesc[TestProto]): T =
   # every incoming connections will in be handled in this closure
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     # Read up to 1024 bytes from this connection, and transform them into
     # a string
-    echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
-    # We must close the connections ourselves when we're done with it
-    await conn.close()
+    try:
+      echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
+    finally:
+      await conn.close()
 
   return T.new(codecs = @[TestCodec], handler = handle)
 

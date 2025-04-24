@@ -82,8 +82,7 @@ proc `$`(header: YamuxHeader): string =
       if a != "":
         a & ", " & $b
       else:
-        $b
-      ,
+        $b,
       "",
     ) & "}, " & "streamId: " & $header.streamId & ", " & "length: " & $header.length &
     "}"
@@ -176,8 +175,7 @@ proc `$`(channel: YamuxChannel): string =
         if a != "":
           a & ", " & b
         else:
-          b
-        ,
+          b,
         "",
       ) & "}"
 
@@ -205,6 +203,7 @@ proc remoteClosed(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedRemotely.isSet():
     channel.closedRemotely.fire()
     await channel.actuallyClose()
+  channel.isClosedRemotely = true
 
 method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
   if not channel.closedLocally:
@@ -270,10 +269,13 @@ method readOnce*(
   if channel.isReset:
     raise
       if channel.remoteReset:
+        trace "stream is remote reset when readOnce", channel = $channel
         newLPStreamResetError()
       elif channel.closedLocally:
+        trace "stream is closed locally when readOnce", channel = $channel
         newLPStreamClosedError()
       else:
+        trace "stream is down when readOnce", channel = $channel
         newLPStreamConnDownError()
   if channel.isEof:
     raise newLPStreamRemoteClosedError()
@@ -397,6 +399,7 @@ method write*(
   ##
   result = newFuture[void]("Yamux Send")
   if channel.remoteReset:
+    trace "stream is reset when write", channel = $channel
     result.fail(newLPStreamResetError())
     return result
   if channel.closedLocally or channel.isReset:
@@ -632,7 +635,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
     await m.close()
   trace "Stopped yamux handler"
 
-method getStreams*(m: Yamux): seq[Connection] =
+method getStreams*(m: Yamux): seq[Connection] {.gcsafe.} =
   for c in m.channels.values:
     result.add(c)
 

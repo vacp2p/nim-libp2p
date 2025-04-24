@@ -12,7 +12,7 @@
 {.push raises: [].}
 {.push public.}
 
-import pkg/chronos, chronicles
+import pkg/[chronos, chronicles, results]
 import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
@@ -25,8 +25,8 @@ import
   protobuf/minprotobuf,
   errors,
   utility
-import stew/[base58, base32, endians2, results]
-export results, minprotobuf, vbuffer, utility
+import stew/[base58, base32, endians2]
+export results, vbuffer, errors, utility
 
 logScope:
   topics = "libp2p multiaddress"
@@ -70,6 +70,9 @@ type
   IpTransportProtocol* = enum
     tcpProtocol
     udpProtocol
+
+func maErr*(msg: string): ref MaError =
+  (ref MaError)(msg: msg)
 
 const
   # These are needed in order to avoid an ambiguity error stemming from
@@ -167,6 +170,18 @@ proc ip6zoneBtS(vb: var VBuffer, s: var string): bool =
 proc ip6zoneVB(vb: var VBuffer): bool =
   ## IPv6 validateBuffer() implementation.
   pathValidateBufferNoSlash(vb)
+
+proc memoryStB(s: string, vb: var VBuffer): bool =
+  ## Memory stringToBuffer() implementation.
+  pathStringToBuffer(s, vb)
+
+proc memoryBtS(vb: var VBuffer, s: var string): bool =
+  ## Memory bufferToString() implementation.
+  pathBufferToString(vb, s)
+
+proc memoryVB(vb: var VBuffer): bool =
+  ## Memory validateBuffer() implementation.
+  pathValidateBuffer(vb)
 
 proc portStB(s: string, vb: var VBuffer): bool =
   ## Port number stringToBuffer() implementation.
@@ -352,6 +367,10 @@ const
   )
   TranscoderDNS* =
     Transcoder(stringToBuffer: dnsStB, bufferToString: dnsBtS, validateBuffer: dnsVB)
+  TranscoderMemory* = Transcoder(
+    stringToBuffer: memoryStB, bufferToString: memoryBtS, validateBuffer: memoryVB
+  )
+
   ProtocolsList = [
     MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderIP4),
     MAProtocol(mcodec: multiCodec("tcp"), kind: Fixed, size: 2, coder: TranscoderPort),
@@ -390,6 +409,9 @@ const
     MAProtocol(mcodec: multiCodec("p2p-websocket-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0),
+    MAProtocol(
+      mcodec: multiCodec("memory"), kind: Path, size: 0, coder: TranscoderMemory
+    ),
   ]
 
   DNSANY* = mapEq("dns")
@@ -408,7 +430,12 @@ const
   UDP_IP* = mapAnd(IP, mapEq("udp"))
   UDP* = mapOr(UDP_DNS, UDP_IP)
   UTP* = mapAnd(UDP, mapEq("utp"))
-  QUIC* = mapAnd(UDP, mapEq("quic"))
+  QUIC_IP* = mapAnd(UDP_IP, mapEq("quic"))
+  QUIC_DNS* = mapAnd(UDP_DNS, mapEq("quic"))
+  QUIC* = mapOr(QUIC_DNS, QUIC_IP)
+  QUIC_V1_IP* = mapAnd(UDP_IP, mapEq("quic-v1"))
+  QUIC_V1_DNS* = mapAnd(UDP_DNS, mapEq("quic-v1"))
+  QUIC_V1* = mapOr(QUIC_V1_DNS, QUIC_V1_IP)
   UNIX* = mapEq("unix")
   WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
   WS_IP* = mapAnd(TCP_IP, mapEq("ws"))
@@ -444,6 +471,8 @@ const
   )
 
   CircuitRelay* = mapEq("p2p-circuit")
+
+  Memory* = mapEq("memory")
 
 proc initMultiAddressCodeTable(): Table[MultiCodec, MAProtocol] {.compileTime.} =
   for item in ProtocolsList:
@@ -970,23 +999,21 @@ proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
   else:
     ok()
 
-proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [LPError].} =
+proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  ##
+  concat(m1, m2).valueOr:
+    raise maErr error
 
-  concat(m1, m2).tryGet()
-
-proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [LPError].} =
+proc `&=`*(m1: var MultiAddress, m2: MultiAddress) {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``.
   ##
   ## This procedure performs validation of concatenated result and can raise
   ## exception on error.
-  ##
-
-  m1.append(m2).tryGet()
+  m1.append(m2).isOkOr:
+    raise maErr error
 
 proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
   ## Check of two MultiAddress are equal

@@ -1,16 +1,17 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.5.0"
+version = "1.9.0"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
 skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
 requires "nim >= 1.6.0",
-  "nimcrypto >= 0.4.1", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
-  "chronicles >= 0.10.2", "chronos >= 4.0.2", "metrics", "secp256k1", "stew#head",
-  "websock", "unittest2"
+  "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
+  "chronicles >= 0.10.2", "chronos >= 4.0.3", "metrics", "secp256k1", "stew#head",
+  "websock", "unittest2", "results",
+  "https://github.com/status-im/nim-quic.git#d54e8f0f2e454604b767fadeae243d95c30c383f"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
@@ -19,17 +20,13 @@ let verbose = getEnv("V", "") notin ["", "0"]
 
 let cfg =
   " --styleCheck:usages --styleCheck:error" &
-  (if verbose: "" else: " --verbosity:0 --hints:off") &
-  " --skipParentCfg --skipUserCfg -f" & " --threads:on --opt:speed"
+  (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
+  " --threads:on --opt:speed"
 
 import hashes, strutils
 
-proc runTest(
-    filename: string, verify: bool = true, sign: bool = true, moreoptions: string = ""
-) =
+proc runTest(filename: string, moreoptions: string = "") =
   var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
-  excstr.add(" -d:libp2p_pubsub_sign=" & $sign)
-  excstr.add(" -d:libp2p_pubsub_verify=" & $verify)
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
@@ -59,51 +56,16 @@ task testinterop, "Runs interop tests":
   runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
-  runTest(
-    "pubsub/testgossipinternal",
-    sign = false,
-    verify = false,
-    moreoptions = "-d:pubsub_internal_testing",
-  )
-  runTest("pubsub/testpubsub")
-  runTest("pubsub/testpubsub", sign = false, verify = false)
-  runTest(
-    "pubsub/testpubsub",
-    sign = false,
-    verify = false,
-    moreoptions = "-d:libp2p_pubsub_anonymize=true",
-  )
-
-task testpubsub_slim, "Runs pubsub tests":
-  runTest(
-    "pubsub/testgossipinternal",
-    sign = false,
-    verify = false,
-    moreoptions = "-d:pubsub_internal_testing",
-  )
+  runTest("pubsub/testgossipinternal")
   runTest("pubsub/testpubsub")
 
 task testfilter, "Run PKI filter test":
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1\"")
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519\"")
-  runTest(
-    "testpkifilter", moreoptions = "-d:libp2p_pki_schemes=\"secp256k1;ed25519;ecnist\""
-  )
+  runTest("testpkifilter")
   runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
 task test, "Runs the test suite":
-  exec "nimble testnative"
-  exec "nimble testpubsub"
-  exec "nimble testdaemon"
-  exec "nimble testinterop"
+  runTest("testall")
   exec "nimble testfilter"
-  exec "nimble examples_build"
-
-task test_slim, "Runs the (slimmed down) test suite":
-  exec "nimble testnative"
-  exec "nimble testpubsub_slim"
-  exec "nimble testfilter"
-  exec "nimble examples_build"
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
@@ -115,19 +77,12 @@ task website, "Build the website":
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 
-task examples_build, "Build the samples":
-  buildSample("directchat")
-  buildSample("helloworld", true)
-  buildSample("circuitrelay", true)
-  buildSample("tutorial_1_connect", true)
-  buildSample("tutorial_2_customproto", true)
-  buildSample("tutorial_3_protobuf", true)
-  buildSample("tutorial_4_gossipsub", true)
-  buildSample("tutorial_5_discovery", true)
-  exec "nimble install -y nimpng@#HEAD"
-    # this is to fix broken build on 1.7.3, remove it when nimpng version 0.3.2 or later is released
-  exec "nimble install -y nico@#af99dd60bf2b395038ece815ea1012330a80d6e6"
-  buildSample("tutorial_6_game", false, "--styleCheck:off")
+task examples, "Build and run examples":
+  exec "nimble install -y nimpng"
+  exec "nimble install -y nico --passNim=--skipParentCfg"
+  buildSample("examples_build", false, "--styleCheck:off") # build only
+
+  buildSample("examples_run", true)
 
 # pin system
 # while nimble lockfile

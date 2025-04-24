@@ -10,8 +10,10 @@
 {.push raises: [].}
 
 import macros
-import stew/[objects, results]
+import stew/objects
+import results
 import ../../../peerinfo, ../../../signed_envelope
+import ../../../protobuf/minprotobuf
 
 # Circuit Relay V1 Message
 

@@ -223,7 +223,9 @@ suite "Multistream select":
     let conn = newTestSelectStream()
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
       check proto == "/test/proto/1.0.0"
       await conn.close()
 
@@ -246,7 +248,9 @@ suite "Multistream select":
 
     conn = Connection(newTestLsStream(testLsHandler))
 
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
       discard
 
     var protocol: LPProtocol = new LPProtocol
@@ -269,7 +273,9 @@ suite "Multistream select":
     conn = newTestNaStream(testNaHandler)
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
       discard
 
     protocol.handler = testHandler
@@ -281,10 +287,18 @@ suite "Multistream select":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
       check proto == "/test/proto/1.0.0"
-      await conn.writeLp("Hello!")
-      await conn.close()
+      try:
+        await conn.writeLp("Hello!")
+      except CancelledError as e:
+        raise e
+      except CatchableError:
+        check false # should not be here
+      finally:
+        await conn.close()
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
@@ -322,10 +336,18 @@ suite "Multistream select":
     # Start 5 streams which are blocked by `blocker`
     # Try to start a new one, which should fail
     # Unblock the 5 streams, check that we can open a new one
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
-      await blocker
-      await conn.writeLp("Hello!")
-      await conn.close()
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      try:
+        await blocker
+        await conn.writeLp("Hello!")
+      except CancelledError as e:
+        raise e
+      except CatchableError:
+        check false # should not be here
+      finally:
+        await conn.close()
 
     var protocol: LPProtocol =
       LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreams = 5)
@@ -392,11 +414,15 @@ suite "Multistream select":
 
     let msListen = MultistreamSelect.new()
     var protocol: LPProtocol = new LPProtocol
-    protocol.handler = proc(conn: Connection, proto: string) {.async.} =
+    protocol.handler = proc(
+        conn: Connection, proto: string
+    ) {.async: (raises: [CancelledError]).} =
       # never reached
       discard
 
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
       # never reached
       discard
 
@@ -438,10 +464,18 @@ suite "Multistream select":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
       check proto == "/test/proto/1.0.0"
-      await conn.writeLp("Hello!")
-      await conn.close()
+      try:
+        await conn.writeLp("Hello!")
+      except CancelledError as e:
+        raise e
+      except CatchableError:
+        check false # should not be here
+      finally:
+        await conn.close()
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
@@ -474,9 +508,17 @@ suite "Multistream select":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(conn: Connection, proto: string): Future[void] {.async.} =
-      await conn.writeLp(&"Hello from {proto}!")
-      await conn.close()
+    proc testHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      try:
+        await conn.writeLp(&"Hello from {proto}!")
+      except CancelledError as e:
+        raise e
+      except CatchableError:
+        check false # should not be here
+      finally:
+        await conn.close()
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()

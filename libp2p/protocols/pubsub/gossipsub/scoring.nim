@@ -131,7 +131,7 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     0.0
 
-proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async.} =
+proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async: (raises: []).} =
   try:
     await g.switch.disconnect(peer.peerId)
   except CatchableError as exc: # Never cancelled
@@ -313,12 +313,14 @@ proc updateScores*(g: GossipSub) = # avoid async
 
   trace "updated scores", peers = g.peers.len
 
-proc scoringHeartbeat*(g: GossipSub) {.async.} =
+proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "Gossipsub scoring", g.parameters.decayInterval:
     trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
-proc punishInvalidMessage*(g: GossipSub, peer: PubSubPeer, msg: Message) {.async.} =
+proc punishInvalidMessage*(
+    g: GossipSub, peer: PubSubPeer, msg: Message
+) {.async: (raises: [PeerRateLimitError]).} =
   let uselessAppBytesNum = msg.data.len
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):

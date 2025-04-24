@@ -22,12 +22,17 @@ const
 
 proc sendStatus*(
     conn: Connection, code: StatusV1
-) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+) {.async: (raises: [CancelledError]).} =
   trace "send relay/v1 status", status = $code & "(" & $ord(code) & ")"
-  let
-    msg = RelayMessage(msgType: Opt.some(RelayType.Status), status: Opt.some(code))
-    pb = encode(msg)
-  conn.writeLp(pb.buffer)
+  try:
+    let
+      msg = RelayMessage(msgType: Opt.some(RelayType.Status), status: Opt.some(code))
+      pb = encode(msg)
+    await conn.writeLp(pb.buffer)
+  except CancelledError as e:
+    raise e
+  except LPStreamError as e:
+    trace "error sending relay status", description = e.msg
 
 proc sendHopStatus*(
     conn: Connection, code: StatusV2

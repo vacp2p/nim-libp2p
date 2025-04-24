@@ -23,7 +23,7 @@ proc perf*(
     conn: Connection,
     sizeToWrite: uint64 = 0,
     sizeToRead: uint64 = 0,
-): Future[Duration] {.async, public.} =
+): Future[Duration] {.public, async: (raises: [CancelledError, LPStreamError]).} =
   var
     size = sizeToWrite
     buf: array[PerfSize, byte]

@@ -11,6 +11,7 @@
 
 import unittest2
 import ../libp2p/protobuf/minprotobuf
+import ../libp2p/varint
 import stew/byteutils, strutils
 
 suite "MinProtobuf test suite":
@@ -615,29 +616,25 @@ suite "MinProtobuf test suite":
       res.get() == true
       value == "SOME"
 
-  test "[length] too big message test":
-    var pb1 = initProtoBuffer()
-    var bigString = newString(pb1.maxSize + 1)
+  test "[length] invalid message length":
+    let field = @[0x0a'u8]
+    let data = @[1'u8, 2'u8, 3'u8]
 
-    for i in 0 ..< len(bigString):
-      bigString[i] = 'A'
-    pb1.write(1, bigString)
-    pb1.finish()
-    block:
-      var pb2 = initProtoBuffer(pb1.buffer)
-      var value = newString(pb1.maxSize + 1)
-      var valueLen = 0
-      let res = pb2.getField(1, value, valueLen)
-      check:
-        res.isErr() == true
+    var value: string
+    var valueLen = 0
 
-    block:
-      var pb2 = initProtoBuffer(pb1.buffer, maxSize = uint.high)
-      var value = newString(pb1.maxSize + 1)
-      var valueLen = 0
-      let res = pb2.getField(1, value, valueLen)
-      check:
-        res.isErr() == false
+    let invalidLength = LP.encodeVarint(uint64(int32.high) + 1'u64)
+    var pb1 = initProtoBuffer(field & invalidLength.get() & data)
+    let res1 = pb1.getField(1, value, valueLen)
+    check:
+      res1.isErr() == true
+      res1.error() == MessageIncomplete
+
+    let validLength = LP.encodeVarint(data.lenu64)
+    var pb2 = initProtoBuffer(field & validLength.get() & data)
+    let res2 = pb2.getField(1, value, valueLen)
+    check:
+      res2.isErr() == false
 
   test "[length] Repeated field test":
     var pb1 = initProtoBuffer()

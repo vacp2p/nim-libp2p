@@ -23,7 +23,7 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport],
+  transports/[transport, tcptransport, quictransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
@@ -37,8 +37,11 @@ import services/wildcardresolverservice
 
 export switch, peerid, peerinfo, connection, multiaddress, crypto, errors
 
+const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
+
 type
-  TransportProvider* {.public.} = proc(upgr: Upgrade): Transport {.gcsafe, raises: [].}
+  TransportProvider* {.public.} =
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -151,7 +154,7 @@ proc withTransport*(
     let switch = SwitchBuilder
       .new()
       .withTransport(
-        proc(upgr: Upgrade): Transport =
+        proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
           TcpTransport.new(flags, upgr)
       )
       .build()
@@ -162,8 +165,20 @@ proc withTcpTransport*(
     b: SwitchBuilder, flags: set[ServerFlags] = {}
 ): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade): Transport =
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       TcpTransport.new(flags, upgr)
+  )
+
+proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  b.withTransport(
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+      QuicTransport.new(upgr, privateKey)
+  )
+
+proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  b.withTransport(
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+      MemoryTransport.new(upgr)
   )
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
@@ -270,7 +285,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   let transports = block:
     var transports: seq[Transport]
     for tProvider in b.transports:
-      transports.add(tProvider(muxedUpgrade))
+      transports.add(tProvider(muxedUpgrade, seckey))
     transports
 
   if b.secureManagers.len == 0:

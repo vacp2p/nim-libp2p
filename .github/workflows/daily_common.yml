@@ -7,7 +7,7 @@ on:
       nim:
         description: 'Nim Configuration'
         required: true
-        type: string # Following this format: [{"branch": ..., "memory_management": ...}, ...]
+        type: string # Following this format: [{"ref": ..., "memory_management": ...}, ...]
       cpu:
         description: 'CPU'
         required: true
@@ -17,6 +17,11 @@ on:
         required: false
         type: string
         default: "[]"
+      use_sat_solver:
+        description: 'Install dependencies with SAT Solver'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -53,9 +58,8 @@ jobs:
       run:
         shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.branch }})'
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
     runs-on: ${{ matrix.platform.builder }}
-    continue-on-error: ${{ matrix.nim.branch == 'devel' || matrix.nim.branch == 'version-2-0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,13 +69,13 @@ jobs:
         with:
           os: ${{ matrix.platform.os }}
           shell: ${{ matrix.platform.shell }}
-          nim_branch: ${{ matrix.nim.branch }}
+          nim_ref: ${{ matrix.nim.ref }}
           cpu: ${{ matrix.cpu }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.15.5'
+          go-version: '~1.16.0'
           cache: false
 
       - name: Install p2pd
@@ -86,4 +90,12 @@ jobs:
         run: |
           nim --version
           nimble --version
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" nimble test
+
+          if [[ "${{ inputs.use_sat_solver }}" == "true" ]]; then
+            dependency_solver="sat"
+          else
+            dependency_solver="legacy"
+          fi
+
+          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
+          nimble test

@@ -34,9 +34,15 @@ proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
 const DumbCodec = "/dumb/proto/1.0.0"
 type DumbProto = ref object of LPProtocol
 proc new(T: typedesc[DumbProto], nodeNumber: int): T =
-  proc handle(conn: Connection, proto: string) {.async.} =
-    echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
-    await conn.close()
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    try:
+      echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      echo "exception in handler", e.msg
+    finally:
+      await conn.close()
 
   return T.new(codecs = @[DumbCodec], handler = handle)
 

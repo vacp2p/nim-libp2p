@@ -125,6 +125,8 @@ declarePublicCounter(
 type
   InitializationError* = object of LPError
 
+  PeerMessageDecodeError* = object of CatchableError
+
   TopicHandler* {.public.} =
     proc(topic: string, data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
@@ -327,7 +329,9 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
 
 method rpcHandler*(
     p: PubSub, peer: PubSubPeer, data: seq[byte]
-): Future[void] {.base, async.} =
+): Future[void] {.
+    base, async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError])
+.} =
   ## Handler that must be overridden by concrete implementation
   raiseAssert "Unimplemented"
 
@@ -355,8 +359,15 @@ method getOrCreatePeer*(
       peer[].codec = protoNegotiated
     return peer[]
 
-  proc getConn(): Future[Connection] {.async.} =
-    return await p.switch.dial(peerId, protosToDial)
+  proc getConn(): Future[Connection] {.
+      async: (raises: [CancelledError, GetConnDialError])
+  .} =
+    try:
+      return await p.switch.dial(peerId, protosToDial)
+    except CancelledError as exc:
+      raise exc
+    except DialFailedError as e:
+      raise (ref GetConnDialError)(parent: e)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
@@ -376,7 +387,9 @@ method getOrCreatePeer*(
 
   return pubSubPeer
 
-proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
+proc handleData*(
+    p: PubSub, topic: string, data: seq[byte]
+): Future[void] {.async: (raises: [], raw: true).} =
   # Start work on all data handlers without copying data into closure like
   # happens on {.async.} transformation
   p.topics.withValue(topic, handlers):
@@ -389,7 +402,7 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
           futs.add(fut)
 
     if futs.len() > 0:
-      proc waiter(): Future[void] {.async.} =
+      proc waiter(): Future[void] {.async: (raises: []).} =
         # slow path - we have to wait for the handlers to complete
         try:
           futs = await allFinished(futs)
@@ -397,12 +410,12 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
           # propagate cancellation
           for fut in futs:
             if not (fut.finished):
-              fut.cancel()
+              fut.cancelSoon()
 
         # check for errors in futures
         for fut in futs:
           if fut.failed:
-            let err = fut.readError()
+            let err = fut.error()
             warn "Error in topic handler", description = err.msg
 
       return waiter()
@@ -412,7 +425,9 @@ proc handleData*(p: PubSub, topic: string, data: seq[byte]): Future[void] =
   res.complete()
   return res
 
-method handleConn*(p: PubSub, conn: Connection, proto: string) {.base, async.} =
+method handleConn*(
+    p: PubSub, conn: Connection, proto: string
+) {.base, async: (raises: [CancelledError]).} =
   ## handle incoming connections
   ##
   ## this proc will:
@@ -424,7 +439,9 @@ method handleConn*(p: PubSub, conn: Connection, proto: string) {.base, async.} =
   ##    that we're interested in
   ##
 
-  proc handler(peer: PubSubPeer, data: seq[byte]): Future[void] =
+  proc handler(
+      peer: PubSubPeer, data: seq[byte]
+  ): Future[void] {.async: (raises: []).} =
     # call pubsub rpc handler
     p.rpcHandler(peer, data)
 
@@ -436,7 +453,7 @@ method handleConn*(p: PubSub, conn: Connection, proto: string) {.base, async.} =
     trace "pubsub peer handler ended", conn
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
+  except PeerMessageDecodeError as exc:
     trace "exception ocurred in pubsub handle", description = exc.msg, conn
   finally:
     await conn.closeWithEOF()
@@ -542,7 +559,7 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
 
 method publish*(
     p: PubSub, topic: string, data: seq[byte]
-): Future[int] {.base, async, public.} =
+): Future[int] {.base, async: (raises: []), public.} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
@@ -581,7 +598,7 @@ method removeValidator*(
 
 method validate*(
     p: PubSub, message: Message
-): Future[ValidationResult] {.async, base.} =
+): Future[ValidationResult] {.async: (raises: [CancelledError]), base.} =
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
   let topic = message.topic
@@ -589,28 +606,35 @@ method validate*(
     topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:
     trace "running validators for topic", topic = topic
-    for validator in p.validators[topic]:
-      pending.add(validator(topic, message))
-
-  result = ValidationResult.Accept
+    p.validators.withValue(topic, validators):
+      for validator in validators[]:
+        pending.add(validator(topic, message))
+  var valResult = ValidationResult.Accept
   let futs = await allFinished(pending)
   for fut in futs:
     if fut.failed:
-      result = ValidationResult.Reject
+      valResult = ValidationResult.Reject
       break
-    let res = fut.read()
-    if res != ValidationResult.Accept:
-      result = res
-      if res == ValidationResult.Reject:
-        break
+    try:
+      let res = fut.read()
+      if res != ValidationResult.Accept:
+        valResult = res
+        if res == ValidationResult.Reject:
+          break
+    except CatchableError as e:
+      trace "validator for message could not be executed, ignoring",
+        topic = topic, err = e.msg
+      valResult = ValidationResult.Ignore
 
-  case result
+  case valResult
   of ValidationResult.Accept:
     libp2p_pubsub_validation_success.inc()
   of ValidationResult.Reject:
     libp2p_pubsub_validation_failure.inc()
   of ValidationResult.Ignore:
     libp2p_pubsub_validation_ignore.inc()
+
+  valResult
 
 proc init*[PubParams: object | bool](
     P: typedesc[PubSub],
@@ -656,7 +680,9 @@ proc init*[PubParams: object | bool](
         topicsHigh: int.high,
       )
 
-  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
+  proc peerEventHandler(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
     if event.kind == PeerEventKind.Joined:
       pubsub.subscribePeer(peerId)
     else:

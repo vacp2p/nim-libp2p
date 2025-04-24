@@ -50,7 +50,7 @@ type
 
   StatusAndConfidenceHandler* = proc(
     networkReachability: NetworkReachability, confidence: Opt[float]
-  ): Future[void] {.gcsafe, raises: [].}
+  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
 
 proc new*(
     T: typedesc[AutonatService],
@@ -79,7 +79,7 @@ proc new*(
     enableAddressMapper: enableAddressMapper,
   )
 
-proc callHandler(self: AutonatService) {.async.} =
+proc callHandler(self: AutonatService) {.async: (raises: [CancelledError]).} =
   if not isNil(self.statusAndConfidenceHandler):
     await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
 
@@ -92,7 +92,7 @@ proc doesPeerHaveIncomingConn(switch: Switch, peerId: PeerId): bool =
 
 proc handleAnswer(
     self: AutonatService, ans: NetworkReachability
-): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   if ans == Unknown:
     return
 
@@ -127,7 +127,7 @@ proc handleAnswer(
 
 proc askPeer(
     self: AutonatService, switch: Switch, peerId: PeerId
-): Future[NetworkReachability] {.async.} =
+): Future[NetworkReachability] {.async: (raises: [CancelledError]).} =
   logScope:
     peerId = $peerId
 
@@ -160,7 +160,9 @@ proc askPeer(
   await switch.peerInfo.update()
   return ans
 
-proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
+proc askConnectedPeers(
+    self: AutonatService, switch: Switch
+) {.async: (raises: [CancelledError]).} =
   trace "Asking peers for reachability"
   var peers = switch.connectedPeers(Direction.Out)
   self.rng.shuffle(peers)
@@ -175,13 +177,15 @@ proc askConnectedPeers(self: AutonatService, switch: Switch) {.async.} =
     if (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
 
-proc schedule(service: AutonatService, switch: Switch, interval: Duration) {.async.} =
+proc schedule(
+    service: AutonatService, switch: Switch, interval: Duration
+) {.async: (raises: [CancelledError]).} =
   heartbeat "Scheduling AutonatService run", interval:
     await service.run(switch)
 
 proc addressMapper(
     self: AutonatService, peerStore: PeerStore, listenAddrs: seq[MultiAddress]
-): Future[seq[MultiAddress]] {.async.} =
+): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   if self.networkReachability != NetworkReachability.Reachable:
     return listenAddrs
 
@@ -198,10 +202,12 @@ proc addressMapper(
     addrs.add(processedMA)
   return addrs
 
-method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
+method setup*(
+    self: AutonatService, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError]).} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
-  ): Future[seq[MultiAddress]] {.async.} =
+  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return await addressMapper(self, switch.peerStore, listenAddrs)
 
   info "Setting up AutonatService"
@@ -210,22 +216,30 @@ method setup*(self: AutonatService, switch: Switch): Future[bool] {.async.} =
     if self.askNewConnectedPeers:
       self.newConnectedPeerHandler = proc(
           peerId: PeerId, event: PeerEvent
-      ): Future[void] {.async.} =
+      ): Future[void] {.async: (raises: [CancelledError]).} =
         discard askPeer(self, switch, peerId)
+
       switch.connManager.addPeerEventHandler(
         self.newConnectedPeerHandler, PeerEventKind.Joined
       )
+
     self.scheduleInterval.withValue(interval):
       self.scheduleHandle = schedule(self, switch, interval)
+
     if self.enableAddressMapper:
       switch.peerInfo.addressMappers.add(self.addressMapper)
+
   return hasBeenSetup
 
-method run*(self: AutonatService, switch: Switch) {.async, public.} =
+method run*(
+    self: AutonatService, switch: Switch
+) {.public, async: (raises: [CancelledError]).} =
   trace "Running AutonatService"
   await askConnectedPeers(self, switch)
 
-method stop*(self: AutonatService, switch: Switch): Future[bool] {.async, public.} =
+method stop*(
+    self: AutonatService, switch: Switch
+): Future[bool] {.public, async: (raises: [CancelledError]).} =
   info "Stopping AutonatService"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:

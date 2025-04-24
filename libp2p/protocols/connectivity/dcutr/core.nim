@@ -15,6 +15,7 @@ import chronos
 import stew/objects
 
 import ../../../multiaddress, ../../../errors, ../../../stream/connection
+import ../../../protobuf/minprotobuf
 
 export multiaddress
 
@@ -49,7 +50,9 @@ proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [DcutrEr
     raise newException(DcutrError, "Received malformed message")
   return dcutrMsg
 
-proc send*(conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]) {.async.} =
+proc send*(
+    conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
   await conn.writeLp(pb.buffer)
 

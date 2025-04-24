@@ -1,34 +1,61 @@
-import chronos/futures, stew/results, chronos
+import chronos/futures, stew/results, chronos, sequtils
 
 const
-  DURATION_TIMEOUT_SHORT* = 500.milliseconds
   DURATION_TIMEOUT* = 1.seconds
   DURATION_TIMEOUT_EXTENDED* = 1500.milliseconds
 
-proc toOk(future: Future[void]): Result[void, string] =
-  return results.ok()
-
-proc toOk[T](future: Future[T]): Result[T, string] =
-  return results.ok(future.read())
-
-proc toResult*[T](future: Future[T]): Result[T, string] =
-  if future.cancelled():
-    return results.err("Future cancelled/timed out.")
-  elif future.finished():
-    if not future.failed():
-      return future.toOk()
-    else:
-      return results.err("Future finished but failed.")
+type FutureStateWrapper*[T] = object
+  future: Future[T]
+  state: FutureState
+  when T is void:
+    discard
   else:
-    return results.err("Future still not finished.")
+    value: T
 
-proc waitForResult*[T](
+proc isPending*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Pending
+
+proc isCompleted*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Completed
+
+proc isCompleted*[T](wrapper: FutureStateWrapper[T], expectedValue: T): bool =
+  when T is void:
+    wrapper.state == Completed
+  else:
+    wrapper.state == Completed and wrapper.value == expectedValue
+
+proc isCancelled*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Cancelled
+
+proc isFailed*(wrapper: FutureStateWrapper): bool =
+  wrapper.state == Failed
+
+proc toState*[T](future: Future[T]): FutureStateWrapper[T] =
+  var wrapper: FutureStateWrapper[T]
+  wrapper.future = future
+
+  if future.cancelled():
+    wrapper.state = Cancelled
+  elif future.finished():
+    if future.failed():
+      wrapper.state = Failed
+    else:
+      wrapper.state = Completed
+      when T isnot void:
+        wrapper.value = future.read()
+  else:
+    wrapper.state = Pending
+
+  return wrapper
+
+proc waitForState*[T](
     future: Future[T], timeout = DURATION_TIMEOUT
-): Future[Result[T, string]] {.async.} =
+): Future[FutureStateWrapper[T]] {.async.} =
   discard await future.withTimeout(timeout)
-  return future.toResult()
+  return future.toState()
 
-proc reset*[T](future: Future[T]): void =
-  # Likely an incomplete reset, but good enough for testing purposes (for now)
-  future.internalError = nil
-  future.internalState = FutureState.Pending
+proc waitForStates*[T](
+    futures: seq[Future[T]], timeout = DURATION_TIMEOUT
+): Future[seq[FutureStateWrapper[T]]] {.async.} =
+  await sleepAsync(timeout)
+  return futures.mapIt(it.toState())
