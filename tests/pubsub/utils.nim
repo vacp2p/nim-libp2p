@@ -6,7 +6,6 @@ const
 
 import hashes, random, tables, sets, sequtils
 import chronos, stew/[byteutils, results], chronos/ratelimit
-import std/options
 import
   ../../libp2p/[
     builders,
@@ -191,16 +190,6 @@ proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await connectNodes(dialer, node)
-
-proc subscribeRandom*(nodes: seq[PubSub]) {.async.} =
-  for dialer in nodes:
-    var dialed: seq[PeerId]
-    while dialed.len < nodes.len - 1:
-      let node = sample(nodes)
-      if node.peerInfo.peerId notin dialed:
-        if dialer.peerInfo.peerId != node.peerInfo.peerId:
-          await dialer.switch.connect(node.peerInfo.peerId, node.peerInfo.addrs)
-          dialed.add(node.peerInfo.peerId)
 
 proc activeWait(
     interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
