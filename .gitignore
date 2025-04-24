@@ -22,5 +22,6 @@ go-libp2p-daemon/
 # by ignoring anything that does not have following file name scheme:
 # has extension or is Dockerfile...
 /tests/*
+!*/
 !/tests/*.*
 !/tests/Dockerfile
