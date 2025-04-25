@@ -12,6 +12,7 @@ import
     protocols/pubsub/errors,
     protocols/pubsub/pubsub,
     protocols/pubsub/pubsubpeer,
+    protocols/pubsub/peertable,
     protocols/pubsub/gossipsub,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
@@ -405,3 +406,42 @@ proc addIDontWantObservers*(nodes: seq[auto], receivedIDontWants: ref seq[int]) 
             receivedIDontWants[i] += 1
       pubsubObserver = PubSubObserver(onRecv: checkForIDontWant)
     nodes[i].addObserver(pubsubObserver)
+
+# TODO: refactor helper methods from testgossipsub.nim
+proc setupNodes*(count: int): seq[PubSub] =
+  generateNodes(count, gossip = true)
+
+proc connectNodes*(nodes: seq[PubSub], target: PubSub) {.async.} =
+  proc handler(topic: string, data: seq[byte]) {.async.} =
+    check topic == "foobar"
+
+  for node in nodes:
+    node.subscribe("foobar", handler)
+    await node.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+
+proc baseTestProcedure*(
+    nodes: seq[PubSub],
+    gossip1: GossipSub,
+    numPeersFirstMsg: int,
+    numPeersSecondMsg: int,
+) {.async.} =
+  proc handler(topic: string, data: seq[byte]) {.async.} =
+    check topic == "foobar"
+
+  block setup:
+    for i in 0 ..< 50:
+      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == 19:
+        break setup
+      await sleepAsync(10.milliseconds)
+    check false
+
+  check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
+  check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
+
+  # Now try with a mesh
+  gossip1.subscribe("foobar", handler)
+  checkUntilTimeout:
+    gossip1.mesh.peers("foobar") > 5
+
+  # use a different length so that the message is not equal to the last
+  check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg

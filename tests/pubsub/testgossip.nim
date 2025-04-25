@@ -11,10 +11,11 @@
 
 import std/[sequtils]
 import stew/byteutils
+import chronicles
 import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../libp2p/protocols/pubsub/rpc/[message]
-import ../helpers
+import ../helpers, ../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
 
@@ -471,3 +472,246 @@ suite "GossipSub Gossip Protocol":
       receivedIDontWants[0] == 0
       receivedIDontWants[1] == 0
       receivedIDontWants[2] == 1
+
+  asyncTest "e2e - GossipSub peer exchange":
+    # A, B & C are subscribed to something
+    # B unsubcribe from it, it should send
+    # PX to A & C
+    #
+    # C sent his SPR, not A
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard # not used in this test
+
+    let nodes =
+      generateNodes(2, gossip = true, enablePX = true) &
+      generateNodes(1, gossip = true, sendSignedPeerRecord = true)
+
+    startNodesAndDeferStop(nodes)
+
+    var
+      gossip0 = GossipSub(nodes[0])
+      gossip1 = GossipSub(nodes[1])
+      gossip2 = GossipSub(nodes[2])
+
+    await connectNodesStar(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+    nodes[2].subscribe("foobar", handler)
+    for x in 0 ..< 3:
+      for y in 0 ..< 3:
+        if x != y:
+          await waitSub(nodes[x], nodes[y], "foobar")
+
+    # Setup record handlers for all nodes
+    var
+      passed0: Future[void] = newFuture[void]()
+      passed2: Future[void] = newFuture[void]()
+    gossip0.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == "foobar"
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed0.complete()
+    )
+    gossip1.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        raiseAssert "should not get here"
+    )
+    gossip2.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        check:
+          tag == "foobar"
+          peers.len == 2
+          peers[0].record.isSome() xor peers[1].record.isSome()
+        passed2.complete()
+    )
+
+    # Unsubscribe from the topic
+    nodes[1].unsubscribe("foobar", handler)
+
+    # Then verify what nodes receive the PX
+    let results = await waitForStates(@[passed0, passed2], HEARTBEAT_TIMEOUT)
+    check:
+      results[0].isCompleted()
+      results[1].isCompleted()
+
+  asyncTest "e2e - iDontWant":
+    # 3 nodes: A <=> B <=> C
+    # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
+    # and check that B doesn't relay the message to C.
+    # We also check that B sends IDONTWANT to C, but not A
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let nodes = generateNodes(3, gossip = true, msgIdProvider = dumbMsgIdProvider)
+
+    startNodesAndDeferStop(nodes)
+
+    await nodes[0].switch.connect(
+      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
+    )
+    await nodes[1].switch.connect(
+      nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs
+    )
+
+    let bFinished = newFuture[void]()
+    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+      bFinished.complete()
+
+    proc handlerC(topic: string, data: seq[byte]) {.async.} =
+      doAssert false
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    nodes[2].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    var gossip2: GossipSub = GossipSub(nodes[1])
+    var gossip3: GossipSub = GossipSub(nodes[2])
+
+    check:
+      gossip3.mesh.peers("foobar") == 1
+
+    gossip3.broadcast(
+      gossip3.mesh["foobar"],
+      RPCMsg(
+        control: some(
+          ControlMessage(idontwant: @[ControlIWant(messageIDs: @[newSeq[byte](10)])])
+        )
+      ),
+      isHighPriority = true,
+    )
+    checkUntilTimeout:
+      gossip2.mesh.getOrDefault("foobar").anyIt(it.iDontWants[^1].len == 1)
+
+    tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
+
+    await bFinished
+
+    checkUntilTimeout:
+      toSeq(gossip3.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 1)
+    check:
+      toSeq(gossip1.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
+
+  asyncTest "e2e - iDontWant is broadcasted on publish":
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let nodes = generateNodes(
+      2, gossip = true, msgIdProvider = dumbMsgIdProvider, sendIDontWantOnPublish = true
+    )
+
+    startNodesAndDeferStop(nodes)
+
+    await nodes[0].switch.connect(
+      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
+    )
+
+    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip2: GossipSub = GossipSub(nodes[1])
+
+    tryPublish await nodes[0].publish("foobar", newSeq[byte](10000)), 1
+
+    checkUntilTimeout:
+      gossip2.mesh.getOrDefault("foobar").anyIt(it.iDontWants[^1].len == 1)
+
+  asyncTest "e2e - iDontWant is sent only for 1.2":
+    # 3 nodes: A <=> B <=> C
+    # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
+    # and check that B doesn't relay the message to C.
+    # We also check that B sends IDONTWANT to C, but not A
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let
+      nodeA = generateNodes(1, gossip = true, msgIdProvider = dumbMsgIdProvider)[0]
+      nodeB = generateNodes(1, gossip = true, msgIdProvider = dumbMsgIdProvider)[0]
+      nodeC = generateNodes(
+        1,
+        gossip = true,
+        msgIdProvider = dumbMsgIdProvider,
+        gossipSubVersion = GossipSubCodec_11,
+      )[0]
+
+    startNodesAndDeferStop(@[nodeA, nodeB, nodeC])
+
+    await nodeA.switch.connect(
+      nodeB.switch.peerInfo.peerId, nodeB.switch.peerInfo.addrs
+    )
+    await nodeB.switch.connect(
+      nodeC.switch.peerInfo.peerId, nodeC.switch.peerInfo.addrs
+    )
+
+    let bFinished = newFuture[void]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+      bFinished.complete()
+
+    nodeA.subscribe("foobar", handler)
+    nodeB.subscribe("foobar", handlerB)
+    nodeC.subscribe("foobar", handler)
+    await waitSubGraph(@[nodeA, nodeB, nodeC], "foobar")
+
+    var gossipA: GossipSub = GossipSub(nodeA)
+    var gossipB: GossipSub = GossipSub(nodeB)
+    var gossipC: GossipSub = GossipSub(nodeC)
+
+    check:
+      gossipC.mesh.peers("foobar") == 1
+
+    tryPublish await nodeA.publish("foobar", newSeq[byte](10000)), 1
+
+    await bFinished
+
+    # "check" alone isn't suitable for testing that a condition is true after some time has passed. Below we verify that
+    # peers A and C haven't received an IDONTWANT message from B, but we need wait some time for potential in flight messages to arrive.
+    await waitForHeartbeat()
+    check:
+      toSeq(gossipC.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
+      toSeq(gossipA.mesh.getOrDefault("foobar")).anyIt(it.iDontWants[^1].len == 0)
+
+  asyncTest "Peer must send right gosspipsub version":
+    func dumbMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok(newSeq[byte](10))
+    let node0 = generateNodes(1, gossip = true, msgIdProvider = dumbMsgIdProvider)[0]
+    let node1 = generateNodes(
+      1,
+      gossip = true,
+      msgIdProvider = dumbMsgIdProvider,
+      gossipSubVersion = GossipSubCodec_10,
+    )[0]
+
+    startNodesAndDeferStop(@[node0, node1])
+
+    await node0.switch.connect(
+      node1.switch.peerInfo.peerId, node1.switch.peerInfo.addrs
+    )
+
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    node0.subscribe("foobar", handler)
+    node1.subscribe("foobar", handler)
+    await waitSubGraph(@[node0, node1], "foobar")
+
+    var gossip0: GossipSub = GossipSub(node0)
+    var gossip1: GossipSub = GossipSub(node1)
+
+    checkUntilTimeout:
+      gossip0.mesh.getOrDefault("foobar").toSeq[0].codec == GossipSubCodec_10
+    checkUntilTimeout:
+      gossip1.mesh.getOrDefault("foobar").toSeq[0].codec == GossipSubCodec_10

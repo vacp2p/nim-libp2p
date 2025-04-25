@@ -12,10 +12,11 @@
 import std/[sequtils, enumerate]
 import stew/byteutils
 import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache]
-import ../../libp2p/protocols/pubsub/rpc/[message]
+import sugar
+import chronicles
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
+import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
 import ../../libp2p/muxers/muxer
-import ../../libp2p/protocols/pubsub/rpc/protobuf
 import ../helpers, ../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
@@ -259,37 +260,473 @@ suite "GossipSub Message Handling":
 
     await teardownTest(gossip0, gossip1)
 
-asyncTest "messages are not sent back to source or forwarding peer":
-  let
-    numberOfNodes = 3
-    topic = "foobar"
-    nodes = generateNodes(numberOfNodes, gossip = true)
+  asyncTest "messages are not sent back to source or forwarding peer":
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
 
-  startNodesAndDeferStop(nodes)
+    startNodesAndDeferStop(nodes)
 
-  let (handlerFut0, handler0) = createCompleteHandler()
-  let (handlerFut1, handler1) = createCompleteHandler()
-  let (handlerFut2, handler2) = createCompleteHandler()
+    let (handlerFut0, handler0) = createCompleteHandler()
+    let (handlerFut1, handler1) = createCompleteHandler()
+    let (handlerFut2, handler2) = createCompleteHandler()
 
-  # Nodes are connected in a ring
-  await connectNodes(nodes[0], nodes[1])
-  await connectNodes(nodes[1], nodes[2])
-  await connectNodes(nodes[2], nodes[0])
+    # Nodes are connected in a ring
+    await connectNodes(nodes[0], nodes[1])
+    await connectNodes(nodes[1], nodes[2])
+    await connectNodes(nodes[2], nodes[0])
 
-  # And subscribed to the same topic
-  subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-  await waitForPeersInTable(
-    nodes, topic, newSeqWith(numberOfNodes, 2), PeerTableType.Mesh
-  )
+    # And subscribed to the same topic
+    subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
+    await waitForPeersInTable(
+      nodes, topic, newSeqWith(numberOfNodes, 2), PeerTableType.Mesh
+    )
 
-  # When node 0 sends a message
-  check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
-  await waitForHeartbeat()
+    # When node 0 sends a message
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
+    await waitForHeartbeat()
 
-  # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
-  let results =
-    await waitForStates(@[handlerFut0, handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
-  check:
-    results[0].isPending()
-    results[1].isCompleted()
-    results[2].isCompleted()
+    # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
+    let results =
+      await waitForStates(@[handlerFut0, handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
+    check:
+      results[0].isPending()
+      results[1].isCompleted()
+      results[2].isCompleted()
+
+  asyncTest "GossipSub validation should succeed":
+    var handlerFut = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      handlerFut.complete(true)
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[1], nodes[0], "foobar")
+    subs &= waitSub(nodes[0], nodes[1], "foobar")
+
+    await allFuturesThrowing(subs)
+
+    var validatorFut = newFuture[bool]()
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      check topic == "foobar"
+      validatorFut.complete(true)
+      result = ValidationResult.Accept
+
+    nodes[1].addValidator("foobar", validator)
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check (await validatorFut) and (await handlerFut)
+
+  asyncTest "GossipSub validation should fail (reject)":
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check false # if we get here, it should fail
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    await waitSubGraph(nodes, "foobar")
+
+    let gossip1 = GossipSub(nodes[0])
+    let gossip2 = GossipSub(nodes[1])
+
+    check:
+      gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
+      gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+
+    var validatorFut = newFuture[bool]()
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Reject
+      validatorFut.complete(true)
+
+    nodes[1].addValidator("foobar", validator)
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check (await validatorFut) == true
+
+  asyncTest "GossipSub validation should fail (ignore)":
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check false # if we get here, it should fail
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    await waitSubGraph(nodes, "foobar")
+
+    let gossip1 = GossipSub(nodes[0])
+    let gossip2 = GossipSub(nodes[1])
+
+    check:
+      gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
+      gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+
+    var validatorFut = newFuture[bool]()
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      result = ValidationResult.Ignore
+      validatorFut.complete(true)
+
+    nodes[1].addValidator("foobar", validator)
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check (await validatorFut) == true
+
+  asyncTest "GossipSub validation one fails and one succeeds":
+    var handlerFut = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foo"
+      handlerFut.complete(true)
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[1].subscribe("foo", handler)
+    nodes[1].subscribe("bar", handler)
+
+    var passed, failed: Future[bool] = newFuture[bool]()
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      result =
+        if topic == "foo":
+          passed.complete(true)
+          ValidationResult.Accept
+        else:
+          failed.complete(true)
+          ValidationResult.Reject
+
+    nodes[1].addValidator("foo", "bar", validator)
+    tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
+    tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
+
+    check ((await passed) and (await failed) and (await handlerFut))
+
+    let gossip1 = GossipSub(nodes[0])
+    let gossip2 = GossipSub(nodes[1])
+
+    check:
+      "foo" notin gossip1.mesh and gossip1.fanout["foo"].len == 1
+      "foo" notin gossip2.mesh and "foo" notin gossip2.fanout
+      "bar" notin gossip1.mesh and gossip1.fanout["bar"].len == 1
+      "bar" notin gossip2.mesh and "bar" notin gossip2.fanout
+
+  asyncTest "GossipSub's observers should run after message is sent, received and validated":
+    var
+      recvCounter = 0
+      sendCounter = 0
+      validatedCounter = 0
+
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc onRecv(peer: PubSubPeer, msgs: var RPCMsg) =
+      inc recvCounter
+
+    proc onSend(peer: PubSubPeer, msgs: var RPCMsg) =
+      inc sendCounter
+
+    proc onValidated(peer: PubSubPeer, msg: Message, msgId: MessageId) =
+      inc validatedCounter
+
+    let obs0 = PubSubObserver(onSend: onSend)
+    let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[0].addObserver(obs0)
+    nodes[1].addObserver(obs1)
+    nodes[1].subscribe("foo", handler)
+    nodes[1].subscribe("bar", handler)
+
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      result = if topic == "foo": ValidationResult.Accept else: ValidationResult.Reject
+
+    nodes[1].addValidator("foo", "bar", validator)
+
+    # Send message that will be accepted by the receiver's validator
+    tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
+
+    check:
+      recvCounter == 1
+      validatedCounter == 1
+      sendCounter == 1
+
+    # Send message that will be rejected by the receiver's validator
+    tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
+
+    check:
+      recvCounter == 2
+      validatedCounter == 1
+      sendCounter == 2
+
+  asyncTest "e2e - GossipSub send over mesh A -> B":
+    var passed: Future[bool] = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      passed.complete(true)
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+    await waitSub(nodes[0], nodes[1], "foobar")
+
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check await passed
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    var gossip2: GossipSub = GossipSub(nodes[1])
+
+    check:
+      "foobar" in gossip1.gossipsub
+      "foobar" in gossip2.gossipsub
+      gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
+      not gossip2.fanout.hasPeerId("foobar", gossip1.peerInfo.peerId)
+
+  asyncTest "e2e - GossipSub should not send to source & peers who already seen":
+    # 3 nodes: A, B, C
+    # A publishes, C relays, B is having a long validation
+    # so B should not send to anyone
+
+    let nodes = generateNodes(3, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    var cRelayed: Future[void] = newFuture[void]()
+    var bFinished: Future[void] = newFuture[void]()
+    var
+      aReceived = 0
+      cReceived = 0
+    proc handlerA(topic: string, data: seq[byte]) {.async.} =
+      inc aReceived
+      check aReceived < 2
+
+    proc handlerB(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    proc handlerC(topic: string, data: seq[byte]) {.async.} =
+      inc cReceived
+      check cReceived < 2
+      cRelayed.complete()
+
+    nodes[0].subscribe("foobar", handlerA)
+    nodes[1].subscribe("foobar", handlerB)
+    nodes[2].subscribe("foobar", handlerC)
+    await waitSubGraph(nodes, "foobar")
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    var gossip2: GossipSub = GossipSub(nodes[1])
+    var gossip3: GossipSub = GossipSub(nodes[2])
+
+    proc slowValidator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      try:
+        await cRelayed
+        # Empty A & C caches to detect duplicates
+        gossip1.seen = TimedCache[SaltedId].init()
+        gossip3.seen = TimedCache[SaltedId].init()
+        let msgId = toSeq(gossip2.validationSeen.keys)[0]
+        checkUntilTimeout(
+          try:
+            gossip2.validationSeen[msgId].len > 0
+          except KeyError:
+            false
+        )
+        result = ValidationResult.Accept
+        bFinished.complete()
+      except CatchableError:
+        raiseAssert "err on slowValidator"
+
+    nodes[1].addValidator("foobar", slowValidator)
+
+    checkUntilTimeout:
+      gossip1.mesh.getOrDefault("foobar").len == 2
+      gossip2.mesh.getOrDefault("foobar").len == 2
+      gossip3.mesh.getOrDefault("foobar").len == 2
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 2
+
+    await bFinished
+
+  asyncTest "e2e - GossipSub send over floodPublish A -> B":
+    var passed: Future[bool] = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      passed.complete(true)
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+
+    var gossip1: GossipSub = GossipSub(nodes[0])
+    gossip1.parameters.floodPublish = true
+    var gossip2: GossipSub = GossipSub(nodes[1])
+    gossip2.parameters.floodPublish = true
+
+    await connectNodesStar(nodes)
+
+    # nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+    await waitSub(nodes[0], nodes[1], "foobar")
+
+    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+
+    check await passed.wait(10.seconds)
+
+    check:
+      "foobar" in gossip1.gossipsub
+      "foobar" notin gossip2.gossipsub
+      not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
+
+  asyncTest "e2e - GossipSub floodPublish limit":
+    let
+      nodes = setupNodes(20)
+      gossip1 = GossipSub(nodes[0])
+
+    gossip1.parameters.floodPublish = true
+    gossip1.parameters.heartbeatInterval = milliseconds(700)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodes(nodes[1 ..^ 1], nodes[0])
+    await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, 17)
+
+  asyncTest "e2e - GossipSub floodPublish limit with bandwidthEstimatebps = 0":
+    let
+      nodes = setupNodes(20)
+      gossip1 = GossipSub(nodes[0])
+
+    gossip1.parameters.floodPublish = true
+    gossip1.parameters.heartbeatInterval = milliseconds(700)
+    gossip1.parameters.bandwidthEstimatebps = 0
+
+    startNodesAndDeferStop(nodes)
+    await connectNodes(nodes[1 ..^ 1], nodes[0])
+    await baseTestProcedure(nodes, gossip1, nodes.len - 1, nodes.len - 1)
+
+  asyncTest "e2e - GossipSub with multiple peers":
+    var runs = 10
+
+    let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    var seen: Table[string, int]
+    var seenFut = newFuture[void]()
+    for i in 0 ..< nodes.len:
+      let dialer = nodes[i]
+      var handler: TopicHandler
+      closureScope:
+        var peerName = $dialer.peerInfo.peerId
+        handler = proc(topic: string, data: seq[byte]) {.async.} =
+          seen.mgetOrPut(peerName, 0).inc()
+          check topic == "foobar"
+          if not seenFut.finished() and seen.len >= runs:
+            seenFut.complete()
+
+      dialer.subscribe("foobar", handler)
+    await waitSubGraph(nodes, "foobar")
+
+    tryPublish await wait(
+      nodes[0].publish("foobar", toBytes("from node " & $nodes[0].peerInfo.peerId)),
+      1.minutes,
+    ), 1
+
+    await wait(seenFut, 1.minutes)
+    check:
+      seen.len >= runs
+    for k, v in seen.pairs:
+      check:
+        v >= 1
+
+    for node in nodes:
+      var gossip = GossipSub(node)
+
+      check:
+        "foobar" in gossip.gossipsub
+
+  asyncTest "e2e - GossipSub with multiple peers (sparse)":
+    var runs = 10
+
+    let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesSparse(nodes)
+
+    var seen: Table[string, int]
+    var seenFut = newFuture[void]()
+
+    for i in 0 ..< nodes.len:
+      let dialer = nodes[i]
+      var handler: TopicHandler
+      capture dialer, i:
+        var peerName = $dialer.peerInfo.peerId
+        handler = proc(topic: string, data: seq[byte]) {.async.} =
+          try:
+            if peerName notin seen:
+              seen[peerName] = 0
+            seen[peerName].inc
+          except KeyError:
+            raiseAssert "seen checked before"
+          check topic == "foobar"
+          if not seenFut.finished() and seen.len >= runs:
+            seenFut.complete()
+
+      dialer.subscribe("foobar", handler)
+
+    await waitSubGraph(nodes, "foobar")
+    tryPublish await wait(
+      nodes[0].publish("foobar", toBytes("from node " & $nodes[0].peerInfo.peerId)),
+      1.minutes,
+    ), 1
+
+    await wait(seenFut, 60.seconds)
+    check:
+      seen.len >= runs
+    for k, v in seen.pairs:
+      check:
+        v >= 1
+
+    for node in nodes:
+      var gossip = GossipSub(node)
+      check:
+        "foobar" in gossip.gossipsub
+        gossip.fanout.len == 0
+        gossip.mesh["foobar"].len > 0

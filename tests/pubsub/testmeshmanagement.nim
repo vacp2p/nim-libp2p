@@ -10,9 +10,11 @@
 {.used.}
 
 import std/[sequtils]
+import stew/byteutils
 import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache]
-import ../helpers
+import chronicles
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../helpers, ../utils/[futures]
 
 suite "GossipSub Mesh Management":
   teardown:
@@ -324,3 +326,137 @@ suite "GossipSub Mesh Management":
         gossip.gossipsub[topic].len == expectedNumberOfPeers
         gossip.mesh[topic].len >= dLow and gossip.mesh[topic].len <= dHigh
         gossip.fanout.len == 0
+
+  asyncTest "GossipSub unsub - resub faster than backoff":
+    # For this test to work we'd require a way to disable fanout.
+    # There's not a way to toggle it, and mocking it didn't work as there's not a reliable mock available.
+    skip()
+    return
+
+    # Instantiate handlers and validators
+    var handlerFut0 = newFuture[bool]()
+    proc handler0(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      handlerFut0.complete(true)
+
+    var handlerFut1 = newFuture[bool]()
+    proc handler1(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      handlerFut1.complete(true)
+
+    var validatorFut = newFuture[bool]()
+    proc validator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      check topic == "foobar"
+      validatorFut.complete(true)
+      result = ValidationResult.Accept
+
+    # Setup nodes and start switches
+    let
+      nodes = generateNodes(2, gossip = true, unsubscribeBackoff = 5.seconds)
+      topic = "foobar"
+
+    # Connect nodes
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    # Subscribe both nodes to the topic and node1 (receiver) to the validator
+    nodes[0].subscribe(topic, handler0)
+    nodes[1].subscribe(topic, handler1)
+    nodes[1].addValidator("foobar", validator)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Wait for both nodes to verify others' subscription
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[1], nodes[0], topic)
+    subs &= waitSub(nodes[0], nodes[1], topic)
+    await allFuturesThrowing(subs)
+
+    # When unsubscribing and resubscribing in a short time frame, the backoff period should be triggered
+    nodes[1].unsubscribe(topic, handler1)
+    await sleepAsync(DURATION_TIMEOUT)
+    nodes[1].subscribe(topic, handler1)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Backoff is set to 5 seconds, and the amount of sleeping time since the unsubsribe until now is 3-4s~
+    # Meaning, the subscription shouldn't have been processed yet because it's still in backoff period
+    # When publishing under this condition
+    discard await nodes[0].publish("foobar", "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Then the message should not be received:
+    check:
+      validatorFut.toState().isPending()
+      handlerFut1.toState().isPending()
+      handlerFut0.toState().isPending()
+
+    validatorFut.reset()
+    handlerFut0.reset()
+    handlerFut1.reset()
+
+    # If we wait backoff period to end, around 1-2s
+    await waitForMesh(nodes[0], nodes[1], topic, 3.seconds)
+
+    discard await nodes[0].publish("foobar", "Hello!".toBytes())
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # Then the message should be received
+    check:
+      validatorFut.toState().isCompleted()
+      handlerFut1.toState().isCompleted()
+      handlerFut0.toState().isPending()
+
+  asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[1].subscribe("foobar", handler)
+
+    let gossip1 = GossipSub(nodes[0])
+    let gossip2 = GossipSub(nodes[1])
+
+    checkUntilTimeout:
+      "foobar" in gossip2.topics
+      "foobar" in gossip1.gossipsub
+      gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
+
+  asyncTest "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    nodes[0].subscribe("foobar", handler)
+    nodes[1].subscribe("foobar", handler)
+
+    var subs: seq[Future[void]]
+    subs &= waitSub(nodes[1], nodes[0], "foobar")
+    subs &= waitSub(nodes[0], nodes[1], "foobar")
+
+    await allFuturesThrowing(subs)
+
+    let
+      gossip1 = GossipSub(nodes[0])
+      gossip2 = GossipSub(nodes[1])
+
+    check:
+      "foobar" in gossip1.topics
+      "foobar" in gossip2.topics
+
+      "foobar" in gossip1.gossipsub
+      "foobar" in gossip2.gossipsub
+
+      gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId) or
+        gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
+
+      gossip2.gossipsub.hasPeerId("foobar", gossip1.peerInfo.peerId) or
+        gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
