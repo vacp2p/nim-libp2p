@@ -445,3 +445,6 @@ proc baseTestProcedure*(
 
   # use a different length so that the message is not equal to the last
   check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
+
+proc `$`*(peer: PubSubPeer): string =
+  shortLog(peer)
