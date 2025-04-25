@@ -16,7 +16,7 @@ import ../../libp2p/protocols/pubsub/[gossipsub, mcache]
 import ../../libp2p/protocols/pubsub/rpc/[message]
 import ../../libp2p/muxers/muxer
 import ../../libp2p/protocols/pubsub/rpc/protobuf
-import ../helpers
+import ../helpers, ../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
 
@@ -258,3 +258,38 @@ suite "GossipSub Message Handling":
     check receivedMessages[].len == 1
 
     await teardownTest(gossip0, gossip1)
+
+asyncTest "messages are not sent back to source or forwarding peer":
+  let
+    numberOfNodes = 3
+    topic = "foobar"
+    nodes = generateNodes(numberOfNodes, gossip = true)
+
+  startNodesAndDeferStop(nodes)
+
+  let (handlerFut0, handler0) = createCompleteHandler()
+  let (handlerFut1, handler1) = createCompleteHandler()
+  let (handlerFut2, handler2) = createCompleteHandler()
+
+  # Nodes are connected in a ring
+  await connectNodes(nodes[0], nodes[1])
+  await connectNodes(nodes[1], nodes[2])
+  await connectNodes(nodes[2], nodes[0])
+
+  # And subscribed to the same topic
+  subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
+  await waitForPeersInTable(
+    nodes, topic, newSeqWith(numberOfNodes, 2), PeerTableType.Mesh
+  )
+
+  # When node 0 sends a message
+  check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
+  await waitForHeartbeat()
+
+  # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
+  let results =
+    await waitForStates(@[handlerFut0, handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
+  check:
+    results[0].isPending()
+    results[1].isCompleted()
+    results[2].isCompleted()

@@ -268,3 +268,59 @@ suite "GossipSub Mesh Management":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  asyncTest "dont prune peers if mesh len is less than d_high":
+    let
+      numberOfNodes = 5
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+
+    let expectedNumberOfPeers = numberOfNodes - 1
+    await waitForPeersInTable(
+      nodes,
+      topic,
+      newSeqWith(numberOfNodes, expectedNumberOfPeers),
+      PeerTableType.Gossipsub,
+    )
+
+    for i in 0 ..< numberOfNodes:
+      var gossip = GossipSub(nodes[i])
+      check:
+        gossip.gossipsub[topic].len == expectedNumberOfPeers
+        gossip.mesh[topic].len == expectedNumberOfPeers
+        gossip.fanout.len == 0
+
+  asyncTest "prune peers if mesh len is higher than d_high":
+    let
+      numberOfNodes = 15
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+
+    let
+      expectedNumberOfPeers = numberOfNodes - 1
+      dHigh = 12
+      d = 6
+      dLow = 4
+
+    await waitForPeersInTable(
+      nodes,
+      topic,
+      newSeqWith(numberOfNodes, expectedNumberOfPeers),
+      PeerTableType.Gossipsub,
+    )
+
+    for i in 0 ..< numberOfNodes:
+      var gossip = GossipSub(nodes[i])
+
+      check:
+        gossip.gossipsub[topic].len == expectedNumberOfPeers
+        gossip.mesh[topic].len >= dLow and gossip.mesh[topic].len <= dHigh
+        gossip.fanout.len == 0

@@ -4,7 +4,7 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
   libp2p_pubsub_anonymize {.booldefine.} = false
 
-import hashes, random, tables, sets, sequtils
+import hashes, random, tables, sets, sequtils, sugar
 import chronos, stew/[byteutils, results], chronos/ratelimit
 import
   ../../libp2p/[
@@ -361,3 +361,47 @@ template tryPublish*(
 
 proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
+
+proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
+  discard
+
+proc createCompleteHandler*(): (
+  Future[bool], proc(topic: string, data: seq[byte]) {.async.}
+) =
+  var fut = newFuture[bool]()
+  proc handler(topic: string, data: seq[byte]) {.async.} =
+    fut.complete(true)
+
+  return (fut, handler)
+
+proc addIHaveObservers*(nodes: seq[auto], topic: string, receivedIHaves: ref seq[int]) =
+  let numberOfNodes = nodes.len
+  receivedIHaves[] = repeat(0, numberOfNodes)
+
+  for i in 0 ..< numberOfNodes:
+    var pubsubObserver: PubSubObserver
+    capture i:
+      let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+        if msgs.control.isSome:
+          let iHave = msgs.control.get.ihave
+          if iHave.len > 0:
+            for msg in iHave:
+              if msg.topicID == topic:
+                receivedIHaves[i] += 1
+      pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+    nodes[i].addObserver(pubsubObserver)
+
+proc addIDontWantObservers*(nodes: seq[auto], receivedIDontWants: ref seq[int]) =
+  let numberOfNodes = nodes.len
+  receivedIDontWants[] = repeat(0, numberOfNodes)
+
+  for i in 0 ..< numberOfNodes:
+    var pubsubObserver: PubSubObserver
+    capture i:
+      let checkForIDontWant = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+        if msgs.control.isSome:
+          let iDontWant = msgs.control.get.idontwant
+          if iDontWant.len > 0:
+            receivedIDontWants[i] += 1
+      pubsubObserver = PubSubObserver(onRecv: checkForIDontWant)
+    nodes[i].addObserver(pubsubObserver)

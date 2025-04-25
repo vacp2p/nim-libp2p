@@ -297,3 +297,177 @@ suite "GossipSub Gossip Protocol":
 
     await allFuturesThrowing(conns.mapIt(it.close()))
     await gossipSub.switch.stop()
+
+  asyncTest "messages sent to peers not in the mesh are propagated via gossip":
+    let
+      numberOfNodes = 5
+      topic = "foobar"
+      dValues = DValues(dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1))
+      nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
+
+    startNodesAndDeferStop(nodes)
+
+    # All nodes are checking for iHave messages
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
+
+    # And are interconnected
+    await connectNodesStar(nodes)
+
+    # And subscribed to the same topic
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForPeersInTable(
+      nodes, topic, newSeqWith(numberOfNodes, 4), PeerTableType.Gossipsub
+    )
+
+    # When node 0 sends a message
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
+    await waitForHeartbeat()
+
+    # At least one of the nodes should have received an iHave message
+    # The check is made this way because the mesh structure changes from run to run
+    let receivedIHaves = receivedIHavesRef[]
+    check:
+      anyIt(receivedIHaves, it > 0)
+
+  asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
+    let
+      numberOfNodes = 20
+      topic = "foobar"
+      dValues = DValues(
+        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(0)
+      )
+      nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        dValues = some(dValues),
+        gossipFactor = some(0.float),
+      )
+
+    startNodesAndDeferStop(nodes)
+
+    # All nodes are checking for iHave messages
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
+
+    # And are connected to node 0
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+
+    # And subscribed to the same topic
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # When node 0 sends a message
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
+    await waitForHeartbeat()
+
+    # None of the nodes should have received an iHave message
+    let receivedIHaves = receivedIHavesRef[]
+    check:
+      filterIt(receivedIHaves, it > 0).len == 0
+
+  asyncTest "adaptive gossip dissemination, with gossipFactor priority":
+    let
+      numberOfNodes = 20
+      topic = "foobar"
+      dValues = DValues(
+        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(4)
+      )
+      nodes = generateNodes(
+        numberOfNodes, gossip = true, dValues = some(dValues), gossipFactor = some(0.5)
+      )
+
+    startNodesAndDeferStop(nodes)
+
+    # All nodes are checking for iHave messages
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
+
+    # And are connected to node 0
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+
+    # And subscribed to the same topic
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
+
+    # When node 0 sends a message
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
+    await waitForHeartbeat(2)
+
+    # At least 8 of the nodes should have received an iHave message
+    # That's because the gossip factor is 0.5 over 16 available nodes
+    let receivedIHaves = receivedIHavesRef[]
+    check:
+      filterIt(receivedIHaves, it > 0).len >= 8
+
+  asyncTest "adaptive gossip dissemination, with dLazy priority":
+    let
+      numberOfNodes = 20
+      topic = "foobar"
+      dValues = DValues(
+        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(6)
+      )
+      nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        dValues = some(dValues),
+        gossipFactor = some(0.float),
+      )
+
+    startNodesAndDeferStop(nodes)
+
+    # All nodes are checking for iHave messages
+    var receivedIHavesRef = new seq[int]
+    addIHaveObservers(nodes, topic, receivedIHavesRef)
+
+    # And are connected to node 0
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+
+    # And subscribed to the same topic
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
+
+    # When node 0 sends a message
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
+    await waitForHeartbeat(2)
+
+    # At least 6 of the nodes should have received an iHave message
+    # That's because the dLazy is 6
+    let receivedIHaves = receivedIHavesRef[]
+    check:
+      filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
+
+  asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+
+    # All nodes are checking for iDontWant messages
+    var receivedIDontWantsRef = new seq[int]
+    addIDontWantObservers(nodes, receivedIDontWantsRef)
+
+    # And are connected in a line
+    await connectNodes(nodes[0], nodes[1])
+    await connectNodes(nodes[1], nodes[2])
+
+    # And subscribed to the same topic
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForPeersInTable(nodes, topic, @[1, 2, 1], PeerTableType.Gossipsub)
+
+    # When node 0 sends a large message
+    let largeMsg = newSeq[byte](1000)
+    check (await nodes[0].publish(topic, largeMsg)) == 1
+    await waitForHeartbeat()
+
+    # Only node 2 should have received the iDontWant message
+    let receivedIDontWants = receivedIDontWantsRef[]
+    check:
+      receivedIDontWants[0] == 0
+      receivedIDontWants[1] == 0
+      receivedIDontWants[2] == 1
