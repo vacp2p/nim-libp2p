@@ -358,3 +358,6 @@ template tryPublish*(
     await sleepAsync(wait)
 
   doAssert pubs >= require, "Failed to publish!"
+
+proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+  discard
