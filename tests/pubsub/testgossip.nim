@@ -18,7 +18,7 @@ import ../helpers
 
 const MsgIdSuccess = "msg id gen success"
 
-suite "GossipSub internal":
+suite "GossipSub Gossip Protocol":
   teardown:
     checkTrackers()
 

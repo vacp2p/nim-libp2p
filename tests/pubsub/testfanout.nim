@@ -14,7 +14,7 @@ import utils
 import ../../libp2p/protocols/pubsub/[gossipsub]
 import ../helpers
 
-suite "GossipSub internal":
+suite "GossipSub Fanout Management":
   teardown:
     checkTrackers()
 
