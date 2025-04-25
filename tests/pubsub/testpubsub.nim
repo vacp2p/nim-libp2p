@@ -1,5 +1,6 @@
 {.used.}
 
 import
-  testfanout, testgossip, testmeshmanagement, testmessagehandling, testscoring,
-  testfloodsub, testgossipsub, testgossipsub2, testmcache, testtimedcache, testmessage
+  testgossipsubfanout, testgossipsubgossip, testgossipsubmeshmanagement,
+  testgossipsubmessagehandling, testgossipsubscoring, testfloodsub, testmcache,
+  testtimedcache, testmessage

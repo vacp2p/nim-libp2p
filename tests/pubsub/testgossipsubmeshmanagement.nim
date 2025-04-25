@@ -460,3 +460,63 @@ suite "GossipSub Mesh Management":
 
       gossip2.gossipsub.hasPeerId("foobar", gossip1.peerInfo.peerId) or
         gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
+
+  asyncTest "GossipSub invalid topic subscription":
+    var handlerFut = newFuture[bool]()
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      check topic == "foobar"
+      handlerFut.complete(true)
+
+    let nodes = generateNodes(2, gossip = true)
+
+    startNodesAndDeferStop(nodes)
+
+    # We must subscribe before setting the validator
+    nodes[0].subscribe("foobar", handler)
+
+    var gossip = GossipSub(nodes[0])
+    let invalidDetected = newFuture[void]()
+    gossip.subscriptionValidator = proc(topic: string): bool =
+      if topic == "foobar":
+        try:
+          invalidDetected.complete()
+        except:
+          raise newException(Defect, "Exception during subscriptionValidator")
+        false
+      else:
+        true
+
+    await connectNodesStar(nodes)
+
+    nodes[1].subscribe("foobar", handler)
+
+    await invalidDetected.wait(10.seconds)
+
+  asyncTest "GossipSub test directPeers":
+    let nodes = generateNodes(2, gossip = true)
+    startNodesAndDeferStop(nodes)
+
+    await GossipSub(nodes[0]).addDirectPeer(
+      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
+    )
+
+    let invalidDetected = newFuture[void]()
+    GossipSub(nodes[0]).subscriptionValidator = proc(topic: string): bool =
+      if topic == "foobar":
+        try:
+          invalidDetected.complete()
+        except:
+          raise newException(Defect, "Exception during subscriptionValidator")
+        false
+      else:
+        true
+
+    # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
+    ### await connectNodesStar(nodes)
+
+    proc handler(topic: string, data: seq[byte]) {.async.} =
+      discard
+
+    nodes[1].subscribe("foobar", handler)
+
+    await invalidDetected.wait(10.seconds)
