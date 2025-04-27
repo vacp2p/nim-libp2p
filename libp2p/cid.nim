@@ -41,6 +41,7 @@ const ContentIdsList = [
   multiCodec("dag-pb"),
   multiCodec("dag-cbor"),
   multiCodec("dag-json"),
+  multiCodec("libp2p-key"),
   multiCodec("git-raw"),
   multiCodec("eth-block"),
   multiCodec("eth-block-list"),
