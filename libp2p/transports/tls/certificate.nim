@@ -55,10 +55,10 @@ type EncodingFormat* = enum
 proc cert_format_t(self: EncodingFormat): cert_format_t =
   if self == EncodingFormat.DER: CERT_FORMAT_DER else: CERT_FORMAT_PEM
 
-proc toCertBuffer(self: seq[uint8]): cert_buffer =
+proc toCertBuffer*(self: seq[uint8]): cert_buffer =
   cert_buffer(data: self[0].unsafeAddr, length: self.len.csize_t)
 
-proc toSeq(self: ptr cert_buffer): seq[byte] =
+proc toSeq*(self: ptr cert_buffer): seq[byte] =
   toOpenArray(cast[ptr UncheckedArray[byte]](self.data), 0, self.length.int - 1).toSeq()
 
 # Initialize entropy and DRBG contexts at the module level
