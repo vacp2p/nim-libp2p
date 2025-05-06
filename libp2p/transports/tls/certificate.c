@@ -960,3 +960,132 @@ void cert_free_key(cert_key_t key) {
   EVP_PKEY_free(k->pkey);
   free(k);
 }
+
+// Function to check if a Common Name is correct
+// each label should have <= 63 characters
+// the whole CN should have <= 253 characters
+cert_error_t check_cn(const char *cn) {
+  cert_error_t ret_code = CERT_SUCCESS;
+
+  if (!cn || strlen(cn) == 0) {
+    return CERT_ERROR_CN_EMPTY;
+  }
+  if (strlen(cn) > 253) {
+    return CERT_ERROR_CN_TOO_LONG;
+  }
+
+  char *cn_copy = strdup(cn);
+  char *cn_copy_orig = cn_copy;
+
+  // trim trailing dot if any before checking
+  size_t len = strlen(cn_copy);
+  if (len > 0 && cn_copy[len - 1] == '.') {
+    cn_copy[len - 1] = '\0';
+  }
+
+  char *label;
+  char *last = NULL;
+  char *ptr = cn_copy;
+
+  while ((label = strtok(ptr, ".")) != NULL) {
+    if (last && last + strlen(last) + 1 != label) {
+      // empty label (e.g., "example..com")
+      ret_code = CERT_ERROR_CN_EMPTY_LABEL;
+      break;
+    }
+    if (strlen(label) > 63) {
+      ret_code = CERT_ERROR_CN_LABEL_TOO_LONG;
+      break;
+    }
+    last = label;
+    ptr = NULL;
+  }
+
+  free(cn_copy_orig);
+  return ret_code;
+}
+
+cert_error_t cert_signing_req(const char *cn, cert_key_t key, cert_buffer **csr_buffer) {
+  cert_error_t ret_code = CERT_SUCCESS;
+  X509_REQ *x509_req = NULL;
+  X509_NAME *name = NULL;
+  X509_EXTENSION *ext = NULL;
+  X509V3_CTX ctx;
+  STACK_OF(X509_EXTENSION) *exts = NULL;
+  unsigned char *der = NULL;
+  size_t der_len = 0;
+
+  ret_code = check_cn(cn);
+  if (ret_code != CERT_SUCCESS) {
+    goto cleanup;
+  }
+
+  if (!key || !(key->pkey)) {
+    ret_code = CERT_ERROR_NO_PUBKEY;
+    goto cleanup;
+  }
+  EVP_PKEY *pkey = key->pkey;
+
+  x509_req = X509_REQ_new();
+  if (!x509_req) {
+    ret_code = CERT_ERROR_X509_REQ_GEN;
+    goto cleanup;
+  }
+
+  if (!X509_REQ_set_pubkey(x509_req, pkey)) {
+    ret_code = CERT_ERROR_PUBKEY_SET;
+    goto cleanup;
+  }
+
+  // Build SAN extension
+  X509V3_set_ctx(&ctx, NULL, NULL, x509_req, NULL, 0);
+  char san_str[258]; // max of 253 from cn + 4 "DNS:" + \0
+  snprintf(san_str, sizeof(san_str), "DNS:%s", cn);
+
+  ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_subject_alt_name, san_str);
+  if (!ext) {
+    ret_code = CERT_ERROR_X509_SAN;
+    goto cleanup;
+  }
+
+  exts = sk_X509_EXTENSION_new_null();
+  if (!exts || !sk_X509_EXTENSION_push(exts, ext)) {
+    ret_code = CERT_ERROR_X509_SAN;
+    goto cleanup;
+  }
+
+  if (!X509_REQ_add_extensions(x509_req, exts)) {
+    ret_code = CERT_ERROR_X509_SAN;
+    goto cleanup;
+  }
+
+  if (!X509_REQ_sign(x509_req, pkey, EVP_sha256())) {
+    ret_code = CERT_ERROR_SIGN;
+    goto cleanup;
+  }
+
+  der_len = i2d_X509_REQ(x509_req, &der);
+  if (der_len < 0) {
+    ret_code = CERT_ERROR_X509_REQ_DER;
+    goto cleanup;
+  }
+
+  ret_code = init_cert_buffer(csr_buffer, der, der_len);
+  if (ret_code < 0) {
+    goto cleanup;
+  }
+
+cleanup:
+  if (exts)
+    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+  if (x509_req)
+    X509_REQ_free(x509_req);
+  if (der)
+    OPENSSL_free(der);
+  if (ret_code != CERT_SUCCESS && csr_buffer) {
+    cert_free_buffer(*csr_buffer);
+    *csr_buffer = NULL;
+  }
+
+  return ret_code;
+}

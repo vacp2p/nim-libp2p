@@ -1,7 +1,8 @@
 import unittest2
 
-import times
+import times, base64
 import ../../../libp2p/transports/tls/certificate
+import ../../../libp2p/transports/tls/certificate_ffi
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/peerid
 
@@ -106,6 +107,56 @@ suite "Test vectors":
 
     # should not verify
     check not cert.verify()
+
+  test "CSR generation":
+    var certKey: cert_key_t
+    var certCtx: cert_context_t
+    var derCSR: ptr cert_buffer = nil
+
+    check cert_init_drbg("seed".cstring, 4, certCtx.addr) == CERT_SUCCESS
+    check cert_generate_key(certCtx, certKey.addr) == CERT_SUCCESS
+
+    check cert_signing_req("my.domain.string".cstring, certKey, derCSR.addr) ==
+      CERT_SUCCESS
+
+    check cert_signing_req(
+      "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaa".cstring,
+        # 253 characters, no labels longer than 63, okay
+      certKey,
+      derCSR.addr,
+    ) == CERT_SUCCESS
+
+    check cert_signing_req(
+      "my.domain.".cstring, # domain ending in ".", okay
+      certKey,
+      derCSR.addr,
+    ) == CERT_SUCCESS
+
+    check cert_signing_req(
+      "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".cstring,
+        # 254 characters, too long
+      certKey,
+      derCSR.addr,
+    ) == -48 # CERT_ERROR_CN_TOO_LONG
+
+    check cert_signing_req(
+      "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".cstring,
+        # 64 character label, too long
+      certKey,
+      derCSR.addr,
+    ) == -49 # CERT_ERROR_CN_LABEL_TOO_LONG
+
+    check cert_signing_req(
+      "my..empty.label.domain".cstring, # domain with empty label
+      certKey,
+      derCSR.addr,
+    ) == -50 # CERT_ERROR_CN_EMPTY_LABEL
+
+    check cert_signing_req(
+      "".cstring, # domain with empty cn
+      certKey,
+      derCSR.addr,
+    ) == -51 # CERT_ERROR_CN_EMPTY
 
 suite "utilities test":
   test "parseCertTime":
