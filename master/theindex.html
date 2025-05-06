@@ -755,6 +755,10 @@ window.addEventListener('DOMContentLoaded', main);
                     format: cert_format_t): cert_error_t" href="libp2p/transports/tls/certificate_ffi.html#cert_serialize_pubk%2Ccert_key_t%2Cptr.ptr.cert_buffer%2Ccert_format_t">certificate_ffi: cert_serialize_pubk(key: cert_key_t; out_arg: ptr ptr cert_buffer;
                     format: cert_format_t): cert_error_t</a></li>
           </ul></dd>
+<dt><a name="cert_signing_req" href="#cert_signing_req"><span>cert_signing_req:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="certificate_ffi: cert_signing_req(cn: cstring; key: cert_key_t; csr_buffer: ptr ptr cert_buffer): cert_error_t" href="libp2p/transports/tls/certificate_ffi.html#cert_signing_req%2Ccstring%2Ccert_key_t%2Cptr.ptr.cert_buffer">certificate_ffi: cert_signing_req(cn: cstring; key: cert_key_t; csr_buffer: ptr ptr cert_buffer): cert_error_t</a></li>
+          </ul></dd>
 <dt><a name="CERT_SUCCESS" href="#CERT_SUCCESS"><span>CERT_SUCCESS:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="certificate_ffi: CERT_SUCCESS" href="libp2p/transports/tls/certificate_ffi.html#CERT_SUCCESS">certificate_ffi: CERT_SUCCESS</a></li>
@@ -5329,6 +5333,10 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="varint: toBytes(vtype: typedesc[PB]; value: PBSomeVarint): auto" href="libp2p/varint.html#toBytes.t%2Ctypedesc%5BPB%5D%2CPBSomeVarint">varint: toBytes(vtype: typedesc[PB]; value: PBSomeVarint): auto</a></li>
           </ul></dd>
+<dt><a name="toCertBuffer" href="#toCertBuffer"><span>toCertBuffer:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="certificate: toCertBuffer(self: seq[uint8]): cert_buffer" href="libp2p/transports/tls/certificate.html#toCertBuffer%2Cseq%5Buint8%5D">certificate: toCertBuffer(self: seq[uint8]): cert_buffer</a></li>
+          </ul></dd>
 <dt><a name="toException" href="#toException"><span>toException:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="errors: toException(e: cstring): ref LPError" href="libp2p/errors.html#toException%2Ccstring">errors: toException(e: cstring): ref LPError</a></li>
@@ -5390,6 +5398,10 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="toSecret" href="#toSecret"><span>toSecret:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ecnist: toSecret(pubkey: EcPublicKey; seckey: EcPrivateKey; data: var openArray[byte]): int" href="libp2p/crypto/ecnist.html#toSecret%2CEcPublicKey%2CEcPrivateKey%2CopenArray%5Bbyte%5D">ecnist: toSecret(pubkey: EcPublicKey; seckey: EcPrivateKey; data: var openArray[byte]): int</a></li>
+          </ul></dd>
+<dt><a name="toSeq" href="#toSeq"><span>toSeq:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="certificate: toSeq(self: ptr cert_buffer): seq[byte]" href="libp2p/transports/tls/certificate.html#toSeq%2Cptr.cert_buffer">certificate: toSeq(self: ptr cert_buffer): seq[byte]</a></li>
           </ul></dd>
 <dt><a name="toString" href="#toString"><span>toString:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -6056,7 +6068,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-05-05 12:52:09 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-05-06 18:59:19 UTC</small>
       </div>
     </div>
   </div>

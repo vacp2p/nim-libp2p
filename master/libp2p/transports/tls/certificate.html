@@ -271,6 +271,16 @@ window.addEventListener("DOMContentLoaded", main2);
     title="publicKey(cert: P2pCertificate): PublicKey">publicKey(cert: P2pCertificate): PublicKey</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">toCertBuffer
+      <li><a class="reference" href="#toCertBuffer%2Cseq%5Buint8%5D"
+    title="toCertBuffer(self: seq[uint8]): cert_buffer">toCertBuffer(self: seq[uint8]): cert_buffer</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">toSeq
+      <li><a class="reference" href="#toSeq%2Cptr.cert_buffer"
+    title="toSeq(self: ptr cert_buffer): seq[byte]">toSeq(self: ptr cert_buffer): seq[byte]</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">verify
       <li><a class="reference" href="#verify%2CP2pCertificate"
     title="verify(self: P2pCertificate): bool">verify(self: P2pCertificate): bool</a></li>
@@ -539,6 +549,30 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="toCertBuffer,seq[uint8]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#toCertBuffer%2Cseq%5Buint8%5D"><span class="Identifier">toCertBuffer</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">uint8</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="certificate_ffi.html#cert_buffer"><span class="Identifier">cert_buffer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/tls/certificate.nim#L58"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/tls/certificate.nim#L58" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="toSeq,ptr.cert_buffer" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#toSeq%2Cptr.cert_buffer"><span class="Identifier">toSeq</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <span class="Keyword">ptr</span> <a href="certificate_ffi.html#cert_buffer"><span class="Identifier">cert_buffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/tls/certificate.nim#L61"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/tls/certificate.nim#L61" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="verify,P2pCertificate" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#verify%2CP2pCertificate"><span class="Identifier">verify</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="certificate.html#P2pCertificate"><span class="Identifier">P2pCertificate</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TimeEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
@@ -567,7 +601,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-05-05 12:52:05 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-05-06 18:59:14 UTC</small>
       </div>
     </div>
   </div>
