@@ -11,15 +11,14 @@
 {.push raises: [].}
 
 import std/[strformat]
-import stew/results
+import results
 import chronos, chronicles
 import
   ../protocol,
   ../../stream/streamseq,
   ../../stream/connection,
   ../../multiaddress,
-  ../../peerinfo,
-  ../../errors
+  ../../peerinfo
 
 export protocol, results
 
@@ -82,7 +81,7 @@ method readMessage*(
 ): Future[seq[byte]] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[SecureConn.readMessage] abstract method not implemented!")
 
 method getWrapped*(s: SecureConn): Connection =
   s.stream
@@ -92,7 +91,7 @@ method handshake*(
 ): Future[SecureConn] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Secure.handshake] abstract method not implemented!")
 
 proc handleConn(
     s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
@@ -143,7 +142,7 @@ proc handleConn(
 method init*(s: Secure) =
   procCall LPProtocol(s).init()
 
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling connection upgrade", proto, conn
     try:
       # We don't need the result but we
@@ -152,10 +151,10 @@ method init*(s: Secure) =
       trace "connection secured", conn
     except CancelledError as exc:
       warn "securing connection canceled", conn
-      await conn.close()
       raise exc
     except LPStreamError as exc:
       warn "securing connection failed", description = exc.msg, conn
+    finally:
       await conn.close()
 
   s.handler = handle

@@ -146,7 +146,7 @@ type
 
   PubsubTicket* = ref object
     topic*: string
-    handler*: P2PPubSubCallback
+    handler*: P2PPubSubCallback2
     transp*: StreamTransport
 
   PubSubMessage* = object
@@ -162,8 +162,10 @@ type
   .}
   P2PPubSubCallback* = proc(
     api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.gcsafe, async: (raises: [CatchableError]).}
-
+  ): Future[bool] {.gcsafe, raises: [CatchableError].}
+  P2PPubSubCallback2* = proc(
+    api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async: (raises: [CatchableError]).}
   DaemonError* = object of LPError
   DaemonRemoteError* = object of DaemonError
   DaemonLocalError* = object of DaemonError
@@ -970,6 +972,7 @@ proc openStream*(
     raise newException(DaemonLocalError, "Wrong message type!")
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
+  # must not specify raised exceptions as this is StreamCallback from chronos
   var api = getUserData[DaemonAPI](server)
   var message = await transp.recvMessage()
   var pb = initProtoBuffer(message)
@@ -1480,7 +1483,7 @@ proc pubsubLoop(
       break
 
 proc pubsubSubscribe*(
-    api: DaemonAPI, topic: string, handler: P2PPubSubCallback
+    api: DaemonAPI, topic: string, handler: P2PPubSubCallback2
 ): Future[PubsubTicket] {.
     async: (
       raises:
@@ -1507,6 +1510,18 @@ proc pubsubSubscribe*(
   except CancelledError as exc:
     await api.closeConnection(transp)
     raise exc
+
+proc pubsubSubscribe*(
+    api: DaemonAPI, topic: string, handler: P2PPubSubCallback
+): Future[PubsubTicket] {.
+    async: (raises: [CatchableError]), deprecated: "Use P2PPubSubCallback2 instead"
+.} =
+  proc wrap(
+      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
+  ): Future[bool] {.async: (raises: [CatchableError]).} =
+    await handler(api, ticket, message)
+
+  await pubsubSubscribe(api, topic, wrap)
 
 proc shortLog*(pinfo: PeerInfo): string =
   ## Get string representation of ``PeerInfo`` object.

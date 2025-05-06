@@ -29,6 +29,7 @@ type
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
+  TransportDialError* = object of TransportError
 
   Transport* = ref object of RootObj
     addrs*: seq[MultiAddress]
@@ -39,7 +40,9 @@ type
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
 
-method start*(self: Transport, addrs: seq[MultiAddress]) {.base, async.} =
+method start*(
+    self: Transport, addrs: seq[MultiAddress]
+) {.base, async: (raises: [LPError, TransportError]).} =
   ## start the transport
   ##
 
@@ -47,7 +50,7 @@ method start*(self: Transport, addrs: seq[MultiAddress]) {.base, async.} =
   self.addrs = addrs
   self.running = true
 
-method stop*(self: Transport) {.base, async.} =
+method stop*(self: Transport) {.base, async: (raises: []).} =
   ## stop and cleanup the transport
   ## including all outstanding connections
   ##
@@ -55,22 +58,28 @@ method stop*(self: Transport) {.base, async.} =
   trace "stopping transport", address = $self.addrs
   self.running = false
 
-method accept*(self: Transport): Future[Connection] {.base, gcsafe.} =
+method accept*(
+    self: Transport
+): Future[Connection] {.
+    gcsafe, base, async: (raises: [TransportError, CancelledError])
+.} =
   ## accept incoming connections
   ##
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Transport.accept] abstract method not implemented!")
 
 method dial*(
     self: Transport,
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.base, gcsafe.} =
+): Future[Connection] {.
+    base, gcsafe, async: (raises: [TransportError, CancelledError])
+.} =
   ## dial a peer
   ##
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Transport.dial] abstract method not implemented!")
 
 proc dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
@@ -85,7 +94,9 @@ method upgrade*(
   ##
   self.upgrader.upgrade(conn, peerId)
 
-method handles*(self: Transport, address: MultiAddress): bool {.base, gcsafe.} =
+method handles*(
+    self: Transport, address: MultiAddress
+): bool {.base, gcsafe, raises: [].} =
   ## check if transport supports the multiaddress
   ##
   # by default we skip circuit addresses to avoid
@@ -94,3 +105,17 @@ method handles*(self: Transport, address: MultiAddress): bool {.base, gcsafe.} =
     return false
 
   protocols.filterIt(it == multiCodec("p2p-circuit")).len == 0
+
+template safeCloseWait*(stream: untyped) =
+  if not isNil(stream):
+    try:
+      await noCancel stream.closeWait()
+    except CatchableError as e:
+      trace "Error closing", description = e.msg
+
+template safeClose*(stream: untyped) =
+  if not isNil(stream):
+    try:
+      await noCancel stream.close()
+    except CatchableError as e:
+      trace "Error closing", description = e.msg

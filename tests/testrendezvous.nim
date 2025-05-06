@@ -58,18 +58,22 @@ suite "RendezVous":
     await client.start()
     await remoteSwitch.start()
     await client.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
-    let res0 = await rdv.request("empty")
+    let res0 = await rdv.request(Opt.some("empty"))
     check res0.len == 0
+
     await rdv.advertise("foo")
-    let res1 = await rdv.request("foo")
+    let res1 = await rdv.request(Opt.some("foo"))
     check:
       res1.len == 1
       res1[0] == client.peerInfo.signedPeerRecord.data
-    let res2 = await rdv.request("bar")
+
+    let res2 = await rdv.request(Opt.some("bar"))
     check res2.len == 0
+
     await rdv.unsubscribe("foo")
-    let res3 = await rdv.request("foo")
+    let res3 = await rdv.request(Opt.some("foo"))
     check res3.len == 0
+
     await allFutures(client.stop(), remoteSwitch.stop())
 
   asyncTest "Harder remote test":
@@ -88,17 +92,21 @@ suite "RendezVous":
     )
     await allFutures(rdvSeq.mapIt(it.advertise("foo")))
     var data = clientSeq.mapIt(it.peerInfo.signedPeerRecord.data)
-    let res1 = await rdvSeq[0].request("foo", 5)
+    let res1 = await rdvSeq[0].request(Opt.some("foo"), 5)
     check res1.len == 5
     for d in res1:
       check d in data
     data.keepItIf(it notin res1)
-    let res2 = await rdvSeq[0].request("foo")
+    let res2 = await rdvSeq[0].request(Opt.some("foo"))
     check res2.len == 5
     for d in res2:
       check d in data
-    let res3 = await rdvSeq[0].request("foo")
+    let res3 = await rdvSeq[0].request(Opt.some("foo"))
     check res3.len == 0
+    let res4 = await rdvSeq[0].request()
+    check res4.len == 11
+    let res5 = await rdvSeq[0].request(Opt.none(string))
+    check res5.len == 11
     await remoteSwitch.stop()
     await allFutures(clientSeq.mapIt(it.stop()))
 
@@ -116,9 +124,9 @@ suite "RendezVous":
     await clientA.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
     await clientB.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
     await rdvA.advertise("foo")
-    let res1 = await rdvA.request("foo")
+    let res1 = await rdvA.request(Opt.some("foo"))
     await rdvB.advertise("foo")
-    let res2 = await rdvA.request("foo")
+    let res2 = await rdvA.request(Opt.some("foo"))
     check:
       res2.len == 1
       res2[0] == clientB.peerInfo.signedPeerRecord.data
@@ -128,17 +136,17 @@ suite "RendezVous":
     let
       rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
       switch = createSwitch(rdv)
-    expect RendezVousError:
-      discard await rdv.request("A".repeat(300))
-    expect RendezVousError:
-      discard await rdv.request("A", -1)
-    expect RendezVousError:
-      discard await rdv.request("A", 3000)
-    expect RendezVousError:
+    expect AdvertiseError:
+      discard await rdv.request(Opt.some("A".repeat(300)))
+    expect AdvertiseError:
+      discard await rdv.request(Opt.some("A"), -1)
+    expect AdvertiseError:
+      discard await rdv.request(Opt.some("A"), 3000)
+    expect AdvertiseError:
       await rdv.advertise("A".repeat(300))
-    expect RendezVousError:
+    expect AdvertiseError:
       await rdv.advertise("A", 73.hours)
-    expect RendezVousError:
+    expect AdvertiseError:
       await rdv.advertise("A", 30.seconds)
 
   test "Various config error":

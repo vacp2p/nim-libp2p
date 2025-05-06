@@ -171,6 +171,18 @@ proc ip6zoneVB(vb: var VBuffer): bool =
   ## IPv6 validateBuffer() implementation.
   pathValidateBufferNoSlash(vb)
 
+proc memoryStB(s: string, vb: var VBuffer): bool =
+  ## Memory stringToBuffer() implementation.
+  pathStringToBuffer(s, vb)
+
+proc memoryBtS(vb: var VBuffer, s: var string): bool =
+  ## Memory bufferToString() implementation.
+  pathBufferToString(vb, s)
+
+proc memoryVB(vb: var VBuffer): bool =
+  ## Memory validateBuffer() implementation.
+  pathValidateBuffer(vb)
+
 proc portStB(s: string, vb: var VBuffer): bool =
   ## Port number stringToBuffer() implementation.
   var port: array[2, byte]
@@ -355,6 +367,10 @@ const
   )
   TranscoderDNS* =
     Transcoder(stringToBuffer: dnsStB, bufferToString: dnsBtS, validateBuffer: dnsVB)
+  TranscoderMemory* = Transcoder(
+    stringToBuffer: memoryStB, bufferToString: memoryBtS, validateBuffer: memoryVB
+  )
+
   ProtocolsList = [
     MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderIP4),
     MAProtocol(mcodec: multiCodec("tcp"), kind: Fixed, size: 2, coder: TranscoderPort),
@@ -393,6 +409,9 @@ const
     MAProtocol(mcodec: multiCodec("p2p-websocket-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0),
+    MAProtocol(
+      mcodec: multiCodec("memory"), kind: Path, size: 0, coder: TranscoderMemory
+    ),
   ]
 
   DNSANY* = mapEq("dns")
@@ -452,6 +471,8 @@ const
   )
 
   CircuitRelay* = mapEq("p2p-circuit")
+
+  Memory* = mapEq("memory")
 
 proc initMultiAddressCodeTable(): Table[MultiCodec, MAProtocol] {.compileTime.} =
   for item in ProtocolsList:

@@ -11,7 +11,7 @@
 {.push public.}
 
 import std/sequtils
-import pkg/[chronos, chronicles, stew/results]
+import pkg/[chronos, chronicles, results]
 import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
 
 export peerid, multiaddress, crypto, routing_record, errors, results
@@ -22,7 +22,7 @@ type
   PeerInfoError* = object of LPError
 
   AddressMapper* = proc(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.
-    gcsafe, raises: []
+    gcsafe, async: (raises: [CancelledError])
   .} ## A proc that expected to resolve the listen addresses into dialable addresses
 
   PeerInfo* {.public.} = ref object
@@ -52,7 +52,7 @@ func shortLog*(p: PeerInfo): auto =
 chronicles.formatIt(PeerInfo):
   shortLog(it)
 
-proc update*(p: PeerInfo) {.async.} =
+proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   # p.addrs.len == 0 overrides addrs only if it is the first time update is being executed or if the field is empty.
   # p.addressMappers.len == 0 is for when all addressMappers have been removed,
   # and we wish to have addrs in its initial state, i.e., a copy of listenAddrs.

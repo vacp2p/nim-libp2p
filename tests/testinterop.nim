@@ -4,7 +4,7 @@ import ../libp2p/crypto/crypto, ../libp2p/protocols/connectivity/relay/[relay, c
 
 proc switchMplexCreator(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport =
+    prov: TransportProvider = proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true),
 ): Switch {.raises: [LPError].} =
@@ -27,7 +27,7 @@ proc switchMplexCreator(
 
 proc switchYamuxCreator(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport =
+    prov: TransportProvider = proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true),
 ): Switch {.raises: [LPError].} =

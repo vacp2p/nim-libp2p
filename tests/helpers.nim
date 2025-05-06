@@ -12,10 +12,12 @@ import ../libp2p/stream/chronosstream
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/secure/secure
 import ../libp2p/switch
-import ../libp2p/nameresolving/[nameresolver, mockresolver]
+import ../libp2p/nameresolving/mockresolver
 
-import "."/[asyncunit, errorhelpers]
-export asyncunit, errorhelpers, mockresolver
+import errorhelpers
+import utils/async_tests
+
+export async_tests, errorhelpers, mockresolver
 
 const
   StreamTransportTrackerName = "stream.transport"
@@ -47,7 +49,7 @@ template checkTrackers*() =
     {.push warning[BareExcept]: off.}
   try:
     GC_fullCollect()
-  except:
+  except CatchableError:
     discard
   when defined(nimHasWarnBareExcept):
     {.pop.}
@@ -89,25 +91,6 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   let testBufferStream = T(writeHandler: writeHandler)
   testBufferStream.initStream()
   testBufferStream
-
-proc bridgedConnections*(): (Connection, Connection) =
-  let
-    connA = TestBufferStream()
-    connB = TestBufferStream()
-  connA.dir = Direction.Out
-  connB.dir = Direction.In
-  connA.initStream()
-  connB.initStream()
-  connA.writeHandler = proc(
-      data: seq[byte]
-  ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-    connB.pushData(data)
-
-  connB.writeHandler = proc(
-      data: seq[byte]
-  ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-    connA.pushData(data)
-  return (connA, connB)
 
 macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
   ## Periodically checks a given condition until it is true or a timeout occurs.

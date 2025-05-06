@@ -18,14 +18,14 @@ import
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ./helpers
+import ./helpers, ./utils/[futures, async_tests]
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
   .new()
   .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
+  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
+  .withMemoryTransport()
   .withMplex()
   .withNoise()
   .withRendezVous(rdv)

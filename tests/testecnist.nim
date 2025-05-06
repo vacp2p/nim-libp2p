@@ -12,7 +12,7 @@
 import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, ecnist]
-import stew/results
+import results
 
 const
   TestsCount = 10 # number of random tests

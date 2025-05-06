@@ -76,7 +76,7 @@ import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utility
-import stew/results
+import results
 export results, utility
 
 # This is workaround for Nim's `import` bug

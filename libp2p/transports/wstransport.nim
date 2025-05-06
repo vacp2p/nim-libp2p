@@ -34,8 +34,11 @@ export transport, websock, results
 
 const DefaultHeadersTimeout = 3.seconds
 
-type WsStream = ref object of Connection
-  session: WSSession
+type
+  WsStream = ref object of Connection
+    session: WSSession
+
+  WsTransportError* = object of transport.TransportError
 
 method initStream*(s: WsStream) =
   if s.objName.len == 0:
@@ -116,7 +119,9 @@ type WsTransport* = ref object of Transport
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
 
-method start*(self: WsTransport, addrs: seq[MultiAddress]) {.async.} =
+method start*(
+    self: WsTransport, addrs: seq[MultiAddress]
+) {.async: (raises: [LPError, transport.TransportError]).} =
   ## listen on the transport
   ##
 
@@ -140,19 +145,22 @@ method start*(self: WsTransport, addrs: seq[MultiAddress]) {.async.} =
       else:
         false
 
+    let address = ma.initTAddress().tryGet()
+
     let httpserver =
-      if isWss:
-        TlsHttpServer.create(
-          address = ma.initTAddress().tryGet(),
-          tlsPrivateKey = self.tlsPrivateKey,
-          tlsCertificate = self.tlsCertificate,
-          flags = self.flags,
-          handshakeTimeout = self.handshakeTimeout,
-        )
-      else:
-        HttpServer.create(
-          ma.initTAddress().tryGet(), handshakeTimeout = self.handshakeTimeout
-        )
+      try:
+        if isWss:
+          TlsHttpServer.create(
+            address = address,
+            tlsPrivateKey = self.tlsPrivateKey,
+            tlsCertificate = self.tlsCertificate,
+            flags = self.flags,
+            handshakeTimeout = self.handshakeTimeout,
+          )
+        else:
+          HttpServer.create(address, handshakeTimeout = self.handshakeTimeout)
+      except CatchableError as exc:
+        raise (ref WsTransportError)(msg: exc.msg, parent: exc)
 
     self.httpservers &= httpserver
 
@@ -173,7 +181,7 @@ method start*(self: WsTransport, addrs: seq[MultiAddress]) {.async.} =
 
   self.running = true
 
-method stop*(self: WsTransport) {.async.} =
+method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport
   ##
 
@@ -210,7 +218,10 @@ method stop*(self: WsTransport) {.async.} =
 
 proc connHandler(
     self: WsTransport, stream: WSSession, secure: bool, dir: Direction
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [CatchableError]).} =
+  ## Returning CatchableError is fine because we later handle different exceptions.
+  ## 
+
   let observedAddr =
     try:
       let
@@ -225,21 +236,23 @@ proc connHandler(
     except CatchableError as exc:
       trace "Failed to create observedAddr", description = exc.msg
       if not (isNil(stream) and stream.stream.reader.closed):
-        await stream.close()
+        safeClose(stream)
       raise exc
 
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr))
 
   self.connections[dir].add(conn)
-  proc onClose() {.async.} =
-    await conn.session.stream.reader.join()
+  proc onClose() {.async: (raises: []).} =
+    await noCancel conn.session.stream.reader.join()
     self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
 
   asyncSpawn onClose()
   return conn
 
-method accept*(self: WsTransport): Future[Connection] {.async.} =
+method accept*(
+    self: WsTransport
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## accept a new WS connection
   ##
 
@@ -252,10 +265,15 @@ method accept*(self: WsTransport): Future[Connection] {.async.} =
   if self.acceptFuts.len <= 0:
     return
 
-  let
-    finished = await one(self.acceptFuts)
-    index = self.acceptFuts.find(finished)
+  let finished =
+    try:
+      await one(self.acceptFuts)
+    except ValueError:
+      raiseAssert("already checked with if")
+    except CancelledError as e:
+      raise e
 
+  let index = self.acceptFuts.find(finished)
   self.acceptFuts[index] = self.httpservers[index].accept()
 
   try:
@@ -268,7 +286,7 @@ method accept*(self: WsTransport): Future[Connection] {.async.} =
 
       return await self.connHandler(wstransp, isSecure, Direction.In)
     except CatchableError as exc:
-      await req.stream.closeWait()
+      await noCancel req.stream.closeWait()
       raise exc
   except WebSocketError as exc:
     debug "Websocket Error", description = exc.msg
@@ -291,21 +309,22 @@ method accept*(self: WsTransport): Future[Connection] {.async.} =
     debug "OS Error", description = exc.msg
   except CatchableError as exc:
     info "Unexpected error accepting connection", description = exc.msg
-    raise exc
+    raise newException(transport.TransportError, exc.msg, exc)
 
 method dial*(
     self: WsTransport,
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async.} =
+): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   ##
 
   trace "Dialing remote peer", address = $address
+  var transp: websock.WSSession
 
-  let
-    secure = WSS.match(address)
+  try:
+    let secure = WSS.match(address)
     transp = await WebSocket.connect(
       address.initTAddress().tryGet(),
       "",
@@ -313,14 +332,15 @@ method dial*(
       hostName = hostname,
       flags = self.tlsFlags,
     )
-
-  try:
     return await self.connHandler(transp, secure, Direction.Out)
-  except CatchableError as exc:
-    await transp.close()
-    raise exc
+  except CancelledError as e:
+    safeClose(transp)
+    raise e
+  except CatchableError as e:
+    safeClose(transp)
+    raise newException(transport.TransportDialError, e.msg, e)
 
-method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe.} =
+method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
       return WebSockets.match(address)

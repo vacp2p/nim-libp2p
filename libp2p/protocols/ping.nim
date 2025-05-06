@@ -51,7 +51,7 @@ proc new*(
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling ping", conn
       var buf: array[PingSize, byte]
@@ -61,6 +61,7 @@ method init*(p: Ping) =
       if not isNil(p.pingHandler):
         await p.pingHandler(conn.peerId)
     except CancelledError as exc:
+      trace "cancelled ping handler"
       raise exc
     except CatchableError as exc:
       trace "exception in ping handler", description = exc.msg, conn
@@ -68,7 +69,11 @@ method init*(p: Ping) =
   p.handler = handle
   p.codec = PingCodec
 
-proc ping*(p: Ping, conn: Connection): Future[Duration] {.async, public.} =
+proc ping*(
+    p: Ping, conn: Connection
+): Future[Duration] {.
+    public, async: (raises: [CancelledError, LPStreamError, WrongPingAckError])
+.} =
   ## Sends ping to `conn`, returns the delay
 
   trace "initiating ping", conn

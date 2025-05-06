@@ -10,10 +10,12 @@
 {.push raises: [].}
 
 import std/[sets, options, macros]
-import stew/[byteutils, results]
+import stew/byteutils
+import results
 
 export results
 
+## public pragma is marker of "public" api subject to stronger stability guarantees.
 template public*() {.pragma.}
 
 const ShortDumpMax = 12

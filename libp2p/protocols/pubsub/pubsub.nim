@@ -359,10 +359,14 @@ method getOrCreatePeer*(
       peer[].codec = protoNegotiated
     return peer[]
 
-  proc getConn(): Future[Connection] {.async: (raises: [GetConnDialError]).} =
+  proc getConn(): Future[Connection] {.
+      async: (raises: [CancelledError, GetConnDialError])
+  .} =
     try:
       return await p.switch.dial(peerId, protosToDial)
-    except CatchableError as e:
+    except CancelledError as exc:
+      raise exc
+    except DialFailedError as e:
       raise (ref GetConnDialError)(parent: e)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
@@ -585,7 +589,7 @@ method addValidator*(
 
 method removeValidator*(
     p: PubSub, topic: varargs[string], hook: ValidatorHandler
-) {.base, public.} =
+) {.base, public, gcsafe.} =
   for t in topic:
     p.validators.withValue(t, validators):
       validators[].excl(hook)
@@ -676,7 +680,9 @@ proc init*[PubParams: object | bool](
         topicsHigh: int.high,
       )
 
-  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
+  proc peerEventHandler(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
     if event.kind == PeerEventKind.Joined:
       pubsub.subscribePeer(peerId)
     else:

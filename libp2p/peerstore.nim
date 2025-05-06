@@ -160,10 +160,10 @@ proc updatePeerInfo*(
     peerStore[KeyBook][info.peerId] = pubkey
 
   info.agentVersion.withValue(agentVersion):
-    peerStore[AgentBook][info.peerId] = agentVersion.string
+    peerStore[AgentBook][info.peerId] = agentVersion
 
   info.protoVersion.withValue(protoVersion):
-    peerStore[ProtoVersionBook][info.peerId] = protoVersion.string
+    peerStore[ProtoVersionBook][info.peerId] = protoVersion
 
   if info.protos.len > 0:
     peerStore[ProtoBook][info.peerId] = info.protos
@@ -188,7 +188,16 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
     peerStore.del(peerStore.toClean[0])
     peerStore.toClean.delete(0)
 
-proc identify*(peerStore: PeerStore, muxer: Muxer) {.async.} =
+proc identify*(
+    peerStore: PeerStore, muxer: Muxer
+) {.
+    async: (
+      raises: [
+        CancelledError, IdentityNoMatchError, IdentityInvalidMsgError, MultiStreamError,
+        LPStreamError, MuxerError,
+      ]
+    )
+.} =
   # new stream for identify
   var stream = await muxer.newStream()
   if stream == nil:

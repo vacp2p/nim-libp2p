@@ -8,7 +8,7 @@ import ../libp2p/protocols/connectivity/relay/[relay, client, utils]
 type
   SwitchCreator = proc(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport =
+    prov: TransportProvider = proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true),
   ): Switch {.gcsafe, raises: [LPError].}
@@ -253,11 +253,19 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       var test = "TEST STRING"
 
       var testFuture = newFuture[string]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        var line = string.fromBytes(await conn.readLp(1024))
-        check line == test
-        testFuture.complete(line)
-        await conn.close()
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          var line = string.fromBytes(await conn.readLp(1024))
+          check line == test
+          testFuture.complete(line)
+        except CancelledError as e:
+          raise e
+        except CatchableError:
+          check false # should not be here
+        finally:
+          await conn.close()
 
       # custom proto
       var proto = new LPProtocol
@@ -288,11 +296,19 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       var test = "TEST STRING"
 
       var testFuture = newFuture[string]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        var line = string.fromBytes(await conn.readLp(1024))
-        check line == test
-        testFuture.complete(line)
-        await conn.close()
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          var line = string.fromBytes(await conn.readLp(1024))
+          check line == test
+          testFuture.complete(line)
+        except CancelledError as e:
+          raise e
+        except CatchableError:
+          check false # should not be here
+        finally:
+          await conn.close()
 
       # custom proto
       var proto = new LPProtocol
@@ -303,7 +319,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       let nativeNode = swCreator(
         ma = wsAddress,
-        prov = proc(upgr: Upgrade): Transport =
+        prov = proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
           WsTransport.new(upgr),
       )
 
@@ -343,7 +359,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
         .withRng(crypto.newRng())
         .withMplex()
         .withTransport(
-          proc(upgr: Upgrade): Transport =
+          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
             WsTransport.new(upgr)
         )
         .withNoise()
@@ -378,15 +394,23 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       var protos = @["/test-stream"]
 
       var testFuture = newFuture[void]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        check "test 1" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("test 2".toBytes())
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          check "test 1" == string.fromBytes(await conn.readLp(1024))
+          await conn.writeLp("test 2".toBytes())
 
-        check "test 3" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("test 4".toBytes())
+          check "test 3" == string.fromBytes(await conn.readLp(1024))
+          await conn.writeLp("test 4".toBytes())
 
-        testFuture.complete()
-        await conn.close()
+          testFuture.complete()
+        except CancelledError as e:
+          raise e
+        except CatchableError:
+          check false # should not be here
+        finally:
+          await conn.close()
 
       # custom proto
       var proto = new LPProtocol
@@ -422,15 +446,23 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       var count = 0
       var testFuture = newFuture[int]("test.future")
-      proc nativeHandler(conn: Connection, proto: string) {.async.} =
-        while count < 10:
-          var line = string.fromBytes(await conn.readLp(1024))
-          check line == test
-          await conn.writeLp(test.toBytes())
-          count.inc()
+      proc nativeHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          while count < 10:
+            var line = string.fromBytes(await conn.readLp(1024))
+            check line == test
+            await conn.writeLp(test.toBytes())
+            count.inc()
 
-        testFuture.complete(count)
-        await conn.close()
+          testFuture.complete(count)
+        except CancelledError as e:
+          raise e
+        except CatchableError:
+          check false # should not be here
+        finally:
+          await conn.close()
 
       # custom proto
       var proto = new LPProtocol
@@ -532,12 +564,20 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await daemonNode.close()
 
     asyncTest "DaemonSrc -> NativeRelay -> NativeDst":
-      proc customHandler(conn: Connection, proto: string) {.async.} =
-        check "line1" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("line2")
-        check "line3" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("line4")
-        await conn.close()
+      proc customHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          check "line1" == string.fromBytes(await conn.readLp(1024))
+          await conn.writeLp("line2")
+          check "line3" == string.fromBytes(await conn.readLp(1024))
+          await conn.writeLp("line4")
+        except CancelledError as e:
+          raise e
+        except CatchableError:
+          check false # should not be here
+        finally:
+          await conn.close()
 
       let protos = @["/customProto", RelayV1Codec]
       var customProto = new LPProtocol
@@ -571,12 +611,20 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       await daemonNode.close()
 
     asyncTest "NativeSrc -> DaemonRelay -> NativeDst":
-      proc customHandler(conn: Connection, proto: string) {.async.} =
-        check "line1" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("line2")
-        check "line3" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("line4")
-        await conn.close()
+      proc customHandler(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          check "line1" == string.fromBytes(await conn.readLp(1024))
+          await conn.writeLp("line2")
+          check "line3" == string.fromBytes(await conn.readLp(1024))
+          await conn.writeLp("line4")
+        except CancelledError as e:
+          raise e
+        except CatchableError:
+          check false # should not be here
+        finally:
+          await conn.close()
 
       let protos = @["/customProto", RelayV1Codec]
       var customProto = new LPProtocol

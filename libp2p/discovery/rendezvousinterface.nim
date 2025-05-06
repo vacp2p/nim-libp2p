@@ -23,15 +23,17 @@ type
 
 proc `==`*(a, b: RdvNamespace): bool {.borrow.}
 
-method request*(self: RendezVousInterface, pa: PeerAttributes) {.async.} =
-  var namespace = ""
+method request*(
+    self: RendezVousInterface, pa: PeerAttributes
+) {.async: (raises: [DiscoveryError, CancelledError]).} =
+  var namespace = Opt.none(string)
   for attr in pa:
     if attr.ofType(RdvNamespace):
-      namespace = string attr.to(RdvNamespace)
+      namespace = Opt.some(string attr.to(RdvNamespace))
     elif attr.ofType(DiscoveryService):
-      namespace = string attr.to(DiscoveryService)
+      namespace = Opt.some(string attr.to(DiscoveryService))
     elif attr.ofType(PeerId):
-      namespace = $attr.to(PeerId)
+      namespace = Opt.some($attr.to(PeerId))
     else:
       # unhandled type
       return
@@ -42,13 +44,15 @@ method request*(self: RendezVousInterface, pa: PeerAttributes) {.async.} =
       for address in pr.addresses:
         peer.add(address.address)
 
-      peer.add(DiscoveryService(namespace))
-      peer.add(RdvNamespace(namespace))
+      peer.add(DiscoveryService(namespace.get()))
+      peer.add(RdvNamespace(namespace.get()))
       self.onPeerFound(peer)
 
     await sleepAsync(self.timeToRequest)
 
-method advertise*(self: RendezVousInterface) {.async.} =
+method advertise*(
+    self: RendezVousInterface
+) {.async: (raises: [CancelledError, AdvertiseError]).} =
   while true:
     var toAdvertise: seq[string]
     for attr in self.toAdvertise:

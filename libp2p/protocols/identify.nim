@@ -13,8 +13,7 @@
 {.push raises: [].}
 
 import std/[sequtils, options, strutils, sugar]
-import stew/results
-import chronos, chronicles
+import results, chronos, chronicles
 import
   ../protobuf/minprotobuf,
   ../peerinfo,
@@ -148,12 +147,13 @@ proc new*(
   identify
 
 method init*(p: Identify) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
       await conn.writeLp(pb.buffer)
     except CancelledError as exc:
+      trace "cancelled identify handler"
       raise exc
     except CatchableError as exc:
       trace "exception in identify handler", description = exc.msg, conn
@@ -166,7 +166,12 @@ method init*(p: Identify) =
 
 proc identify*(
     self: Identify, conn: Connection, remotePeerId: PeerId
-): Future[IdentifyInfo] {.async.} =
+): Future[IdentifyInfo] {.
+    async: (
+      raises:
+        [IdentityInvalidMsgError, IdentityNoMatchError, LPStreamError, CancelledError]
+    )
+.} =
   trace "initiating identify", conn
   var message = await conn.readLp(64 * 1024)
   if len(message) == 0:
@@ -205,7 +210,7 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.pu
   identifypush
 
 proc init*(p: IdentifyPush) =
-  proc handle(conn: Connection, proto: string) {.async.} =
+  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling identify push", conn
     try:
       var message = await conn.readLp(64 * 1024)
@@ -224,6 +229,7 @@ proc init*(p: IdentifyPush) =
       if not isNil(p.identifyHandler):
         await p.identifyHandler(conn.peerId, identInfo)
     except CancelledError as exc:
+      trace "cancelled identify push handler"
       raise exc
     except CatchableError as exc:
       info "exception in identify push handler", description = exc.msg, conn
@@ -234,7 +240,9 @@ proc init*(p: IdentifyPush) =
   p.handler = handle
   p.codec = IdentifyPushCodec
 
-proc push*(p: IdentifyPush, peerInfo: PeerInfo, conn: Connection) {.async, public.} =
+proc push*(
+    p: IdentifyPush, peerInfo: PeerInfo, conn: Connection
+) {.public, async: (raises: [CancelledError, LPStreamError]).} =
   ## Send new `peerInfo`s to a connection
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
