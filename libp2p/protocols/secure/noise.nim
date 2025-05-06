@@ -20,7 +20,6 @@ import ../../peerid
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
-import ../../errors
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 

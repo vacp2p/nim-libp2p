@@ -12,7 +12,7 @@
 import unittest2
 import ../libp2p/protobuf/minprotobuf
 import ../libp2p/varint
-import stew/byteutils, strutils, sequtils
+import stew/byteutils, strutils
 
 suite "MinProtobuf test suite":
   const VarintVectors = [

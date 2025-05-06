@@ -12,8 +12,8 @@
 {.push raises: [].}
 
 import tables, hashes
-import multibase, multicodec, multihash, vbuffer, varint
-import stew/[base58, results]
+import multibase, multicodec, multihash, vbuffer, varint, results
+import stew/base58
 
 export results
 
@@ -41,6 +41,7 @@ const ContentIdsList = [
   multiCodec("dag-pb"),
   multiCodec("dag-cbor"),
   multiCodec("dag-json"),
+  multiCodec("libp2p-key"),
   multiCodec("git-raw"),
   multiCodec("eth-block"),
   multiCodec("eth-block-list"),

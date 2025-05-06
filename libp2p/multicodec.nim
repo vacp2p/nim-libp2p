@@ -13,7 +13,7 @@
 
 import tables, hashes
 import vbuffer
-import stew/results
+import results
 export results
 
 ## List of officially supported codecs can BE found here
@@ -404,6 +404,7 @@ const MultiCodecList = [
   # IPLD formats
   ("dag-pb", 0x70),
   ("dag-cbor", 0x71),
+  ("libp2p-key", 0x72),
   ("dag-json", 0x129),
   ("git-raw", 0x78),
   ("eth-block", 0x90),

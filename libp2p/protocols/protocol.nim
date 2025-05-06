@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import chronos, stew/results
+import chronos, results
 import ../stream/connection
 
 export results

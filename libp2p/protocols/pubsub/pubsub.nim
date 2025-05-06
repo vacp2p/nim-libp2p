@@ -589,7 +589,7 @@ method addValidator*(
 
 method removeValidator*(
     p: PubSub, topic: varargs[string], hook: ValidatorHandler
-) {.base, public.} =
+) {.base, public, gcsafe.} =
   for t in topic:
     p.validators.withValue(t, validators):
       validators[].excl(hook)

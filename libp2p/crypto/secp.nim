@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import bearssl/rand
-import secp256k1, stew/[byteutils, results], nimcrypto/[hash, sha2]
+import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
 
 export sha2, results, rand
 
