@@ -17,3 +17,5 @@ testutils;https://github.com/status-im/nim-testutils@#dfc4c1b39f9ded9baf6365014d
 unittest2;https://github.com/status-im/nim-unittest2@#2300fa9924a76e6c96bc4ea79d043e3a0f27120c
 websock;https://github.com/status-im/nim-websock@#f8ed9b40a5ff27ad02a3c237c4905b0924e3f982
 zlib;https://github.com/status-im/nim-zlib@#38b72eda9d70067df4a953f56b5ed59630f2a17b
+jwt;https://github.com/yglukhov/nim-jwt@#7da158687b86640da42639845f7144ac53b15c87
+bio;https://github.com/xzeshen/bio@#0f5ed58b31c678920b6b4f7c1783984e6660be97

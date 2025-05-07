@@ -20,6 +20,7 @@ import chronos, chronicles, metrics
 import
   stream/connection,
   transports/transport,
+  autotls/autotls,
   upgrademngrs/upgrade,
   multistream,
   multiaddress,
@@ -58,6 +59,7 @@ type
     acceptFuts: seq[Future[void]]
     dialer*: Dial
     peerStore*: PeerStore
+    autoTLSMgr*: AutoTLSManager
     nameResolver*: NameResolver
     started: bool
     services*: seq[Service]
@@ -369,6 +371,7 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
 
   await s.peerInfo.update()
   await s.ms.start()
+  await s.autoTLSMgr.start(s.peerInfo.peerId)
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
@@ -380,6 +383,7 @@ proc newSwitch*(
     connManager: ConnManager,
     ms: MultistreamSelect,
     peerStore: PeerStore,
+    autoTLSMgr: AutoTLSManager = nil,
     nameResolver: NameResolver = nil,
     services = newSeq[Service](),
 ): Switch {.raises: [LPError].} =
@@ -394,6 +398,7 @@ proc newSwitch*(
     peerStore: peerStore,
     dialer:
       Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nameResolver),
+    autoTLSMgr: autoTLSMgr,
     nameResolver: nameResolver,
     services: services,
   )
