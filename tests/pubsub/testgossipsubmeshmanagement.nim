@@ -531,10 +531,14 @@ suite "GossipSub Mesh Management":
       numberOfNodes = 2
       # First part of the hack: Weird dValues so peers are not GRAFTed automatically
       dValues = DValues(dLow: some(0), dHigh: some(0), d: some(0), dOut: some(-1))
+      testHeartbeatInterval = 500.milliseconds
       nodes = generateNodes(
-        numberOfNodes, gossip = true, verifySignature = false, dValues = some(dValues)
+        numberOfNodes,
+        gossip = true,
+        verifySignature = false,
+        dValues = some(dValues),
+        heartbeatInterval = testHeartbeatInterval,
       )
-      nodesFut = nodes.mapIt(it.switch.start())
       g0 = GossipSub(nodes[0])
       g1 = GossipSub(nodes[1])
       tg0 = cast[TestGossipSub](g0)
@@ -542,15 +546,14 @@ suite "GossipSub Mesh Management":
       p0 = tg1.getPubSubPeer(nodes[0].peerInfo.peerId)
       p1 = tg0.getPubSubPeer(nodes[1].peerInfo.peerId)
 
-    discard await allFinished(nodesFut)
+    startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
-    g0.subscribe(topic, voidTopicHandler)
-    g1.subscribe(topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await sleepAsync(testHeartbeatInterval)
 
     # Because of the hack-ish dValues, the peers are added to gossipsub but not GRAFTed to mesh
     check:
@@ -576,7 +579,7 @@ suite "GossipSub Mesh Management":
     g1.broadcast(@[p0], RPCMsg(control: some(graftMessage)), isHighPriority = false)
     # Minimal await to avoid heartbeat so that the GRAFT is due to the message
     # Despite this, it could happen that it's due to heartbeat, even if local tests didn't show that behaviour
-    await sleepAsync(300.milliseconds)
+    await sleepAsync(100.milliseconds)
 
     # Then the peers are GRAFTed
     check:
@@ -584,9 +587,6 @@ suite "GossipSub Mesh Management":
       g1.gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
       g0.mesh.hasPeerId(topic, nodes[1].peerInfo.peerId) == true
       g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
-
-    # Cleanup
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
 
   asyncTest "PRUNE messages correctly removes peers from mesh":
     # Given 2 nodes
@@ -597,8 +597,13 @@ suite "GossipSub Mesh Management":
         prune: @[ControlPrune(topicID: topic, peers: @[], backoff: uint64(backoff))]
       )
       numberOfNodes = 2
-      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      nodesFut = nodes.mapIt(it.switch.start())
+      testHeartbeatInterval = 500.milliseconds
+      nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        verifySignature = false,
+        heartbeatInterval = testHeartbeatInterval,
+      )
       g0 = GossipSub(nodes[0])
       g1 = GossipSub(nodes[1])
       tg0 = cast[TestGossipSub](g0)
@@ -606,15 +611,14 @@ suite "GossipSub Mesh Management":
       p0 = tg1.getPubSubPeer(nodes[0].peerInfo.peerId)
       p1 = tg0.getPubSubPeer(nodes[1].peerInfo.peerId)
 
-    discard await allFinished(nodesFut)
+    startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
-    g0.subscribe(topic, voidTopicHandler)
-    g1.subscribe(topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await sleepAsync(testHeartbeatInterval)
 
     check:
       g0.gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) == true
@@ -624,7 +628,7 @@ suite "GossipSub Mesh Management":
 
     # When a PRUNE message is sent
     g0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await sleepAsync(300.milliseconds)
+    await sleepAsync(100.milliseconds)
 
     # Then the peer is PRUNEd
     check:
@@ -635,7 +639,7 @@ suite "GossipSub Mesh Management":
 
     # When another PRUNE message is sent
     g1.broadcast(@[p0], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await sleepAsync(300.milliseconds)
+    await sleepAsync(100.milliseconds)
 
     # Then the peer is PRUNEd
     check:
@@ -644,17 +648,19 @@ suite "GossipSub Mesh Management":
       g0.mesh.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
       g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == false
 
-    # Cleanup
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
-
   asyncTest "Received GRAFT for non-subscribed topic":
     # Given 2 nodes
     let
       topic = "foo"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       numberOfNodes = 2
-      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      nodesFut = nodes.mapIt(it.switch.start())
+      testHeartbeatInterval = 500.milliseconds
+      nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        verifySignature = false,
+        heartbeatInterval = testHeartbeatInterval,
+      )
       n0 = nodes[0]
       n1 = nodes[1]
       g0 = GossipSub(n0)
@@ -662,14 +668,14 @@ suite "GossipSub Mesh Management":
       tg0 = cast[TestGossipSub](g0)
       tg1 = cast[TestGossipSub](g1)
 
-    discard await allFinished(nodesFut)
+    startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectNodesStar(nodes)
 
     # And only node0 subscribes to the topic
     n0.subscribe(topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await sleepAsync(testHeartbeatInterval)
 
     check:
       g0.topics.hasKey(topic) == true
@@ -682,7 +688,7 @@ suite "GossipSub Mesh Management":
     # When a GRAFT message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
-    await sleepAsync(500.milliseconds)
+    await sleepAsync(100.milliseconds)
 
     # Then the peer is not GRAFTed
     check:
@@ -693,9 +699,6 @@ suite "GossipSub Mesh Management":
       g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
       g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
 
-    # Cleanup
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
-
   asyncTest "Received PRUNE for non-subscribed topic":
     # Given 2 nodes
     let
@@ -703,8 +706,13 @@ suite "GossipSub Mesh Management":
       pruneMessage =
         ControlMessage(prune: @[ControlPrune(topicID: topic, peers: @[], backoff: 1)])
       numberOfNodes = 2
-      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      nodesFut = nodes.mapIt(it.switch.start())
+      testHeartbeatInterval = 500.milliseconds
+      nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        verifySignature = false,
+        heartbeatInterval = testHeartbeatInterval,
+      )
       n0 = nodes[0]
       n1 = nodes[1]
       g0 = GossipSub(n0)
@@ -712,14 +720,14 @@ suite "GossipSub Mesh Management":
       tg0 = cast[TestGossipSub](g0)
       tg1 = cast[TestGossipSub](g1)
 
-    discard await allFinished(nodesFut)
+    startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectNodesStar(nodes)
 
     # And only node0 subscribes to the topic
     n0.subscribe(topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await sleepAsync(testHeartbeatInterval)
 
     check:
       g0.topics.hasKey(topic) == true
@@ -732,7 +740,7 @@ suite "GossipSub Mesh Management":
     # When a PRUNE message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await sleepAsync(500.milliseconds)
+    await sleepAsync(100.milliseconds)
 
     # Then the peer is not PRUNEd
     check:
@@ -742,6 +750,3 @@ suite "GossipSub Mesh Management":
       g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
       g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
       g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
-
-    # Cleanup
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))

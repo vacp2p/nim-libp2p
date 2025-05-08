@@ -725,13 +725,12 @@ suite "GossipSub Gossip Protocol":
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      nodesFut = nodes.mapIt(it.switch.start())
       n0 = nodes[0]
       n1 = nodes[1]
       g0 = GossipSub(n0)
       g1 = GossipSub(n1)
 
-    discard await allFinished(nodesFut)
+    startNodesAndDeferStop(nodes)
 
     # Given node1 has an IHAVE observer
     var receivedIHave = newFuture[(string, seq[MessageId])]()
@@ -750,7 +749,7 @@ suite "GossipSub Gossip Protocol":
     # And both subscribe to the topic
     n0.subscribe(topic, voidTopicHandler)
     n1.subscribe(topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     check:
       g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
@@ -759,15 +758,12 @@ suite "GossipSub Gossip Protocol":
     # When an IHAVE message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
-    await sleepAsync(500.milliseconds)
+    await waitForHeartbeat()
 
     # Then the peer has the message ID
-    let r = await receivedIHave.waitForState(DURATION_TIMEOUT)
+    let r = await receivedIHave.waitForState(HEARTBEAT_TIMEOUT)
     check:
       r.isCompleted((topic, @[messageID]))
-
-    # Cleanup
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
 
   asyncTest "IWANT messages correctly request messages by their IDs":
     # Given 2 nodes
@@ -777,13 +773,12 @@ suite "GossipSub Gossip Protocol":
       iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      nodesFut = nodes.mapIt(it.switch.start())
       n0 = nodes[0]
       n1 = nodes[1]
       g0 = GossipSub(n0)
       g1 = GossipSub(n1)
 
-    discard await allFinished(nodesFut)
+    startNodesAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
     var receivedIWant = newFuture[seq[MessageId]]()
@@ -802,7 +797,7 @@ suite "GossipSub Gossip Protocol":
     # And both subscribe to the topic
     n0.subscribe(topic, voidTopicHandler)
     n1.subscribe(topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     check:
       g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
@@ -811,15 +806,12 @@ suite "GossipSub Gossip Protocol":
     # When an IWANT message is sent
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
-    await sleepAsync(500.milliseconds)
+    await waitForHeartbeat()
 
     # Then the peer has the message ID
-    let r = await receivedIWant.waitForState(DURATION_TIMEOUT)
+    let r = await receivedIWant.waitForState(HEARTBEAT_TIMEOUT)
     check:
       r.isCompleted(@[messageID])
-
-    # Cleanup
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
 
   asyncTest "IHAVE for non-existent topic":
     # Given 2 nodes
@@ -830,7 +822,6 @@ suite "GossipSub Gossip Protocol":
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      nodesFut = nodes.mapIt(it.switch.start())
       n0 = nodes[0]
       n1 = nodes[1]
       g0 = GossipSub(n0)
@@ -838,7 +829,7 @@ suite "GossipSub Gossip Protocol":
       tg0 = cast[TestGossipSub](g0)
       tg1 = cast[TestGossipSub](g1)
 
-    discard await allFinished(nodesFut)
+    startNodesAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
     var receivedIWant = newFuture[seq[MessageId]]()
@@ -857,17 +848,14 @@ suite "GossipSub Gossip Protocol":
     # And both nodes subscribe to the topic
     n0.subscribe(topic, voidTopicHandler)
     n1.subscribe(topic, voidTopicHandler)
-    await sleepAsync(DURATION_TIMEOUT)
+    await waitForHeartbeat()
 
     # When an IHAVE message is sent from node0
     let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
-    await sleepAsync(500.milliseconds)
+    await waitForHeartbeat()
 
     # Then node0 should receive an IWANT message from node1 (as node1 doesn't have the message)
-    let iWantResult = await receivedIWant.waitForState(DURATION_TIMEOUT)
+    let iWantResult = await receivedIWant.waitForState(HEARTBEAT_TIMEOUT)
     check:
       iWantResult.isCompleted(@[messageID])
-
-    # Cleanup
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
