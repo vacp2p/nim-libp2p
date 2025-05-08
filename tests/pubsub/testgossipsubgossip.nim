@@ -715,3 +715,159 @@ suite "GossipSub Gossip Protocol":
       gossip0.mesh.getOrDefault("foobar").toSeq[0].codec == GossipSubCodec_10
     checkUntilTimeout:
       gossip1.mesh.getOrDefault("foobar").toSeq[0].codec == GossipSubCodec_10
+
+  asyncTest "IHAVE messages correctly advertise message ID to peers":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      ihaveMessage =
+        ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+
+    discard await allFinished(nodesFut)
+
+    # Given node1 has an IHAVE observer
+    var receivedIHave = newFuture[(string, seq[MessageId])]()
+    let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iHave = msgs.control.get.ihave
+        if iHave.len > 0:
+          for msg in iHave:
+            receivedIHave.complete((msg.topicID, msg.messageIDs))
+
+    g1.addObserver(PubSubObserver(onRecv: checkForIhaves))
+
+    # And the nodes are connected
+    await connectNodesStar(nodes)
+
+    # And both subscribe to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    n1.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    check:
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+
+    # When an IHAVE message is sent
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
+    await sleepAsync(500.milliseconds)
+
+    # Then the peer has the message ID
+    let r = await receivedIHave.waitForState(DURATION_TIMEOUT)
+    check:
+      r.isCompleted((topic, @[messageID]))
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+  asyncTest "IWANT messages correctly request messages by their IDs":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+
+    discard await allFinished(nodesFut)
+
+    # Given node1 has an IWANT observer
+    var receivedIWant = newFuture[seq[MessageId]]()
+    let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iWant = msgs.control.get.iwant
+        if iWant.len > 0:
+          for msg in iWant:
+            receivedIWant.complete(msg.messageIDs)
+
+    g1.addObserver(PubSubObserver(onRecv: checkForIwants))
+
+    # And the nodes are connected
+    await connectNodesStar(nodes)
+
+    # And both subscribe to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    n1.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    check:
+      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
+      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+
+    # When an IWANT message is sent
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
+    await sleepAsync(500.milliseconds)
+
+    # Then the peer has the message ID
+    let r = await receivedIWant.waitForState(DURATION_TIMEOUT)
+    check:
+      r.isCompleted(@[messageID])
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+
+  asyncTest "IHAVE for non-existent topic":
+    # Given 2 nodes
+    let
+      topic = "foo"
+      messageID = @[0'u8, 1, 2, 3]
+      ihaveMessage =
+        ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
+      numberOfNodes = 2
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
+      nodesFut = nodes.mapIt(it.switch.start())
+      n0 = nodes[0]
+      n1 = nodes[1]
+      g0 = GossipSub(n0)
+      g1 = GossipSub(n1)
+      tg0 = cast[TestGossipSub](g0)
+      tg1 = cast[TestGossipSub](g1)
+
+    discard await allFinished(nodesFut)
+
+    # Given node1 has an IWANT observer
+    var receivedIWant = newFuture[seq[MessageId]]()
+    let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+      if msgs.control.isSome:
+        let iWant = msgs.control.get.iwant
+        if iWant.len > 0:
+          for msg in iWant:
+            receivedIWant.complete(msg.messageIDs)
+
+    g0.addObserver(PubSubObserver(onRecv: checkForIwants))
+
+    # And the nodes are connected
+    await connectNodesStar(nodes)
+
+    # And both nodes subscribe to the topic
+    n0.subscribe(topic, voidTopicHandler)
+    n1.subscribe(topic, voidTopicHandler)
+    await sleepAsync(DURATION_TIMEOUT)
+
+    # When an IHAVE message is sent from node0
+    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
+    await sleepAsync(500.milliseconds)
+
+    # Then node0 should receive an IWANT message from node1 (as node1 doesn't have the message)
+    let iWantResult = await receivedIWant.waitForState(DURATION_TIMEOUT)
+    check:
+      iWantResult.isCompleted(@[messageID])
+
+    # Cleanup
+    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
