@@ -24,7 +24,7 @@ type
     cannotConnect = 3
 
   Peer* {.public.} = object
-    id*: Opt[seq[byte]]
+    id*: seq[byte]
     addrs*: seq[MultiAddress]
     connection*: Opt[ConnectionType]
 
@@ -40,6 +40,7 @@ proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [].} =
   opt.withValue(v):
     pb.write(field, v)
 
+#[
 proc encodeRecord*(record: Record): ProtoBuffer {.raises: [].} =
   result = initProtoBuffer()
   result.writeOpt(1, record.key)
@@ -49,33 +50,39 @@ proc encodeRecord*(record: Record): ProtoBuffer {.raises: [].} =
 proc write*(pb: var ProtoBuffer, field: int, opt: Opt[Record]) {.raises: [].} =
   if opt.isSome:
     pb.write(field, opt.get().encodeRecord())
-
+]#
 proc encodePeer*(peer: Peer): ProtoBuffer {.raises: [].} =
   result = initProtoBuffer()
-  peer.id.withValue(id):
-    result.write(1, id)
+  result.write(1, peer.id)
   for address in peer.addrs:
     result.write(2, address.data.buffer)
   peer.connection.withValue(connection):
     result.write(3, uint32(ord(connection)))
 
-proc encodeMessage*(msg: Message): ProtoBuffer {.raises: [].} =
-  result = initProtoBuffer()
+proc encode*(msg: Message): ProtoBuffer {.raises: [].} =
+  var pb = initProtoBuffer()
   msg.msgType.withValue(msgType):
-    result.write(1, uint32(ord(msgType)))
+    pb.write(1, uint32(ord(msgType)))
 
-  result.writeOpt(2, msg.key)
-  result.write(3, msg.record)
+  pb.writeOpt(2, msg.key)
+
+  #msg.record.withValue(record):
+  #  pb.writeOpt(3, msg.record) # TODO: 
 
   for peer in msg.closerPeers:
-    result.write(8, peer.encodePeer())
+    pb.write(8, peer.encodePeer())
 
   for peer in msg.providerPeers:
-    result.write(9, peer.encodePeer())
+    pb.write(9, peer.encodePeer())
 
   msg.clusterLevelRaw.withValue(clusterLevelRaw):
-    result.write(10, uint32(clusterLevelRaw))
+    pb.write(10, uint32(clusterLevelRaw))
 
+  pb.finish()
+
+  return pb
+
+#[
 proc decodeRecord*(pb: ProtoBuffer): Opt[Record] =
   var
     r: Record
@@ -93,14 +100,18 @@ proc decodeRecord*(pb: ProtoBuffer): Opt[Record] =
     r.timeReceived = Opt.some(timeReceived)
 
   Opt.some(r)
+]#
 
 proc decodePeer*(pb: ProtoBuffer): Result[Opt[Peer], string] =
   var
     p: Peer
     id: seq[byte]
 
+  #[
   if ?pb.getField(1, id):
-    p.id = Opt.some(id)
+    p.id = id
+  else:
+    return err("invalid peerId")
 
   discard pb.getRepeatedField(2, p.addrs)
 
@@ -112,8 +123,9 @@ proc decodePeer*(pb: ProtoBuffer): Result[Opt[Peer], string] =
       return err("invalid connection type")
 
   ok(Opt.some(p))
+  ]#
 
-proc decodeMessage*(buf: seq[byte]): Result[Opt[Message], string] =
+proc decode*(T: type Message, buf: seq[byte]): Result[Opt[T], string] =
   var
     m: Message
     key: seq[byte]
@@ -125,7 +137,7 @@ proc decodeMessage*(buf: seq[byte]): Result[Opt[Message], string] =
   var pb = initProtoBuffer(buf)
 
   var msgTypeVal: uint32
-  if ?pb.getField(1, msgTypeVal).toOpt():
+  #[if ?pb.getField(1, msgTypeVal).toOpt():
     if msgTypeVal in MessageType.low .. MessageType.high:
       m.msgType = Opt.some(MessageType(msgTypeVal))
     else:
@@ -133,11 +145,11 @@ proc decodeMessage*(buf: seq[byte]): Result[Opt[Message], string] =
 
   if ?pb.getField(2, key).toOpt():
     m.key = Opt.some(key)
+  ]#
+  #if ?pb.getField(3, recPb).toOpt():
+  #  m.record = decodeRecord(initProtoBuffer(recPb))
 
-  if ?pb.getField(3, recPb).toOpt():
-    m.record = decodeRecord(initProtoBuffer(recPb))
-
-  discard ?pb.getRepeatedField(8, closerPbs).toOpt()
+  #[discard ?pb.getRepeatedField(8, closerPbs).toOpt()
   for ppb in closerPbs:
     let peer = decodePeer(initProtoBuffer(ppb))
     if peer.isErr:
@@ -155,3 +167,4 @@ proc decodeMessage*(buf: seq[byte]): Result[Opt[Message], string] =
     m.clusterLevelRaw = Opt.some(int32(clusterLevelRaw))
 
   ok(Opt.some(m))
+]#

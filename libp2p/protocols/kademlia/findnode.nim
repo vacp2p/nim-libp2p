@@ -1,142 +1,165 @@
-const
-  IdLength = 32 # 256-bit IDs
-  k = 20        # bucket size
-  alpha = 3     # parallelism factor
-  ttl = 24.hours
+import chronos
+import chronicles
+import sequtils
+import ../../peerid
+import ./consts
+import ./xordistance
+import ./routingtable
+import ./lookupstate
+import ../protocol
+import ../../switch
+import ./protobuf
 
-type
-  XorDistance* = array[IdLength, byte]
+logScope:
+  topics = "libp2p discovery kad-dht"
 
+type KadDHT* = ref object of LPProtocol
+  switch: Switch
+  rng: ref HmacDrbgContext
+  rtable: RoutingTable
 
-type
-  LookupPeer = object
-    peerId: PeerId
-    distance: XorDistance 
-    queried: bool # have we already queried this peer?
-    pending: bool # is there an active request rn?
-    failed: bool # did the query timeout or error?
+proc sendFindNode(
+    kad: KadDHT, peerId: PeerId, targetId: PeerId
+): Future[Message] {.async.} =
+  let conn = await kad.switch.dial(peerId, KadCodec)
+  defer:
+    await conn.close()
 
-  LookupState = object
-    targetId: PeerId
-    shortlist: seq[LookupPeer] # current known closest peers
-    activeQueries: int # how many queries in flight
-    alpha: int # parallelism level
-    k: int # number of closest nodes to find
-    done: bool # has lookup converged
-
-
-proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
-  for p in state.shortlist:
-    if p.peerId == peer.id:
-      return true
-  return false
-
-
-proc updateShortlist(state: var LookupState, reply: Reply) =
-  for newPeer in reply.peers:
-    if not alreadyInShortlist(state, newPeer):
-      state.shortlist.add(LookupPeer(
-        peerId: newPeer.id,
-        distance: xorDistance(newPeer.id, state.targetId),
-        queried: false,
-        pending: false,
-        failed: false
-      ))
-
-  state.shortlist.sort((a, b) => a.distance < b.distance)
-  state.activeQueries.dec
-
-proc markFailed(state: var LookupState, peerId: PeerId) =
-  for p in mitems(state.shortlist):
-    if p.peerId == peerId:
-      p.failed = true
-      p.pending = false
-      p.queried = true
-      state.activeQueries.dec
-      break
-
-proc markPending(state: var LookupState, peerId: PeerId) =
-  for p in mitems(state.shortlist):
-    if p.peerId == peerId:
-      p.pending = true
-      p.queried = true
-      break
-
-proc selectAlphaPeers(state: LookupState): seq[PeerId] =
-  var selected: seq[PeerId] = @[]
-
-  for p in state.shortlist:
-    if not p.queried and not p.failed and not p.pending:
-      selected.add(p.peerId)
-      if selected.len >= state.alpha:
-        break
-
-  return selected
-
-proc initLookupState(targetId: PeerId): LookupState =
-  var peers = getInitialClosestPeers(targetId) # TODO: implement routing table
-  result = LookupState(
-    targetId: targetId,
-    shortlist: @[],
-    activeQueries: 0,
-    alpha: alpha,
-    k: k,
-    done: false
+  let msg = Message(
+    msgType: Opt.some(MessageType.findNode),
+    clusterLevelRaw: Opt.none(int32),
+    key: Opt.some(targetId.getBytes()),
   )
-  for peer in peers:
-    result.shortlist.add(LookupPeer(
-      peerId: peer,
-      distance: xorDistance(peer, targetId),
-      queried: false,
-      pending: false,
-      failed: false
-    ))
-  result.shortlist.sort((a, b) => a.distance < b.distance)
 
-proc checkConvergence(state: LookupState): bool =
-  let ready = state.activeQueries == 0
-  let noNew = selectAlphaPeers(state).len == 0
-  return ready and noNew
+  await conn.writeLp(msg.encode().buffer)
 
-proc selectClosestK(state: LookupState): seq[PeerId] =
-  result = @[]
-  for p in state.shortlist:
-    if not p.failed:
-      result.add(p.peerId)
-      if result.len >= state.k:
-        break
+  let reply = Message.decode(await conn.readLp(1024)).value().get() # TODO: fix
+  if reply.msgType.get() != MessageType.findNode: # TODO: fix
+    raise newException(ValueError, "unexpected message type in reply")
 
-proc sendFindNode(peerId: PeerId, targetId: PeerId): Future[void] {.async.} =
-  let connection = await switch.dial(peerId, peer.Addr, "/ipfs/kad/1.0.0") # TODO: const
-  await connection.write(encodeFindNodeRequest(targetId)) # TODO: encodeFindNodeRequest
-  return connection
+  return reply
 
-proc findNode(target: PeerId): Future[seq[PeerId]] =
-  var state = initLookupState(target)
+proc waitRepliesOrTimeouts(
+    pendingFutures: Table[PeerId, Future[Message]]
+): Future[(seq[Message], seq[PeerId])] {.async.} =
+  await allFutures(toSeq(pendingFutures.values))
 
+  var receivedReplies: seq[Message] = @[]
+  var failedPeers: seq[PeerId] = @[]
 
+  for (peerId, replyFut) in pendingFutures.pairs:
+    if replyFut.failed:
+      failedPeers.add(peerId)
+    else:
+      receivedReplies.add(await replyFut)
+
+  return (receivedReplies, failedPeers)
+
+proc findNode(
+    kad: KadDHT, target: PeerId
+): Future[seq[PeerId]] {.async.} =
+  var state = LookupState.init(target, kad.rtable)
 
   while not state.done:
-    let toQuery = selectAlphaPeers(state)
+    let toQuery = state.selectAlphaPeers()
 
-    var pendingFutures: Table[PeerId, Future[Reply]] = initTable()
+    var pendingFutures: Table[PeerId, Future[Message]] =
+      initTable[PeerId, Future[Message]]()
 
     for peer in toQuery:
       if pendingFutures.hasKey(peer):
         continue
 
-      markPending(state, peer)
-      pendingFutures[peer] = sendFindNode(peer, target)
+      state.markPending(peer)
+      pendingFutures[peer] = kad.sendFindNode(peer, target).wait(5.seconds)
+        # TODO: should this timeout be specified by the dev? maybe should be a config option
       state.activeQueries.inc
 
-    successful, timedOut = await waitRepliesOrTimeouts(pendingFutures) # TODO
+    let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
 
-    for reply in successful: # TODO:
-      updateShortlist(state, reply)
+    for msg in successfulReplies:
+      state.updateShortlist(msg, kad.rtable)
 
-    for timedOut in timedOutPeers():
-      markFailed(state, timedOut)
+    for timedOut in timedOutPeers:
+      state.markFailed(timedOut)
 
-    state.done = checkConvergence(state)
+    state.done = state.checkConvergence()
 
-  return selectClosestK(state)
+  return state.selectClosestK()
+
+proc bootstrap(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
+  for b in bootstrapNodes:
+    try:
+      await kad.switch.connect(b.peerId, b.addrs)
+      debug "connected to bootstrap peer", peerId = b.peerId
+    except CatchableError as e:
+      error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
+
+  # self-lookup
+  try:
+    discard await kad.findNode(kad.switch.peerInfo.peerId)
+    debug "bootstrap lookup complete"
+  except CatchableError as e:
+    error "bootstrap lookup failed", error = e.msg
+
+proc refreshBuckets(kad: KadDHT) {.async.} =
+  for i in 0 ..< kad.rtable.buckets.len:
+    if kad.rtable.buckets[i].isStale():
+      let randomId = randomIdInBucketRange(kad.rtable.selfId, i)
+      discard await kad.findNode(randomId)
+
+proc maintenanceLoop(kad: KadDHT) {.async.} =
+  while true:
+    await kad.refreshBuckets()
+    await sleepAsync(10.minutes)
+
+proc healthMonitor(rtable: RoutingTable) {.async.} =
+  while true:
+    for idx, bucket in rtable.buckets.pairs:
+      var live = 0
+      for peer in bucket.peers:
+        if Moment.now() - peer.lastSeen < 30.minutes:
+          live.inc
+      debug "health check", bucket = idx, live = live, peersInBucket = bucket.peers.len
+    await sleepAsync(1.minutes)
+
+
+proc handler(conn: Connection, rtable: RoutingTable) {.async.} =
+  discard
+  #let requestBytes = await stream.readFullMessage()
+  #let request = decodeFindNodeRequest(requestBytes)
+
+  # TODO: add other request typs
+
+  #if request.type == FIND_NODE:
+  #  let targetId = request.key.get() # unwrap Option[seq[byte]] safely
+  #  let closerPeers = routingTable.findClosest(targetId, k)
+  #  let response = encodeFindNodeReply(closerPeers)
+  #  await stream.write(response)
+  #  await conn.close()
+  #else:
+  #  await conn.close()
+  #  return
+
+proc new*(
+    T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
+): T {.raises: [].} =
+  var rtable = RoutingTable(selfId: switch.peerInfo.peerId, buckets: @[]) # TODO: init function
+  let kad = T(rng: rng, switch: switch, rtable: rtable)
+
+  kad.handler = proc(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
+    try:
+      await handler(conn, rtable)
+    finally:
+      conn.close()
+  kad.codec = KadCodec
+  return kad
+
+proc start*(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
+  if bootstrapNodes.len > 0:
+    await kad.bootstrap(bootstrapNodes)
+
+  asyncSpawn kad.maintenanceLoop()
+  asyncSpawn healthMonitor(kad.rtable)
