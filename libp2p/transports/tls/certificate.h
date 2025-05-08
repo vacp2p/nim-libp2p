@@ -54,6 +54,14 @@ typedef int32_t cert_error_t;
 #define CERT_ERROR_PUBKEY_DER_CONV -41
 #define CERT_ERROR_INIT_KEYGEN -42
 #define CERT_ERROR_SET_CURVE -43
+#define CERT_ERROR_X509_REQ_GEN -44
+#define CERT_ERROR_X509_REQ_DER -45
+#define CERT_ERROR_NO_PUBKEY -46
+#define CERT_ERROR_X509_SAN -47
+#define CERT_ERROR_CN_TOO_LONG -48
+#define CERT_ERROR_CN_LABEL_TOO_LONG -49
+#define CERT_ERROR_CN_EMPTY_LABEL -50
+#define CERT_ERROR_CN_EMPTY -51
 
 typedef enum { CERT_FORMAT_DER = 0, CERT_FORMAT_PEM = 1 } cert_format_t;
 
@@ -183,5 +191,16 @@ void cert_free_key(cert_key_t key);
  * @param buffer Pointer to the buffer structure
  */
 void cert_free_buffer(cert_buffer *buffer);
+
+/**
+ * Create a X.509 certificate request
+ *
+ * @param cn         Domain for which we're requesting the certificate
+ * @param key        Public key of the requesting client
+ * @param csr_buffer Pointer to the buffer that will be set to the CSR in DER format
+ *
+ * @return CERT_SUCCESS on successful execution, an error code otherwise
+ */
+cert_error_t cert_signing_req(const char *cn, cert_key_t key, cert_buffer **csr_buffer);
 
 #endif /* LIBP2P_CERT_H */

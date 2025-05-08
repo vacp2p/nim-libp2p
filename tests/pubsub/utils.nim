@@ -4,7 +4,7 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
   libp2p_pubsub_anonymize {.booldefine.} = false
 
-import hashes, random, tables, sets, sequtils
+import hashes, random, tables, sets, sequtils, sugar
 import chronos, stew/[byteutils, results], chronos/ratelimit
 import
   ../../libp2p/[
@@ -12,6 +12,7 @@ import
     protocols/pubsub/errors,
     protocols/pubsub/pubsub,
     protocols/pubsub/pubsubpeer,
+    protocols/pubsub/peertable,
     protocols/pubsub/gossipsub,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
@@ -358,3 +359,92 @@ template tryPublish*(
     await sleepAsync(wait)
 
   doAssert pubs >= require, "Failed to publish!"
+
+proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+  discard
+
+proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
+  discard
+
+proc createCompleteHandler*(): (
+  Future[bool], proc(topic: string, data: seq[byte]) {.async.}
+) =
+  var fut = newFuture[bool]()
+  proc handler(topic: string, data: seq[byte]) {.async.} =
+    fut.complete(true)
+
+  return (fut, handler)
+
+proc addIHaveObservers*(nodes: seq[auto], topic: string, receivedIHaves: ref seq[int]) =
+  let numberOfNodes = nodes.len
+  receivedIHaves[] = repeat(0, numberOfNodes)
+
+  for i in 0 ..< numberOfNodes:
+    var pubsubObserver: PubSubObserver
+    capture i:
+      let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+        if msgs.control.isSome:
+          let iHave = msgs.control.get.ihave
+          if iHave.len > 0:
+            for msg in iHave:
+              if msg.topicID == topic:
+                receivedIHaves[i] += 1
+      pubsubObserver = PubSubObserver(onRecv: checkForIhaves)
+    nodes[i].addObserver(pubsubObserver)
+
+proc addIDontWantObservers*(nodes: seq[auto], receivedIDontWants: ref seq[int]) =
+  let numberOfNodes = nodes.len
+  receivedIDontWants[] = repeat(0, numberOfNodes)
+
+  for i in 0 ..< numberOfNodes:
+    var pubsubObserver: PubSubObserver
+    capture i:
+      let checkForIDontWant = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+        if msgs.control.isSome:
+          let iDontWant = msgs.control.get.idontwant
+          if iDontWant.len > 0:
+            receivedIDontWants[i] += 1
+      pubsubObserver = PubSubObserver(onRecv: checkForIDontWant)
+    nodes[i].addObserver(pubsubObserver)
+
+# TODO: refactor helper methods from testgossipsub.nim
+proc setupNodes*(count: int): seq[PubSub] =
+  generateNodes(count, gossip = true)
+
+proc connectNodes*(nodes: seq[PubSub], target: PubSub) {.async.} =
+  proc handler(topic: string, data: seq[byte]) {.async.} =
+    check topic == "foobar"
+
+  for node in nodes:
+    node.subscribe("foobar", handler)
+    await node.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+
+proc baseTestProcedure*(
+    nodes: seq[PubSub],
+    gossip1: GossipSub,
+    numPeersFirstMsg: int,
+    numPeersSecondMsg: int,
+) {.async.} =
+  proc handler(topic: string, data: seq[byte]) {.async.} =
+    check topic == "foobar"
+
+  block setup:
+    for i in 0 ..< 50:
+      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == 19:
+        break setup
+      await sleepAsync(10.milliseconds)
+    check false
+
+  check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
+  check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
+
+  # Now try with a mesh
+  gossip1.subscribe("foobar", handler)
+  checkUntilTimeout:
+    gossip1.mesh.peers("foobar") > 5
+
+  # use a different length so that the message is not equal to the last
+  check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
+
+proc `$`*(peer: PubSubPeer): string =
+  shortLog(peer)

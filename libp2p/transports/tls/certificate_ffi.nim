@@ -79,3 +79,7 @@ proc cert_free_buffer*(
 proc cert_free_parsed*(
   cert: ptr cert_parsed
 ): void {.cdecl, importc: "cert_free_parsed".}
+
+proc cert_signing_req*(
+  cn: cstring, key: cert_key_t, csr_buffer: ptr ptr cert_buffer
+): cert_error_t {.cdecl, importc: "cert_signing_req".}
