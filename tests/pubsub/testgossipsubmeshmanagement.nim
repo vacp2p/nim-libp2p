@@ -558,12 +558,10 @@ suite "GossipSub Mesh Management":
 
     # Second part of the hack
     # Set values so peers can be GRAFTed
-    n0.parameters.applyDValues(
+    let newDValues =
       some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(1)))
-    )
-    n1.parameters.applyDValues(
-      some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(1)))
-    )
+    n0.parameters.applyDValues(newDValues)
+    n1.parameters.applyDValues(newDValues)
 
     # When a GRAFT message is sent
     let p0 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_12])
