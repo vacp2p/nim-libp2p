@@ -29,7 +29,7 @@ jobs:
       - name: Build image
         run: docker buildx build --load -t nim-libp2p-head -f tests/transport-interop/Dockerfile .
       - name: Run tests
-        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@e60c5e86f2250fd381bec878811209cc6935db9a
+        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@e4a633c42e004687e68cd2a687a628b510ffad15
         with:
           test-filter: nim-libp2p-head
           # without suffix action fails because "hole-punching-interop" artifacts have 
@@ -50,7 +50,7 @@ jobs:
       - name: Build image
         run: docker buildx build --load -t nim-libp2p-head -f tests/hole-punching-interop/Dockerfile .
       - name: Run tests
-        uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@e60c5e86f2250fd381bec878811209cc6935db9a
+        uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@e4a633c42e004687e68cd2a687a628b510ffad15
         with:
           test-filter: nim-libp2p-head
           extra-versions: ${{ github.workspace }}/tests/hole-punching-interop/version.json
