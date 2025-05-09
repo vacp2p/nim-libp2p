@@ -725,10 +725,8 @@ suite "GossipSub Gossip Protocol":
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      n0 = nodes[0]
-      n1 = nodes[1]
-      g0 = GossipSub(n0)
-      g1 = GossipSub(n1)
+      g0 = GossipSub(nodes[0])
+      g1 = GossipSub(nodes[1])
 
     startNodesAndDeferStop(nodes)
 
@@ -736,27 +734,23 @@ suite "GossipSub Gossip Protocol":
     var receivedIHave = newFuture[(string, seq[MessageId])]()
     let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
       if msgs.control.isSome:
-        let iHave = msgs.control.get.ihave
-        if iHave.len > 0:
-          for msg in iHave:
-            receivedIHave.complete((msg.topicID, msg.messageIDs))
-
+        for msg in msgs.control.get.ihave:
+          receivedIHave.complete((msg.topicID, msg.messageIDs))
     g1.addObserver(PubSubObserver(onRecv: checkForIhaves))
 
     # And the nodes are connected
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
-    n0.subscribe(topic, voidTopicHandler)
-    n1.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
     check:
-      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
-      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+      g0.gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) == true
+      g1.gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
 
     # When an IHAVE message is sent
-    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    let p1 = g0.getOrCreatePeer(nodes[1].peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
     await waitForHeartbeat()
 
@@ -773,10 +767,8 @@ suite "GossipSub Gossip Protocol":
       iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      n0 = nodes[0]
-      n1 = nodes[1]
-      g0 = GossipSub(n0)
-      g1 = GossipSub(n1)
+      g0 = GossipSub(nodes[0])
+      g1 = GossipSub(nodes[1])
 
     startNodesAndDeferStop(nodes)
 
@@ -784,27 +776,23 @@ suite "GossipSub Gossip Protocol":
     var receivedIWant = newFuture[seq[MessageId]]()
     let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
       if msgs.control.isSome:
-        let iWant = msgs.control.get.iwant
-        if iWant.len > 0:
-          for msg in iWant:
-            receivedIWant.complete(msg.messageIDs)
-
+        for msg in msgs.control.get.iwant:
+          receivedIWant.complete(msg.messageIDs)
     g1.addObserver(PubSubObserver(onRecv: checkForIwants))
 
     # And the nodes are connected
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
-    n0.subscribe(topic, voidTopicHandler)
-    n1.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
     check:
-      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == true
-      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
+      g0.gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) == true
+      g1.gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
 
     # When an IWANT message is sent
-    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    let p1 = g0.getOrCreatePeer(nodes[1].peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
     await waitForHeartbeat()
 
@@ -813,7 +801,7 @@ suite "GossipSub Gossip Protocol":
     check:
       r.isCompleted(@[messageID])
 
-  asyncTest "IHAVE for non-existent topic":
+  asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
     # Given 2 nodes
     let
       topic = "foo"
@@ -822,12 +810,8 @@ suite "GossipSub Gossip Protocol":
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
-      n0 = nodes[0]
-      n1 = nodes[1]
-      g0 = GossipSub(n0)
-      g1 = GossipSub(n1)
-      tg0 = cast[TestGossipSub](g0)
-      tg1 = cast[TestGossipSub](g1)
+      g0 = GossipSub(nodes[0])
+      g1 = GossipSub(nodes[1])
 
     startNodesAndDeferStop(nodes)
 
@@ -835,23 +819,19 @@ suite "GossipSub Gossip Protocol":
     var receivedIWant = newFuture[seq[MessageId]]()
     let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
       if msgs.control.isSome:
-        let iWant = msgs.control.get.iwant
-        if iWant.len > 0:
-          for msg in iWant:
-            receivedIWant.complete(msg.messageIDs)
-
+        for msg in msgs.control.get.iwant:
+          receivedIWant.complete(msg.messageIDs)
     g0.addObserver(PubSubObserver(onRecv: checkForIwants))
 
     # And the nodes are connected
     await connectNodesStar(nodes)
 
     # And both nodes subscribe to the topic
-    n0.subscribe(topic, voidTopicHandler)
-    n1.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
     # When an IHAVE message is sent from node0
-    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    let p1 = g0.getOrCreatePeer(nodes[1].peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
     await waitForHeartbeat()
 

@@ -541,10 +541,6 @@ suite "GossipSub Mesh Management":
       )
       g0 = GossipSub(nodes[0])
       g1 = GossipSub(nodes[1])
-      tg0 = cast[TestGossipSub](g0)
-      tg1 = cast[TestGossipSub](g1)
-      p0 = tg1.getPubSubPeer(nodes[0].peerInfo.peerId)
-      p1 = tg0.getPubSubPeer(nodes[1].peerInfo.peerId)
 
     startNodesAndDeferStop(nodes)
 
@@ -575,6 +571,8 @@ suite "GossipSub Mesh Management":
 
     # Potentially flaky due to this relying on sleep. Race condition against heartbeat.
     # When a GRAFT message is sent
+    let p0 = g1.getOrCreatePeer(nodes[0].peerInfo.peerId, @[GossipSubCodec_12])
+    let p1 = g0.getOrCreatePeer(nodes[1].peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
     g1.broadcast(@[p0], RPCMsg(control: some(graftMessage)), isHighPriority = false)
     # Minimal await to avoid heartbeat so that the GRAFT is due to the message
@@ -606,10 +604,6 @@ suite "GossipSub Mesh Management":
       )
       g0 = GossipSub(nodes[0])
       g1 = GossipSub(nodes[1])
-      tg0 = cast[TestGossipSub](g0)
-      tg1 = cast[TestGossipSub](g1)
-      p0 = tg1.getPubSubPeer(nodes[0].peerInfo.peerId)
-      p1 = tg0.getPubSubPeer(nodes[1].peerInfo.peerId)
 
     startNodesAndDeferStop(nodes)
 
@@ -627,6 +621,7 @@ suite "GossipSub Mesh Management":
       g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
 
     # When a PRUNE message is sent
+    let p1 = g0.getOrCreatePeer(nodes[1].peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
     await sleepAsync(100.milliseconds)
 
@@ -638,6 +633,7 @@ suite "GossipSub Mesh Management":
       g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == false
 
     # When another PRUNE message is sent
+    let p0 = g1.getOrCreatePeer(nodes[0].peerInfo.peerId, @[GossipSubCodec_12])
     g1.broadcast(@[p0], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
     await sleepAsync(100.milliseconds)
 
@@ -661,12 +657,8 @@ suite "GossipSub Mesh Management":
         verifySignature = false,
         heartbeatInterval = testHeartbeatInterval,
       )
-      n0 = nodes[0]
-      n1 = nodes[1]
-      g0 = GossipSub(n0)
-      g1 = GossipSub(n1)
-      tg0 = cast[TestGossipSub](g0)
-      tg1 = cast[TestGossipSub](g1)
+      g0 = GossipSub(nodes[0])
+      g1 = GossipSub(nodes[1])
 
     startNodesAndDeferStop(nodes)
 
@@ -674,19 +666,19 @@ suite "GossipSub Mesh Management":
     await connectNodesStar(nodes)
 
     # And only node0 subscribes to the topic
-    n0.subscribe(topic, voidTopicHandler)
+    nodes[0].subscribe(topic, voidTopicHandler)
     await sleepAsync(testHeartbeatInterval)
 
     check:
       g0.topics.hasKey(topic) == true
       g1.topics.hasKey(topic) == false
-      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
-      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
+      g0.gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == false
 
     # When a GRAFT message is sent
-    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    let p1 = g0.getOrCreatePeer(nodes[1].peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
     await sleepAsync(100.milliseconds)
 
@@ -694,10 +686,10 @@ suite "GossipSub Mesh Management":
     check:
       g0.topics.hasKey(topic) == true
       g1.topics.hasKey(topic) == false
-      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
-      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
+      g0.gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == false
 
   asyncTest "Received PRUNE for non-subscribed topic":
     # Given 2 nodes
@@ -713,12 +705,8 @@ suite "GossipSub Mesh Management":
         verifySignature = false,
         heartbeatInterval = testHeartbeatInterval,
       )
-      n0 = nodes[0]
-      n1 = nodes[1]
-      g0 = GossipSub(n0)
-      g1 = GossipSub(n1)
-      tg0 = cast[TestGossipSub](g0)
-      tg1 = cast[TestGossipSub](g1)
+      g0 = GossipSub(nodes[0])
+      g1 = GossipSub(nodes[1])
 
     startNodesAndDeferStop(nodes)
 
@@ -726,19 +714,19 @@ suite "GossipSub Mesh Management":
     await connectNodesStar(nodes)
 
     # And only node0 subscribes to the topic
-    n0.subscribe(topic, voidTopicHandler)
+    nodes[0].subscribe(topic, voidTopicHandler)
     await sleepAsync(testHeartbeatInterval)
 
     check:
       g0.topics.hasKey(topic) == true
       g1.topics.hasKey(topic) == false
-      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
-      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
+      g0.gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == false
 
     # When a PRUNE message is sent
-    let p1 = g0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
+    let p1 = g0.getOrCreatePeer(nodes[1].peerInfo.peerId, @[GossipSubCodec_12])
     g0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
     await sleepAsync(100.milliseconds)
 
@@ -746,7 +734,7 @@ suite "GossipSub Mesh Management":
     check:
       g0.topics.hasKey(topic) == true
       g1.topics.hasKey(topic) == false
-      g0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId) == true
-      g0.mesh.hasPeerId(topic, n1.peerInfo.peerId) == false
-      g1.mesh.hasPeerId(topic, n0.peerInfo.peerId) == false
+      g0.gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) == true
+      g0.mesh.hasPeerId(topic, nodes[1].peerInfo.peerId) == false
+      g1.mesh.hasPeerId(topic, nodes[0].peerInfo.peerId) == false
