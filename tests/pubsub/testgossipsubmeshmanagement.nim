@@ -522,8 +522,6 @@ suite "GossipSub Mesh Management":
     await invalidDetected.wait(10.seconds)
 
   asyncTest "GRAFT messages correctly add peers to mesh":
-    # Potentially flaky test
-
     # Given 2 nodes
     let
       topic = "foobar"
@@ -531,13 +529,8 @@ suite "GossipSub Mesh Management":
       numberOfNodes = 2
       # First part of the hack: Weird dValues so peers are not GRAFTed automatically
       dValues = DValues(dLow: some(0), dHigh: some(0), d: some(0), dOut: some(-1))
-      testHeartbeatInterval = 500.milliseconds
       nodes = generateNodes(
-          numberOfNodes,
-          gossip = true,
-          verifySignature = false,
-          dValues = some(dValues),
-          heartbeatInterval = testHeartbeatInterval,
+          numberOfNodes, gossip = true, verifySignature = false, dValues = some(dValues)
         )
         .toGossipSub()
       n0 = nodes[0]
@@ -550,7 +543,7 @@ suite "GossipSub Mesh Management":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(testHeartbeatInterval)
+    await waitForHeartbeat()
 
     # Because of the hack-ish dValues, the peers are added to gossipsub but not GRAFTed to mesh
     check:
@@ -558,6 +551,10 @@ suite "GossipSub Mesh Management":
       n1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId)
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
+
+    # Stop both nodes in order to prevent GRAFT message to be sent by heartbeat 
+    await n0.stop()
+    await n1.stop()
 
     # Second part of the hack
     # Set values so peers can be GRAFTed
@@ -568,15 +565,15 @@ suite "GossipSub Mesh Management":
       some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(1)))
     )
 
-    # Potentially flaky due to this relying on sleep. Race condition against heartbeat.
     # When a GRAFT message is sent
     let p0 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_12])
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
     n1.broadcast(@[p0], RPCMsg(control: some(graftMessage)), isHighPriority = false)
-    # Minimal await to avoid heartbeat so that the GRAFT is due to the message
-    # Despite this, it could happen that it's due to heartbeat, even if local tests didn't show that behaviour
-    await sleepAsync(100.milliseconds)
+
+    await waitForPeersInTable(
+      nodes, topic, newSeqWith(numberOfNodes, 1), PeerTableType.Mesh
+    )
 
     # Then the peers are GRAFTed
     check:
@@ -591,13 +588,7 @@ suite "GossipSub Mesh Management":
       topic = "foo"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       numberOfNodes = 2
-      testHeartbeatInterval = 500.milliseconds
-      nodes = generateNodes(
-          numberOfNodes,
-          gossip = true,
-          verifySignature = false,
-          heartbeatInterval = testHeartbeatInterval,
-        )
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
         .toGossipSub()
       n0 = nodes[0]
       n1 = nodes[1]
@@ -609,7 +600,7 @@ suite "GossipSub Mesh Management":
 
     # And only node0 subscribes to the topic
     nodes[0].subscribe(topic, voidTopicHandler)
-    await sleepAsync(testHeartbeatInterval)
+    await waitForHeartbeat()
 
     check:
       n0.topics.hasKey(topic)
@@ -622,7 +613,7 @@ suite "GossipSub Mesh Management":
     # When a GRAFT message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
-    await sleepAsync(100.milliseconds)
+    await waitForHeartbeat()
 
     # Then the peer is not GRAFTed
     check:
@@ -642,13 +633,7 @@ suite "GossipSub Mesh Management":
         prune: @[ControlPrune(topicID: topic, peers: @[], backoff: uint64(backoff))]
       )
       numberOfNodes = 2
-      testHeartbeatInterval = 500.milliseconds
-      nodes = generateNodes(
-          numberOfNodes,
-          gossip = true,
-          verifySignature = false,
-          heartbeatInterval = testHeartbeatInterval,
-        )
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
         .toGossipSub()
       n0 = nodes[0]
       n1 = nodes[1]
@@ -660,7 +645,7 @@ suite "GossipSub Mesh Management":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await sleepAsync(testHeartbeatInterval)
+    await waitForHeartbeat()
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -671,7 +656,7 @@ suite "GossipSub Mesh Management":
     # When a PRUNE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await sleepAsync(100.milliseconds)
+    await waitForHeartbeat()
 
     # Then the peer is PRUNEd
     check:
@@ -683,7 +668,7 @@ suite "GossipSub Mesh Management":
     # When another PRUNE message is sent
     let p0 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_12])
     n1.broadcast(@[p0], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await sleepAsync(100.milliseconds)
+    await waitForHeartbeat()
 
     # Then the peer is PRUNEd
     check:
@@ -699,13 +684,7 @@ suite "GossipSub Mesh Management":
       pruneMessage =
         ControlMessage(prune: @[ControlPrune(topicID: topic, peers: @[], backoff: 1)])
       numberOfNodes = 2
-      testHeartbeatInterval = 500.milliseconds
-      nodes = generateNodes(
-          numberOfNodes,
-          gossip = true,
-          verifySignature = false,
-          heartbeatInterval = testHeartbeatInterval,
-        )
+      nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
         .toGossipSub()
       n0 = nodes[0]
       n1 = nodes[1]
@@ -717,7 +696,7 @@ suite "GossipSub Mesh Management":
 
     # And only node0 subscribes to the topic
     n0.subscribe(topic, voidTopicHandler)
-    await sleepAsync(testHeartbeatInterval)
+    await waitForHeartbeat()
 
     check:
       n0.topics.hasKey(topic)
@@ -730,7 +709,7 @@ suite "GossipSub Mesh Management":
     # When a PRUNE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await sleepAsync(100.milliseconds)
+    await waitForHeartbeat()
 
     # Then the peer is not PRUNEd
     check:
