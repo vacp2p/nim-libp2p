@@ -78,7 +78,7 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
       $m.data.hash & $m.topic.hash
   ok mid.toBytes()
 
-proc applyDValues(parameters: var GossipSubParams, dValues: Option[DValues]) =
+proc applyDValues*(parameters: var GossipSubParams, dValues: Option[DValues]) =
   if dValues.isNone:
     return
   let values = dValues.get

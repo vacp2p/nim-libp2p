@@ -561,14 +561,12 @@ suite "GossipSub Mesh Management":
 
     # Second part of the hack
     # Set values so peers can be GRAFTed
-    n0.parameters.dOut = 1
-    n0.parameters.d = 1
-    n0.parameters.dLow = 1
-    n0.parameters.dHigh = 1
-    n1.parameters.dOut = 1
-    n1.parameters.d = 1
-    n1.parameters.dLow = 1
-    n1.parameters.dHigh = 1
+    n0.parameters.applyDValues(
+      some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(1)))
+    )
+    n1.parameters.applyDValues(
+      some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(1)))
+    )
 
     # Potentially flaky due to this relying on sleep. Race condition against heartbeat.
     # When a GRAFT message is sent
