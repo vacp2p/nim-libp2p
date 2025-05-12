@@ -39,12 +39,24 @@ suite "AutoTLS":
       check finalizeURL.len > 0
       check orderURL.len > 0
 
-        # asyncTest "test ACME challenge request":
-        #   await autotlsMgr.start()
+  suite "AutoTLS manager":
+    asyncTest "test send challenge to AutoTLS broker":
+      let rng = newRng()
+      let autotlsMgr = await AutoTLSManager.new(rng)
+      let seckey = PrivateKey.random(rng[]).tryGet()
+      let peerId = PeerId.init(seckey).get()
+      let multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let peerInfo = PeerInfo.new(seckey, multiAddresses)
 
-        # suite "AutoTLS broker handling":
-        #   asyncSetup:
-        #     rng = newRng()
-        #     autotlsMgr = AutoTLSManager.new()
+      await autotlsMgr.start(peerInfo)
+      # check if challenge was sent (bearer token from peer id auth was set)
+      check autotlsMgr.bearerToken.isSome
 
-        #   asyncTest "test ACME account registration":
+    # asyncTest "test notify ACME challenge completion":
+
+    # suite "AutoTLS broker handling":
+    #   asyncSetup:
+    #     rng = newRng()
+    #     autotlsMgr = AutoTLSManager.new()
+
+    #   asyncTest "test ACME account registration":

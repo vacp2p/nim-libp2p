@@ -4,6 +4,11 @@ import
 
 type AutoTLSError* = object of LPError
 type ACMEError* = object of AutoTLSError
+type PeerIDAuthError* = object of AutoTLSError
+
+const
+  AutoTLSBroker* = "https://registration.libp2p.direct"
+  AutoTLSDNSServer* = "libp2p.direct"
 
 proc base64UrlEncode*(data: seq[byte]): string =
   ## Encodes data using base64url (RFC 4648 §5) — no padding, URL-safe
@@ -12,15 +17,16 @@ proc base64UrlEncode*(data: seq[byte]): string =
   encoded.removeSuffix("=")
   return encoded
 
-proc encodePeerId*(peerId: PeerId): string {.raises: [ACMEError].} =
+proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
   var mh: MultiHash
   let decodeResult = MultiHash.decode(peerId.data, mh)
   if decodeResult.isErr or decodeResult.get() == -1:
-    raise newException(ACMEError, "Failed to decode PeerId: invalid multihash format")
+    raise
+      newException(AutoTLSError, "Failed to decode PeerId: invalid multihash format")
 
   let cidResult = Cid.init(CIDv1, multiCodec("libp2p-key"), mh)
   if cidResult.isErr:
-    raise newException(ACMEError, "Failed to initialize CID from multihash")
+    raise newException(AutoTLSError, "Failed to initialize CID from multihash")
 
   return Base36.encode(cidResult.get().data.buffer)
 
