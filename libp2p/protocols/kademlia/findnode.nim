@@ -9,6 +9,7 @@ import ./lookupstate
 import ../protocol
 import ../../switch
 import ./protobuf
+import ../../utils/heartbeat
 
 logScope:
   topics = "libp2p discovery kad-dht"
@@ -17,6 +18,9 @@ type KadDHT* = ref object of LPProtocol
   switch: Switch
   rng: ref HmacDrbgContext
   rtable: RoutingTable
+
+  maintenanceLoop: Future[void]
+  healthMonitorLoop: Future[void]
 
 proc sendFindNode(
     kad: KadDHT, peerId: PeerId, targetId: PeerId
@@ -55,9 +59,7 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
-proc findNode(
-    kad: KadDHT, target: PeerId
-): Future[seq[PeerId]] {.async.} =
+proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
   var state = LookupState.init(target, kad.rtable)
 
   while not state.done:
@@ -108,21 +110,19 @@ proc refreshBuckets(kad: KadDHT) {.async.} =
       let randomId = randomIdInBucketRange(kad.rtable.selfId, i)
       discard await kad.findNode(randomId)
 
-proc maintenanceLoop(kad: KadDHT) {.async.} =
-  while true:
+proc maintainBuckets(kad: KadDHT) {.async.} =
+  heartbeat "refresh buckets", 10.minutes:
     await kad.refreshBuckets()
-    await sleepAsync(10.minutes)
 
-proc healthMonitor(rtable: RoutingTable) {.async.} =
-  while true:
-    for idx, bucket in rtable.buckets.pairs:
+proc healthMonitor(kad: KadDHT) {.async.} =
+  heartbeat "health monitor", 1.minutes:
+    for idx, bucket in kad.rtable.buckets.pairs:
       var live = 0
       for peer in bucket.peers:
         if Moment.now() - peer.lastSeen < 30.minutes:
           live.inc
       debug "health check", bucket = idx, live = live, peersInBucket = bucket.peers.len
     await sleepAsync(1.minutes)
-
 
 proc handler(conn: Connection, rtable: RoutingTable) {.async.} =
   discard
@@ -144,7 +144,8 @@ proc handler(conn: Connection, rtable: RoutingTable) {.async.} =
 proc new*(
     T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
 ): T {.raises: [].} =
-  var rtable = RoutingTable(selfId: switch.peerInfo.peerId, buckets: @[]) # TODO: init function
+  var rtable = RoutingTable(selfId: switch.peerInfo.peerId, buckets: @[])
+    # TODO: init function
   let kad = T(rng: rng, switch: switch, rtable: rtable)
 
   kad.handler = proc(
@@ -158,8 +159,24 @@ proc new*(
   return kad
 
 proc start*(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
+  if kad.started:
+    return
+
+  kad.started = true
+
   if bootstrapNodes.len > 0:
     await kad.bootstrap(bootstrapNodes)
 
-  asyncSpawn kad.maintenanceLoop()
-  asyncSpawn healthMonitor(kad.rtable)
+  kad.maintenanceLoop = kad.maintainBuckets()
+  kad.healthMonitorLoop = kad.healthMonitor()
+
+method stop*(kad: KadDHT): Future[void] {.async: (raises: [], raw: true).} =
+  if not kad.started:
+    return
+
+  kad.started = false
+  kad.maintenanceLoop.cancelSoon()
+  kad.healthMonitorLoop.cancelSoon()
+  kad.maintenanceLoop = nil
+  kad.healthMonitorLoop = nil
+  return
