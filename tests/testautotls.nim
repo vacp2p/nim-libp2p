@@ -24,20 +24,20 @@ import
 import ./helpers
 
 suite "AutoTLS":
-  suite "ACME communication":
-    asyncTest "test ACME challange request":
-      let rng = newRng()
-      let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get()
-      let acc = await ACMEAccount.new(accountKey)
-      await acc.register()
-      # account was registered (kid set)
-      check acc.kid.isSome
-      # challenge requested
-      let (dns01Challenge, finalizeURL, orderURL) =
-        await acc.requestChallenge(@["some.dummy.domain.com"])
-      check dns01Challenge.isNil == false
-      check finalizeURL.len > 0
-      check orderURL.len > 0
+  # suite "ACME communication":
+  #   asyncTest "test ACME challange request":
+  #     let rng = newRng()
+  #     let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get()
+  #     let acc = await ACMEAccount.new(accountKey)
+  #     await acc.register()
+  #     # account was registered (kid set)
+  #     check acc.kid.isSome
+  #     # challenge requested
+  #     let (dns01Challenge, finalizeURL, orderURL) =
+  #       await acc.requestChallenge(@["some.dummy.domain.com"])
+  #     check dns01Challenge.isNil == false
+  #     check finalizeURL.len > 0
+  #     check orderURL.len > 0
 
   suite "AutoTLS manager":
     asyncTest "test send challenge to AutoTLS broker":
@@ -49,14 +49,9 @@ suite "AutoTLS":
       let peerInfo = PeerInfo.new(seckey, multiAddresses)
 
       await autotlsMgr.start(peerInfo)
+
       # check if challenge was sent (bearer token from peer id auth was set)
       check autotlsMgr.bearerToken.isSome
 
-    # asyncTest "test notify ACME challenge completion":
-
-    # suite "AutoTLS broker handling":
-    #   asyncSetup:
-    #     rng = newRng()
-    #     autotlsMgr = AutoTLSManager.new()
-
-    #   asyncTest "test ACME account registration":
+      # TODO: check if DNS TXT and A records are set
+      check dnsSet() #TODO

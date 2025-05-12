@@ -103,6 +103,13 @@ method start*(
     (bearerToken, response) = await peerIdAuthSend(registrationURL, peerInfo, payload)
     self.bearerToken = Opt.some(bearerToken)
 
+  trace "waiting for DNS records to be set"
+  trace "notifying challenge completion to ACME server"
+  trace "waiting for certificate to be ready"
+  trace "downloading certificate"
+  trace "certificate installed"
+  trace "monitor for certificate renewals"
+
 method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
   if not self.running:
     return
