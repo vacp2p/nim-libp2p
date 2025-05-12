@@ -1,4 +1,4 @@
-import base64, strutils, stew/base36, chronos/apps/http/httpclient, json, strformat
+import base64, strutils, stew/base36, chronos/apps/http/httpclient, json, strformat, net
 import
   ../errors, ../peerid, ../multihash, ../cid, ../multicodec, ../crypto/[crypto, rsa]
 
@@ -16,6 +16,17 @@ proc base64UrlEncode*(data: seq[byte]): string =
   encoded.removeSuffix("=")
   encoded.removeSuffix("=")
   return encoded
+
+proc isPublicIPv4*(ip: IpAddress): bool =
+  if ip.family != IpAddressFamily.IPv4:
+    return false
+  let ip = $ip
+  return
+    not (
+      ip.startsWith("10.") or
+      (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
+      ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
+    )
 
 proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
   var mh: MultiHash
