@@ -168,18 +168,21 @@ proc generateNodes*(
     switch.mount(pubsub)
     result.add(pubsub)
 
-proc connectNodes*(dialer: PubSub, target: PubSub) {.async.} =
+proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
+  return nodes.mapIt(GossipSub(it))
+
+proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not connect same peer"
   await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
 
-proc connectNodesStar*(nodes: seq[PubSub]) {.async.} =
+proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
   for dialer in nodes:
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await connectNodes(dialer, node)
 
-proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
+proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
   if nodes.len < degree:
     raise
       (ref CatchableError)(msg: "nodes count needs to be greater or equal to degree!")
@@ -324,23 +327,25 @@ proc waitForPeersInTable*(
     )
     allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied)
 
-proc startNodes*(nodes: seq[PubSub]) {.async.} =
+proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
-proc stopNodes*(nodes: seq[PubSub]) {.async.} =
+proc stopNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
 
-template startNodesAndDeferStop*(nodes: seq[PubSub]): untyped =
+template startNodesAndDeferStop*[T: PubSub](nodes: seq[T]): untyped =
   await startNodes(nodes)
   defer:
     await stopNodes(nodes)
 
-proc subscribeAllNodes*(nodes: seq[PubSub], topic: string, topicHandler: TopicHandler) =
+proc subscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandler: TopicHandler
+) =
   for node in nodes:
     node.subscribe(topic, topicHandler)
 
-proc subscribeAllNodes*(
-    nodes: seq[PubSub], topic: string, topicHandlers: seq[TopicHandler]
+proc subscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandlers: seq[TopicHandler]
 ) =
   if nodes.len != topicHandlers.len:
     raise (ref CatchableError)(msg: "nodes and topicHandlers count needs to match!")
