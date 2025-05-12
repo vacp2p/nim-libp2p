@@ -3,6 +3,7 @@ import
   json,
   random,
   std/sysrand,
+  strutils,
   strformat # TODO: swap sysrand for bearssl functions?
 import chronos/apps/http/httpclient, results, chronicles, bio
 import ./utils, ../peerinfo, ../crypto/crypto
@@ -72,6 +73,33 @@ proc peerIdSign(
   let bytesToSign = genDataToSign(prefix, parts)
   return base64.encode(privateKey.sign(bytesToSign).get().getBytes(), safe = true)
 
+proc checkSignature(
+    serverSig: string,
+    serverPublicKey: PublicKey,
+    challengeServer: string,
+    clientPublicKey: PublicKey,
+    hostname: string,
+): bool {.raises: [PeerIDAuthError].} =
+  let prefix = "libp2p-PeerID"
+  let parts: seq[SigParam] =
+    @[
+      SigParam(k: "challenge-server", v: challengeServer.toByteSeq()),
+      SigParam(k: "client-public-key", v: clientPublicKey.getBytes().get()),
+      SigParam(k: "hostname", v: hostname.toByteSeq),
+    ]
+  let signedBytes = genDataToSign(prefix, parts)
+  var serverSignature: Signature
+  try:
+    if not serverSignature.init(base64.decode(serverSig).toByteSeq):
+      raise newException(
+        PeerIDAuthError, "Failed to initialize Signature from base64 encoded sig"
+      )
+  except ValueError:
+    raise newException(PeerIDAuthError, "Failed to decode server's signature")
+  return serverSignature.verify(
+    signedBytes.toOpenArray(0, signedBytes.len - 1), serverPublicKey
+  )
+
 proc peerIdAuthenticate(
     url: string, peerInfo: PeerInfo, payload: JsonNode
 ): Future[(string, HttpClientResponseRef)] {.
@@ -89,7 +117,6 @@ proc peerIdAuthenticate(
   except HttpError:
     raise newException(PeerIDAuthError, "Failed to start PeerID Auth")
 
-  # TODO: check server's signature
   # www-authenticate
   let wwwAuthenticate = authStartResponse.headers.getString("www-authenticate")
   if wwwAuthenticate == "":
@@ -130,6 +157,14 @@ proc peerIdAuthenticate(
     .send()
   except HttpError:
     raise newException(PeerIDAuthError, "Failed to send Authorization for PeerID Auth")
+
+  # check server's signature
+  let serverSig =
+    extractField(authorizationResponse.headers.getString("authentication-info"), "sig")
+  if not checkSignature(
+    serverSig, serverPublicKey, challengeServer, peerInfo.publicKey, hostname
+  ):
+    raise newException(PeerIDAuthError, "Failed to validate server's signature")
 
   # Bearer token
   return (
