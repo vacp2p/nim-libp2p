@@ -1,4 +1,5 @@
 import
+  net,
   results,
   chronos,
   chronicles,
@@ -12,6 +13,8 @@ import ./acme
 import ./peeridauth
 import ./utils
 import ../transports/tls/certificate
+import ../nameresolving/dnsresolver
+import ../wire
 import ../crypto/crypto
 import ../peerinfo
 
@@ -28,6 +31,41 @@ type AutoTLSManager* = ref object
   acmeAccount*: ref ACMEAccount
   bearerToken*: Opt[string]
   running: bool
+
+proc checkDNSRecords(
+    ip4Domain: string, acmeChalDomain: string, retries: int = 5
+): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
+  var dnsResolver: DnsResolver
+  try:
+    dnsResolver = DnsResolver.new(
+      @[
+        initTAddress("1.1.1.1:53"),
+        initTAddress("1.0.0.1:53"),
+        initTAddress("[2606:4700:4700::1111]:53"),
+      ]
+    )
+  except TransportAddressError:
+    raise newException(AutoTLSError, "Failed to initialize DNS resolver")
+
+  var txt = await dnsResolver.resolveTxt(acmeChalDomain)
+
+  var ip4: seq[TransportAddress]
+  try:
+    ip4 = await dnsResolver.resolveIp(acmeChalDomain, 0.Port)
+  except:
+    raise newException(AutoTLSError, "Failed to resolve IP")
+
+  for _ in 0 .. retries:
+    await sleepAsync(1.seconds)
+    txt = await dnsResolver.resolveTxt(acmeChalDomain)
+    try:
+      var ip4 = await dnsResolver.resolveIp(acmeChalDomain, 0.Port)
+    except:
+      raise newException(AutoTLSError, "Failed to resolve IP")
+    if txt.len > 0 and txt[0] != "not set yet" and ip4.len > 0:
+      return true
+
+  return false
 
 proc new*(
     T: typedesc[AutoTLSManager],
@@ -103,7 +141,28 @@ method start*(
     (bearerToken, response) = await peerIdAuthSend(registrationURL, peerInfo, payload)
     self.bearerToken = Opt.some(bearerToken)
 
-  trace "waiting for DNS records to be set"
+  # no need to do anything from this point forward if there are not public ip addresses on host
+  var hostPrimaryIP: IpAddress
+  try:
+    hostPrimaryIP = getPrimaryIPAddr()
+    if not isPublicIPv4(hostPrimaryIP):
+      self.running = false
+      return
+  except:
+    raise newException(AutoTLSError, "Failed to get primary IP address for host")
+
+  trace "waiting for DNS record to be set"
+
+  # if my ip address is 100.10.10.3 then the ip4Domain will be:
+  #     100-10-10-3.{peerIdBase36}.libp2p.direct
+  # and acme challenge TXT domain will be:
+  #     _acme-challenge.{peerIdBase36}.libp2p.direct
+  let dashedIpAddr = ($hostPrimaryIP).replace(".", "-")
+  let acmeChalDomain = fmt"_acme-challenge.{baseDomain}"
+  let ip4Domain = fmt"{dashedIpAddr}.{baseDomain}"
+  if not await checkDNSRecords(ip4Domain, acmeChalDomain, retries = 3):
+    raise newException(AutoTLSError, "DNS records not set")
+
   trace "notifying challenge completion to ACME server"
   trace "waiting for certificate to be ready"
   trace "downloading certificate"
