@@ -520,3 +520,78 @@ suite "GossipSub Mesh Management":
     nodes[1].subscribe("foobar", handler)
 
     await invalidDetected.wait(10.seconds)
+
+  asyncTest "mesh and gossipsub populated when subscribed":
+    let
+      numberOfNodes = 5
+      topic = "test-topic"
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    # When all of them are connected and subscribed to the same topic
+    await connectNodesStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then their related attributes should reflect that
+    for node in nodes:
+      check node.topics.contains(topic)
+      check node.gossipsub.hasKey(topic)
+      check node.gossipsub[topic].len() == numberOfNodes - 1
+      check node.mesh.hasKey(topic)
+      check node.mesh[topic].len() == numberOfNodes - 1
+
+  asyncTest "mesh and gossipsub updated when unsubscribed":
+    let
+      numberOfNodes = 5
+      topic = "test-topic"
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # When all nodes unsubscribe from the topic
+    unsubscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then the topic should be removed from relevant data structures
+    for node in nodes:
+      check topic notin node.topics
+      check topic notin node.mesh
+      check topic notin node.gossipsub
+
+  asyncTest "handle SUBSCRIBE and UNSUBSCRIBE multiple topics":
+    let
+      numberOfNodes = 3
+      topics = @["topic1", "topic2", "topic3"]
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    # When nodes subscribe to multiple topics
+    await connectNodesStar(nodes)
+    for topic in topics:
+      subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then all nodes should be subscribed to the topics initially
+    for node in nodes:
+      for topic in topics:
+        check node.topics.contains(topic)
+        check node.gossipsub[topic].len() == numberOfNodes - 1
+        check node.mesh[topic].len() == numberOfNodes - 1
+
+    # When they unsubscribe from all topics
+    for topic in topics:
+      unsubscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then topics should be removed from mesh and gossipsub
+    for node in nodes:
+      for topic in topics:
+        check topic notin node.topics
+        check topic notin node.mesh
+        check topic notin node.gossipsub

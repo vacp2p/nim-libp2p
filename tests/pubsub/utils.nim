@@ -344,6 +344,12 @@ proc subscribeAllNodes*[T: PubSub](
   for node in nodes:
     node.subscribe(topic, topicHandler)
 
+proc unsubscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandler: TopicHandler
+) =
+  for node in nodes:
+    node.unsubscribe(topic, topicHandler)
+
 proc subscribeAllNodes*[T: PubSub](
     nodes: seq[T], topic: string, topicHandlers: seq[TopicHandler]
 ) =
