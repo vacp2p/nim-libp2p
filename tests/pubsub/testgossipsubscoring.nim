@@ -53,8 +53,7 @@ suite "GossipSub Scoring":
       # also ensure we cleanup properly the peersInIP table
       gossipSub.peersInIP.len == 0
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
+    await teardownGossipSub(gossipSub, conns)
 
   asyncTest "flood publish to all peers with score above threshold, regardless of subscription":
     let
