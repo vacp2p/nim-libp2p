@@ -521,10 +521,10 @@ suite "GossipSub Mesh Management":
 
     await invalidDetected.wait(10.seconds)
 
-  asyncTest "mesh and gossipsub populated when subscribed":
+  asyncTest "mesh and gossipsub updated when topic subscribed and unsubscribed":
     let
       numberOfNodes = 5
-      topic = "test-topic"
+      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -534,7 +534,7 @@ suite "GossipSub Mesh Management":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
-    # Then their related attributes should reflect that
+    # Then mesh and gossipsub should be populated
     for node in nodes:
       check node.topics.contains(topic)
       check node.gossipsub.hasKey(topic)
@@ -542,31 +542,20 @@ suite "GossipSub Mesh Management":
       check node.mesh.hasKey(topic)
       check node.mesh[topic].len() == numberOfNodes - 1
 
-  asyncTest "mesh and gossipsub updated when unsubscribed":
-    let
-      numberOfNodes = 5
-      topic = "test-topic"
-      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
-
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
-
     # When all nodes unsubscribe from the topic
     unsubscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
-    # Then the topic should be removed from relevant data structures
+    # Then the topic should be removed from mesh and gossipsub
     for node in nodes:
       check topic notin node.topics
       check topic notin node.mesh
       check topic notin node.gossipsub
 
-  asyncTest "handle SUBSCRIBE and UNSUBSCRIBE multiple topics":
+  asyncTest "handle subscribe and unsubscribe for multiple topics":
     let
       numberOfNodes = 3
-      topics = @["topic1", "topic2", "topic3"]
+      topics = @["foobar1", "foobar2", "foobar3"]
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
