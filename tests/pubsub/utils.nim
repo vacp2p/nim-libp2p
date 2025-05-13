@@ -48,6 +48,9 @@ proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).}
 proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
   discard
 
+proc voidPeerHandler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
+  discard
+
 proc randomPeerId*(): PeerId =
   try:
     PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
@@ -74,15 +77,17 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   pubSubPeer
 
 proc setupGossipSubWithPeers*(
-    numPeers: int, topic: string, withMesh: bool = false
+    numPeers: int, topics: seq[string], withMesh: bool = false, withFanout: bool = false
 ): (TestGossipSub, seq[Connection]) =
   let gossipSub = TestGossipSub.init(newStandardSwitch())
 
-  gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-  gossipSub.topicParams[topic] = TopicParams.init()
+  for topic in topics:
+    gossipSub.topicParams[topic] = TopicParams.init()
+    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
 
   var conns = newSeq[Connection]()
-  gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
   for i in 0 ..< numPeers:
     let conn = TestBufferStream.new(noop)
     conns &= conn
@@ -90,12 +95,21 @@ proc setupGossipSubWithPeers*(
     conn.peerId = peerId
     let peer = gossipSub.getPubSubPeer(peerId)
     peer.sendConn = conn
-    gossipSub.gossipsub[topic].incl(peer)
-    if (withMesh):
-      gossipSub.grafted(peer, topic)
-      gossipSub.mesh[topic].incl(peer)
+    peer.handler = voidPeerHandler
+    for topic in topics:
+      gossipSub.gossipsub[topic].incl(peer)
+      if (withMesh):
+        gossipSub.grafted(peer, topic)
+        gossipSub.mesh[topic].incl(peer)
+      if (withFanout):
+        gossipSub.fanout[topic].incl(peer)
 
   return (gossipSub, conns)
+
+proc setupGossipSubWithPeers*(
+    numPeers: int, topic: string, withMesh: bool = false
+): (TestGossipSub, seq[Connection]) =
+  return setupGossipSubWithPeers(numPeers, @[topic], withMesh)
 
 proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
   await allFuturesThrowing(conns.mapIt(it.close()))

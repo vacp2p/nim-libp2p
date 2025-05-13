@@ -22,52 +22,25 @@ suite "GossipSub Fanout Management":
     checkTrackers()
 
   asyncTest "`replenishFanout` Degree Lo":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      discard
-
     let topic = "foobar"
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
-
-    var conns = newSeq[Connection]()
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      var peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
-      gossipSub.gossipsub[topic].incl(peer)
+    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     check gossipSub.gossipsub[topic].len == 15
     gossipSub.replenishFanout(topic)
     check gossipSub.fanout[topic].len == gossipSub.parameters.d
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "`dropFanoutPeers` drop expired fanout topics":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      discard
-
     let topic = "foobar"
-    gossipSub.topicParams[topic] = TopicParams.init()
-    gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
+    let (gossipSub, conns) = setupGossipSubWithPeers(6, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
     gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(1.millis)
     await sleepAsync(5.millis) # allow the topic to expire
 
-    var conns = newSeq[Connection]()
-    for i in 0 ..< 6:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+    for peer in gossipSub.gossipsub[topic]:
       gossipSub.fanout[topic].incl(peer)
 
     check gossipSub.fanout[topic].len == gossipSub.parameters.d
@@ -75,33 +48,19 @@ suite "GossipSub Fanout Management":
     gossipSub.dropFanoutPeers()
     check topic notin gossipSub.fanout
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "`dropFanoutPeers` leave unexpired fanout topics":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
+    let
+      topic1 = "foobar1"
+      topic2 = "foobar2"
+    let (gossipSub, conns) = setupGossipSubWithPeers(6, @[topic1, topic2])
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      discard
-
-    let topic1 = "foobar1"
-    let topic2 = "foobar2"
-    gossipSub.topicParams[topic1] = TopicParams.init()
-    gossipSub.topicParams[topic2] = TopicParams.init()
-    gossipSub.fanout[topic1] = initHashSet[PubSubPeer]()
-    gossipSub.fanout[topic2] = initHashSet[PubSubPeer]()
     gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(1.millis)
     gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(1.minutes)
-    await sleepAsync(5.millis) # allow the topic to expire
+    await sleepAsync(5.millis) # allow first topic to expire
 
-    var conns = newSeq[Connection]()
-    for i in 0 ..< 6:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+    for peer in gossipSub.gossipsub[topic1]:
       gossipSub.fanout[topic1].incl(peer)
       gossipSub.fanout[topic2].incl(peer)
 
@@ -112,14 +71,8 @@ suite "GossipSub Fanout Management":
     check topic1 notin gossipSub.fanout
     check topic2 in gossipSub.fanout
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "e2e - GossipSub send over fanout A -> B":
-    var passed = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      passed.complete()
+    let (passed, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2, gossip = true)
 
@@ -153,15 +106,12 @@ suite "GossipSub Fanout Management":
       gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
       not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
-    await passed.wait(2.seconds)
+    discard await passed.wait(2.seconds)
 
     check observed == 2
 
   asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
-    var passed = newFuture[void]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      passed.complete()
+    let (passed, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2, gossip = true, unsubscribeBackoff = 10.minutes)
 
@@ -191,6 +141,6 @@ suite "GossipSub Fanout Management":
       GossipSub(nodes[0]).fanout.getOrDefault("foobar").len > 0
       GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
 
-    await passed.wait(2.seconds)
+    discard await passed.wait(2.seconds)
 
     trace "test done, stopping..."
