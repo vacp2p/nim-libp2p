@@ -29,15 +29,12 @@ proc sendFindNode(
   defer:
     await conn.close()
 
-  let msg = Message(
-    msgType: Opt.some(MessageType.findNode),
-    clusterLevelRaw: Opt.none(int32),
-    key: Opt.some(targetId.getBytes()),
-  )
+  let msg =
+    Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(targetId.getBytes()))
 
   await conn.writeLp(msg.encode().buffer)
 
-  let reply = Message.decode(await conn.readLp(1024)).value().get() # TODO: fix
+  let reply = Message.decode(await conn.readLp(1024)).get() # TODO: fix
   if reply.msgType.get() != MessageType.findNode: # TODO: fix
     raise newException(ValueError, "unexpected message type in reply")
 
@@ -60,7 +57,8 @@ proc waitRepliesOrTimeouts(
   return (receivedReplies, failedPeers)
 
 proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
-  var state = LookupState.init(target, kad.rtable)
+  var initialPeers = kad.rtable.findClosest(target, k)
+  var state = LookupState.init(target, initialPeers)
 
   while not state.done:
     let toQuery = state.selectAlphaPeers()
@@ -80,7 +78,11 @@ proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
     let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
 
     for msg in successfulReplies:
-      state.updateShortlist(msg, kad.rtable)
+      state.updateShortlist(
+        msg,
+        proc(p: PeerId) =
+          kad.rtable.insert(p),
+      )
 
     for timedOut in timedOutPeers:
       state.markFailed(timedOut)
@@ -90,6 +92,7 @@ proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
   return state.selectClosestK()
 
 proc bootstrap(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
+  # TODO: every 10 minutes configurable, run once on start
   for b in bootstrapNodes:
     try:
       await kad.switch.connect(b.peerId, b.addrs)
@@ -97,9 +100,9 @@ proc bootstrap(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
     except CatchableError as e:
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
 
-  # self-lookup
   try:
     discard await kad.findNode(kad.switch.peerInfo.peerId)
+    #discard await kad.findNode(SOME_RANDOM_PEER) # TODO:
     debug "bootstrap lookup complete"
   except CatchableError as e:
     error "bootstrap lookup failed", error = e.msg
@@ -126,26 +129,28 @@ proc healthMonitor(kad: KadDHT) {.async.} =
 
 proc handler(conn: Connection, rtable: RoutingTable) {.async.} =
   discard
-  #let requestBytes = await stream.readFullMessage()
-  #let request = decodeFindNodeRequest(requestBytes)
 
-  # TODO: add other request typs
+# Implementations may choose to re-use streams by sending one or more RPC request messages on a single outgoing stream before closing it. Implementations must handle additional RPC request messages on an incoming stream.
 
-  #if request.type == FIND_NODE:
-  #  let targetId = request.key.get() # unwrap Option[seq[byte]] safely
-  #  let closerPeers = routingTable.findClosest(targetId, k)
-  #  let response = encodeFindNodeReply(closerPeers)
-  #  await stream.write(response)
-  #  await conn.close()
-  #else:
-  #  await conn.close()
-  #  return
+#let requestBytes = await stream.readFullMessage()
+#let request = decodeFindNodeRequest(requestBytes)
+
+# TODO: add other request typs
+
+#if request.type == FIND_NODE:
+#  let targetId = request.key.get() # unwrap Option[seq[byte]] safely
+#  let closerPeers = routingTable.findClosest(targetId, k)
+#  let response = encodeFindNodeReply(closerPeers)
+#  await stream.write(response)
+#  await conn.close()
+#else:
+#  await conn.close()
+#  return
 
 proc new*(
     T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
 ): T {.raises: [].} =
-  var rtable = RoutingTable(selfId: switch.peerInfo.peerId, buckets: @[])
-    # TODO: init function
+  var rtable = RoutingTable.init(switch.peerInfo.peerId)
   let kad = T(rng: rng, switch: switch, rtable: rtable)
 
   kad.handler = proc(

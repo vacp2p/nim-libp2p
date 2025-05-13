@@ -22,22 +22,23 @@ proc bucketIndex(selfId, peerId: PeerId): int =
   return distance.leadingZeros
 
 proc insert*(rtable: var RoutingTable, peerId: PeerId) =
+  if peerId == rtable.selfId:
+    return # No self insertion
+
   let idx = bucketIndex(rtable.selfId, peerId)
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
     rtable.buckets.setLen(idx + 1)
 
-  var bucket = rtable.buckets[idx]
-
   # if peer already there, update lastSeen
-  for p in mitems(bucket.peers):
+  for p in mitems(rtable.buckets[idx].peers):
     if p.peerId == peerId:
       p.lastSeen = Moment.now()
       return
 
   # otherwise insert
-  if bucket.peers.len < k:
-    bucket.peers.add(PeerEntry(peerId: peerId, lastSeen: Moment.now()))
+  if rtable.buckets[idx].peers.len < k:
+    rtable.buckets[idx].peers.add(PeerEntry(peerId: peerId, lastSeen: Moment.now()))
   else:
     # bucket full, could implement ping-oldest-before-evict here ?
     discard
@@ -79,3 +80,6 @@ proc randomIdInBucketRange*(selfId: PeerId, bucketIndex: int): PeerId =
   flipBit(rawId, bucketIndex) # flip the bit corresponding to bucket range
   randomizeLowerBits(rawId, bucketIndex)
   return PeerId(data: rawId)
+
+proc init*(T: typedesc[RoutingTable], selfId: PeerId): T =
+  return RoutingTable(selfId: selfId, buckets: @[])

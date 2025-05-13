@@ -27,8 +27,7 @@ proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
       return true
   return false
 
-# TODO: remove rtable
-proc updateShortlist*(state: var LookupState, msg: Message, rtable: var RoutingTable) =
+proc updateShortlist*(state: var LookupState, msg: Message, onInsert: proc(p: PeerId)) =
   for newPeer in msg.closerPeers:
     if not alreadyInShortlist(state, newPeer):
       let newPeerId = PeerId(data: newPeer.id)
@@ -41,7 +40,6 @@ proc updateShortlist*(state: var LookupState, msg: Message, rtable: var RoutingT
           failed: false,
         )
       )
-      rtable.insert(newPeerId)
 
   state.shortlist.sort(
     proc(a, b: LookupPeer): int =
@@ -75,9 +73,7 @@ proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
         break
   return selected
 
-# TODO: remove rtable
-proc init*(T: type LookupState, targetId: PeerId, rtable: var RoutingTable): T =
-  var initialPeers = rtable.findClosest(targetId, k)
+proc init*(T: type LookupState, targetId: PeerId, initialPeers: seq[PeerId]): T =
   result = LookupState(
     targetId: targetId,
     shortlist: @[],
