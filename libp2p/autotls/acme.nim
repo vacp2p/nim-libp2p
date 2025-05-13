@@ -172,3 +172,47 @@ proc requestChallenge*(
     raise newException(ACMEError, "DNS01 challenge not found in ACME response")
 
   return (dns01, finalizeURL, orderURL)
+
+proc notifyChallengeCompleted*(
+    self: ref ACMEAccount, chalURL: string, retries: int = 5
+): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
+  let emptyPayload = newJObject()
+  let completedResponse = await self.signedAcmeRequest(chalURL, emptyPayload)
+  if completedResponse.status != 200:
+    return false
+
+  var completedResponseBody: JsonNode
+  try:
+    completedResponseBody =
+      bytesToString(await completedResponse.getBodyBytes()).parseJson()
+  except HttpError:
+    raise newException(ACMEError, "Failed to connect to ACME server")
+  except Exception as e:
+    raise newException(
+      ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
+    )
+
+  let checkURL = completedResponseBody.getJSONField("url").getStr
+  # check until acme server is done (poll validation)
+  for _ in 0 .. retries:
+    var checkResponseBody: JsonNode
+    try:
+      let checkResponse =
+        await HttpClientRequestRef.get(HttpSessionRef.new(), checkURL).get().send()
+      checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
+    except HttpError:
+      raise newException(ACMEError, "Failed to connect to ACME server")
+    except Exception as e:
+      raise newException(
+        ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
+      )
+    case checkResponseBody.getJSONField("status").getStr
+    of "pending":
+      discard # try again
+    of "valid":
+      return true
+    else:
+      return false
+    await sleepAsync(1.seconds)
+
+  return true

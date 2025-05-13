@@ -27,7 +27,7 @@ type SigParam = object
 
 type AutoTLSManager* = ref object
   rng: ref HmacDrbgContext
-  cert: Opt[CertificateX509]
+  cert*: Opt[CertificateX509]
   acmeAccount*: ref ACMEAccount
   bearerToken*: Opt[string]
   running: bool
@@ -164,6 +164,10 @@ method start*(
     raise newException(AutoTLSError, "DNS records not set")
 
   trace "notifying challenge completion to ACME server"
+  let chalURL = dns01Challenge.getJSONField("url").getStr
+  if not await self.acmeAccount.notifyChallengeCompleted(chalURL, retries = 3):
+    raise newException(AutoTLSError, "ACME challenge completion notification failed")
+
   trace "waiting for certificate to be ready"
   trace "downloading certificate"
   trace "certificate installed"
