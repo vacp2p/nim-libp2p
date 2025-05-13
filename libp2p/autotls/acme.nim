@@ -1,0 +1,297 @@
+import options, json, base64
+import chronos/apps/http/httpclient, jwt, results, bearssl/pem
+
+import ./utils
+import ../crypto/crypto
+import ../crypto/rsa
+import ../transports/tls/certificate_ffi
+import ../transports/tls/certificate
+
+# TODO: change staging to actual url
+const
+  LetsEncryptURL = "https://acme-staging-v02.api.letsencrypt.org"
+  Alg = "RS256"
+
+type ACMEAccount* = object
+  status*: Opt[string]
+  contact*: Opt[seq[string]]
+  key*: KeyPair
+  kid*: Opt[string]
+  directory: JsonNode
+
+proc new*(
+    T: typedesc[ACMEAccount],
+    key: KeyPair,
+    status: Opt[string] = Opt.none(string),
+    contact: Opt[seq[string]] = Opt.none(seq[string]),
+    kid: Opt[string] = Opt.none(string),
+): Future[ref ACMEAccount] {.async: (raises: [ACMEError, CancelledError]).} =
+  try:
+    let directoryResponse = await HttpClientRequestRef
+    .get(HttpSessionRef.new(), LetsEncryptURL & "/directory")
+    .get()
+    .send()
+    let directory = bytesToString(await directoryResponse.getBodyBytes()).parseJson()
+
+    let acc = new(ACMEAccount)
+    acc.status = status
+    acc.contact = contact
+    acc.kid = kid
+    acc.key = key
+    acc.directory = directory
+    return acc
+  except HttpError:
+    raise newException(ACMEError, "Failed to connect to ACME server")
+  except ValueError:
+    raise newException(ACMEError, "Unable to parse JSON")
+  except OSError:
+    raise newException(ACMEError, "Unable to parse JSON")
+  except IOError:
+    raise newException(ACMEError, "Unable to parse JSON")
+  except Exception as e:
+    raise newException(
+      ACMEError,
+      "Unexpected error occurred while getting ACME server directory: " & e.msg,
+    )
+
+proc newNonce(
+    self: ref ACMEAccount
+): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+  try:
+    let nonceURL = self.directory.getJSONField("newNonce").getStr
+    let resp =
+      await HttpClientRequestRef.get(HttpSessionRef.new(), nonceURL).get().send()
+    return resp.headers.getString("replay-nonce")
+  except HttpError:
+    raise newException(ACMEError, "Failed to request new nonce from ACME server")
+
+# TODO: save n and e in account so we don't have to recalculate every time
+proc acmeHeader(
+    self: ref ACMEAccount, url: string, needsJwk: bool, kid: string = ""
+): Future[JsonNode] {.async: (raises: [ACMEError, CancelledError]).} =
+  # TODO: check if scheme is RSA
+  let pubkey = self.key.pubkey.rsakey
+  let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
+  let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))
+  let n = base64UrlEncode(nArray)
+  let e = base64UrlEncode(eArray)
+
+  let newNonce = await self.newNonce()
+  var header = %*{"alg": Alg, "typ": "JWT", "nonce": newNonce, "url": url}
+  if needsJwk:
+    header["jwk"] = %*{"kty": "RSA", "n": n, "e": e}
+  else:
+    if self.kid.isNone:
+      raise newException(ACMEError, "no kid registered for account")
+    header["kid"] = %*(self.kid.get)
+  return header
+
+proc signedAcmeRequest(
+    self: ref ACMEAccount, url: string, payload: JsonNode, needsJwk: bool = false
+): Future[HttpClientResponseRef] {.async: (raises: [ACMEError, CancelledError]).} =
+  let acmeHeader = await self.acmeHeader(url, needsJwk)
+  var token: JWT
+  try:
+    token = toJWT(%*{"header": acmeHeader, "claims": payload})
+    let derPrivKey = self.key.seckey.rsakey.getBytes.get
+    let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
+    token.sign(pemPrivKey)
+  except Exception as e:
+    raise newException(ACMEError, "could not create JWT: " & e.msg)
+  let body =
+    %*{
+      "payload": token.claims.toBase64,
+      "protected": token.header.toBase64,
+      "signature": base64UrlEncode(token.signature),
+    }
+  try:
+    let response = await HttpClientRequestRef
+    .post(
+      HttpSessionRef.new(),
+      url,
+      body = $body,
+      headers = [("Content-Type", "application/jose+json")],
+    )
+    .get()
+    .send()
+    return response
+  except HttpError:
+    raise newException(ACMEError, "Failed to send HTTP request to the ACME server")
+
+proc register*(self: ref ACMEAccount) {.async: (raises: [ACMEError, CancelledError]).} =
+  if self.kid.isSome:
+    # already registered
+    return
+
+  let payload = %*{"termsOfServiceAgreed": true}
+
+  let newAccountURL = self.directory.getJSONField("newAccount").getStr
+  let response = await self.signedAcmeRequest(newAccountURL, payload, needsJwk = true)
+  let jsonResponseBody = await response.getParsedResponseBody()
+  if response.status != 201:
+    raise newException(
+      ACMEError, "Unable to register with ACME server: " & $jsonResponseBody
+    )
+  self.kid = Opt.some(response.headers.getString("location"))
+  self.status = Opt.some(jsonResponseBody.getJSONField("status").getStr)
+
+proc requestChallenge*(
+    self: ref ACMEAccount, domains: seq[string]
+): Future[(JsonNode, string, string)] {.async: (raises: [ACMEError, CancelledError]).} =
+  # request challenge from ACME server
+  var identifiers: seq[JsonNode]
+
+  for domain in domains:
+    identifiers.add(%*{"type": "dns", "value": domain})
+
+  let orderPayload = %*{"identifiers": identifiers}
+  let newOrderURL = self.directory.getJSONField("newOrder").getStr
+
+  let challengeResponse = await self.signedAcmeRequest(newOrderURL, orderPayload)
+  let challengeResponseBody = await challengeResponse.getParsedResponseBody()
+  let orderURL = challengeResponse.headers.getString("location")
+  if orderURL == "":
+    raise newException(ACMEError, "'location' header not found in ACME response")
+  let finalizeURL = challengeResponseBody.getJSONField("finalize").getStr
+
+  # get challenges
+  let authzURL = challengeResponseBody.getJSONField("authorizations")[0].getStr
+  let authzResponseBody =
+    try:
+      let authzResponse =
+        await HttpClientRequestRef.get(HttpSessionRef.new(), authzURL).get().send()
+      await authzResponse.getParsedResponseBody()
+    except Exception as e:
+      raise newException(ACMEError, "failed to request challenge: " & e.msg)
+
+  let challenges = authzResponseBody.getJSONField("challenges")
+  var dns01: JsonNode = nil
+  for item in challenges:
+    if item.getJSONField("type").getStr == "dns-01":
+      dns01 = item
+      break
+  if dns01.isNil:
+    raise newException(ACMEError, "DNS01 challenge not found in ACME response")
+
+  return (dns01, finalizeURL, orderURL)
+
+proc notifyChallengeCompleted*(
+    self: ref ACMEAccount, chalURL: string, retries: int = 5
+): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
+  let emptyPayload = newJObject()
+  let completedResponse = await self.signedAcmeRequest(chalURL, emptyPayload)
+  if completedResponse.status != 200:
+    return false
+
+  var completedResponseBody: JsonNode
+  try:
+    completedResponseBody =
+      bytesToString(await completedResponse.getBodyBytes()).parseJson()
+  except HttpError:
+    raise newException(ACMEError, "Failed to connect to ACME server")
+  except Exception as e:
+    raise newException(
+      ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
+    )
+
+  let checkURL = completedResponseBody.getJSONField("url").getStr
+  # check until acme server is done (poll validation)
+  for _ in 0 .. retries:
+    var checkResponseBody: JsonNode
+    try:
+      let checkResponse =
+        await HttpClientRequestRef.get(HttpSessionRef.new(), checkURL).get().send()
+      checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
+    except HttpError:
+      raise newException(ACMEError, "Failed to connect to ACME server")
+    except Exception as e:
+      raise newException(
+        ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
+      )
+    case checkResponseBody.getJSONField("status").getStr
+    of "pending":
+      discard # try again
+    of "valid":
+      return true
+    else:
+      return false
+    await sleepAsync(1.seconds)
+
+  return false
+
+proc finalizeCertificate*(
+    self: ref ACMEAccount,
+    domain: string,
+    finalizeURL: string,
+    orderURL: string,
+    retries: int = 5,
+): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
+  var certKey: cert_key_t
+  var certCtx: cert_context_t
+  var derCSR: ptr cert_buffer = nil
+
+  # TODO: use secure method
+  var randomCstring: cstring
+  try:
+    randomCstring = urandomToCString(256)
+  except:
+    raise newException(ACMEError, "Failed to generate random string")
+
+  if cert_init_drbg(randomCstring, 256, certCtx.addr) != CERT_SUCCESS:
+    raise newException(ACMEError, "Failed to initialize certCtx")
+  if cert_generate_key(certCtx, certKey.addr) != CERT_SUCCESS:
+    raise newException(ACMEError, "Failed to generate cert key")
+
+  if cert_signing_req(domain.cstring, certKey, derCSR.addr) != CERT_SUCCESS:
+    raise newException(ACMEError, "Failed to create CSR")
+
+  let b64CSR = base64.encode(derCSR.toSeq, safe = true)
+
+  for _ in 0 .. retries:
+    var finalizedResponseBody: JsonNode
+    try:
+      let finalizedResponse =
+        await HttpClientRequestRef.get(HttpSessionRef.new(), finalizeURL).get().send()
+      finalizedResponseBody =
+        bytesToString(await finalizedResponse.getBodyBytes()).parseJson()
+    except HttpError:
+      raise newException(ACMEError, "Failed to connect to ACME server")
+    except Exception as e:
+      raise newException(
+        ACMEError, "Unexpected error while finalizing certificate: " & e.msg
+      )
+    case finalizedResponseBody.getJSONField("status").getStr
+    of "processing":
+      discard # try again
+    of "valid":
+      return true
+    else:
+      return false
+    await sleepAsync(1.seconds)
+
+  return false
+
+proc downloadCertificate*(
+    self: ref ACMEAccount, orderURL: string
+): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+  try:
+    let downloadResponse =
+      await HttpClientRequestRef.get(HttpSessionRef.new(), orderURL).get().send()
+    if downloadResponse.status != 200:
+      raise newException(ACMEError, "Failed to download certificate")
+    let certificateDownloadURL = bytesToString(await downloadResponse.getBodyBytes())
+      .parseJson()
+      .getJSONField("certificate").getStr
+
+    let certificateResponse = await HttpClientRequestRef
+    .get(HttpSessionRef.new(), certificateDownloadURL)
+    .get()
+    .send()
+    let rawCertificate = bytesToString(await certificateResponse.getBodyBytes())
+    return rawCertificate
+  except HttpError:
+    raise newException(ACMEError, "Failed to connect to ACME server")
+  except Exception as e:
+    raise newException(
+      ACMEError, "Unexpected error while downloading certificate: " & e.msg
+    )

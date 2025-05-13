@@ -1,4 +1,12 @@
-import base64, strutils, stew/base36, chronos/apps/http/httpclient, json, strformat, net
+import
+  base64,
+  strutils,
+  stew/base36,
+  chronos/apps/http/httpclient,
+  json,
+  strformat,
+  net,
+  std/sysrand
 import
   ../errors, ../peerid, ../multihash, ../cid, ../multicodec, ../crypto/[crypto, rsa]
 
@@ -55,9 +63,10 @@ proc getParsedResponseBody*(
     )
 
 proc getJSONField*(node: JsonNode, field: string): JsonNode {.raises: [ACMEError].} =
-  if node{field} == nil:
-    raise newException(ACMEError, fmt"'{field}' field not found in JSON: " & $node)
-  return node{field}
+  try:
+    return node[field]
+  except:
+    raise newException(ACMEError, fmt"'{field}' field not found in JSON: {node}")
 
 proc thumbprint*(key: KeyPair): string =
   # TODO: check if scheme is RSA
@@ -71,3 +80,10 @@ proc thumbprint*(key: KeyPair): string =
   # TODO: https://www.rfc-editor.org/rfc/rfc7638
   let digest = sha256.digest($keyJson)
   return base64UrlEncode(@(digest.data))
+
+proc urandomToCString*(size: int): cstring =
+  let randBytes = urandom(size)
+  result = cast[cstring](alloc(size + 1)) # +1 for null terminator
+  for i in 0 ..< size:
+    result[i] = char(randBytes[i])
+  result[size] = '\0' # Null-terminate
