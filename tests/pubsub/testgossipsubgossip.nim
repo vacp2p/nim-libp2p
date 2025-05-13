@@ -24,26 +24,15 @@ suite "GossipSub Gossip Protocol":
     checkTrackers()
 
   asyncTest "`getGossipPeers` - should gather up to degree D non intersecting peers":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      discard
-
     let topic = "foobar"
-    gossipSub.topicParams[topic] = TopicParams.init()
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    var conns = newSeq[Connection]()
+    let (gossipSub, conns) = setupGossipSubWithPeers(45, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
-    # generate mesh and fanout peers
+    # generate mesh and fanout peers 
     for i in 0 ..< 30:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+      let conn = conns[i]
+      let peer = gossipSub.getPubSubPeer(conn.peerId)
       if i mod 2 == 0:
         gossipSub.fanout[topic].incl(peer)
       else:
@@ -51,24 +40,17 @@ suite "GossipSub Gossip Protocol":
         gossipSub.mesh[topic].incl(peer)
 
     # generate gossipsub (free standing) peers
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+    for i in 30 ..< 45:
+      let conn = conns[i]
+      let peer = gossipSub.getPubSubPeer(conn.peerId)
       gossipSub.gossipsub[topic].incl(peer)
 
     # generate messages
     var seqno = 0'u64
     for i in 0 .. 5:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
+      let conn = conns[i]
       inc seqno
-      let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     check gossipSub.fanout[topic].len == 15
@@ -81,27 +63,16 @@ suite "GossipSub Gossip Protocol":
       check not gossipSub.fanout.hasPeerId(topic, p.peerId)
       check not gossipSub.mesh.hasPeerId(topic, p.peerId)
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "`getGossipPeers` - should not crash on missing topics in mesh":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      discard
-
     let topic = "foobar"
-    gossipSub.topicParams[topic] = TopicParams.init()
-    gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    var conns = newSeq[Connection]()
+    let (gossipSub, conns) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate mesh and fanout peers 
     for i in 0 ..< 30:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+      let conn = conns[i]
+      let peer = gossipSub.getPubSubPeer(conn.peerId)
       if i mod 2 == 0:
         gossipSub.fanout[topic].incl(peer)
       else:
@@ -110,38 +81,24 @@ suite "GossipSub Gossip Protocol":
     # generate messages
     var seqno = 0'u64
     for i in 0 .. 5:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
+      let conn = conns[i]
       inc seqno
-      let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
-
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
 
   asyncTest "`getGossipPeers` - should not crash on missing topics in fanout":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      discard
-
     let topic = "foobar"
-    gossipSub.topicParams[topic] = TopicParams.init()
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    var conns = newSeq[Connection]()
+    let (gossipSub, conns) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate mesh and fanout peers 
     for i in 0 ..< 30:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+      let conn = conns[i]
+      let peer = gossipSub.getPubSubPeer(conn.peerId)
       if i mod 2 == 0:
         gossipSub.mesh[topic].incl(peer)
         gossipSub.grafted(peer, topic)
@@ -151,38 +108,24 @@ suite "GossipSub Gossip Protocol":
     # generate messages
     var seqno = 0'u64
     for i in 0 .. 5:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
+      let conn = conns[i]
       inc seqno
-      let msg = Message.init(peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == gossipSub.parameters.d
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "`getGossipPeers` - should not crash on missing topics in gossip":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      discard
-
     let topic = "foobar"
-    gossipSub.topicParams[topic] = TopicParams.init()
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
-    var conns = newSeq[Connection]()
+    let (gossipSub, conns) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate mesh and fanout peers 
     for i in 0 ..< 30:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+      let conn = conns[i]
+      let peer = gossipSub.getPubSubPeer(conn.peerId)
       if i mod 2 == 0:
         gossipSub.mesh[topic].incl(peer)
         gossipSub.grafted(peer, topic)
@@ -192,47 +135,21 @@ suite "GossipSub Gossip Protocol":
     # generate messages
     var seqno = 0'u64
     for i in 0 .. 5:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
+      let conn = conns[i]
       inc seqno
-      let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let peers = gossipSub.getGossipPeers()
     check peers.len == 0
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "handleIHave/Iwant tests":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      check false
-
-    proc handler2(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     let topic = "foobar"
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.subscribe(topic, handler2)
+    var (gossipSub, conns) = setupGossipSubWithPeers(30, topic, populateMesh = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
-    # Instantiates 30 peers and connects all of them to the previously defined `gossipSub`
-    for i in 0 ..< 30:
-      # Define a new connection
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
-      # Add the connection to `gossipSub`, to their `gossipSub.gossipsub` and `gossipSub.mesh` tables
-      gossipSub.grafted(peer, topic)
-      gossipSub.mesh[topic].incl(peer)
+    gossipSub.subscribe(topic, voidTopicHandler)
 
     # Peers with no budget should not request messages
     block:
@@ -295,9 +212,6 @@ suite "GossipSub Gossip Protocol":
         genmsg.len == 1
 
     check gossipSub.mcache.msgs.len == 1
-
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
 
   asyncTest "messages sent to peers not in the mesh are propagated via gossip":
     let

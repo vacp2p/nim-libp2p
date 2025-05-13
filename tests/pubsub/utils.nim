@@ -77,7 +77,11 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   pubSubPeer
 
 proc setupGossipSubWithPeers*(
-    numPeers: int, topics: seq[string], withMesh: bool = false, withFanout: bool = false
+    numPeers: int,
+    topics: seq[string],
+    populateGossipsub: bool = false,
+    populateMesh: bool = false,
+    populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection]) =
   let gossipSub = TestGossipSub.init(newStandardSwitch())
 
@@ -97,19 +101,26 @@ proc setupGossipSubWithPeers*(
     peer.sendConn = conn
     peer.handler = voidPeerHandler
     for topic in topics:
-      gossipSub.gossipsub[topic].incl(peer)
-      if (withMesh):
+      if (populateGossipsub):
+        gossipSub.gossipsub[topic].incl(peer)
+      if (populateMesh):
         gossipSub.grafted(peer, topic)
         gossipSub.mesh[topic].incl(peer)
-      if (withFanout):
+      if (populateFanout):
         gossipSub.fanout[topic].incl(peer)
 
   return (gossipSub, conns)
 
 proc setupGossipSubWithPeers*(
-    numPeers: int, topic: string, withMesh: bool = false
+    numPeers: int,
+    topic: string,
+    populateGossipsub: bool = false,
+    populateMesh: bool = false,
+    populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection]) =
-  return setupGossipSubWithPeers(numPeers, @[topic], withMesh)
+  return setupGossipSubWithPeers(
+    numPeers, @[topic], populateGossipsub, populateMesh, populateFanout
+  )
 
 proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
   await allFuturesThrowing(conns.mapIt(it.close()))

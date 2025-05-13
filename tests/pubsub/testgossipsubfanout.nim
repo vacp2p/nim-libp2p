@@ -23,7 +23,8 @@ suite "GossipSub Fanout Management":
 
   asyncTest "`replenishFanout` Degree Lo":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic)
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -33,7 +34,7 @@ suite "GossipSub Fanout Management":
 
   asyncTest "`dropFanoutPeers` drop expired fanout topics":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(6, topic)
+    let (gossipSub, conns) = setupGossipSubWithPeers(6, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -52,7 +53,8 @@ suite "GossipSub Fanout Management":
     let
       topic1 = "foobar1"
       topic2 = "foobar2"
-    let (gossipSub, conns) = setupGossipSubWithPeers(6, @[topic1, topic2])
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(6, @[topic1, topic2], populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 

@@ -26,7 +26,8 @@ suite "GossipSub Mesh Management":
 
   asyncTest "subscribe/unsubscribeAll":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic)
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -48,7 +49,8 @@ suite "GossipSub Mesh Management":
 
   asyncTest "`rebalanceMesh` Degree Lo":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic)
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -58,7 +60,8 @@ suite "GossipSub Mesh Management":
 
   asyncTest "rebalanceMesh - bad peers":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic)
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -76,7 +79,8 @@ suite "GossipSub Mesh Management":
 
   asyncTest "`rebalanceMesh` Degree Hi":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic, withMesh = true)
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -87,7 +91,8 @@ suite "GossipSub Mesh Management":
 
   asyncTest "rebalanceMesh fail due to backoff":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic)
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -106,7 +111,8 @@ suite "GossipSub Mesh Management":
 
   asyncTest "rebalanceMesh fail due to backoff - remote":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(15, topic, withMesh = true)
+    let (gossipSub, conns) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -136,7 +142,9 @@ suite "GossipSub Mesh Management":
       numOutPeers = 7
       totalPeers = numInPeers + numOutPeers
 
-    let (gossipSub, conns) = setupGossipSubWithPeers(totalPeers, topic, withMesh = true)
+    let (gossipSub, conns) = setupGossipSubWithPeers(
+      totalPeers, topic, populateGossipsub = true, populateMesh = true
+    )
     defer:
       await teardownGossipSub(gossipSub, conns)
 
