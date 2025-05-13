@@ -27,7 +27,7 @@ type SigParam = object
 
 type AutoTLSManager* = ref object
   rng: ref HmacDrbgContext
-  cert: Opt[CertificateX509]
+  cert*: Opt[CertificateX509]
   acmeAccount*: ref ACMEAccount
   bearerToken*: Opt[string]
   running: bool
@@ -71,18 +71,11 @@ proc new*(
     T: typedesc[AutoTLSManager],
     rng: ref HmacDrbgContext = newRng(),
     acmeAccount: ref ACMEAccount = nil,
-): Future[T] {.async: (raises: [AutoTLSError, ACMEError, CancelledError]).} =
-  let account =
-    if acmeAccount.isNil:
-      let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get() # TODO: check
-      (await ACMEAccount.new(accountKey))
-    else:
-      acmeAccount
-
+): AutoTLSManager =
   T(
     rng: rng,
     cert: Opt.none(CertificateX509),
-    acmeAccount: account,
+    acmeAccount: acmeAccount,
     bearerToken: Opt.none(string),
     running: false,
   )
@@ -90,6 +83,9 @@ proc new*(
 method start*(
     self: AutoTLSManager, peerInfo: PeerInfo
 ): Future[void] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
+  if self.acmeAccount.isNil:
+    let accountKey = KeyPair.random(PKScheme.RSA, self.rng[]).get() # TODO: check
+    self.acmeAccount = (await ACMEAccount.new(accountKey))
   if self.running:
     return
   trace "starting AutoTLS manager"
@@ -107,8 +103,6 @@ method start*(
   trace "requesting ACME challenge"
   let (dns01Challenge, finalizeURL, orderURL) =
     await self.acmeAccount.requestChallenge(@[domain])
-  discard finalizeURL
-  discard orderURL
 
   let keyAuthorization = base64UrlEncode(
     @(
@@ -164,10 +158,23 @@ method start*(
     raise newException(AutoTLSError, "DNS records not set")
 
   trace "notifying challenge completion to ACME server"
-  trace "waiting for certificate to be ready"
+  let chalURL = dns01Challenge.getJSONField("url").getStr
+  if not await self.acmeAccount.notifyChallengeCompleted(chalURL, retries = 3):
+    raise newException(AutoTLSError, "ACME challenge completion notification failed")
+
+  trace "finalize cert request with CSR"
+  if not await self.acmeAccount.finalizeCertificate(
+    domain, finalizeURL, orderURL, retries = 3
+  ):
+    raise newException(AutoTLSError, "ACME certificate finalization request failed")
+
   trace "downloading certificate"
-  trace "certificate installed"
-  trace "monitor for certificate renewals"
+  discard self.acmeAccount.downloadCertificate(orderURL)
+  # self.cert = Opt.some(self.acmeAccount.downloadCertificate(orderURL))
+  # TODO: properly parse cert
+
+  trace "installing certificate"
+  trace "monitoring for certificate renewals"
 
 method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
   if not self.running:
