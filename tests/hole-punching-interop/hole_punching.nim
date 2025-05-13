@@ -1,4 +1,4 @@
-import std/[os, options, strformat, sequtils]
+import std/[os, options, strformat, sequtils, strutils]
 import redis
 import chronos, chronicles
 import
@@ -76,7 +76,7 @@ proc main() {.async.} =
       await sleepAsync(100.milliseconds)
 
     # This will trigger the autonat relay service to make a reservation.
-    let relayMA = MultiAddress.init(relayAddr[1]).tryGet()
+    let relayMA = MultiAddress.init(relayAddr.filterIt(not it.contains("quic"))[0]).tryGet()
     debug "Got relay address", relayMA
     let relayId = await switch.connect(relayMA)
     debug "Connected to relay", relayId
