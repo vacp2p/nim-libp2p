@@ -1,9 +1,11 @@
-import options, json
+import options, json, base64
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
 
 import ./utils
 import ../crypto/crypto
 import ../crypto/rsa
+import ../transports/tls/certificate_ffi
+import ../transports/tls/certificate
 
 # TODO: change staging to actual url
 const
@@ -215,4 +217,81 @@ proc notifyChallengeCompleted*(
       return false
     await sleepAsync(1.seconds)
 
-  return true
+  return false
+
+proc finalizeCertificate*(
+    self: ref ACMEAccount,
+    domain: string,
+    finalizeURL: string,
+    orderURL: string,
+    retries: int = 5,
+): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
+  var certKey: cert_key_t
+  var certCtx: cert_context_t
+  var derCSR: ptr cert_buffer = nil
+
+  # TODO: use secure method
+  var randomCstring: cstring
+  try:
+    randomCstring = urandomToCString(256)
+  except:
+    raise newException(ACMEError, "Failed to generate random string")
+
+  if cert_init_drbg(randomCstring, 256, certCtx.addr) != CERT_SUCCESS:
+    raise newException(ACMEError, "Failed to initialize certCtx")
+  if cert_generate_key(certCtx, certKey.addr) != CERT_SUCCESS:
+    raise newException(ACMEError, "Failed to generate cert key")
+
+  if cert_signing_req(domain.cstring, certKey, derCSR.addr) != CERT_SUCCESS:
+    raise newException(ACMEError, "Failed to create CSR")
+
+  let b64CSR = base64.encode(derCSR.toSeq, safe = true)
+
+  for _ in 0 .. retries:
+    var finalizedResponseBody: JsonNode
+    try:
+      let finalizedResponse =
+        await HttpClientRequestRef.get(HttpSessionRef.new(), finalizeURL).get().send()
+      finalizedResponseBody =
+        bytesToString(await finalizedResponse.getBodyBytes()).parseJson()
+    except HttpError:
+      raise newException(ACMEError, "Failed to connect to ACME server")
+    except Exception as e:
+      raise newException(
+        ACMEError, "Unexpected error while finalizing certificate: " & e.msg
+      )
+    case finalizedResponseBody.getJSONField("status").getStr
+    of "processing":
+      discard # try again
+    of "valid":
+      return true
+    else:
+      return false
+    await sleepAsync(1.seconds)
+
+  return false
+
+proc downloadCertificate*(
+    self: ref ACMEAccount, orderURL: string
+): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+  try:
+    let downloadResponse =
+      await HttpClientRequestRef.get(HttpSessionRef.new(), orderURL).get().send()
+    if downloadResponse.status != 200:
+      raise newException(ACMEError, "Failed to download certificate")
+    let certificateDownloadURL = bytesToString(await downloadResponse.getBodyBytes())
+      .parseJson()
+      .getJSONField("certificate").getStr
+
+    let certificateResponse = await HttpClientRequestRef
+    .get(HttpSessionRef.new(), certificateDownloadURL)
+    .get()
+    .send()
+    let rawCertificate = bytesToString(await certificateResponse.getBodyBytes())
+    return rawCertificate
+  except HttpError:
+    raise newException(ACMEError, "Failed to connect to ACME server")
+  except Exception as e:
+    raise newException(
+      ACMEError, "Unexpected error while downloading certificate: " & e.msg
+    )

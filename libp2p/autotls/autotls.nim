@@ -107,8 +107,6 @@ method start*(
   trace "requesting ACME challenge"
   let (dns01Challenge, finalizeURL, orderURL) =
     await self.acmeAccount.requestChallenge(@[domain])
-  discard finalizeURL
-  discard orderURL
 
   let keyAuthorization = base64UrlEncode(
     @(
@@ -168,10 +166,19 @@ method start*(
   if not await self.acmeAccount.notifyChallengeCompleted(chalURL, retries = 3):
     raise newException(AutoTLSError, "ACME challenge completion notification failed")
 
-  trace "waiting for certificate to be ready"
+  trace "finalize cert request with CSR"
+  if not await self.acmeAccount.finalizeCertificate(
+    domain, finalizeURL, orderURL, retries = 3
+  ):
+    raise newException(AutoTLSError, "ACME certificate finalization request failed")
+
   trace "downloading certificate"
-  trace "certificate installed"
-  trace "monitor for certificate renewals"
+  discard self.acmeAccount.downloadCertificate(orderURL)
+  # self.cert = Opt.some(self.acmeAccount.downloadCertificate(orderURL))
+  # TODO: properly parse cert
+
+  trace "installing certificate"
+  trace "monitoring for certificate renewals"
 
 method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
   if not self.running:
