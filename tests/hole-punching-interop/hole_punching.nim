@@ -29,7 +29,6 @@ proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withObservedAddrManager(ObservedAddrManager.new(maxSize = 1, minCount = 1))
     .withTcpTransport({ServerFlags.TcpNoDelay})
-    .withYamux()
     .withAutonat()
     .withNoise()
 
