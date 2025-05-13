@@ -18,6 +18,9 @@ import
 import ../stubs/autonatclientstub
 import ../errorhelpers
 
+logScope:
+  topics = "hp interop node"
+
 proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   let rng = newRng()
   var builder = SwitchBuilder
@@ -67,6 +70,8 @@ proc main() {.async.} =
       except Exception as e:
         raise newException(CatchableError, e.msg)
 
+    debug "All relay addresses", relayAddr
+
     # This is necessary to make the autonat service work. It will ask this peer for our reachability which the autonat
     # client stub will answer NotReachable.
     await switch.connect(auxSwitch.peerInfo.peerId, auxSwitch.peerInfo.addrs)
@@ -76,7 +81,7 @@ proc main() {.async.} =
       await sleepAsync(100.milliseconds)
 
     # This will trigger the autonat relay service to make a reservation.
-    let relayMA = MultiAddress.init(relayAddr[0]).tryGet()
+    let relayMA = MultiAddress.init(relayAddr[1]).tryGet()
     debug "Got relay address", relayMA
     let relayId = await switch.connect(relayMA)
     debug "Connected to relay", relayId
