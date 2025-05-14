@@ -29,7 +29,7 @@ import
   ../../utility,
   ../../switch
 
-import stew/results
+import results
 export results
 
 import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
