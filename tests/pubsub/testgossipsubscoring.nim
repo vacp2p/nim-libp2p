@@ -23,24 +23,20 @@ suite "GossipSub Scoring":
     checkTrackers()
 
   asyncTest "Disconnect bad peers":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
+    let topic = "foobar"
+    var (gossipSub, conns) =
+      setupGossipSubWithPeers(30, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
     gossipSub.parameters.disconnectBadPeers = true
     gossipSub.parameters.appSpecificWeight = 1.0
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      check false
 
-    let topic = "foobar"
-    var conns = newSeq[Connection]()
     for i in 0 ..< 30:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
+      let conn = conns[i]
+      let peer = gossipSub.getPubSubPeer(conn.peerId)
       peer.sendConn = conn
-      peer.handler = handler
       peer.appScore = gossipSub.parameters.graylistThreshold - 1
-      gossipSub.gossipsub.mgetOrPut(topic, initHashSet[PubSubPeer]()).incl(peer)
       gossipSub.switch.connManager.storeMuxer(Muxer(connection: conn))
 
     gossipSub.updateScores()
@@ -52,8 +48,6 @@ suite "GossipSub Scoring":
       gossipSub.gossipsub.peers(topic) == 0
       # also ensure we cleanup properly the peersInIP table
       gossipSub.peersInIP.len == 0
-
-    await teardownGossipSub(gossipSub, conns)
 
   asyncTest "flood publish to all peers with score above threshold, regardless of subscription":
     let
