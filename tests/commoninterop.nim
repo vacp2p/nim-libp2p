@@ -1,4 +1,3 @@
-import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p

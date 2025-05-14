@@ -31,7 +31,7 @@ import
   ../../errors,
   ../../utility
 
-import stew/results
+import results
 export results
 
 export tables, sets
