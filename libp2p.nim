@@ -52,6 +52,7 @@ else:
       stream/connection,
       transports/transport,
       transports/tcptransport,
+      transports/quictransport,
       protocols/secure/noise,
       cid,
       multihash,
@@ -69,4 +70,4 @@ else:
   export
     minprotobuf, switch, peerid, peerinfo, connection, multiaddress, crypto, lpstream,
     bufferstream, muxer, mplex, transport, tcptransport, noise, errors, cid, multihash,
-    multicodec, builders, pubsub
+    multicodec, builders, pubsub, quictransport
