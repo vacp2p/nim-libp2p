@@ -427,6 +427,70 @@ suite "GossipSub Mesh Management":
 
     await invalidDetected.wait(10.seconds)
 
+  asyncTest "mesh and gossipsub updated when topic subscribed and unsubscribed":
+    let
+      numberOfNodes = 5
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    # When all of them are connected and subscribed to the same topic
+    await connectNodesStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then mesh and gossipsub should be populated
+    for node in nodes:
+      check node.topics.contains(topic)
+      check node.gossipsub.hasKey(topic)
+      check node.gossipsub[topic].len() == numberOfNodes - 1
+      check node.mesh.hasKey(topic)
+      check node.mesh[topic].len() == numberOfNodes - 1
+
+    # When all nodes unsubscribe from the topic
+    unsubscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then the topic should be removed from mesh and gossipsub
+    for node in nodes:
+      check topic notin node.topics
+      check topic notin node.mesh
+      check topic notin node.gossipsub
+
+  asyncTest "handle subscribe and unsubscribe for multiple topics":
+    let
+      numberOfNodes = 3
+      topics = @["foobar1", "foobar2", "foobar3"]
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    # When nodes subscribe to multiple topics
+    await connectNodesStar(nodes)
+    for topic in topics:
+      subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then all nodes should be subscribed to the topics initially
+    for node in nodes:
+      for topic in topics:
+        check node.topics.contains(topic)
+        check node.gossipsub[topic].len() == numberOfNodes - 1
+        check node.mesh[topic].len() == numberOfNodes - 1
+
+    # When they unsubscribe from all topics
+    for topic in topics:
+      unsubscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Then topics should be removed from mesh and gossipsub
+    for node in nodes:
+      for topic in topics:
+        check topic notin node.topics
+        check topic notin node.mesh
+        check topic notin node.gossipsub
+
   asyncTest "GRAFT messages correctly add peers to mesh":
     # Given 2 nodes
     let
