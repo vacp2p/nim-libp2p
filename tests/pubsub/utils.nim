@@ -42,6 +42,21 @@ type
     dOut*: Option[int]
     dLazy*: Option[int]
 
+proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+  discard
+
+proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
+  discard
+
+proc voidPeerHandler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
+  discard
+
+proc randomPeerId*(): PeerId =
+  try:
+    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+  except CatchableError as exc:
+    raise newException(Defect, exc.msg)
+
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] {.
       async: (raises: [CancelledError, GetConnDialError])
@@ -61,11 +76,57 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   onNewPeer(p, pubSubPeer)
   pubSubPeer
 
-proc randomPeerId*(): PeerId =
-  try:
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-  except CatchableError as exc:
-    raise newException(Defect, exc.msg)
+proc setupGossipSubWithPeers*(
+    numPeers: int,
+    topics: seq[string],
+    populateGossipsub: bool = false,
+    populateMesh: bool = false,
+    populateFanout: bool = false,
+): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
+  let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+  for topic in topics:
+    gossipSub.topicParams[topic] = TopicParams.init()
+    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
+
+  var conns = newSeq[Connection]()
+  var peers = newSeq[PubSubPeer]()
+  for i in 0 ..< numPeers:
+    let conn = TestBufferStream.new(noop)
+    conns &= conn
+    let peerId = randomPeerId()
+    conn.peerId = peerId
+    let peer = gossipSub.getPubSubPeer(peerId)
+    peer.sendConn = conn
+    peer.handler = voidPeerHandler
+    peers &= peer
+    for topic in topics:
+      if (populateGossipsub):
+        gossipSub.gossipsub[topic].incl(peer)
+      if (populateMesh):
+        gossipSub.grafted(peer, topic)
+        gossipSub.mesh[topic].incl(peer)
+      if (populateFanout):
+        gossipSub.fanout[topic].incl(peer)
+
+  return (gossipSub, conns, peers)
+
+proc setupGossipSubWithPeers*(
+    numPeers: int,
+    topic: string,
+    populateGossipsub: bool = false,
+    populateMesh: bool = false,
+    populateFanout: bool = false,
+): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
+  return setupGossipSubWithPeers(
+    numPeers, @[topic], populateGossipsub, populateMesh, populateFanout
+  )
+
+proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
+  await allFuturesThrowing(conns.mapIt(it.close()))
+  await gossipSub.switch.stop()
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
@@ -370,12 +431,6 @@ template tryPublish*(
     await sleepAsync(wait)
 
   doAssert pubs >= require, "Failed to publish!"
-
-proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
-  discard
-
-proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
-  discard
 
 proc createCompleteHandler*(): (
   Future[bool], proc(topic: string, data: seq[byte]) {.async.}
