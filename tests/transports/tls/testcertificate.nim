@@ -1,6 +1,8 @@
+{.used.}
+
 import unittest2
 
-import times, base64
+import times
 import ../../../libp2p/transports/tls/certificate
 import ../../../libp2p/transports/tls/certificate_ffi
 import ../../../libp2p/crypto/crypto
