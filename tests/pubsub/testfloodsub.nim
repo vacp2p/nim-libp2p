@@ -9,12 +9,11 @@
 
 {.used.}
 
-import sequtils, options, tables, sets
+import sequtils, tables, sets
 import chronos, stew/byteutils
 import
   utils,
   ../../libp2p/[
-    errors,
     switch,
     stream/connection,
     crypto/crypto,

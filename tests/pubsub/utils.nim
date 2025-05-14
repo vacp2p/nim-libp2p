@@ -5,7 +5,7 @@ const
   libp2p_pubsub_anonymize {.booldefine.} = false
 
 import hashes, random, tables, sets, sequtils, sugar
-import chronos, stew/[byteutils, results], chronos/ratelimit
+import chronos, results, stew/byteutils, chronos/ratelimit
 import
   ../../libp2p/[
     builders,
@@ -18,7 +18,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../helpers, ../utils/futures
+import ../helpers
 import chronicles
 
 export builders

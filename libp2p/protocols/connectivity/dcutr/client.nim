@@ -11,7 +11,7 @@
 
 import std/sequtils
 
-import stew/results
+import results
 import chronos, chronicles
 
 import core
