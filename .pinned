@@ -1,11 +1,11 @@
 bearssl;https://github.com/status-im/nim-bearssl@#34d712933a4e0f91f5e66bc848594a581504a215
-chronicles;https://github.com/status-im/nim-chronicles@#33761a5f77610d3f87f774244490eae43a9ac5a1
-chronos;https://github.com/status-im/nim-chronos@#b55e2816eb45f698ddaca8d8473e401502562db2
+chronicles;https://github.com/status-im/nim-chronicles@#32ac8679680ea699f7dbc046e8e0131cac97d41a
+chronos;https://github.com/status-im/nim-chronos@#c04576d829b8a0a1b12baaa8bc92037501b3a4a0
 dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153379ea557c8
 faststreams;https://github.com/status-im/nim-faststreams@#c51315d0ae5eb2594d0bf41181d0e1aca1b3c01d
 httputils;https://github.com/status-im/nim-http-utils@#79cbab1460f4c0cdde2084589d017c43a3d7b4f1
 json_serialization;https://github.com/status-im/nim-json-serialization@#2b1c5eb11df3647a2cee107cd4cce3593cbb8bcf
-metrics;https://github.com/status-im/nim-metrics@#ecf64c6078d1276d3b7d9b3d931fbdb70004db11
+metrics;https://github.com/status-im/nim-metrics@#6142e433fc8ea9b73379770a788017ac528d46ff
 ngtcp2;https://github.com/status-im/nim-ngtcp2@#9456daa178c655bccd4a3c78ad3b8cce1f0add73
 nimcrypto;https://github.com/cheatfate/nimcrypto@#19c41d6be4c00b4a2c8000583bd30cf8ceb5f4b1
 quic;https://github.com/status-im/nim-quic.git@#66134f0e22d9c44b901236a8ecb00e6e99e3a81a
