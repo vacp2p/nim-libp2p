@@ -69,7 +69,8 @@ method write*(
 
 {.pop.}
 
-method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
+method closeImpl*(stream: QuicStream): Future[void] {.async: (raises: []).} =
+  echo "CLOSING STREAM!!!!!"
   try:
     await stream.stream.close()
   except CatchableError as exc:
