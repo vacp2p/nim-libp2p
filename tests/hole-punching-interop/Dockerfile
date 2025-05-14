@@ -7,7 +7,7 @@ COPY .pinned libp2p.nimble nim-libp2p/
 
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y libssl-dev
 
-RUN cd nim-libp2p && nimble install_pinned && nimble install redis -y
+RUN cd nim-libp2p && nimble install_pinned && nimble install "redis@#b341fe240dbf11c544011dd0e033d3c3acca56af" -y
 
 COPY . nim-libp2p/
 
