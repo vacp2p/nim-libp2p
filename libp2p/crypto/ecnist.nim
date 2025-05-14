@@ -21,7 +21,8 @@ import bearssl/[ec, rand, hash]
 import nimcrypto/utils as ncrutils
 import minasn1
 export minasn1.Asn1Error
-import stew/[results, ctops]
+import stew/ctops
+import results
 
 import ../utility
 

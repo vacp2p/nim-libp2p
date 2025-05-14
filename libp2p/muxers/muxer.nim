@@ -52,7 +52,7 @@ method newStream*(
 ): Future[Connection] {.
     base, async: (raises: [CancelledError, LPStreamError, MuxerError], raw: true)
 .} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Muxer.newStream] abstract method not implemented!")
 
 method close*(m: Muxer) {.base, async: (raises: []).} =
   if m.connection != nil:
@@ -68,4 +68,4 @@ proc new*(
   muxerProvider
 
 method getStreams*(m: Muxer): seq[Connection] {.base, gcsafe.} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Muxer.getStreams] abstract method not implemented!")

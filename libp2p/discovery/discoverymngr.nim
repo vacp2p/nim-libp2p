@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/sequtils
-import chronos, chronicles, stew/results
+import chronos, chronicles, results
 import ../errors
 
 type
@@ -59,7 +59,7 @@ proc `{}`*[T](pa: PeerAttributes, t: typedesc[T]): Opt[T] =
 
 proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [KeyError].} =
   pa{T}.valueOr:
-    raise newException(KeyError, "Attritute not found")
+    raise newException(KeyError, "Attribute not found")
 
 proc match*(pa, candidate: PeerAttributes): bool =
   for f in pa.attributes:
@@ -86,12 +86,12 @@ type
 method request*(
     self: DiscoveryInterface, pa: PeerAttributes
 ) {.base, async: (raises: [DiscoveryError, CancelledError]).} =
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[DiscoveryInterface.request] abstract method not implemented!")
 
 method advertise*(
     self: DiscoveryInterface
 ) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[DiscoveryInterface.advertise] abstract method not implemented!")
 
 type
   DiscoveryQuery* = ref object

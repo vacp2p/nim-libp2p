@@ -70,6 +70,8 @@ List of packages modules implemented in nim-libp2p:
 | [libp2p-tcp](libp2p/transports/tcptransport.nim)           | TCP transport                                                                                                    |
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |
 | [libp2p-tor](libp2p/transports/tortransport.nim)           | Tor Transport                                                                                                    |
+| [libp2p-quic](libp2p/transports/quictransport.nim)         | Quic Transport                                                                                                   |
+| [libp2p-memory](libp2p/transports/memorytransport.nim)     | Memory Transport                                                                                                 |
 | **Secure Channels**                                        |                                                                                                                  |
 | [libp2p-noise](libp2p/protocols/secure/noise.nim)          | [Noise](https://docs.libp2p.io/concepts/secure-comm/noise/) secure channel                                       |
 | [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim)  | Plain Text for development purposes                                                                              |
@@ -147,6 +149,7 @@ The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-st
     <tr>
       <td align="center"><a href="https://github.com/richard-ramos"><img src="https://avatars.githubusercontent.com/u/1106587?v=4?s=100" width="100px;" alt="Richard"/><br /><sub><b>Richard</b></sub></a></td>
       <td align="center"><a href="https://github.com/vladopajic"><img src="https://avatars.githubusercontent.com/u/4353513?v=4?s=100" width="100px;" alt="Vlado"/><br /><sub><b>Vlado</b></sub></a></td>
+      <td align="center"><a href="https://github.com/gmelodie"><img src="https://avatars.githubusercontent.com/u/8129788?v=4?s=100" width="100px;" alt="Gabe"/><br /><sub><b>Gabe</b></sub></a></td>
     </tr>
   </tbody>
 </table>

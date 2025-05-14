@@ -11,15 +11,14 @@
 {.push raises: [].}
 
 import std/[strformat]
-import stew/results
+import results
 import chronos, chronicles
 import
   ../protocol,
   ../../stream/streamseq,
   ../../stream/connection,
   ../../multiaddress,
-  ../../peerinfo,
-  ../../errors
+  ../../peerinfo
 
 export protocol, results
 
@@ -82,7 +81,7 @@ method readMessage*(
 ): Future[seq[byte]] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[SecureConn.readMessage] abstract method not implemented!")
 
 method getWrapped*(s: SecureConn): Connection =
   s.stream
@@ -92,7 +91,7 @@ method handshake*(
 ): Future[SecureConn] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Secure.handshake] abstract method not implemented!")
 
 proc handleConn(
     s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]

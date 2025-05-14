@@ -13,8 +13,7 @@
 {.push raises: [].}
 
 import std/[sequtils, options, strutils, sugar]
-import stew/results
-import chronos, chronicles
+import results, chronos, chronicles
 import
   ../protobuf/minprotobuf,
   ../peerinfo,
