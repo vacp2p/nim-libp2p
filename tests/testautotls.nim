@@ -66,7 +66,7 @@ suite "AutoTLS":
 
     asyncSetup:
       let rng = newRng()
-      autotlsMgr = await AutoTLSManager.new(rng)
+      autotlsMgr = AutoTLSManager.new(rng)
 
       let seckey = PrivateKey.random(rng[]).tryGet()
       let peerId = PeerId.init(seckey).get()

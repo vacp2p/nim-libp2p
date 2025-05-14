@@ -63,9 +63,10 @@ proc getParsedResponseBody*(
     )
 
 proc getJSONField*(node: JsonNode, field: string): JsonNode {.raises: [ACMEError].} =
-  if node{field} == nil:
-    raise newException(ACMEError, fmt"'{field}' field not found in JSON: " & $node)
-  return node{field}
+  try:
+    return node[field]
+  except:
+    raise newException(ACMEError, fmt"'{field}' field not found in JSON: {node}")
 
 proc thumbprint*(key: KeyPair): string =
   # TODO: check if scheme is RSA

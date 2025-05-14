@@ -71,18 +71,11 @@ proc new*(
     T: typedesc[AutoTLSManager],
     rng: ref HmacDrbgContext = newRng(),
     acmeAccount: ref ACMEAccount = nil,
-): Future[T] {.async: (raises: [AutoTLSError, ACMEError, CancelledError]).} =
-  let account =
-    if acmeAccount.isNil:
-      let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get() # TODO: check
-      (await ACMEAccount.new(accountKey))
-    else:
-      acmeAccount
-
+): AutoTLSManager =
   T(
     rng: rng,
     cert: Opt.none(CertificateX509),
-    acmeAccount: account,
+    acmeAccount: acmeAccount,
     bearerToken: Opt.none(string),
     running: false,
   )
@@ -90,6 +83,9 @@ proc new*(
 method start*(
     self: AutoTLSManager, peerInfo: PeerInfo
 ): Future[void] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
+  if self.acmeAccount.isNil:
+    let accountKey = KeyPair.random(PKScheme.RSA, self.rng[]).get() # TODO: check
+    self.acmeAccount = (await ACMEAccount.new(accountKey))
   if self.running:
     return
   trace "starting AutoTLS manager"
