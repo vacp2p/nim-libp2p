@@ -82,7 +82,7 @@ proc setupGossipSubWithPeers*(
     populateGossipsub: bool = false,
     populateMesh: bool = false,
     populateFanout: bool = false,
-): (TestGossipSub, seq[Connection]) =
+): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
   let gossipSub = TestGossipSub.init(newStandardSwitch())
 
   for topic in topics:
@@ -92,6 +92,7 @@ proc setupGossipSubWithPeers*(
     gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
 
   var conns = newSeq[Connection]()
+  var peers = newSeq[PubSubPeer]()
   for i in 0 ..< numPeers:
     let conn = TestBufferStream.new(noop)
     conns &= conn
@@ -100,6 +101,7 @@ proc setupGossipSubWithPeers*(
     let peer = gossipSub.getPubSubPeer(peerId)
     peer.sendConn = conn
     peer.handler = voidPeerHandler
+    peers &= peer
     for topic in topics:
       if (populateGossipsub):
         gossipSub.gossipsub[topic].incl(peer)
@@ -109,7 +111,7 @@ proc setupGossipSubWithPeers*(
       if (populateFanout):
         gossipSub.fanout[topic].incl(peer)
 
-  return (gossipSub, conns)
+  return (gossipSub, conns, peers)
 
 proc setupGossipSubWithPeers*(
     numPeers: int,
@@ -117,7 +119,7 @@ proc setupGossipSubWithPeers*(
     populateGossipsub: bool = false,
     populateMesh: bool = false,
     populateFanout: bool = false,
-): (TestGossipSub, seq[Connection]) =
+): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
   return setupGossipSubWithPeers(
     numPeers, @[topic], populateGossipsub, populateMesh, populateFanout
   )

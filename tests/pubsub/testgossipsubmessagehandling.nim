@@ -79,7 +79,7 @@ suite "GossipSub Message Handling":
 
   asyncTest "Drop messages of topics without subscription":
     let topic = "foobar"
-    var (gossipSub, conns) = setupGossipSubWithPeers(30, topic)
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -87,7 +87,7 @@ suite "GossipSub Message Handling":
     var seqno = 0'u64
     for i in 0 .. 5:
       let conn = conns[i]
-      let peer = gossipSub.getPubSubPeer(conn.peerId)
+      let peer = peers[i]
       inc seqno
       let msg = Message.init(conn.peerId, ("bar" & $i).toBytes(), topic, some(seqno))
       await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))

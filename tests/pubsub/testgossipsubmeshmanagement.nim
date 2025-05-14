@@ -26,7 +26,7 @@ suite "GossipSub Mesh Management":
 
   asyncTest "subscribe/unsubscribeAll":
     let topic = "foobar"
-    let (gossipSub, conns) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -49,7 +49,7 @@ suite "GossipSub Mesh Management":
 
   asyncTest "`rebalanceMesh` Degree Lo":
     let topic = "foobar"
-    let (gossipSub, conns) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -60,13 +60,13 @@ suite "GossipSub Mesh Management":
 
   asyncTest "rebalanceMesh - bad peers":
     let topic = "foobar"
-    let (gossipSub, conns) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     var scoreLow = -11'f64
-    for peer in gossipSub.gossipsub[topic]:
+    for peer in peers:
       peer.score = scoreLow
       scoreLow += 1.0
 
@@ -79,7 +79,7 @@ suite "GossipSub Mesh Management":
 
   asyncTest "`rebalanceMesh` Degree Hi":
     let topic = "foobar"
-    let (gossipSub, conns) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -91,12 +91,12 @@ suite "GossipSub Mesh Management":
 
   asyncTest "rebalanceMesh fail due to backoff":
     let topic = "foobar"
-    let (gossipSub, conns) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    for peer in gossipSub.gossipsub[topic]:
+    for peer in peers:
       gossipSub.backingOff.mgetOrPut(topic, initTable[PeerId, Moment]()).add(
         peer.peerId, Moment.now() + 1.hours
       )
@@ -111,7 +111,7 @@ suite "GossipSub Mesh Management":
 
   asyncTest "rebalanceMesh fail due to backoff - remote":
     let topic = "foobar"
-    let (gossipSub, conns) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -120,7 +120,7 @@ suite "GossipSub Mesh Management":
     gossipSub.rebalanceMesh(topic)
     check gossipSub.mesh[topic].len != 0
 
-    for peer in gossipSub.gossipsub[topic]:
+    for peer in peers:
       gossipSub.handlePrune(
         peer,
         @[
@@ -142,7 +142,7 @@ suite "GossipSub Mesh Management":
       numOutPeers = 7
       totalPeers = numInPeers + numOutPeers
 
-    let (gossipSub, conns) = setupGossipSubWithPeers(
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
       totalPeers, topic, populateGossipsub = true, populateMesh = true
     )
     defer:
@@ -156,13 +156,13 @@ suite "GossipSub Mesh Management":
 
     for i in 0 ..< numInPeers:
       let conn = conns[i]
-      let peer = gossipSub.getPubSubPeer(conn.peerId)
+      let peer = peers[i]
       conn.transportDir = Direction.In
       peer.score = 40.0
 
     for i in numInPeers ..< totalPeers:
       let conn = conns[i]
-      let peer = gossipSub.getPubSubPeer(conn.peerId)
+      let peer = peers[i]
       conn.transportDir = Direction.Out
       peer.score = 10.0
 

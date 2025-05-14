@@ -24,7 +24,7 @@ suite "GossipSub Scoring":
 
   asyncTest "Disconnect bad peers":
     let topic = "foobar"
-    var (gossipSub, conns) =
+    var (gossipSub, conns, peers) =
       setupGossipSubWithPeers(30, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -32,11 +32,9 @@ suite "GossipSub Scoring":
     gossipSub.parameters.disconnectBadPeers = true
     gossipSub.parameters.appSpecificWeight = 1.0
 
-    for i in 0 ..< 30:
-      let conn = conns[i]
-      let peer = gossipSub.getPubSubPeer(conn.peerId)
-      peer.sendConn = conn
+    for i, peer in peers:
       peer.appScore = gossipSub.parameters.graylistThreshold - 1
+      let conn = conns[i]
       gossipSub.switch.connManager.storeMuxer(Muxer(connection: conn))
 
     gossipSub.updateScores()

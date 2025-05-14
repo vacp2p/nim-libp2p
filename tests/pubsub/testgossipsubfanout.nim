@@ -23,7 +23,7 @@ suite "GossipSub Fanout Management":
 
   asyncTest "`replenishFanout` Degree Lo":
     let topic = "foobar"
-    let (gossipSub, conns) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -34,15 +34,13 @@ suite "GossipSub Fanout Management":
 
   asyncTest "`dropFanoutPeers` drop expired fanout topics":
     let topic = "foobar"
-    let (gossipSub, conns) = setupGossipSubWithPeers(6, topic, populateGossipsub = true)
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(6, topic, populateGossipsub = true, populateFanout = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(1.millis)
-    await sleepAsync(5.millis) # allow the topic to expire
-
-    for peer in gossipSub.gossipsub[topic]:
-      gossipSub.fanout[topic].incl(peer)
+    await sleepAsync(5.millis) # allow the topic to expire 
 
     check gossipSub.fanout[topic].len == gossipSub.parameters.d
 
@@ -53,18 +51,15 @@ suite "GossipSub Fanout Management":
     let
       topic1 = "foobar1"
       topic2 = "foobar2"
-    let (gossipSub, conns) =
-      setupGossipSubWithPeers(6, @[topic1, topic2], populateGossipsub = true)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
+      6, @[topic1, topic2], populateGossipsub = true, populateFanout = true
+    )
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(1.millis)
     gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(1.minutes)
-    await sleepAsync(5.millis) # allow first topic to expire
-
-    for peer in gossipSub.gossipsub[topic1]:
-      gossipSub.fanout[topic1].incl(peer)
-      gossipSub.fanout[topic2].incl(peer)
+    await sleepAsync(5.millis) # allow first topic to expire 
 
     check gossipSub.fanout[topic1].len == gossipSub.parameters.d
     check gossipSub.fanout[topic2].len == gossipSub.parameters.d
