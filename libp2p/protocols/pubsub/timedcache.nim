@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[hashes, sets]
-import chronos/timer, stew/results
+import chronos/timer, results
 
 import ../../utility
 

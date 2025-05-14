@@ -16,7 +16,6 @@ import sugar
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
-import ../../libp2p/muxers/muxer
 import ../helpers, ../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
