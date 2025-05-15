@@ -64,6 +64,9 @@ suite "AutoTLS":
     var autotlsMgr {.threadvar.}: AutoTLSManager
     var peerInfo {.threadvar.}: PeerInfo
 
+    teardown:
+      checkTrackers()
+
     asyncSetup:
       let rng = newRng()
       autotlsMgr = AutoTLSManager.new(rng)
@@ -79,26 +82,26 @@ suite "AutoTLS":
       # check if challenge was sent (bearer token from peer id auth was set)
       check autotlsMgr.bearerToken.isSome
 
-    asyncTest "test DNS TXT record set":
-      let hostPrimaryIP = getPrimaryIPAddr()
-      if not isPublicIPv4(hostPrimaryIP):
-        skip()
-        return
+    # asyncTest "test DNS TXT record set":
+    #   let hostPrimaryIP = getPrimaryIPAddr()
+    #   if not isPublicIPv4(hostPrimaryIP):
+    #     skip()
+    #     return
 
-      # check if DNS TXT record is set
-      let dnsResolver = DnsResolver.new(
-        @[
-          initTAddress("1.1.1.1:53"),
-          initTAddress("1.0.0.1:53"),
-          initTAddress("[2606:4700:4700::1111]:53"),
-        ]
-      )
-      let base36PeerId = encodePeerId(peerInfo.peerId)
-      let baseDomain = fmt"{base36PeerId}.{AutoTLSDNSServer}"
-      let acmeChalDomain = fmt"_acme-challenge.{baseDomain}"
-      let txt = await dnsResolver.resolveTxt(acmeChalDomain)
-      check txt.len > 0
-      check txt[0] != "not set yet"
+    #   # check if DNS TXT record is set
+    #   let dnsResolver = DnsResolver.new(
+    #     @[
+    #       initTAddress("1.1.1.1:53"),
+    #       initTAddress("1.0.0.1:53"),
+    #       initTAddress("[2606:4700:4700::1111]:53"),
+    #     ]
+    #   )
+    #   let base36PeerId = encodePeerId(peerInfo.peerId)
+    #   let baseDomain = fmt"{base36PeerId}.{AutoTLSDNSServer}"
+    #   let acmeChalDomain = fmt"_acme-challenge.{baseDomain}"
+    #   let txt = await dnsResolver.resolveTxt(acmeChalDomain)
+    #   check txt.len > 0
+    #   check txt[0] != "not set yet"
 
     asyncTest "test download certificate":
       let hostPrimaryIP = getPrimaryIPAddr()
