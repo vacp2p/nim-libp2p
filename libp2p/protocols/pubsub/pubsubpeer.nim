@@ -9,8 +9,8 @@
 
 {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes, options, sets, deques]
-import stew/results
+import std/[sequtils, tables, hashes, options, sets, deques]
+import results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import chronos/ratelimit
 import

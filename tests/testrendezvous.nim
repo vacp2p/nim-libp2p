@@ -12,7 +12,7 @@
 import sequtils, strutils
 import chronos
 import ../libp2p/[protocols/rendezvous, switch, builders]
-import ../libp2p/discovery/[rendezvousinterface, discoverymngr]
+import ../libp2p/discovery/discoverymngr
 import ./helpers
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =

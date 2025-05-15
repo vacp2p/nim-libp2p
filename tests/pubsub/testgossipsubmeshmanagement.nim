@@ -25,28 +25,14 @@ suite "GossipSub Mesh Management":
     params.validateParameters().tryGet()
 
   asyncTest "subscribe/unsubscribeAll":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(topic: string, data: seq[byte]): Future[void] {.gcsafe, raises: [].} =
-      discard
-
     let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
-
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.sendConn = conn
-      gossipSub.gossipsub[topic].incl(peer)
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # test via dynamic dispatch
-    gossipSub.PubSub.subscribe(topic, handler)
+    gossipSub.PubSub.subscribe(topic, voidTopicHandler)
 
     check:
       gossipSub.topics.contains(topic)
@@ -61,53 +47,27 @@ suite "GossipSub Mesh Management":
       topic notin gossipSub.mesh # not in mesh
       topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "`rebalanceMesh` Degree Lo":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
     let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
-
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.sendConn = conn
-      gossipSub.gossipsub[topic].incl(peer)
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     check gossipSub.peers.len == 15
     gossipSub.rebalanceMesh(topic)
     check gossipSub.mesh[topic].len == gossipSub.parameters.d
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "rebalanceMesh - bad peers":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
     let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     var scoreLow = -11'f64
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.sendConn = conn
+    for peer in peers:
       peer.score = scoreLow
-      gossipSub.gossipsub[topic].incl(peer)
       scoreLow += 1.0
 
     check gossipSub.peers.len == 15
@@ -117,54 +77,28 @@ suite "GossipSub Mesh Management":
     for peer in gossipSub.mesh[topic]:
       check peer.score >= 0.0
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "`rebalanceMesh` Degree Hi":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
     let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
-
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      gossipSub.grafted(peer, topic)
-      gossipSub.mesh[topic].incl(peer)
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     check gossipSub.mesh[topic].len == 15
     gossipSub.rebalanceMesh(topic)
     check gossipSub.mesh[topic].len ==
       gossipSub.parameters.d + gossipSub.parameters.dScore
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "rebalanceMesh fail due to backoff":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
     let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.sendConn = conn
-      gossipSub.gossipsub[topic].incl(peer)
-
+    for peer in peers:
       gossipSub.backingOff.mgetOrPut(topic, initTable[PeerId, Moment]()).add(
-        peerId, Moment.now() + 1.hours
+        peer.peerId, Moment.now() + 1.hours
       )
       let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
       # there must be a control prune due to violation of backoff
@@ -175,34 +109,18 @@ suite "GossipSub Mesh Management":
     # expect 0 since they are all backing off
     check gossipSub.mesh[topic].len == 0
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "rebalanceMesh fail due to backoff - remote":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
     let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
-
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    for i in 0 ..< 15:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.sendConn = conn
-      gossipSub.gossipsub[topic].incl(peer)
-      gossipSub.mesh[topic].incl(peer)
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     check gossipSub.peers.len == 15
     gossipSub.rebalanceMesh(topic)
     check gossipSub.mesh[topic].len != 0
 
-    for i in 0 ..< 15:
-      let peerId = conns[i].peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
+    for peer in peers:
       gossipSub.handlePrune(
         peer,
         @[
@@ -217,45 +135,36 @@ suite "GossipSub Mesh Management":
     # expect topic cleaned up since they are all pruned
     check topic notin gossipSub.mesh
 
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
-
   asyncTest "rebalanceMesh Degree Hi - audit scenario":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-    let topic = "foobar"
-    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
-    gossipSub.topicParams[topic] = TopicParams.init()
+    let
+      topic = "foobar"
+      numInPeers = 6
+      numOutPeers = 7
+      totalPeers = numInPeers + numOutPeers
+
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
+      totalPeers, topic, populateGossipsub = true, populateMesh = true
+    )
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
     gossipSub.parameters.dScore = 4
     gossipSub.parameters.d = 6
     gossipSub.parameters.dOut = 3
     gossipSub.parameters.dHigh = 12
     gossipSub.parameters.dLow = 4
 
-    var conns = newSeq[Connection]()
-    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
-    for i in 0 ..< 6:
-      let conn = TestBufferStream.new(noop)
+    for i in 0 ..< numInPeers:
+      let conn = conns[i]
+      let peer = peers[i]
       conn.transportDir = Direction.In
-      conns &= conn
-      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
       peer.score = 40.0
-      peer.sendConn = conn
-      gossipSub.grafted(peer, topic)
-      gossipSub.mesh[topic].incl(peer)
 
-    for i in 0 ..< 7:
-      let conn = TestBufferStream.new(noop)
+    for i in numInPeers ..< totalPeers:
+      let conn = conns[i]
+      let peer = peers[i]
       conn.transportDir = Direction.Out
-      conns &= conn
-      let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
       peer.score = 10.0
-      peer.sendConn = conn
-      gossipSub.grafted(peer, topic)
-      gossipSub.mesh[topic].incl(peer)
 
     check gossipSub.mesh[topic].len == 13
     gossipSub.rebalanceMesh(topic)
@@ -267,9 +176,6 @@ suite "GossipSub Mesh Management":
         inc outbound
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut
-
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
 
   asyncTest "dont prune peers if mesh len is less than d_high":
     let

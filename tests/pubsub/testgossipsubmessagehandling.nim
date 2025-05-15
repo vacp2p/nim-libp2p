@@ -16,7 +16,6 @@ import sugar
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
-import ../../libp2p/muxers/muxer
 import ../helpers, ../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
@@ -78,37 +77,21 @@ suite "GossipSub Message Handling":
     checkTrackers()
 
   asyncTest "Drop messages of topics without subscription":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      check false
-
     let topic = "foobar"
-    var conns = newSeq[Connection]()
-    for i in 0 ..< 30:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # generate messages
     var seqno = 0'u64
     for i in 0 .. 5:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
+      let conn = conns[i]
+      let peer = peers[i]
       inc seqno
-      let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
+      let msg = Message.init(conn.peerId, ("bar" & $i).toBytes(), topic, some(seqno))
       await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     check gossipSub.mcache.msgs.len == 0
-
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
 
   asyncTest "subscription limits":
     let gossipSub = TestGossipSub.init(newStandardSwitch())

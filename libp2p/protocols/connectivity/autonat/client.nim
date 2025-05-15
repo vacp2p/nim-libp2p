@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import stew/results
+import results
 import chronos, chronicles
 import ../../../switch, ../../../multiaddress, ../../../peerid
 import core
