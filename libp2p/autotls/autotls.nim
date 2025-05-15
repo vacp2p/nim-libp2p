@@ -20,6 +20,13 @@ import ../peerinfo
 logScope:
   topics = "libp2p autotls"
 
+const defaultDnsServers =
+  @[
+    initTAddress("1.1.1.1:53"),
+    initTAddress("1.0.0.1:53"),
+    initTAddress("[2606:4700:4700::1111]:53"),
+  ]
+
 type SigParam = object
   k: string
   v: seq[byte]
@@ -28,37 +35,26 @@ type AutoTLSManager* = ref object
   rng: ref HmacDrbgContext
   cert*: Opt[CertificateX509]
   acmeAccount*: ref ACMEAccount
+  dnsResolver*: DnsResolver
   bearerToken*: Opt[string]
   running: bool
 
 proc checkDNSRecords(
-    ip4Domain: string, acmeChalDomain: string, retries: int = 5
+    self: AutoTLSManager, ip4Domain: string, acmeChalDomain: string, retries: int = 5
 ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  var dnsResolver: DnsResolver
-  try:
-    dnsResolver = DnsResolver.new(
-      @[
-        initTAddress("1.1.1.1:53"),
-        initTAddress("1.0.0.1:53"),
-        initTAddress("[2606:4700:4700::1111]:53"),
-      ]
-    )
-  except TransportAddressError:
-    raise newException(AutoTLSError, "Failed to initialize DNS resolver")
-
-  var txt = await dnsResolver.resolveTxt(acmeChalDomain)
+  var txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
 
   var ip4: seq[TransportAddress]
   try:
-    ip4 = await dnsResolver.resolveIp(acmeChalDomain, 0.Port)
+    ip4 = await self.dnsResolver.resolveIp(acmeChalDomain, 0.Port)
   except:
     raise newException(AutoTLSError, "Failed to resolve IP")
 
   for _ in 0 .. retries:
     await sleepAsync(1.seconds)
-    txt = await dnsResolver.resolveTxt(acmeChalDomain)
+    txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
     try:
-      var ip4 = await dnsResolver.resolveIp(acmeChalDomain, 0.Port)
+      var ip4 = await self.dnsResolver.resolveIp(acmeChalDomain, 0.Port)
     except:
       raise newException(AutoTLSError, "Failed to resolve IP")
     if txt.len > 0 and txt[0] != "not set yet" and ip4.len > 0:
@@ -70,11 +66,13 @@ proc new*(
     T: typedesc[AutoTLSManager],
     rng: ref HmacDrbgContext = newRng(),
     acmeAccount: ref ACMEAccount = nil,
+    dnsResolver: DnsResolver = DnsResolver.new(defaultDnsServers),
 ): AutoTLSManager =
   T(
     rng: rng,
     cert: Opt.none(CertificateX509),
     acmeAccount: acmeAccount,
+    dnsResolver: dnsResolver,
     bearerToken: Opt.none(string),
     running: false,
   )
@@ -153,7 +151,7 @@ method start*(
   let dashedIpAddr = ($hostPrimaryIP).replace(".", "-")
   let acmeChalDomain = "_acme-challenge." & baseDomain
   let ip4Domain = dashedIpAddr & "." & baseDomain
-  if not await checkDNSRecords(ip4Domain, acmeChalDomain, retries = 3):
+  if not await self.checkDNSRecords(ip4Domain, acmeChalDomain, retries = 3):
     raise newException(AutoTLSError, "DNS records not set")
 
   trace "notifying challenge completion to ACME server"
