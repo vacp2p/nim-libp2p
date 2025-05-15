@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[strutils, sequtils, tables, strformat, net, json]
+import std/[strformat, net, json]
 import chronos
 import
   ../libp2p/[

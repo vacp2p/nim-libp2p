@@ -1,10 +1,4 @@
-import
-  base64,
-  json,
-  random,
-  std/sysrand,
-  strutils,
-  strformat # TODO: swap sysrand for bearssl functions?
+import base64, json, random, strutils
 import chronos/apps/http/httpclient, results, chronicles, bio
 import ./utils, ../peerinfo, ../crypto/crypto
 
@@ -27,7 +21,7 @@ proc extractField(data, key: string): string {.raises: [PeerIDAuthError].} =
   for segment in data.split(","):
     if key in segment:
       return segment.split("=", 1)[1].strip(chars = {' ', '"'})
-  raise newException(PeerIDAuthError, fmt"Could not find {key} in {data}")
+  raise newException(PeerIDAuthError, "Could not find " & key & " in " & data)
 
 proc encodeVarint(n: int): seq[byte] =
   var varInt: seq[byte] = @[]
@@ -131,7 +125,7 @@ proc peerIdAuthenticate(
     raise newException(PeerIDAuthError, "Could not decode public-key")
   let opaque = extractField(wwwAuthenticate, "opaque")
 
-  let hostname = fmt"registration.{AutoTLSDNSServer}" # registration.libp2p.direct
+  let hostname = "registration." & AutoTLSDNSServer # registration.libp2p.direct
   let clientPubKeyB64 = base64.encode(peerInfo.publicKey.getBytes().get(), safe = true)
   let challengeServer = randomChallenge()
   let sig = peerIdSign(peerInfo.privateKey, challengeClient, serverPublicKey, hostname)
