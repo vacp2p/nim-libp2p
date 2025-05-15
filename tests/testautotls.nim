@@ -9,8 +9,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.push raises: [].}
+
 import std/[strformat, net, json]
 import chronos
+import chronos/apps/http/httpclient
 import
   ../libp2p/[
     stream/connection,
@@ -29,11 +32,16 @@ import ./helpers
 suite "AutoTLS":
   suite "ACME communication":
     var acc {.threadvar.}: ref ACMEAccount
+    var rng {.threadvar.}: ref HmacDrbgContext
 
     asyncSetup:
-      let rng = newRng()
+      rng = newRng()
       let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get()
       acc = await ACMEAccount.new(accountKey)
+
+    asyncTeardown:
+      await noCancel(acc.session.closeWait())
+      checkTrackers()
 
     asyncTest "test ACME account register":
       await acc.register()
@@ -50,7 +58,11 @@ suite "AutoTLS":
       check orderURL.len > 0
 
     asyncTest "test notify ACME challenge complete":
-      let hostPrimaryIP = getPrimaryIPAddr()
+      var hostPrimaryIP: IpAddress
+      try:
+        hostPrimaryIP = getPrimaryIPAddr()
+      except Exception:
+        check false # could not get primary address
       if not isPublicIPv4(hostPrimaryIP):
         skip()
         return
@@ -60,21 +72,21 @@ suite "AutoTLS":
       let chalURL = dns01Challenge["url"].getStr
       check (await acc.notifyChallengeCompleted(chalURL))
 
-  suite "AutoTLS manager":
+  suite "AutoTLSManager":
     var autotlsMgr {.threadvar.}: AutoTLSManager
     var peerInfo {.threadvar.}: PeerInfo
-
-    teardown:
-      checkTrackers()
 
     asyncSetup:
       let rng = newRng()
       autotlsMgr = AutoTLSManager.new(rng)
-
       let seckey = PrivateKey.random(rng[]).tryGet()
       let peerId = PeerId.init(seckey).get()
       let multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       peerInfo = PeerInfo.new(seckey, multiAddresses)
+
+    asyncTeardown:
+      await noCancel(autotlsMgr.stop())
+      checkTrackers()
 
     asyncTest "test send challenge to AutoTLS broker":
       await autotlsMgr.start(peerInfo)
@@ -82,29 +94,39 @@ suite "AutoTLS":
       # check if challenge was sent (bearer token from peer id auth was set)
       check autotlsMgr.bearerToken.isSome
 
-    # asyncTest "test DNS TXT record set":
-    #   let hostPrimaryIP = getPrimaryIPAddr()
-    #   if not isPublicIPv4(hostPrimaryIP):
-    #     skip()
-    #     return
+    asyncTest "test DNS TXT record set":
+      var hostPrimaryIP: IpAddress
+      try:
+        hostPrimaryIP = getPrimaryIPAddr()
+      except Exception:
+        check false # could not get primary address
+      if not isPublicIPv4(hostPrimaryIP):
+        skip()
+        return
 
-    #   # check if DNS TXT record is set
-    #   let dnsResolver = DnsResolver.new(
-    #     @[
-    #       initTAddress("1.1.1.1:53"),
-    #       initTAddress("1.0.0.1:53"),
-    #       initTAddress("[2606:4700:4700::1111]:53"),
-    #     ]
-    #   )
-    #   let base36PeerId = encodePeerId(peerInfo.peerId)
-    #   let baseDomain = fmt"{base36PeerId}.{AutoTLSDNSServer}"
-    #   let acmeChalDomain = fmt"_acme-challenge.{baseDomain}"
-    #   let txt = await dnsResolver.resolveTxt(acmeChalDomain)
-    #   check txt.len > 0
-    #   check txt[0] != "not set yet"
+      await autotlsMgr.start(peerInfo)
+
+      # check if DNS TXT record is set
+      let dnsResolver = DnsResolver.new(
+        @[
+          initTAddress("1.1.1.1:53"),
+          initTAddress("1.0.0.1:53"),
+          initTAddress("[2606:4700:4700::1111]:53"),
+        ]
+      )
+      let base36PeerId = encodePeerId(peerInfo.peerId)
+      let baseDomain = fmt"{base36PeerId}.{AutoTLSDNSServer}"
+      let acmeChalDomain = fmt"_acme-challenge.{baseDomain}"
+      let txt = await dnsResolver.resolveTxt(acmeChalDomain)
+      check txt.len > 0
+      check txt[0] != "not set yet"
 
     asyncTest "test download certificate":
-      let hostPrimaryIP = getPrimaryIPAddr()
+      var hostPrimaryIP: IpAddress
+      try:
+        hostPrimaryIP = getPrimaryIPAddr()
+      except Exception:
+        check false # could not get primary address
       if not isPublicIPv4(hostPrimaryIP):
         skip()
         return

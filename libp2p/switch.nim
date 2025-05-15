@@ -333,6 +333,9 @@ proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
     except CatchableError as exc:
       warn "error cleaning up transports", description = exc.msg
 
+  if not s.autoTLSMgr.isNil:
+    await s.autoTLSMgr.stop()
+
   await s.ms.stop()
 
   trace "Switch stopped"

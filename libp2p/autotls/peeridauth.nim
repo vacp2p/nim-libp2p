@@ -95,7 +95,7 @@ proc checkSignature(
   )
 
 proc peerIdAuthenticate(
-    url: string, peerInfo: PeerInfo, payload: JsonNode
+    url: string, session: HttpSessionRef, peerInfo: PeerInfo, payload: JsonNode
 ): Future[(string, HttpClientResponseRef)] {.
     async: (raises: [AutoTLSError, PeerIDAuthError, CancelledError])
 .} =
@@ -106,8 +106,7 @@ proc peerIdAuthenticate(
   let base36PeerId = encodePeerId(peerInfo.peerId)
   var authStartResponse: HttpClientResponseRef
   try:
-    authStartResponse =
-      await HttpClientRequestRef.get(HttpSessionRef.new(), url).get().send()
+    authStartResponse = await HttpClientRequestRef.get(session, url).get().send()
   except HttpError:
     raise newException(PeerIDAuthError, "Failed to start PeerID Auth")
 
@@ -138,7 +137,7 @@ proc peerIdAuthenticate(
   try:
     authorizationResponse = await HttpClientRequestRef
     .post(
-      HttpSessionRef.new(),
+      session,
       url,
       body = $payload,
       headers = [
@@ -170,6 +169,7 @@ proc peerIdAuthenticate(
 
 proc peerIdAuthSend*(
     url: string,
+    session: HttpSessionRef,
     peerInfo: PeerInfo,
     payload: JsonNode,
     bearerToken: Opt[string] = Opt.none(string),
@@ -177,14 +177,14 @@ proc peerIdAuthSend*(
     async: (raises: [AutoTLSError, PeerIDAuthError, CancelledError])
 .} =
   if bearerToken.isNone:
-    return await peerIdAuthenticate(url, peerInfo, payload)
+    return await peerIdAuthenticate(url, session, peerInfo, payload)
 
   let authHeader = "libp2p-PeerID bearer=\"" & bearerToken.get & "\""
   var response: HttpClientResponseRef
   try:
     response = await HttpClientRequestRef
     .post(
-      HttpSessionRef.new(),
+      session,
       url,
       body = $payload,
       headers = [
@@ -199,5 +199,4 @@ proc peerIdAuthSend*(
     raise newException(
       PeerIDAuthError, "Failed to send request with bearer token for PeerID Auth"
     )
-
   return (bearerToken.get, response)

@@ -16,6 +16,7 @@ type ACMEAccount* = object
   status*: Opt[string]
   contact*: Opt[seq[string]]
   key*: KeyPair
+  session*: HttpSessionRef
   kid*: Opt[string]
   directory: JsonNode
 
@@ -27,8 +28,9 @@ proc new*(
     kid: Opt[string] = Opt.none(string),
 ): Future[ref ACMEAccount] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
+    let session = HttpSessionRef.new()
     let directoryResponse = await HttpClientRequestRef
-    .get(HttpSessionRef.new(), LetsEncryptURL & "/directory")
+    .get(session, LetsEncryptURL & "/directory")
     .get()
     .send()
     let directory = bytesToString(await directoryResponse.getBodyBytes()).parseJson()
@@ -38,6 +40,7 @@ proc new*(
     acc.contact = contact
     acc.kid = kid
     acc.key = key
+    acc.session = session
     acc.directory = directory
     return acc
   except HttpError:
@@ -59,8 +62,7 @@ proc newNonce(
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
     let nonceURL = self.directory.getJSONField("newNonce").getStr
-    let resp =
-      await HttpClientRequestRef.get(HttpSessionRef.new(), nonceURL).get().send()
+    let resp = await HttpClientRequestRef.get(self.session, nonceURL).get().send()
     return resp.headers.getString("replay-nonce")
   except HttpError:
     raise newException(ACMEError, "Failed to request new nonce from ACME server")
@@ -103,7 +105,7 @@ proc signedAcmeRequest(
   try:
     let response = await HttpClientRequestRef
     .post(
-      HttpSessionRef.new(),
+      self.session,
       url,
       body = $body,
       headers = [("Content-Type", "application/jose+json")],
@@ -155,7 +157,7 @@ proc requestChallenge*(
   let authzResponseBody =
     try:
       let authzResponse =
-        await HttpClientRequestRef.get(HttpSessionRef.new(), authzURL).get().send()
+        await HttpClientRequestRef.get(self.session, authzURL).get().send()
       await authzResponse.getParsedResponseBody()
     except Exception as e:
       raise newException(ACMEError, "failed to request challenge: " & e.msg)
@@ -196,7 +198,7 @@ proc notifyChallengeCompleted*(
     var checkResponseBody: JsonNode
     try:
       let checkResponse =
-        await HttpClientRequestRef.get(HttpSessionRef.new(), checkURL).get().send()
+        await HttpClientRequestRef.get(self.session, checkURL).get().send()
       checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
     except HttpError:
       raise newException(ACMEError, "Failed to connect to ACME server")
@@ -247,7 +249,7 @@ proc finalizeCertificate*(
     var finalizedResponseBody: JsonNode
     try:
       let finalizedResponse =
-        await HttpClientRequestRef.get(HttpSessionRef.new(), finalizeURL).get().send()
+        await HttpClientRequestRef.get(self.session, finalizeURL).get().send()
       finalizedResponseBody =
         bytesToString(await finalizedResponse.getBodyBytes()).parseJson()
     except HttpError:
@@ -272,17 +274,15 @@ proc downloadCertificate*(
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
     let downloadResponse =
-      await HttpClientRequestRef.get(HttpSessionRef.new(), orderURL).get().send()
+      await HttpClientRequestRef.get(self.session, orderURL).get().send()
     if downloadResponse.status != 200:
       raise newException(ACMEError, "Failed to download certificate")
     let certificateDownloadURL = bytesToString(await downloadResponse.getBodyBytes())
       .parseJson()
       .getJSONField("certificate").getStr
 
-    let certificateResponse = await HttpClientRequestRef
-    .get(HttpSessionRef.new(), certificateDownloadURL)
-    .get()
-    .send()
+    let certificateResponse =
+      await HttpClientRequestRef.get(self.session, certificateDownloadURL).get().send()
     let rawCertificate = bytesToString(await certificateResponse.getBodyBytes())
     return rawCertificate
   except HttpError:
