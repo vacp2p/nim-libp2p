@@ -371,8 +371,8 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
 
   await s.peerInfo.update()
   await s.ms.start()
-  # if not s.autoTLSMgr.isNil:
-  #   await s.autoTLSMgr.start(s.peerInfo)
+  if not s.autoTLSMgr.isNil:
+    await s.autoTLSMgr.start(s.peerInfo)
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
