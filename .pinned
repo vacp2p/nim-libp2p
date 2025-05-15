@@ -5,7 +5,7 @@ dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153
 faststreams;https://github.com/status-im/nim-faststreams@#c51315d0ae5eb2594d0bf41181d0e1aca1b3c01d
 httputils;https://github.com/status-im/nim-http-utils@#79cbab1460f4c0cdde2084589d017c43a3d7b4f1
 json_serialization;https://github.com/status-im/nim-json-serialization@#2b1c5eb11df3647a2cee107cd4cce3593cbb8bcf
-metrics;https://github.com/status-im/nim-metrics@#6142e433fc8ea9b73379770a788017ac528d46ff
+metrics;https://github.com/status-im/nim-metrics@#ecf64c6078d1276d3b7d9b3d931fbdb70004db11
 ngtcp2;https://github.com/status-im/nim-ngtcp2@#9456daa178c655bccd4a3c78ad3b8cce1f0add73
 nimcrypto;https://github.com/cheatfate/nimcrypto@#19c41d6be4c00b4a2c8000583bd30cf8ceb5f4b1
 quic;https://github.com/status-im/nim-quic.git@#a6c30263c95fc5ddb2ef4d197c09b282555c06b0
@@ -15,5 +15,5 @@ serialization;https://github.com/status-im/nim-serialization@#548d0adc9797a10b2d
 stew;https://github.com/status-im/nim-stew@#0db179256cf98eb9ce9ee7b9bc939f219e621f77
 testutils;https://github.com/status-im/nim-testutils@#9e842bd58420d23044bc55e16088e8abbe93ce51
 unittest2;https://github.com/status-im/nim-unittest2@#8b51e99b4a57fcfb31689230e75595f024543024
-websock;https://github.com/status-im/nim-websock@#f8ed9b40a5ff27ad02a3c237c4905b0924e3f982
+websock;https://github.com/status-im/nim-websock@#d5cd89062cd2d168ef35193c7d29d2102921d97e
 zlib;https://github.com/status-im/nim-zlib@#daa8723fd32299d4ca621c837430c29a5a11e19a
