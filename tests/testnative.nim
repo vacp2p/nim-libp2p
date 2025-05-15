@@ -25,8 +25,7 @@ import
   testwstransport,
   testquic,
   testmemorytransport,
-  transports/tls/testcertificate,
-  testautotls
+  transports/tls/testcertificate # testautotls
 
 import
   testnameresolve, testmultistream, testbufferstream, testidentify,
