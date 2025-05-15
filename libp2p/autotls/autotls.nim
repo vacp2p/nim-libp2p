@@ -178,6 +178,8 @@ method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
     return
 
   trace "stopping AutoTLS manager"
+  await noCancel(self.acmeAccount.session.closeWait())
+
   self.running = false
 
   # end all connections (TODO)
