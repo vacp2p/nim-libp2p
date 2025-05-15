@@ -843,11 +843,9 @@ suite "GossipSub Message Handling":
       results[0].isPending()
       results[1].isPending()
 
-  # test cases for block 5 gossibsub test plan 
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference
-  asyncTest "Check RPCMsg encoding":
-    let backofftime = 10.uint64
+  asyncTest "ControlMessage RPCMsg encoding":
     var id: seq[byte] = @[123]
     let rpcMsg = RPCMsg(
       control: some(
@@ -855,32 +853,32 @@ suite "GossipSub Message Handling":
           ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
           iwant: @[ControlIWant(messageIDs: @[id])],
           graft: @[ControlGraft(topicID: "foobar")],
-          prune: @[ControlPrune(topicID: "foobar", backoff: backofftime)],
+          prune: @[ControlPrune(topicID: "foobar", backoff: 10.uint64)],
           idontwant: @[ControlIWant(messageIDs: @[id])],
         )
       )
     )
+    #data encoded using protoc cmd tool
     let encodedExpected: seq[byte] =
       @[
-        26, 51, 10, 10, 6, 102, 111, 111, 98, 97, 114, 18, 3, 49, 50, 51, 18, 5, 10, 3,
-        49, 50, 51, 26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111,
-        111, 98, 97, 114, 16, 10, 42, 5, 10, 3, 49, 50, 51,
-      ] #encoded using protoc cmd tool
+        26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1,
+        123, 26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98,
+        97, 114, 24, 10, 42, 3, 10, 1, 123,
+      ]
 
     let encodedMsg = encodeRpcMsg(rpcMsg, true)
     check:
       encodedExpected == encodedMsg
 
-  asyncTest "Check RPCMsg decoding":
-    let backofftime = 12.uint64
+  asyncTest "ControlMessage RPCMsg decoding":
     let id: seq[byte] = @[1]
-    let originMessage = RPCMsg(
+    let rpcMsg = RPCMsg(
       control: some(
         ControlMessage(
           ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
           iwant: @[ControlIWant(messageIDs: @[id])],
           graft: @[ControlGraft(topicID: "topic")],
-          prune: @[ControlPrune(topicID: "new", backoff: backofftime)],
+          prune: @[ControlPrune(topicID: "new", backoff: 12.uint64)],
           idontwant: @[ControlIWant(messageIDs: @[id])],
         )
       )
@@ -888,11 +886,11 @@ suite "GossipSub Message Handling":
     #data encoded using protoc cmd tool
     let encodedMsg: seq[byte] =
       @[
-        26, 41, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 49, 18, 3, 10, 1, 49,
-        26, 7, 10, 5, 116, 111, 112, 105, 99, 34, 7, 10, 3, 110, 101, 119, 16, 12, 42,
-        3, 10, 1, 49,
+        26, 41, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 1, 18, 3, 10, 1, 1,
+        26, 7, 10, 5, 116, 111, 112, 105, 99, 34, 7, 10, 3, 110, 101, 119, 24, 12, 42,
+        3, 10, 1, 1,
       ]
 
-    var rpcMsg = decodeRpcMsg(encodedMsg).value
+    var decodedExpected = decodeRpcMsg(encodedMsg).value
     check:
-      rpcMsg == originMessage
+      decodedExpected == rpcMsg
