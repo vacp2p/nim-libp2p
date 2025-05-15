@@ -1,5 +1,5 @@
 bearssl;https://github.com/status-im/nim-bearssl@#34d712933a4e0f91f5e66bc848594a581504a215
-chronicles;https://github.com/status-im/nim-chronicles@#a8fb38a10bcb548df78e9a70bd77b26bb50abd12
+chronicles;https://github.com/status-im/nim-chronicles@#ab3ab545be0b550cca1c2529f7e97fbebf5eba81
 chronos;https://github.com/status-im/nim-chronos@#b55e2816eb45f698ddaca8d8473e401502562db2
 dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153379ea557c8
 faststreams;https://github.com/status-im/nim-faststreams@#c51315d0ae5eb2594d0bf41181d0e1aca1b3c01d
