@@ -41,7 +41,7 @@ Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p'
 ## Install
 **Prerequisite**
 - [Nim](https://nim-lang.org/install.html)
-> The currently supported Nim version is 1.6.18. Version 2.0 support is experimental and partial.
+> The currently supported Nim versions are 1.6.18 and 2.0.14.  Version 2.2.x support is experimental and partial.
 
 ```
 nimble install libp2p
