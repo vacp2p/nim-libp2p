@@ -182,3 +182,7 @@ or
 * Apache License, Version 2.0, ([LICENSE-APACHEv2](LICENSE-APACHEv2) or http://www.apache.org/licenses/LICENSE-2.0)
 
 at your option. These files may not be copied, modified, or distributed except according to those terms.
+
+
+## This branch
+This branch provides a bare minimum (PoC) implementation for the [push-pull phase transition](https://ethresear.ch/t/pppt-fighting-the-gossipsub-overhead-with-push-pull-phase-transition/22118). We introduce hop count ($h$) in the message header. On receiving a message, a peer relays it to only $D - h$ peers and sends an immediate IHAVE announcement to the remaining mesh members. The sending peer adds a small delay $\delta = 35 ms$ between message transfers to increase the probability of receiving IDONTWANT messages.

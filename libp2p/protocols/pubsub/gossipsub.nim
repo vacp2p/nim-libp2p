@@ -37,7 +37,7 @@ import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 export types, scoring, behavior, pubsub
 
 import std/atomics
-const WARMUP_THRESHOLD = 2
+const WARMUP_THRESHOLD = 0
 var
   lma_dup_during_validation: Atomic[uint32]   # number of duplicates during 1st message validation
   lma_idontwant_saves: Atomic[uint32]         # number of Txs saved due to idontwant
@@ -532,20 +532,37 @@ proc validateAndRelay(
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
-    # In theory, if topics are the same in all messages, we could batch - we'd
-    # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
-    trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
+    var staggerPeers = toSeq(toSendPeers)
+    g.rng.shuffle(staggerPeers)
+    if staggerPeers.len > int(msg.hopcount):
+      staggerPeers = staggerPeers[msg.hopcount..^1]
+    
+    #PPPT: send sequentially (with small delay) to D-hopcount peers, IHAVE to remaining
+    proc sendSequential() {.async.} =
+      for p in staggerPeers:
+        toSendPeers.excl(p)
+        if isMsgInIdontWant(p):
+          continue
 
-    if g.knownTopics.contains(topic):
-      libp2p_pubsub_messages_rebroadcasted.inc(
-        toSendPeers.len.int64, labelValues = [topic]
-      )
-    else:
-      libp2p_pubsub_messages_rebroadcasted.inc(
-        toSendPeers.len.int64, labelValues = ["generic"]
-      )
+        g.broadcast(@[p], RPCMsg(messages: @[msg]), isHighPriority = false)
+        trace "forwarded message to peers", peers = 1, msgId, peer
 
+        if g.knownTopics.contains(topic):
+          libp2p_pubsub_messages_rebroadcasted.inc(
+            1, labelValues = [topic]
+          )
+        else:
+          libp2p_pubsub_messages_rebroadcasted.inc(
+            1, labelValues = ["generic"]
+          )
+        
+        await sleepAsync(35.milliseconds)
+      
+      g.broadcast(toSendPeers, RPCMsg(control: some(ControlMessage(
+          ihave: @[ControlIHave(topicID: topic, messageIDs: @[msgId])]
+        ))), isHighPriority = true)
+
+    asyncSpawn sendSequential()
     await handleData(g, topic, msg.data)
   except CancelledError as exc:
     info "validateAndRelay failed", description = exc.msg
@@ -627,6 +644,7 @@ method rpcHandler*(
     peer.behaviourPenalty += 0.1
 
   for i in 0 ..< rpcMsg.messages.len(): # for every message
+    rpcMsg.messages[i].hopcount = rpcMsg.messages[i].hopcount + 1
     template msg(): untyped =
       rpcMsg.messages[i]
 

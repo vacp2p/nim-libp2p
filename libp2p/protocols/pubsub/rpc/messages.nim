@@ -56,6 +56,7 @@ type
     topic*: string
     signature*: seq[byte]
     key*: seq[byte]
+    hopcount*: uint16
 
   ControlMessage* = object
     ihave*: seq[ControlIHave]
@@ -137,10 +138,10 @@ proc byteSize(subOpts: SubOpts): int =
   1 + subOpts.topic.len # 1 byte for the bool
 
 static:
-  expectedFields(Message, @["fromPeer", "data", "seqno", "topic", "signature", "key"])
+  expectedFields(Message, @["fromPeer", "data", "seqno", "topic", "signature", "key", "hopcount"])
 proc byteSize*(msg: Message): int =
   msg.fromPeer.len + msg.data.len + msg.seqno.len + msg.signature.len + msg.key.len +
-    msg.topic.len
+    msg.topic.len + sizeof(msg.hopcount)
 
 proc byteSize*(msgs: seq[Message]): int =
   msgs.foldl(a + b.byteSize, 0)
