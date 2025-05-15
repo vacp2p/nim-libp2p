@@ -1,3 +1,15 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+{.push raises: [].}
+{.push public.}
+
 import
   net,
   results,
@@ -35,6 +47,7 @@ type AutoTLSManager* = ref object
   rng: ref HmacDrbgContext
   cert*: Opt[CertificateX509]
   acmeAccount*: ref ACMEAccount
+  httpSession: HttpSessionRef
   dnsResolver*: DnsResolver
   bearerToken*: Opt[string]
   running: bool
@@ -72,10 +85,24 @@ proc new*(
     rng: rng,
     cert: Opt.none(CertificateX509),
     acmeAccount: acmeAccount,
+    httpSession: HttpSessionRef.new(),
     dnsResolver: dnsResolver,
     bearerToken: Opt.none(string),
     running: false,
   )
+
+method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
+  if not self.running:
+    return
+
+  trace "stopping AutoTLS manager"
+  await noCancel(self.acmeAccount.session.closeWait())
+  await noCancel(self.httpSession.closeWait())
+
+  self.running = false
+
+  # end all connections (TODO)
+  # await noCancel allFutures(self.connections.mapIt(it.close()))
 
 method start*(
     self: AutoTLSManager, peerInfo: PeerInfo
@@ -85,14 +112,14 @@ method start*(
     self.acmeAccount = (await ACMEAccount.new(accountKey))
   if self.running:
     return
+
   trace "starting AutoTLS manager"
   self.running = true
 
   trace "registering ACME account"
   await self.acmeAccount.register()
 
-  # generate autotls domain
-  # *.{peerID}.libp2p.direct
+  # generate autotls domain string: "*.{peerID}.libp2p.direct"
   let base36PeerId = encodePeerId(peerInfo.peerId)
   let baseDomain = base36PeerId & "." & AutoTLSDNSServer
   let domain = "*." & baseDomain
@@ -124,12 +151,17 @@ method start*(
   var bearerToken: string
   if self.bearerToken.isSome:
     (bearerToken, response) = await peerIdAuthSend(
-      registrationURL, peerInfo, payload, bearerToken = self.bearerToken
+      registrationURL,
+      self.httpSession,
+      peerInfo,
+      payload,
+      bearerToken = self.bearerToken,
     )
     discard bearerToken
   else:
     # authenticate, send challenge and save bearerToken for future requests
-    (bearerToken, response) = await peerIdAuthSend(registrationURL, peerInfo, payload)
+    (bearerToken, response) =
+      await peerIdAuthSend(registrationURL, self.httpSession, peerInfo, payload)
     self.bearerToken = Opt.some(bearerToken)
 
   # no need to do anything from this point forward if there are not public ip addresses on host
@@ -137,9 +169,9 @@ method start*(
   try:
     hostPrimaryIP = getPrimaryIPAddr()
     if not isPublicIPv4(hostPrimaryIP):
-      self.running = false
+      await self.stop()
       return
-  except:
+  except Exception:
     raise newException(AutoTLSError, "Failed to get primary IP address for host")
 
   trace "waiting for DNS record to be set"
@@ -172,13 +204,3 @@ method start*(
 
   trace "installing certificate"
   trace "monitoring for certificate renewals"
-
-method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
-  if not self.running:
-    return
-
-  trace "stopping AutoTLS manager"
-  self.running = false
-
-  # end all connections (TODO)
-  # await noCancel allFutures(self.connections.mapIt(it.close()))
