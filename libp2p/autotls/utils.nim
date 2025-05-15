@@ -1,12 +1,5 @@
 import
-  base64,
-  strutils,
-  stew/base36,
-  chronos/apps/http/httpclient,
-  json,
-  strformat,
-  net,
-  std/sysrand
+  base64, strutils, stew/base36, chronos/apps/http/httpclient, json, net, std/sysrand
 import
   ../errors, ../peerid, ../multihash, ../cid, ../multicodec, ../crypto/[crypto, rsa]
 
@@ -66,7 +59,7 @@ proc getJSONField*(node: JsonNode, field: string): JsonNode {.raises: [ACMEError
   try:
     return node[field]
   except:
-    raise newException(ACMEError, fmt"'{field}' field not found in JSON: {node}")
+    raise newException(ACMEError, "'" & field & "' field not found in JSON")
 
 proc thumbprint*(key: KeyPair): string =
   # TODO: check if scheme is RSA

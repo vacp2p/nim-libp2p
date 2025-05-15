@@ -5,7 +5,6 @@ import
   chronicles,
   bearssl/rand,
   bio,
-  strformat,
   json,
   chronos/apps/http/httpclient
 
@@ -97,8 +96,8 @@ method start*(
   # generate autotls domain
   # *.{peerID}.libp2p.direct
   let base36PeerId = encodePeerId(peerInfo.peerId)
-  let baseDomain = fmt"{base36PeerId}.{AutoTLSDNSServer}"
-  let domain = fmt"*.{baseDomain}"
+  let baseDomain = base36PeerId & "." & AutoTLSDNSServer
+  let domain = "*." & baseDomain
 
   trace "requesting ACME challenge"
   let (dns01Challenge, finalizeURL, orderURL) =
@@ -120,7 +119,7 @@ method start*(
     strMultiaddresses.add($ma)
 
   let payload = %*{"value": keyAuthorization, "addresses": strMultiaddresses}
-  let registrationURL = fmt"{AutoTLSBroker}/v1/_acme-challenge"
+  let registrationURL = AutoTLSBroker & "/v1/_acme-challenge"
 
   trace "sending challenge to AutoTLS broker"
   var response: HttpClientResponseRef
@@ -152,8 +151,8 @@ method start*(
   # and acme challenge TXT domain will be:
   #     _acme-challenge.{peerIdBase36}.libp2p.direct
   let dashedIpAddr = ($hostPrimaryIP).replace(".", "-")
-  let acmeChalDomain = fmt"_acme-challenge.{baseDomain}"
-  let ip4Domain = fmt"{dashedIpAddr}.{baseDomain}"
+  let acmeChalDomain = "_acme-challenge." & baseDomain
+  let ip4Domain = dashedIpAddr & "." & baseDomain
   if not await checkDNSRecords(ip4Domain, acmeChalDomain, retries = 3):
     raise newException(AutoTLSError, "DNS records not set")
 
