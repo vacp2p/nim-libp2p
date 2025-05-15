@@ -91,19 +91,15 @@ proc signedAcmeRequest(
 ): Future[HttpClientResponseRef] {.async: (raises: [ACMEError, CancelledError]).} =
   let acmeHeader = await self.acmeHeader(url, needsJwk)
   var token: JWT
+  var body: JsonNode
   try:
     token = toJWT(%*{"header": acmeHeader, "claims": payload})
     let derPrivKey = self.key.seckey.rsakey.getBytes.get
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
     token.sign(pemPrivKey)
+    body = token.toFlattenedJson()
   except Exception as e:
     raise newException(ACMEError, "could not create JWT: " & e.msg)
-  let body =
-    %*{
-      "payload": token.claims.toBase64,
-      "protected": token.header.toBase64,
-      "signature": base64UrlEncode(token.signature),
-    }
   try:
     let response = await HttpClientRequestRef
     .post(
