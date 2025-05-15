@@ -845,9 +845,9 @@ suite "GossipSub Message Handling":
 
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference
-  asyncTest "ControlMessage RPCMsg encoding":
-    var id: seq[byte] = @[123]
-    let rpcMsg = RPCMsg(
+  asyncTest "ControlMessage RPCMsg encoding and decoding":
+    let id: seq[byte] = @[123]
+    let message = RPCMsg(
       control: some(
         ControlMessage(
           ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
@@ -859,38 +859,17 @@ suite "GossipSub Message Handling":
       )
     )
     #data encoded using protoc cmd tool
-    let encodedExpected: seq[byte] =
+    let expectedEncoded: seq[byte] =
       @[
         26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1,
         123, 26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98,
         97, 114, 24, 10, 42, 3, 10, 1, 123,
       ]
 
-    let encodedMsg = encodeRpcMsg(rpcMsg, true)
+    let actualEncoded = encodeRpcMsg(message, true)
     check:
-      encodedExpected == encodedMsg
+      actualEncoded == expectedEncoded
 
-  asyncTest "ControlMessage RPCMsg decoding":
-    let id: seq[byte] = @[1]
-    let rpcMsg = RPCMsg(
-      control: some(
-        ControlMessage(
-          ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
-          iwant: @[ControlIWant(messageIDs: @[id])],
-          graft: @[ControlGraft(topicID: "topic")],
-          prune: @[ControlPrune(topicID: "new", backoff: 12.uint64)],
-          idontwant: @[ControlIWant(messageIDs: @[id])],
-        )
-      )
-    )
-    #data encoded using protoc cmd tool
-    let encodedMsg: seq[byte] =
-      @[
-        26, 41, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 1, 18, 3, 10, 1, 1,
-        26, 7, 10, 5, 116, 111, 112, 105, 99, 34, 7, 10, 3, 110, 101, 119, 24, 12, 42,
-        3, 10, 1, 1,
-      ]
-
-    var decodedExpected = decodeRpcMsg(encodedMsg).value
+    let actualDecoded = decodeRpcMsg(expectedEncoded).value
     check:
-      decodedExpected == rpcMsg
+      actualDecoded == message
