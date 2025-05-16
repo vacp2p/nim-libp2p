@@ -36,7 +36,7 @@ jobs:
 
   test:
     needs: delete_cache
-    timeout-minutes: 90
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
