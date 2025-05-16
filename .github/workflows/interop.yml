@@ -40,6 +40,8 @@ jobs:
           s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
           s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+          # temporary disable interop with zig-v0.0.1
+          test-ignore: "nim-libp2p-head x zig-v0.0.1 (quic-v1)|zig-v0.0.1 x nim-libp2p-head (quic-v1)"
 
   run-hole-punching-interop:
     name: Run hole-punching interoperability tests

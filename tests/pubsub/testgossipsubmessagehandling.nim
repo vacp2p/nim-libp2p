@@ -16,7 +16,6 @@ import sugar
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
-import ../../libp2p/muxers/muxer
 import ../helpers, ../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
@@ -78,37 +77,21 @@ suite "GossipSub Message Handling":
     checkTrackers()
 
   asyncTest "Drop messages of topics without subscription":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    proc handler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
-      check false
-
     let topic = "foobar"
-    var conns = newSeq[Connection]()
-    for i in 0 ..< 30:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
-      peer.handler = handler
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # generate messages
     var seqno = 0'u64
     for i in 0 .. 5:
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
-      let peerId = randomPeerId()
-      conn.peerId = peerId
-      let peer = gossipSub.getPubSubPeer(peerId)
+      let conn = conns[i]
+      let peer = peers[i]
       inc seqno
-      let msg = Message.init(peerId, ("bar" & $i).toBytes(), topic, some(seqno))
+      let msg = Message.init(conn.peerId, ("bar" & $i).toBytes(), topic, some(seqno))
       await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     check gossipSub.mcache.msgs.len == 0
-
-    await allFuturesThrowing(conns.mapIt(it.close()))
-    await gossipSub.switch.stop()
 
   asyncTest "subscription limits":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
@@ -859,3 +842,34 @@ suite "GossipSub Message Handling":
       publishResult == 0
       results[0].isPending()
       results[1].isPending()
+
+  # check correctly parsed ihave/iwant/graft/prune/idontwant messages
+  # check value before & after decoding equal using protoc cmd tool for reference
+  asyncTest "ControlMessage RPCMsg encoding and decoding":
+    let id: seq[byte] = @[123]
+    let message = RPCMsg(
+      control: some(
+        ControlMessage(
+          ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
+          iwant: @[ControlIWant(messageIDs: @[id])],
+          graft: @[ControlGraft(topicID: "foobar")],
+          prune: @[ControlPrune(topicID: "foobar", backoff: 10.uint64)],
+          idontwant: @[ControlIWant(messageIDs: @[id])],
+        )
+      )
+    )
+    #data encoded using protoc cmd tool
+    let expectedEncoded: seq[byte] =
+      @[
+        26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1,
+        123, 26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98,
+        97, 114, 24, 10, 42, 3, 10, 1, 123,
+      ]
+
+    let actualEncoded = encodeRpcMsg(message, true)
+    check:
+      actualEncoded == expectedEncoded
+
+    let actualDecoded = decodeRpcMsg(expectedEncoded).value
+    check:
+      actualDecoded == message

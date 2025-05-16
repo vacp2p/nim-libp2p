@@ -5,7 +5,7 @@ const
   libp2p_pubsub_anonymize {.booldefine.} = false
 
 import hashes, random, tables, sets, sequtils, sugar
-import chronos, stew/[byteutils, results], chronos/ratelimit
+import chronos, results, stew/byteutils, chronos/ratelimit
 import
   ../../libp2p/[
     builders,
@@ -18,7 +18,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../helpers, ../utils/futures
+import ../helpers
 import chronicles
 
 export builders
@@ -42,6 +42,21 @@ type
     dOut*: Option[int]
     dLazy*: Option[int]
 
+proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+  discard
+
+proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
+  discard
+
+proc voidPeerHandler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
+  discard
+
+proc randomPeerId*(): PeerId =
+  try:
+    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+  except CatchableError as exc:
+    raise newException(Defect, exc.msg)
+
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getConn(): Future[Connection] {.
       async: (raises: [CancelledError, GetConnDialError])
@@ -61,11 +76,57 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   onNewPeer(p, pubSubPeer)
   pubSubPeer
 
-proc randomPeerId*(): PeerId =
-  try:
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
-  except CatchableError as exc:
-    raise newException(Defect, exc.msg)
+proc setupGossipSubWithPeers*(
+    numPeers: int,
+    topics: seq[string],
+    populateGossipsub: bool = false,
+    populateMesh: bool = false,
+    populateFanout: bool = false,
+): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
+  let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+  for topic in topics:
+    gossipSub.topicParams[topic] = TopicParams.init()
+    gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
+    gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
+    gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
+
+  var conns = newSeq[Connection]()
+  var peers = newSeq[PubSubPeer]()
+  for i in 0 ..< numPeers:
+    let conn = TestBufferStream.new(noop)
+    conns &= conn
+    let peerId = randomPeerId()
+    conn.peerId = peerId
+    let peer = gossipSub.getPubSubPeer(peerId)
+    peer.sendConn = conn
+    peer.handler = voidPeerHandler
+    peers &= peer
+    for topic in topics:
+      if (populateGossipsub):
+        gossipSub.gossipsub[topic].incl(peer)
+      if (populateMesh):
+        gossipSub.grafted(peer, topic)
+        gossipSub.mesh[topic].incl(peer)
+      if (populateFanout):
+        gossipSub.fanout[topic].incl(peer)
+
+  return (gossipSub, conns, peers)
+
+proc setupGossipSubWithPeers*(
+    numPeers: int,
+    topic: string,
+    populateGossipsub: bool = false,
+    populateMesh: bool = false,
+    populateFanout: bool = false,
+): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
+  return setupGossipSubWithPeers(
+    numPeers, @[topic], populateGossipsub, populateMesh, populateFanout
+  )
+
+proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
+  await allFuturesThrowing(conns.mapIt(it.close()))
+  await gossipSub.switch.stop()
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
@@ -78,7 +139,7 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
       $m.data.hash & $m.topic.hash
   ok mid.toBytes()
 
-proc applyDValues(parameters: var GossipSubParams, dValues: Option[DValues]) =
+proc applyDValues*(parameters: var GossipSubParams, dValues: Option[DValues]) =
   if dValues.isNone:
     return
   let values = dValues.get
@@ -168,18 +229,21 @@ proc generateNodes*(
     switch.mount(pubsub)
     result.add(pubsub)
 
-proc connectNodes*(dialer: PubSub, target: PubSub) {.async.} =
+proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
+  return nodes.mapIt(GossipSub(it))
+
+proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not connect same peer"
   await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
 
-proc connectNodesStar*(nodes: seq[PubSub]) {.async.} =
+proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
   for dialer in nodes:
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await connectNodes(dialer, node)
 
-proc connectNodesSparse*(nodes: seq[PubSub], degree: int = 2) {.async.} =
+proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
   if nodes.len < degree:
     raise
       (ref CatchableError)(msg: "nodes count needs to be greater or equal to degree!")
@@ -324,23 +388,31 @@ proc waitForPeersInTable*(
     )
     allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied)
 
-proc startNodes*(nodes: seq[PubSub]) {.async.} =
+proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
-proc stopNodes*(nodes: seq[PubSub]) {.async.} =
+proc stopNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
 
-template startNodesAndDeferStop*(nodes: seq[PubSub]): untyped =
+template startNodesAndDeferStop*[T: PubSub](nodes: seq[T]): untyped =
   await startNodes(nodes)
   defer:
     await stopNodes(nodes)
 
-proc subscribeAllNodes*(nodes: seq[PubSub], topic: string, topicHandler: TopicHandler) =
+proc subscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandler: TopicHandler
+) =
   for node in nodes:
     node.subscribe(topic, topicHandler)
 
-proc subscribeAllNodes*(
-    nodes: seq[PubSub], topic: string, topicHandlers: seq[TopicHandler]
+proc unsubscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandler: TopicHandler
+) =
+  for node in nodes:
+    node.unsubscribe(topic, topicHandler)
+
+proc subscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandlers: seq[TopicHandler]
 ) =
   if nodes.len != topicHandlers.len:
     raise (ref CatchableError)(msg: "nodes and topicHandlers count needs to match!")
@@ -359,12 +431,6 @@ template tryPublish*(
     await sleepAsync(wait)
 
   doAssert pubs >= require, "Failed to publish!"
-
-proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
-  discard
-
-proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
-  discard
 
 proc createCompleteHandler*(): (
   Future[bool], proc(topic: string, data: seq[byte]) {.async.}

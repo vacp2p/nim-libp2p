@@ -1,4 +1,4 @@
-import chronos/futures, stew/results, chronos, sequtils
+import chronos/futures, results, chronos, sequtils
 
 const
   DURATION_TIMEOUT* = 1.seconds
