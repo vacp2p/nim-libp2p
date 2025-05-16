@@ -18,6 +18,9 @@ import
 import ../stubs/autonatclientstub
 import ../errorhelpers
 
+logScope:
+  topics = "hp interop node"
+
 proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   let rng = newRng()
   var builder = SwitchBuilder
@@ -66,6 +69,8 @@ proc main() {.async.} =
         redisClient.bLPop(@["RELAY_TCP_ADDRESS"], 0)
       except Exception as e:
         raise newException(CatchableError, e.msg)
+
+    debug "All relay addresses", relayAddr
 
     # This is necessary to make the autonat service work. It will ask this peer for our reachability which the autonat
     # client stub will answer NotReachable.
