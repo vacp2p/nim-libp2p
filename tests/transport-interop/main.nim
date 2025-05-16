@@ -101,7 +101,8 @@ proc main() {.async.} =
     )
 
 try:
-  discard waitFor(main().wait(testTimeout))
+  let fut = main().wait(testTimeout)
+  discard waitFor(main().wait(fut))
 except AsyncTimeoutError:
   error "Program execution timed out."
   quit(-1)

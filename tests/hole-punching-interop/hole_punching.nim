@@ -124,7 +124,8 @@ proc main() {.async.} =
     echo &"""{{"rtt_to_holepunched_peer_millis":{delay.millis}}}"""
 
 try:
-  discard waitFor(main().wait(4.minutes))
+  let fut = main().wait(4.minutes)
+  discard waitFor(fut)
 except AsyncTimeoutError:
   error "Program execution timed out."
   quit(-1)
