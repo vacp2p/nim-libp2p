@@ -99,7 +99,7 @@ proc main(): Future[string] {.async.} =
         pingRTTMilllis: float(pingDelay.milliseconds),
       )
     )
-  
+
   return "done"
 
 try:
