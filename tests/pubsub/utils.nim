@@ -292,7 +292,7 @@ proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
       if x != y:
         await waitSub(nodes[x], nodes[y], topic)
 
-proc waitSubGraph*(nodes: seq[PubSub], key: string) {.async.} =
+proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
   let timeout = Moment.now() + 5.seconds
   while true:
     var
