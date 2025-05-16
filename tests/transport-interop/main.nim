@@ -11,7 +11,7 @@ let testTimeout =
   except CatchableError:
     3.minutes
 
-proc main() {.async.} =
+proc main(): Future[string] {.async.} =
   let
     transport = getEnv("transport")
     muxer = getEnv("muxer")
@@ -99,10 +99,11 @@ proc main() {.async.} =
         pingRTTMilllis: float(pingDelay.milliseconds),
       )
     )
+  
+  return "done"
 
 try:
-  let fut = main().wait(testTimeout)
-  discard waitFor(main().wait(fut))
+  discard waitFor(main().wait(testTimeout))
 except AsyncTimeoutError:
   error "Program execution timed out."
   quit(-1)

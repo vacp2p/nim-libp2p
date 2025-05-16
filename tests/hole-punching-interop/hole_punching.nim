@@ -43,7 +43,7 @@ proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
   s.mount(Ping.new(rng = rng))
   return s
 
-proc main() {.async.} =
+proc main(): Future[string] {.async.} =
   let relayClient = RelayClient.new()
   let autoRelayService = AutoRelayService.new(1, relayClient, nil, newRng())
   let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
@@ -123,9 +123,10 @@ proc main() {.async.} =
     )
     echo &"""{{"rtt_to_holepunched_peer_millis":{delay.millis}}}"""
 
+  return "done"
+
 try:
-  let fut = main().wait(4.minutes)
-  discard waitFor(fut)
+  discard waitFor(main().wait(4.minutes))
 except AsyncTimeoutError:
   error "Program execution timed out."
   quit(-1)
