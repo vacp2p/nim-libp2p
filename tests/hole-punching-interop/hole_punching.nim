@@ -82,9 +82,13 @@ proc main() {.async.} =
 
     # This will trigger the autonat relay service to make a reservation.
     let relayMA = MultiAddress.init(relayAddr[1]).tryGet()
-    debug "Got relay address", relayMA
-    let relayId = await switch.connect(relayMA)
-    debug "Connected to relay", relayId
+
+    try:
+      debug "Dialing relay...", relayMA
+      let relayId = await switch.connect(relayMA).wait(30.seconds)
+      debug "Connected to relay", relayId
+    except AsyncTimeoutError:
+      raise newException(CatchableError, "Connection to relay timed out")
 
     # Wait for our relay address to be published
     while not switch.peerInfo.addrs.anyIt(
@@ -127,5 +131,11 @@ proc main() {.async.} =
   except CatchableError as e:
     error "Unexpected error", description = e.msg
 
-discard waitFor(main().withTimeout(4.minutes))
-quit(1)
+try:
+  discard waitFor(main().wait(4.minutes))
+except AsyncTimeoutError:
+  error "Program execution timed out."
+  quit(-1)
+except CatchableError as e:
+  error "Unexpected error", description = e.msg
+  quit(-1)

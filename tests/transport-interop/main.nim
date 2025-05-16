@@ -99,7 +99,12 @@ proc main() {.async.} =
         pingRTTMilllis: float(pingDelay.milliseconds),
       )
     )
-    quit(0)
 
-discard waitFor(main().withTimeout(testTimeout))
-quit(1)
+try:
+  discard waitFor(main().wait(testTimeout))
+except AsyncTimeoutError:
+  error "Program execution timed out."
+  quit(-1)
+except CatchableError as e:
+  error "Unexpected error", description = e.msg
+  quit(-1)
