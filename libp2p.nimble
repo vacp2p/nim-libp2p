@@ -11,6 +11,8 @@ requires "nim >= 1.6.0",
   "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.10.2", "chronos >= 4.0.3", "metrics", "secp256k1", "stew >= 0.4.0",
   "websock", "unittest2", "results",
+  "https://github.com/vacp2p/nim-jwt.git#baff57251ea4abc1f466511c3ce565a738ac1f77",
+  "bio",
   "https://github.com/status-im/nim-quic.git#a6c30263c95fc5ddb2ef4d197c09b282555c06b0"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
