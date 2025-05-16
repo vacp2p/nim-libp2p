@@ -11,7 +11,7 @@ let testTimeout =
   except CatchableError:
     3.minutes
 
-proc main(): Future[string] {.async.} =
+proc main() {.async.} =
   let
     transport = getEnv("transport")
     muxer = getEnv("muxer")
@@ -100,10 +100,14 @@ proc main(): Future[string] {.async.} =
       )
     )
 
-  return "done"
-
 try:
-  discard waitFor(main().wait(testTimeout))
+  proc mainAsync(): Future[string] {.async.} =
+    # mainAsync wraps main and returns some value, as otherwise
+    # 'waitFor(fut)' has no type (or is ambiguous)
+    await main()
+    return "done"
+
+  discard waitFor(mainAsync().wait(testTimeout))
 except AsyncTimeoutError:
   error "Program execution timed out."
   quit(-1)
