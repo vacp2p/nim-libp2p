@@ -9,8 +9,7 @@
 
 import std/tables
 
-import stew/results
-import pkg/[chronos, chronicles, metrics]
+import pkg/[chronos, chronicles, metrics, results]
 
 import
   dial,
