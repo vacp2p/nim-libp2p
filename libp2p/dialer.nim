@@ -124,9 +124,13 @@ proc expandDnsAddr(
   for resolvedAddress in resolved:
     let lastPart = resolvedAddress[^1].tryGet()
     if lastPart.protoCode == Result[MultiCodec, string].ok(multiCodec("p2p")):
-      let
+      var peerIdBytes: seq[byte]
+      try:
         peerIdBytes = lastPart.protoArgument().tryGet()
-        addrPeerId = PeerId.init(peerIdBytes).tryGet()
+      except ResultError[string]:
+        raiseAssert "expandDnsAddr failed in protoArgument: " & getCurrentExceptionMsg()
+
+      let addrPeerId = PeerId.init(peerIdBytes).tryGet()
       result.add((resolvedAddress[0 ..^ 2].tryGet(), Opt.some(addrPeerId)))
     else:
       result.add((resolvedAddress, peerId))
