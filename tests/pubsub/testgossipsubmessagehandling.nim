@@ -424,9 +424,6 @@ suite "GossipSub Message Handling":
       sendCounter = 0
       validatedCounter = 0
 
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     proc onRecv(peer: PubSubPeer, msgs: var RPCMsg) =
       inc recvCounter
 
@@ -446,8 +443,8 @@ suite "GossipSub Message Handling":
 
     nodes[0].addObserver(obs0)
     nodes[1].addObserver(obs1)
-    nodes[1].subscribe("foo", handler)
-    nodes[1].subscribe("bar", handler)
+    nodes[1].subscribe("foo", voidTopicHandler)
+    nodes[1].subscribe("bar", voidTopicHandler)
 
     proc validator(
         topic: string, message: Message
@@ -466,6 +463,8 @@ suite "GossipSub Message Handling":
 
     # Send message that will be rejected by the receiver's validator
     tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
+
+    await waitForHeartbeat()
 
     check:
       recvCounter == 2
