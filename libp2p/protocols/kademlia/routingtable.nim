@@ -1,47 +1,55 @@
 import algorithm
-import random
+import bearssl/rand
 import chronos
 import ./consts
 import ../../peerid
 import ./xordistance
 
 type
-  PeerEntry = object
-    peerId: PeerId
+  PeerEntry* = object
+    peerId*: PeerId
     lastSeen*: Moment
 
-  Bucket = object
+  Bucket* = object
     peers*: seq[PeerEntry]
 
   RoutingTable* = object
     selfId*: PeerId
     buckets*: seq[Bucket]
 
-proc bucketIndex(selfId, peerId: PeerId): int =
+proc bucketIndex*(selfId, peerId: PeerId): int =
   let distance = xorDistance(selfId, peerId)
   return distance.leadingZeros
+
+proc findPeer(bucket: var Bucket, peerId: PeerId): int =
+  for i, p in bucket.peers:
+    if p.peerId == peerId:
+      return i
+  return -1
 
 proc insert*(rtable: var RoutingTable, peerId: PeerId) =
   if peerId == rtable.selfId:
     return # No self insertion
 
   let idx = bucketIndex(rtable.selfId, peerId)
+  if idx >= maxBuckets:
+    return # TODO: log?
+
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
     rtable.buckets.setLen(idx + 1)
 
-  # if peer already there, update lastSeen
-  for p in mitems(rtable.buckets[idx].peers):
-    if p.peerId == peerId:
-      p.lastSeen = Moment.now()
-      return
-
-  # otherwise insert
-  if rtable.buckets[idx].peers.len < k:
-    rtable.buckets[idx].peers.add(PeerEntry(peerId: peerId, lastSeen: Moment.now()))
+  var bucket = rtable.buckets[idx]
+  let i = findPeer(bucket, peerId)
+  if i != -1:
+    bucket.peers[i].lastSeen = Moment.now()
   else:
-    # bucket full, could implement ping-oldest-before-evict here ?
-    discard
+    if bucket.peers.len < k:
+      bucket.peers.add PeerEntry(peerId: peerId, lastSeen: Moment.now())
+    else:
+      discard # eviction policy goes here, rn we drop
+
+  rtable.buckets[idx] = bucket
 
 proc findClosest*(rtable: RoutingTable, targetId: PeerId, count: int): seq[PeerId] =
   var allPeers: seq[PeerId] = @[]
@@ -52,7 +60,7 @@ proc findClosest*(rtable: RoutingTable, targetId: PeerId, count: int): seq[PeerI
 
   allPeers.sort(
     proc(a, b: PeerId): int =
-      cmp(xorDistance(b, targetId), xorDistance(a, targetId))
+      cmp(xorDistance(a, targetId), xorDistance(b, targetId))
   )
 
   return allPeers[0 ..< min(count, allPeers.len)]
@@ -65,21 +73,41 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc flipBit(id: var seq[byte], bitIndex: int) =
-  let byteIndex = bitIndex div 8
-  let bitInByte = 7 - (bitIndex mod 8)
-  id[byteIndex] = id[byteIndex] xor (1'u8 shl bitInByte)
+proc randomIdInBucketRange*(
+    selfId: PeerId, bucketIndex: int, rng: ref HmacDrbgContext
+): PeerId =
+  var raw = selfId.getBytes()
 
-proc randomizeLowerBits*(id: var seq[byte], bitIndex: int) =
-  let byteStart = (bitIndex + 1) div 8
-  for i in byteStart ..< id.len:
-    id[i] = rand(255).uint8 # TODO: rng
+  # zero higher bits
+  for i in 0 ..< bucketIndex:
+    let byteIdx = i div 8
+    let bitInByte = 7 - (i mod 8)
+    raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
 
-proc randomIdInBucketRange*(selfId: PeerId, bucketIndex: int): PeerId =
-  var rawId = selfId.getBytes()
-  flipBit(rawId, bucketIndex) # flip the bit corresponding to bucket range
-  randomizeLowerBits(rawId, bucketIndex)
-  return PeerId(data: rawId)
+  # flip the target bit
+  let tgtByte = bucketIndex div 8
+  let tgtBitInByte = 7 - (bucketIndex mod 8)
+  raw[tgtByte] = raw[tgtByte] xor (1'u8 shl tgtBitInByte)
+
+  # randomize all less significant bits
+  let totalBits = raw.len * 8
+  let lsbStart = bucketIndex + 1
+  let lsbBytes = (totalBits - lsbStart + 7) div 8
+  var randomBuf = newSeq[byte](lsbBytes)
+  hmacDrbgGenerate(rng[], randomBuf)
+
+  for i in lsbStart ..< totalBits:
+    let byteIdx = i div 8
+    let bitInByte = 7 - (i mod 8)
+    let lsbByte = (i - lsbStart) div 8
+    let lsbBit = 7 - ((i - lsbStart) mod 8)
+    let randBit = (randomBuf[lsbByte] shr lsbBit) and 1
+    if randBit == 1:
+      raw[byteIdx] = raw[byteIdx] or (1'u8 shl bitInByte)
+    else:
+      raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
+
+  return PeerId(data: raw)
 
 proc init*(T: typedesc[RoutingTable], selfId: PeerId): T =
   return RoutingTable(selfId: selfId, buckets: @[])

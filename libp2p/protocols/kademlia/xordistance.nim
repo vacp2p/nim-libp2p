@@ -1,6 +1,5 @@
 import ./consts
 import ../../peerid
-import nimcrypto/sha2
 
 type XorDistance* = array[IdLength, byte]
 
@@ -31,7 +30,14 @@ proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
 proc xorDistance*(a, b: PeerId): XorDistance =
-  let digestA = sha256.digest(a.getBytes()).data
-  let digestB = sha256.digest(b.getBytes()).data
-  for i in 0 ..< IdLength:
-    result[i] = digestA[i] xor digestB[i]
+  # PeerIDs are already hashed so no need to sha256 i
+  let rawA = a.getBytes()
+  let rawB = b.getBytes()
+
+  if rawA.len != IdLength or rawB.len != IdLength:
+    raise newException(ValueError, "invalid PeerId length")
+
+  var response: XorDistance
+  for i in 0 ..< rawA.len:
+    response[i] = rawA[i] xor rawB[i]
+  return response
