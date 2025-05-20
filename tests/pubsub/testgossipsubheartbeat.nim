@@ -69,6 +69,17 @@ suite "GossipSub Heartbeat":
 
     startNodesAndDeferStop(nodes)
 
+    # Observe timestamps of received prune messages
+    var lastPrune = Moment.now()
+    for i in 0 ..< numberOfNodes:
+      let pubsubObserver = PubSubObserver(
+        onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) =
+          if msgs.control.isSome:
+            for msg in msgs.control.get.prune:
+              lastPrune = Moment.now()
+      )
+      nodes[i].addObserver(pubsubObserver)
+
     # Nodes are connected to Node0
     for i in 1 ..< numberOfNodes:
       await connectNodes(nodes[0], nodes[i])
@@ -91,8 +102,17 @@ suite "GossipSub Heartbeat":
     nodes[0].parameters.applyDValues(newDValues)
 
     # Waiting 2 hearbeats to finish pruning (2 peers first and then 3)
-    await waitForHeartbeat(2)
+    # Comparing timestamps of last received prune to confirm heartbeat interval
+    await waitForHeartbeat()
+    let after1stHearbeat = lastPrune
+
+    await waitForHeartbeat()
+    let after2ndHearbeat = lastPrune
+
+    let measuredHeartbeat = after2ndHearbeat - after1stHearbeat
+    let heartbeatDiff = measuredHeartbeat - TEST_GOSSIPSUB_HEARTBEAT_INTERVAL
 
     # Then mesh of Node0 is rebalanced and peers are pruned to adapt to new values
     check:
       nodes[0].mesh[topic].len >= 2 and nodes[0].mesh[topic].len <= 4
+      heartbeatDiff < 2.milliseconds # 2ms margin
