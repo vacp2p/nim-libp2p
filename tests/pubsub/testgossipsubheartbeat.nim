@@ -60,3 +60,39 @@ suite "GossipSub Heartbeat":
         proc(p: PubSubPeer): bool =
           p.peerId notin peersToDisconnect,
       )
+
+  asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
+    let
+      numberOfNodes = 10
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    # Nodes are connected to Node0
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+    check:
+      nodes[0].mesh[topic].len == 9
+
+    # When DValues of Node0 are updated to lower than defaults
+    let newDValues = some(
+      DValues(
+        dLow: some(2),
+        dHigh: some(4),
+        d: some(3),
+        dLazy: some(3),
+        dScore: some(2),
+        dOut: some(2),
+      )
+    )
+    nodes[0].parameters.applyDValues(newDValues)
+
+    # Waiting 2 hearbeats to finish pruning (2 peers first and then 3)
+    await waitForHeartbeat(2)
+
+    # Then mesh of Node0 is rebalanced and peers are pruned to adapt to new values
+    check:
+      nodes[0].mesh[topic].len >= 2 and nodes[0].mesh[topic].len <= 4
