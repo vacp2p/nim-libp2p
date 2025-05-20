@@ -168,6 +168,7 @@ proc generateNodes*(
     sign: bool = libp2p_pubsub_sign,
     sendSignedPeerRecord = false,
     unsubscribeBackoff = 1.seconds,
+    pruneBackoff = 1.minutes,
     maxMessageSize: int = 1024 * 1024,
     enablePX: bool = false,
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
@@ -200,6 +201,7 @@ proc generateNodes*(
             p.historyLength = 20
             p.historyGossip = 20
             p.unsubscribeBackoff = unsubscribeBackoff
+            p.pruneBackoff = pruneBackoff
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
