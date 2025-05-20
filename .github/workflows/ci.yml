@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    timeout-minutes: 90
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +35,8 @@ jobs:
           - ref: version-1-6
             memory_management: refc
           - ref: version-2-0
+            memory_management: refc
+          - ref: version-2-2
             memory_management: refc
         include:
           - platform:
