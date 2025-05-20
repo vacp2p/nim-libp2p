@@ -157,6 +157,7 @@ proc dialAndUpgrade(
             await self.nameResolver.resolveMAddress(expandedAddress)
 
       for resolvedAddress in resolvedAddresses:
+        debug "Dialing peer with address", peerId = peerId.get(default(PeerId)), addrs = resolvedAddress
         result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress, dir)
         if not isNil(result):
           return result
