@@ -52,7 +52,6 @@ else:
       stream/connection,
       transports/transport,
       transports/tcptransport,
-      transports/quictransport,
       protocols/secure/noise,
       cid,
       multihash,
@@ -70,4 +69,8 @@ else:
   export
     minprotobuf, switch, peerid, peerinfo, connection, multiaddress, crypto, lpstream,
     bufferstream, muxer, mplex, transport, tcptransport, noise, errors, cid, multihash,
-    multicodec, builders, pubsub, quictransport
+    multicodec, builders, pubsub
+
+  when defined(libp2p_quic_support):
+    import libp2p/transports/quictransport
+    export quictransport
