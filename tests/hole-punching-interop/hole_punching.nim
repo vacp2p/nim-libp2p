@@ -83,7 +83,7 @@ proc main() {.async.} =
 
   try:
     debug "Dialing relay...", relayMA
-    let relayId = await switch.connect(relayMA).wait(30.seconds)
+    let relayId = await switch.connect(relayMA).wait(90.seconds)
     debug "Connected to relay", relayId
   except AsyncTimeoutError:
     raise newException(CatchableError, "Connection to relay timed out")
