@@ -108,7 +108,62 @@ suite "GossipSub Heartbeat":
           p.peerId notin peersToDisconnect
       )
 
-  asyncTest "Fanout maintanance - expired peers are dropped during heartbeat":
+  asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
+    let
+      numberOfNodes = 10
+      topic = "foobar"
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          dValues = some(
+            DValues(
+              dLow: some(3),
+              dHigh: some(4),
+              d: some(3),
+              dOut: some(1),
+              dLazy: some(3),
+              dScore: some(2),
+            )
+          ),
+          pruneBackoff = 20.milliseconds,
+          opportunisticGraftThreshold = 600,
+        )
+        .toGossipSub()
+      node0 = nodes[0]
+
+    startNodesAndDeferStop(nodes)
+
+    # Nodes are connected to Node0
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(node0, nodes[i])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Keep track of initial mesh of Node0
+    let startingMesh = node0.mesh[topic].toSeq()
+
+    # When scores are assigned to Peers of Node0
+    var expectedGrafts: seq[PubSubPeer] = @[]
+    var score = 100.0
+    for peer in node0.gossipsub[topic]:
+      if peer in node0.mesh[topic]:
+        # Assign scores in starting Mesh
+        peer.score = score
+        score += 100.0
+      else:
+        # Assign scores higher than median to Peers not in starting Mesh and expect them to be grafted
+        peer.score = 800.0
+        expectedGrafts &= peer
+
+    # Then during heartbeat Peers with lower than median scores are pruned and max 2 Peers are grafted
+    await waitForHeartbeat()
+
+    let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
+    check:
+      actualGrafts.len == 2
+      actualGrafts.allIt(it in expectedGrafts)
+
+  asyncTest "Fanout maintanance during heartbeat - expired peers are dropped":
     let
       numberOfNodes = 10
       topic = "foobar"
@@ -137,7 +192,7 @@ suite "GossipSub Heartbeat":
     check:
       not node0.fanout.hasKey(topic)
 
-  asyncTest "Fanout maintanance - fanout peers are replenished during hearbeat":
+  asyncTest "Fanout maintanance during heartbeat - fanout peers are replenished":
     let
       numberOfNodes = 10
       topic = "foobar"
