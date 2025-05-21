@@ -2,38 +2,38 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/circuitrelay/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_1_connect/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_2_customproto/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_3_protobuf/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_4_gossipsub/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_5_discovery/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_6_game/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
     <url>
          <loc>https://vacp2p.github.io/nim-libp2p/docs/go-daemon/daemonapi/</loc>
-         <lastmod>2025-05-20</lastmod>
+         <lastmod>2025-05-21</lastmod>
     </url>
 </urlset>
