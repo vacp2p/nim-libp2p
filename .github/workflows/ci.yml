@@ -118,5 +118,5 @@ jobs:
           nimble --version
           gcc --version
 
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          export NIMFLAGS="${NIMFLAGS} -d:libp2p_quic_support --mm:${{ matrix.nim.memory_management }}" 
           nimble test
