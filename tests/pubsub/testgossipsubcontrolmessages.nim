@@ -22,11 +22,7 @@ suite "GossipSub Control Messages":
 
     # Peers with no budget should not request messages
     block:
-      # Define a new connection
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
       let peerId = randomPeerId()
-      conn.peerId = peerId
       let peer = gossipSub.getPubSubPeer(peerId)
       # Add message to `gossipSub`'s message cache
       let id = @[0'u8, 1, 2, 3]
@@ -44,11 +40,7 @@ suite "GossipSub Control Messages":
 
     # Peers with budget should request messages. If ids are repeated, only one request should be generated
     block:
-      # Define a new connection
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
       let peerId = randomPeerId()
-      conn.peerId = peerId
       let peer = gossipSub.getPubSubPeer(peerId)
       let id = @[0'u8, 1, 2, 3]
       # Build an IHAVE message that contains the same message ID three times
@@ -62,11 +54,7 @@ suite "GossipSub Control Messages":
 
     # Peers with budget should request messages. If ids are repeated, only one request should be generated
     block:
-      # Define a new connection
-      let conn = TestBufferStream.new(noop)
-      conns &= conn
       let peerId = randomPeerId()
-      conn.peerId = peerId
       let peer = gossipSub.getPubSubPeer(peerId)
       # Add message to `gossipSub`'s message cache
       let id = @[0'u8, 1, 2, 3]
