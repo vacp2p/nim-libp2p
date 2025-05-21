@@ -405,12 +405,8 @@ suite "GossipSub Control Messages":
 
     startNodesAndDeferStop(nodes)
 
-    await nodes[0].switch.connect(
-      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
-    )
-    await nodes[1].switch.connect(
-      nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs
-    )
+    await connectNodes(nodes[0], nodes[1])
+    await connectNodes(nodes[1], nodes[2])
 
     let bFinished = newFuture[void]()
     proc handlerB(topic: string, data: seq[byte]) {.async.} =
@@ -453,9 +449,7 @@ suite "GossipSub Control Messages":
 
     startNodesAndDeferStop(nodes)
 
-    await nodes[0].switch.connect(
-      nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
-    )
+    await connectNodes(nodes[0], nodes[1])
 
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
@@ -479,12 +473,8 @@ suite "GossipSub Control Messages":
 
     startNodesAndDeferStop(@[nodeA, nodeB, nodeC])
 
-    await nodeA.switch.connect(
-      nodeB.switch.peerInfo.peerId, nodeB.switch.peerInfo.addrs
-    )
-    await nodeB.switch.connect(
-      nodeC.switch.peerInfo.peerId, nodeC.switch.peerInfo.addrs
-    )
+    await connectNodes(nodeA, nodeB)
+    await connectNodes(nodeB, nodeC)
 
     let bFinished = newFuture[void]()
     proc handlerB(topic: string, data: seq[byte]) {.async.} =
