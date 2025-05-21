@@ -23,7 +23,7 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport, quictransport, memorytransport],
+  transports/[transport, tcptransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
@@ -169,11 +169,14 @@ proc withTcpTransport*(
       TcpTransport.new(flags, upgr)
   )
 
-proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
-  b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-      QuicTransport.new(upgr, privateKey)
-  )
+when defined(libp2p_quic_support):
+  import transports/quictransport
+
+  proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+    b.withTransport(
+      proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+        QuicTransport.new(upgr, privateKey)
+    )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
