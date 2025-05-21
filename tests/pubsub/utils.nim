@@ -169,6 +169,7 @@ proc generateNodes*(
     sendSignedPeerRecord = false,
     unsubscribeBackoff = 1.seconds,
     pruneBackoff = 1.minutes,
+    fanoutTTL = 1.minutes,
     maxMessageSize: int = 1024 * 1024,
     enablePX: bool = false,
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
@@ -202,6 +203,7 @@ proc generateNodes*(
             p.historyGossip = 20
             p.unsubscribeBackoff = unsubscribeBackoff
             p.pruneBackoff = pruneBackoff
+            p.fanoutTTL = fanoutTTL
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
@@ -346,7 +348,7 @@ proc waitForPeersInTable*(
     topic: string,
     peerCounts: seq[int],
     table: PeerTableType,
-    timeout = 5.seconds,
+    timeout = 1.seconds,
 ) {.async.} =
   ## Wait until each node in `nodes` has at least the corresponding number of peers from `peerCounts`
   ## in the specified table (mesh, gossipsub, or fanout) for the given topic
@@ -389,6 +391,11 @@ proc waitForPeersInTable*(
       "Timeout waiting for peer counts in " & $table & " for topic " & topic,
     )
     allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied)
+
+proc waitForPeersInTable*(
+    node: auto, topic: string, peerCount: int, table: PeerTableType, timeout = 1.seconds
+) {.async.} =
+  await waitForPeersInTable(@[node], topic, @[peerCount], table, timeout)
 
 proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
