@@ -2,7 +2,6 @@
 
 import std/[sequtils]
 import utils
-import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../helpers
 
@@ -15,6 +14,7 @@ suite "GossipSub Heartbeat":
       numberOfNodes = 10
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+      node0 = nodes[0]
 
     startNodesAndDeferStop(nodes)
 
@@ -31,11 +31,11 @@ suite "GossipSub Heartbeat":
 
     # Nodes are connected to Node0
     for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
+      await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
     check:
-      nodes[0].mesh[topic].len == 9
+      node0.mesh[topic].len == 9
 
     # When DValues of Node0 are updated to lower than defaults
     let newDValues = some(
@@ -48,7 +48,7 @@ suite "GossipSub Heartbeat":
         dOut: some(2),
       )
     )
-    nodes[0].parameters.applyDValues(newDValues)
+    node0.parameters.applyDValues(newDValues)
 
     # Waiting 2 hearbeats to finish pruning (2 peers first and then 3)
     # Comparing timestamps of last received prune to confirm heartbeat interval
@@ -63,7 +63,7 @@ suite "GossipSub Heartbeat":
 
     # Then mesh of Node0 is rebalanced and peers are pruned to adapt to new values
     check:
-      nodes[0].mesh[topic].len >= 2 and nodes[0].mesh[topic].len <= 4
+      node0.mesh[topic].len >= 2 and node0.mesh[topic].len <= 4
       heartbeatDiff < 2.milliseconds # 2ms margin
 
   asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
@@ -81,40 +81,31 @@ suite "GossipSub Heartbeat":
           pruneBackoff = 20.milliseconds,
         )
         .toGossipSub()
+      node0 = nodes[0]
 
     startNodesAndDeferStop(nodes)
 
     # Nodes are connected to Node0
     for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
+      await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
     check:
-      nodes[0].mesh[topic].len >= dLow and nodes[0].mesh[topic].len <= dHigh
+      node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
 
-    # When peers in mesh of Node0 are disconnected
-    let peersToDisconnect = nodes[0].mesh[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
-
-    for i in 1 ..< numberOfNodes:
-      let node = nodes[i]
-      if any(
-        peersToDisconnect,
-        proc(p: PeerId): bool =
-          p == node.peerInfo.peerId,
-      ):
-        node.unsubscribe(topic, voidTopicHandler)
-        await node.stop()
+    # When peers of Node0 mesh are disconnected
+    let peersToDisconnect = node0.mesh[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
+    await findAndStopPeers(nodes, peersToDisconnect, topic, voidTopicHandler)
 
     # Then mesh of Node0 is rebalanced and new peers are added
     await waitForHeartbeat()
 
     check:
-      nodes[0].mesh[topic].len >= dLow and nodes[0].mesh[topic].len <= dHigh
-      all(
-        nodes[0].mesh[topic].toSeq(),
+      node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
+      node0.mesh[topic].toSeq().all(
         proc(p: PubSubPeer): bool =
-          p.peerId notin peersToDisconnect,
+          p.peerId notin peersToDisconnect
       )
 
   asyncTest "Fanout maintanance - expired peers are dropped during heartbeat":
@@ -136,12 +127,49 @@ suite "GossipSub Heartbeat":
     let node0 = nodes[0]
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
 
-    # Then fanout peers are populated
+    # Then Node0 fanout peers are populated
     await waitForPeersInTable(node0, topic, 6, PeerTableType.Fanout)
     check:
       node0.fanout.hasKey(topic) and node0.fanout[topic].len == 6
 
-    # And after heartbeat (60ms) fanout peers are dropped (because fanoutTTL=30ms)
+    # And after heartbeat (60ms) Node0 fanout peers are dropped (because fanoutTTL=30ms)
     await waitForHeartbeat()
     check:
       not node0.fanout.hasKey(topic)
+
+  asyncTest "Fanout maintanance - fanout peers are replenished during hearbeat":
+    let
+      numberOfNodes = 10
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+      node0 = nodes[0]
+
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
+
+    # All nodes but Node0 are subscribed  to the topic
+    for node in nodes[1 .. ^1]:
+      node.subscribe(topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # When Node0 sends a message to the topic
+    tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
+
+    # Then Node0 fanout peers are populated
+    await waitForPeersInTable(node0, topic, 6, PeerTableType.Fanout)
+    check:
+      node0.fanout.hasKey(topic) and node0.fanout[topic].len == 6
+
+    # When peers of Node0 fanout are disconnected
+    let peersToDisconnect = node0.fanout[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
+    await findAndStopPeers(nodes, peersToDisconnect, topic, voidTopicHandler)
+    await waitForPeersInTable(node0, topic, 1, PeerTableType.Fanout)
+
+    # Then Node0 fanout peers are replenished during heartbeat
+    await waitForHeartbeat()
+    check:
+      node0.fanout[topic].len == 4
+      node0.fanout[topic].toSeq().all(
+        proc(p: PubSubPeer): bool =
+          p.peerId notin peersToDisconnect
+      )

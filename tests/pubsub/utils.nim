@@ -264,7 +264,8 @@ proc activeWait(
     interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
 ) {.async.} =
   await sleepAsync(interval)
-  doAssert Moment.now() < maximum, timeoutErrorMessage
+  if Moment.now() >= maximum:
+    raise (ref CatchableError)(msg: timeoutErrorMessage)
 
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
@@ -520,6 +521,18 @@ proc addIDontWantObservers*[T: PubSub](
     allMessages[i] = messages
 
   return allMessages
+
+proc findAndStopPeers*[T: PubSub](
+    nodes: seq[T], peers: seq[PeerId], topic: string, handler: TopicHandler
+) {.async.} =
+  for i in 0 ..< nodes.len:
+    let node = nodes[i]
+    if peers.any(
+      proc(p: PeerId): bool =
+        p == node.peerInfo.peerId
+    ):
+      node.unsubscribe(topic, voidTopicHandler)
+      await node.stop()
 
 # TODO: refactor helper methods from testgossipsub.nim
 proc setupNodes*(count: int): seq[PubSub] =
