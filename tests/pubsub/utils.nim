@@ -529,10 +529,7 @@ proc findAndStopPeers*[T: PubSub](
 ) {.async.} =
   for i in 0 ..< nodes.len:
     let node = nodes[i]
-    if peers.any(
-      proc(p: PeerId): bool =
-        p == node.peerInfo.peerId
-    ):
+    if peers.anyIt(it == node.peerInfo.peerId):
       node.unsubscribe(topic, voidTopicHandler)
       await node.stop()
 

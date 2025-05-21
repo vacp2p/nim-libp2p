@@ -103,10 +103,7 @@ suite "GossipSub Heartbeat":
 
     check:
       node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
-      node0.mesh[topic].toSeq().all(
-        proc(p: PubSubPeer): bool =
-          p.peerId notin peersToDisconnect
-      )
+      node0.mesh[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
     let
@@ -224,7 +221,4 @@ suite "GossipSub Heartbeat":
     await waitForHeartbeat()
     check:
       node0.fanout[topic].len == 4
-      node0.fanout[topic].toSeq().all(
-        proc(p: PubSubPeer): bool =
-          p.peerId notin peersToDisconnect
-      )
+      node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
