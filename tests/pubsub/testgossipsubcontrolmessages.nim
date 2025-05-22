@@ -283,7 +283,7 @@ suite "GossipSub Control Messages":
     startNodesAndDeferStop(nodes)
 
     # Given node1 has an IHAVE observer
-    var (receivedIHave, checkForIHaves) = createCheckForIHave()
+    var (receivedIHaves, checkForIHaves) = createCheckForIHave()
     n1.addOnRecvObserver(checkForIHaves)
 
     # And the nodes are connected
@@ -303,9 +303,8 @@ suite "GossipSub Control Messages":
     await waitForHeartbeat()
 
     # Then the peer has the message ID
-    let r = await receivedIHave.waitForState(HEARTBEAT_TIMEOUT)
     check:
-      r.isCompleted(ControlIHave(topicID: topic, messageIDs: @[messageID]))
+      receivedIHaves[0] == ControlIHave(topicID: topic, messageIDs: @[messageID])
 
   asyncTest "IWANT messages correctly request messages by their IDs":
     # Given 2 nodes
@@ -322,7 +321,7 @@ suite "GossipSub Control Messages":
     startNodesAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
-    var (receivedIWant, checkForIWants) = createCheckForIWant()
+    var (receivedIWants, checkForIWants) = createCheckForIWant()
     n1.addOnRecvObserver(checkForIWants)
 
     # And the nodes are connected   
@@ -342,9 +341,8 @@ suite "GossipSub Control Messages":
     await waitForHeartbeat()
 
     # Then the peer has the message ID 
-    let r = await receivedIWant.waitForState(HEARTBEAT_TIMEOUT)
     check:
-      r.isCompleted(ControlIWant(messageIDs: @[messageID]))
+      receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
     # Given 2 nodes
@@ -362,7 +360,7 @@ suite "GossipSub Control Messages":
     startNodesAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
-    var (receivedIWant, checkForIWants) = createCheckForIWant()
+    var (receivedIWants, checkForIWants) = createCheckForIWant()
     n0.addOnRecvObserver(checkForIWants)
 
     # And the nodes are connected
@@ -378,9 +376,8 @@ suite "GossipSub Control Messages":
     await waitForHeartbeat()
 
     # Then node0 should receive an IWANT message from node1 (as node1 doesn't have the message)
-    let iWantResult = await receivedIWant.waitForState(HEARTBEAT_TIMEOUT)
     check:
-      iWantResult.isCompleted(ControlIWant(messageIDs: @[messageID]))
+      receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IDONTWANT":
     # 3 nodes: A <=> B <=> C

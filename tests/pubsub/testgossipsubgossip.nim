@@ -145,8 +145,7 @@ suite "GossipSub Gossip Protocol":
     startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
-    var receivedIHavesRef = new seq[int]
-    addIHaveObservers(nodes, topic, receivedIHavesRef)
+    var messages = addIHaveObservers(nodes)
 
     # And are interconnected
     await connectNodesStar(nodes)
@@ -163,7 +162,7 @@ suite "GossipSub Gossip Protocol":
 
     # At least one of the nodes should have received an iHave message
     # The check is made this way because the mesh structure changes from run to run
-    let receivedIHaves = receivedIHavesRef[]
+    let receivedIHaves = messages[].mapIt(it[].len)
     check:
       anyIt(receivedIHaves, it > 0)
 
@@ -184,8 +183,7 @@ suite "GossipSub Gossip Protocol":
     startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
-    var receivedIHavesRef = new seq[int]
-    addIHaveObservers(nodes, topic, receivedIHavesRef)
+    var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
     for i in 1 ..< numberOfNodes:
@@ -200,7 +198,7 @@ suite "GossipSub Gossip Protocol":
     await waitForHeartbeat()
 
     # None of the nodes should have received an iHave message
-    let receivedIHaves = receivedIHavesRef[]
+    let receivedIHaves = messages[].mapIt(it[].len)
     check:
       filterIt(receivedIHaves, it > 0).len == 0
 
@@ -218,8 +216,7 @@ suite "GossipSub Gossip Protocol":
     startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
-    var receivedIHavesRef = new seq[int]
-    addIHaveObservers(nodes, topic, receivedIHavesRef)
+    var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
     for i in 1 ..< numberOfNodes:
@@ -235,7 +232,7 @@ suite "GossipSub Gossip Protocol":
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
-    let receivedIHaves = receivedIHavesRef[]
+    let receivedIHaves = messages[].mapIt(it[].len)
     check:
       filterIt(receivedIHaves, it > 0).len >= 8
 
@@ -256,8 +253,7 @@ suite "GossipSub Gossip Protocol":
     startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
-    var receivedIHavesRef = new seq[int]
-    addIHaveObservers(nodes, topic, receivedIHavesRef)
+    var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
     for i in 1 ..< numberOfNodes:
@@ -273,7 +269,7 @@ suite "GossipSub Gossip Protocol":
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
-    let receivedIHaves = receivedIHavesRef[]
+    let receivedIHaves = messages[].mapIt(it[].len)
     check:
       filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
 
@@ -286,8 +282,7 @@ suite "GossipSub Gossip Protocol":
     startNodesAndDeferStop(nodes)
 
     # All nodes are checking for iDontWant messages
-    var receivedIDontWantsRef = new seq[int]
-    addIDontWantObservers(nodes, receivedIDontWantsRef)
+    var messages = addIDontWantObservers(nodes)
 
     # And are connected in a line
     await connectNodes(nodes[0], nodes[1])
@@ -303,7 +298,7 @@ suite "GossipSub Gossip Protocol":
     await waitForHeartbeat()
 
     # Only node 2 should have received the iDontWant message
-    let receivedIDontWants = receivedIDontWantsRef[]
+    let receivedIDontWants = messages[].mapIt(it[].len)
     check:
       receivedIDontWants[0] == 0
       receivedIDontWants[1] == 0
