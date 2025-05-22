@@ -308,6 +308,8 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
       if peer.iDontWants[^1].len > 1000:
         break
       peer.iDontWants[^1].incl(g.salt(messageId))
+      info "message published and handleIDontWant triggered",
+        iDontWants = peer.iDontWants
 
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
@@ -707,6 +709,7 @@ proc onHeartbeat(g: GossipSub) =
       peer.iDontWants.addFirst(default(HashSet[SaltedId]))
       if peer.iDontWants.len > g.parameters.historyLength:
         discard peer.iDontWants.popLast()
+        info "heartbeat prune iDontWants", iDontWants = peer.iDontWants
       peer.iHaveBudget = IHavePeerBudget
       peer.pingBudget = PingsPeerBudget
 
