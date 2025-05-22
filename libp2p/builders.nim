@@ -186,7 +186,7 @@ proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
       MemoryTransport.new(upgr)
   )
 
-proc withAutoTLS*(b: SwitchBuilder): SwitchBuilder {.public.} =
+proc withAutoTLSManager*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.autoTLSMgr = AutoTLSManager.new(b.rng) # TODO: configs
   b
 
