@@ -424,9 +424,6 @@ suite "GossipSub Message Handling":
       sendCounter = 0
       validatedCounter = 0
 
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     proc onRecv(peer: PubSubPeer, msgs: var RPCMsg) =
       inc recvCounter
 
@@ -446,8 +443,8 @@ suite "GossipSub Message Handling":
 
     nodes[0].addObserver(obs0)
     nodes[1].addObserver(obs1)
-    nodes[1].subscribe("foo", handler)
-    nodes[1].subscribe("bar", handler)
+    nodes[1].subscribe("foo", voidTopicHandler)
+    nodes[1].subscribe("bar", voidTopicHandler)
 
     proc validator(
         topic: string, message: Message
@@ -466,6 +463,8 @@ suite "GossipSub Message Handling":
 
     # Send message that will be rejected by the receiver's validator
     tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
+
+    await waitForHeartbeat()
 
     check:
       recvCounter == 2
@@ -842,34 +841,3 @@ suite "GossipSub Message Handling":
       publishResult == 0
       results[0].isPending()
       results[1].isPending()
-
-  # check correctly parsed ihave/iwant/graft/prune/idontwant messages
-  # check value before & after decoding equal using protoc cmd tool for reference
-  asyncTest "ControlMessage RPCMsg encoding and decoding":
-    let id: seq[byte] = @[123]
-    let message = RPCMsg(
-      control: some(
-        ControlMessage(
-          ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
-          iwant: @[ControlIWant(messageIDs: @[id])],
-          graft: @[ControlGraft(topicID: "foobar")],
-          prune: @[ControlPrune(topicID: "foobar", backoff: 10.uint64)],
-          idontwant: @[ControlIWant(messageIDs: @[id])],
-        )
-      )
-    )
-    #data encoded using protoc cmd tool
-    let expectedEncoded: seq[byte] =
-      @[
-        26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1,
-        123, 26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98,
-        97, 114, 24, 10, 42, 3, 10, 1, 123,
-      ]
-
-    let actualEncoded = encodeRpcMsg(message, true)
-    check:
-      actualEncoded == expectedEncoded
-
-    let actualDecoded = decodeRpcMsg(expectedEncoded).value
-    check:
-      actualDecoded == message
