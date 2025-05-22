@@ -11,65 +11,95 @@ suite "GossipSub Control Messages":
   teardown:
     checkTrackers()
 
-  asyncTest "handleIHave/Iwant tests":
+  asyncTest "handleIHave - peers with no budget should not request messages":
     let topic = "foobar"
-    var (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(30, topic, populateMesh = true)
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     gossipSub.subscribe(topic, voidTopicHandler)
 
-    # Peers with no budget should not request messages
-    block:
-      let peerId = randomPeerId()
-      let peer = gossipSub.getPubSubPeer(peerId)
-      # Add message to `gossipSub`'s message cache
-      let id = @[0'u8, 1, 2, 3]
-      gossipSub.mcache.put(id, Message())
-      peer.sentIHaves[^1].incl(id)
-      # Build an IHAVE message that contains the same message ID three times
-      let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-      # Given the peer has no budget to request messages
-      peer.iHaveBudget = 0
-      # When a peer makes an IHAVE request for the a message that `gossipSub` has
-      let iwants = gossipSub.handleIHave(peer, @[msg])
-      # Then `gossipSub` should not generate an IWant message for the message, 
-      check:
-        iwants.messageIDs.len == 0
+    let peerId = randomPeerId()
+    let peer = gossipSub.getPubSubPeer(peerId)
 
-    # Peers with budget should request messages. If ids are repeated, only one request should be generated
-    block:
-      let peerId = randomPeerId()
-      let peer = gossipSub.getPubSubPeer(peerId)
-      let id = @[0'u8, 1, 2, 3]
-      # Build an IHAVE message that contains the same message ID three times
-      let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-      # Given the budget is not 0 (because it's not been overridden)
-      # When a peer makes an IHAVE request for the a message that `gossipSub` does not have
-      let iwants = gossipSub.handleIHave(peer, @[msg])
-      # Then `gossipSub` should generate an IWant message for the message
-      check:
-        peer.iHaveBudget > 0
-        iwants.messageIDs.len == 1
+    # Add message to `gossipSub`'s message cache
+    let id = @[0'u8, 1, 2, 3]
+    gossipSub.mcache.put(id, Message())
+    peer.sentIHaves[^1].incl(id)
 
-    # Peers with budget should request messages. If ids are repeated, only one request should be generated
-    block:
-      let peerId = randomPeerId()
-      let peer = gossipSub.getPubSubPeer(peerId)
-      # Add message to `gossipSub`'s message cache
-      let id = @[0'u8, 1, 2, 3]
-      gossipSub.mcache.put(id, Message())
-      peer.sentIHaves[^1].incl(id)
-      # Build an IWANT message that contains the same message ID three times
-      let msg = ControlIWant(messageIDs: @[id, id, id])
-      # When a peer makes an IWANT request for the a message that `gossipSub` has
-      let messages = gossipSub.handleIWant(peer, @[msg])
-      # Then `gossipSub` should return the message
-      check:
-        messages.len == 1
+    # Build an IHAVE message that contains the same message ID three times
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
 
-    check gossipSub.mcache.msgs.len == 1
+    # Given the peer has no budget to request messages
+    peer.iHaveBudget = 0
+
+    # When a peer makes an IHAVE request for the a message that `gossipSub` has
+    let iwants = gossipSub.handleIHave(peer, @[msg])
+
+    # Then `gossipSub` should not generate an IWant message for the message, 
+    check:
+      iwants.messageIDs.len == 0
+      gossipSub.mcache.msgs.len == 1
+
+  asyncTest "handleIHave - peers with budget should request messages":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    gossipSub.subscribe(topic, voidTopicHandler)
+
+    let peerId = randomPeerId()
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    # Add message to `gossipSub`'s message cache
+    let id = @[0'u8, 1, 2, 3]
+    gossipSub.mcache.put(id, Message())
+    peer.sentIHaves[^1].incl(id)
+
+    # Build an IHAVE message that contains the same message ID three times
+    # If ids are repeated, only one request should be generated
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
+
+    # Given the budget is not 0 (because it's not been overridden)
+    check:
+      peer.iHaveBudget > 0
+
+    # When a peer makes an IHAVE request for the a message that `gossipSub` does not have
+    let iwants = gossipSub.handleIHave(peer, @[msg])
+
+    # Then `gossipSub` should generate an IWant message for the message
+    check:
+      iwants.messageIDs.len == 1
+      gossipSub.mcache.msgs.len == 1
+
+  asyncTest "handleIWant - Peers with budget should request messages ":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    gossipSub.subscribe(topic, voidTopicHandler)
+
+    let peerId = randomPeerId()
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    # Add message to `gossipSub`'s message cache
+    let id = @[0'u8, 1, 2, 3]
+    gossipSub.mcache.put(id, Message())
+    peer.sentIHaves[^1].incl(id)
+
+    # Build an IWANT message that contains the same message ID three times
+    # If ids are repeated, only one request should be generated
+    let msg = ControlIWant(messageIDs: @[id, id, id])
+
+    # When a peer makes an IWANT request for the a message that `gossipSub` has
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then `gossipSub` should return the message
+    check:
+      messages.len == 1
+      gossipSub.mcache.msgs.len == 1
 
   asyncTest "GRAFT messages correctly add peers to mesh":
     # Given 2 nodes
