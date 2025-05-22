@@ -473,6 +473,36 @@ proc addIDontWantObservers*(nodes: seq[auto], receivedIDontWants: ref seq[int]) 
       pubsubObserver = PubSubObserver(onRecv: checkForIDontWant)
     nodes[i].addObserver(pubsubObserver)
 
+proc createCheckForIHave*(): (
+  Future[ControlIHave], proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+) =
+  var future = newFuture[ControlIHave]()
+  let checkForMessage = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+    if msgs.control.isSome:
+      for msg in msgs.control.get.ihave:
+        future.complete(msg)
+        break
+
+  return (future, checkForMessage)
+
+proc createCheckForIWant*(): (
+  Future[ControlIWant], proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+) =
+  var future = newFuture[ControlIWant]()
+  let checkForMessage = proc(peer: PubSubPeer, msgs: var RPCMsg) =
+    if msgs.control.isSome:
+      for msg in msgs.control.get.iwant:
+        future.complete(msg)
+        break
+
+  return (future, checkForMessage)
+
+proc addOnRecvObserver*[T: PubSub](
+    node: T, handler: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+) =
+  let pubsubObserver = PubSubObserver(onRecv: handler)
+  node.addObserver(pubsubObserver)
+
 # TODO: refactor helper methods from testgossipsub.nim
 proc setupNodes*(count: int): seq[PubSub] =
   generateNodes(count, gossip = true)

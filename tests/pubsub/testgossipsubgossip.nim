@@ -369,9 +369,7 @@ suite "GossipSub Gossip Protocol":
 
     startNodesAndDeferStop(@[node0, node1])
 
-    await node0.switch.connect(
-      node1.switch.peerInfo.peerId, node1.switch.peerInfo.addrs
-    )
+    await connectNodes(node0, node1)
 
     node0.subscribe(topic, voidTopicHandler)
     node1.subscribe(topic, voidTopicHandler)

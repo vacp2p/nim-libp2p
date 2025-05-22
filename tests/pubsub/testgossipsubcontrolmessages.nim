@@ -241,7 +241,7 @@ suite "GossipSub Control Messages":
     # And the nodes are connected
     await connectNodesStar(nodes)
 
-    # And only node0 subscribes to the topic
+    # And only node0 subscribes to the topic 
     n0.subscribe(topic, voidTopicHandler)
     await waitForHeartbeat()
 
@@ -283,12 +283,8 @@ suite "GossipSub Control Messages":
     startNodesAndDeferStop(nodes)
 
     # Given node1 has an IHAVE observer
-    var receivedIHave = newFuture[(string, seq[MessageId])]()
-    let checkForIhaves = proc(peer: PubSubPeer, msgs: var RPCMsg) =
-      if msgs.control.isSome:
-        for msg in msgs.control.get.ihave:
-          receivedIHave.complete((msg.topicID, msg.messageIDs))
-    n1.addObserver(PubSubObserver(onRecv: checkForIhaves))
+    var (receivedIHave, checkForIHaves) = createCheckForIHave()
+    n1.addOnRecvObserver(checkForIHaves)
 
     # And the nodes are connected
     await connectNodesStar(nodes)
@@ -309,7 +305,7 @@ suite "GossipSub Control Messages":
     # Then the peer has the message ID
     let r = await receivedIHave.waitForState(HEARTBEAT_TIMEOUT)
     check:
-      r.isCompleted((topic, @[messageID]))
+      r.isCompleted(ControlIHave(topicID: topic, messageIDs: @[messageID]))
 
   asyncTest "IWANT messages correctly request messages by their IDs":
     # Given 2 nodes
@@ -326,14 +322,10 @@ suite "GossipSub Control Messages":
     startNodesAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
-    var receivedIWant = newFuture[seq[MessageId]]()
-    let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
-      if msgs.control.isSome:
-        for msg in msgs.control.get.iwant:
-          receivedIWant.complete(msg.messageIDs)
-    n1.addObserver(PubSubObserver(onRecv: checkForIwants))
+    var (receivedIWant, checkForIWants) = createCheckForIWant()
+    n1.addOnRecvObserver(checkForIWants)
 
-    # And the nodes are connected
+    # And the nodes are connected   
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
@@ -349,10 +341,10 @@ suite "GossipSub Control Messages":
     n0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
     await waitForHeartbeat()
 
-    # Then the peer has the message ID
+    # Then the peer has the message ID 
     let r = await receivedIWant.waitForState(HEARTBEAT_TIMEOUT)
     check:
-      r.isCompleted(@[messageID])
+      r.isCompleted(ControlIWant(messageIDs: @[messageID]))
 
   asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
     # Given 2 nodes
@@ -370,12 +362,8 @@ suite "GossipSub Control Messages":
     startNodesAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
-    var receivedIWant = newFuture[seq[MessageId]]()
-    let checkForIwants = proc(peer: PubSubPeer, msgs: var RPCMsg) =
-      if msgs.control.isSome:
-        for msg in msgs.control.get.iwant:
-          receivedIWant.complete(msg.messageIDs)
-    n0.addObserver(PubSubObserver(onRecv: checkForIwants))
+    var (receivedIWant, checkForIWants) = createCheckForIWant()
+    n0.addOnRecvObserver(checkForIWants)
 
     # And the nodes are connected
     await connectNodesStar(nodes)
@@ -392,7 +380,7 @@ suite "GossipSub Control Messages":
     # Then node0 should receive an IWANT message from node1 (as node1 doesn't have the message)
     let iWantResult = await receivedIWant.waitForState(HEARTBEAT_TIMEOUT)
     check:
-      iWantResult.isCompleted(@[messageID])
+      iWantResult.isCompleted(ControlIWant(messageIDs: @[messageID]))
 
   asyncTest "IDONTWANT":
     # 3 nodes: A <=> B <=> C
@@ -408,9 +396,7 @@ suite "GossipSub Control Messages":
     await connectNodes(nodes[0], nodes[1])
     await connectNodes(nodes[1], nodes[2])
 
-    let bFinished = newFuture[void]()
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
-      bFinished.complete()
+    let (bFinished, handlerB) = createCompleteHandler()
 
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handlerB)
@@ -434,7 +420,7 @@ suite "GossipSub Control Messages":
 
     tryPublish await nodes[0].publish(topic, newSeq[byte](10000)), 1
 
-    await bFinished
+    discard await bFinished
 
     checkUntilTimeout:
       toSeq(nodes[2].mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 1)
@@ -476,9 +462,7 @@ suite "GossipSub Control Messages":
     await connectNodes(nodeA, nodeB)
     await connectNodes(nodeB, nodeC)
 
-    let bFinished = newFuture[void]()
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
-      bFinished.complete()
+    let (bFinished, handlerB) = createCompleteHandler()
 
     nodeA.subscribe(topic, voidTopicHandler)
     nodeB.subscribe(topic, handlerB)
@@ -494,7 +478,7 @@ suite "GossipSub Control Messages":
 
     tryPublish await nodeA.publish(topic, newSeq[byte](10000)), 1
 
-    await bFinished
+    discard await bFinished
 
     # "check" alone isn't suitable for testing that a condition is true after some time has passed. Below we verify that
     # peers A and C haven't received an IDONTWANT message from B, but we need wait some time for potential in flight messages to arrive.
