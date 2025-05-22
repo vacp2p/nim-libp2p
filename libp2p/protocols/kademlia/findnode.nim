@@ -18,7 +18,7 @@ logScope:
 type KadDHT* = ref object of LPProtocol
   switch: Switch
   rng: ref HmacDrbgContext
-  rtable: RoutingTable
+  rtable*: RoutingTable
 
   maintenanceLoop: Future[void]
   healthMonitorLoop: Future[void]
@@ -58,6 +58,10 @@ proc waitRepliesOrTimeouts(
   return (receivedReplies, failedPeers)
 
 proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
+  #debug "findNode", target = target
+  # TODO: check if already exist in rtable
+  # TODO: should it return a single peer instead? read spec
+
   var initialPeers = kad.rtable.findClosest(target, k)
   var state = LookupState.init(target, initialPeers)
 
@@ -74,7 +78,7 @@ proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
       state.markPending(peer)
       # TODO: should store request to sendFindNode, and send them concurrently limited by alpha
       pendingFutures[peer] = kad.sendFindNode(peer, target).wait(5.seconds)
-        # TODO: should this timeout be specified by the dev? maybe should be a config option
+      # TODO: should this timeout be specified by the dev? maybe should be a config option
       state.activeQueries.inc
 
     let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
@@ -85,7 +89,7 @@ proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
         proc(p: PeerInfo) =
           kad.rtable.insert(p.peerId)
           kad.switch.peerStore[AddressBook][p.peerId] = p.addrs
-            # TODO: add TTL to peerstore, otherwise we can spam it with junk
+          # TODO: add TTL to peerstore, otherwise we can spam it with junk
         ,
       )
 
@@ -96,20 +100,31 @@ proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
 
   return state.selectClosestK()
 
-proc bootstrap(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
+proc bootstrap*(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
   # TODO: every 10 minutes configurable, run once on start
   for b in bootstrapNodes:
     try:
       await kad.switch.connect(b.peerId, b.addrs)
-      # TODO: add to custom peerstore
+      try: # Use alpha parall
+        let msg = await kad.sendFindNode(b.peerId, kad.rtable.selfId).wait(5.seconds)
+        for peer in msg.closerPeers:
+          let p = PeerId.init(peer.id).get() # TODO:
+          kad.rtable.insert(p)
+          kad.switch.peerStore[AddressBook][p] = peer.addrs
+
+        # bootstrap node replied succesfully. Adding to routing table
+        kad.rtable.insert(b.peerId)
+      except CatchableError as e:
+        error "bootstrap failed", peerId = b.peerId, exc = e.msg
+
       debug "connected to bootstrap peer", peerId = b.peerId
     except CatchableError as e:
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
 
   try:
-    discard await kad.findNode(kad.switch.peerInfo.peerId)
-    discard await kad.findNode(PeerId.random(kad.rng).get()) # TODO:
-    debug "bootstrap lookup complete"
+    # Adding some random node to prepopulate the table
+    discard await kad.findNode(PeerId.random(kad.rng).get())
+    info "bootstrap lookup complete"
   except CatchableError as e:
     error "bootstrap lookup failed", error = e.msg
 
@@ -139,12 +154,12 @@ proc new*(
   var rtable = RoutingTable.init(switch.peerInfo.peerId)
   let kad = T(rng: rng, switch: switch, rtable: rtable)
 
-  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
-    debug "starting kad-dht read loop", conn, peer = p, closed = conn.closed
+  kad.codec = KadCodec
+  kad.handler = proc(
+      conn: Connection, proto: string
+  ) {.async: (raises: [CancelledError]).} =
     try:
       while not conn.atEof:
-        trace "waiting for data", conn, peer = p, closed = conn.closed
-
         let
           buf = await conn.readLp(4096)
           msg = Message.decode(buf).tryGet()
@@ -153,37 +168,41 @@ proc new*(
         of MessageType.findNode:
           let targetIdBytes = msg.key.tryGet() # TODO:
           let targetId = PeerId.init(targetIdBytes).tryGet() # TODO:
-          let closerPeers = rtable.findClosest(targetId, k)
-          let responsePb = encodeFindNodeReply(closerPeers)
+          let closerPeers = kad.rtable.findClosest(targetId, k)
+          let responsePb = encodeFindNodeReply(closerPeers, switch)
           await conn.writeLp(responsePb.buffer)
+
+          # Peer is useful. adding to rtable
+          # TODO: confirm if identify is triggered for all connections
+          kad.rtable.insert(conn.peerId)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
         # TODO: implement other types
     except CancelledError as exc:
-      trace "cancelled kad-dht handler"
       return
     except CatchableError as exc:
-      trace "exception in kad-dht handler", description = exc.msg
       return
     finally:
-      debug "exiting kad-dht read loop", conn, peer = p, closed = conn.closed
       await conn.close()
 
-  kad.handler = handler
-  kad.codec = KadCodec
   return kad
 
-proc start*(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
+method start*(
+    kad: KadDHT
+): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+  let fut = newFuture[void]()
+  fut.complete()
   if kad.started:
-    return
-
-  kad.started = true
-
-  if bootstrapNodes.len > 0:
-    await kad.bootstrap(bootstrapNodes)
+    warn "Starting kad-dht twice"
+    return fut
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.healthMonitorLoop = kad.healthMonitor()
+  kad.started = true
+
+  info "kad-dht started"
+
+  fut
 
 method stop*(kad: KadDHT): Future[void] {.async: (raises: [], raw: true).} =
   if not kad.started:

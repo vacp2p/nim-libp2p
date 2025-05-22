@@ -33,7 +33,7 @@ proc updateShortlist*(
 ) =
   for newPeer in msg.closerPeers:
     if not alreadyInShortlist(state, newPeer):
-      let peerInfo = PeerInfo(peerId: PeerId(data: newPeer.id), addrs: newPeer.addrs)
+      let peerInfo = PeerInfo(peerId: PeerId.init(newPeer.id).get(), addrs: newPeer.addrs) # TODO:
       try:
         onInsert(peerInfo)
         state.shortlist.add(
