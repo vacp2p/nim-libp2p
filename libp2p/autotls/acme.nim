@@ -244,25 +244,32 @@ proc finalizeCertificate*(
     raise newException(ACMEError, "Failed to create CSR")
 
   let b64CSR = base64.encode(derCSR.toSeq, safe = true)
+  let payload = %*{"csr": b64CSR}
 
+  # send finalize request
+  let finalizedResponse = await self.signedAcmeRequest(finalizeURL, payload)
+  if finalizedResponse.status != 200:
+    raise newException(ACMEError, "Failed to request cert finalization")
+
+  # keep checking order until it's finalized
+  var checkResponseBody: JsonNode
   for _ in 0 .. retries:
-    var finalizedResponseBody: JsonNode
+    let finalizedResponse = await self.signedAcmeRequest(finalizeURL, payload)
     try:
-      let finalizedResponse =
-        await HttpClientRequestRef.get(self.session, finalizeURL).get().send()
-      finalizedResponseBody =
-        bytesToString(await finalizedResponse.getBodyBytes()).parseJson()
-    except HttpError:
-      raise newException(ACMEError, "Failed to connect to ACME server")
+      let checkResponse =
+        await HttpClientRequestRef.get(self.session, orderURL).get().send()
+      checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
     except Exception as e:
       raise newException(
         ACMEError, "Unexpected error while finalizing certificate: " & e.msg
       )
-    case finalizedResponseBody.getJSONField("status").getStr
-    of "processing":
-      discard # try again
+
+    let status = checkResponseBody.getJSONField("status").getStr
+    case status
     of "valid":
       return true
+    of "processing":
+      discard # keep trying
     else:
       return false
     await sleepAsync(1.seconds)

@@ -58,16 +58,12 @@ proc checkDNSRecords(
   var txt: seq[string]
   var ip4: seq[TransportAddress]
 
-  echo acmeChalDomain
-  echo ip4Domain
   for _ in 0 .. retries:
     txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
     try:
       ip4 = await self.dnsResolver.resolveIp(ip4Domain, 0.Port)
     except:
       raise newException(AutoTLSError, "Failed to resolve IP")
-    echo txt
-    echo ip4
     if txt.len > 0 and txt[0] != "not set yet" and ip4.len > 0:
       return true
     await sleepAsync(1.seconds)
@@ -182,8 +178,6 @@ method start*(
   let dashedIpAddr = ($hostPrimaryIP).replace(".", "-")
   let acmeChalDomain = "_acme-challenge." & baseDomain
   let ip4Domain = dashedIpAddr & "." & baseDomain
-  echo "ip4Domain: " & ip4Domain
-  echo "acmeChalDomain: " & acmeChalDomain
   if not await self.checkDNSRecords(ip4Domain, acmeChalDomain, retries = 3):
     raise newException(AutoTLSError, "DNS records not set")
 
@@ -193,13 +187,11 @@ method start*(
     raise newException(AutoTLSError, "ACME challenge completion notification failed")
 
   trace "finalize cert request with CSR"
-  if not await self.acmeAccount.finalizeCertificate(
-    domain, finalizeURL, orderURL, retries = 3
-  ):
+  if not await self.acmeAccount.finalizeCertificate(domain, finalizeURL, orderURL):
     raise newException(AutoTLSError, "ACME certificate finalization request failed")
 
   trace "downloading certificate"
-  discard self.acmeAccount.downloadCertificate(orderURL)
+  echo await self.acmeAccount.downloadCertificate(orderURL)
   # self.cert = Opt.some(self.acmeAccount.downloadCertificate(orderURL))
   # TODO: properly parse cert
 
