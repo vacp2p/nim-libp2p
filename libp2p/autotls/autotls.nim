@@ -55,23 +55,22 @@ type AutoTLSManager* = ref object
 proc checkDNSRecords(
     self: AutoTLSManager, ip4Domain: string, acmeChalDomain: string, retries: int = 5
 ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  var txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
-
+  var txt: seq[string]
   var ip4: seq[TransportAddress]
-  try:
-    ip4 = await self.dnsResolver.resolveIp(acmeChalDomain, 0.Port)
-  except:
-    raise newException(AutoTLSError, "Failed to resolve IP")
 
+  echo acmeChalDomain
+  echo ip4Domain
   for _ in 0 .. retries:
-    await sleepAsync(1.seconds)
     txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
     try:
-      var ip4 = await self.dnsResolver.resolveIp(acmeChalDomain, 0.Port)
+      ip4 = await self.dnsResolver.resolveIp(ip4Domain, 0.Port)
     except:
       raise newException(AutoTLSError, "Failed to resolve IP")
+    echo txt
+    echo ip4
     if txt.len > 0 and txt[0] != "not set yet" and ip4.len > 0:
       return true
+    await sleepAsync(1.seconds)
 
   return false
 
@@ -183,6 +182,8 @@ method start*(
   let dashedIpAddr = ($hostPrimaryIP).replace(".", "-")
   let acmeChalDomain = "_acme-challenge." & baseDomain
   let ip4Domain = dashedIpAddr & "." & baseDomain
+  echo "ip4Domain: " & ip4Domain
+  echo "acmeChalDomain: " & acmeChalDomain
   if not await self.checkDNSRecords(ip4Domain, acmeChalDomain, retries = 3):
     raise newException(AutoTLSError, "DNS records not set")
 
