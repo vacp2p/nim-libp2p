@@ -190,6 +190,8 @@ type
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
 
     heartbeatEvents*: seq[AsyncEvent]
+    weSentIneeds*: HashSet[MessageId]
+    weSentIhaves*: HashSet[MessageId]
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64

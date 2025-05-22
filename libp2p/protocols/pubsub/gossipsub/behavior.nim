@@ -293,14 +293,48 @@ proc handleIHave*(
           if not g.hasSeen(g.salt(msgId)):
             if peer.iHaveBudget <= 0:
               break
-            elif msgId notin res.messageIDs:
+            elif msgId notin res.messageIDs and msgId notin g.weSentIneeds and msgId notin g.weSentIhaves:
               res.messageIDs.add(msgId)
+              g.weSentIhaves.incl(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID = msgId
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIDs)
     return res
+
+proc handleIAnnounce*(
+    g: GossipSub, peer: PubSubPeer, iannounces: seq[ControlIHave]
+): ControlIWant =
+  var res: ControlIWant
+  for iannounce in iannounces:
+    if iannounce.topicID in g.topics:
+      for msgId in iannounce.messageIDs:
+        if not g.hasSeen(g.salt(msgId)):
+          if msgId notin res.messageIDs:
+            if msgId notin g.weSentIneeds:
+              res.messageIDs.add(msgId)
+              g.weSentIneeds.incl(msgId)
+  return res
+
+proc handleINeed*(
+    g: GossipSub, peer: PubSubPeer, ineeds: seq[ControlIWant]
+): seq[Message] =
+  var messages: seq[Message]
+  var requests: seq[MessageId]
+  for ineed in ineeds:
+    for mid in ineed.messageIDs:
+      if mid in peer.weRepliedIneeds:
+        continue
+      if mid notin requests:
+        requests.add(mid)
+  for request in requests:
+    let msg = g.mcache.get(request).valueOr:
+        continue
+    messages.add(msg)
+    peer.weRepliedIneeds.incl(request)
+  return messages
+
 
 proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWant]) =
   for dontWant in iDontWants:

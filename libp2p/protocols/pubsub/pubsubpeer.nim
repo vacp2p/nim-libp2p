@@ -112,6 +112,8 @@ type
       ## IDONTWANT contains unvalidated message id:s which may be long and/or
       ## expensive to look up, so we apply the same salting to them as during
       ## unvalidated message processing
+    heAnnounced*:Deque[HashSet[MessageId]]
+    weRepliedIneeds*: HashSet[MessageId]
     iHaveBudget*: int
     pingBudget*: int
     maxMessageSize: int
@@ -566,4 +568,5 @@ proc new*(
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
+  result.heAnnounced.addFirst(default(HashSet[MessageId]))
   result.startSendNonPriorityTask()

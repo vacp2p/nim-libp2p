@@ -37,7 +37,7 @@ import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
 export types, scoring, behavior, pubsub
 
 import std/atomics
-const WARMUP_THRESHOLD = 2
+const WARMUP_THRESHOLD = 0
 var
   lma_dup_during_validation: Atomic[uint32]   # number of duplicates during 1st message validation
   lma_idontwant_saves: Atomic[uint32]         # number of Txs saved due to idontwant
@@ -378,6 +378,13 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   respControl.prune.add(g.handleGraft(peer, control.graft))
   let messages = g.handleIWant(peer, control.iwant)
 
+  let ineedRequests = g.handleIAnnounce(peer, control.iannounce)
+  if ineedRequests.messageIDs.len > 0:
+    respControl.ineed.add(ineedRequests)
+  let ineedReplies = g.handleINeed(peer, control.ineed)
+  if ineedReplies.len > 0:
+    g.send(peer, RPCMsg(messages: ineedReplies), isHighPriority = true)
+
   let
     isPruneNotEmpty = respControl.prune.len > 0
     isIWantNotEmpty = respControl.iwant.len > 0
@@ -531,11 +538,25 @@ proc validateAndRelay(
       return false
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
+    var peersList = toSeq(toSendPeers)
+    g.rng.shuffle(peersList)
+
+    if peersList.len > 0:
+      toSendPeers.excl(peersList[0])
+      g.broadcast(@[peersList[0]], RPCMsg(messages: @[msg]), isHighPriority = false)
+
+    g.broadcast(toSendPeers,
+    RPCMsg(control: some(ControlMessage(iannounce: @[ControlIHave(messageIDs: @[msgId])]))),
+    isHighPriority = true)
+
+    
+
+
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
-    trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
+    #g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    #trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     if g.knownTopics.contains(topic):
       libp2p_pubsub_messages_rebroadcasted.inc(

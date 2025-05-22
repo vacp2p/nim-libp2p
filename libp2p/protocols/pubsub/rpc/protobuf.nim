@@ -89,6 +89,10 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
     ipb.write(4, prune)
   for idontwant in control.idontwant:
     ipb.write(5, idontwant)
+  for iannounce in control.iannounce:
+    ipb.write(6, iannounce)
+  for ineed in control.ineed:
+    ipb.write(7, ineed)
   if len(ipb.buffer) > 0:
     ipb.finish()
     pb.write(field, ipb)
@@ -208,6 +212,8 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     var graftpbs: seq[seq[byte]]
     var prunepbs: seq[seq[byte]]
     var idontwant: seq[seq[byte]]
+    var iannounce:  seq[seq[byte]]
+    var ineed:  seq[seq[byte]]
     if ?cpb.getRepeatedField(1, ihavepbs):
       for item in ihavepbs:
         control.ihave.add(?decodeIHave(initProtoBuffer(item)))
@@ -223,6 +229,12 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     if ?cpb.getRepeatedField(5, idontwant):
       for item in idontwant:
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
+    if ?cpb.getRepeatedField(6, iannounce):
+      for item in iannounce:
+        control.iannounce.add(?decodeIHave(initProtoBuffer(item)))
+    if ?cpb.getRepeatedField(7, ineed):
+      for item in ineed:
+        control.ineed.add(?decodeIWant(initProtoBuffer(item)))
     trace "decodeControl: message statistics",
       graft_count = len(control.graft),
       prune_count = len(control.prune),
