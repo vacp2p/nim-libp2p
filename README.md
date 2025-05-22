@@ -156,6 +156,11 @@ The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-st
 
 ### Compile time flags
 
+Enable quic transport support
+```bash
+nim c -d:libp2p_quic_support some_file.nim
+```
+
 Enable expensive metrics (ie, metrics with per-peer cardinality):
 ```bash
 nim c -d:libp2p_expensive_metrics some_file.nim
