@@ -6,6 +6,7 @@ import ./consts
 import ./xordistance
 import ./routingtable
 import ./lookupstate
+import ./requests
 import ../protocol
 import ../../switch
 import ./protobuf
@@ -71,6 +72,7 @@ proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
         continue
 
       state.markPending(peer)
+      # TODO: should store request to sendFindNode, and send them concurrently limited by alpha
       pendingFutures[peer] = kad.sendFindNode(peer, target).wait(5.seconds)
         # TODO: should this timeout be specified by the dev? maybe should be a config option
       state.activeQueries.inc
@@ -80,8 +82,11 @@ proc findNode(kad: KadDHT, target: PeerId): Future[seq[PeerId]] {.async.} =
     for msg in successfulReplies:
       state.updateShortlist(
         msg,
-        proc(p: PeerId) =
-          kad.rtable.insert(p),
+        proc(p: PeerInfo) =
+          kad.rtable.insert(p.peerId)
+          kad.switch.peerStore[AddressBook][p.peerId] = p.addrs
+            # TODO: add TTL to peerstore, otherwise we can spam it with junk
+        ,
       )
 
     for timedOut in timedOutPeers:
@@ -96,13 +101,14 @@ proc bootstrap(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
   for b in bootstrapNodes:
     try:
       await kad.switch.connect(b.peerId, b.addrs)
+      # TODO: add to custom peerstore
       debug "connected to bootstrap peer", peerId = b.peerId
     except CatchableError as e:
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
 
   try:
     discard await kad.findNode(kad.switch.peerInfo.peerId)
-    #discard await kad.findNode(SOME_RANDOM_PEER) # TODO:
+    discard await kad.findNode(PeerId.random(kad.rng).get()) # TODO:
     debug "bootstrap lookup complete"
   except CatchableError as e:
     error "bootstrap lookup failed", error = e.msg
@@ -110,7 +116,7 @@ proc bootstrap(kad: KadDHT, bootstrapNodes: seq[PeerInfo]) {.async.} =
 proc refreshBuckets(kad: KadDHT) {.async.} =
   for i in 0 ..< kad.rtable.buckets.len:
     if kad.rtable.buckets[i].isStale():
-      let randomId = randomIdInBucketRange(kad.rtable.selfId, i)
+      let randomId = randomIdInBucketRange(kad.rtable.selfId, i, kad.rng)
       discard await kad.findNode(randomId)
 
 proc maintainBuckets(kad: KadDHT) {.async.} =
@@ -127,39 +133,43 @@ proc healthMonitor(kad: KadDHT) {.async.} =
       debug "health check", bucket = idx, live = live, peersInBucket = bucket.peers.len
     await sleepAsync(1.minutes)
 
-proc handler(conn: Connection, rtable: RoutingTable) {.async.} =
-  discard
-
-# Implementations may choose to re-use streams by sending one or more RPC request messages on a single outgoing stream before closing it. Implementations must handle additional RPC request messages on an incoming stream.
-
-#let requestBytes = await stream.readFullMessage()
-#let request = decodeFindNodeRequest(requestBytes)
-
-# TODO: add other request typs
-
-#if request.type == FIND_NODE:
-#  let targetId = request.key.get() # unwrap Option[seq[byte]] safely
-#  let closerPeers = routingTable.findClosest(targetId, k)
-#  let response = encodeFindNodeReply(closerPeers)
-#  await stream.write(response)
-#  await conn.close()
-#else:
-#  await conn.close()
-#  return
-
 proc new*(
     T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
 ): T {.raises: [].} =
   var rtable = RoutingTable.init(switch.peerInfo.peerId)
   let kad = T(rng: rng, switch: switch, rtable: rtable)
 
-  kad.handler = proc(
-      conn: Connection, proto: string
-  ) {.async: (raises: [CancelledError]).} =
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    debug "starting kad-dht read loop", conn, peer = p, closed = conn.closed
     try:
-      await handler(conn, rtable)
+      while not conn.atEof:
+        trace "waiting for data", conn, peer = p, closed = conn.closed
+
+        let
+          buf = await conn.readLp(4096)
+          msg = Message.decode(buf).tryGet()
+
+        case msg.msgType.tryGet()
+        of MessageType.findNode:
+          let targetIdBytes = msg.key.tryGet() # TODO:
+          let targetId = PeerId.init(targetIdBytes).tryGet() # TODO:
+          let closerPeers = rtable.findClosest(targetId, k)
+          let responsePb = encodeFindNodeReply(closerPeers)
+          await conn.writeLp(responsePb.buffer)
+        else:
+          raise newException(LPError, "unhandled kad-dht message type")
+        # TODO: implement other types
+    except CancelledError as exc:
+      trace "cancelled kad-dht handler"
+      return
+    except CatchableError as exc:
+      trace "exception in kad-dht handler", description = exc.msg
+      return
     finally:
-      conn.close()
+      debug "exiting kad-dht read loop", conn, peer = p, closed = conn.closed
+      await conn.close()
+
+  kad.handler = handler
   kad.codec = KadCodec
   return kad
 

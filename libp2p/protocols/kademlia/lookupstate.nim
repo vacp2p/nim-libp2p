@@ -2,8 +2,9 @@ import ./consts
 import ./protobuf
 import ./xordistance
 import ./routingtable
-import ../../peerid
+import ../../[peerid, peerinfo]
 import algorithm
+import chronicles
 
 type
   LookupPeer* = object
@@ -27,19 +28,25 @@ proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
       return true
   return false
 
-proc updateShortlist*(state: var LookupState, msg: Message, onInsert: proc(p: PeerId)) =
+proc updateShortlist*(
+    state: var LookupState, msg: Message, onInsert: proc(p: PeerInfo) {.gcsafe.}
+) =
   for newPeer in msg.closerPeers:
     if not alreadyInShortlist(state, newPeer):
-      let newPeerId = PeerId(data: newPeer.id)
-      state.shortlist.add(
-        LookupPeer(
-          peerId: newPeerId,
-          distance: xorDistance(newPeerId, state.targetId),
-          queried: false,
-          pending: false,
-          failed: false,
+      let peerInfo = PeerInfo(peerId: PeerId(data: newPeer.id), addrs: newPeer.addrs)
+      try:
+        onInsert(peerInfo)
+        state.shortlist.add(
+          LookupPeer(
+            peerId: peerInfo.peerId,
+            distance: xorDistance(peerInfo.peerId, state.targetId),
+            queried: false,
+            pending: false,
+            failed: false,
+          )
         )
-      )
+      except Exception as exc:
+        debug "could not update shortlist", err = exc.msg
 
   state.shortlist.sort(
     proc(a, b: LookupPeer): int =
