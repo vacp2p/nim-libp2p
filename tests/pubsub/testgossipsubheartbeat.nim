@@ -222,3 +222,33 @@ suite "GossipSub Heartbeat":
     check:
       node0.fanout[topic].len == 4
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
+
+  asyncTest "iDontWants history - last element is pruned during heartbeat":
+    let
+      topic = "foobar"
+      nodes = generateNodes(
+          2, gossip = true, sendIDontWantOnPublish = true, historyLength = 5
+        )
+        .toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    await connectNodes(nodes[0], nodes[1])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # When Node0 sends 10 messages to the topic
+    for i in 0 ..< 10:
+      tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
+
+    # Then Node1 also receives 10 iDontWant messages from Node1
+    let peer = nodes[1].mesh[topic].toSeq()[0]
+    check:
+      peer.iDontWants[^1].len == 10
+
+    # When heartbeat happens
+    await waitForHeartbeat()
+
+    # Then last element of iDontWants history is pruned
+    check:
+      peer.iDontWants[^1].len == 0
