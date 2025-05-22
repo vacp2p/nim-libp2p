@@ -50,6 +50,7 @@ suite "GossipSub Control Messages":
       let iwants = gossipSub.handleIHave(peer, @[msg])
       # Then `gossipSub` should generate an IWant message for the message
       check:
+        peer.iHaveBudget > 0
         iwants.messageIDs.len == 1
 
     # Peers with budget should request messages. If ids are repeated, only one request should be generated
@@ -63,10 +64,10 @@ suite "GossipSub Control Messages":
       # Build an IWANT message that contains the same message ID three times
       let msg = ControlIWant(messageIDs: @[id, id, id])
       # When a peer makes an IWANT request for the a message that `gossipSub` has
-      let genmsg = gossipSub.handleIWant(peer, @[msg])
+      let messages = gossipSub.handleIWant(peer, @[msg])
       # Then `gossipSub` should return the message
       check:
-        genmsg.len == 1
+        messages.len == 1
 
     check gossipSub.mcache.msgs.len == 1
 
@@ -380,10 +381,7 @@ suite "GossipSub Control Messages":
       receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IDONTWANT":
-    # 3 nodes: A <=> B <=> C
-    # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
-    # and check that B doesn't relay the message to C.
-    # We also check that B sends IDONTWANT to C, but not A
+    # 3 nodes: A <=> B <=> C (A & C are NOT connected) 
     let
       topic = "foobar"
       nodes = generateNodes(3, gossip = true).toGossipSub()
@@ -403,6 +401,7 @@ suite "GossipSub Control Messages":
     check:
       nodes[2].mesh.peers(topic) == 1
 
+    # When we pre-emptively send a dontwant from C to B,
     nodes[2].broadcast(
       nodes[2].mesh[topic],
       RPCMsg(
@@ -412,19 +411,24 @@ suite "GossipSub Control Messages":
       ),
       isHighPriority = true,
     )
+
+    # Then B doesn't relay the message to C.
     checkUntilTimeout:
       nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants[^1].len == 1)
 
+    # When A sends a message to the topic
     tryPublish await nodes[0].publish(topic, newSeq[byte](10000)), 1
 
     discard await bFinished
 
+    # Then B sends IDONTWANT to C, but not A
     checkUntilTimeout:
       toSeq(nodes[2].mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 1)
     check:
       toSeq(nodes[0].mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
 
   asyncTest "IDONTWANT is broadcasted on publish":
+    # 2 nodes: A <=> B
     let
       topic = "foobar"
       nodes =
@@ -438,21 +442,21 @@ suite "GossipSub Control Messages":
     nodes[1].subscribe(topic, voidTopicHandler)
     await waitSubGraph(nodes, topic)
 
+    # When A sends a message to the topic
     tryPublish await nodes[0].publish(topic, newSeq[byte](10000)), 1
 
+    # Then IDONTWANT is sent to B on publish
     checkUntilTimeout:
       nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants[^1].len == 1)
 
   asyncTest "IDONTWANT is sent only for 1.2":
-    # 3 nodes: A <=> B <=> C
-    # (A & C are NOT connected). We pre-emptively send a dontwant from C to B,
-    # and check that B doesn't relay the message to C.
-    # We also check that B sends IDONTWANT to C, but not A
+    # 3 nodes: A <=> B <=> C (A & C are NOT connected) 
     let
       topic = "foobar"
-      nodeA = generateNodes(1, gossip = true)[0]
-      nodeB = generateNodes(1, gossip = true)[0]
-      nodeC = generateNodes(1, gossip = true, gossipSubVersion = GossipSubCodec_11)[0]
+      nodeA = generateNodes(1, gossip = true).toGossipSub()[0]
+      nodeB = generateNodes(1, gossip = true).toGossipSub()[0]
+      nodeC = generateNodes(1, gossip = true, gossipSubVersion = GossipSubCodec_11)
+      .toGossipSub()[0]
 
     startNodesAndDeferStop(@[nodeA, nodeB, nodeC])
 
@@ -466,20 +470,16 @@ suite "GossipSub Control Messages":
     nodeC.subscribe(topic, voidTopicHandler)
     await waitSubGraph(@[nodeA, nodeB, nodeC], topic)
 
-    var gossipA: GossipSub = GossipSub(nodeA)
-    var gossipB: GossipSub = GossipSub(nodeB)
-    var gossipC: GossipSub = GossipSub(nodeC)
-
     check:
-      gossipC.mesh.peers(topic) == 1
+      nodeC.mesh.peers(topic) == 1
 
+    # When A sends a message to the topic
     tryPublish await nodeA.publish(topic, newSeq[byte](10000)), 1
 
     discard await bFinished
 
-    # "check" alone isn't suitable for testing that a condition is true after some time has passed. Below we verify that
-    # peers A and C haven't received an IDONTWANT message from B, but we need wait some time for potential in flight messages to arrive.
+    # Then B doesn't send IDONTWANT to both A and C (because C.gossipSubVersion == GossipSubCodec_11)
     await waitForHeartbeat()
     check:
-      toSeq(gossipC.mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
-      toSeq(gossipA.mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
+      toSeq(nodeC.mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
+      toSeq(nodeA.mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
