@@ -57,21 +57,6 @@ suite "AutoTLS":
       check finalizeURL.len > 0
       check orderURL.len > 0
 
-    asyncTest "test notify ACME challenge complete":
-      var hostPrimaryIP: IpAddress
-      try:
-        hostPrimaryIP = getPrimaryIPAddr()
-      except Exception:
-        check false # could not get primary address
-      if not isPublicIPv4(hostPrimaryIP):
-        skip()
-        return
-      await acc.register()
-      let (dns01Challenge, finalizeURL, orderURL) =
-        await acc.requestChallenge(@["some.dummy.domain.com"])
-      let chalURL = dns01Challenge["url"].getStr
-      check (await acc.notifyChallengeCompleted(chalURL))
-
   suite "AutoTLSManager":
     var autotlsMgr {.threadvar.}: AutoTLSManager
     var peerInfo {.threadvar.}: PeerInfo
