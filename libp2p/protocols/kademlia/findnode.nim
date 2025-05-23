@@ -35,7 +35,7 @@ proc sendFindNode(
 
   await conn.writeLp(msg.encode().buffer)
 
-  let reply = Message.decode(await conn.readLp(1024)).get() # TODO: fix
+  let reply = Message.decode(await conn.readLp(4096)).get() # TODO: fix
   if reply.msgType.get() != MessageType.findNode: # TODO: fix
     raise newException(ValueError, "unexpected message type in reply")
 
