@@ -23,7 +23,6 @@ import
 import ./acme
 import ./peeridauth
 import ./utils
-import ../transports/tls/certificate
 import ../nameresolving/dnsresolver
 import ../wire
 import ../crypto/crypto
@@ -45,10 +44,11 @@ type SigParam = object
 
 type AutoTLSManager* = ref object
   rng: ref HmacDrbgContext
-  cert*: Opt[CertificateX509]
+  cert*: Opt[TLSCertificate]
   acmeAccount*: ref ACMEAccount
   httpSession: HttpSessionRef
   dnsResolver*: DnsResolver
+  peerInfo*: Opt[PeerInfo]
   bearerToken*: Opt[string]
   running: bool
 
@@ -78,10 +78,11 @@ proc new*(
 ): AutoTLSManager =
   T(
     rng: rng,
-    cert: Opt.none(CertificateX509),
+    cert: Opt.none(TLSCertificate),
     acmeAccount: acmeAccount,
     httpSession: HttpSessionRef.new(),
     dnsResolver: dnsResolver,
+    peerInfo: Opt.none(PeerInfo),
     bearerToken: Opt.none(string),
     running: false,
   )
@@ -99,21 +100,12 @@ method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
   # end all connections (TODO)
   # await noCancel allFutures(self.connections.mapIt(it.close()))
 
-method start*(
-    self: AutoTLSManager, peerInfo: PeerInfo
+method issueNewCertificate(
+    self: AutoTLSManager
 ): Future[void] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
-  if self.acmeAccount.isNil:
-    let accountKey = KeyPair.random(PKScheme.RSA, self.rng[]).get() # TODO: check
-    self.acmeAccount = (await ACMEAccount.new(accountKey))
-  if self.running:
-    return
-
-  trace "starting AutoTLS manager"
-  self.running = true
-
-  trace "registering ACME account"
-  await self.acmeAccount.register()
-
+  if self.peerInfo.isNone:
+    raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
+  let peerInfo = self.peerInfo.get
   # generate autotls domain string: "*.{peerID}.libp2p.direct"
   let base36PeerId = encodePeerId(peerInfo.peerId)
   let baseDomain = base36PeerId & "." & AutoTLSDNSServer
@@ -191,9 +183,36 @@ method start*(
     raise newException(AutoTLSError, "ACME certificate finalization request failed")
 
   trace "downloading certificate"
-  echo await self.acmeAccount.downloadCertificate(orderURL)
-  # self.cert = Opt.some(self.acmeAccount.downloadCertificate(orderURL))
-  # TODO: properly parse cert
+  let rawCert = await self.acmeAccount.downloadCertificate(orderURL)
 
   trace "installing certificate"
+  try:
+    self.cert = Opt.some(TLSCertificate.init(rawCert))
+  except TLSStreamProtocolError:
+    raise newException(AutoTLSError, "Could not parse downloaded certificates")
+
+method start*(
+    self: AutoTLSManager, peerInfo: PeerInfo
+): Future[void] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
+  if self.running:
+    return
+
+  if self.acmeAccount.isNil:
+    let accountKey = KeyPair.random(PKScheme.RSA, self.rng[]).get() # TODO: check
+    self.acmeAccount = (await ACMEAccount.new(accountKey))
+
+  if self.peerInfo.isNone:
+    self.peerInfo = Opt.some(peerInfo)
+
+  trace "starting AutoTLS manager"
+  self.running = true
+
+  trace "registering ACME account"
+  await self.acmeAccount.register()
+
+  if self.cert.isNone:
+    trace "issuing new certificate"
+    await self.issueNewCertificate()
+
   trace "monitoring for certificate renewals"
+  # TODO
