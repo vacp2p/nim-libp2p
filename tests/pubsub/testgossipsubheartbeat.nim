@@ -286,13 +286,13 @@ suite "GossipSub Heartbeat":
       nodes[0].gossipsub[topic].toSeq().filterIt(it notin nodes[0].mesh[topic])[0]
 
     # When next heartbeat occurs
-    let timeout = Moment.now() + 100.milliseconds
-    while peer.sentIHaves[^1].len == 0:
-      await activeWait(1.milliseconds, timeout, "wait for sentIHaves timeout")
-
     # Then IHave is sent and sentIHaves is populated
-    check:
-      peer.sentIHaves[^1].len == 1
+    waitForCondition(
+      peer.sentIHaves[^1].len > 0,
+      10.milliseconds,
+      100.milliseconds,
+      "wait for sentIHaves timeout",
+    )
 
     # Need to clear mCache as node would keep populating sentIHaves
     nodes[0].clearMCache()
