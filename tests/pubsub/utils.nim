@@ -263,7 +263,7 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await connectNodes(dialer, node)
 
-proc activeWait(
+proc activeWait*(
     interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
 ) {.async.} =
   await sleepAsync(interval)
@@ -533,6 +533,12 @@ proc findAndStopPeers*[T: PubSub](
     if peers.anyIt(it == node.peerInfo.peerId):
       node.unsubscribe(topic, voidTopicHandler)
       await node.stop()
+
+proc clearMCache*[T: PubSub](node: T) =
+  node.mcache.msgs.clear()
+  for i in 0 ..< node.mcache.history.len:
+    node.mcache.history[i].setLen(0)
+  node.mcache.pos = 0
 
 # TODO: refactor helper methods from testgossipsub.nim
 proc setupNodes*(count: int): seq[PubSub] =

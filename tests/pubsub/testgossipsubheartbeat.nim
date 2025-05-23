@@ -252,3 +252,54 @@ suite "GossipSub Heartbeat":
     # Then last element of iDontWants history is pruned
     check:
       peer.iDontWants[^1].len == 0
+
+  asyncTest "sentIHaves history - last element is pruned during heartbeat":
+    # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
+    # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
+    let
+      numberOfNodes = 3
+      topic = "foobar"
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          historyLength = 3,
+          dValues =
+            some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
+        )
+        .toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+
+    # Waiting 2 heartbeats to populate sentIHaves history
+    await waitForHeartbeat(2)
+
+    # When Node0 sends a messages to the topic
+    for i in 0 ..< 1:
+      tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
+
+    # Find Peer outside of mesh to which Node 0 will send IHave
+    let peer =
+      nodes[0].gossipsub[topic].toSeq().filterIt(it notin nodes[0].mesh[topic])[0]
+
+    # When next heartbeat occurs
+    let timeout = Moment.now() + 100.milliseconds
+    while peer.sentIHaves[^1].len == 0:
+      await activeWait(1.milliseconds, timeout, "wait for sentIHaves timeout")
+
+    # Then IHave is sent and sentIHaves is populated
+    check:
+      peer.sentIHaves[^1].len == 1
+
+    # Need to clear mCache as node would keep populating sentIHaves
+    nodes[0].clearMCache()
+
+    # When next heartbeat occurs 
+    await waitForHeartbeat()
+
+    # Then last element of sentIHaves history is pruned 
+    check:
+      peer.sentIHaves[^1].len == 0
