@@ -1,4 +1,5 @@
 import options, json, base64
+from times import DateTime, parse
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
 
 import ./utils
@@ -278,20 +279,26 @@ proc finalizeCertificate*(
 
 proc downloadCertificate*(
     self: ref ACMEAccount, orderURL: string
-): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+): Future[(string, DateTime)] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
     let downloadResponse =
       await HttpClientRequestRef.get(self.session, orderURL).get().send()
+
     if downloadResponse.status != 200:
       raise newException(ACMEError, "Failed to download certificate")
-    let certificateDownloadURL = bytesToString(await downloadResponse.getBodyBytes())
-      .parseJson()
-      .getJSONField("certificate").getStr
+
+    let certificateInfoBody =
+      bytesToString(await downloadResponse.getBodyBytes()).parseJson()
+
+    let certificateDownloadURL = certificateInfoBody.getJSONField("certificate").getStr
+    let certificateExpiry = parse(
+      certificateInfoBody.getJSONField("expires").getStr, "yyyy-MM-dd'T'HH:mm:ss'Z'"
+    )
 
     let certificateResponse =
       await HttpClientRequestRef.get(self.session, certificateDownloadURL).get().send()
     let rawCertificate = bytesToString(await certificateResponse.getBodyBytes())
-    return rawCertificate
+    return (rawCertificate, certificateExpiry)
   except HttpError:
     raise newException(ACMEError, "Failed to connect to ACME server")
   except Exception as e:

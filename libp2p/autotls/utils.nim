@@ -1,5 +1,13 @@
 import
-  base64, strutils, stew/base36, chronos/apps/http/httpclient, json, net, std/sysrand
+  base64,
+  strutils,
+  stew/base36,
+  chronos/apps/http/httpclient,
+  chronos,
+  json,
+  net,
+  std/sysrand,
+  times
 import
   ../errors, ../peerid, ../multihash, ../cid, ../multicodec, ../crypto/[crypto, rsa]
 
@@ -28,6 +36,10 @@ proc isPublicIPv4*(ip: IpAddress): bool =
       (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
       ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
     )
+
+proc asMoment*(dt: DateTime): Moment =
+  let unixTime: int64 = dt.toTime.toUnix
+  return Moment.init(unixTime, Second)
 
 proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
   var mh: MultiHash

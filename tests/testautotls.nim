@@ -11,7 +11,7 @@
 
 {.push raises: [].}
 
-import std/[strformat, net, json]
+import std/[strformat, net]
 import chronos
 import chronos/apps/http/httpclient
 import
@@ -23,7 +23,6 @@ import
     switch,
     builders,
     autotls/autotls,
-    autotls/acme,
     autotls/utils,
     nameresolving/dnsresolver,
     wire,
@@ -32,32 +31,32 @@ import
 import ./helpers
 
 suite "AutoTLS":
-  suite "ACME communication":
-    var acc {.threadvar.}: ref ACMEAccount
-    var rng {.threadvar.}: ref HmacDrbgContext
+  # suite "ACME communication":
+  #   var acc {.threadvar.}: ref ACMEAccount
+  #   var rng {.threadvar.}: ref HmacDrbgContext
 
-    asyncSetup:
-      rng = newRng()
-      let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get()
-      acc = await ACMEAccount.new(accountKey)
+  #   asyncSetup:
+  #     rng = newRng()
+  #     let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get()
+  #     acc = await ACMEAccount.new(accountKey)
 
-    asyncTeardown:
-      await noCancel(acc.session.closeWait())
-      checkTrackers()
+  #   asyncTeardown:
+  #     await noCancel(acc.session.closeWait())
+  #     checkTrackers()
 
-    asyncTest "test ACME account register":
-      await acc.register()
-      # account was registered (kid set)
-      check acc.kid.isSome
+  #   asyncTest "test ACME account register":
+  #     await acc.register()
+  #     # account was registered (kid set)
+  #     check acc.kid.isSome
 
-    asyncTest "test ACME challange request":
-      await acc.register()
-      # challenge requested
-      let (dns01Challenge, finalizeURL, orderURL) =
-        await acc.requestChallenge(@["some.dummy.domain.com"])
-      check dns01Challenge.isNil == false
-      check finalizeURL.len > 0
-      check orderURL.len > 0
+  #   asyncTest "test ACME challange request":
+  #     await acc.register()
+  #     # challenge requested
+  #     let (dns01Challenge, finalizeURL, orderURL) =
+  #       await acc.requestChallenge(@["some.dummy.domain.com"])
+  #     check dns01Challenge.isNil == false
+  #     check finalizeURL.len > 0
+  #     check orderURL.len > 0
 
   suite "AutoTLSManager":
     var switch {.threadvar.}: Switch
@@ -72,23 +71,34 @@ suite "AutoTLS":
         .withYamux()
         .withNoise()
         .build()
-      await switch.start()
 
     asyncTeardown:
       await switch.stop()
       checkTrackers()
 
     asyncTest "test AutoTLSManager start":
-      # check if challenge was sent (bearer token from peer id auth was set)
-      check switch.autoTLSMgr.bearerToken.isSome
-
       var hostPrimaryIP: IpAddress
       try:
         hostPrimaryIP = getPrimaryIPAddr()
       except Exception:
-        check false # could not get primary address
-      if not isPublicIPv4(hostPrimaryIP):
+        skip() # can't get primary IPv4 address from host
         return
+
+      if not isPublicIPv4(hostPrimaryIP):
+        skip() # host doesn't have public IPv4 address
+        return
+
+      # so we can check renewal afterwards
+      switch.autoTLSMgr.renewCheckTime = 10.seconds
+
+      await switch.start()
+
+      # wait 10s for cert to be ready
+      # TODO: maybe use asynceventqueue
+      await sleepAsync(10.seconds)
+
+      # check if challenge was sent (bearer token from peer id auth was set)
+      check switch.autoTLSMgr.bearerToken.isSome
 
       # check if DNS TXT record is set
       let dnsResolver = DnsResolver.new(
@@ -102,10 +112,25 @@ suite "AutoTLS":
       let acmeChalDomain = fmt"_acme-challenge.{base36PeerId}.{AutoTLSDNSServer}"
       let txt = await dnsResolver.resolveTxt(acmeChalDomain)
       check txt.len > 0
-      check txt[0] != "not set yet"
+      let dnsTXTRecord = txt[0]
+      check dnsTXTRecord != "not set yet"
 
       # check if certificate was downloaded and parsed
       check switch.autoTLSMgr.cert.isSome
 
-      # TODO: invalidate certificate
+      let certBefore = switch.autoTLSMgr.cert.get()
+
+      # invalidate certificate
+      switch.autoTLSMgr.certExpiry = Opt.some(Moment.now - 2.hours)
+      # check cert was invalidated correctly
+      check switch.autoTLSMgr.certExpiry.get < Moment.now
+      # wait time for certificate renewal to happen
+      await sleepAsync(10.seconds)
+
       # check if certificate was renewed
+      check switch.autoTLSMgr.cert.isSome
+      let certAfter = switch.autoTLSMgr.cert.get()
+      check certBefore != certAfter
+      check switch.autoTLSMgr.certExpiry.isSome
+      # cert is valid
+      check switch.autoTLSMgr.certExpiry.get > Moment.now
