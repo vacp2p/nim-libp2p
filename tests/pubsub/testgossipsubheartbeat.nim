@@ -160,7 +160,7 @@ suite "GossipSub Heartbeat":
       actualGrafts.len == 2
       actualGrafts.allIt(it in expectedGrafts)
 
-  asyncTest "Fanout maintanance during heartbeat - expired peers are dropped":
+  asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
     let
       numberOfNodes = 10
       topic = "foobar"
@@ -189,7 +189,7 @@ suite "GossipSub Heartbeat":
     check:
       not node0.fanout.hasKey(topic)
 
-  asyncTest "Fanout maintanance during heartbeat - fanout peers are replenished":
+  asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
     let
       numberOfNodes = 10
       topic = "foobar"
