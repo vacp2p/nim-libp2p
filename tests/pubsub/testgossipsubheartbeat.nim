@@ -183,10 +183,10 @@ suite "GossipSub Heartbeat":
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
 
     # Then Node0 fanout peers are populated
-    let maxfanoutPeers = node0.parameters.d
-    await waitForPeersInTable(node0, topic, maxfanoutPeers, PeerTableType.Fanout)
+    let maxFanoutPeers = node0.parameters.d
+    await waitForPeersInTable(node0, topic, maxFanoutPeers, PeerTableType.Fanout)
     check:
-      node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxfanoutPeers
+      node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxFanoutPeers
 
     # And after heartbeat (60ms) Node0 fanout peers are dropped (because fanoutTTL=30ms)
     await waitForHeartbeat()
@@ -212,8 +212,8 @@ suite "GossipSub Heartbeat":
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
 
     # Then Node0 fanout peers are populated 
-    let maxfanoutPeers = node0.parameters.d
-    await waitForPeersInTable(node0, topic, maxfanoutPeers, PeerTableType.Fanout)
+    let maxFanoutPeers = node0.parameters.d
+    await waitForPeersInTable(node0, topic, maxFanoutPeers, PeerTableType.Fanout)
 
     # When all peers but first one of Node0 fanout are disconnected
     let peersToDisconnect = node0.fanout[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
@@ -223,8 +223,8 @@ suite "GossipSub Heartbeat":
     # Then Node0 fanout peers are replenished during heartbeat
     await waitForHeartbeat()
     check:
-      # expecting 10[numberOfNodes] - 1[Node0] - (6[maxfanoutPeers] - 1[first peer not disconnected]) = 4
-      node0.fanout[topic].len == numberOfNodes - 1 - (maxfanoutPeers - 1)
+      # expecting 10[numberOfNodes] - 1[Node0] - (6[maxFanoutPeers] - 1[first peer not disconnected]) = 4
+      node0.fanout[topic].len == numberOfNodes - 1 - (maxFanoutPeers - 1)
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
