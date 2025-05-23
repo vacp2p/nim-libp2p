@@ -30,6 +30,7 @@ import
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
+  autotls/autotls,
   nameresolving/nameresolver,
   errors,
   utility
@@ -63,6 +64,7 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
+    autoTLSMgr: AutoTLSManager
     circuitRelay: Relay
     rdv: RendezVous
     services: seq[Service]
@@ -183,6 +185,10 @@ proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
     proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       MemoryTransport.new(upgr)
   )
+
+proc withAutoTLSManager*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  b.autoTLSMgr = AutoTLSManager.new(b.rng) # TODO: configs
+  b
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
   b.rng = rng
@@ -316,6 +322,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     secureManagers = secureManagerInstances,
     connManager = connManager,
     ms = ms,
+    autoTLSMgr = b.autoTLSMgr,
     nameResolver = b.nameResolver,
     peerStore = peerStore,
     services = b.services,
