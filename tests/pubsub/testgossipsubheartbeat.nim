@@ -241,7 +241,7 @@ suite "GossipSub Heartbeat":
     for i in 0 ..< 10:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
-    # Then Node1 also receives 10 iDontWant messages from Node1
+    # Then Node1 receives 10 iDontWant messages from Node0
     let peer = nodes[1].mesh[topic].toSeq()[0]
     check:
       peer.iDontWants[^1].len == 10
