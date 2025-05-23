@@ -32,32 +32,33 @@ import
 import ./helpers
 
 suite "AutoTLS":
-  #  suite "ACME communication":
-  #    var acc {.threadvar.}: ref ACMEAccount
-  #    var rng {.threadvar.}: ref HmacDrbgContext
+  suite "ACME communication":
+    var acc {.threadvar.}: ref ACMEAccount
+    var rng {.threadvar.}: ref HmacDrbgContext
 
-  #    asyncSetup:
-  #      rng = newRng()
-  #      let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get()
-  #      acc = await ACMEAccount.new(accountKey)
+    asyncSetup:
+      rng = newRng()
+      let accountKey = KeyPair.random(PKScheme.RSA, rng[]).get()
+      acc = await ACMEAccount.new(accountKey)
 
-  #    asyncTeardown:
-  #      await noCancel(acc.session.closeWait())
-  #      checkTrackers()
+    asyncTeardown:
+      await noCancel(acc.session.closeWait())
+      checkTrackers()
 
-  #    asyncTest "test ACME account register":
-  #      await acc.register()
-  #      # account was registered (kid set)
-  #      check acc.kid.isSome
+    asyncTest "test ACME account register":
+      await acc.register()
+      # account was registered (kid set)
+      check acc.kid.isSome
 
-  #    asyncTest "test ACME challange request":
-  #      await acc.register()
-  #      # challenge requested
-  #      let (dns01Challenge, finalizeURL, orderURL) =
-  #        await acc.requestChallenge(@["some.dummy.domain.com"])
-  #      check dns01Challenge.isNil == false
-  #      check finalizeURL.len > 0
-  #      check orderURL.len > 0
+    asyncTest "test ACME challange request":
+      await acc.register()
+      # challenge requested
+      let (dns01Challenge, finalizeURL, orderURL) =
+        await acc.requestChallenge(@["some.dummy.domain.com"])
+      check dns01Challenge.isNil == false
+      check finalizeURL.len > 0
+      check orderURL.len > 0
+
   suite "AutoTLSManager":
     var switch {.threadvar.}: Switch
 
@@ -103,5 +104,8 @@ suite "AutoTLS":
       check txt.len > 0
       check txt[0] != "not set yet"
 
-      # check if certificate was downloaded
+      # check if certificate was downloaded and parsed
       check switch.autoTLSMgr.cert.isSome
+
+      # TODO: invalidate certificate
+      # check if certificate was renewed
