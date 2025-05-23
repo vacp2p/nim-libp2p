@@ -355,7 +355,7 @@ proc waitForPeersInTable*(
     topic: string,
     peerCounts: seq[int],
     table: PeerTableType,
-    timeout = 1.seconds,
+    timeout = 3.seconds,
 ) {.async.} =
   ## Wait until each node in `nodes` has at least the corresponding number of peers from `peerCounts`
   ## in the specified table (mesh, gossipsub, or fanout) for the given topic

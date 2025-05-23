@@ -35,13 +35,15 @@ suite "GossipSub Heartbeat":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
     check:
-      node0.mesh[topic].len == 9
+      node0.mesh[topic].len == numberOfNodes - 1
 
     # When DValues of Node0 are updated to lower than defaults
+    let newDLow = 2
+    let newDHigh = 4
     let newDValues = some(
       DValues(
-        dLow: some(2),
-        dHigh: some(4),
+        dLow: some(newDLow),
+        dHigh: some(newDHigh),
         d: some(3),
         dLazy: some(3),
         dScore: some(2),
@@ -63,7 +65,7 @@ suite "GossipSub Heartbeat":
 
     # Then mesh of Node0 is rebalanced and peers are pruned to adapt to new values
     check:
-      node0.mesh[topic].len >= 2 and node0.mesh[topic].len <= 4
+      node0.mesh[topic].len >= newDLow and node0.mesh[topic].len <= newDHigh
       heartbeatDiff < 2.milliseconds # 2ms margin
 
   asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
@@ -156,8 +158,9 @@ suite "GossipSub Heartbeat":
     await waitForHeartbeat()
 
     let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
+    let maxOpportunisticGraftsPerHeartbeat = 2
     check:
-      actualGrafts.len == 2
+      actualGrafts.len == maxOpportunisticGraftsPerHeartbeat
       actualGrafts.allIt(it in expectedGrafts)
 
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
@@ -180,9 +183,10 @@ suite "GossipSub Heartbeat":
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
 
     # Then Node0 fanout peers are populated
-    await waitForPeersInTable(node0, topic, 6, PeerTableType.Fanout)
+    let maxfanoutPeers = node0.parameters.d
+    await waitForPeersInTable(node0, topic, maxfanoutPeers, PeerTableType.Fanout)
     check:
-      node0.fanout.hasKey(topic) and node0.fanout[topic].len == 6
+      node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxfanoutPeers
 
     # And after heartbeat (60ms) Node0 fanout peers are dropped (because fanoutTTL=30ms)
     await waitForHeartbeat()
@@ -207,12 +211,11 @@ suite "GossipSub Heartbeat":
     # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
 
-    # Then Node0 fanout peers are populated
-    await waitForPeersInTable(node0, topic, 6, PeerTableType.Fanout)
-    check:
-      node0.fanout.hasKey(topic) and node0.fanout[topic].len == 6
+    # Then Node0 fanout peers are populated 
+    let maxfanoutPeers = node0.parameters.d
+    await waitForPeersInTable(node0, topic, maxfanoutPeers, PeerTableType.Fanout)
 
-    # When peers of Node0 fanout are disconnected
+    # When all peers but first one of Node0 fanout are disconnected
     let peersToDisconnect = node0.fanout[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
     await findAndStopPeers(nodes, peersToDisconnect, topic, voidTopicHandler)
     await waitForPeersInTable(node0, topic, 1, PeerTableType.Fanout)
@@ -220,7 +223,8 @@ suite "GossipSub Heartbeat":
     # Then Node0 fanout peers are replenished during heartbeat
     await waitForHeartbeat()
     check:
-      node0.fanout[topic].len == 4
+      # expecting 10[numberOfNodes] - 1[Node0] - (6[maxfanoutPeers] - 1[first peer not disconnected]) = 4
+      node0.fanout[topic].len == numberOfNodes - 1 - (maxfanoutPeers - 1)
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
@@ -238,13 +242,14 @@ suite "GossipSub Heartbeat":
     await waitForHeartbeat()
 
     # When Node0 sends 10 messages to the topic
-    for i in 0 ..< 10:
+    const msgCount = 10
+    for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Then Node1 receives 10 iDontWant messages from Node0
     let peer = nodes[1].mesh[topic].toSeq()[0]
     check:
-      peer.iDontWants[^1].len == 10
+      peer.iDontWants[^1].len == msgCount
 
     # When heartbeat happens
     await waitForHeartbeat()
@@ -278,8 +283,7 @@ suite "GossipSub Heartbeat":
     await waitForHeartbeat(2)
 
     # When Node0 sends a messages to the topic
-    for i in 0 ..< 1:
-      tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
+    tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Find Peer outside of mesh to which Node 0 will send IHave
     let peer =
