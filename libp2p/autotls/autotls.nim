@@ -19,6 +19,7 @@ import
   bio,
   json,
   chronos/apps/http/httpclient
+from times import DateTime
 
 import ./acme
 import ./peeridauth
@@ -45,6 +46,7 @@ type SigParam = object
 type AutoTLSManager* = ref object
   rng: ref HmacDrbgContext
   cert*: Opt[TLSCertificate]
+  certExpiry*: Opt[DateTime]
   acmeAccount*: ref ACMEAccount
   httpSession: HttpSessionRef
   dnsResolver*: DnsResolver
@@ -100,14 +102,17 @@ method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
   # end all connections (TODO)
   # await noCancel allFutures(self.connections.mapIt(it.close()))
 
-method issueNewCertificate(
+method issueCertificate(
     self: AutoTLSManager
 ): Future[void] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
-  if self.peerInfo.isNone:
+  var peerInfo: PeerInfo
+  try:
+    peerInfo = self.peerInfo.get
+  except:
     raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
-  let peerInfo = self.peerInfo.get
+
   # generate autotls domain string: "*.{peerID}.libp2p.direct"
-  let base36PeerId = encodePeerId(peerInfo.peerId)
+  let base36PeerId = encodePeerId(peerInfo.peerId) & "." & AutoTLSDNSServer
   let baseDomain = base36PeerId & "." & AutoTLSDNSServer
   let domain = "*." & baseDomain
 
@@ -183,11 +188,12 @@ method issueNewCertificate(
     raise newException(AutoTLSError, "ACME certificate finalization request failed")
 
   trace "downloading certificate"
-  let rawCert = await self.acmeAccount.downloadCertificate(orderURL)
+  let (rawCert, expiry) = await self.acmeAccount.downloadCertificate(orderURL)
 
   trace "installing certificate"
   try:
     self.cert = Opt.some(TLSCertificate.init(rawCert))
+    self.certExpiry = Opt.some(expiry)
   except TLSStreamProtocolError:
     raise newException(AutoTLSError, "Could not parse downloaded certificates")
 
@@ -197,22 +203,35 @@ method start*(
   if self.running:
     return
 
+  echo "here 1"
   if self.acmeAccount.isNil:
     let accountKey = KeyPair.random(PKScheme.RSA, self.rng[]).get() # TODO: check
     self.acmeAccount = (await ACMEAccount.new(accountKey))
 
-  if self.peerInfo.isNone:
-    self.peerInfo = Opt.some(peerInfo)
+  if self.peerInfo.isSome:
+    raise newException(AutoTLSError, "PeerInfo already set")
+  self.peerInfo = Opt.some(peerInfo)
+  echo "here 2"
 
   trace "starting AutoTLS manager"
   self.running = true
 
+  echo "here 3"
   trace "registering ACME account"
   await self.acmeAccount.register()
 
-  if self.cert.isNone:
-    trace "issuing new certificate"
-    await self.issueNewCertificate()
+  echo "here 4"
+  trace "monitoring certificate"
+  while self.running:
+    # AutoTLSManager will renew the cert 1h before it expires
+    let expiry = asMoment(self.certExpiry.get)
+    let waitTime: Duration = expiry - Moment.now - 1.hours
+    echo waitTime
+    if self.cert.isNone or waitTime <= 1.hours:
+      trace "issuing new certificate"
+      echo "here 5"
+      await self.issueCertificate()
+      echo "here 6"
 
-  trace "monitoring for certificate renewals"
-  # TODO
+    # Sleep until 1h before expiry
+    await sleepAsync(waitTime)
