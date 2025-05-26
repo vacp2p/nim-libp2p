@@ -91,11 +91,5 @@ jobs:
           nim --version
           nimble --version
 
-          if [[ "${{ inputs.use_sat_solver }}" == "true" ]]; then
-            dependency_solver="sat"
-          else
-            dependency_solver="legacy"
-          fi
-
-          export NIMFLAGS="${NIMFLAGS} -d:libp2p_quic_support --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
+          export NIMFLAGS="${NIMFLAGS} -d:libp2p_quic_support --mm:${{ matrix.nim.memory_management }}"
           nimble test
