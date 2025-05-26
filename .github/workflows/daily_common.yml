@@ -17,11 +17,6 @@ on:
         required: false
         type: string
         default: "[]"
-      use_sat_solver:
-        description: 'Install dependencies with SAT Solver'
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
