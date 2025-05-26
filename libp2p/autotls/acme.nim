@@ -10,7 +10,8 @@ import ../transports/tls/certificate
 
 # TODO: change staging to actual url
 const
-  LetsEncryptURL = "https://acme-staging-v02.api.letsencrypt.org"
+  LetsEncryptURL = "https://acme-v02.api.letsencrypt.org"
+  LetsEncryptURLStaging = "https://acme-staging-v02.api.letsencrypt.org"
   Alg = "RS256"
 
 type ACMEAccount* = object
@@ -20,6 +21,7 @@ type ACMEAccount* = object
   session*: HttpSessionRef
   kid*: Opt[string]
   directory: JsonNode
+  acmeServerURL: string
 
 proc new*(
     T: typedesc[ACMEAccount],
@@ -27,13 +29,12 @@ proc new*(
     status: Opt[string] = Opt.none(string),
     contact: Opt[seq[string]] = Opt.none(seq[string]),
     kid: Opt[string] = Opt.none(string),
+    acmeServerURL: string = LetsEncryptURL,
 ): Future[ref ACMEAccount] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
     let session = HttpSessionRef.new()
-    let directoryResponse = await HttpClientRequestRef
-    .get(session, LetsEncryptURL & "/directory")
-    .get()
-    .send()
+    let directoryResponse =
+      await HttpClientRequestRef.get(session, acmeServerURL & "/directory").get().send()
     let directory = bytesToString(await directoryResponse.getBodyBytes()).parseJson()
 
     let acc = new(ACMEAccount)
@@ -43,6 +44,7 @@ proc new*(
     acc.key = key
     acc.session = session
     acc.directory = directory
+    acc.acmeServerURL = acmeServerURL
     return acc
   except HttpError:
     raise newException(ACMEError, "Failed to connect to ACME server")

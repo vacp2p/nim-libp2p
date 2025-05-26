@@ -187,7 +187,7 @@ proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   )
 
 proc withAutoTLSManager*(b: SwitchBuilder): SwitchBuilder {.public.} =
-  b.autoTLSMgr = AutoTLSManager.new(b.rng) # TODO: configs
+  b.autoTLSMgr = AutoTLSManager.new(b.rng)
   b
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =

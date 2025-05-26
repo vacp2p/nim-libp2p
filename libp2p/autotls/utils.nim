@@ -82,7 +82,6 @@ proc thumbprint*(key: KeyPair): string =
   let n = base64UrlEncode(nArray)
   let e = base64UrlEncode(eArray)
   let keyJson = %*{"e": e, "kty": "RSA", "n": n}
-  # TODO: https://www.rfc-editor.org/rfc/rfc7638
   let digest = sha256.digest($keyJson)
   return base64UrlEncode(@(digest.data))
 
