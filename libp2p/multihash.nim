@@ -22,6 +22,7 @@
 ## 2. MURMUR
 
 {.push raises: [].}
+{.used.}
 
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
