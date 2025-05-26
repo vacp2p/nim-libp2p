@@ -4,7 +4,7 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
   libp2p_pubsub_anonymize {.booldefine.} = false
 
-import hashes, random, tables, sets, sequtils, sugar
+import hashes, random, tables, sets, sequtils
 import chronos, results, stew/byteutils, chronos/ratelimit
 import
   ../../libp2p/[
