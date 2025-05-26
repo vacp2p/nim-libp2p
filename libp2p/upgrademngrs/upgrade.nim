@@ -49,7 +49,7 @@ method upgrade*(
 
 method secure*(
     self: Upgrade, conn: Connection, peerId: Opt[PeerId]
-): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
+): Future[Connection] {.base, async: (raises: [CancelledError, LPError]).} =
   if self.secureManagers.len <= 0:
     raise (ref UpgradeFailedError)(msg: "No secure managers registered!")
 

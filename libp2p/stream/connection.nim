@@ -40,7 +40,7 @@ type
 
 proc timeoutMonitor(s: Connection) {.async: (raises: []).}
 
-method shortLog*(conn: Connection): string {.raises: [].} =
+method shortLog*(conn: Connection): string {.gcsafe, base, raises: [].} =
   if conn == nil:
     "Connection(nil)"
   else:

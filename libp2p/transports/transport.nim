@@ -86,7 +86,7 @@ method dial*(
 
 method dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
-): Future[Connection] {.gcsafe.} =
+): Future[Connection] {.base, gcsafe.} =
   self.dial("", address)
 
 method upgrade*(
