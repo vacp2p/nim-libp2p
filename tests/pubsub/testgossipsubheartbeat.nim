@@ -233,9 +233,16 @@ suite "GossipSub Heartbeat":
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
-    const topic = "foobar"
+    const
+      topic = "foobar"
+      historyLength = 3
     let nodes = generateNodes(
-        2, gossip = true, sendIDontWantOnPublish = true, historyLength = 5
+        2,
+        gossip = true,
+        sendIDontWantOnPublish = true,
+        historyLength = historyLength,
+        # longer heartbeat to ensure all messages are sent within one cycle
+        heartbeatInterval = 100.milliseconds,
       )
       .toGossipSub()
 
@@ -245,22 +252,35 @@ suite "GossipSub Heartbeat":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
-    # When Node0 sends 10 messages to the topic
-    const msgCount = 10
+    # Get Node0 as Peer of Node1
+    let peer = nodes[1].mesh[topic].toSeq()[0]
+
+    # Wait to populate IDontWants history
+    waitForCondition(peer.iDontWants.len == historyLength)
+
+    # When Node0 sends 5 messages to the topic 
+    const msgCount = 5
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
-    # Then Node1 receives 10 iDontWant messages from Node0
-    let peer = nodes[1].mesh[topic].toSeq()[0]
+    # Then Node1 receives 5 iDontWant messages from Node0 and saves them in the first element of history
     check:
-      peer.iDontWants[^1].len == msgCount
+      peer.iDontWants[0].len == msgCount
 
-    # When heartbeat happens
-    await waitForHeartbeat()
+    for i in 0 ..< historyLength:
+      # When heartbeat happens
+      # And history moves (new element added at start, last element pruned)  
+      waitForCondition(peer.iDontWants[i].len == 0)
 
-    # Then last element of iDontWants history is pruned
-    check:
-      peer.iDontWants[^1].len == 0
+      let nextIndex = i + 1
+      if nextIndex < historyLength:
+        # Then iDontWant messages are moved to the next element
+        check:
+          peer.iDontWants[i + 1].len == msgCount
+      else:
+        # Until they reach last element and are pruned
+        check:
+          peer.iDontWants[^1].len == 0
 
   asyncTest "sentIHaves history - last element is pruned during heartbeat":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2

@@ -444,7 +444,7 @@ suite "GossipSub Control Messages":
 
     # Then B doesn't relay the message to C.
     checkUntilTimeout:
-      nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants[^1].len == 1)
+      nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants.anyIt(it.len == 1))
 
     # When A sends a message to the topic
     tryPublish await nodes[0].publish(topic, newSeq[byte](10000)), 1
@@ -453,9 +453,9 @@ suite "GossipSub Control Messages":
 
     # Then B sends IDONTWANT to C, but not A
     checkUntilTimeout:
-      toSeq(nodes[2].mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 1)
+      toSeq(nodes[2].mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 1))
     check:
-      toSeq(nodes[0].mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
+      toSeq(nodes[0].mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 0))
 
   asyncTest "IDONTWANT is broadcasted on publish":
     # 2 nodes: A <=> B
@@ -477,7 +477,7 @@ suite "GossipSub Control Messages":
 
     # Then IDONTWANT is sent to B on publish
     checkUntilTimeout:
-      nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants[^1].len == 1)
+      nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants.anyIt(it.len == 1))
 
   asyncTest "IDONTWANT is sent only for 1.2":
     # 3 nodes: A <=> B <=> C (A & C are NOT connected) 
@@ -511,5 +511,5 @@ suite "GossipSub Control Messages":
     # Then B doesn't send IDONTWANT to both A and C (because C.gossipSubVersion == GossipSubCodec_11)
     await waitForHeartbeat()
     check:
-      toSeq(nodeC.mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
-      toSeq(nodeA.mesh.getOrDefault(topic)).anyIt(it.iDontWants[^1].len == 0)
+      toSeq(nodeC.mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 0))
+      toSeq(nodeA.mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 0))

@@ -265,16 +265,16 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
 
 template waitForCondition*(
     condition: untyped,
-    interval: Duration,
-    timeout: Duration,
-    timeoutErrorMessage = "waitForCondition timeout",
+    interval: Duration = 20.milliseconds,
+    timeout: Duration = 500.milliseconds,
+    errorMessage = "waitForCondition timeout",
 ): untyped =
   let maxTime = Moment.now() + timeout
 
   while not condition:
     await sleepAsync(interval)
     if Moment.now() >= maxTime:
-      raise (ref CatchableError)(msg: timeoutErrorMessage)
+      raise (ref CatchableError)(msg: errorMessage)
 
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
