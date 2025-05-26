@@ -52,6 +52,7 @@ type AutoTLSManager* = ref object
   managerLoop: Future[void]
   cert*: Opt[TLSCertificate]
   certExpiry*: Opt[Moment]
+  certReady*: AsyncEvent
   acmeAccount*: ref ACMEAccount
   httpSession: HttpSessionRef
   dnsResolver*: DnsResolver
@@ -88,6 +89,8 @@ proc new*(
     rng: rng,
     managerLoop: nil,
     cert: Opt.none(TLSCertificate),
+    certExpiry: Opt.none(Moment),
+    certReady: newAsyncEvent(),
     acmeAccount: acmeAccount,
     httpSession: HttpSessionRef.new(),
     dnsResolver: dnsResolver,
@@ -191,6 +194,7 @@ method issueCertificate(
     self.certExpiry = Opt.some(asMoment(expiry))
   except TLSStreamProtocolError:
     raise newException(AutoTLSError, "Could not parse downloaded certificates")
+  self.certReady.fire()
 
 proc manageCertificate(
     self: AutoTLSManager

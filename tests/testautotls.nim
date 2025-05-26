@@ -93,9 +93,10 @@ suite "AutoTLS":
 
       await switch.start()
 
-      # wait 10s for cert to be ready
-      # TODO: maybe use asynceventqueue
-      await sleepAsync(10.seconds)
+      # wait for cert to be ready
+      await switch.autoTLSMgr.certReady.wait()
+      # clear since we'll use it again
+      switch.autoTLSMgr.certReady.clear()
 
       # check if challenge was sent (bearer token from peer id auth was set)
       check switch.autoTLSMgr.bearerToken.isSome
@@ -118,16 +119,20 @@ suite "AutoTLS":
       # check if certificate was downloaded and parsed
       check switch.autoTLSMgr.cert.isSome
 
+      if switch.autoTLSMgr.cert.isNone:
+        return
+
       let certBefore = switch.autoTLSMgr.cert.get()
 
       # invalidate certificate
       switch.autoTLSMgr.certExpiry = Opt.some(Moment.now - 2.hours)
       # check cert was invalidated correctly
       check switch.autoTLSMgr.certExpiry.get < Moment.now
-      # wait time for certificate renewal to happen
-      await sleepAsync(10.seconds)
 
-      # check if certificate was renewed
+      # wait for cert to be renewed
+      await switch.autoTLSMgr.certReady.wait()
+
+      # check if certificate was indeed renewed
       check switch.autoTLSMgr.cert.isSome
       let certAfter = switch.autoTLSMgr.cert.get()
       check certBefore != certAfter
