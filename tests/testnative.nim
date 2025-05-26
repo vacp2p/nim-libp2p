@@ -9,23 +9,23 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-# import
-#   testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
-#   testsemaphore, testheartbeat, testfuture
-# 
-# import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
-# 
-# import
-#   testmultibase, testmultihash, testmultiaddress, testcid, testpeerid,
-#   testsigned_envelope, testrouting_record
-# 
-# import
-#   testtcptransport,
-#   testtortransport,
-#   testwstransport,
-#   testquic,
-#   testmemorytransport,
-#   transports/tls/testcertificate
+import
+  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
+  testsemaphore, testheartbeat, testfuture
+
+import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
+
+import
+  testmultibase, testmultihash, testmultiaddress, testcid, testpeerid,
+  testsigned_envelope, testrouting_record
+
+import
+  testtcptransport,
+  testtortransport,
+  testwstransport,
+  testquic,
+  testmemorytransport,
+  transports/tls/testcertificate
 
 import
   testautotls, testnameresolve, testmultistream, testbufferstream, testidentify,
