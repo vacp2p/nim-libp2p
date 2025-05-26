@@ -516,14 +516,13 @@ proc addIDontWantObservers*[T: PubSub](
 
   return allMessages
 
-proc findAndStopPeers*[T: PubSub](
+proc findAndUnsubscribePeers*[T: PubSub](
     nodes: seq[T], peers: seq[PeerId], topic: string, handler: TopicHandler
-) {.async.} =
+) =
   for i in 0 ..< nodes.len:
     let node = nodes[i]
     if peers.anyIt(it == node.peerInfo.peerId):
       node.unsubscribe(topic, voidTopicHandler)
-      await node.stop()
 
 proc clearMCache*[T: PubSub](node: T) =
   node.mcache.msgs.clear()

@@ -98,7 +98,7 @@ suite "GossipSub Heartbeat":
 
     # When peers of Node0 mesh are disconnected
     let peersToDisconnect = node0.mesh[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
-    await findAndStopPeers(nodes, peersToDisconnect, topic, voidTopicHandler)
+    findAndUnsubscribePeers(nodes, peersToDisconnect, topic, voidTopicHandler)
 
     # Then mesh of Node0 is rebalanced and new peers are added
     await waitForHeartbeat()
@@ -217,7 +217,7 @@ suite "GossipSub Heartbeat":
 
     # When all peers but first one of Node0 fanout are disconnected
     let peersToDisconnect = node0.fanout[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
-    await findAndStopPeers(nodes, peersToDisconnect, topic, voidTopicHandler)
+    findAndUnsubscribePeers(nodes, peersToDisconnect, topic, voidTopicHandler)
     await waitForPeersInTable(node0, topic, 1, PeerTableType.Fanout)
 
     # Then Node0 fanout peers are replenished during heartbeat
