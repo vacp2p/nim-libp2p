@@ -253,7 +253,7 @@ suite "GossipSub Heartbeat":
     checkUntilCustomTimeout(timeout, interval):
       peer.iDontWants.len == historyLength
 
-    # When Node0 sends 5 messages to the topic 
+    # When Node0 sends 5 messages to the topic
     const msgCount = 5
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
@@ -317,12 +317,23 @@ suite "GossipSub Heartbeat":
     # When next heartbeat occurs
     # Then IHave is sent and sentIHaves is populated 
     checkUntilCustomTimeout(timeout, interval):
-      peer.sentIHaves[^1].len == 1
+      peer.sentIHaves[0].len == 1
 
-    # Need to clear mCache as node would keep populating sentIHaves
+    # Need to clear mCache as node would keep populating sentIHaves until cache is shifted enough times
     nodes[0].clearMCache()
 
-    # When next heartbeat occurs 
-    # Then last element of sentIHaves history is pruned 
-    checkUntilCustomTimeout(timeout, interval):
-      peer.sentIHaves[^1].len == 0
+    for i in 0 ..< historyLength:
+      # When heartbeat happens
+      # And history moves (new element added at start, last element pruned)
+      checkUntilCustomTimeout(timeout, interval):
+        peer.sentIHaves[i].len == 0
+
+      # Then sentIHaves messages are moved to the next element
+      var expectedHistory = newSeqWith(historyLength, 0)
+      let nextIndex = i + 1
+      if nextIndex < historyLength:
+        expectedHistory[nextIndex] = 1
+
+      # Until they reach last element and are pruned
+      checkUntilCustomTimeout(timeout, interval):
+        peer.sentIHaves.mapIt(it.len) == expectedHistory
