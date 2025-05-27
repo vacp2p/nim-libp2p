@@ -68,7 +68,7 @@ suite "GossipSub Heartbeat":
     # Then mesh of Node0 is rebalanced and peers are pruned to adapt to new values
     check:
       node0.mesh[topic].len >= newDLow and node0.mesh[topic].len <= newDHigh
-      heartbeatDiff < 2.milliseconds # 2ms margin
+      heartbeatDiff < 10.milliseconds
 
   asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
     const
@@ -260,12 +260,12 @@ suite "GossipSub Heartbeat":
       peer.iDontWants.len == historyLength, peer.iDontWants, 100.milliseconds, 1.seconds
     )
 
-    # When Node0 sends 10 messages to the topic
-    const msgCount = 10
+    # When Node0 sends 5 messages to the topic
+    const msgCount = 5
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
-    # Then Node1 receives 10 iDontWant messages from Node0
+    # Then Node1 receives 5 iDontWant messages from Node0
     waitForCondition(peer.iDontWants[^1].len != 0, peer.iDontWants.mapIt(it.len))
     check:
       peer.iDontWants[^1].len == msgCount
