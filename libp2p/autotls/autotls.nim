@@ -59,6 +59,7 @@ type AutoTLSManager* = ref object
   bearerToken*: Opt[string]
   renewCheckTime*: Duration
   renewBufferTime*: Duration
+  acmeServerURL: string
 
 proc checkDNSRecords(
     self: AutoTLSManager, ip4Domain: string, acmeChalDomain: string, retries: int = 5
@@ -83,6 +84,7 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     acmeAccount: ref ACMEAccount = nil,
     dnsResolver: DnsResolver = DnsResolver.new(DefaultDnsServers),
+    acmeServerURL: string = LetsEncryptURL,
 ): AutoTLSManager =
   T(
     rng: rng,
@@ -97,6 +99,7 @@ proc new*(
     bearerToken: Opt.none(string),
     renewCheckTime: DefaultRenewCheckTime,
     renewBufferTime: DefaultRenewBufferTime,
+    acmeServerURL: acmeServerURL,
   )
 
 method issueCertificate(
@@ -203,7 +206,8 @@ proc manageCertificate(
   debug "Registering ACME account"
   if self.acmeAccount.isNil:
     let accountKey = KeyPair.random(PKScheme.RSA, self.rng[]).get()
-    self.acmeAccount = (await ACMEAccount.new(accountKey))
+    self.acmeAccount =
+      (await ACMEAccount.new(accountKey, acmeServerURL = self.acmeServerURL))
   await self.acmeAccount.register()
 
   heartbeat "Certificate Management", self.renewCheckTime:

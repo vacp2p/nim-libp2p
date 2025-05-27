@@ -30,6 +30,7 @@ import
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
+  autotls/acme,
   autotls/autotls,
   nameresolving/nameresolver,
   errors,
@@ -186,8 +187,10 @@ proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
       MemoryTransport.new(upgr)
   )
 
-proc withAutoTLSManager*(b: SwitchBuilder): SwitchBuilder {.public.} =
-  b.autoTLSMgr = AutoTLSManager.new(b.rng)
+proc withAutoTLSManager*(
+    b: SwitchBuilder, acmeServerURL = LetsEncryptURL
+): SwitchBuilder {.public.} =
+  b.autoTLSMgr = AutoTLSManager.new(b.rng, acmeServerURL = acmeServerURL)
   b
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =

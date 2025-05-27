@@ -10,8 +10,8 @@ import ../transports/tls/certificate
 
 # TODO: change staging to actual url
 const
-  LetsEncryptURL = "https://acme-v02.api.letsencrypt.org"
-  LetsEncryptURLStaging = "https://acme-staging-v02.api.letsencrypt.org"
+  LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
+  LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
   Alg = "RS256"
 
 type ACMEAccount* = object

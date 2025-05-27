@@ -33,7 +33,10 @@ import ./helpers
 
 suite "AutoTLS":
   asyncTest "test ACME":
-    let acc = await ACMEAccount.new(KeyPair.random(PKScheme.RSA, newRng()[]).get())
+    let acc = await ACMEAccount.new(
+      KeyPair.random(PKScheme.RSA, newRng()[]).get(),
+      acmeServerURL = LetsEncryptURLStaging,
+    )
     defer:
       checkTrackers()
 
@@ -55,7 +58,7 @@ suite "AutoTLS":
       .withRng(newRng())
       .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
       .withTcpTransport()
-      .withAutoTLSManager()
+      .withAutoTLSManager(acmeServerURL = LetsEncryptURLStaging)
       .withYamux()
       .withNoise()
       .build()
