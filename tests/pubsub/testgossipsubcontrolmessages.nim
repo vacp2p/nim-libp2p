@@ -73,7 +73,7 @@ suite "GossipSub Control Messages":
       iwants.messageIDs.len == 1
       gossipSub.mcache.msgs.len == 1
 
-  asyncTest "handleIWant - Peers with budget should request messages ":
+  asyncTest "handleIWant - peers with budget should request messages":
     let topic = "foobar"
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
