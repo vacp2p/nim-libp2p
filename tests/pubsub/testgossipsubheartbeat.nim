@@ -184,11 +184,13 @@ suite "GossipSub Heartbeat":
 
     # When Node0 sends a message to the topic
     let node0 = nodes[0]
-    tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
+    tryPublish await node0.publish(topic, newSeq[byte](10000)), 2
 
     # Then Node0 fanout peers are populated
     let maxFanoutPeers = node0.parameters.d
-    waitForCondition(node0.fanout.getOrDefault(topic).len, maxFanoutPeers)
+    waitForCondition(
+      node0.fanout.getOrDefault(topic).len == maxFanoutPeers, node0.fanout
+    )
     check:
       node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxFanoutPeers
 
@@ -218,7 +220,7 @@ suite "GossipSub Heartbeat":
 
     # Then Node0 fanout peers are populated 
     let maxFanoutPeers = node0.parameters.d
-    waitForCondition(node0.fanout[topic].len, maxFanoutPeers)
+    waitForCondition(node0.fanout[topic].len == maxFanoutPeers, node0.fanout)
 
     # When all peers but first one of Node0 fanout are disconnected
     let peersToDisconnect = node0.fanout[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
@@ -227,7 +229,7 @@ suite "GossipSub Heartbeat":
     # Then Node0 fanout peers are replenished during heartbeat
     # expecting 10[numberOfNodes] - 1[Node0] - (6[maxFanoutPeers] - 1[first peer not disconnected]) = 4
     let expectedLen = numberOfNodes - 1 - (maxFanoutPeers - 1)
-    waitForCondition(node0.fanout[topic].len, expectedLen)
+    waitForCondition(node0.fanout[topic].len == expectedLen, node0.fanout)
     check:
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
@@ -293,8 +295,8 @@ suite "GossipSub Heartbeat":
       nodes[0].gossipsub[topic].toSeq().filterIt(it notin nodes[0].mesh[topic])[0]
 
     # When next heartbeat occurs
-    # Then IHave is sent and sentIHaves is populated
-    waitForCondition(peer.sentIHaves[^1].len, 1)
+    # Then IHave is sent and sentIHaves is populated 
+    waitForCondition(peer.sentIHaves[^1].len == 1)
 
     # Need to clear mCache as node would keep populating sentIHaves
     nodes[0].clearMCache()
