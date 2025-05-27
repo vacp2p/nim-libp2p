@@ -10,9 +10,10 @@ suite "GossipSub Heartbeat":
     checkTrackers()
 
   asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
-    let
+    const
       numberOfNodes = 10
       topic = "foobar"
+    let
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
       node0 = nodes[0]
 
@@ -38,18 +39,19 @@ suite "GossipSub Heartbeat":
       node0.mesh[topic].len == numberOfNodes - 1
 
     # When DValues of Node0 are updated to lower than defaults
-    let newDLow = 2
-    let newDHigh = 4
-    let newDValues = some(
-      DValues(
-        dLow: some(newDLow),
-        dHigh: some(newDHigh),
-        d: some(3),
-        dLazy: some(3),
-        dScore: some(2),
-        dOut: some(2),
+    const
+      newDLow = 2
+      newDHigh = 4
+      newDValues = some(
+        DValues(
+          dLow: some(newDLow),
+          dHigh: some(newDHigh),
+          d: some(3),
+          dLazy: some(3),
+          dScore: some(2),
+          dOut: some(2),
+        )
       )
-    )
     node0.parameters.applyDValues(newDValues)
 
     # Waiting 2 hearbeats to finish pruning (2 peers first and then 3)
@@ -69,11 +71,12 @@ suite "GossipSub Heartbeat":
       heartbeatDiff < 2.milliseconds # 2ms margin
 
   asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
-    let
+    const
       numberOfNodes = 10
       topic = "foobar"
       dLow = 3
       dHigh = 4
+    let
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
@@ -108,9 +111,10 @@ suite "GossipSub Heartbeat":
       node0.mesh[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
-    let
+    const
       numberOfNodes = 10
       topic = "foobar"
+    let
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
@@ -158,17 +162,17 @@ suite "GossipSub Heartbeat":
     await waitForHeartbeat()
 
     let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
-    let maxOpportunisticGraftsPerHeartbeat = 2
+    const maxOpportunisticGraftsPerHeartbeat = 2
     check:
       actualGrafts.len == maxOpportunisticGraftsPerHeartbeat
       actualGrafts.allIt(it in expectedGrafts)
 
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
-    let
+    const
       numberOfNodes = 10
       topic = "foobar"
-      nodes = generateNodes(numberOfNodes, gossip = true, fanoutTTL = 30.milliseconds)
-        .toGossipSub()
+    let nodes = generateNodes(numberOfNodes, gossip = true, fanoutTTL = 30.milliseconds)
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -194,9 +198,10 @@ suite "GossipSub Heartbeat":
       not node0.fanout.hasKey(topic)
 
   asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
-    let
+    const
       numberOfNodes = 10
       topic = "foobar"
+    let
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
       node0 = nodes[0]
 
@@ -228,12 +233,11 @@ suite "GossipSub Heartbeat":
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
-    let
-      topic = "foobar"
-      nodes = generateNodes(
-          2, gossip = true, sendIDontWantOnPublish = true, historyLength = 5
-        )
-        .toGossipSub()
+    const topic = "foobar"
+    let nodes = generateNodes(
+        2, gossip = true, sendIDontWantOnPublish = true, historyLength = 5
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -261,17 +265,17 @@ suite "GossipSub Heartbeat":
   asyncTest "sentIHaves history - last element is pruned during heartbeat":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
-    let
+    const
       numberOfNodes = 3
       topic = "foobar"
-      nodes = generateNodes(
-          numberOfNodes,
-          gossip = true,
-          historyLength = 3,
-          dValues =
-            some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
-        )
-        .toGossipSub()
+    let nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        historyLength = 3,
+        dValues =
+          some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
