@@ -19,7 +19,6 @@ import
   bio,
   json,
   chronos/apps/http/httpclient
-from std/times import DateTime
 
 import ./acme
 import ./peeridauth
