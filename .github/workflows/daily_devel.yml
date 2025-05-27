@@ -14,4 +14,3 @@ jobs:
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       cpu: "['amd64']"
-      # TODO(nim-libp2p#1409): exclude temporary disabled for windows due to issues with quic
