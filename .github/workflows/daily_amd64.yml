@@ -14,5 +14,6 @@ jobs:
           {'ref': 'version-1-6', 'memory_management': 'refc'}, 
           {'ref': 'version-2-0', 'memory_management': 'refc'}, 
           {'ref': 'version-2-2', 'memory_management': 'refc'},
+          {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       cpu: "['amd64']"

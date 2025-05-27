@@ -14,7 +14,7 @@ jobs:
           {'ref': 'devel', 'memory_management': 'orc'},
         ]"
       cpu: "['amd64']"
-      # nim-libp2p#1409: exclude temporary disabled for windows 
+      # TODO(nim-libp2p#1409): exclude temporary disabled for windows due to issues with quic
       exclude: "[
           {'platform': {'os':'windows'}},
         ]"

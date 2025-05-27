@@ -10,11 +10,11 @@ jobs:
     name: Daily i386 (Linux)
     uses: ./.github/workflows/daily_common.yml
     with:
+       # TODO(nim-libp2p#1410): temporary removed {'ref': 'devel', 'memory_management': 'ocr'},
       nim: "[
           {'ref': 'version-1-6', 'memory_management': 'refc'},
           {'ref': 'version-2-0', 'memory_management': 'refc'},
           {'ref': 'version-2-2', 'memory_management': 'refc'},
-          {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       cpu: "['i386']"
       exclude: "[
