@@ -54,7 +54,7 @@ proc new*(
     raise newException(ACMEError, "Unable to parse JSON")
   except IOError:
     raise newException(ACMEError, "Unable to parse JSON")
-  except Exception as e:
+  except CatchableError as e:
     raise newException(
       ACMEError,
       "Unexpected error occurred while getting ACME server directory: " & e.msg,
@@ -103,7 +103,7 @@ proc signedAcmeRequest(
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
     token.sign(pemPrivKey)
     body = token.toFlattenedJson()
-  except Exception as e:
+  except CatchableError as e:
     raise newException(ACMEError, "could not create JWT: " & e.msg)
   try:
     let response = await HttpClientRequestRef
@@ -162,7 +162,7 @@ proc requestChallenge*(
       let authzResponse =
         await HttpClientRequestRef.get(self.session, authzURL).get().send()
       await authzResponse.getParsedResponseBody()
-    except Exception as e:
+    except CatchableError as e:
       raise newException(ACMEError, "failed to request challenge: " & e.msg)
 
   let challenges = authzResponseBody.getJSONField("challenges")
@@ -190,7 +190,7 @@ proc notifyChallengeCompleted*(
       bytesToString(await completedResponse.getBodyBytes()).parseJson()
   except HttpError:
     raise newException(ACMEError, "Failed to connect to ACME server")
-  except Exception as e:
+  except CatchableError as e:
     raise newException(
       ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
     )
@@ -205,7 +205,7 @@ proc notifyChallengeCompleted*(
       checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
     except HttpError:
       raise newException(ACMEError, "Failed to connect to ACME server")
-    except Exception as e:
+    except CatchableError as e:
       raise newException(
         ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
       )
@@ -262,7 +262,7 @@ proc finalizeCertificate*(
       let checkResponse =
         await HttpClientRequestRef.get(self.session, orderURL).get().send()
       checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
-    except Exception as e:
+    except CatchableError as e:
       raise newException(
         ACMEError, "Unexpected error while finalizing certificate: " & e.msg
       )
@@ -303,7 +303,7 @@ proc downloadCertificate*(
     return (rawCertificate, certificateExpiry)
   except HttpError:
     raise newException(ACMEError, "Failed to connect to ACME server")
-  except Exception as e:
+  except CatchableError as e:
     raise newException(
       ACMEError, "Unexpected error while downloading certificate: " & e.msg
     )

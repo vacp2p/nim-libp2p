@@ -211,7 +211,7 @@ proc manageCertificate(
     if self.cert.isNone or self.certExpiry.isNone:
       try:
         await self.issueCertificate()
-      except Exception as e:
+      except CatchableError as e:
         error "Failed to issue certificate", err = e.msg
         break
 
@@ -221,7 +221,7 @@ proc manageCertificate(
     if waitTime <= self.renewBufferTime:
       try:
         await self.issueCertificate()
-      except Exception as e:
+      except CatchableError as e:
         error "Failed to renew certificate", err = e.msg
         break
 

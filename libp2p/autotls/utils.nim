@@ -62,7 +62,7 @@ proc getParsedResponseBody*(
     return responseBody
   except ValueError, OSError, IOError:
     raise newException(ACMEError, "Unable to parse JSON body")
-  except Exception as e:
+  except CatchableError as e:
     raise newException(
       ACMEError, "Unexpected error occurred while getting body bytes: " & e.msg
     )
