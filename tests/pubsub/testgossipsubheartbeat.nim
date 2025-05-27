@@ -242,7 +242,7 @@ suite "GossipSub Heartbeat":
         sendIDontWantOnPublish = true,
         historyLength = historyLength,
         # longer heartbeat to ensure all messages are sent within one cycle
-        heartbeatInterval = 100.milliseconds,
+        heartbeatInterval = 200.milliseconds,
       )
       .toGossipSub()
 
@@ -272,15 +272,15 @@ suite "GossipSub Heartbeat":
       # And history moves (new element added at start, last element pruned)  
       waitForCondition(peer.iDontWants[i].len == 0)
 
+      # Then iDontWant messages are moved to the next element
+      var expectedHistory = newSeqWith(historyLength, 0)
       let nextIndex = i + 1
       if nextIndex < historyLength:
-        # Then iDontWant messages are moved to the next element
-        check:
-          peer.iDontWants[i + 1].len == msgCount
-      else:
-        # Until they reach last element and are pruned
-        check:
-          peer.iDontWants[^1].len == 0
+        expectedHistory[nextIndex] = msgCount
+
+      # Until they reach last element and are pruned
+      check:
+        peer.iDontWants.mapIt(it.len) == expectedHistory
 
   asyncTest "sentIHaves history - last element is pruned during heartbeat":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
