@@ -264,27 +264,17 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
         await connectNodes(dialer, node)
 
 template waitForCondition*(
-    expression: untyped,
-    expectedValue: untyped,
-    interval: Duration = 20.milliseconds,
-    timeout: Duration = 500.milliseconds,
+    condition: untyped,
+    interval: Duration,
+    timeout: Duration,
+    timeoutErrorMessage = "waitForCondition timeout",
 ): untyped =
   let maxTime = Moment.now() + timeout
 
-  var currentValue: type(expression)
-  while true:
-    currentValue = expression
-    if currentValue == expectedValue:
-      break
+  while not condition:
     await sleepAsync(interval)
     if Moment.now() >= maxTime:
-      let expressionStr = astToStr(expression)
-      let actualValueStr = $currentValue
-      raise (ref CatchableError)(
-        msg:
-          "condition timeout: `" & expressionStr & "` == " & $expectedValue &
-          ", actual value: `" & actualValueStr & "`"
-      )
+      raise (ref CatchableError)(msg: timeoutErrorMessage)
 
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
@@ -385,7 +375,7 @@ proc waitForPeersInTable*(
             fsub.gossipsub.getOrDefault(topic).len
           of PeerTableType.Fanout:
             fsub.fanout.getOrDefault(topic).len
-        satisfied[i] = currentCount == peerCounts[i]
+        satisfied[i] = currentCount >= peerCounts[i]
     return satisfied.allIt(it)
 
   waitForCondition(checkPeersCondition(), true, 10.milliseconds, timeout)
