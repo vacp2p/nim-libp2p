@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[strutils, sequtils, tables]
+import std/[sequtils, tables]
 import chronos
 import
   ../libp2p/[
@@ -35,6 +35,9 @@ const fallbackDnsServers =
 const unixPlatform =
   defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
   defined(netbsd) or defined(openbsd) or defined(dragonfly)
+
+when unixPlatform:
+  import std/strutils
 
 proc guessOsNameServers(): seq[TransportAddress] =
   when unixPlatform:
