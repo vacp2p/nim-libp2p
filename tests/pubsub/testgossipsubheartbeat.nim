@@ -188,7 +188,7 @@ suite "GossipSub Heartbeat":
 
     # Then Node0 fanout peers are populated
     let maxFanoutPeers = node0.parameters.d
-    await waitForPeersInTable(node0, topic, maxFanoutPeers, PeerTableType.Fanout)
+    waitForCondition(node0.fanout.getOrDefault(topic).len, maxFanoutPeers)
     check:
       node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxFanoutPeers
 
@@ -218,18 +218,17 @@ suite "GossipSub Heartbeat":
 
     # Then Node0 fanout peers are populated 
     let maxFanoutPeers = node0.parameters.d
-    await waitForPeersInTable(node0, topic, maxFanoutPeers, PeerTableType.Fanout)
+    waitForCondition(node0.fanout[topic].len, maxFanoutPeers)
 
     # When all peers but first one of Node0 fanout are disconnected
     let peersToDisconnect = node0.fanout[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
     findAndUnsubscribePeers(nodes, peersToDisconnect, topic, voidTopicHandler)
-    await waitForPeersInTable(node0, topic, 1, PeerTableType.Fanout)
 
     # Then Node0 fanout peers are replenished during heartbeat
-    await waitForHeartbeat()
+    # expecting 10[numberOfNodes] - 1[Node0] - (6[maxFanoutPeers] - 1[first peer not disconnected]) = 4
+    let expectedLen = numberOfNodes - 1 - (maxFanoutPeers - 1)
+    waitForCondition(node0.fanout[topic].len, expectedLen)
     check:
-      # expecting 10[numberOfNodes] - 1[Node0] - (6[maxFanoutPeers] - 1[first peer not disconnected]) = 4
-      node0.fanout[topic].len == numberOfNodes - 1 - (maxFanoutPeers - 1)
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
@@ -295,12 +294,7 @@ suite "GossipSub Heartbeat":
 
     # When next heartbeat occurs
     # Then IHave is sent and sentIHaves is populated
-    waitForCondition(
-      peer.sentIHaves[^1].len > 0,
-      10.milliseconds,
-      100.milliseconds,
-      "wait for sentIHaves timeout",
-    )
+    waitForCondition(peer.sentIHaves[^1].len, 1)
 
     # Need to clear mCache as node would keep populating sentIHaves
     nodes[0].clearMCache()
