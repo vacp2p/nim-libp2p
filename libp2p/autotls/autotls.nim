@@ -148,14 +148,20 @@ method issueCertificate(
       self.httpSession,
       peerInfo,
       payload,
+      self.rng,
       bearerToken = self.bearerToken,
     )
     discard bearerToken
   else:
     # authenticate, send challenge and save bearerToken for future requests
-    (bearerToken, response) =
-      await peerIdAuthSend(registrationURL, self.httpSession, peerInfo, payload)
+    (bearerToken, response) = await peerIdAuthSend(
+      registrationURL, self.httpSession, peerInfo, payload, self.rng
+    )
     self.bearerToken = Opt.some(bearerToken)
+  if response.status != 200:
+    raise newException(
+      AutoTLSError, "Failed to authenticate with AutoTLS Broker at " & AutoTLSBroker
+    )
 
   # no need to do anything from this point forward if there are not public ip addresses on host
   var hostPrimaryIP: IpAddress

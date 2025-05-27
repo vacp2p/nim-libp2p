@@ -46,18 +46,17 @@ proc new*(
     acc.directory = directory
     acc.acmeServerURL = acmeServerURL
     return acc
-  except HttpError:
-    raise newException(ACMEError, "Failed to connect to ACME server")
-  except ValueError:
-    raise newException(ACMEError, "Unable to parse JSON")
-  except OSError:
-    raise newException(ACMEError, "Unable to parse JSON")
-  except IOError:
-    raise newException(ACMEError, "Unable to parse JSON")
-  except CatchableError as e:
+  except HttpError as exc:
+    raise newException(ACMEError, "Failed to connect to ACME server", exc)
+  except ValueError as exc:
+    raise newException(ACMEError, "Unable to parse JSON", exc)
+  except OSError as exc:
+    raise newException(ACMEError, "Unable to parse JSON", exc)
+  except IOError as exc:
+    raise newException(ACMEError, "Unable to parse JSON", exc)
+  except CatchableError as exc:
     raise newException(
-      ACMEError,
-      "Unexpected error occurred while getting ACME server directory: " & e.msg,
+      ACMEError, "Unexpected error occurred while getting ACME server directory: ", exc
     )
 
 proc newNonce(

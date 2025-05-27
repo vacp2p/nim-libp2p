@@ -19,6 +19,14 @@ const
   AutoTLSBroker* = "https://registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
 
+proc sampleChar*(ctx: var HmacDrbgContext, choices: string): char =
+  ## Samples a random character from the input string using the DRBG context
+  if choices.len == 0:
+    raise newException(ValueError, "Cannot sample from an empty string")
+  var idx: uint32
+  ctx.generate(idx)
+  return choices[uint32(idx mod uint32(choices.len))]
+
 proc base64UrlEncode*(data: seq[byte]): string =
   ## Encodes data using base64url (RFC 4648 §5) — no padding, URL-safe
   var encoded = base64.encode(data, safe = true)

@@ -1,20 +1,27 @@
-import base64, json, random, strutils
+import base64, json, strutils
 import chronos/apps/http/httpclient, results, chronicles, bio
 import ./utils, ../peerinfo, ../crypto/crypto
 
 logScope:
   topics = "libp2p peerid auth"
 
+const PeerIDAuthPrefix = "libp2p-PeerID"
+const ChallengeCharset =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+const ChallengeDefaultLen = 48
+
 type SigParam = object
   k: string
   v: seq[byte]
 
-proc randomChallenge(): string =
-  randomize()
-  let charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-  result = ""
-  for _ in 0 ..< 48:
-    result.add sample(charset)
+proc randomChallenge(
+    rng: ref HmacDrbgContext, challengeLen: int = ChallengeDefaultLen
+): string =
+  var rng = rng[]
+  var challenge = ""
+  for _ in 0 ..< challengeLen:
+    challenge.add(rng.sampleChar(ChallengeCharset))
+  challenge
 
 proc extractField(data, key: string): string {.raises: [PeerIDAuthError].} =
   # Helper to extract quoted value from key
@@ -38,9 +45,25 @@ proc genDataToSign(prefix: string, parts: seq[SigParam]): seq[byte] =
   var buf: seq[byte] = prefix.toByteSeq()
   for p in parts:
     buf.add encodeVarint(p.k.len + p.v.len + 1)
-    buf.add (p.k & "=").toByteSeq
+    buf.add (p.k & "=").toByteSeq()
     buf.add p.v
   return buf
+
+proc getSigParams(
+    clientSender: bool, hostname: string, challenge: string, publicKey: PublicKey
+): seq[SigParam] =
+  if clientSender:
+    @[
+      SigParam(k: "challenge-client", v: challenge.toByteSeq()),
+      SigParam(k: "hostname", v: hostname.toByteSeq()),
+      SigParam(k: "server-public-key", v: publicKey.getBytes().get()),
+    ]
+  else:
+    @[
+      SigParam(k: "challenge-server", v: challenge.toByteSeq()),
+      SigParam(k: "client-public-key", v: publicKey.getBytes().get()),
+      SigParam(k: "hostname", v: hostname.toByteSeq()),
+    ]
 
 proc peerIdSign(
     privateKey: PrivateKey,
@@ -49,22 +72,8 @@ proc peerIdSign(
     hostname: string,
     clientSender: bool = true,
 ): string =
-  let prefix = "libp2p-PeerID"
-  let parts =
-    # parts need to be sorted alphabetically by key
-    if clientSender:
-      @[
-        SigParam(k: "challenge-client", v: challenge.toByteSeq()),
-        SigParam(k: "hostname", v: hostname.toByteSeq()),
-        SigParam(k: "server-public-key", v: publicKey.getBytes().get()),
-      ]
-    else:
-      @[
-        SigParam(k: "challenge-server", v: challenge.toByteSeq()),
-        SigParam(k: "client-public-key", v: publicKey.getBytes().get()),
-        SigParam(k: "hostname", v: hostname.toByteSeq),
-      ]
-  let bytesToSign = genDataToSign(prefix, parts)
+  let parts = getSigParams(clientSender, hostname, challenge, publicKey)
+  let bytesToSign = genDataToSign(PeerIDAuthPrefix, parts)
   return base64.encode(privateKey.sign(bytesToSign).get().getBytes(), safe = true)
 
 proc checkSignature(
@@ -74,28 +83,26 @@ proc checkSignature(
     clientPublicKey: PublicKey,
     hostname: string,
 ): bool {.raises: [PeerIDAuthError].} =
-  let prefix = "libp2p-PeerID"
-  let parts: seq[SigParam] =
-    @[
-      SigParam(k: "challenge-server", v: challengeServer.toByteSeq()),
-      SigParam(k: "client-public-key", v: clientPublicKey.getBytes().get()),
-      SigParam(k: "hostname", v: hostname.toByteSeq),
-    ]
-  let signedBytes = genDataToSign(prefix, parts)
+  let parts = getSigParams(false, hostname, challengeServer, clientPublicKey)
+  let signedBytes = genDataToSign(PeerIDAuthPrefix, parts)
   var serverSignature: Signature
   try:
-    if not serverSignature.init(base64.decode(serverSig).toByteSeq):
+    if not serverSignature.init(base64.decode(serverSig).toByteSeq()):
       raise newException(
         PeerIDAuthError, "Failed to initialize Signature from base64 encoded sig"
       )
-  except ValueError:
-    raise newException(PeerIDAuthError, "Failed to decode server's signature")
+  except ValueError as exc:
+    raise newException(PeerIDAuthError, "Failed to decode server's signature", exc)
   return serverSignature.verify(
     signedBytes.toOpenArray(0, signedBytes.len - 1), serverPublicKey
   )
 
 proc peerIdAuthenticate(
-    url: string, session: HttpSessionRef, peerInfo: PeerInfo, payload: JsonNode
+    url: string,
+    session: HttpSessionRef,
+    peerInfo: PeerInfo,
+    payload: JsonNode,
+    rng: ref HmacDrbgContext,
 ): Future[(string, HttpClientResponseRef)] {.
     async: (raises: [AutoTLSError, PeerIDAuthError, CancelledError])
 .} =
@@ -107,29 +114,37 @@ proc peerIdAuthenticate(
   var authStartResponse: HttpClientResponseRef
   try:
     authStartResponse = await HttpClientRequestRef.get(session, url).get().send()
-  except HttpError:
-    raise newException(PeerIDAuthError, "Failed to start PeerID Auth")
+  except HttpError as exc:
+    raise newException(PeerIDAuthError, "Failed to start PeerID Auth", exc)
 
   # www-authenticate
-  let wwwAuthenticate = authStartResponse.headers.getString("www-authenticate")
+  let wwwAuthenticate = authStartResponse.headers.getString("Www-Authenticate")
   if wwwAuthenticate == "":
     raise newException(PeerIDAuthError, "www-authenticate not present in response")
   let challengeClient = extractField(wwwAuthenticate, "challenge-client")
+
   var serverPublicKey: PublicKey
   try:
-    serverPublicKey = PublicKey
-      .init(decode(extractField(wwwAuthenticate, "public-key")).toByteSeq)
-      .get()
-  except ValueError:
-    raise newException(PeerIDAuthError, "Could not decode public-key")
+    let res =
+      PublicKey.init(decode(extractField(wwwAuthenticate, "public-key")).toByteSeq())
+    if res.isErr:
+      raise newException(PeerIDAuthError, "Could not initialize public-key")
+    serverPublicKey = res.get()
+  except ValueError as exc:
+    raise newException(PeerIDAuthError, "Could not decode public-key", exc)
+
   let opaque = extractField(wwwAuthenticate, "opaque")
 
   let hostname = "registration." & AutoTLSDNSServer # registration.libp2p.direct
   let clientPubKeyB64 = base64.encode(peerInfo.publicKey.getBytes().get(), safe = true)
-  let challengeServer = randomChallenge()
+  var challengeServer: string
+  try:
+    challengeServer = randomChallenge(rng)
+  except ValueError as exc:
+    raise newException(PeerIDAuthError, "Failed to generate challenge", exc)
   let sig = peerIdSign(peerInfo.privateKey, challengeClient, serverPublicKey, hostname)
   let authHeader =
-    "libp2p-PeerID public-key=\"" & clientPubKeyB64 & "\"" & ", opaque=\"" & opaque &
+    PeerIDAuthPrefix & " public-key=\"" & clientPubKeyB64 & "\"" & ", opaque=\"" & opaque &
     "\"" & ", challenge-server=\"" & challengeServer & "\"" & ", sig=\"" & sig & "\""
 
   # Authorization
@@ -148,8 +163,9 @@ proc peerIdAuthenticate(
     )
     .get()
     .send()
-  except HttpError:
-    raise newException(PeerIDAuthError, "Failed to send Authorization for PeerID Auth")
+  except HttpError as exc:
+    raise
+      newException(PeerIDAuthError, "Failed to send Authorization for PeerID Auth", exc)
 
   # check server's signature
   let serverSig =
@@ -172,14 +188,15 @@ proc peerIdAuthSend*(
     session: HttpSessionRef,
     peerInfo: PeerInfo,
     payload: JsonNode,
+    rng: ref HmacDrbgContext,
     bearerToken: Opt[string] = Opt.none(string),
 ): Future[(string, HttpClientResponseRef)] {.
     async: (raises: [AutoTLSError, PeerIDAuthError, CancelledError])
 .} =
   if bearerToken.isNone:
-    return await peerIdAuthenticate(url, session, peerInfo, payload)
+    return await peerIdAuthenticate(url, session, peerInfo, payload, rng)
 
-  let authHeader = "libp2p-PeerID bearer=\"" & bearerToken.get & "\""
+  let authHeader = PeerIDAuthPrefix & " bearer=\"" & bearerToken.get & "\""
   var response: HttpClientResponseRef
   try:
     response = await HttpClientRequestRef
@@ -190,13 +207,13 @@ proc peerIdAuthSend*(
       headers = [
         ("Content-Type", "application/json"),
         ("User-Agent", "nim-libp2p"),
-        ("authorization", authHeader),
+        ("Authorization", authHeader),
       ],
     )
     .get()
     .send()
-  except HttpError:
+  except HttpError as exc:
     raise newException(
-      PeerIDAuthError, "Failed to send request with bearer token for PeerID Auth"
+      PeerIDAuthError, "Failed to send request with bearer token for PeerID Auth", exc
     )
   return (bearerToken.get, response)
