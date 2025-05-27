@@ -184,12 +184,14 @@ suite "GossipSub Heartbeat":
 
     # When Node0 sends a message to the topic
     let node0 = nodes[0]
-    tryPublish await node0.publish(topic, newSeq[byte](10000)), 2
+    tryPublish await node0.publish(topic, newSeq[byte](10000)), 3
 
     # Then Node0 fanout peers are populated
     let maxFanoutPeers = node0.parameters.d
     waitForCondition(
-      node0.fanout.getOrDefault(topic).len == maxFanoutPeers, node0.fanout
+      node0.fanout.getOrDefault(topic).len == maxFanoutPeers,
+      node0.fanout,
+      timeout = 1.seconds,
     )
     check:
       node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxFanoutPeers
