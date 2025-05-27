@@ -234,9 +234,15 @@ suite "GossipSub Heartbeat":
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
-    const topic = "foobar"
+    const
+      topic = "foobar"
+      historyLength = 5
     let nodes = generateNodes(
-        2, gossip = true, sendIDontWantOnPublish = true, historyLength = 5
+        2,
+        gossip = true,
+        sendIDontWantOnPublish = true,
+        historyLength = historyLength,
+        heartbeatInterval = 200.milliseconds,
       )
       .toGossipSub()
 
@@ -246,18 +252,26 @@ suite "GossipSub Heartbeat":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     await waitForHeartbeat()
 
+    # Get Node0 as Peer of Node1 
+    let peer = nodes[1].mesh[topic].toSeq()[0]
+
+    # Wait for history to populate
+    waitForCondition(
+      peer.iDontWants.len == historyLength, peer.iDontWants, 100.milliseconds, 1.seconds
+    )
+
     # When Node0 sends 10 messages to the topic
     const msgCount = 10
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Then Node1 receives 10 iDontWant messages from Node0
-    let peer = nodes[1].mesh[topic].toSeq()[0]
+    waitForCondition(peer.iDontWants[^1].len != 0, peer.iDontWants.mapIt(it.len))
     check:
       peer.iDontWants[^1].len == msgCount
 
     # When heartbeat happens
-    await waitForHeartbeat()
+    waitForCondition(peer.iDontWants[^1].len == 0, peer.iDontWants.mapIt(it.len))
 
     # Then last element of iDontWants history is pruned
     check:
