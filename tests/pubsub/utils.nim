@@ -298,9 +298,9 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
     (fsub.gossipsub.hasKey(key) and fsub.gossipsub.hasPeerId(key, peerId)) or
       (fsub.mesh.hasKey(key) and fsub.mesh.hasPeerId(key, peerId)) or
       (fsub.fanout.hasKey(key) and fsub.fanout.hasPeerId(key, peerId)),
+    true,
     5.milliseconds,
     5.seconds,
-    "waitSub timeout!",
   )
 
 proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
@@ -334,9 +334,7 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
 
     return ok == nodes.len
 
-  waitForCondition(
-    isGraphConnected(), 10.milliseconds, 5.seconds, "waitSubGraph timeout!"
-  )
+  waitForCondition(isGraphConnected(), true, 10.milliseconds, 5.seconds)
 
 proc waitForMesh*(
     sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
@@ -350,9 +348,9 @@ proc waitForMesh*(
 
   waitForCondition(
     gossipsubSender.mesh.hasPeerId(key, receiverPeerId),
+    true,
     5.milliseconds,
     timeoutDuration,
-    "waitForMesh timeout!",
   )
 
 type PeerTableType* {.pure.} = enum
@@ -390,12 +388,7 @@ proc waitForPeersInTable*(
         satisfied[i] = currentCount == peerCounts[i]
     return satisfied.allIt(it)
 
-  waitForCondition(
-    checkPeersCondition(),
-    10.milliseconds,
-    timeout,
-    "Timeout waiting for peer counts in " & $table & " for topic " & topic,
-  )
+  waitForCondition(checkPeersCondition(), true, 10.milliseconds, timeout)
 
 proc waitForPeersInTable*(
     node: auto, topic: string, peerCount: int, table: PeerTableType, timeout = 1.seconds
