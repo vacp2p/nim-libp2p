@@ -1,11 +1,10 @@
 {.used.}
 
 import std/[sequtils]
-import stew/byteutils
 import utils
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../helpers, ../utils/[futures]
+import ../helpers
 
 suite "GossipSub Control Messages":
   teardown:
@@ -455,7 +454,7 @@ suite "GossipSub Control Messages":
     checkUntilTimeout:
       toSeq(nodes[2].mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 1))
     check:
-      toSeq(nodes[0].mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 0))
+      toSeq(nodes[0].mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
 
   asyncTest "IDONTWANT is broadcasted on publish":
     # 2 nodes: A <=> B
@@ -511,5 +510,5 @@ suite "GossipSub Control Messages":
     # Then B doesn't send IDONTWANT to both A and C (because C.gossipSubVersion == GossipSubCodec_11)
     await waitForHeartbeat()
     check:
-      toSeq(nodeC.mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 0))
-      toSeq(nodeA.mesh.getOrDefault(topic)).anyIt(it.iDontWants.anyIt(it.len == 0))
+      toSeq(nodeC.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
+      toSeq(nodeA.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
