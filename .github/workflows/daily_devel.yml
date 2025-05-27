@@ -14,3 +14,7 @@ jobs:
           {'ref': 'devel', 'memory_management': 'orc'},
         ]"
       cpu: "['amd64']"
+      # nim-libp2p#1409: exclude temporary disabled for windows 
+      exclude: "[
+          {'platform': {'os':'windows'}},
+        ]"
