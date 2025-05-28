@@ -266,30 +266,6 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await connectNodes(dialer, node)
 
-template waitForCondition*(
-    condition: untyped,
-    actualValueExpression: untyped = nil,
-    interval: Duration = 20.milliseconds,
-    timeout: Duration = 500.milliseconds,
-): untyped =
-  let maxTime = Moment.now() + timeout
-
-  while not condition:
-    await sleepAsync(interval)
-
-    if Moment.now() >= maxTime:
-      let conditionStr = astToStr(condition)
-      var errorMessage = "Wait for `" & conditionStr & "` timeout"
-
-      when astToStr(actualValueExpression) != "nil":
-        var currentValue: type(actualValueExpression)
-        currentValue = actualValueExpression
-        var details =
-          " (`" & astToStr(actualValueExpression) & "`: " & $currentValue & ")"
-        errorMessage &= details
-
-      raise newException(CatchableError, errorMessage)
-
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
     return
@@ -298,13 +274,10 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
 
   # this is for testing purposes only
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  waitForCondition(
+  checkUntilCustomTimeout(5.seconds, 20.milliseconds):
     (fsub.gossipsub.hasKey(key) and fsub.gossipsub.hasPeerId(key, peerId)) or
       (fsub.mesh.hasKey(key) and fsub.mesh.hasPeerId(key, peerId)) or
-      (fsub.fanout.hasKey(key) and fsub.fanout.hasPeerId(key, peerId)),
-    interval = 5.milliseconds,
-    timeout = 5.seconds,
-  )
+      (fsub.fanout.hasKey(key) and fsub.fanout.hasPeerId(key, peerId))
 
 proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
   let numberOfNodes = nodes.len
@@ -337,7 +310,8 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
 
     return ok == nodes.len
 
-  waitForCondition(isGraphConnected(), interval = 10.milliseconds, timeout = 5.seconds)
+  checkUntilCustomTimeout(5.seconds, 20.milliseconds):
+    isGraphConnected()
 
 proc waitForMesh*(
     sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
@@ -349,11 +323,8 @@ proc waitForMesh*(
     gossipsubSender = GossipSub(sender)
     receiverPeerId = receiver.peerInfo.peerId
 
-  waitForCondition(
-    gossipsubSender.mesh.hasPeerId(key, receiverPeerId),
-    interval = 5.milliseconds,
-    timeout = timeoutDuration,
-  )
+  checkUntilCustomTimeout(timeoutDuration, 20.milliseconds):
+    gossipsubSender.mesh.hasPeerId(key, receiverPeerId)
 
 type PeerTableType* {.pure.} = enum
   Gossipsub = "gossipsub"
@@ -390,7 +361,8 @@ proc waitForPeersInTable*(
         satisfied[i] = currentCount >= peerCounts[i]
     return satisfied.allIt(it)
 
-  waitForCondition(checkPeersCondition(), interval = 10.milliseconds, timeout = timeout)
+  checkUntilCustomTimeout(timeout, 20.milliseconds):
+    checkPeersCondition()
 
 proc waitForPeersInTable*(
     node: auto, topic: string, peerCount: int, table: PeerTableType, timeout = 1.seconds
