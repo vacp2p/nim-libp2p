@@ -15,26 +15,16 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - id: nimbus
+          - secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
             repository: status-im/nimbus-eth2
             ref: unstable
-          - id: nwaku
+          - secret: ACTIONS_GITHUB_TOKEN_NWAKU
             repository: waku-org/nwaku
             ref: master
-          - id: codex
+          - secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
             repository: codex-storage/nim-codex
             ref: master
     steps:
-      - name: Set secret based on matrix target
-        run: |
-          if [ "${{ matrix.target.id }}" = "nimbus" ]; then
-            echo "REPO_TOKEN=${{ secrets.ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2 }}" >> $GITHUB_ENV
-          elif [ "${{ matrix.target.id }}" = "nwaku" ]; then
-            echo "REPO_TOKEN=${{ secrets.ACTIONS_GITHUB_TOKEN_NWAKU }}" >> $GITHUB_ENV
-          elif [ "${{ matrix.target.id }}" = "codex" ]; then
-            echo "REPO_TOKEN=${{ secrets.ACTIONS_GITHUB_TOKEN_NIM_CODEX }}" >> $GITHUB_ENV
-          fi
-
       - name: Clone target repository
         uses: actions/checkout@v4
         with:
@@ -42,7 +32,7 @@ jobs:
           ref: ${{ matrix.target.ref}}
           path: nbc
           fetch-depth: 0
-          token: ${{ env.REPO_TOKEN }}
+          token: ${{ secrets[matrix.target.secret] }}
 
       - name: Checkout this ref in target repository
         run: |
