@@ -63,6 +63,7 @@ type AutoTLSManager* = ref object
   renewBufferTime*: Duration
   acmeServerURL: string
   keyAuthorization*: Opt[string]
+  ipAddress: Opt[IpAddress]
 
 proc new*(
     T: typedesc[AutoTLSManager],
@@ -70,6 +71,7 @@ proc new*(
     acmeAccount: ref ACMEAccount = nil,
     dnsResolver: DnsResolver = DnsResolver.new(DefaultDnsServers),
     acmeServerURL: string = LetsEncryptURL,
+    ipAddress: Opt[IpAddress] = Opt.none(IpAddress),
 ): AutoTLSManager =
   T(
     rng: rng,
@@ -86,6 +88,7 @@ proc new*(
     renewBufferTime: DefaultRenewBufferTime,
     acmeServerURL: acmeServerURL,
     keyAuthorization: Opt.none(string),
+    ipAddress: ipAddress,
   )
 
 proc checkDNSRecords(
@@ -172,11 +175,11 @@ method issueCertificate(
   # no need to do anything from this point forward if there are not public ip addresses on host
   var hostPrimaryIP: IpAddress
   try:
-    hostPrimaryIP = getPrimaryIPAddr()
+    hostPrimaryIP = self.ipAddress.get(getPrimaryIPAddr())
     if not isPublicIPv4(hostPrimaryIP):
       raise newException(AutoTLSError, "Host does not have a public IPv4 address")
-  except Exception:
-    raise newException(AutoTLSError, "Failed to get primary IP address for host")
+  except Exception as exc:
+    raise newException(AutoTLSError, "Failed to get primary IP address for host", exc)
 
   debug "Waiting for DNS record to be set"
 
