@@ -141,6 +141,7 @@ suite "GossipSub Gossip Protocol":
       topic = "foobar"
       dValues = DValues(dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1))
       nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
+        .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -152,19 +153,17 @@ suite "GossipSub Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(
-      nodes, topic, newSeqWith(numberOfNodes, 4), PeerTableType.Gossipsub
-    )
+
+    checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     # When node 0 sends a message
-    check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
-    await waitForHeartbeat()
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
     # At least one of the nodes should have received an iHave message
     # The check is made this way because the mesh structure changes from run to run
-    let receivedIHaves = messages[].mapIt(it[].len)
-    check:
-      anyIt(receivedIHaves, it > 0)
+    checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+      messages[].mapIt(it[].len).anyIt(it > 0)
 
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
     let
