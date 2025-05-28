@@ -6,6 +6,7 @@ author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
 skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
+# test
 
 requires "nim >= 1.6.0",
   "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
