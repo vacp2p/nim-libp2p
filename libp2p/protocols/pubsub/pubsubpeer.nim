@@ -402,7 +402,7 @@ proc sendMsg(
     sendMsgSlow(p, msg)
 
 proc sendEncoded*(
-    p: PubSubPeer, msg: seq[byte], isHighPriority: bool, useCustomConn: bool
+    p: PubSubPeer, msg: seq[byte], isHighPriority: bool, useCustomConn: bool = false
 ): Future[void] =
   ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
   ##
