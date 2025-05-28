@@ -4,6 +4,11 @@ name: Daily Common
 on:
   workflow_call:
     inputs:
+      pinned_deps:
+        description: 'Should dependencies be installed from pinned file or use head'
+        required: false
+        type: boolean
+        default: false
       nim:
         description: 'Nim Configuration'
         required: true
@@ -73,7 +78,13 @@ jobs:
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
         
-      - name: Install dependencies
+      - name: Install dependencies (pinned)
+        if: ${{ inputs.pinned_deps }}
+        run: |
+          nimble install_pinned
+
+      - name: Install dependencies (head)
+        if: ${{ inputs.pinned_deps != 'true' }}
         run: |
           nimble install -y --depsOnly
 
