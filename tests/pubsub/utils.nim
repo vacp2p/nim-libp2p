@@ -185,6 +185,7 @@ proc generateNodes*(
     gossipFactor: Option[float] = float.none(),
     opportunisticGraftThreshold: float = 0.0,
     historyLength = 20,
+    historyGossip = 5,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -205,7 +206,7 @@ proc generateNodes*(
             p.heartbeatInterval = heartbeatInterval
             p.floodPublish = floodPublish
             p.historyLength = historyLength
-            p.historyGossip = 20
+            p.historyGossip = historyGossip
             p.unsubscribeBackoff = unsubscribeBackoff
             p.pruneBackoff = pruneBackoff
             p.fanoutTTL = fanoutTTL
