@@ -38,9 +38,9 @@ suite "GossipSub Heartbeat":
     for i in 1 ..< numberOfNodes:
       await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat(heartbeatInterval)
-    check:
-      node0.mesh[topic].len == numberOfNodes - 1
+
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
+      node0.mesh.getOrDefault(topic).len == numberOfNodes - 1
 
     # When DValues of Node0 are updated to lower than defaults
     const
@@ -100,19 +100,16 @@ suite "GossipSub Heartbeat":
     for i in 1 ..< numberOfNodes:
       await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat(heartbeatInterval)
 
-    check:
-      node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
+      node0.mesh.getOrDefault(topic).len >= dLow and
+        node0.mesh.getOrDefault(topic).len <= dHigh
 
     # When peers of Node0 mesh are disconnected
     let peersToDisconnect = node0.mesh[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
     findAndUnsubscribePeers(nodes, peersToDisconnect, topic, voidTopicHandler)
 
-    # Then mesh of Node0 is rebalanced and new peers are added
-    await waitForHeartbeat(heartbeatInterval)
-
-    check:
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
       node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
       node0.mesh[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
@@ -202,17 +199,11 @@ suite "GossipSub Heartbeat":
 
     # Then Node0 fanout peers are populated
     let maxFanoutPeers = node0.parameters.d
-    waitForCondition(
-      node0.fanout.getOrDefault(topic).len == maxFanoutPeers,
-      node0.fanout,
-      timeout = 1.seconds,
-    )
-    check:
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
       node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxFanoutPeers
 
     # And after heartbeat Node0 fanout peers are dropped (because fanoutTTL < heartbeatInterval)
-    await waitForHeartbeat(heartbeatInterval)
-    check:
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
       not node0.fanout.hasKey(topic)
 
   asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
@@ -240,7 +231,8 @@ suite "GossipSub Heartbeat":
 
     # Then Node0 fanout peers are populated 
     let maxFanoutPeers = node0.parameters.d
-    waitForCondition(node0.fanout[topic].len == maxFanoutPeers, node0.fanout)
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
+      node0.fanout[topic].len == maxFanoutPeers
 
     # When all peers but first one of Node0 fanout are disconnected
     let peersToDisconnect = node0.fanout[topic].toSeq()[1 .. ^1].mapIt(it.peerId)
@@ -249,8 +241,8 @@ suite "GossipSub Heartbeat":
     # Then Node0 fanout peers are replenished during heartbeat
     # expecting 10[numberOfNodes] - 1[Node0] - (6[maxFanoutPeers] - 1[first peer not disconnected]) = 4
     let expectedLen = numberOfNodes - 1 - (maxFanoutPeers - 1)
-    waitForCondition(node0.fanout[topic].len == expectedLen, node0.fanout)
-    check:
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
+      node0.fanout[topic].len == expectedLen
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
@@ -277,9 +269,8 @@ suite "GossipSub Heartbeat":
     let peer = nodes[1].mesh[topic].toSeq()[0]
 
     # Wait for history to populate
-    waitForCondition(
-      peer.iDontWants.len == historyLength, peer.iDontWants, 100.milliseconds, 1.seconds
-    )
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
+      peer.iDontWants.len == historyLength
 
     # When Node0 sends 5 messages to the topic
     const msgCount = 5
@@ -287,15 +278,12 @@ suite "GossipSub Heartbeat":
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Then Node1 receives 5 iDontWant messages from Node0
-    waitForCondition(peer.iDontWants[^1].len != 0, peer.iDontWants.mapIt(it.len))
-    check:
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
       peer.iDontWants[^1].len == msgCount
 
     # When heartbeat happens
-    waitForCondition(peer.iDontWants[^1].len == 0, peer.iDontWants.mapIt(it.len))
-
     # Then last element of iDontWants history is pruned
-    check:
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
       peer.iDontWants[^1].len == 0
 
   asyncTest "sentIHaves history - last element is pruned during heartbeat":
@@ -328,23 +316,21 @@ suite "GossipSub Heartbeat":
       nodes[0].gossipsub[topic].toSeq().filterIt(it notin nodes[0].mesh[topic])[0]
 
     # Wait for history to populate
-    waitForCondition(
-      peer.sentIHaves.len == historyLength, peer.sentIHaves, 100.milliseconds, 1.seconds
-    )
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
+      peer.sentIHaves.len == historyLength
 
     # When Node0 sends a messages to the topic
     tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # When next heartbeat occurs
     # Then IHave is sent and sentIHaves is populated 
-    waitForCondition(peer.sentIHaves[^1].len == 1)
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
+      peer.sentIHaves[^1].len == 1
 
     # Need to clear mCache as node would keep populating sentIHaves
     nodes[0].clearMCache()
 
     # When next heartbeat occurs 
-    await waitForHeartbeat(heartbeatInterval)
-
     # Then last element of sentIHaves history is pruned 
-    check:
+    checkUntilCustomTimeout(1.seconds, 50.milliseconds):
       peer.sentIHaves[^1].len == 0
