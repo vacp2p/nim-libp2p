@@ -28,7 +28,7 @@ proc extractField(data, key: string): string {.raises: [PeerIDAuthError].} =
   for segment in data.split(","):
     if key in segment:
       return segment.split("=", 1)[1].strip(chars = {' ', '"'})
-  raise newException(PeerIDAuthError, "Could not find " & key & " in " & data)
+  raise newException(PeerIDAuthError, "Failed to find " & key & " in " & data)
 
 proc encodeVarint(n: int): seq[byte] =
   var varInt: seq[byte] = @[]
@@ -128,15 +128,22 @@ proc peerIdAuthenticate(
     let res =
       PublicKey.init(decode(extractField(wwwAuthenticate, "public-key")).toByteSeq())
     if res.isErr:
-      raise newException(PeerIDAuthError, "Could not initialize public-key")
+      raise newException(PeerIDAuthError, "Failed to initialize public-key")
     serverPublicKey = res.get()
   except ValueError as exc:
-    raise newException(PeerIDAuthError, "Could not decode public-key", exc)
+    raise newException(PeerIDAuthError, "Failed to decode public-key", exc)
 
   let opaque = extractField(wwwAuthenticate, "opaque")
 
-  let hostname = "registration." & AutoTLSDNSServer # registration.libp2p.direct
-  let clientPubKeyB64 = base64.encode(peerInfo.publicKey.getBytes().get(), safe = true)
+  let hostname = AutoTLSBroker # registration.libp2p.direct
+  var publicKeyBytes: seq[byte]
+  try:
+    publicKeyBytes = peerInfo.publicKey.getBytes().get()
+  except ValueError as exc:
+    raise newException(
+      PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey", exc
+    )
+  let clientPubKeyB64 = base64.encode(publicKeyBytes, safe = true)
   var challengeServer: string
   try:
     challengeServer = randomChallenge(rng)

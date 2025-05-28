@@ -16,8 +16,10 @@ type ACMEError* = object of AutoTLSError
 type PeerIDAuthError* = object of AutoTLSError
 
 const
-  AutoTLSBroker* = "https://registration.libp2p.direct"
+  AutoTLSBroker* = "registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
+  HttpOk* = 200
+  HttpCreated* = 201
 
 proc sampleChar*(ctx: var HmacDrbgContext, choices: string): char =
   ## Samples a random character from the input string using the DRBG context

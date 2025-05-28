@@ -8,11 +8,15 @@ import ../crypto/rsa
 import ../transports/tls/certificate_ffi
 import ../transports/tls/certificate
 
-# TODO: change staging to actual url
 const
   LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
   LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
   Alg = "RS256"
+  DefaultChalCompletedRetries = 10
+  DefaultChalCompletedRetryTime = 1.seconds
+  DefaultFinalizeRetries = 10
+  DefaultFinalizeRetryTimes = 1.seconds
+  DefaultRandStringSize = 256
 
 type ACMEAccount* = object
   status*: Opt[string]
@@ -103,7 +107,7 @@ proc signedAcmeRequest(
     token.sign(pemPrivKey)
     body = token.toFlattenedJson()
   except CatchableError as e:
-    raise newException(ACMEError, "could not create JWT: " & e.msg)
+    raise newException(ACMEError, "Failed to create JWT: " & e.msg)
   try:
     let response = await HttpClientRequestRef
     .post(
@@ -128,7 +132,7 @@ proc register*(self: ref ACMEAccount) {.async: (raises: [ACMEError, CancelledErr
   let newAccountURL = self.directory.getJSONField("newAccount").getStr
   let response = await self.signedAcmeRequest(newAccountURL, payload, needsJwk = true)
   let jsonResponseBody = await response.getParsedResponseBody()
-  if response.status != 201:
+  if response.status != HttpCreated:
     raise newException(
       ACMEError, "Unable to register with ACME server: " & $jsonResponseBody
     )
@@ -162,7 +166,7 @@ proc requestChallenge*(
         await HttpClientRequestRef.get(self.session, authzURL).get().send()
       await authzResponse.getParsedResponseBody()
     except CatchableError as e:
-      raise newException(ACMEError, "failed to request challenge: " & e.msg)
+      raise newException(ACMEError, "Failed to request challenge: " & e.msg)
 
   let challenges = authzResponseBody.getJSONField("challenges")
   var dns01: JsonNode = nil
@@ -176,11 +180,11 @@ proc requestChallenge*(
   return (dns01, finalizeURL, orderURL)
 
 proc notifyChallengeCompleted*(
-    self: ref ACMEAccount, chalURL: string, retries: int = 5
+    self: ref ACMEAccount, chalURL: string, retries: int = DefaultChalCompletedRetries
 ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
   let emptyPayload = newJObject()
   let completedResponse = await self.signedAcmeRequest(chalURL, emptyPayload)
-  if completedResponse.status != 200:
+  if completedResponse.status != HttpOk:
     return false
 
   var completedResponseBody: JsonNode
@@ -201,21 +205,22 @@ proc notifyChallengeCompleted*(
     try:
       let checkResponse =
         await HttpClientRequestRef.get(self.session, checkURL).get().send()
+      if checkResponse.status != HttpOk:
+        raise newException(ACMEError, "Failed to check challenge completion")
       checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
     except HttpError:
       raise newException(ACMEError, "Failed to connect to ACME server")
-    except CatchableError as e:
+    except CatchableError as exc:
       raise newException(
-        ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
+        ACMEError, "Unexpected error while signaling challenge completion", exc
       )
     case checkResponseBody.getJSONField("status").getStr
     of "pending":
-      discard # try again
+      await sleepAsync(DefaultChalCompletedRetryTime) # try again after some delay
     of "valid":
       return true
     else:
       return false
-    await sleepAsync(1.seconds)
 
   return false
 
@@ -224,20 +229,16 @@ proc finalizeCertificate*(
     domain: string,
     finalizeURL: string,
     orderURL: string,
-    retries: int = 5,
+    retries: int = DefaultFinalizeRetries,
 ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
   var certKey: cert_key_t
   var certCtx: cert_context_t
   var derCSR: ptr cert_buffer = nil
 
-  # TODO: use secure method
-  var randomCstring: cstring
-  try:
-    randomCstring = urandomToCString(256)
-  except:
-    raise newException(ACMEError, "Failed to generate random string")
-
-  if cert_init_drbg(randomCstring, 256, certCtx.addr) != CERT_SUCCESS:
+  let personalizationStr = "libp2p_autotls"
+  if cert_init_drbg(
+    personalizationStr.cstring, personalizationStr.len.csize_t, certCtx.addr
+  ) != CERT_SUCCESS:
     raise newException(ACMEError, "Failed to initialize certCtx")
   if cert_generate_key(certCtx, certKey.addr) != CERT_SUCCESS:
     raise newException(ACMEError, "Failed to generate cert key")
@@ -250,7 +251,7 @@ proc finalizeCertificate*(
 
   # send finalize request
   let finalizedResponse = await self.signedAcmeRequest(finalizeURL, payload)
-  if finalizedResponse.status != 200:
+  if finalizedResponse.status != HttpOk:
     raise newException(ACMEError, "Failed to request cert finalization")
 
   # keep checking order until it's finalized
@@ -271,10 +272,9 @@ proc finalizeCertificate*(
     of "valid":
       return true
     of "processing":
-      discard # keep trying
+      await sleepAsync(DefaultFinalizeRetryTimes) # try again after some delay
     else:
       return false
-    await sleepAsync(1.seconds)
 
   return false
 
@@ -285,7 +285,7 @@ proc downloadCertificate*(
     let downloadResponse =
       await HttpClientRequestRef.get(self.session, orderURL).get().send()
 
-    if downloadResponse.status != 200:
+    if downloadResponse.status != HttpOk:
       raise newException(ACMEError, "Failed to download certificate")
 
     let certificateInfoBody =

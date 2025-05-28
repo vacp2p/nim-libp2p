@@ -41,6 +41,8 @@ const
     ]
   DefaultRenewCheckTime = 1.hours
   DefaultRenewBufferTime = 1.hours
+  DefaultDnsRetries = 10
+  DefaultDnsRetryTime = 1.seconds
 
 type SigParam = object
   k: string
@@ -48,7 +50,7 @@ type SigParam = object
 
 type AutoTLSManager* = ref object
   rng: ref HmacDrbgContext
-  managerLoop: Future[void]
+  managerFut: Future[void]
   cert*: Opt[TLSCertificate]
   certExpiry*: Opt[Moment]
   certReady*: AsyncEvent
@@ -60,24 +62,7 @@ type AutoTLSManager* = ref object
   renewCheckTime*: Duration
   renewBufferTime*: Duration
   acmeServerURL: string
-
-proc checkDNSRecords(
-    self: AutoTLSManager, ip4Domain: string, acmeChalDomain: string, retries: int = 5
-): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  var txt: seq[string]
-  var ip4: seq[TransportAddress]
-
-  for _ in 0 .. retries:
-    txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
-    try:
-      ip4 = await self.dnsResolver.resolveIp(ip4Domain, 0.Port)
-    except:
-      raise newException(AutoTLSError, "Failed to resolve IP")
-    if txt.len > 0 and txt[0] != "not set yet" and ip4.len > 0:
-      return true
-    await sleepAsync(1.seconds)
-
-  return false
+  keyAuthorization*: Opt[string]
 
 proc new*(
     T: typedesc[AutoTLSManager],
@@ -88,7 +73,7 @@ proc new*(
 ): AutoTLSManager =
   T(
     rng: rng,
-    managerLoop: nil,
+    managerFut: nil,
     cert: Opt.none(TLSCertificate),
     certExpiry: Opt.none(Moment),
     certReady: newAsyncEvent(),
@@ -100,16 +85,36 @@ proc new*(
     renewCheckTime: DefaultRenewCheckTime,
     renewBufferTime: DefaultRenewBufferTime,
     acmeServerURL: acmeServerURL,
+    keyAuthorization: Opt.none(string),
   )
+
+proc checkDNSRecords(
+    self: AutoTLSManager,
+    ip4Domain: string,
+    acmeChalDomain: string,
+    retries: int = DefaultDnsRetries,
+): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
+  var txt: seq[string]
+  var ip4: seq[TransportAddress]
+
+  for _ in 0 .. retries:
+    txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
+    try:
+      ip4 = await self.dnsResolver.resolveIp(ip4Domain, 0.Port)
+    except CatchableError as exc:
+      error "Failed to resolve IP" # retry
+    if txt.len > 0 and self.keyAuthorization.isSome and
+        txt[0] == self.keyAuthorization.get() and ip4.len > 0:
+      return true
+    await sleepAsync(DefaultDnsRetryTime)
+
+  return false
 
 method issueCertificate(
     self: AutoTLSManager
 ): Future[void] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
   trace "Issuing new certificate"
-  var peerInfo: PeerInfo
-  try:
-    peerInfo = self.peerInfo.get
-  except:
+  let peerInfo = self.peerInfo.valueOr:
     raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
 
   # generate autotls domain string: "*.{peerID}.libp2p.direct"
@@ -117,18 +122,20 @@ method issueCertificate(
   let baseDomain = base36PeerId & "." & AutoTLSDNSServer
   let domain = "*." & baseDomain
 
-  debug "Requesting ACME challenge"
+  trace "Requesting ACME challenge"
   let (dns01Challenge, finalizeURL, orderURL) =
     await self.acmeAccount.requestChallenge(@[domain])
 
-  let keyAuthorization = base64UrlEncode(
-    @(
-      sha256.digest(
-        (
-          dns01Challenge.getJSONField("token").getStr & "." &
-          thumbprint(self.acmeAccount.key)
-        ).toByteSeq
-      ).data
+  self.keyAuthorization = Opt.some(
+    base64UrlEncode(
+      @(
+        sha256.digest(
+          (
+            dns01Challenge.getJSONField("token").getStr & "." &
+            thumbprint(self.acmeAccount.key)
+          ).toByteSeq
+        ).data
+      )
     )
   )
 
@@ -136,14 +143,14 @@ method issueCertificate(
   for ma in peerInfo.addrs:
     strMultiaddresses.add($ma)
 
-  let payload = %*{"value": keyAuthorization, "addresses": strMultiaddresses}
-  let registrationURL = AutoTLSBroker & "/v1/_acme-challenge"
+  let payload = %*{"value": self.keyAuthorization.get(), "addresses": strMultiaddresses}
+  let registrationURL = "https://" & AutoTLSBroker & "/v1/_acme-challenge"
 
-  debug "Sending challenge to AutoTLS broker"
+  trace "Sending challenge to AutoTLS broker"
   var response: HttpClientResponseRef
   var bearerToken: string
   if self.bearerToken.isSome:
-    (bearerToken, response) = await peerIdAuthSend(
+    (_, response) = await peerIdAuthSend(
       registrationURL,
       self.httpSession,
       peerInfo,
@@ -151,14 +158,13 @@ method issueCertificate(
       self.rng,
       bearerToken = self.bearerToken,
     )
-    discard bearerToken
   else:
     # authenticate, send challenge and save bearerToken for future requests
     (bearerToken, response) = await peerIdAuthSend(
       registrationURL, self.httpSession, peerInfo, payload, self.rng
     )
     self.bearerToken = Opt.some(bearerToken)
-  if response.status != 200:
+  if response.status != HttpOk:
     raise newException(
       AutoTLSError, "Failed to authenticate with AutoTLS Broker at " & AutoTLSBroker
     )
@@ -181,12 +187,12 @@ method issueCertificate(
   let dashedIpAddr = ($hostPrimaryIP).replace(".", "-")
   let acmeChalDomain = "_acme-challenge." & baseDomain
   let ip4Domain = dashedIpAddr & "." & baseDomain
-  if not await self.checkDNSRecords(ip4Domain, acmeChalDomain, retries = 3):
+  if not await self.checkDNSRecords(ip4Domain, acmeChalDomain):
     raise newException(AutoTLSError, "DNS records not set")
 
   debug "Notifying challenge completion to ACME server"
   let chalURL = dns01Challenge.getJSONField("url").getStr
-  if not await self.acmeAccount.notifyChallengeCompleted(chalURL, retries = 3):
+  if not await self.acmeAccount.notifyChallengeCompleted(chalURL):
     raise newException(AutoTLSError, "ACME challenge completion notification failed")
 
   debug "Finalize cert request with CSR"
@@ -196,7 +202,7 @@ method issueCertificate(
   debug "Downloading certificate"
   let (rawCert, expiry) = await self.acmeAccount.downloadCertificate(orderURL)
 
-  debug "Installing certificate"
+  trace "Installing certificate"
   try:
     self.cert = Opt.some(TLSCertificate.init(rawCert))
     self.certExpiry = Opt.some(asMoment(expiry))
@@ -237,21 +243,21 @@ proc manageCertificate(
 method start*(
     self: AutoTLSManager, peerInfo: PeerInfo
 ): Future[void] {.base, async: (raises: [CancelledError]).} =
-  if not self.managerLoop.isNil:
+  if not self.managerFut.isNil:
     warn "Starting AutoTLS twice"
     return
 
   self.peerInfo = Opt.some(peerInfo)
-  self.managerLoop = self.manageCertificate()
+  self.managerFut = self.manageCertificate()
 
 method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
   trace "AutoTLS stop"
-  if self.managerLoop.isNil:
+  if self.managerFut.isNil:
     warn "Stopping AutoTLS without starting it"
     return
 
-  await self.managerLoop.cancelAndWait()
-  self.managerLoop = nil
+  await self.managerFut.cancelAndWait()
+  self.managerFut = nil
   if not self.acmeAccount.isNil:
     await self.acmeAccount.session.closeWait()
   if not self.httpSession.isNil:

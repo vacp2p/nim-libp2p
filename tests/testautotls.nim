@@ -88,7 +88,6 @@ suite "AutoTLS":
     # challenge was sent (bearer token from peer id auth was set)
     check switch.autoTLSMgr.bearerToken.isSome
 
-    # DNS TXT record is set
     let dnsResolver = DnsResolver.new(
       @[
         initTAddress("1.1.1.1:53"),
@@ -97,21 +96,27 @@ suite "AutoTLS":
       ]
     )
     let base36PeerId = encodePeerId(switch.peerInfo.peerId)
-    let acmeChalDomain = fmt"_acme-challenge.{base36PeerId}.{AutoTLSDNSServer}"
-    let txt = await dnsResolver.resolveTxt(acmeChalDomain)
-    check txt.len > 0
-    let dnsTXTRecord = txt[0]
-    check dnsTXTRecord != "not set yet"
+    let dnsTXTRecord = (
+      await dnsResolver.resolveTxt(
+        fmt"_acme-challenge.{base36PeerId}.{AutoTLSDNSServer}"
+      )
+    )[0]
+
+    # DNS TXT record is set
+    let keyAuthorization = switch.autoTLSMgr.keyAuthorization.valueOr:
+      check false
+      return
+    check dnsTXTRecord == keyAuthorization
 
     # certificate was downloaded and parsed
-    check switch.autoTLSMgr.cert.isSome
-    if switch.autoTLSMgr.cert.isNone:
+    let cert = switch.autoTLSMgr.cert.valueOr:
+      check false
       return
-
-    let certBefore = switch.autoTLSMgr.cert.get()
+    let certBefore = cert
 
     # invalidate certificate
     switch.autoTLSMgr.certExpiry = Opt.some(Moment.now - 2.hours)
+
     # cert was invalidated correctly
     check switch.autoTLSMgr.certExpiry.get < Moment.now
 
@@ -119,10 +124,17 @@ suite "AutoTLS":
     await switch.autoTLSMgr.certReady.wait()
 
     # certificate was indeed renewed
-    check switch.autoTLSMgr.cert.isSome
-    let certAfter = switch.autoTLSMgr.cert.get()
+    let certAfter = switch.autoTLSMgr.cert.valueOr:
+      check false
+      return
+
     check certBefore != certAfter
-    check switch.autoTLSMgr.certExpiry.isSome
+
+    let certExpiry = switch.autoTLSMgr.certExpiry.valueOr:
+      check false
+      return
+
     # cert is valid
-    check switch.autoTLSMgr.certExpiry.get > Moment.now
+    check certExpiry > Moment.now
+
     await switch.stop()
