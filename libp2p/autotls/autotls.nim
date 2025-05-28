@@ -102,7 +102,7 @@ proc checkDNSRecords(
     try:
       ip4 = await self.dnsResolver.resolveIp(ip4Domain, 0.Port)
     except CatchableError as exc:
-      error "Failed to resolve IP" # retry
+      error "Failed to resolve IP", description = exc.msg # retry
     if txt.len > 0 and self.keyAuthorization.isSome and
         txt[0] == self.keyAuthorization.get() and ip4.len > 0:
       return true

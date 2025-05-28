@@ -15,7 +15,7 @@ const
   DefaultChalCompletedRetries = 10
   DefaultChalCompletedRetryTime = 1.seconds
   DefaultFinalizeRetries = 10
-  DefaultFinalizeRetryTimes = 1.seconds
+  DefaultFinalizeRetryTime = 1.seconds
   DefaultRandStringSize = 256
 
 type ACMEAccount* = object
@@ -69,7 +69,7 @@ proc newNonce(
   try:
     let nonceURL = self.directory.getJSONField("newNonce").getStr
     let resp = await HttpClientRequestRef.get(self.session, nonceURL).get().send()
-    return resp.headers.getString("replay-nonce")
+    return resp.headers.getString("Replay-Nonce")
   except HttpError:
     raise newException(ACMEError, "Failed to request new nonce from ACME server")
 
@@ -201,12 +201,11 @@ proc notifyChallengeCompleted*(
   let checkURL = completedResponseBody.getJSONField("url").getStr
   # check until acme server is done (poll validation)
   for _ in 0 .. retries:
+    var checkResponse: HttpClientResponseRef
     var checkResponseBody: JsonNode
     try:
-      let checkResponse =
+      checkResponse =
         await HttpClientRequestRef.get(self.session, checkURL).get().send()
-      if checkResponse.status != HttpOk:
-        raise newException(ACMEError, "Failed to check challenge completion")
       checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
     except HttpError:
       raise newException(ACMEError, "Failed to connect to ACME server")
@@ -216,7 +215,12 @@ proc notifyChallengeCompleted*(
       )
     case checkResponseBody.getJSONField("status").getStr
     of "pending":
-      await sleepAsync(DefaultChalCompletedRetryTime) # try again after some delay
+      var retryAfter: Duration
+      try:
+        retryAfter = parseInt(checkResponse.headers.getString("Retry-After")).seconds
+      except ValueError:
+        retryAfter = DefaultChalCompletedRetryTime
+      await sleepAsync(retryAfter) # try again after some delay
     of "valid":
       return true
     else:
@@ -255,24 +259,29 @@ proc finalizeCertificate*(
     raise newException(ACMEError, "Failed to request cert finalization")
 
   # keep checking order until it's finalized
+  var checkResponse: HttpClientResponseRef
   var checkResponseBody: JsonNode
   for _ in 0 .. retries:
     let finalizedResponse = await self.signedAcmeRequest(finalizeURL, payload)
     try:
-      let checkResponse =
+      checkResponse =
         await HttpClientRequestRef.get(self.session, orderURL).get().send()
       checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
-    except CatchableError as e:
-      raise newException(
-        ACMEError, "Unexpected error while finalizing certificate: " & e.msg
-      )
+    except CatchableError as exc:
+      raise
+        newException(ACMEError, "Unexpected error while finalizing certificate", exc)
 
     let status = checkResponseBody.getJSONField("status").getStr
     case status
     of "valid":
       return true
     of "processing":
-      await sleepAsync(DefaultFinalizeRetryTimes) # try again after some delay
+      var retryAfter: Duration
+      try:
+        retryAfter = parseInt(checkResponse.headers.getString("Retry-After")).seconds
+      except ValueError:
+        retryAfter = DefaultFinalizeRetryTime
+      await sleepAsync(retryAfter) # try again after some delay
     else:
       return false
 
