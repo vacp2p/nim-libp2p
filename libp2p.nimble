@@ -10,7 +10,7 @@ skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 requires "nim >= 1.6.0",
   "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.10.3 & < 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1",
-  "stew >= 0.4.0", "websock >= 0.2.0", "unittest2", "results", "quic >= 0.2.5"
+  "stew >= 0.4.0", "websock >= 0.2.0", "unittest2", "results", "quic >= 0.2.6"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
