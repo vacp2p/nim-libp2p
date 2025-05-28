@@ -153,7 +153,7 @@ method issueCertificate(
   var response: HttpClientResponseRef
   var bearerToken: string
   if self.bearerToken.isSome:
-    (_, response) = await peerIdAuthSend(
+    (bearerToken, response) = await peerIdAuthSend(
       registrationURL,
       self.httpSession,
       peerInfo,

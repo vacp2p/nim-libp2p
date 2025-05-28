@@ -1,13 +1,5 @@
 import
-  base64,
-  strutils,
-  stew/base36,
-  chronos/apps/http/httpclient,
-  chronos,
-  json,
-  net,
-  std/sysrand,
-  times
+  base64, strutils, stew/base36, chronos/apps/http/httpclient, chronos, json, net, times
 import
   ../errors, ../peerid, ../multihash, ../cid, ../multicodec, ../crypto/[crypto, rsa]
 
@@ -72,10 +64,9 @@ proc getParsedResponseBody*(
     return responseBody
   except ValueError, OSError, IOError:
     raise newException(ACMEError, "Unable to parse JSON body")
-  except CatchableError as e:
-    raise newException(
-      ACMEError, "Unexpected error occurred while getting body bytes: " & e.msg
-    )
+  except Exception as exc:
+    raise
+      newException(ACMEError, "Unexpected error occurred while getting body bytes", exc)
 
 proc getJSONField*(node: JsonNode, field: string): JsonNode {.raises: [ACMEError].} =
   try:
@@ -94,10 +85,3 @@ proc thumbprint*(key: KeyPair): string =
   let keyJson = %*{"e": e, "kty": "RSA", "n": n}
   let digest = sha256.digest($keyJson)
   return base64UrlEncode(@(digest.data))
-
-proc urandomToCString*(size: int): cstring =
-  let randBytes = urandom(size)
-  result = cast[cstring](alloc(size + 1)) # +1 for null terminator
-  for i in 0 ..< size:
-    result[i] = char(randBytes[i])
-  result[size] = '\0' # Null-terminate
