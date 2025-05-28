@@ -15,15 +15,15 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
-            repository: status-im/nimbus-eth2
+          - repository: status-im/nimbus-eth2
             ref: unstable
-          - secret: ACTIONS_GITHUB_TOKEN_NWAKU
-            repository: waku-org/nwaku
+            secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
+          - repository: waku-org/nwaku
             ref: master
-          - secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
-            repository: codex-storage/nim-codex
+            secret: ACTIONS_GITHUB_TOKEN_NWAKU
+          - repository: codex-storage/nim-codex
             ref: master
+            secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
     steps:
       - name: Clone target repository
         uses: actions/checkout@v4
