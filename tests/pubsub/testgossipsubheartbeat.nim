@@ -13,8 +13,12 @@ suite "GossipSub Heartbeat":
     const
       numberOfNodes = 10
       topic = "foobar"
+      heartbeatInterval = 200.milliseconds
     let
-      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+      nodes = generateNodes(
+          numberOfNodes, gossip = true, heartbeatInterval = heartbeatInterval
+        )
+        .toGossipSub()
       node0 = nodes[0]
 
     startNodesAndDeferStop(nodes)
@@ -34,7 +38,7 @@ suite "GossipSub Heartbeat":
     for i in 1 ..< numberOfNodes:
       await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
     check:
       node0.mesh[topic].len == numberOfNodes - 1
 
@@ -56,14 +60,14 @@ suite "GossipSub Heartbeat":
 
     # Waiting 2 hearbeats to finish pruning (2 peers first and then 3)
     # Comparing timestamps of last received prune to confirm heartbeat interval
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
     let after1stHearbeat = lastPrune
 
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
     let after2ndHearbeat = lastPrune
 
     let measuredHeartbeat = after2ndHearbeat - after1stHearbeat
-    let heartbeatDiff = measuredHeartbeat - TEST_GOSSIPSUB_HEARTBEAT_INTERVAL
+    let heartbeatDiff = measuredHeartbeat - heartbeatInterval
 
     # Then mesh of Node0 is rebalanced and peers are pruned to adapt to new values
     check:
@@ -76,6 +80,7 @@ suite "GossipSub Heartbeat":
       topic = "foobar"
       dLow = 3
       dHigh = 4
+      heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
           numberOfNodes,
@@ -84,6 +89,7 @@ suite "GossipSub Heartbeat":
             DValues(dLow: some(dLow), dHigh: some(dHigh), d: some(3), dOut: some(1))
           ),
           pruneBackoff = 20.milliseconds,
+          heartbeatInterval = heartbeatInterval,
         )
         .toGossipSub()
       node0 = nodes[0]
@@ -94,7 +100,7 @@ suite "GossipSub Heartbeat":
     for i in 1 ..< numberOfNodes:
       await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     check:
       node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
@@ -104,7 +110,7 @@ suite "GossipSub Heartbeat":
     findAndUnsubscribePeers(nodes, peersToDisconnect, topic, voidTopicHandler)
 
     # Then mesh of Node0 is rebalanced and new peers are added
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     check:
       node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
@@ -114,6 +120,7 @@ suite "GossipSub Heartbeat":
     const
       numberOfNodes = 10
       topic = "foobar"
+      heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
           numberOfNodes,
@@ -130,6 +137,7 @@ suite "GossipSub Heartbeat":
           ),
           pruneBackoff = 20.milliseconds,
           opportunisticGraftThreshold = 600,
+          heartbeatInterval = heartbeatInterval,
         )
         .toGossipSub()
       node0 = nodes[0]
@@ -140,7 +148,7 @@ suite "GossipSub Heartbeat":
     for i in 1 ..< numberOfNodes:
       await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     # Keep track of initial mesh of Node0
     let startingMesh = node0.mesh[topic].toSeq()
@@ -159,7 +167,7 @@ suite "GossipSub Heartbeat":
         expectedGrafts &= peer
 
     # Then during heartbeat Peers with lower than median scores are pruned and max 2 Peers are grafted
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
     const maxOpportunisticGraftsPerHeartbeat = 2
@@ -171,7 +179,13 @@ suite "GossipSub Heartbeat":
     const
       numberOfNodes = 10
       topic = "foobar"
-    let nodes = generateNodes(numberOfNodes, gossip = true, fanoutTTL = 30.milliseconds)
+      heartbeatInterval = 200.milliseconds
+    let nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        fanoutTTL = 60.milliseconds,
+        heartbeatInterval = heartbeatInterval,
+      )
       .toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -180,7 +194,7 @@ suite "GossipSub Heartbeat":
     # All nodes but Node0 are subscribed to the topic
     for node in nodes[1 .. ^1]:
       node.subscribe(topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     # When Node0 sends a message to the topic
     let node0 = nodes[0]
@@ -196,8 +210,8 @@ suite "GossipSub Heartbeat":
     check:
       node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxFanoutPeers
 
-    # And after heartbeat (60ms) Node0 fanout peers are dropped (because fanoutTTL=30ms)
-    await waitForHeartbeat()
+    # And after heartbeat Node0 fanout peers are dropped (because fanoutTTL < heartbeatInterval)
+    await waitForHeartbeat(heartbeatInterval)
     check:
       not node0.fanout.hasKey(topic)
 
@@ -205,8 +219,12 @@ suite "GossipSub Heartbeat":
     const
       numberOfNodes = 10
       topic = "foobar"
+      heartbeatInterval = 200.milliseconds
     let
-      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+      nodes = generateNodes(
+          numberOfNodes, gossip = true, heartbeatInterval = heartbeatInterval
+        )
+        .toGossipSub()
       node0 = nodes[0]
 
     startNodesAndDeferStop(nodes)
@@ -215,7 +233,7 @@ suite "GossipSub Heartbeat":
     # All nodes but Node0 are subscribed  to the topic
     for node in nodes[1 .. ^1]:
       node.subscribe(topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
@@ -239,12 +257,13 @@ suite "GossipSub Heartbeat":
     const
       topic = "foobar"
       historyLength = 5
+      heartbeatInterval = 200.milliseconds
     let nodes = generateNodes(
         2,
         gossip = true,
         sendIDontWantOnPublish = true,
         historyLength = historyLength,
-        heartbeatInterval = 200.milliseconds,
+        heartbeatInterval = heartbeatInterval,
       )
       .toGossipSub()
 
@@ -252,7 +271,7 @@ suite "GossipSub Heartbeat":
 
     await connectNodes(nodes[0], nodes[1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     # Get Node0 as Peer of Node1 
     let peer = nodes[1].mesh[topic].toSeq()[0]
@@ -285,12 +304,15 @@ suite "GossipSub Heartbeat":
     const
       numberOfNodes = 3
       topic = "foobar"
+      heartbeatInterval = 200.milliseconds
+      historyLength = 3
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
-        historyLength = 3,
+        historyLength = historyLength,
         dValues =
           some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
+        heartbeatInterval = heartbeatInterval,
       )
       .toGossipSub()
 
@@ -299,16 +321,19 @@ suite "GossipSub Heartbeat":
     for i in 1 ..< numberOfNodes:
       await connectNodes(nodes[0], nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-
-    # Waiting 2 heartbeats to populate sentIHaves history
-    await waitForHeartbeat(2)
-
-    # When Node0 sends a messages to the topic
-    tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
+    await waitForHeartbeat(heartbeatInterval)
 
     # Find Peer outside of mesh to which Node 0 will send IHave
     let peer =
       nodes[0].gossipsub[topic].toSeq().filterIt(it notin nodes[0].mesh[topic])[0]
+
+    # Wait for history to populate
+    waitForCondition(
+      peer.sentIHaves.len == historyLength, peer.sentIHaves, 100.milliseconds, 1.seconds
+    )
+
+    # When Node0 sends a messages to the topic
+    tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # When next heartbeat occurs
     # Then IHave is sent and sentIHaves is populated 
@@ -318,7 +343,7 @@ suite "GossipSub Heartbeat":
     nodes[0].clearMCache()
 
     # When next heartbeat occurs 
-    await waitForHeartbeat()
+    await waitForHeartbeat(heartbeatInterval)
 
     # Then last element of sentIHaves history is pruned 
     check:

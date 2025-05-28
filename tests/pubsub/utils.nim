@@ -32,6 +32,9 @@ const HEARTBEAT_TIMEOUT* = # TEST_GOSSIPSUB_HEARTBEAT_INTERVAL + 20%
 proc waitForHeartbeat*(multiplier: int = 1) {.async.} =
   await sleepAsync(HEARTBEAT_TIMEOUT * multiplier)
 
+proc waitForHeartbeat*(timeout: Duration) {.async.} =
+  await sleepAsync(timeout)
+
 type
   TestGossipSub* = ref object of GossipSub
   DValues* = object
