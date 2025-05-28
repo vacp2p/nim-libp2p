@@ -246,7 +246,9 @@ method write*(
 
 method writeLp*(
     s: LPStream, msg: openArray[byte]
-): Future[void] {.base, async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
+): Future[void] {.
+    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
+.} =
   ## Write `msg` with a varint-encoded length prefix
   let vbytes = PB.toBytes(msg.len().uint64)
   var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
@@ -256,7 +258,9 @@ method writeLp*(
 
 method writeLp*(
     s: LPStream, msg: string
-): Future[void] {.base, async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
+): Future[void] {.
+    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
+.} =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
 
 proc write*(
