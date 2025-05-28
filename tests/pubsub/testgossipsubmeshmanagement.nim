@@ -181,26 +181,20 @@ suite "GossipSub Mesh Management":
     let
       numberOfNodes = 5
       topic = "foobar"
-      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
 
     let expectedNumberOfPeers = numberOfNodes - 1
-    await waitForPeersInTable(
-      nodes,
-      topic,
-      newSeqWith(numberOfNodes, expectedNumberOfPeers),
-      PeerTableType.Gossipsub,
-    )
 
     for i in 0 ..< numberOfNodes:
-      var gossip = GossipSub(nodes[i])
-      check:
-        gossip.gossipsub[topic].len == expectedNumberOfPeers
-        gossip.mesh[topic].len == expectedNumberOfPeers
-        gossip.fanout.len == 0
+      let node = nodes[i]
+      checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
+        node.mesh.getOrDefault(topic).len == expectedNumberOfPeers
+        node.fanout.len == 0
 
   asyncTest "prune peers if mesh len is higher than d_high":
     let
@@ -218,14 +212,12 @@ suite "GossipSub Mesh Management":
       d = 6
       dLow = 4
 
-    checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers)
-
     for i in 0 ..< numberOfNodes:
       let node = nodes[i]
-      check:
-        node.gossipsub[topic].len == expectedNumberOfPeers
-        node.mesh[topic].len >= dLow and node.mesh[topic].len <= dHigh
+      checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
+        node.mesh.getOrDefault(topic).len >= dLow and
+          node.mesh.getOrDefault(topic).len <= dHigh
         node.fanout.len == 0
 
   asyncTest "GossipSub unsub - resub faster than backoff":
