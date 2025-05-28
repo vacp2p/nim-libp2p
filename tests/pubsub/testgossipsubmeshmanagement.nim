@@ -206,7 +206,7 @@ suite "GossipSub Mesh Management":
     let
       numberOfNodes = 15
       topic = "foobar"
-      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -218,20 +218,15 @@ suite "GossipSub Mesh Management":
       d = 6
       dLow = 4
 
-    await waitForPeersInTable(
-      nodes,
-      topic,
-      newSeqWith(numberOfNodes, expectedNumberOfPeers),
-      PeerTableType.Gossipsub,
-    )
+    checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers)
 
     for i in 0 ..< numberOfNodes:
-      var gossip = GossipSub(nodes[i])
-
+      let node = nodes[i]
       check:
-        gossip.gossipsub[topic].len == expectedNumberOfPeers
-        gossip.mesh[topic].len >= dLow and gossip.mesh[topic].len <= dHigh
-        gossip.fanout.len == 0
+        node.gossipsub[topic].len == expectedNumberOfPeers
+        node.mesh[topic].len >= dLow and node.mesh[topic].len <= dHigh
+        node.fanout.len == 0
 
   asyncTest "GossipSub unsub - resub faster than backoff":
     # For this test to work we'd require a way to disable fanout.
