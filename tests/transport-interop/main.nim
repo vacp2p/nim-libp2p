@@ -47,12 +47,9 @@ proc main() {.async.} =
         MultiAddress.init("/ip4/" & ip & "/udp/0/quic-v1").tryGet()
       )
   of "ws":
-    discard switchBuilder
-      .withTransport(
-        proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-          WsTransport.new(upgr)
+    discard switchBuilder.withWsTransport().withAddress(
+        MultiAddress.init("/ip4/" & ip & "/tcp/0/ws").tryGet()
       )
-      .withAddress(MultiAddress.init("/ip4/" & ip & "/tcp/0/ws").tryGet())
   else:
     doAssert false
 

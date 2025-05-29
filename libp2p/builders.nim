@@ -23,7 +23,7 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport, memorytransport],
+  transports/[transport, tcptransport, wstransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
@@ -35,7 +35,9 @@ import
   utility
 import services/wildcardresolverservice
 
-export switch, peerid, peerinfo, connection, multiaddress, crypto, errors
+export
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors, TLSPrivateKey,
+  TLSCertificate, TLSFlags, ServerFlags
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -167,6 +169,18 @@ proc withTcpTransport*(
   b.withTransport(
     proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
       TcpTransport.new(flags, upgr)
+  )
+
+proc withWsTransport*(
+    b: SwitchBuilder,
+    tlsPrivateKey: TLSPrivateKey = nil,
+    tlsCertificate: TLSCertificate = nil,
+    tlsFlags: set[TLSFlags] = {},
+    flags: set[ServerFlags] = {},
+): SwitchBuilder =
+  b.withTransport(
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+      WsTransport.new(upgr, tlsPrivateKey, tlsCertificate, tlsFlags, flags)
   )
 
 when defined(libp2p_quic_support):
