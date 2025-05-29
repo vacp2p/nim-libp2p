@@ -15,8 +15,7 @@ import
     protocols/connectivity/autonat/service,
     protocols/ping,
   ]
-import ../stubs/autonatclientstub
-import ../errorhelpers
+import ../../tests/[stubs/autonatclientstub, errorhelpers]
 
 logScope:
   topics = "hp interop node"
