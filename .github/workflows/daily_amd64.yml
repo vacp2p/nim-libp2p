@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test_amd64_head:
-    name: Daily amd64 (head dependencies)
+  test_amd64_latest:
+    name: Daily amd64 (latest dependencies)
     uses: ./.github/workflows/daily_common.yml
     with:
       nim: "[
