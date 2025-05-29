@@ -22,6 +22,6 @@ jobs:
         uses: arnetheduck/nph-action@v1
         with:
           version: 0.6.1
-          options: "examples libp2p tests tools *.nim*"
+          options: "examples libp2p tests interop tools *.nim*"
           fail: true
           suggest: true
