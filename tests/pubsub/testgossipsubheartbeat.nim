@@ -229,8 +229,8 @@ suite "GossipSub Heartbeat":
   asyncTest "iDontWants history - last element is pruned during heartbeat":
     const
       topic = "foobar"
-      historyLength = 5
       heartbeatInterval = 200.milliseconds
+      historyLength = 3
     let nodes = generateNodes(
         2,
         gossip = true,
@@ -253,19 +253,30 @@ suite "GossipSub Heartbeat":
     checkUntilCustomTimeout(timeout, interval):
       peer.iDontWants.len == historyLength
 
-    # When Node0 sends 5 messages to the topic
+    # When Node0 sends 5 messages to the topic 
     const msgCount = 5
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Then Node1 receives 5 iDontWant messages from Node0
     checkUntilCustomTimeout(timeout, interval):
-      peer.iDontWants[^1].len == msgCount
+      peer.iDontWants[0].len == msgCount
 
-    # When heartbeat happens
-    # Then last element of iDontWants history is pruned
-    checkUntilCustomTimeout(timeout, interval):
-      peer.iDontWants[^1].len == 0
+    for i in 0 ..< historyLength:
+      # When heartbeat happens
+      # And history moves (new element added at start, last element pruned)
+      checkUntilCustomTimeout(timeout, interval):
+        peer.iDontWants[i].len == 0
+
+      # Then iDontWant messages are moved to the next element
+      var expectedHistory = newSeqWith(historyLength, 0)
+      let nextIndex = i + 1
+      if nextIndex < historyLength:
+        expectedHistory[nextIndex] = msgCount
+
+      # Until they reach last element and are pruned
+      checkUntilCustomTimeout(timeout, interval):
+        peer.iDontWants.mapIt(it.len) == expectedHistory
 
   asyncTest "sentIHaves history - last element is pruned during heartbeat":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
