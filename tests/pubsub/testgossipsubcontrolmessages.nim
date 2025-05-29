@@ -1,11 +1,10 @@
 {.used.}
 
 import std/[sequtils]
-import stew/byteutils
 import utils
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../helpers, ../utils/[futures]
+import ../helpers
 
 suite "GossipSub Control Messages":
   teardown:
