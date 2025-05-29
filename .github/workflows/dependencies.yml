@@ -17,13 +17,13 @@ jobs:
         target:
           - repository: status-im/nimbus-eth2
             ref: unstable
-            token: ${{ secrets.ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2 }}
+            secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
           - repository: waku-org/nwaku
             ref: master
-            token: ${{ secrets.ACTIONS_GITHUB_TOKEN_NWAKU }}
+            secret: ACTIONS_GITHUB_TOKEN_NWAKU
           - repository: codex-storage/nim-codex
             ref: master
-            token: ${{ secrets.ACTIONS_GITHUB_TOKEN_NIM_CODEX }}
+            secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
     steps:
       - name: Clone target repository
         uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
           ref: ${{ matrix.target.ref}}
           path: nbc
           fetch-depth: 0
-          token: ${{ matrix.target.token }}
+          token: ${{ secrets[matrix.target.secret] }}
 
       - name: Checkout this ref in target repository
         run: |

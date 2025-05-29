@@ -49,8 +49,10 @@ template checkTrackers*() =
     {.push warning[BareExcept]: off.}
   try:
     GC_fullCollect()
-  except CatchableError:
-    discard
+  except Defect as exc:
+    raise exc # Reraise to maintain call stack
+  except Exception:
+    raiseAssert "Unexpected exception during GC collection"
   when defined(nimHasWarnBareExcept):
     {.pop.}
 

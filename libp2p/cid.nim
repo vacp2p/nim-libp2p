@@ -10,6 +10,7 @@
 ## This module implementes CID (Content IDentifier).
 
 {.push raises: [].}
+{.used.}
 
 import tables, hashes
 import multibase, multicodec, multihash, vbuffer, varint, results

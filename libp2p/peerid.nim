@@ -11,6 +11,7 @@
 
 {.push raises: [].}
 {.push public.}
+{.used.}
 
 import
   std/[hashes, strutils],

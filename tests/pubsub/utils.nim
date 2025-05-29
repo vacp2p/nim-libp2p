@@ -4,7 +4,7 @@ const
   libp2p_pubsub_verify {.booldefine.} = true
   libp2p_pubsub_anonymize {.booldefine.} = false
 
-import hashes, random, tables, sets, sequtils, sugar
+import hashes, random, tables, sets, sequtils
 import chronos, results, stew/byteutils, chronos/ratelimit
 import
   ../../libp2p/[
@@ -168,6 +168,8 @@ proc generateNodes*(
     sign: bool = libp2p_pubsub_sign,
     sendSignedPeerRecord = false,
     unsubscribeBackoff = 1.seconds,
+    pruneBackoff = 1.minutes,
+    fanoutTTL = 1.minutes,
     maxMessageSize: int = 1024 * 1024,
     enablePX: bool = false,
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
@@ -178,6 +180,8 @@ proc generateNodes*(
     floodPublish: bool = false,
     dValues: Option[DValues] = DValues.none(),
     gossipFactor: Option[float] = float.none(),
+    opportunisticGraftThreshold: float = 0.0,
+    historyLength = 20,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -197,12 +201,15 @@ proc generateNodes*(
             var p = GossipSubParams.init()
             p.heartbeatInterval = heartbeatInterval
             p.floodPublish = floodPublish
-            p.historyLength = 20
+            p.historyLength = historyLength
             p.historyGossip = 20
             p.unsubscribeBackoff = unsubscribeBackoff
+            p.pruneBackoff = pruneBackoff
+            p.fanoutTTL = fanoutTTL
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
+            p.opportunisticGraftThreshold = opportunisticGraftThreshold
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
@@ -256,34 +263,35 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
         await connectNodes(dialer, node)
 
-proc activeWait(
-    interval: Duration, maximum: Moment, timeoutErrorMessage = "Timeout on activeWait"
-) {.async.} =
-  await sleepAsync(interval)
-  doAssert Moment.now() < maximum, timeoutErrorMessage
+template waitForCondition*(
+    condition: untyped,
+    interval: Duration,
+    timeout: Duration,
+    timeoutErrorMessage = "waitForCondition timeout",
+): untyped =
+  let maxTime = Moment.now() + timeout
+
+  while not condition:
+    await sleepAsync(interval)
+    if Moment.now() >= maxTime:
+      raise (ref CatchableError)(msg: timeoutErrorMessage)
 
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
     return
-  let timeout = Moment.now() + 5.seconds
   let fsub = GossipSub(sender)
+  let peerId = receiver.peerInfo.peerId
 
   # this is for testing purposes only
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  while (
-    not fsub.gossipsub.hasKey(key) or
-    not fsub.gossipsub.hasPeerId(key, receiver.peerInfo.peerId)
-  ) and
-      (
-        not fsub.mesh.hasKey(key) or
-        not fsub.mesh.hasPeerId(key, receiver.peerInfo.peerId)
-      ) and (
-    not fsub.fanout.hasKey(key) or
-    not fsub.fanout.hasPeerId(key, receiver.peerInfo.peerId)
+  waitForCondition(
+    (fsub.gossipsub.hasKey(key) and fsub.gossipsub.hasPeerId(key, peerId)) or
+      (fsub.mesh.hasKey(key) and fsub.mesh.hasPeerId(key, peerId)) or
+      (fsub.fanout.hasKey(key) and fsub.fanout.hasPeerId(key, peerId)),
+    5.milliseconds,
+    5.seconds,
+    "waitSub timeout!",
   )
-  :
-    trace "waitSub sleeping..."
-    await activeWait(5.milliseconds, timeout, "waitSub timeout!")
 
 proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
   let numberOfNodes = nodes.len
@@ -293,8 +301,7 @@ proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
         await waitSub(nodes[x], nodes[y], topic)
 
 proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
-  let timeout = Moment.now() + 5.seconds
-  while true:
+  proc isGraphConnected(): bool =
     var
       nodesMesh: Table[PeerId, seq[PeerId]]
       seen: HashSet[PeerId]
@@ -314,10 +321,12 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
       explore(n.peerInfo.peerId)
       if seen.len == nodes.len:
         ok.inc()
-    if ok == nodes.len:
-      return
-    trace "waitSubGraph sleeping..."
-    await activeWait(5.milliseconds, timeout, "waitSubGraph timeout!")
+
+    return ok == nodes.len
+
+  waitForCondition(
+    isGraphConnected(), 10.milliseconds, 5.seconds, "waitSubGraph timeout!"
+  )
 
 proc waitForMesh*(
     sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
@@ -326,13 +335,15 @@ proc waitForMesh*(
     return
 
   let
-    timeoutMoment = Moment.now() + timeoutDuration
     gossipsubSender = GossipSub(sender)
     receiverPeerId = receiver.peerInfo.peerId
 
-  while not gossipsubSender.mesh.hasPeerId(key, receiverPeerId):
-    trace "waitForMesh sleeping..."
-    await activeWait(5.milliseconds, timeoutMoment, "waitForMesh timeout!")
+  waitForCondition(
+    gossipsubSender.mesh.hasPeerId(key, receiverPeerId),
+    5.milliseconds,
+    timeoutDuration,
+    "waitForMesh timeout!",
+  )
 
 type PeerTableType* {.pure.} = enum
   Gossipsub = "gossipsub"
@@ -344,21 +355,17 @@ proc waitForPeersInTable*(
     topic: string,
     peerCounts: seq[int],
     table: PeerTableType,
-    timeout = 5.seconds,
+    timeout = 3.seconds,
 ) {.async.} =
   ## Wait until each node in `nodes` has at least the corresponding number of peers from `peerCounts`
   ## in the specified table (mesh, gossipsub, or fanout) for the given topic
 
   doAssert nodes.len == peerCounts.len, "Node count must match peer count expectations"
 
+  var satisfied = newSeq[bool](nodes.len)
+
   # Helper proc to check current state and update satisfaction status
-  proc checkState(
-      nodes: seq[auto],
-      topic: string,
-      peerCounts: seq[int],
-      table: PeerTableType,
-      satisfied: var seq[bool],
-  ): bool =
+  proc checkPeersCondition(): bool =
     for i in 0 ..< nodes.len:
       if not satisfied[i]:
         let fsub = GossipSub(nodes[i])
@@ -373,20 +380,17 @@ proc waitForPeersInTable*(
         satisfied[i] = currentCount >= peerCounts[i]
     return satisfied.allIt(it)
 
-  let timeoutMoment = Moment.now() + timeout
-  var
-    satisfied = newSeq[bool](nodes.len)
-    allSatisfied = false
+  waitForCondition(
+    checkPeersCondition(),
+    10.milliseconds,
+    timeout,
+    "Timeout waiting for peer counts in " & $table & " for topic " & topic,
+  )
 
-  allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied) # Initial check
-  # Continue checking until all requirements are met or timeout
-  while not allSatisfied:
-    await activeWait(
-      5.milliseconds,
-      timeoutMoment,
-      "Timeout waiting for peer counts in " & $table & " for topic " & topic,
-    )
-    allSatisfied = checkState(nodes, topic, peerCounts, table, satisfied)
+proc waitForPeersInTable*(
+    node: auto, topic: string, peerCount: int, table: PeerTableType, timeout = 1.seconds
+) {.async.} =
+  await waitForPeersInTable(@[node], topic, @[peerCount], table, timeout)
 
 proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
@@ -511,6 +515,20 @@ proc addIDontWantObservers*[T: PubSub](
     allMessages[i] = messages
 
   return allMessages
+
+proc findAndUnsubscribePeers*[T: PubSub](
+    nodes: seq[T], peers: seq[PeerId], topic: string, handler: TopicHandler
+) =
+  for i in 0 ..< nodes.len:
+    let node = nodes[i]
+    if peers.anyIt(it == node.peerInfo.peerId):
+      node.unsubscribe(topic, voidTopicHandler)
+
+proc clearMCache*[T: PubSub](node: T) =
+  node.mcache.msgs.clear()
+  for i in 0 ..< node.mcache.history.len:
+    node.mcache.history[i].setLen(0)
+  node.mcache.pos = 0
 
 # TODO: refactor helper methods from testgossipsub.nim
 proc setupNodes*(count: int): seq[PubSub] =

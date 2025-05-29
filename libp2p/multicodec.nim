@@ -10,6 +10,7 @@
 ## This module implements MultiCodec.
 
 {.push raises: [].}
+{.used.}
 
 import tables, hashes
 import vbuffer

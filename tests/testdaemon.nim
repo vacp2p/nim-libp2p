@@ -108,17 +108,16 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   if resultsCount == 2:
     result = true
 
-when isMainModule:
-  suite "libp2p-daemon test suite":
-    test "Simple spawn and get identity test":
-      check:
-        waitFor(identitySpawnTest()) == true
-    test "Connect/Accept peer/stream test":
-      check:
-        waitFor(connectStreamTest()) == true
-    asyncTest "GossipSub test":
-      checkUntilTimeout:
-        (await pubsubTest({PSGossipSub}))
-    asyncTest "FloodSub test":
-      checkUntilTimeout:
-        (await pubsubTest({PSFloodSub}))
+suite "libp2p-daemon test suite":
+  test "Simple spawn and get identity test":
+    check:
+      waitFor(identitySpawnTest()) == true
+  test "Connect/Accept peer/stream test":
+    check:
+      waitFor(connectStreamTest()) == true
+  asyncTest "GossipSub test":
+    checkUntilTimeout:
+      (await pubsubTest({PSGossipSub}))
+  asyncTest "FloodSub test":
+    checkUntilTimeout:
+      (await pubsubTest({PSFloodSub}))
