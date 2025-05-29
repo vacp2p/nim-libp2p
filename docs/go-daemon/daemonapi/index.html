@@ -534,9 +534,7 @@
 <li><a href="#prerequisites">Prerequisites</a></li>
 <li><a href="#installation">Installation</a></li>
 <li><a href="#script">Script</a></li>
-<li><a href="#usage">Usage</a></li>
-<li><a href="#example">Example</a></li>
-<li><a href="#getting-started">Getting Started</a></li>
+<li><a href="#examples">Examples</a></li>
 </ul>
 <h1 id="introduction">Introduction</h1>
 <p>This is a libp2p-backed daemon wrapping the functionalities of go-libp2p for use in Nim. <br>
@@ -545,38 +543,30 @@ For more information about the go daemon, check out <a href="https://github.com/
 <p><strong>Required only</strong> for running the tests.</p>
 </blockquote>
 <h1 id="prerequisites">Prerequisites</h1>
-<p>Go with version <code>1.16.0</code>.</p>
+<p>Go with version <code>1.16.0</code></p>
 <blockquote>
 <p>You will <em>likely</em> be able to build <code>go-libp2p-daemon</code> with different Go versions, but <strong>they haven't been tested</strong>.</p>
 </blockquote>
 <h1 id="installation">Installation</h1>
-<p>Follow one of the methods below:</p>
-<h2 id="script">Script</h2>
 <p>Run the build script while having the <code>go</code> command pointing to the correct Go version.
-We recommend using <code>1.16.0</code>, as previously stated.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>./scripts/build_p2pd.sh
 </code></pre></div>
-If everything goes correctly, the binary (<code>p2pd</code>) should be built and placed in the correct directory.
-If you find any issues, please head into our discord and ask for our assistance.</p>
+<code>build_p2pd.sh</code> will not rebuild unless needed. If you already have the newest binary and you want to force the rebuild, use:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./scripts/build_p2pd.sh<span class="w"> </span>-f
+</code></pre></div>
+Or:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./scripts/build_p2pd.sh<span class="w"> </span>--force
+</code></pre></div></p>
+<p>If everything goes correctly, the binary (<code>p2pd</code>) should be built and placed in the <code>$GOPATH/bin</code> directory.
+If you're having issues, head into <a href="https://discord.com/channels/864066763682218004/1115526869769535629">our discord</a> and ask for assistance.</p>
 <p>After successfully building the binary, remember to add it to your path so it can be found. You can do that by running:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PATH</span><span class="s2">:</span><span class="nv">$HOME</span><span class="s2">/go/bin&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PATH</span><span class="s2">:</span><span class="nv">$HOME</span><span class="s2">/go/bin&quot;</span>
 </code></pre></div></p>
 <blockquote>
 <p><strong>Tip:</strong> To make this change permanent, add the command above to your <code>.bashrc</code> file.</p>
 </blockquote>
-<h1 id="usage">Usage</h1>
-<h2 id="example">Example</h2>
+<h1 id="examples">Examples</h1>
 <p>Examples can be found in the <a href="https://github.com/status-im/nim-libp2p/tree/readme/examples/go-daemon">examples folder</a></p>
-<h2 id="getting-started">Getting Started</h2>
-<p>Try out the chat example. Full code can be found <a href="https://github.com/status-im/nim-libp2p/blob/master/examples/chat.nim">here</a>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>nim<span class="w"> </span>c<span class="w"> </span>-r<span class="w"> </span>--threads:on<span class="w"> </span>examples/directchat.nim
-</code></pre></div>
-<p>This will output a peer ID such as <code>QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu</code> which you can use in another instance to connect to it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./examples/directchat
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>/connect<span class="w"> </span>QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu
-</code></pre></div>
-<p>You can now chat between the instances!</p>
-<p><img alt="Chat example" src="https://imgur.com/caYRu8K.gif" /></p>
 
 
 
