@@ -6,9 +6,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  test_amd64:
-    name: Daily amd64
+  test_amd64_latest:
+    name: Daily amd64 (latest dependencies)
     uses: ./.github/workflows/daily_common.yml
     with:
-      nim: "[{'ref': 'version-1-6', 'memory_management': 'refc'}, {'ref': 'version-2-0', 'memory_management': 'refc'}]"
+      nim: "[
+          {'ref': 'version-1-6', 'memory_management': 'refc'}, 
+          {'ref': 'version-2-0', 'memory_management': 'refc'}, 
+          {'ref': 'version-2-2', 'memory_management': 'refc'},
+          {'ref': 'devel', 'memory_management': 'refc'},
+        ]"
+      cpu: "['amd64']"
+  test_amd64_pinned:
+    name: Daily amd64 (pinned dependencies)
+    uses: ./.github/workflows/daily_common.yml
+    with:
+      pinned_deps: true
+      nim: "[
+          {'ref': 'version-1-6', 'memory_management': 'refc'}, 
+          {'ref': 'version-2-0', 'memory_management': 'refc'}, 
+          {'ref': 'version-2-2', 'memory_management': 'refc'},
+          {'ref': 'devel', 'memory_management': 'refc'},
+        ]"
       cpu: "['amd64']"

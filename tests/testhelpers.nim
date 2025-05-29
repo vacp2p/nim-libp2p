@@ -29,13 +29,13 @@ suite "Helpers":
   asyncTest "checkUntilCustomTimeout should pass when the condition is true":
     let a = 2
     let b = 2
-    checkUntilCustomTimeout(2.seconds):
+    checkUntilCustomTimeout(2.seconds, 100.milliseconds):
       a == b
 
   asyncTest "checkUntilCustomTimeout should pass when the conditions are true":
     let a = 2
     let b = 2
-    checkUntilCustomTimeout(5.seconds):
+    checkUntilCustomTimeout(5.seconds, 100.milliseconds):
       a == b
       a == 2
       b == 2

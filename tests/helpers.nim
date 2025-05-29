@@ -49,8 +49,10 @@ template checkTrackers*() =
     {.push warning[BareExcept]: off.}
   try:
     GC_fullCollect()
-  except CatchableError:
-    discard
+  except Defect as exc:
+    raise exc # Reraise to maintain call stack
+  except Exception:
+    raiseAssert "Unexpected exception during GC collection"
   when defined(nimHasWarnBareExcept):
     {.pop.}
 
@@ -92,7 +94,9 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   testBufferStream.initStream()
   testBufferStream
 
-macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
+macro checkUntilCustomTimeout*(
+    timeout: Duration, sleepInterval: Duration, code: untyped
+): untyped =
   ## Periodically checks a given condition until it is true or a timeout occurs.
   ##
   ## `code`: untyped - A condition expression that should eventually evaluate to true.
@@ -145,7 +149,7 @@ macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
           if `combinedBoolExpr`:
             return
           else:
-            await sleepAsync(100.millis)
+            await sleepAsync(`sleepInterval`)
 
     await checkExpiringInternal()
 
@@ -171,7 +175,7 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##       b == 1
   ##   ```
   result = quote:
-    checkUntilCustomTimeout(10.seconds, `code`)
+    checkUntilCustomTimeout(10.seconds, 100.milliseconds, `code`)
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:
