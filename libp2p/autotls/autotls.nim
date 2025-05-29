@@ -175,11 +175,15 @@ method issueCertificate(
   # no need to do anything from this point forward if there are not public ip addresses on host
   var hostPrimaryIP: IpAddress
   try:
-    hostPrimaryIP = self.ipAddress.get(getPrimaryIPAddr())
+    hostPrimaryIP = self.ipAddress.get(checkedGetPrimaryIPAddr())
     if not isPublicIPv4(hostPrimaryIP):
       raise newException(AutoTLSError, "Host does not have a public IPv4 address")
-  except Exception as exc:
+  except GetPrimaryIPError as exc:
     raise newException(AutoTLSError, "Failed to get primary IP address for host", exc)
+  except CatchableError as exc:
+    raise newException(
+      AutoTLSError, "Unexpected error while getting primary IP address for host", exc
+    )
 
   debug "Waiting for DNS record to be set"
 
@@ -229,8 +233,8 @@ proc manageCertificate(
     if self.cert.isNone or self.certExpiry.isNone:
       try:
         await self.issueCertificate()
-      except CatchableError as e:
-        error "Failed to issue certificate", err = e.msg
+      except CatchableError as exc:
+        error "Failed to issue certificate", err = exc.msg
         break
 
     # AutoTLSManager will renew the cert 1h before it expires
@@ -239,8 +243,8 @@ proc manageCertificate(
     if waitTime <= self.renewBufferTime:
       try:
         await self.issueCertificate()
-      except CatchableError as e:
-        error "Failed to renew certificate", err = e.msg
+      except CatchableError as exc:
+        error "Failed to renew certificate", err = exc.msg
         break
 
 method start*(

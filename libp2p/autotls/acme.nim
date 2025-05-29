@@ -35,21 +35,12 @@ proc new*(
     kid: Opt[string] = Opt.none(string),
     acmeServerURL: string = LetsEncryptURL,
 ): Future[ref ACMEAccount] {.async: (raises: [ACMEError, CancelledError]).} =
+  let session = HttpSessionRef.new()
+  var directory: JsonNode
   try:
-    let session = HttpSessionRef.new()
     let directoryResponse =
       await HttpClientRequestRef.get(session, acmeServerURL & "/directory").get().send()
-    let directory = bytesToString(await directoryResponse.getBodyBytes()).parseJson()
-
-    let acc = new(ACMEAccount)
-    acc.status = status
-    acc.contact = contact
-    acc.kid = kid
-    acc.key = key
-    acc.session = session
-    acc.directory = directory
-    acc.acmeServerURL = acmeServerURL
-    return acc
+    directory = bytesToString(await directoryResponse.getBodyBytes()).checkedParseJson()
   except HttpError as exc:
     raise newException(ACMEError, "Failed to connect to ACME server", exc)
   except ValueError as exc:
@@ -58,10 +49,16 @@ proc new*(
     raise newException(ACMEError, "Unable to parse JSON", exc)
   except IOError as exc:
     raise newException(ACMEError, "Unable to parse JSON", exc)
-  except Exception as exc:
-    raise newException(
-      ACMEError, "Unexpected error occurred while getting ACME server directory: ", exc
-    )
+
+  let acc = new(ACMEAccount)
+  acc.status = status
+  acc.contact = contact
+  acc.kid = kid
+  acc.key = key
+  acc.session = session
+  acc.directory = directory
+  acc.acmeServerURL = acmeServerURL
+  return acc
 
 proc newNonce(
     self: ref ACMEAccount
@@ -70,8 +67,8 @@ proc newNonce(
     let nonceURL = self.directory.getJSONField("newNonce").getStr
     let resp = await HttpClientRequestRef.get(self.session, nonceURL).get().send()
     return resp.headers.getString("Replay-Nonce")
-  except HttpError:
-    raise newException(ACMEError, "Failed to request new nonce from ACME server")
+  except HttpError as exc:
+    raise newException(ACMEError, "Failed to request new nonce from ACME server", exc)
 
 # TODO: save n and e in account so we don't have to recalculate every time
 proc acmeHeader(
@@ -106,10 +103,10 @@ proc signedAcmeRequest(
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
     token.sign(pemPrivKey)
     body = token.toFlattenedJson()
-  except Exception as exc:
+  except CatchableError as exc:
     raise newException(ACMEError, "Failed to create JWT", exc)
   try:
-    let response = await HttpClientRequestRef
+    return await HttpClientRequestRef
     .post(
       self.session,
       url,
@@ -118,9 +115,8 @@ proc signedAcmeRequest(
     )
     .get()
     .send()
-    return response
-  except HttpError:
-    raise newException(ACMEError, "Failed to send HTTP request to the ACME server")
+  except HttpError as exc:
+    raise newException(ACMEError, "Failed to send HTTP request to the ACME server", exc)
 
 proc register*(self: ref ACMEAccount) {.async: (raises: [ACMEError, CancelledError]).} =
   if self.kid.isSome:
@@ -165,7 +161,7 @@ proc requestChallenge*(
       let authzResponse =
         await HttpClientRequestRef.get(self.session, authzURL).get().send()
       await authzResponse.getParsedResponseBody()
-    except Exception as exc:
+    except CatchableError as exc:
       raise newException(ACMEError, "Failed to request challenge", exc)
 
   let challenges = authzResponseBody.getJSONField("challenges")
@@ -190,12 +186,12 @@ proc notifyChallengeCompleted*(
   var completedResponseBody: JsonNode
   try:
     completedResponseBody =
-      bytesToString(await completedResponse.getBodyBytes()).parseJson()
-  except HttpError:
-    raise newException(ACMEError, "Failed to connect to ACME server")
-  except Exception as e:
+      bytesToString(await completedResponse.getBodyBytes()).checkedParseJson()
+  except HttpError as exc:
+    raise newException(ACMEError, "Failed to connect to ACME server", exc)
+  except ValueError as exc:
     raise newException(
-      ACMEError, "Unexpected error while signaling challenge completion: " & e.msg
+      ACMEError, "Unexpected error while signaling challenge completion", exc
     )
 
   let checkURL = completedResponseBody.getJSONField("url").getStr
@@ -206,10 +202,11 @@ proc notifyChallengeCompleted*(
     try:
       checkResponse =
         await HttpClientRequestRef.get(self.session, checkURL).get().send()
-      checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
-    except HttpError:
-      raise newException(ACMEError, "Failed to connect to ACME server")
-    except Exception as exc:
+      checkResponseBody =
+        bytesToString(await checkResponse.getBodyBytes()).checkedParseJson()
+    except HttpError as exc:
+      raise newException(ACMEError, "Failed to connect to ACME server", exc)
+    except ValueError as exc:
       raise newException(
         ACMEError, "Unexpected error while signaling challenge completion", exc
       )
@@ -266,8 +263,12 @@ proc finalizeCertificate*(
     try:
       checkResponse =
         await HttpClientRequestRef.get(self.session, orderURL).get().send()
-      checkResponseBody = bytesToString(await checkResponse.getBodyBytes()).parseJson()
-    except Exception as exc:
+      checkResponseBody =
+        bytesToString(await checkResponse.getBodyBytes()).checkedParseJson()
+    except ValueError as exc:
+      raise
+        newException(ACMEError, "JSON parsing error while finalizing certificate", exc)
+    except CatchableError as exc:
       raise
         newException(ACMEError, "Unexpected error while finalizing certificate", exc)
 
@@ -298,7 +299,7 @@ proc downloadCertificate*(
       raise newException(ACMEError, "Failed to download certificate")
 
     let certificateInfoBody =
-      bytesToString(await downloadResponse.getBodyBytes()).parseJson()
+      bytesToString(await downloadResponse.getBodyBytes()).checkedParseJson()
 
     let certificateDownloadURL = certificateInfoBody.getJSONField("certificate").getStr
     let certificateExpiry = parse(
@@ -311,7 +312,5 @@ proc downloadCertificate*(
     return (rawCertificate, certificateExpiry)
   except HttpError:
     raise newException(ACMEError, "Failed to connect to ACME server")
-  except Exception as e:
-    raise newException(
-      ACMEError, "Unexpected error while downloading certificate: " & e.msg
-    )
+  except ValueError as exc:
+    raise newException(ACMEError, "Unexpected error while downloading certificate", exc)

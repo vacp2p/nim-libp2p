@@ -3,6 +3,7 @@ import
 import
   ../errors, ../peerid, ../multihash, ../cid, ../multicodec, ../crypto/[crypto, rsa]
 
+type GetPrimaryIPError* = object of LPError
 type AutoTLSError* = object of LPError
 type ACMEError* = object of AutoTLSError
 type PeerIDAuthError* = object of AutoTLSError
@@ -56,23 +57,43 @@ proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
 
   return Base36.encode(cidResult.get().data.buffer)
 
-proc getParsedResponseBody*(
-    response: HttpClientResponseRef
-): Future[JsonNode] {.async: (raises: [ACMEError]).} =
+proc checkedParseJson*(bodyBytes: string): JsonNode {.raises: [ValueError].} =
+  # This is so that we don't need to catch Exceptions directly
+  # since we support 1.6.16 and parseJson before nim 2 didn't have explicit .raises. pragmas
   try:
-    let responseBody = bytesToString(await response.getBodyBytes()).parseJson()
-    return responseBody
-  except ValueError, OSError, IOError:
-    raise newException(ACMEError, "Unable to parse JSON body")
+    return parseJson(bodyBytes)
   except Exception as exc:
-    raise
-      newException(ACMEError, "Unexpected error occurred while getting body bytes", exc)
+    raise newException(ValueError, "Error while parsing JSON", exc)
+
+proc checkedGetPrimaryIPAddr*(): IpAddress {.raises: [GetPrimaryIPError].} =
+  # This is so that we don't need to catch Exceptions directly
+  # since we support 1.6.16 and getPrimaryIPAddr before nim 2 didn't have explicit .raises. pragmas
+  try:
+    return getPrimaryIPAddr()
+  except Exception as exc:
+    raise newException(GetPrimaryIPError, "Error while getting primary IP address", exc)
 
 proc getJSONField*(node: JsonNode, field: string): JsonNode {.raises: [ACMEError].} =
   try:
     return node[field]
-  except:
+  except CatchableError:
     raise newException(ACMEError, "'" & field & "' field not found in JSON")
+
+proc getParsedResponseBody*(
+    response: HttpClientResponseRef
+): Future[JsonNode] {.async: (raises: [ACMEError]).} =
+  try:
+    let responseBody = bytesToString(await response.getBodyBytes()).checkedParseJson()
+    return responseBody
+  except ValueError as exc:
+    raise newException(ACMEError, "Unable to parse JSON body", exc)
+  except OSError as exc:
+    raise newException(ACMEError, "Unable to parse JSON body", exc)
+  except IOError as exc:
+    raise newException(ACMEError, "Unable to parse JSON body", exc)
+  except CatchableError as exc:
+    raise
+      newException(ACMEError, "Unexpected error occurred while getting body bytes", exc)
 
 proc thumbprint*(key: KeyPair): string =
   # TODO: check if scheme is RSA
