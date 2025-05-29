@@ -260,18 +260,21 @@ suite "GossipSub Heartbeat":
 
     # Then Node1 receives 5 iDontWant messages from Node0
     checkUntilCustomTimeout(timeout, interval):
-      peer.iDontWants[^1].len == msgCount
+      peer.iDontWants[0].len == msgCount
 
     for i in 0 ..< historyLength:
       # When heartbeat happens
       # And history moves (new element added at start, last element pruned)
+      checkUntilCustomTimeout(timeout, interval):
+        peer.iDontWants[i].len == 0
+
       # Then iDontWant messages are moved to the next element
-      # Until they reach last element and are pruned
       var expectedHistory = newSeqWith(historyLength, 0)
       let nextIndex = i + 1
       if nextIndex < historyLength:
         expectedHistory[nextIndex] = msgCount
 
+      # Until they reach last element and are pruned
       checkUntilCustomTimeout(timeout, interval):
         peer.iDontWants.mapIt(it.len) == expectedHistory
 
