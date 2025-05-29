@@ -243,6 +243,12 @@ proc generateNodes*(
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
   return nodes.mapIt(GossipSub(it))
 
+proc getNodeByPeerId*[T: PubSub](nodes: seq[T], peerId: PeerId): GossipSub =
+  let filteredNodes = nodes.filterIt(it.peerInfo.peerId == peerId)
+  check:
+    filteredNodes.len == 1
+  return filteredNodes[0]
+
 proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not connect same peer"
