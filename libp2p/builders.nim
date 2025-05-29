@@ -188,9 +188,10 @@ proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   )
 
 proc withAutoTLSManager*(
-    b: SwitchBuilder, acmeServerURL = LetsEncryptURL
+    b: SwitchBuilder, acmeServerURL = LetsEncryptURL, ipAddress = Opt.none(IpAddress)
 ): SwitchBuilder {.public.} =
-  b.autoTLSMgr = AutoTLSManager.new(b.rng, acmeServerURL = acmeServerURL)
+  b.autoTLSMgr =
+    AutoTLSManager.new(b.rng, acmeServerURL = acmeServerURL, ipAddress = ipAddress)
   b
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =

@@ -118,61 +118,64 @@ proc peerIdAuthenticate(
     raise newException(PeerIDAuthError, "Failed to start PeerID Auth", exc)
 
   # www-authenticate
-  let wwwAuthenticate = authStartResponse.headers.getString("Www-Authenticate")
+  let wwwAuthenticate = authStartResponse.headers.getString("WWW-Authenticate")
   if wwwAuthenticate == "":
-    raise newException(PeerIDAuthError, "www-authenticate not present in response")
+    raise newException(PeerIDAuthError, "WWW-authenticate not present in response")
   let challengeClient = extractField(wwwAuthenticate, "challenge-client")
 
-  var serverPublicKey: PublicKey
-  try:
-    let res =
-      PublicKey.init(decode(extractField(wwwAuthenticate, "public-key")).toByteSeq())
-    if res.isErr:
-      raise newException(PeerIDAuthError, "Failed to initialize public-key")
-    serverPublicKey = res.get()
-  except ValueError as exc:
-    raise newException(PeerIDAuthError, "Failed to decode public-key", exc)
+  let serverPublicKey: PublicKey =
+    try:
+      PublicKey.init(decode(extractField(wwwAuthenticate, "public-key")).toByteSeq()).valueOr:
+        raise newException(PeerIDAuthError, "Failed to initialize public-key")
+    except ValueError as exc:
+      raise newException(PeerIDAuthError, "Failed to decode public-key", exc)
 
   let opaque = extractField(wwwAuthenticate, "opaque")
 
+  let publicKeyBytes: seq[byte] =
+    try:
+      peerInfo.publicKey.getBytes().valueOr:
+        raise
+          newException(PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey")
+    except ValueError as exc:
+      raise newException(
+        PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey", exc
+      )
+
   let hostname = AutoTLSBroker # registration.libp2p.direct
-  var publicKeyBytes: seq[byte]
-  try:
-    publicKeyBytes = peerInfo.publicKey.getBytes().get()
-  except ValueError as exc:
-    raise newException(
-      PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey", exc
-    )
+
   let clientPubKeyB64 = base64.encode(publicKeyBytes, safe = true)
-  var challengeServer: string
-  try:
-    challengeServer = randomChallenge(rng)
-  except ValueError as exc:
-    raise newException(PeerIDAuthError, "Failed to generate challenge", exc)
+  let challengeServer: string =
+    try:
+      randomChallenge(rng)
+    except ValueError as exc:
+      raise newException(PeerIDAuthError, "Failed to generate challenge", exc)
+
   let sig = peerIdSign(peerInfo.privateKey, challengeClient, serverPublicKey, hostname)
   let authHeader =
     PeerIDAuthPrefix & " public-key=\"" & clientPubKeyB64 & "\"" & ", opaque=\"" & opaque &
     "\"" & ", challenge-server=\"" & challengeServer & "\"" & ", sig=\"" & sig & "\""
 
   # Authorization
-  var authorizationResponse: HttpClientResponseRef
-  try:
-    authorizationResponse = await HttpClientRequestRef
-    .post(
-      session,
-      url,
-      body = $payload,
-      headers = [
-        ("Content-Type", "application/json"),
-        ("User-Agent", "nim-libp2p"),
-        ("authorization", authHeader),
-      ],
-    )
-    .get()
-    .send()
-  except HttpError as exc:
-    raise
-      newException(PeerIDAuthError, "Failed to send Authorization for PeerID Auth", exc)
+  let authorizationResponse: HttpClientResponseRef =
+    try:
+      await HttpClientRequestRef
+      .post(
+        session,
+        url,
+        body = $payload,
+        headers = [
+          ("Content-Type", "application/json"),
+          ("User-Agent", "nim-libp2p"),
+          ("authorization", authHeader),
+        ],
+      )
+      .get()
+      .send()
+    except HttpError as exc:
+      raise newException(
+        PeerIDAuthError, "Failed to send Authorization for PeerID Auth", exc
+      )
 
   # check server's signature
   let serverSig =

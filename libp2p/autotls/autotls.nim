@@ -18,6 +18,7 @@ import
   bearssl/rand,
   bio,
   json,
+  sequtils,
   chronos/apps/http/httpclient
 
 import ./acme
@@ -142,9 +143,7 @@ method issueCertificate(
     )
   )
 
-  var strMultiaddresses: seq[string] = @[]
-  for ma in peerInfo.addrs:
-    strMultiaddresses.add($ma)
+  let strMultiaddresses: seq[string] = peerInfo.addrs.mapIt($it)
 
   let payload = %*{"value": self.keyAuthorization.get(), "addresses": strMultiaddresses}
   let registrationURL = "https://" & AutoTLSBroker & "/v1/_acme-challenge"
@@ -173,17 +172,19 @@ method issueCertificate(
     )
 
   # no need to do anything from this point forward if there are not public ip addresses on host
-  var hostPrimaryIP: IpAddress
-  try:
-    hostPrimaryIP = self.ipAddress.get(checkedGetPrimaryIPAddr())
-    if not isPublicIPv4(hostPrimaryIP):
-      raise newException(AutoTLSError, "Host does not have a public IPv4 address")
-  except GetPrimaryIPError as exc:
-    raise newException(AutoTLSError, "Failed to get primary IP address for host", exc)
-  except CatchableError as exc:
-    raise newException(
-      AutoTLSError, "Unexpected error while getting primary IP address for host", exc
-    )
+  let hostPrimaryIP: IpAddress =
+    try:
+      let ip = self.ipAddress.valueOr:
+        checkedGetPrimaryIPAddr()
+      if not isPublicIPv4(ip):
+        raise newException(AutoTLSError, "Host does not have a public IPv4 address")
+      ip
+    except GetPrimaryIPError as exc:
+      raise newException(AutoTLSError, "Failed to get primary IP address for host", exc)
+    except CatchableError as exc:
+      raise newException(
+        AutoTLSError, "Unexpected error while getting primary IP address for host", exc
+      )
 
   debug "Waiting for DNS record to be set"
 
@@ -199,8 +200,7 @@ method issueCertificate(
 
   debug "Notifying challenge completion to ACME server"
   let chalURL = dns01Challenge.getJSONField("url").getStr
-  if not await self.acmeAccount.notifyChallengeCompleted(chalURL):
-    raise newException(AutoTLSError, "ACME challenge completion notification failed")
+  await self.acmeAccount.notifyChallengeCompleted(chalURL)
 
   debug "Finalize cert request with CSR"
   if not await self.acmeAccount.finalizeCertificate(domain, finalizeURL, orderURL):

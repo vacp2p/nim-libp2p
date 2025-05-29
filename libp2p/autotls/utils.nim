@@ -3,10 +3,11 @@ import
 import
   ../errors, ../peerid, ../multihash, ../cid, ../multicodec, ../crypto/[crypto, rsa]
 
-type GetPrimaryIPError* = object of LPError
-type AutoTLSError* = object of LPError
-type ACMEError* = object of AutoTLSError
-type PeerIDAuthError* = object of AutoTLSError
+type
+  GetPrimaryIPError* = object of LPError
+  AutoTLSError* = object of LPError
+  ACMEError* = object of AutoTLSError
+  PeerIDAuthError* = object of AutoTLSError
 
 const
   AutoTLSBroker* = "registration.libp2p.direct"
@@ -96,7 +97,7 @@ proc getParsedResponseBody*(
       newException(ACMEError, "Unexpected error occurred while getting body bytes", exc)
 
 proc thumbprint*(key: KeyPair): string =
-  # TODO: check if scheme is RSA
+  doAssert key.seckey.scheme == PKScheme.RSA, "unsupported keytype"
   let pubkey = key.pubkey.rsakey
   let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
   let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))

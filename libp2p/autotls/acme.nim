@@ -1,4 +1,4 @@
-import options, json, base64
+import options, json, base64, sequtils
 from times import DateTime, parse
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
 
@@ -24,7 +24,9 @@ type ACMEAccount* = object
   key*: KeyPair
   session*: HttpSessionRef
   kid*: Opt[string]
-  directory: JsonNode
+  newNonceURL: string
+  newAccountURL: string
+  newOrderURL: string
   acmeServerURL: string
 
 proc new*(
@@ -56,7 +58,9 @@ proc new*(
   acc.kid = kid
   acc.key = key
   acc.session = session
-  acc.directory = directory
+  acc.newNonceURL = directory.getJSONField("newNonce").getStr
+  acc.newAccountURL = directory.getJSONField("newAccount").getStr
+  acc.newOrderURL = directory.getJSONField("newOrder").getStr
   acc.acmeServerURL = acmeServerURL
   return acc
 
@@ -64,8 +68,8 @@ proc newNonce(
     self: ref ACMEAccount
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
-    let nonceURL = self.directory.getJSONField("newNonce").getStr
-    let resp = await HttpClientRequestRef.get(self.session, nonceURL).get().send()
+    let resp =
+      await HttpClientRequestRef.get(self.session, self.newNonceURL).get().send()
     return resp.headers.getString("Replay-Nonce")
   except HttpError as exc:
     raise newException(ACMEError, "Failed to request new nonce from ACME server", exc)
@@ -125,8 +129,8 @@ proc register*(self: ref ACMEAccount) {.async: (raises: [ACMEError, CancelledErr
 
   let payload = %*{"termsOfServiceAgreed": true}
 
-  let newAccountURL = self.directory.getJSONField("newAccount").getStr
-  let response = await self.signedAcmeRequest(newAccountURL, payload, needsJwk = true)
+  let response =
+    await self.signedAcmeRequest(self.newAccountURL, payload, needsJwk = true)
   let jsonResponseBody = await response.getParsedResponseBody()
   if response.status != HttpCreated:
     raise newException(
@@ -139,15 +143,11 @@ proc requestChallenge*(
     self: ref ACMEAccount, domains: seq[string]
 ): Future[(JsonNode, string, string)] {.async: (raises: [ACMEError, CancelledError]).} =
   # request challenge from ACME server
-  var identifiers: seq[JsonNode]
-
-  for domain in domains:
-    identifiers.add(%*{"type": "dns", "value": domain})
+  var identifiers: seq[JsonNode] = domains.mapIt(%*{"type": "dns", "value": it})
 
   let orderPayload = %*{"identifiers": identifiers}
-  let newOrderURL = self.directory.getJSONField("newOrder").getStr
 
-  let challengeResponse = await self.signedAcmeRequest(newOrderURL, orderPayload)
+  let challengeResponse = await self.signedAcmeRequest(self.newOrderURL, orderPayload)
   let challengeResponseBody = await challengeResponse.getParsedResponseBody()
   let orderURL = challengeResponse.headers.getString("location")
   if orderURL == "":
@@ -177,11 +177,15 @@ proc requestChallenge*(
 
 proc notifyChallengeCompleted*(
     self: ref ACMEAccount, chalURL: string, retries: int = DefaultChalCompletedRetries
-): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
+): Future[void] {.async: (raises: [ACMEError, CancelledError]).} =
   let emptyPayload = newJObject()
   let completedResponse = await self.signedAcmeRequest(chalURL, emptyPayload)
   if completedResponse.status != HttpOk:
-    return false
+    raise newException(
+      ACMEError,
+      "Failed got HTTP status code " & $completedResponse.status &
+        " while sending completed message to ACME server",
+    )
 
   var completedResponseBody: JsonNode
   try:
@@ -210,7 +214,8 @@ proc notifyChallengeCompleted*(
       raise newException(
         ACMEError, "Unexpected error while signaling challenge completion", exc
       )
-    case checkResponseBody.getJSONField("status").getStr
+    let status = checkResponseBody.getJSONField("status").getStr
+    case status
     of "pending":
       var retryAfter: Duration
       try:
@@ -219,11 +224,11 @@ proc notifyChallengeCompleted*(
         retryAfter = DefaultChalCompletedRetryTime
       await sleepAsync(retryAfter) # try again after some delay
     of "valid":
-      return true
+      return
     else:
-      return false
-
-  return false
+      raise newException(
+        ACMEError, "Failed challenge completion: expected 'valid', got '" & status & "'"
+      )
 
 proc finalizeCertificate*(
     self: ref ACMEAccount,

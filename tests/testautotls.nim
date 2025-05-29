@@ -32,13 +32,14 @@ import
 import ./helpers
 
 suite "AutoTLS":
+  teardown:
+    checkTrackers()
+
   asyncTest "test ACME":
     let acc = await ACMEAccount.new(
       KeyPair.random(PKScheme.RSA, newRng()[]).get(),
       acmeServerURL = LetsEncryptURLStaging,
     )
-    defer:
-      checkTrackers()
 
     await acc.register()
     # account was registered (kid set)
@@ -62,9 +63,6 @@ suite "AutoTLS":
       .withYamux()
       .withNoise()
       .build()
-
-    defer:
-      checkTrackers()
 
     try:
       let hostPrimaryIP = getPrimaryIPAddr()
@@ -104,14 +102,12 @@ suite "AutoTLS":
 
     # DNS TXT record is set
     let keyAuthorization = switch.autoTLSMgr.keyAuthorization.valueOr:
-      check false
-      return
+      raiseAssert "keyAuthorization not found"
     check dnsTXTRecord == keyAuthorization
 
     # certificate was downloaded and parsed
     let cert = switch.autoTLSMgr.cert.valueOr:
-      check false
-      return
+      raiseAssert "certificate not found"
     let certBefore = cert
 
     # invalidate certificate
@@ -125,14 +121,12 @@ suite "AutoTLS":
 
     # certificate was indeed renewed
     let certAfter = switch.autoTLSMgr.cert.valueOr:
-      check false
-      return
+      raiseAssert "certificate not found"
 
     check certBefore != certAfter
 
     let certExpiry = switch.autoTLSMgr.certExpiry.valueOr:
-      check false
-      return
+      raiseAssert "certificate expiry not found"
 
     # cert is valid
     check certExpiry > Moment.now
