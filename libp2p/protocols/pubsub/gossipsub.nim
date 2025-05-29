@@ -409,6 +409,7 @@ proc sendIDontWant(
       control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
     ),
     isHighPriority = true,
+    false,
   )
 
 const iDontWantMessageSizeThreshold* = 512
@@ -491,7 +492,12 @@ proc validateAndRelay(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    g.broadcast(
+      toSendPeers,
+      RPCMsg(messages: @[msg]),
+      isHighPriority = false,
+      useCustomConn = false,
+    )
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     if g.knownTopics.contains(topic):
@@ -692,7 +698,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
         )
       )
     )
-    g.broadcast(mpeers, msg, isHighPriority = true)
+    g.broadcast(mpeers, msg, isHighPriority = true, useCustomConn = false)
 
     for peer in mpeers:
       g.pruned(peer, topic, backoff = some(g.parameters.unsubscribeBackoff))
@@ -703,8 +709,8 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
 method publish*(
-    g: GossipSub, topic: string, data: seq[byte]
-): Future[int] {.async: (raises: []).} =
+    g: GossipSub, topic: string, data: seq[byte], useCustomConn: bool = false
+): Future[int] {.base, async: (raises: []).} =
   logScope:
     topic
 
@@ -719,55 +725,70 @@ method publish*(
 
   var peers: HashSet[PubSubPeer]
 
-  # add always direct peers
-  peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
-
-  if topic in g.topics: # if we're subscribed use the mesh
-    peers.incl(g.mesh.getOrDefault(topic))
-
-  if g.parameters.floodPublish:
-    # With flood publishing enabled, the mesh is used when propagating messages from other peers,
-    # but a peer's own messages will always be published to all known peers in the topic, limited
-    # to the amount of peers we can send it to in one heartbeat
-
-    let maxPeersToFlood =
-      if g.parameters.bandwidthEstimatebps > 0:
-        let
-          bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000
-            # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
-          msToTransmit = max(data.len div bandwidth, 1)
-        max(
-          g.parameters.heartbeatInterval.milliseconds div msToTransmit,
-          g.parameters.dLow,
+  if useCustomConn:
+    if g.customConnCallbacks.isSome:
+      peers.incl(
+        g.customConnCallbacks.get().peerSelectionCB(
+          g.gossipsub.getOrDefault(topic),
+          g.subscribedDirectPeers.getOrDefault(topic),
+          g.mesh.getOrDefault(topic),
+          g.fanout.getOrDefault(topic),
         )
-      else:
-        int.high() # unlimited
+      )
+    else:
+      trace "No custom connection callbacks provided, skipping publish"
+      libp2p_gossipsub_failed_publish.inc()
+      return 0
+  else:
+    # add always direct peers
+    peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
-    for peer in g.gossipsub.getOrDefault(topic):
-      if peers.len >= maxPeersToFlood:
-        break
+    if topic in g.topics: # if we're subscribed use the mesh
+      peers.incl(g.mesh.getOrDefault(topic))
 
-      if peer.score >= g.parameters.publishThreshold:
-        trace "publish: including flood/high score peer", peer
-        peers.incl(peer)
-  elif peers.len < g.parameters.dLow:
-    # not subscribed or bad mesh, send to fanout peers
-    # when flood-publishing, fanout won't help since all potential peers have
-    # already been added
+    if g.parameters.floodPublish:
+      # With flood publishing enabled, the mesh is used when propagating messages from other peers,
+      # but a peer's own messages will always be published to all known peers in the topic, limited
+      # to the amount of peers we can send it to in one heartbeat
 
-    g.replenishFanout(topic) # Make sure fanout is populated
+      let maxPeersToFlood =
+        if g.parameters.bandwidthEstimatebps > 0:
+          let
+            bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000
+              # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
+            msToTransmit = max(data.len div bandwidth, 1)
+          max(
+            g.parameters.heartbeatInterval.milliseconds div msToTransmit,
+            g.parameters.dLow,
+          )
+        else:
+          int.high() # unlimited
 
-    var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
-    g.rng.shuffle(fanoutPeers)
+      for peer in g.gossipsub.getOrDefault(topic):
+        if peers.len >= maxPeersToFlood:
+          break
 
-    for fanPeer in fanoutPeers:
-      peers.incl(fanPeer)
-      if peers.len > g.parameters.d:
-        break
+        if peer.score >= g.parameters.publishThreshold:
+          trace "publish: including flood/high score peer", peer
+          peers.incl(peer)
+    elif peers.len < g.parameters.dLow:
+      # not subscribed or bad mesh, send to fanout peers
+      # when flood-publishing, fanout won't help since all potential peers have
+      # already been added
 
-    # Attempting to publish counts as fanout send (even if the message
-    # ultimately is not sent)
-    g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
+      g.replenishFanout(topic) # Make sure fanout is populated
+
+      var fanoutPeers = g.fanout.getOrDefault(topic).toSeq()
+      g.rng.shuffle(fanoutPeers)
+
+      for fanPeer in fanoutPeers:
+        peers.incl(fanPeer)
+        if peers.len > g.parameters.d:
+          break
+
+      # Attempting to publish counts as fanout send (even if the message
+      # ultimately is not sent)
+      g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
@@ -807,7 +828,12 @@ method publish*(
   if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
     g.sendIDontWant(msg, msgId, peers)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  g.broadcast(
+    peers,
+    RPCMsg(messages: @[msg]),
+    isHighPriority = true,
+    useCustomConn = useCustomConn,
+  )
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
