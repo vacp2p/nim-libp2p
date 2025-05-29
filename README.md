@@ -20,7 +20,6 @@
 - [Background](#background)
 - [Install](#install)
 - [Getting Started](#getting-started)
-  - [Testing](#testing)
 - [Modules](#modules)
 - [Users](#users)
 - [Stability](#stability)
@@ -46,13 +45,26 @@ Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p'
 ```
 nimble install libp2p
 ```
-
-## Getting Started
 You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/). See [examples](./examples) for simple usage patterns.
 
-### Testing
-Remember you'll need to build the `go-libp2p-daemon` binary to run the `nim-libp2p` tests.
-To do so, please follow the installation instructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
+## Getting Started
+Try out the chat example. For this you'll need to have [`go-libp2p-daemon`](examples/go-daemon/daemonapi.md) running. Full code can be found [here](https://github.com/status-im/nim-libp2p/blob/master/examples/chat.nim):
+
+```bash
+nim c -r --threads:on examples/directchat.nim
+```
+
+This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
+
+```bash
+./examples/directchat
+/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu # change this hash by the hash you were given
+```
+
+You can now chat between the instances!
+
+![Chat example](https://imgur.com/caYRu8K.gif)
+
 
 ## Modules
 List of packages modules implemented in nim-libp2p:
@@ -112,23 +124,29 @@ The versioning follows [semver](https://semver.org/), with some additions:
 We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `1.6 & 2.0`
 
 ## Development
-Clone and Install dependencies:
+Clone the repository and install the dependencies:
 ```sh
 git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
-# to use dependencies computed by nimble
 nimble install -dy
-# OR to install the dependencies versions used in CI
-nimble install_pinned
 ```
-
+### Testing
 Run unit tests:
 ```sh
 # run all the unit tests
 nimble test
 ```
-This requires the go daemon to be available. To only run native tests, use `nimble testnative`.
-Or use `nimble tasks` to show all available tasks.
+**Obs:** Running all tests requires the [`go-libp2p-daemon` to be installed and running](examples/go-daemon/daemonapi.md).
+
+If you only want to run tests that don't require `go-libp2p-daemon`, use:
+```
+nimble testnative
+```
+
+For a list of all available test suites, use:
+```
+nimble tasks
+```
 
 ### Contribute
 
