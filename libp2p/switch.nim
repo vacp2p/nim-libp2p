@@ -82,6 +82,7 @@ method run*(self: Service, switch: Switch) {.base, async: (raises: [CancelledErr
 method stop*(
     self: Service, switch: Switch
 ): Future[bool] {.base, async: (raises: [CancelledError]).} =
+  debug "Stopping service", service = repr(self)
   if not self.inUse:
     warn "service is already stopped"
     return false
@@ -315,7 +316,7 @@ proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
     # Stop accepting incoming connections
     await allFutures(s.acceptFuts.mapIt(it.cancelAndWait())).wait(1.seconds)
   except CatchableError as exc:
-    debug "Cannot cancel accepts", description = exc.msg
+    error "Cannot cancel accepts", description = exc.msg
 
   for service in s.services:
     discard await service.stop(s)
@@ -325,11 +326,13 @@ proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
 
   for transp in s.transports:
     try:
+      debug "Stopping transport", transport = repr(transp)
       await transp.stop()
     except CancelledError as exc:
+      error "Cancelled while stopping transport", error = exc.msg
       raise exc
     except CatchableError as exc:
-      warn "error cleaning up transports", description = exc.msg
+      error "error cleaning up transports", description = exc.msg
 
   await s.ms.stop()
 
@@ -353,6 +356,8 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
       startFuts.add(t.start(addrs))
 
   await allFutures(startFuts)
+
+  debug "Switch after starting transports"
 
   for fut in startFuts:
     if fut.failed:
