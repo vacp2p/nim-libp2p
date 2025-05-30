@@ -1,6 +1,8 @@
-import options, json, base64, sequtils
+import options, base64, sequtils, serialization, json_serialization
 from times import DateTime, parse
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
+from std/json import
+  JsonNode, `%*`, `%`, `[]`, `[]=`, `$`, parseJson, getStr, items, newJObject
 
 import ./utils
 import ../crypto/crypto
@@ -18,15 +20,18 @@ const
   DefaultFinalizeRetryTime = 1.seconds
   DefaultRandStringSize = 256
 
+type ACMEDirectory = object
+  newNonce: string
+  newOrder: string
+  newAccount: string
+
 type ACMEAccount* = object
   status*: Opt[string]
   contact*: Opt[seq[string]]
   key*: KeyPair
   session*: HttpSessionRef
   kid*: Opt[string]
-  newNonceURL: string
-  newAccountURL: string
-  newOrderURL: string
+  directory: ACMEDirectory
   acmeServerURL: string
 
 proc new*(
@@ -38,11 +43,13 @@ proc new*(
     acmeServerURL: string = LetsEncryptURL,
 ): Future[ref ACMEAccount] {.async: (raises: [ACMEError, CancelledError]).} =
   let session = HttpSessionRef.new()
-  var directory: JsonNode
+  var directory: ACMEDirectory
   try:
     let directoryResponse =
       await HttpClientRequestRef.get(session, acmeServerURL & "/directory").get().send()
-    directory = bytesToString(await directoryResponse.getBodyBytes()).checkedParseJson()
+    directory = (
+      bytesToString(await directoryResponse.getBodyBytes()).checkedParseJson()
+    ).to(ACMEDirectory)
   except HttpError as exc:
     raise newException(ACMEError, "Failed to connect to ACME server", exc)
   except ValueError as exc:
@@ -58,9 +65,7 @@ proc new*(
   acc.kid = kid
   acc.key = key
   acc.session = session
-  acc.newNonceURL = directory.getJSONField("newNonce").getStr
-  acc.newAccountURL = directory.getJSONField("newAccount").getStr
-  acc.newOrderURL = directory.getJSONField("newOrder").getStr
+  acc.directory = directory
   acc.acmeServerURL = acmeServerURL
   return acc
 
@@ -69,7 +74,7 @@ proc newNonce(
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
     let resp =
-      await HttpClientRequestRef.get(self.session, self.newNonceURL).get().send()
+      await HttpClientRequestRef.get(self.session, self.directory.newNonce).get().send()
     return resp.headers.getString("Replay-Nonce")
   except HttpError as exc:
     raise newException(ACMEError, "Failed to request new nonce from ACME server", exc)
@@ -130,7 +135,7 @@ proc register*(self: ref ACMEAccount) {.async: (raises: [ACMEError, CancelledErr
   let payload = %*{"termsOfServiceAgreed": true}
 
   let response =
-    await self.signedAcmeRequest(self.newAccountURL, payload, needsJwk = true)
+    await self.signedAcmeRequest(self.directory.newAccount, payload, needsJwk = true)
   let jsonResponseBody = await response.getParsedResponseBody()
   if response.status != HttpCreated:
     raise newException(
@@ -147,7 +152,8 @@ proc requestChallenge*(
 
   let orderPayload = %*{"identifiers": identifiers}
 
-  let challengeResponse = await self.signedAcmeRequest(self.newOrderURL, orderPayload)
+  let challengeResponse =
+    await self.signedAcmeRequest(self.directory.newOrder, orderPayload)
   let challengeResponseBody = await challengeResponse.getParsedResponseBody()
   let orderURL = challengeResponse.headers.getString("location")
   if orderURL == "":
