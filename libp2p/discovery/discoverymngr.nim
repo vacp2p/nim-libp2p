@@ -113,7 +113,7 @@ proc add*(dm: DiscoveryManager, di: DiscoveryInterface) =
         try:
           query.peers.putNoWait(pa)
         except AsyncQueueFullError as exc:
-          debug "Cannot push discovered peer to queue"
+          debug "Cannot push discovered peer to queue: " & getCurrentExceptionMsg()
 
 proc request*(dm: DiscoveryManager, pa: PeerAttributes): DiscoveryQuery =
   var query = DiscoveryQuery(attr: pa, peers: newAsyncQueue[PeerAttributes]())
@@ -180,7 +180,7 @@ proc getPeer*(
     await getter or allFinished(query.futs)
   except CancelledError as exc:
     getter.cancel()
-    raise exc
+    raise newException(CancelledError, "Exception in getPeer: " & exc.msg, exc)
 
   if not finished(getter):
     if query.finished:

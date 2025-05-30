@@ -217,7 +217,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
   except CancelledError:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
-    trace "Unexpected cancellation in PubSubPeer.handle"
+    trace "Unexpected cancellation in PubSubPeer.handle",
+      description = getCurrentExceptionMsg()
   finally:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
 
@@ -236,7 +237,8 @@ proc closeSendConn(
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: event))
   except CancelledError as exc:
-    raise exc
+    raise
+      newException(CancelledError, "PubSubPeer.onEvent was cancelled: " & exc.msg, exc)
   # don't cleanup p.address else we leak some gossip stat table
 
 proc connectOnce(
@@ -250,7 +252,7 @@ proc connectOnce(
         await p.getConn().wait(5.seconds)
       except AsyncTimeoutError as error:
         trace "getConn timed out", description = error.msg
-        raise (ref LPError)(msg: "Cannot establish send connection")
+        raise (ref LPError)(msg: "Cannot establish send connection: " & error.msg)
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all

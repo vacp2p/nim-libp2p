@@ -132,7 +132,7 @@ method readOnce*(
       except CancelledError as exc:
         # Not very efficient, but shouldn't happen often
         s.readBuf.assign(@(p.toOpenArray(0, rbytes - 1)) & @(s.readBuf.data))
-        raise exc
+        raise newException("readQueue.popFirst was cancelled: " & exc.msg, exc)
       finally:
         s.reading = false
 
@@ -200,7 +200,7 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
         if not s.readQueue.empty():
           discard s.readQueue.popFirstNoWait()
   except AsyncQueueFullError, AsyncQueueEmptyError:
-    raiseAssert(getCurrentExceptionMsg())
+    raiseAssert("exception caught in closeImpl: " & getCurrentExceptionMsg())
 
   trace "Closed BufferStream", s
 

@@ -109,7 +109,7 @@ func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
     try:
       "CN=" & $(PeerId.init(identityKeyPair.pubkey).tryGet())
     except LPError:
-      raiseAssert "pubkey must be set"
+      raiseAssert "pubkey must be set: " & getCurrentExceptionMsg()
 
   return issuerDN
 
@@ -119,7 +119,8 @@ proc makeASN1Time(time: Time): string {.inline.} =
       let f = initTimeFormat("yyyyMMddhhmmss")
       format(time.utc(), f)
     except TimeFormatParseError:
-      raiseAssert "time format is const and checked with test"
+      raiseAssert "time format is const and checked with test: " &
+        getCurrentExceptionMsg()
 
   return str & "Z"
 
@@ -278,7 +279,7 @@ proc parse*(
     validTo = parseCertTime($certParsed.valid_to)
   except TimeParseError as e:
     raise newException(
-      CertificateParsingError, "Failed to parse certificate validity time, " & $e.msg
+      CertificateParsingError, "Failed to parse certificate validity time: " & $e.msg, e
     )
 
   P2pCertificate(

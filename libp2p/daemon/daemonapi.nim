@@ -595,13 +595,13 @@ template exceptionToAssert(body: untyped): untyped =
     try:
       res = body
     except OSError as exc:
-      raise exc
+      raise newException(OSError, "exception in exceptionToAssert: " & exc.msg, exc)
     except IOError as exc:
-      raise exc
+      raise newException(IOError, "exception in exceptionToAssert: " & exc.msg, exc)
     except Defect as exc:
-      raise exc
+      raise newException(Defect, "exception in exceptionToAssert: " & exc.msg, exc)
     except Exception as exc:
-      raiseAssert exc.msg
+      raiseAssert "Exception captured in exceptionToAssert: " & exc.msg
     when defined(nimHasWarnBareExcept):
       {.pop.}
     res
@@ -969,7 +969,8 @@ proc openStream*(
         result = stream
   except ResultError[ProtoError]:
     await api.closeConnection(transp)
-    raise newException(DaemonLocalError, "Wrong message type!")
+    raise
+      newException(DaemonLocalError, "Wrong message type: " & getCurrentExceptionMsg())
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   # must not specify raised exceptions as this is StreamCallback from chronos
@@ -1023,13 +1024,13 @@ proc addHandler*(
       api.servers.add(P2PServer(server: server, address: maddress))
   except DaemonLocalError as e:
     await removeHandler()
-    raise e
+    raise newException(DaemonLocalError, "Could not add stream handler: " & e.msg, e)
   except TransportError as e:
     await removeHandler()
-    raise e
+    raise newException(TransportError, "Could not add stream handler: " & e.msg, e)
   except CancelledError as e:
     await removeHandler()
-    raise e
+    raise newException(CancelledError, "Could not add stream handler: " & e.msg, e)
   finally:
     await api.closeConnection(transp)
 
@@ -1503,13 +1504,19 @@ proc pubsubSubscribe*(
       result = ticket
   except DaemonLocalError as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(
+      DaemonLocalError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
+    )
   except TransportError as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(
+      TransportError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
+    )
   except CancelledError as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(
+      CancelledError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
+    )
 
 proc pubsubSubscribe*(
     api: DaemonAPI, topic: string, handler: P2PPubSubCallback

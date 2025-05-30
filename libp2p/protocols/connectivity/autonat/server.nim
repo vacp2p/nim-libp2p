@@ -94,13 +94,13 @@ proc tryDial(
     else:
       await conn.sendResponseError(DialError, "Missing observed address")
   except CancelledError as exc:
-    raise exc
+    raise newException(CancelledError, "cancelled in tryDial: " & exc.msg, exc)
   except AllFuturesFailedError as exc:
     debug "All dial attempts failed", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
     debug "Dial timeout", addrs, description = exc.msg
-    await conn.sendResponseError(DialError, "Dial timeout")
+    await conn.sendResponseError(DialError, "Dial timeout: " & exc.msg)
   finally:
     autonat.sem.release()
     for f in futs:
@@ -175,7 +175,8 @@ proc new*(
       await autonat.handleDial(conn, msg)
     except CancelledError as exc:
       trace "cancelled autonat handler"
-      raise exc
+      raise
+        newException(CancelledError, "Autonat handler was cancelled: " & exc.msg, exc)
     except CatchableError as exc:
       debug "exception in autonat handler", description = exc.msg, conn
     finally:

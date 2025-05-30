@@ -92,11 +92,11 @@ method accept*(
     return conn
   except CancelledError as e:
     listener.close()
-    raise e
+    raise newException(CancelledError, "MemoryTransport accept cancelled: " & e.msg), e
   except MemoryTransportError as e:
-    raise e
+    raise newException(MemoryTransportError, "MemoryTransport accept error: " & e.msg), e
   except CatchableError:
-    raiseAssert "should never happen"
+    raiseAssert "should never happen: " & getCurrentExceptionMsg()
 
 method dial*(
     self: MemoryTransport,
@@ -110,11 +110,11 @@ method dial*(
     self.connections.add(conn)
     return conn
   except CancelledError as e:
-    raise e
+    raise newException(CancelledError, "MemoryTransport dial cancelled: " & e.msg), e
   except MemoryTransportError as e:
-    raise e
+    raise newException(MemoryTransportError, "MemoryTransport dial error: " & e.msg), e
   except CatchableError:
-    raiseAssert "should never happen"
+    raiseAssert "should never happen: " & getCurrentExceptionMsg()
 
 proc dial*(
     self: MemoryTransport, ma: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)

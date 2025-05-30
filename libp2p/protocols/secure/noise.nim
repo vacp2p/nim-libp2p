@@ -493,7 +493,7 @@ method write*(
       )
     except NoiseNonceMaxError as exc:
       debug "Noise nonce exceeded"
-      let fut = newFuture[void]("noise.write.nonce")
+      let fut = newFuture[void]("noise.write.nonce: " & exc.msg)
       fut.fail(exc)
       return fut
 

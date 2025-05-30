@@ -154,7 +154,7 @@ method init*(p: Identify) =
       await conn.writeLp(pb.buffer)
     except CancelledError as exc:
       trace "cancelled identify handler"
-      raise exc
+      raise newException(CancelledError, "Identify handle cancelled: " & exc.msg, exc)
     except CatchableError as exc:
       trace "exception in identify handler", description = exc.msg, conn
     finally:
@@ -230,7 +230,8 @@ proc init*(p: IdentifyPush) =
         await p.identifyHandler(conn.peerId, identInfo)
     except CancelledError as exc:
       trace "cancelled identify push handler"
-      raise exc
+      raise
+        newException(CancelledError, "IdentifyPush handle cancelled: " & exc.msg, exc)
     except CatchableError as exc:
       info "exception in identify push handler", description = exc.msg, conn
     finally:

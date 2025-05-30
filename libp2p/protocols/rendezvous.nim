@@ -420,7 +420,7 @@ proc save(
     rdv.namespaces[nsSalted].add(rdv.registered.high)
   #    rdv.registerEvent.fire()
   except KeyError:
-    doAssert false, "Should have key"
+    doAssert false, "Should have key: " & getCurrentExceptionMsg()
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   trace "Received Register", peerId = conn.peerId, ns = r.ns
@@ -625,7 +625,7 @@ proc request*(
           try:
             rdv.cookiesSaved[peer][namespace] = cookie
           except KeyError:
-            raiseAssert "checked with hasKeyOrPut"
+            raiseAssert "checked with hasKeyOrPut: " & getCurrentExceptionMsg()
     for r in resp.registrations:
       if limit == 0:
         return
@@ -641,7 +641,7 @@ proc request*(
           try:
             s[pr.peerId]
           except KeyError:
-            raiseAssert "checked with hasKey"
+            raiseAssert "checked with hasKey: " & getCurrentExceptionMsg()
         if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
             prSaved.seqNo < pr.seqNo:
           s[pr.peerId] = (pr, r)
@@ -661,7 +661,7 @@ proc request*(
       trace "Send Request", peerId = peer, ns
       await peer.requestPeer()
     except CancelledError as e:
-      raise e
+      raise newException(CancelledError, "Cancelled request: " & e.msg, e)
     except DialFailedError as e:
       trace "failed to dial a peer", description = e.msg
     except LPStreamError as e:
@@ -785,7 +785,8 @@ proc new*(
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
       trace "cancelled rendezvous handler"
-      raise exc
+      raise
+        newException(CancelledError, "Cancelled rendezvous handler: " & exc.msg, exc)
     except CatchableError as exc:
       trace "exception in rendezvous handler", description = exc.msg
     finally:

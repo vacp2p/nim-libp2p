@@ -590,7 +590,8 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           except KeyError:
             raise newException(
               YamuxError,
-              "Stream was cleaned up before handling data: " & $header.streamId,
+              "Stream was cleaned up before handling data: " & $header.streamId & " : " &
+                getCurrentExceptionMsg(),
             )
 
         if header.msgType == WindowUpdate:

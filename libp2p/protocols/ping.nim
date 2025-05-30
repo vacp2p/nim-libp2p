@@ -62,7 +62,7 @@ method init*(p: Ping) =
         await p.pingHandler(conn.peerId)
     except CancelledError as exc:
       trace "cancelled ping handler"
-      raise exc
+      raise newException(CancelledError, "Ping handler was cancelled: " & exc.msg, exc)
     except CatchableError as exc:
       trace "exception in ping handler", description = exc.msg, conn
 

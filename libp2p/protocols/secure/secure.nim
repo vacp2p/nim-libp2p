@@ -111,7 +111,7 @@ proc handleConn(
         try: # https://github.com/status-im/nim-chronos/issues/516
           discard await race(fut1, fut2)
         except ValueError:
-          raiseAssert("Futures list is not empty")
+          raiseAssert("Futures list is not empty: " / getCurrentExceptionMsg())
         # at least one join() completed, cancel pending one, if any
         if not fut1.finished:
           await fut1.cancelAndWait()
@@ -151,7 +151,8 @@ method init*(s: Secure) =
       trace "connection secured", conn
     except CancelledError as exc:
       warn "securing connection canceled", conn
-      raise exc
+      raise
+        newException(CancelledError, "securing connection canceled: " & exc.msg, exc)
     except LPStreamError as exc:
       warn "securing connection failed", description = exc.msg, conn
     finally:
@@ -182,14 +183,15 @@ method readOnce*(
     except LPStreamEOFError as err:
       s.isEof = true
       await s.close()
-      raise err
+      raise newException(LPStreamEOFError, "Secure connection EOF: " & err.msg, err)
     except CancelledError as exc:
-      raise exc
+      raise
+        newException(CancelledError, "Secure connection read canceled: " & exc.msg, exc)
     except LPStreamError as err:
       debug "Error while reading message from secure connection, closing.",
         error = err.name, message = err.msg, connection = s
       await s.close()
-      raise err
+      raise newException(LPStreamError, "Secure connection read error: " & err.msg, err)
 
   var p = cast[ptr UncheckedArray[byte]](pbytes)
   return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
