@@ -357,6 +357,7 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
   for fut in startFuts:
     if fut.failed:
       await s.stop()
+      error "Failed to start transport", future = repr(fut), error = fut.error.msg
       raise newException(LPError, "starting transports failed", fut.error)
 
   for t in s.transports: # for each transport
