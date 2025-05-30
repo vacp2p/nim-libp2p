@@ -260,7 +260,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
           check line == test
           testFuture.complete(line)
         except CancelledError as e:
-          raise e
+          raise newException(CancelledError, "Native handler cancelled: " & e.msg, e)
         except CatchableError:
           check false # should not be here
         finally:

@@ -29,9 +29,12 @@ proc anyCompleted*[T](
       requests.del(requests.find(raceFut))
     except ValueError:
       raise newException(
-        AllFuturesFailedError, "None of the futures completed successfully"
+        AllFuturesFailedError,
+        "None of the futures completed successfully: " & getCurrentExceptionMsg(),
       )
     except CancelledError as exc:
-      raise exc
+      raise newException(
+        CancelledError, "One of the futures was cancelled: " & exc.msg, exc
+      )
     except CatchableError:
       continue

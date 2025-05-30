@@ -160,7 +160,9 @@ method start*(
         else:
           HttpServer.create(address, handshakeTimeout = self.handshakeTimeout)
       except CatchableError as exc:
-        raise (ref WsTransportError)(msg: exc.msg, parent: exc)
+        raise (ref WsTransportError)(
+          msg: "caught error in WsTransport start: " & exc.msg, parent: exc
+        )
 
     self.httpservers &= httpserver
 
@@ -269,9 +271,9 @@ method accept*(
     try:
       await one(self.acceptFuts)
     except ValueError:
-      raiseAssert("already checked with if")
+      raiseAssert("already checked with if: " & getCurrentExceptionMsg())
     except CancelledError as e:
-      raise e
+      raise newException(CancelledError, "error in WsTransport accept: " & e.msg, e)
 
   let index = self.acceptFuts.find(finished)
   self.acceptFuts[index] = self.httpservers[index].accept()
@@ -304,12 +306,14 @@ method accept*(
     debug "Server was closed", description = exc.msg
     raise newTransportClosedError(exc)
   except CancelledError as exc:
-    raise exc
+    raise newExpception(CancelledError, "WsTransport accept cancelled: " & exc.msg, exc)
   except TransportOsError as exc:
     debug "OS Error", description = exc.msg
   except CatchableError as exc:
     info "Unexpected error accepting connection", description = exc.msg
-    raise newException(transport.TransportError, exc.msg, exc)
+    raise newException(
+      transport.TransportError, "caught error in WsTransport accept: " & exc.msg, exc
+    )
 
 method dial*(
     self: WsTransport,
@@ -335,10 +339,12 @@ method dial*(
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
     safeClose(transp)
-    raise e
+    raise newException(CancelledError, "WsTransport dial cancelled: " & e.msg, e)
   except CatchableError as e:
     safeClose(transp)
-    raise newException(transport.TransportDialError, e.msg, e)
+    raise newException(
+      transport.TransportDialError, "caught error in WsTransport dial: " & e.msg, e
+    )
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):

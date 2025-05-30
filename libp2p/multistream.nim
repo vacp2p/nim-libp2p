@@ -210,7 +210,9 @@ proc handle*(
         return
     debug "no handlers", conn, ms
   except CancelledError as exc:
-    raise exc
+    raise newException(
+      CatchableError, "MultistreamSelect handle cancelled: " & exc.msg, exc
+    )
   except CatchableError as exc:
     trace "Exception in multistream", conn, description = exc.msg
   finally:

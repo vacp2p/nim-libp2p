@@ -60,7 +60,9 @@ proc dialAndUpgrade(
         except CancelledError as exc:
           trace "Dialing canceled",
             description = exc.msg, peerId = peerId.get(default(PeerId))
-          raise exc
+          raise newException(
+            CancelledError, "Dialing canceled in dialAndUpgrade dial: " & exc.msg, exc
+          )
         except CatchableError as exc:
           debug "Dialing failed",
             description = exc.msg, peerId = peerId.get(default(PeerId))
@@ -79,7 +81,11 @@ proc dialAndUpgrade(
           await transport.upgrade(dialed, peerId)
         except CancelledError as exc:
           await dialed.close()
-          raise exc
+          raise newException(
+            CancelledError,
+            "Dialing canceled in dialAndUpgrade upgrade: " & exc.msg,
+            exc,
+          )
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
@@ -116,7 +122,8 @@ proc expandDnsAddr(
         try:
           address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
         except ResultError[void]:
-          raiseAssert "checked with if"
+          raiseAssert "checked with if in expandDnsAddr init: " &
+            getCurrentExceptionMsg()
       else:
         address
     resolved = await self.nameResolver.resolveDnsAddr(toResolve)
@@ -128,7 +135,8 @@ proc expandDnsAddr(
       try:
         peerIdBytes = lastPart.protoArgument().tryGet()
       except ResultError[string]:
-        raiseAssert "expandDnsAddr failed in protoArgument: " & getCurrentExceptionMsg()
+        raiseAssert "expandDnsAddr failed in expandDnsAddr protoArgument: " &
+          getCurrentExceptionMsg()
 
       let addrPeerId = PeerId.init(peerIdBytes).tryGet()
       result.add((resolvedAddress[0 ..^ 2].tryGet(), Opt.some(addrPeerId)))
@@ -178,7 +186,7 @@ proc internalConnect(
     dir = Direction.Out,
 ): Future[Muxer] {.async: (raises: [DialFailedError, CancelledError]).} =
   if Opt.some(self.localPeerId) == peerId:
-    raise newException(DialFailedError, "can't dial self!")
+    raise newException(DialFailedError, "internalConnect can't dial self!")
 
   # Ensure there's only one in-flight attempt per peer
   let lock = self.dialLock.mgetOrPut(peerId.get(default(PeerId)), newAsyncLock())
@@ -187,7 +195,8 @@ proc internalConnect(
     try:
       lock.release()
     except AsyncLockError:
-      raiseAssert "lock must have been acquired in line above"
+      raiseAssert "lock must have been acquired in line above: " &
+        getCurrentExceptionMsg()
 
   if reuseConnection:
     peerId.withValue(peerId):
@@ -198,21 +207,31 @@ proc internalConnect(
     try:
       self.connManager.getOutgoingSlot(forceDial)
     except TooManyConnectionsError as exc:
-      raise newException(DialFailedError, exc.msg)
+      raise newException(
+        DialFailedError, "failed getOutgoingSlot in internalConnect: " & exc.msg, exc
+      )
 
   let muxed =
     try:
       await self.dialAndUpgrade(peerId, addrs, dir)
     except CancelledError as exc:
       slot.release()
-      raise exc
+      raise newException(
+        CancelledError,
+        "exception in internalConnect calling dialAndUpgrade: " & exc.msg,
+        exc,
+      )
     except CatchableError as exc:
       slot.release()
-      raise newException(DialFailedError, exc.msg)
+      raise newException(
+        DialFailedError, "failed dialAndUpgrade in internalConnect: " & exc.msg, exc
+      )
 
   slot.trackMuxer(muxed)
   if isNil(muxed): # None of the addresses connected
-    raise newException(DialFailedError, "Unable to establish outgoing link")
+    raise newException(
+      DialFailedError, "Unable to establish outgoing link in internalConnect"
+    )
 
   try:
     self.connManager.storeMuxer(muxed)
@@ -224,11 +243,19 @@ proc internalConnect(
     return muxed
   except CancelledError as exc:
     await muxed.close()
-    raise exc
+    raise newException(
+      CancelledError,
+      "Failed to finish outgoing upgrade in internalConnect: " & exc.msg,
+      exc,
+    )
   except CatchableError as exc:
     trace "Failed to finish outgoing upgrade", description = exc.msg
     await muxed.close()
-    raise newException(DialFailedError, "Failed to finish outgoing upgrade")
+    raise newException(
+      DialFailedError,
+      "Failed to finish outgoing upgrade in internalConnect: " & exc.msg,
+      exc,
+    )
 
 method connect*(
     self: Dialer,
@@ -260,7 +287,7 @@ method connect*(
 
   if allowUnknownPeerId == false:
     raise newException(
-      DialFailedError, "Address without PeerID and unknown peer id disabled!"
+      DialFailedError, "Address without PeerID and unknown peer id disabled in connect"
     )
 
   return
@@ -273,7 +300,7 @@ proc negotiateStream(
   let selected = await MultistreamSelect.select(conn, protos)
   if not protos.contains(selected):
     await conn.closeWithEOF()
-    raise newException(DialFailedError, "Unable to select sub-protocol " & $protos)
+    raise newException(DialFailedError, "Unable to select sub-protocol: " & $protos)
 
   return conn
 
@@ -289,13 +316,14 @@ method tryDial*(
   try:
     let mux = await self.dialAndUpgrade(Opt.some(peerId), addrs)
     if mux.isNil():
-      raise newException(DialFailedError, "No valid multiaddress")
+      raise newException(DialFailedError, "No valid multiaddress in tryDial")
     await mux.close()
     return mux.connection.observedAddr
   except CancelledError as exc:
-    raise exc
+    raise
+      newException(CancelledError, "cancelled exception in tryDial: " & exc.msg, exc)
   except CatchableError as exc:
-    raise newException(DialFailedError, exc.msg)
+    raise newException(DialFailedError, "exception in tryDial: " & exc.msg, exc)
 
 method dial*(
     self: Dialer, peerId: PeerId, protos: seq[string]
@@ -309,14 +337,18 @@ method dial*(
   try:
     let stream = await self.connManager.getStream(peerId)
     if stream.isNil:
-      raise newException(DialFailedError, "Couldn't get muxed stream")
+      raise newException(
+        DialFailedError,
+        "Couldn't get muxed stream in dial for peer_id: " & shortLog(peerId),
+      )
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
-    trace "Dial canceled"
-    raise exc
+    trace "Dial canceled", description = exc.msg
+    raise
+      newException(CancelledError, "cancelled exception in dial existing: " & exc.msg)
   except CatchableError as exc:
     trace "Error dialing", description = exc.msg
-    raise newException(DialFailedError, exc.msg)
+    raise newException(DialFailedError, "exception in dial existing: " & exc.msg)
 
 method dial*(
     self: Dialer,
@@ -347,17 +379,20 @@ method dial*(
     stream = await self.connManager.getStream(conn)
 
     if isNil(stream):
-      raise newException(DialFailedError, "Couldn't get muxed stream")
+      raise newException(
+        DialFailedError,
+        "Couldn't get muxed stream in new dial for remote_peer_id: " & shortLog(peerId),
+      )
 
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
-    trace "Dial canceled", conn
+    trace "Dial canceled", conn, description = exc.msg
     await cleanup()
-    raise exc
+    raise newException(CancelledError, "Dial canceled in new dial: " & exc.msg, exc)
   except CatchableError as exc:
     debug "Error dialing", conn, description = exc.msg
     await cleanup()
-    raise newException(DialFailedError, exc.msg)
+    raise newException(DialFailedError, "exception in new dial: " & exc.msg, exc)
 
 method addTransport*(self: Dialer, t: Transport) =
   self.transports &= t

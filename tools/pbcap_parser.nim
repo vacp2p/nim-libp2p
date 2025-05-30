@@ -88,4 +88,4 @@ when isMainModule:
     try:
       echo parseFile(paramStr(2), dump)
     except:
-      fatal "Could not read pbcap file", filename = path
+      fatal "Could not read pbcap file: " & getCurrentExceptionMsg(), filename = path

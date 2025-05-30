@@ -48,7 +48,7 @@ proc new*(T: typedesc[Perf]): T {.public.} =
         size -= toWrite
     except CancelledError as exc:
       trace "cancelled perf handler"
-      raise exc
+      raise newException(CancelledError, "perf handler cancelled: " & exc.msg, exc)
     except CatchableError as exc:
       trace "exception in perf handler", description = exc.msg, conn
     finally:

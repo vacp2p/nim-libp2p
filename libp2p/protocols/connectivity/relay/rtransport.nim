@@ -76,9 +76,10 @@ proc dial*(
     if not dstPeerId.init(($(sma[^1].tryGet())).split('/')[2]):
       raise newException(RelayDialError, "Destination doesn't exist")
   except RelayDialError as e:
-    raise e
+    raise newException(RelayDialError, "dial address not valid: " & e.msg, e)
   except CatchableError:
-    raise newException(RelayDialError, "dial address not valid")
+    raise
+      newException(RelayDialError, "dial address not valid: " & getCurrentExceptionMsg)
 
   trace "Dial", relayPeerId, dstPeerId
 
@@ -97,16 +98,16 @@ proc dial*(
       return await self.client.dialPeerV2(rc, dstPeerId, @[])
   except CancelledError as e:
     safeClose(rc)
-    raise e
+    raise newException(CancelledError, "dial cancelled: " & e.msg, e)
   except DialFailedError as e:
     safeClose(rc)
-    raise newException(RelayDialError, "dial relay peer failed", e)
+    raise newException(RelayDialError, "dial relay peer failed: " & e.msg, e)
   except RelayV1DialError as e:
     safeClose(rc)
-    raise e
+    raise newException(RelayV1DialError, "dial relay v1 failed: " & e.msg, e)
   except RelayV2DialError as e:
     safeClose(rc)
-    raise e
+    raise newException(RelayV2DialError, "dial relay v2 failed: " & e.msg, e)
 
 method dial*(
     self: RelayTransport,
@@ -119,9 +120,10 @@ method dial*(
       let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
       result = await self.dial(address)
     except CancelledError as e:
-      raise e
+      raise newException(CancelledError, "dial cancelled: " & e.msg, e)
     except CatchableError as e:
-      raise newException(transport.TransportDialError, e.msg, e)
+      raise
+        newException(transport.TransportDialError, "Caught error in dial: " & e.msg, e)
 
 method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
   try:

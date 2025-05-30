@@ -231,9 +231,9 @@ proc upgrader(
       PeerEvent(kind: PeerEventKind.Identified, initiator: false),
     )
   except CancelledError as e:
-    raise e
+    raise newException(CancelledError, "Upgrade cancelled in upgrader: " & e.msg, e)
   except CatchableError as e:
-    raise newException(UpgradeError, e.msg, e)
+    raise newException(UpgradeError, "Exception in upgrader: " & e.msg, e)
 
 proc upgradeMonitor(
     switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
@@ -275,7 +275,9 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
           await transport.accept()
         except CatchableError as exc:
           slot.release()
-          raise exc
+          raise newException(
+            CatchableError, "Exception accepting connection: " & exc.msg, exc
+          )
       slot.trackConnection(conn)
       if isNil(conn):
         # A nil connection means that we might have hit a
@@ -357,7 +359,7 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
   for fut in startFuts:
     if fut.failed:
       await s.stop()
-      raise newException(LPError, "starting transports failed", fut.error)
+      raise newException(LPError, "starting transports failed: " & fut.error.msg)
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:

@@ -30,7 +30,7 @@ proc sendStatus*(
       pb = encode(msg)
     await conn.writeLp(pb.buffer)
   except CancelledError as e:
-    raise e
+    raise newException(CancelledError, "Cancelled sending relay status: " & e.msg, e)
   except LPStreamError as e:
     trace "error sending relay status", description = e.msg
 
@@ -70,7 +70,7 @@ proc bridge*(
       try: # https://github.com/status-im/nim-chronos/issues/516
         discard await race(futSrc, futDst)
       except ValueError:
-        raiseAssert("Futures list is not empty")
+        raiseAssert("Futures list is not empty: " & getCurrentExceptionMsg())
       if futSrc.finished():
         bufRead = await futSrc
         if bufRead > 0:
@@ -86,7 +86,7 @@ proc bridge*(
           zeroMem(addr bufDstToSrc[0], bufDstToSrc.len)
         futDst = connDst.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
   except CancelledError as exc:
-    raise exc
+    raise newException(CancelledError, "Bridge cancelled: " & exc.msg, exc)
   except LPStreamError as exc:
     if connSrc.closed() or connSrc.atEof():
       trace "relay src closed connection", src = connSrc.peerId
