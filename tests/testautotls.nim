@@ -11,7 +11,7 @@
 
 {.push raises: [].}
 
-import std/[strformat, net]
+# import std/[strformat, net] # uncomment after re-enabling AutoTLSManager
 import chronos
 import chronos/apps/http/httpclient
 import
@@ -22,10 +22,10 @@ import
     multiaddress,
     switch,
     builders,
-    autotls/autotls,
+    # autotls/autotls, # uncomment after re-enabling AutoTLSManager
     autotls/acme,
     autotls/utils,
-    nameresolving/dnsresolver,
+    #   nameresolving/dnsresolver, # uncomment after re-enabling AutoTLSManager
     wire,
   ]
 
@@ -53,82 +53,83 @@ suite "AutoTLS":
     check orderURL.len > 0
     await noCancel(acc.session.closeWait())
 
-  asyncTest "test AutoTLSManager":
-    let switch = SwitchBuilder
-      .new()
-      .withRng(newRng())
-      .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
-      .withTcpTransport()
-      .withAutoTLSManager(acmeServerURL = LetsEncryptURLStaging)
-      .withYamux()
-      .withNoise()
-      .build()
+  # enable when withAutoTLSManager is re-enabled
+  # asyncTest "test AutoTLSManager":
+  #   let switch = SwitchBuilder
+  #     .new()
+  #     .withRng(newRng())
+  #     .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+  #     .withTcpTransport()
+  #     .withAutoTLSManager(acmeServerURL = LetsEncryptURLStaging)
+  #     .withYamux()
+  #     .withNoise()
+  #     .build()
 
-    try:
-      let hostPrimaryIP = getPrimaryIPAddr()
-      if not isPublicIPv4(hostPrimaryIP):
-        skip() # host doesn't have public IPv4 address
-        return
-    except Exception:
-      skip() # can't get primary IPv4 address from host
-      return
+  #   try:
+  #     let hostPrimaryIP = getPrimaryIPAddr()
+  #     if not isPublicIPv4(hostPrimaryIP):
+  #       skip() # host doesn't have public IPv4 address
+  #       return
+  #   except Exception:
+  #     skip() # can't get primary IPv4 address from host
+  #     return
 
-    # this is so that we can check renewal afterwards
-    switch.autoTLSMgr.renewCheckTime = 3.seconds
+  #   # this is so that we can check renewal afterwards
+  #   switch.autoTLSMgr.renewCheckTime = 3.seconds
 
-    await switch.start()
+  #   await switch.start()
 
-    # wait for cert to be ready
-    await switch.autoTLSMgr.certReady.wait()
-    # clear since we'll use it again
-    switch.autoTLSMgr.certReady.clear()
+  #   # wait for cert to be ready
+  #   await switch.autoTLSMgr.certReady.wait()
+  #   # clear since we'll use it again
+  #   switch.autoTLSMgr.certReady.clear()
 
-    # challenge was sent (bearer token from peer id auth was set)
-    check switch.autoTLSMgr.bearerToken.isSome
+  #   # challenge was sent (bearer token from peer id auth was set)
+  #   check switch.autoTLSMgr.bearerToken.isSome
 
-    let dnsResolver = DnsResolver.new(
-      @[
-        initTAddress("1.1.1.1:53"),
-        initTAddress("1.0.0.1:53"),
-        initTAddress("[2606:4700:4700::1111]:53"),
-      ]
-    )
-    let base36PeerId = encodePeerId(switch.peerInfo.peerId)
-    let dnsTXTRecord = (
-      await dnsResolver.resolveTxt(
-        fmt"_acme-challenge.{base36PeerId}.{AutoTLSDNSServer}"
-      )
-    )[0]
+  #   let dnsResolver = DnsResolver.new(
+  #     @[
+  #       initTAddress("1.1.1.1:53"),
+  #       initTAddress("1.0.0.1:53"),
+  #       initTAddress("[2606:4700:4700::1111]:53"),
+  #     ]
+  #   )
+  #   let base36PeerId = encodePeerId(switch.peerInfo.peerId)
+  #   let dnsTXTRecord = (
+  #     await dnsResolver.resolveTxt(
+  #       fmt"_acme-challenge.{base36PeerId}.{AutoTLSDNSServer}"
+  #     )
+  #   )[0]
 
-    # DNS TXT record is set
-    let keyAuthorization = switch.autoTLSMgr.keyAuthorization.valueOr:
-      raiseAssert "keyAuthorization not found"
-    check dnsTXTRecord == keyAuthorization
+  #   # DNS TXT record is set
+  #   let keyAuthorization = switch.autoTLSMgr.keyAuthorization.valueOr:
+  #     raiseAssert "keyAuthorization not found"
+  #   check dnsTXTRecord == keyAuthorization
 
-    # certificate was downloaded and parsed
-    let cert = switch.autoTLSMgr.cert.valueOr:
-      raiseAssert "certificate not found"
-    let certBefore = cert
+  #   # certificate was downloaded and parsed
+  #   let cert = switch.autoTLSMgr.cert.valueOr:
+  #     raiseAssert "certificate not found"
+  #   let certBefore = cert
 
-    # invalidate certificate
-    switch.autoTLSMgr.certExpiry = Opt.some(Moment.now - 2.hours)
+  #   # invalidate certificate
+  #   switch.autoTLSMgr.certExpiry = Opt.some(Moment.now - 2.hours)
 
-    # cert was invalidated correctly
-    check switch.autoTLSMgr.certExpiry.get < Moment.now
+  #   # cert was invalidated correctly
+  #   check switch.autoTLSMgr.certExpiry.get < Moment.now
 
-    # wait for cert to be renewed
-    await switch.autoTLSMgr.certReady.wait()
+  #   # wait for cert to be renewed
+  #   await switch.autoTLSMgr.certReady.wait()
 
-    # certificate was indeed renewed
-    let certAfter = switch.autoTLSMgr.cert.valueOr:
-      raiseAssert "certificate not found"
+  #   # certificate was indeed renewed
+  #   let certAfter = switch.autoTLSMgr.cert.valueOr:
+  #     raiseAssert "certificate not found"
 
-    check certBefore != certAfter
+  #   check certBefore != certAfter
 
-    let certExpiry = switch.autoTLSMgr.certExpiry.valueOr:
-      raiseAssert "certificate expiry not found"
+  #   let certExpiry = switch.autoTLSMgr.certExpiry.valueOr:
+  #     raiseAssert "certificate expiry not found"
 
-    # cert is valid
-    check certExpiry > Moment.now
+  #   # cert is valid
+  #   check certExpiry > Moment.now
 
-    await switch.stop()
+  #   await switch.stop()
