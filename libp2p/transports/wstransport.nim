@@ -188,7 +188,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
   self.running = false # mark stopped as soon as possible
 
   try:
-    trace "Stopping WS transport"
+    debug "Stopping WS transport"
     await procCall Transport(self).stop() # call base
 
     checkFutures(
@@ -212,9 +212,9 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     await allFutures(toWait)
 
     self.httpservers = @[]
-    trace "Transport stopped"
+    debug "Transport stopped"
   except CatchableError as exc:
-    trace "Error shutting down ws transport", description = exc.msg
+    error "Error shutting down ws transport", description = exc.msg
 
 proc connHandler(
     self: WsTransport, stream: WSSession, secure: bool, dir: Direction

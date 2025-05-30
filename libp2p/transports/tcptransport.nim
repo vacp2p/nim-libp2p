@@ -115,7 +115,7 @@ method start*(
     warn "TCP transport already running"
     return
 
-  trace "Starting TCP transport"
+  debug "Starting TCP transport"
 
   self.flags.incl(ServerFlags.ReusePort)
 
@@ -137,7 +137,7 @@ method start*(
 
       self.servers &= server
 
-      trace "Listening on", address = ma
+      debug "Listening on", address = ma
       supported.add(
         MultiAddress.init(server.sock.getLocalAddress()).expect(
           "Can init from local address"
@@ -156,7 +156,7 @@ method start*(
   trackCounter(TcpTransportTrackerName)
 
 method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
-  trace "Stopping TCP transport"
+  debug "Stopping TCP transport"
   self.stopping = true
   defer:
     self.stopping = false
@@ -186,7 +186,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       warn "Couldn't clean up clients",
         len = self.clients[Direction.In].len + self.clients[Direction.Out].len
 
-    trace "Transport stopped"
+    debug "Transport stopped"
     untrackCounter(TcpTransportTrackerName)
   else:
     # For legacy reasons, `stop` on a transpart that wasn't started is

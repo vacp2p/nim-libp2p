@@ -13,7 +13,7 @@
 
 {.push raises: [].}
 
-import std/[tables, options, sequtils, sets, oids]
+import std/[tables, options, sequtils, sets, oids], typetraits
 
 import chronos, chronicles, metrics
 
@@ -82,7 +82,7 @@ method run*(self: Service, switch: Switch) {.base, async: (raises: [CancelledErr
 method stop*(
     self: Service, switch: Switch
 ): Future[bool] {.base, async: (raises: [CancelledError]).} =
-  debug "Stopping service", service = repr(self)
+  debug "Stopping service", service = name(typeof(self))
   if not self.inUse:
     warn "service is already stopped"
     return false
@@ -326,7 +326,7 @@ proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
 
   for transp in s.transports:
     try:
-      debug "Stopping transport", transport = repr(transp)
+      debug "Stopping transport", transport = name(typeof(transp))
       await transp.stop()
     except CancelledError as exc:
       error "Cancelled while stopping transport", error = exc.msg
@@ -353,6 +353,9 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
     s.peerInfo.listenAddrs.keepItIf(it notin addrs)
 
     if addrs.len > 0 or t.running:
+      let fut = t.start(addrs)
+      debug "Starting transport",
+        transport = name(typeof(t)), addrs = addrs, future = name(typeof(fut))
       startFuts.add(t.start(addrs))
 
   await allFutures(startFuts)
@@ -362,7 +365,8 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
   for fut in startFuts:
     if fut.failed:
       await s.stop()
-      error "Failed to start transport", future = repr(fut), error = fut.error.msg
+      error "Failed to start transport",
+        future = name(typeof(fut)), error = fut.error.msg
       raise newException(LPError, "starting transports failed", fut.error)
 
   for t in s.transports: # for each transport
