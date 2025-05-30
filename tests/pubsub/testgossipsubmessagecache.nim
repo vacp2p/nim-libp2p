@@ -118,3 +118,70 @@ suite "GossipSub Message Cache":
     # Then nodeInsideMesh receives 3 (historyGossip) IHave messages
     check:
       receivedIHaves[].len == historyGossip
+
+  asyncTest "Message is retrieved from cache when handling IWant and relayed to a peer outside the mesh":
+    # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
+    # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
+    const
+      numberOfNodes = 3
+      topic = "foobar"
+      historyGossip = 3 # mcache window
+      historyLength = 5
+    let nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        historyGossip = historyGossip,
+        historyLength = historyLength,
+        dValues =
+          some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
+      )
+      .toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Add observer to Node0 for received IWant messages
+    var (receivedIWantsNode0, checkForIWant) = createCheckForIWant()
+    nodes[0].addOnRecvObserver(checkForIWant)
+
+    # Find Peer outside of mesh to which Node 0 will relay received message
+    let peerOutsideMesh =
+      nodes[0].gossipsub[topic].toSeq().filterIt(it notin nodes[0].mesh[topic])[0]
+    let nodeOutsideMesh = nodes.getNodeByPeerId(peerOutsideMesh.peerId)
+
+    # Add observer to NodeOutsideMesh for received messages
+    var (receivedMessagesNodeOutsideMesh, checkForMessage) = createCheckForMessages()
+    nodeOutsideMesh.addOnRecvObserver(checkForMessage)
+
+    # When NodeInsideMesh publishes a message to the topic
+    let peerInsideMesh = nodes[0].mesh[topic].toSeq()[0]
+    let nodeInsideMesh = nodes.getNodeByPeerId(peerInsideMesh.peerId)
+    tryPublish await nodeInsideMesh.publish(topic, "Hello!".toBytes()), 1
+
+    # Then Node0 receives the message from NodeInsideMesh and saves it in its cache
+    checkUntilCustomTimeout(timeout, interval):
+      nodes[0].mcache.window(topic).toSeq().len == 1
+    let messageId = nodes[0].mcache.window(topic).toSeq()[0]
+
+    # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat
+    # Then NodeOutsideMesh responds with an IWant message to Node0
+    checkUntilCustomTimeout(timeout, interval):
+      receivedIWantsNode0[].len == 1
+    let msgIdReceivedIWant = receivedIWantsNode0[][0].messageIDs[0]
+
+    # When Node0 handles the IWant message, it retrieves the message from its message cache using the MessageId
+    check:
+      messageId == msgIdReceivedIWant
+
+    # Then Node0 relays the original message to NodeOutsideMesh
+    checkUntilCustomTimeout(timeout, interval):
+      receivedMessagesNodeOutsideMesh[].len == 1
+    let msgIdRelayed =
+      nodeOutsideMesh.msgIdProvider(receivedMessagesNodeOutsideMesh[][0])
+
+    check:
+      messageId == msgIdRelayed.get()

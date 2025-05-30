@@ -429,6 +429,18 @@ proc createCompleteHandler*(): (
 
   return (fut, handler)
 
+proc createCheckForMessages*(): (
+  ref seq[Message], proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+) =
+  var messages = new seq[Message]
+  let checkForMessage = proc(
+      peer: PubSubPeer, msgs: var RPCMsg
+  ) {.gcsafe, raises: [].} =
+    for message in msgs.messages:
+      messages[].add(message)
+
+  return (messages, checkForMessage)
+
 proc createCheckForIHave*(): (
   ref seq[ControlIHave], proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
 ) =
