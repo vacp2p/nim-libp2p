@@ -4,6 +4,7 @@ import std/[sequtils]
 import stew/byteutils
 import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../libp2p/protocols/pubsub/floodsub
 import ../helpers
 
 suite "GossipSub Message Cache":
@@ -185,3 +186,30 @@ suite "GossipSub Message Cache":
 
     check:
       messageId == msgIdRelayed.get()
+
+  asyncTest "Published and received messages are added to the seen cache":
+    const
+      numberOfNodes = 2
+      topic = "foobar"
+    let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    await connectNodesStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # When Node0 publishes a message to the topic
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
+
+    # Then Node1 receives the message 
+    # Get messageId from mcache 
+    checkUntilCustomTimeout(timeout, interval):
+      nodes[1].mcache.window(topic).toSeq().len == 1
+    let messageId = nodes[1].mcache.window(topic).toSeq()[0]
+
+    # And both nodes save it in their seen cache
+    # Node0 when publish, Node1 when received
+    check:
+      nodes[0].hasSeen(nodes[0].salt(messageId))
+      nodes[1].hasSeen(nodes[1].salt(messageId))
