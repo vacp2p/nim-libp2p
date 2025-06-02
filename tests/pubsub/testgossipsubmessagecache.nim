@@ -3,8 +3,8 @@
 import std/[sequtils]
 import stew/byteutils
 import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../libp2p/protocols/pubsub/floodsub
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, floodsub]
+import ../../libp2p/protocols/pubsub/rpc/[messages, message]
 import ../helpers
 
 suite "GossipSub Message Cache":
@@ -273,3 +273,40 @@ suite "GossipSub Message Cache":
     check:
       nodes[2].mcache.window(topic).toSeq().len == 1
       nodes[2].mcache.window(topic).toSeq()[0] == messageId2
+
+  asyncTest "Published messages are dropped if they are already in seen cache":
+    func customMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      ok("fixed_message_id_string".toBytes())
+
+    const
+      numberOfNodes = 2
+      topic = "foobar"
+    let nodes = generateNodes(
+        numberOfNodes, gossip = true, msgIdProvider = customMsgIdProvider
+      )
+      .toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    await connectNodesStar(nodes)
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # Given Node0 has msgId already in seen cache
+    let data = "Hello".toBytes()
+    let msg = Message.init(
+      some(nodes[0].peerInfo), data, topic, some(nodes[0].msgSeqno), nodes[0].sign
+    )
+    let msgId = nodes[0].msgIdProvider(msg)
+
+    check:
+      not nodes[0].addSeen(nodes[0].salt(msgId.value()))
+
+    # When Node0 publishes the message to the topic
+    discard await nodes[0].publish(topic, data)
+
+    await waitForHeartbeat()
+
+    # Then Node1 doesn't receive the message
+    check:
+      nodes[1].mcache.window(topic).toSeq().len == 0
