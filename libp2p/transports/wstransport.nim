@@ -312,7 +312,7 @@ method accept*(
   except CatchableError as exc:
     info "Unexpected error accepting connection", description = exc.msg
     raise newException(
-      transport.TransportError, "caught error in WsTransport accept: " & exc.msg, exc
+      transport.TransportError, "Error in WsTransport accept: " & exc.msg, exc
     )
 
 method dial*(
