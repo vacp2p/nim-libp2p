@@ -209,8 +209,12 @@ suite "GossipSub Gossip Protocol":
         dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(4)
       )
       nodes = generateNodes(
-        numberOfNodes, gossip = true, dValues = some(dValues), gossipFactor = some(0.5)
-      )
+          numberOfNodes,
+          gossip = true,
+          dValues = some(dValues),
+          gossipFactor = some(0.5),
+        )
+        .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -223,7 +227,9 @@ suite "GossipSub Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
+
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
@@ -243,11 +249,12 @@ suite "GossipSub Gossip Protocol":
         dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(6)
       )
       nodes = generateNodes(
-        numberOfNodes,
-        gossip = true,
-        dValues = some(dValues),
-        gossipFactor = some(0.float),
-      )
+          numberOfNodes,
+          gossip = true,
+          dValues = some(dValues),
+          gossipFactor = some(0.float),
+        )
+        .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -260,7 +267,9 @@ suite "GossipSub Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(@[nodes[0]], topic, @[19], PeerTableType.Gossipsub)
+
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
@@ -276,7 +285,7 @@ suite "GossipSub Gossip Protocol":
     let
       numberOfNodes = 3
       topic = "foobar"
-      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -289,7 +298,11 @@ suite "GossipSub Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForPeersInTable(nodes, topic, @[1, 2, 1], PeerTableType.Gossipsub)
+
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == 1
+      nodes[1].gossipsub.getOrDefault(topic).len == 2
+      nodes[2].gossipsub.getOrDefault(topic).len == 1
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)

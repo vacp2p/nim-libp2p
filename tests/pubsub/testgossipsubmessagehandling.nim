@@ -247,7 +247,7 @@ suite "GossipSub Message Handling":
     let
       numberOfNodes = 3
       topic = "foobar"
-      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -262,9 +262,9 @@ suite "GossipSub Message Handling":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-    await waitForPeersInTable(
-      nodes, topic, newSeqWith(numberOfNodes, 2), PeerTableType.Mesh
-    )
+
+    checkUntilTimeout:
+      nodes.allIt(it.mesh.getOrDefault(topic).len == numberOfNodes - 1)
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
