@@ -24,14 +24,7 @@ on:
         default: "[]"
 
 jobs:
-  delete_cache:
-    name: Delete github action's branch cache
-    runs-on: ubuntu-latest
-    steps:
-      - uses: snnaplab/delete-branch-cache-action@v1
-
   test:
-    needs: delete_cache
     timeout-minutes: 40
     strategy:
       fail-fast: false
