@@ -154,7 +154,7 @@ suite "GossipSub Gossip Protocol":
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
 
-    checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+    checkUntilTimeout:
       nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     # When node 0 sends a message
@@ -162,7 +162,7 @@ suite "GossipSub Gossip Protocol":
 
     # At least one of the nodes should have received an iHave message
     # The check is made this way because the mesh structure changes from run to run
-    checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+    checkUntilTimeout:
       messages[].mapIt(it[].len).anyIt(it > 0)
 
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":

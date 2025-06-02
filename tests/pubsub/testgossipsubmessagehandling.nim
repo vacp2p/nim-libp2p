@@ -464,7 +464,7 @@ suite "GossipSub Message Handling":
     # Send message that will be rejected by the receiver's validator
     tryPublish await nodes[0].publish("bar", "Hello!".toBytes()), 1
 
-    checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+    checkUntilTimeout:
       recvCounter == 2
       validatedCounter == 1
       sendCounter == 2

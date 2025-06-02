@@ -105,7 +105,7 @@ suite "Hole Punching":
       privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr)
     )
 
-    checkUntilTimeout:
+    checkUntilCustomTimeout(10.seconds, 100.milliseconds):
       privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1
       not isRelayed(
         privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection
@@ -166,7 +166,7 @@ suite "Hole Punching":
       privatePeerSwitch.peerInfo.peerId, (await privatePeerRelayAddr)
     )
 
-    checkUntilTimeout:
+    checkUntilCustomTimeout(10.seconds, 100.milliseconds):
       privatePeerSwitch.connManager.connCount(publicPeerSwitch.peerInfo.peerId) == 1
       not isRelayed(
         privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection
