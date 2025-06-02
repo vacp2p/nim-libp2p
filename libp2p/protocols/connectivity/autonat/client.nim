@@ -97,7 +97,7 @@ method dialMe*(
       try:
         response.ma.tryGet()
       except ResultError[void]:
-        raiseAssert("checked with if: " & getCurrentExceptionMsg())
+        raiseAssert("checked with if")
     of ResponseStatus.DialError:
       raise newException(
         AutonatUnreachableError, "Peer could not dial us back: " & response.text.get("")

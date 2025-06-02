@@ -271,7 +271,7 @@ method accept*(
     try:
       await one(self.acceptFuts)
     except ValueError:
-      raiseAssert("already checked with if: " & getCurrentExceptionMsg())
+      raiseAssert("already checked with if")
     except CancelledError as e:
       raise e
 
