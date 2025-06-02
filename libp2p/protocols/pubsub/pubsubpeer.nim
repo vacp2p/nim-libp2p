@@ -133,6 +133,8 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
+    preambleBudget*: int
+    heIsReceivings*: Table[MessageId, uint32]
 
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
