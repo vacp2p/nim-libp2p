@@ -18,6 +18,7 @@ import "../../.."/[peerid, multiaddress, utility]
 export options, tables, sets
 
 const
+  GossipSubCodec_14* = "/meshsub/1.4.0"
   GossipSubCodec_12* = "/meshsub/1.2.0"
   GossipSubCodec_11* = "/meshsub/1.1.0"
   GossipSubCodec_10* = "/meshsub/1.0.0"
@@ -46,6 +47,7 @@ const
   BackoffSlackTime* = 2 # seconds
   PingsPeerBudget* = 100 # maximum of 6.4kb/heartbeat (6.4kb/s with default 1 second/hb)
   IHavePeerBudget* = 10
+  PreamblePeerBudget* = 10
   # the max amount of IHave to expose, not by spec, but go as example
   # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572
   # go: https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L155
@@ -64,6 +66,12 @@ type
     meshMessageDeliveries*: float64
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
+
+  PreambleInfo* = object # gossipsub 1.4 related
+    messageLength*: uint32
+    sender*: PubSubPeer
+    startAt*: Moment
+    expiresAt*: Moment
 
   TopicParams* {.public.} = object
     topicWeight*: float64
@@ -162,6 +170,7 @@ type
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
+  OngoingReceivesTable* = Table[MessageId, PreambleInfo]
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
   RoutingRecordsHandler* = proc(
@@ -193,6 +202,8 @@ type
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
 
     heartbeatEvents*: seq[AsyncEvent]
+    ongoingReceives*: OngoingReceivesTable # list of messages we are receiving
+    ongoingIWantReceives*: OngoingReceivesTable # list of iwant replies we are receiving
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64
