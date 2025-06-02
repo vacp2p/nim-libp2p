@@ -21,7 +21,8 @@ import
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
   ../../utility,
-  ../../utils/sequninit
+  ../../utils/sequninit,
+  ./bandwidth
 
 export peerid, connection, deques
 
