@@ -233,7 +233,7 @@ proc upgrader(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    raise newException(UpgradeError, "Exception in upgrader: " & e.msg, e)
+    raise newException(UpgradeError, "catchable error upgrader: " & e.msg, e)
 
 proc upgradeMonitor(
     switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore

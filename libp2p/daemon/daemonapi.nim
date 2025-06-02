@@ -595,11 +595,11 @@ template exceptionToAssert(body: untyped): untyped =
     try:
       res = body
     except OSError as exc:
-      raise newException(OSError, "exception in exceptionToAssert: " & exc.msg, exc)
+      raise newException(OSError, "failure in exceptionToAssert: " & exc.msg, exc)
     except IOError as exc:
-      raise newException(IOError, "exception in exceptionToAssert: " & exc.msg, exc)
+      raise newException(IOError, "failure in exceptionToAssert: " & exc.msg, exc)
     except Defect as exc:
-      raise newException(Defect, "exception in exceptionToAssert: " & exc.msg, exc)
+      raise newException(Defect, "failure in exceptionToAssert: " & exc.msg, exc)
     except Exception as exc:
       raiseAssert "Exception captured in exceptionToAssert: " & exc.msg
     when defined(nimHasWarnBareExcept):

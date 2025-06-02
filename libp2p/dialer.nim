@@ -321,7 +321,7 @@ method tryDial*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    raise newException(DialFailedError, "exception in tryDial: " & exc.msg, exc)
+    raise newException(DialFailedError, "tryDial failed: " & exc.msg, exc)
 
 method dial*(
     self: Dialer, peerId: PeerId, protos: seq[string]
@@ -345,7 +345,7 @@ method dial*(
     raise exc
   except CatchableError as exc:
     trace "Error dialing", description = exc.msg
-    raise newException(DialFailedError, "exception in dial existing: " & exc.msg)
+    raise newException(DialFailedError, "failed dial existing: " & exc.msg)
 
 method dial*(
     self: Dialer,
@@ -389,7 +389,7 @@ method dial*(
   except CatchableError as exc:
     debug "Error dialing", conn, description = exc.msg
     await cleanup()
-    raise newException(DialFailedError, "exception in new dial: " & exc.msg, exc)
+    raise newException(DialFailedError, "failed new dial: " & exc.msg, exc)
 
 method addTransport*(self: Dialer, t: Transport) =
   self.transports &= t

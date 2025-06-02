@@ -125,7 +125,7 @@ proc createStreamServer*[T](
       init,
     )
   except CatchableError as exc:
-    raise newException(LPError, "Exception in createStreamServer: " & exc.msg, exc)
+    raise newException(LPError, "failed createStreamServer: " & exc.msg, exc)
 
 proc createStreamServer*[T](
     ma: MultiAddress,
@@ -148,8 +148,7 @@ proc createStreamServer*[T](
       initTAddress(ma).tryGet(), flags, udata, sock, backlog, bufferSize, child, init
     )
   except CatchableError as exc:
-    raise
-      newException(LPError, "Exception in createStreamServer simpler: " & exc.msg, exc)
+    raise newException(LPError, "failed simpler createStreamServer: " & exc.msg, exc)
 
 proc createAsyncSocket*(ma: MultiAddress): AsyncFD {.raises: [ValueError, LPError].} =
   ## Create new asynchronous socket using MultiAddress' ``ma`` socket type and
