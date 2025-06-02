@@ -94,7 +94,8 @@ method accept*(
     listener.close()
     raise e
   except MemoryTransportError as e:
-    raise newException(MemoryTransportError, "MemoryTransport accept error: " & e.msg), e
+    raise
+      newException(MemoryTransportError, "MemoryTransport accept error: " & e.msg, e)
   except CatchableError:
     raiseAssert "should never happen"
 
@@ -112,7 +113,7 @@ method dial*(
   except CancelledError as e:
     raise e
   except MemoryTransportError as e:
-    raise newException(MemoryTransportError, "MemoryTransport dial error: " & e.msg), e
+    raise newException(MemoryTransportError, "MemoryTransport dial error: " & e.msg, e)
   except CatchableError:
     raiseAssert "should never happen"
 
