@@ -81,7 +81,7 @@ proc onListenerEnd(
       if address in self.listeners:
         self.listeners.del(address)
     except KeyError:
-      raiseAssert "checked with if: " & getCurrentExceptionMsg()
+      raiseAssert "checked with"
 
   return cb
 
@@ -113,7 +113,7 @@ proc dial*(
   try:
     return self.listeners[address]
   except KeyError:
-    raiseAssert "checked with if: " & getCurrentExceptionMsg()
+    raiseAssert "checked with"
 
 let instance: memoryConnManager = memoryConnManager.init()
 

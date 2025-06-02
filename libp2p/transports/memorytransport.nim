@@ -96,7 +96,7 @@ method accept*(
   except MemoryTransportError as e:
     raise newException(MemoryTransportError, "MemoryTransport accept error: " & e.msg), e
   except CatchableError:
-    raiseAssert "should never happen: " & getCurrentExceptionMsg()
+    raiseAssert "should never happen"
 
 method dial*(
     self: MemoryTransport,
@@ -114,7 +114,7 @@ method dial*(
   except MemoryTransportError as e:
     raise newException(MemoryTransportError, "MemoryTransport dial error: " & e.msg), e
   except CatchableError:
-    raiseAssert "should never happen: " & getCurrentExceptionMsg()
+    raiseAssert "should never happen"
 
 proc dial*(
     self: MemoryTransport, ma: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)

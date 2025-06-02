@@ -405,7 +405,7 @@ proc deletesReservation(r: Relay) {.async: (raises: [CancelledError]).} =
         if n > r.rsvp[k]:
           r.rsvp.del(k)
     except KeyError:
-      raiseAssert "checked with in"
+      raiseAssert "checked with"
 
 method start*(r: Relay): Future[void] {.async: (raises: [CancelledError], raw: true).} =
   let fut = newFuture[void]()

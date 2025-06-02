@@ -122,8 +122,7 @@ proc expandDnsAddr(
         try:
           address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
         except ResultError[void]:
-          raiseAssert "checked with if in expandDnsAddr init: " &
-            getCurrentExceptionMsg()
+          raiseAssert "checked with"
       else:
         address
     resolved = await self.nameResolver.resolveDnsAddr(toResolve)

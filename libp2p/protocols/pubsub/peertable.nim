@@ -23,7 +23,7 @@ proc hasPeerId*(t: PeerTable, topic: string, peerId: PeerId): bool =
         if peer.peerId == peerId:
           return true
     except KeyError:
-      raiseAssert "checked with in: " & getCurrentExceptionMsg()
+      raiseAssert "checked with"
   false
 
 func addPeer*(table: var PeerTable, topic: string, peer: PubSubPeer): bool =
@@ -41,14 +41,14 @@ func hasPeer*(table: PeerTable, topic: string, peer: PubSubPeer): bool =
   try:
     (topic in table) and (peer in table[topic])
   except KeyError:
-    raiseAssert "checked with in: " & getCurrentExceptionMsg()
+    raiseAssert "checked with"
 
 func peers*(table: PeerTable, topic: string): int =
   if topic in table:
     try:
       table[topic].len
     except KeyError:
-      raiseAssert "checked with in: " & getCurrentExceptionMsg()
+      raiseAssert "checked with"
   else:
     0
 
@@ -57,6 +57,6 @@ func outboundPeers*(table: PeerTable, topic: string): int =
     try:
       table[topic].countIt(it.outbound)
     except KeyError:
-      raiseAssert "checked with in: " & getCurrentExceptionMsg()
+      raiseAssert "checked with"
   else:
     0
