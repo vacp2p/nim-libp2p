@@ -28,11 +28,11 @@ suite "GossipSub Message Cache":
     await waitForHeartbeat()
 
     # When Node0 publishes a message to the topic
-    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
     # Then Node1 receives the message and saves it in the cache 
     checkUntilCustomTimeout(timeout, interval):
-      nodes[1].mcache.window(topic).toSeq().len == 1
+      nodes[1].mcache.window(topic).len == 1
 
   asyncTest "Message cache history shifts on heartbeat and is cleared on shift":
     const
@@ -55,11 +55,11 @@ suite "GossipSub Message Cache":
     await waitForHeartbeat()
 
     # When Node0 publishes a message to the topic
-    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
     # Then Node1 receives the message and saves it in the cache 
     checkUntilCustomTimeout(timeout, interval):
-      nodes[1].mcache.window(topic).toSeq().len == 1
+      nodes[1].mcache.window(topic).len == 1
 
     let messageId = nodes[1].mcache.window(topic).toSeq()[0]
 
@@ -70,7 +70,7 @@ suite "GossipSub Message Cache":
     # Then history is cleared when the position with the message is reached again
     # And message is removed
     check:
-      nodes[1].mcache.window(topic).toSeq().len == 0
+      nodes[1].mcache.window(topic).len == 0
       not nodes[1].mcache.contains(messageId)
 
   asyncTest "IHave propagation capped by history window":
@@ -113,8 +113,8 @@ suite "GossipSub Message Cache":
     # On each heartbeat, Node0 retrieves messages in its mcache and sends IHave to NodeOutsideMesh
     # On heartbeat, Node0 mcache advances to the next position (rotating the message cache window)
     # Node0 will gossip about messages from the last few positions, depending on the mcache window size (historyGossip)
-    # By waiting more than 'historyGossip' (3) heartbeats, we ensure Node0 does not send IHave messages for messages older than the window size
-    await waitForHeartbeat(5)
+    # By waiting more than 'historyGossip' (2x3 = 6) heartbeats, we ensure Node0 does not send IHave messages for messages older than the window size
+    await waitForHeartbeat(2 * historyGossip)
 
     # Then nodeInsideMesh receives 3 (historyGossip) IHave messages
     check:
@@ -165,7 +165,7 @@ suite "GossipSub Message Cache":
 
     # Then Node0 receives the message from NodeInsideMesh and saves it in its cache
     checkUntilCustomTimeout(timeout, interval):
-      nodes[0].mcache.window(topic).toSeq().len == 1
+      nodes[0].mcache.window(topic).len == 1
     let messageId = nodes[0].mcache.window(topic).toSeq()[0]
 
     # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat
@@ -205,7 +205,7 @@ suite "GossipSub Message Cache":
     # Then Node1 receives the message 
     # Get messageId from mcache 
     checkUntilCustomTimeout(timeout, interval):
-      nodes[1].mcache.window(topic).toSeq().len == 1
+      nodes[1].mcache.window(topic).len == 1
     let messageId = nodes[1].mcache.window(topic).toSeq()[0]
 
     # And both nodes save it in their seen cache
@@ -235,14 +235,14 @@ suite "GossipSub Message Cache":
     # Then Node1 receives the messages
     # Getting messageIds from mcache 
     checkUntilCustomTimeout(timeout, interval):
-      nodes[1].mcache.window(topic).toSeq().len == 2
+      nodes[1].mcache.window(topic).len == 2
 
     let messageId1 = nodes[1].mcache.window(topic).toSeq()[0]
     let messageId2 = nodes[1].mcache.window(topic).toSeq()[1]
 
     # And Node0 doesn't receive messages
     check:
-      nodes[2].mcache.window(topic).toSeq().len == 0
+      nodes[2].mcache.window(topic).len == 0
 
     # When Node0 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
@@ -271,7 +271,7 @@ suite "GossipSub Message Cache":
 
     # Then Node2 receives only messageId2 and messageId1 is dropped
     check:
-      nodes[2].mcache.window(topic).toSeq().len == 1
+      nodes[2].mcache.window(topic).len == 1
       nodes[2].mcache.window(topic).toSeq()[0] == messageId2
 
   asyncTest "Published messages are dropped if they are already in seen cache":
@@ -309,4 +309,4 @@ suite "GossipSub Message Cache":
 
     # Then Node1 doesn't receive the message
     check:
-      nodes[1].mcache.window(topic).toSeq().len == 0
+      nodes[1].mcache.window(topic).len == 0
