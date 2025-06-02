@@ -27,6 +27,7 @@ jobs:
   delete_cache:
     name: Delete github action's branch cache
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
