@@ -132,7 +132,7 @@ method readOnce*(
       except CancelledError as exc:
         # Not very efficient, but shouldn't happen often
         s.readBuf.assign(@(p.toOpenArray(0, rbytes - 1)) & @(s.readBuf.data))
-        raise newException("readQueue.popFirst was cancelled: " & exc.msg, exc)
+        raise exc
       finally:
         s.reading = false
 
