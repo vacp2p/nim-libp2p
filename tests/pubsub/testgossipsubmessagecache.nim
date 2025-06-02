@@ -213,3 +213,63 @@ suite "GossipSub Message Cache":
     check:
       nodes[0].hasSeen(nodes[0].salt(messageId))
       nodes[1].hasSeen(nodes[1].salt(messageId))
+
+  asyncTest "Received messages are dropped if they are already in seen cache":
+    # 3 Nodes, Node 0 <==> Node 1 and Node 2 not connected and not subscribed yet
+    const
+      numberOfNodes = 3
+      topic = "foobar"
+    let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    await connectNodes(nodes[0], nodes[1])
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # When Node0 publishes two messages to the topic
+    tryPublish await nodes[0].publish(topic, "Hello".toBytes()), 1
+    tryPublish await nodes[0].publish(topic, "World".toBytes()), 1
+
+    # Then Node1 receives the messages
+    # Getting messageIds from mcache 
+    checkUntilCustomTimeout(timeout, interval):
+      nodes[1].mcache.window(topic).toSeq().len == 2
+
+    let messageId1 = nodes[1].mcache.window(topic).toSeq()[0]
+    let messageId2 = nodes[1].mcache.window(topic).toSeq()[1]
+
+    # And Node0 doesn't receive messages
+    check:
+      nodes[2].mcache.window(topic).toSeq().len == 0
+
+    # When Node0 connects with Node0 and subscribes to the topic
+    await connectNodes(nodes[0], nodes[2])
+    nodes[2].subscribe(topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # And messageIds are added to node0PeerNode2 sentIHaves to allow processing IWant
+    # let node0PeerNode2 =
+    let node0PeerNode2 = nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId)
+    node0PeerNode2.sentIHaves[0].incl(messageId1)
+    node0PeerNode2.sentIHaves[0].incl(messageId2)
+
+    # And messageId1 is added to seen messages cache of Node2
+    check:
+      not nodes[2].addSeen(nodes[2].salt(messageId1))
+
+    # And Node2 sends IWant to Node0 requesting both messages
+    let iWantMessage =
+      ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageId1, messageId2])])
+    let node2PeerNode0 = nodes[2].getPeerByPeerId(topic, nodes[0].peerInfo.peerId)
+    nodes[2].broadcast(
+      @[node2PeerNode0], RPCMsg(control: some(iWantMessage)), isHighPriority = false
+    )
+
+    await waitForHeartbeat()
+
+    # Then Node2 receives only messageId2 and messageId1 is dropped
+    check:
+      nodes[2].mcache.window(topic).toSeq().len == 1
+      nodes[2].mcache.window(topic).toSeq()[0] == messageId2
