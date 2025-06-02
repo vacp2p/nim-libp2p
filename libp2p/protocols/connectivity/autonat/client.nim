@@ -52,7 +52,7 @@ method dialMe*(
       else:
         await switch.dial(pid, addrs, AutonatCodec)
     except CancelledError as err:
-      raise newException(CancelledError, "Dial cancelled: " & err.msg, err)
+      raise err
     except DialFailedError as err:
       raise
         newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
@@ -77,7 +77,7 @@ method dialMe*(
     trace "sending Dial", addrs = switch.peerInfo.addrs
     await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   except CancelledError as e:
-    raise newException(CancelledError, "sendDial cancelled: " & e.msg, e)
+    raise e
   except CatchableError as e:
     raise newException(AutonatError, "Sending dial failed", e)
 
@@ -85,7 +85,7 @@ method dialMe*(
   try:
     respBytes = await conn.readLp(1024)
   except CancelledError as e:
-    raise newException(CancelledError, "read Dial response cancelled: " & e.msg, e)
+    raise e
   except CatchableError as e:
     raise newException(AutonatError, "read Dial response failed: " & e.msg, e)
 

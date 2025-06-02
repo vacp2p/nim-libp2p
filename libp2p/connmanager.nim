@@ -138,7 +138,7 @@ proc triggerConnEvent*(
 
       checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
-    raise newException(CancelledError, "Exception in triggerConnEvent: " & exc.msg, exc)
+    raise exc
   except CatchableError as exc:
     warn "Exception in triggerConnEvent",
       description = exc.msg, peer = peerId, event = $event
@@ -174,8 +174,7 @@ proc triggerPeerEvents*(
 
     checkFutures(await allFinished(peerEvents))
   except CancelledError as exc:
-    raise
-      newException(CancelledError, "Exception in triggerPeerEvents: " & exc.msg, exc)
+    raise exc
   except CatchableError as exc: # handlers should not raise!
     warn "Exception in triggerPeerEvents", description = exc.msg, peer = peerId
 

@@ -54,8 +54,7 @@ proc sendStopError(
     let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
     await conn.writeLp(encode(msg).buffer)
   except CancelledError as e:
-    raise
-      newException(CancelledError, "Cancelled while sending stop status: " & e.msg, e)
+    raise e
   except LPStreamError as e:
     trace "failed to send stop status", description = e.msg
 
@@ -100,7 +99,7 @@ proc reserve*(
         await conn.writeLp(pb.buffer)
         HopMessage.decode(await conn.readLp(RelayClientMsgSize)).tryGet()
       except CancelledError as exc:
-        raise newException(CancelledError, "Cancelled while reserving: " & exc.msg, exc)
+        raise exc
       except CatchableError as exc:
         trace "error writing or reading reservation message", description = exc.msg
         raise newException(ReservationError, exc.msg)
@@ -332,8 +331,7 @@ proc new*(
         await cl.handleHopStreamV2(conn)
     except CancelledError as exc:
       trace "cancelled client handler"
-      raise
-        newException(CancelledError, "Client handler was cancelled: " & exc.msg, exc)
+      raise exc
     except CatchableError as exc:
       trace "exception in client handler", description = exc.msg, conn
     finally:

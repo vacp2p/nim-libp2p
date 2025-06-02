@@ -234,7 +234,7 @@ method accept*(
         raiseAssert "Accept futures should not be empty"
       except CancelledError as exc:
         cancelAcceptFuts()
-        raise newException(CancelledError, "Accept cancelled: " & exc.msg, exc)
+        raise exc
     index = self.acceptFuts.find(finished)
 
   # A new connection has been accepted. The corresponding server should immediately start accepting another connection.
@@ -261,8 +261,7 @@ method accept*(
       )
     except CancelledError as exc:
       cancelAcceptFuts()
-      raise
-        newException(CancelledError, "tcptransport finished cancelled: " & exc.msg, exc)
+      raise exc
 
   if not self.running: # Stopped while waiting
     safeCloseWait(transp)
@@ -307,7 +306,7 @@ method dial*(
           connect(ta, flags = self.clientFlags)
       )
     except CancelledError as exc:
-      raise newException(CancelledError, "TcpTransport dial cancelled: " & exc.msg, exc)
+      raise exc
     except CatchableError as exc:
       raise (ref TcpTransportError)(
         msg: "TcpTransport dial caught error: " & exc.msg, parent: exc

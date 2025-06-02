@@ -180,7 +180,7 @@ proc getPeer*(
     await getter or allFinished(query.futs)
   except CancelledError as exc:
     getter.cancel()
-    raise newException(CancelledError, "Exception in getPeer: " & exc.msg, exc)
+    raise exc
 
   if not finished(getter):
     if query.finished:

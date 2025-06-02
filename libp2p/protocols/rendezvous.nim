@@ -661,7 +661,7 @@ proc request*(
       trace "Send Request", peerId = peer, ns
       await peer.requestPeer()
     except CancelledError as e:
-      raise newException(CancelledError, "Cancelled request: " & e.msg, e)
+      raise e
     except DialFailedError as e:
       trace "failed to dial a peer", description = e.msg
     except LPStreamError as e:
@@ -785,8 +785,7 @@ proc new*(
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
       trace "cancelled rendezvous handler"
-      raise
-        newException(CancelledError, "Cancelled rendezvous handler: " & exc.msg, exc)
+      raise exc
     except CatchableError as exc:
       trace "exception in rendezvous handler", description = exc.msg
     finally:

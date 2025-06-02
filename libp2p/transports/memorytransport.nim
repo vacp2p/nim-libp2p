@@ -92,7 +92,7 @@ method accept*(
     return conn
   except CancelledError as e:
     listener.close()
-    raise newException(CancelledError, "MemoryTransport accept cancelled: " & e.msg), e
+    raise e
   except MemoryTransportError as e:
     raise newException(MemoryTransportError, "MemoryTransport accept error: " & e.msg), e
   except CatchableError:
@@ -110,7 +110,7 @@ method dial*(
     self.connections.add(conn)
     return conn
   except CancelledError as e:
-    raise newException(CancelledError, "MemoryTransport dial cancelled: " & e.msg), e
+    raise e
   except MemoryTransportError as e:
     raise newException(MemoryTransportError, "MemoryTransport dial error: " & e.msg), e
   except CatchableError:

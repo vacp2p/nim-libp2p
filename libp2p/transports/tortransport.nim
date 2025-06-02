@@ -240,7 +240,7 @@ method dial*(
     return self.tcpTransport.connHandler(transp, Opt.none(MultiAddress), Direction.Out)
   except CancelledError as e:
     safeCloseWait(transp)
-    raise newException(CancelledError, "TorTransport dial cancelled: " & e.msg, e)
+    raise e
   except CatchableError as e:
     safeCloseWait(transp)
     raise newException(

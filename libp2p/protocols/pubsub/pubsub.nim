@@ -365,7 +365,7 @@ method getOrCreatePeer*(
     try:
       return await p.switch.dial(peerId, protosToDial)
     except CancelledError as exc:
-      raise newException(CancelledError, "Dial cancelled: " & exc.msg, exc)
+      raise exc
     except DialFailedError as e:
       raise (ref GetConnDialError)(parent: e)
 
@@ -452,7 +452,7 @@ method handleConn*(
     await peer.handle(conn) # spawn peer read loop
     trace "pubsub peer handler ended", conn
   except CancelledError as exc:
-    raise newException(CancelledError, "PubSub handle cancelled: " & exc.msg, exc)
+    raise exc
   except PeerMessageDecodeError as exc:
     trace "exception ocurred in pubsub handle", description = exc.msg, conn
   finally:

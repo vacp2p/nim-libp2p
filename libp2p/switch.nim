@@ -231,7 +231,7 @@ proc upgrader(
       PeerEvent(kind: PeerEventKind.Identified, initiator: false),
     )
   except CancelledError as e:
-    raise newException(CancelledError, "Upgrade cancelled in upgrader: " & e.msg, e)
+    raise e
   except CatchableError as e:
     raise newException(UpgradeError, "Exception in upgrader: " & e.msg, e)
 

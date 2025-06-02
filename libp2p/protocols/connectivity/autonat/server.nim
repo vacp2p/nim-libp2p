@@ -94,7 +94,7 @@ proc tryDial(
     else:
       await conn.sendResponseError(DialError, "Missing observed address")
   except CancelledError as exc:
-    raise newException(CancelledError, "cancelled in tryDial: " & exc.msg, exc)
+    raise exc
   except AllFuturesFailedError as exc:
     debug "All dial attempts failed", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "All dial attempts failed")
@@ -175,8 +175,7 @@ proc new*(
       await autonat.handleDial(conn, msg)
     except CancelledError as exc:
       trace "cancelled autonat handler"
-      raise
-        newException(CancelledError, "Autonat handler was cancelled: " & exc.msg, exc)
+      raise exc
     except CatchableError as exc:
       debug "exception in autonat handler", description = exc.msg, conn
     finally:

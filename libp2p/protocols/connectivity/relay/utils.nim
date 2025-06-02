@@ -30,7 +30,7 @@ proc sendStatus*(
       pb = encode(msg)
     await conn.writeLp(pb.buffer)
   except CancelledError as e:
-    raise newException(CancelledError, "Cancelled sending relay status: " & e.msg, e)
+    raise e
   except LPStreamError as e:
     trace "error sending relay status", description = e.msg
 
@@ -86,7 +86,7 @@ proc bridge*(
           zeroMem(addr bufDstToSrc[0], bufDstToSrc.len)
         futDst = connDst.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
   except CancelledError as exc:
-    raise newException(CancelledError, "Bridge cancelled: " & exc.msg, exc)
+    raise exc
   except LPStreamError as exc:
     if connSrc.closed() or connSrc.atEof():
       trace "relay src closed connection", src = connSrc.peerId

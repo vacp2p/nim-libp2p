@@ -320,8 +320,7 @@ method tryDial*(
     await mux.close()
     return mux.connection.observedAddr
   except CancelledError as exc:
-    raise
-      newException(CancelledError, "cancelled exception in tryDial: " & exc.msg, exc)
+    raise exc
   except CatchableError as exc:
     raise newException(DialFailedError, "exception in tryDial: " & exc.msg, exc)
 
@@ -344,8 +343,7 @@ method dial*(
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
     trace "Dial canceled", description = exc.msg
-    raise
-      newException(CancelledError, "cancelled exception in dial existing: " & exc.msg)
+    raise exc
   except CatchableError as exc:
     trace "Error dialing", description = exc.msg
     raise newException(DialFailedError, "exception in dial existing: " & exc.msg)
@@ -388,7 +386,7 @@ method dial*(
   except CancelledError as exc:
     trace "Dial canceled", conn, description = exc.msg
     await cleanup()
-    raise newException(CancelledError, "Dial canceled in new dial: " & exc.msg, exc)
+    raise exc
   except CatchableError as exc:
     debug "Error dialing", conn, description = exc.msg
     await cleanup()

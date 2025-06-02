@@ -98,7 +98,7 @@ proc dial*(
       return await self.client.dialPeerV2(rc, dstPeerId, @[])
   except CancelledError as e:
     safeClose(rc)
-    raise newException(CancelledError, "dial cancelled: " & e.msg, e)
+    raise e
   except DialFailedError as e:
     safeClose(rc)
     raise newException(RelayDialError, "dial relay peer failed: " & e.msg, e)
@@ -120,7 +120,7 @@ method dial*(
       let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
       result = await self.dial(address)
     except CancelledError as e:
-      raise newException(CancelledError, "dial cancelled: " & e.msg, e)
+      raise e
     except CatchableError as e:
       raise
         newException(transport.TransportDialError, "Caught error in dial: " & e.msg, e)

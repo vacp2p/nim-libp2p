@@ -273,7 +273,7 @@ method accept*(
     except ValueError:
       raiseAssert("already checked with if: " & getCurrentExceptionMsg())
     except CancelledError as e:
-      raise newException(CancelledError, "error in WsTransport accept: " & e.msg, e)
+      raise e
 
   let index = self.acceptFuts.find(finished)
   self.acceptFuts[index] = self.httpservers[index].accept()
@@ -339,7 +339,7 @@ method dial*(
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
     safeClose(transp)
-    raise newException(CancelledError, "WsTransport dial cancelled: " & e.msg, e)
+    raise e
   except CatchableError as e:
     safeClose(transp)
     raise newException(

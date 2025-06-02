@@ -136,7 +136,7 @@ method resolveIp*(
         for answer in resp.answers:
           resolvedAddresses.incl(answer.toString())
       except CancelledError as e:
-        raise newException(CancelledError, "DNS resolution cancelled: " & e.msg, e)
+        raise e
       except ValueError as e:
         info "Invalid DNS query", address, error = e.msg
         return @[]
@@ -181,7 +181,7 @@ method resolveTxt*(
         server = $server, answer = response.answers.mapIt(it.toString())
       return response.answers.mapIt(it.toString())
     except CancelledError as e:
-      raise newException(CancelledError, "DNS TXT resolution cancelled: " & e.msg, e)
+      raise e
     except IOError as e:
       handleFail(e)
     except OSError as e:

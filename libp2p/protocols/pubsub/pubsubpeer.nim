@@ -237,8 +237,7 @@ proc closeSendConn(
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: event))
   except CancelledError as exc:
-    raise
-      newException(CancelledError, "PubSubPeer.onEvent was cancelled: " & exc.msg, exc)
+    raise exc
   # don't cleanup p.address else we leak some gossip stat table
 
 proc connectOnce(

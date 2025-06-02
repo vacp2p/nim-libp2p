@@ -219,8 +219,7 @@ method init*(g: GossipSub) =
       await g.handleConn(conn, proto)
     except CancelledError as exc:
       trace "Unexpected cancellation in gossipsub handler", conn, description = exc.msg
-      raise
-        newException(CancelledError, "GossipSub handler was cancelled: " & exc.msg, exc)
+      raise exc
 
   g.handler = handler
   g.codecs &= GossipSubCodec_12
@@ -832,9 +831,7 @@ proc maintainDirectPeer(
       discard g.getOrCreatePeer(id, g.codecs)
     except CancelledError as exc:
       trace "Direct peer dial canceled"
-      raise newException(
-        CancelledError, "Direct peer dial was cancelled: " & exc.msg, exc
-      )
+      raise exc
     except DialFailedError as exc:
       debug "Direct peer error dialing", description = exc.msg
 

@@ -169,7 +169,7 @@ proc handleConnect(
     try:
       await r.switch.dial(dst, RelayV2StopCodec)
     except CancelledError as exc:
-      raise newException(CancelledError, "Dial cancelled: " & exc.msg, exc)
+      raise exc
     except DialFailedError as exc:
       trace "error opening relay stream", dst, description = exc.msg
       await sendHopStatus(connSrc, ConnectionFailed)
@@ -198,7 +198,7 @@ proc handleConnect(
   try:
     await sendStopMsg()
   except CancelledError as exc:
-    raise newException(CancelledError, "Send stop message cancelled: " & exc.msg, exc)
+    raise exc
   except CatchableError as exc:
     trace "error sending stop message", description = exc.msg
     await sendHopStatus(connSrc, ConnectionFailed)
@@ -278,7 +278,7 @@ proc handleHop*(
     try:
       await r.switch.dial(dst.peerId, RelayV1Codec)
     except CancelledError as exc:
-      raise newException(CancelledError, "Switch dial cancelled: " & exc.msg, exc)
+      raise exc
     except DialFailedError as exc:
       trace "error opening relay stream", dst, description = exc.msg
       await sendStatus(connSrc, StatusV1.HopCantDialDst)
@@ -382,8 +382,7 @@ proc new*(
         await r.handleStreamV1(conn)
     except CancelledError as exc:
       trace "cancelled relayv2 handler"
-      raise
-        newException(CancelledError, "Relayv2 handler was cancelled: " & exc.msg, exc)
+      raise exc
     except CatchableError as exc:
       debug "exception in relayv2 handler", description = exc.msg, conn
     finally:
@@ -406,7 +405,7 @@ proc deletesReservation(r: Relay) {.async: (raises: [CancelledError]).} =
         if n > r.rsvp[k]:
           r.rsvp.del(k)
     except KeyError:
-      raiseAssert "checked with in: " & getCurrentExceptionMsg()
+      raiseAssert "checked with in"
 
 method start*(r: Relay): Future[void] {.async: (raises: [CancelledError], raw: true).} =
   let fut = newFuture[void]()

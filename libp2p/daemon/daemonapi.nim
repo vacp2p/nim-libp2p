@@ -1030,7 +1030,7 @@ proc addHandler*(
     raise newException(TransportError, "Could not add stream handler: " & e.msg, e)
   except CancelledError as e:
     await removeHandler()
-    raise newException(CancelledError, "Could not add stream handler: " & e.msg, e)
+    raise e
   finally:
     await api.closeConnection(transp)
 

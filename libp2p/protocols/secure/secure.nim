@@ -151,8 +151,7 @@ method init*(s: Secure) =
       trace "connection secured", conn
     except CancelledError as exc:
       warn "securing connection canceled", conn
-      raise
-        newException(CancelledError, "securing connection canceled: " & exc.msg, exc)
+      raise exc
     except LPStreamError as exc:
       warn "securing connection failed", description = exc.msg, conn
     finally:
@@ -185,8 +184,7 @@ method readOnce*(
       await s.close()
       raise newException(LPStreamEOFError, "Secure connection EOF: " & err.msg, err)
     except CancelledError as exc:
-      raise
-        newException(CancelledError, "Secure connection read canceled: " & exc.msg, exc)
+      raise exc
     except LPStreamError as err:
       debug "Error while reading message from secure connection, closing.",
         error = err.name, message = err.msg, connection = s

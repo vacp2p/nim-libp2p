@@ -322,7 +322,7 @@ method dial*(
     let quicConnection = await self.client.dial(initTAddress(address).tryGet)
     return self.wrapConnection(quicConnection)
   except CancelledError as e:
-    raise newException(CancelledError, "QuicTransport dial cancelled: " & e.msg, e)
+    raise e
   except CatchableError as e:
     raise newException(QuicTransportDialError, "caught error in quic dial:" & e.msg, e)
 
