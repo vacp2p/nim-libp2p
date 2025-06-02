@@ -193,7 +193,7 @@ suite "GossipSub Gossip Protocol":
     await waitForHeartbeat()
 
     # When node 0 sends a message
-    check (await nodes[0].publish(topic, "Hello!".toBytes())) == 3
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
     await waitForHeartbeat()
 
     # None of the nodes should have received an iHave message
@@ -232,7 +232,7 @@ suite "GossipSub Gossip Protocol":
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
 
     # When node 0 sends a message
-    check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
     await waitForHeartbeat(2)
 
     # At least 8 of the nodes should have received an iHave message
@@ -272,7 +272,7 @@ suite "GossipSub Gossip Protocol":
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
 
     # When node 0 sends a message
-    check (await nodes[0].publish(topic, "Hello!".toBytes())) in 2 .. 3
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
     await waitForHeartbeat(2)
 
     # At least 6 of the nodes should have received an iHave message
