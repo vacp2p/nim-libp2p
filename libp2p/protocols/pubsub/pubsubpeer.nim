@@ -250,7 +250,8 @@ proc connectOnce(
         await p.getConn().wait(5.seconds)
       except AsyncTimeoutError as error:
         trace "getConn timed out", description = error.msg
-        raise (ref LPError)(msg: "Cannot establish send connection")
+        raise
+          (ref LPError)(msg: "Cannot establish send connection: connection timed out")
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
@@ -277,6 +278,7 @@ proc connectOnce(
     await p.closeSendConn(PubSubPeerEventKind.StreamClosed)
 
 proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
+  var cannotConnect = false
   try:
     # Keep trying to establish a connection while it's possible to do so - the
     # send connection might get disconnected due to a timeout or an unrelated
@@ -289,10 +291,18 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
       await connectOnce(p)
   except CancelledError as exc:
     debug "Could not establish send connection", description = exc.msg
+    cannotConnect = true
   except LPError as exc:
     debug "Could not establish send connection", description = exc.msg
+    cannotConnect = true
   except GetConnDialError as exc:
     debug "Could not establish send connection", description = exc.msg
+    cannotConnect = true
+  finally:
+    if cannotConnect and not p.connectedFut.finished:
+      p.connectedFut.fail(
+        (ref LPError)(msg: "Cannot establish send connection: connection timed out")
+      )
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
