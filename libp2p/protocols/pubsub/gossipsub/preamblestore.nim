@@ -8,16 +8,16 @@ import ../pubsubpeer
 proc `<`(a, b: PreambleInfo): bool =
   a.expiresAt < b.expiresAt
 
-proc init*(_: typedesc[PeerSet]): PeerSet =
+proc init*(T: typedesc[PeerSet]): T =
   PeerSet(order: @[], peers: initHashSet[PeerId]())
 
 proc init*(
-    _: typedesc[PreambleInfo],
+    T: typedesc[PreambleInfo],
     preamble: ControlPreamble,
     sender: PubSubPeer,
     startsAt: Moment,
     expiresAt: Moment,
-): PreambleInfo =
+): T =
   PreambleInfo(
     messageId: preamble.messageID,
     messageLength: preamble.messageLength,
