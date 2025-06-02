@@ -31,7 +31,7 @@ func get*(c: MCache, msgId: MessageId): Opt[Message] =
     try:
       Opt.some(c.msgs[msgId])
     except KeyError:
-      raiseAssert "checked: " & getCurrentExceptionMsg()
+      raiseAssert "checked"
   else:
     Opt.none(Message)
 

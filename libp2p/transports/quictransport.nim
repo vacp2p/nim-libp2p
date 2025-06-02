@@ -299,8 +299,7 @@ method accept*(
     let connection = await self.listener.accept()
     return self.wrapConnection(connection)
   except CancelledError as exc:
-    raise
-      newExpception(CancelledError, "QuicTransport accept cancelled: " & exc.msg, exc)
+    raise exc
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
   except MaError as exc:

@@ -59,7 +59,7 @@ func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
       try:
         t.entries[tmp] # use the shared instance in the set
       except KeyError:
-        raiseAssert "just checked: " & getCurrentExceptionMsg()
+        raiseAssert "just checked"
     t.entries.excl(item)
 
     if t.head == item:
@@ -136,7 +136,7 @@ func addedAt*[K](t: var TimedCache[K], k: K): Moment =
       # Use shared instance from entries
       return t.entries[tmp][].addedAt
   except KeyError:
-    raiseAssert "just checked: " & getCurrentExceptionMsg()
+    raiseAssert "just checked"
 
   default(Moment)
 

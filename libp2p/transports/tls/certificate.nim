@@ -109,7 +109,7 @@ func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
     try:
       "CN=" & $(PeerId.init(identityKeyPair.pubkey).tryGet())
     except LPError:
-      raiseAssert "pubkey must be set: " & getCurrentExceptionMsg()
+      raiseAssert "pubkey must be set"
 
   return issuerDN
 

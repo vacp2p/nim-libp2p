@@ -84,7 +84,7 @@ proc open*(s: LPChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
     await s.conn.writeMsg(s.id, MessageType.New, s.name)
     s.isOpen = true
   except CancelledError as exc:
-    raise newCancelledError("Opening LPChannel was cancelled: " & exc.msg, exc)
+    raise exc
   except LPStreamError as exc:
     await s.conn.close()
     raise newException(LPStreamError, "Opening LPChannel failed: " & exc.msg, exc)

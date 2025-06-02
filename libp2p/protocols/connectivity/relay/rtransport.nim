@@ -78,8 +78,7 @@ proc dial*(
   except RelayDialError as e:
     raise newException(RelayDialError, "dial address not valid: " & e.msg, e)
   except CatchableError:
-    raise
-      newException(RelayDialError, "dial address not valid: " & getCurrentExceptionMsg)
+    raise newException(RelayDialError, "dial address not valid")
 
   trace "Dial", relayPeerId, dstPeerId
 

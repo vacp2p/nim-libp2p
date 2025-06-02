@@ -306,7 +306,7 @@ method accept*(
     debug "Server was closed", description = exc.msg
     raise newTransportClosedError(exc)
   except CancelledError as exc:
-    raise newExpception(CancelledError, "WsTransport accept cancelled: " & exc.msg, exc)
+    raise exc
   except TransportOsError as exc:
     debug "OS Error", description = exc.msg
   except CatchableError as exc:
