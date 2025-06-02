@@ -65,7 +65,7 @@ proc main() {.async.} =
     try:
       redisClient.bLPop(@["RELAY_TCP_ADDRESS"], 0)
     except Exception as e:
-      raise newException(CatchableError, "Exception calling bLPop: " & e.msg, e)
+      raise newException(CatchableError, e.msg)
 
   debug "All relay addresses", relayAddr
 
