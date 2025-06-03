@@ -24,7 +24,6 @@ const
 type Nonce = string
 type Kid = string
 type AccountStatus = string
-type ACMERequestHeader = JsonNode
 
 type ACMEDirectory = object
   newNonce: string
@@ -39,6 +38,31 @@ type ACMEApi* = object
 type ACMEResponse = object
   body: JsonNode
   headers: HttpTable
+
+type JWK = object
+  kty: string
+  n: string
+  e: string
+
+# whether the request uses Kid or not
+type ACMERequestType = enum
+  ACMEJwkRequest
+  ACMEKidRequest
+
+type ACMERequestHeader = object
+  alg: string
+  typ: string
+  nonce: string
+  url: string
+  case kind: ACMERequestType
+  of ACMEJwkRequest:
+    jwk: JWK
+  of ACMEKidRequest:
+    kid: Kid
+
+type ACMERegisterRequest* = object
+  termsOfServiceAgreed: bool
+  contact: seq[string]
 
 type ACMERegisterResponse* = object
   kid*: Kid
@@ -136,13 +160,24 @@ proc acmeHeader(
   let e = base64UrlEncode(eArray)
 
   let newNonce = await self.newNonce()
-  var header = %*{"alg": Alg, "typ": "JWT", "nonce": newNonce, "url": url}
   if needsJwk:
-    header["jwk"] = %*{"kty": "RSA", "n": n, "e": e}
+    ACMERequestHeader(
+      kind: ACMEJwkRequest,
+      alg: Alg,
+      typ: "JWT",
+      nonce: newNonce,
+      url: url,
+      jwk: JWK(kty: "RSA", n: n, e: e),
+    )
   else:
-    # this get will always succeed due to check in beginning of proc
-    header["kid"] = %*(kid.get())
-  return header
+    ACMERequestHeader(
+      kind: ACMEKidRequest,
+      alg: Alg,
+      typ: "JWT",
+      nonce: newNonce,
+      url: url,
+      kid: kid.get(),
+    )
 
 proc signedAcmeRequest(
     self: ACMEApi,
@@ -154,7 +189,7 @@ proc signedAcmeRequest(
 ): Future[ACMEResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
     let acmeHeader = await self.acmeHeader(url, key, needsJwk, kid)
-    var token = toJWT(%*{"header": acmeHeader, "claims": %*payload})
+    var token = toJWT(%*{"header": acmeHeader, "claims": payload})
     let derPrivKey = key.seckey.rsakey.getBytes.get
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
     token.sign(pemPrivKey)
@@ -170,19 +205,19 @@ proc signedAcmeRequest(
     return ACMEResponse(
       body: (await rawResponse.getResponseBody()), headers: rawResponse.headers
     )
-  except CatchableError as exc:
-    raise newException(ACMEError, "Failed to create JWT", exc)
   except HttpError as exc:
     raise newException(ACMEError, "Failed to send HTTP request to the ACME server", exc)
+  except CatchableError as exc:
+    raise newException(ACMEError, "Failed to create JWT", exc)
 
 proc acmeRegister*(
     self: ACMEApi, key: KeyPair
 ): Future[ACMERegisterResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let payload = %*{"termsOfServiceAgreed": true}
+  let registerRequest = ACMERegisterRequest(termsOfServiceAgreed: true)
   wrapSerialization:
     let acmeResponse = (
       await self.signedAcmeRequest(
-        self.directory.newAccount, payload, key, needsJwk = true
+        self.directory.newAccount, registerRequest, key, needsJwk = true
       )
     )
     ACMERegisterResponse(
@@ -253,8 +288,6 @@ proc notifyChallengeCompleted*(
         .send()
       except HttpError as exc:
         raise newException(ACMEError, "Failed to connect to ACME server", exc)
-      except ValueError as exc:
-        raise newException(ACMEError, "Failed to parse JSON", exc)
     let checkResponse = wrapSerialization:
       (await rawResponse.getResponseBody()).to(ACMECheckResponse)
 
