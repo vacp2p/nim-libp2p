@@ -30,11 +30,16 @@ suite "AutoTLS":
     let registerResponse = await api.acmeRegister(key)
     # account was registered (kid set)
     check registerResponse.kid != ""
+    if registerResponse.kid == "":
+      raiseAssert "unable to register acme account"
 
     # challenge requested
-    # let (dns01Challenge, finalizeURL, orderURL) =
-    #   await acc.requestChallenge(@["some.dummy.domain.com"])
-    # check dns01Challenge.isNil == false
-    # check finalizeURL.len > 0
-    # check orderURL.len > 0
-    # await noCancel(acc.session.closeWait())
+    let challenge =
+      await api.requestChallenge(@["some.dummy.domain.com"], key, registerResponse.kid)
+    check challenge.finalizeURL.len() > 0
+    check challenge.orderURL.len() > 0
+
+    check challenge.dns01.url.len() > 0
+    check challenge.dns01.`type`.len() > 0
+    check challenge.dns01.status.len() > 0
+    check challenge.dns01.token.len() > 0

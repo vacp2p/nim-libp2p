@@ -45,19 +45,30 @@ type ACMERegisterResponse* = object
   status*: AccountStatus
 
 type ACMEChallenge = object
-  url: string
+  url*: string
+  `type`*: string
+  status*: string
+  token*: string
+
+type ACMEChallengeIdentifier = object
   `type`: string
+  value: string
+
+type ACMEChallengeRequest = object
+  identifiers: seq[ACMEChallengeIdentifier]
+
+type ACMEChallengeResponse* = object
   status: string
-  token: string
+  authorizations: seq[string]
+  finalize: string
+
+type ACMEChallengeResponseWrapper* = object
+  finalizeURL*: string
+  orderURL*: string
+  dns01*: ACMEChallenge
 
 type ACMEAuthorizationsResponse* = object
   challenges: seq[ACMEChallenge]
-
-type ACMEChallengeResponse* = object
-  finalizeURL: string
-  orderURL: string
-  authzURL: string
-  dns01: ACMEChallenge
 
 type ACMECompletedResponse* = object
   checkURL: string
@@ -143,7 +154,7 @@ proc signedAcmeRequest(
 ): Future[ACMEResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
     let acmeHeader = await self.acmeHeader(url, key, needsJwk, kid)
-    var token = toJWT(%*{"header": acmeHeader, "claims": payload})
+    var token = toJWT(%*{"header": acmeHeader, "claims": %*payload})
     let derPrivKey = key.seckey.rsakey.getBytes.get
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
     token.sign(pemPrivKey)
@@ -180,37 +191,43 @@ proc acmeRegister*(
     )
 
 proc requestChallenge*(
-    self: ACMEApi, domains: seq[string], key: KeyPair, kid = Kid
-): Future[ACMEChallengeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
+    self: ACMEApi, domains: seq[string], key: KeyPair, kid: Kid
+): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
   # request challenge from ACME server
-  var identifiers: seq[JsonNode] = domains.mapIt(%*{"type": "dns", "value": it})
-  let orderPayload = %*{"identifiers": identifiers}
+  let orderPayload = ACMEChallengeRequest(
+    identifiers: domains.mapIt(ACMEChallengeIdentifier(`type`: "dns", value: it))
+  )
 
-  var challengeResponse = wrapSerialization:
-    (
+  let (orderURL, challengeResponse) = wrapSerialization:
+    let acmeResponse = (
       await self.signedAcmeRequest(
         self.directory.newOrder, orderPayload, key, kid = Opt.some(kid)
       )
-    ).body.to(ACMEChallengeResponse)
+    )
+    (
+      acmeResponse.headers.getString("location"),
+      acmeResponse.body.to(ACMEChallengeResponse),
+    )
 
-  challengeResponse.orderURL = challengeResponse.headers.getString("location")
-  if challengeResponse.orderURL == "":
-    raise newException(ACMEError, "'location' header not found in ACME response")
+  if challengeResponse.authorizations.len() == 0:
+    raise newException(ACMEError, "Authorizations field is empty")
 
   # get challenges
   let authorizationsResponse = wrapSerialization:
     (
-      await HttpClientRequestRef
-      .get(self.session, challengeResponse.authzURL)
-      .get()
-      .send()
-      .getResponseBody()
+      await (
+        await HttpClientRequestRef
+        .get(self.session, challengeResponse.authorizations[0])
+        .get()
+        .send()
+      ).getResponseBody()
     ).to(ACMEAuthorizationsResponse)
 
-  challengeResponse.dns01 =
-    authorizationsResponse.challenges.filterIt(it.`type` == "dns-01")
+  let dns01 = authorizationsResponse.challenges.filterIt(it.`type` == "dns-01")[0]
 
-  return challengeResponse
+  return ACMEChallengeResponseWrapper(
+    finalizeURL: challengeResponse.finalize, orderURL: orderURL, dns01: dns01
+  )
 
 proc notifyChallengeCompleted*(
     self: ACMEApi,
