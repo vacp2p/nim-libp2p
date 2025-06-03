@@ -9,10 +9,6 @@ suite "GossipSub Heartbeat":
   teardown:
     checkTrackers()
 
-  const
-    timeout = 1.seconds
-    interval = 50.milliseconds
-
   asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
     const
       numberOfNodes = 10
