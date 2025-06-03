@@ -1,11 +1,8 @@
-import options, base64, sequtils, serialization, json_serialization, tables
+import options, base64, sequtils, json
 from times import DateTime, parse
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
-from std/json import
-  JsonNode, `%*`, `%`, `[]`, `[]=`, `$`, parseJson, getStr, items, newJObject, to,
-  JsonKindError
 
-import ../utils
+import ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
 import ../../transports/tls/certificate_ffi
@@ -115,12 +112,12 @@ template wrapSerialization(body: untyped): untyped =
     body
   except JsonKindError as exc:
     raise newException(ACMEError, "Failed to decode JSON", exc)
-  except exceptions.KeyError as exc:
-    raise newException(ACMEError, "Failed to decode JSON", exc)
   except ValueError as exc:
     raise newException(ACMEError, "Failed to decode JSON", exc)
   except HttpError as exc:
     raise newException(ACMEError, "Failed to connect to ACME server", exc)
+  except CatchableError as exc:
+    raise newException(ACMEError, "Unexpected error", exc)
 
 proc new*(
     T: typedesc[ACMEApi], acmeServerURL: string = LetsEncryptURL
