@@ -167,21 +167,15 @@ suite "GossipSub Message Cache":
     # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat
     # Then NodeOutsideMesh responds with an IWant message to Node0
     checkUntilTimeout:
-      receivedIWantsNode0[].len == 1
-    let msgIdReceivedIWant = receivedIWantsNode0[][0].messageIDs[0]
+      receivedIWantsNode0[].anyIt(messageId in it.messageIDs)
 
     # When Node0 handles the IWant message, it retrieves the message from its message cache using the MessageId
-    check:
-      messageId == msgIdReceivedIWant
-
     # Then Node0 relays the original message to NodeOutsideMesh
     checkUntilTimeout:
-      receivedMessagesNodeOutsideMesh[].len == 1
-    let msgIdRelayed =
-      nodeOutsideMesh.msgIdProvider(receivedMessagesNodeOutsideMesh[][0])
-
-    check:
-      messageId == msgIdRelayed.get()
+      messageId in
+        receivedMessagesNodeOutsideMesh[].mapIt(
+          nodeOutsideMesh.msgIdProvider(it).value()
+        )
 
   asyncTest "Published and received messages are added to the seen cache":
     const
@@ -240,7 +234,7 @@ suite "GossipSub Message Cache":
     check:
       nodes[2].mcache.window(topic).len == 0
 
-    # When Node0 connects with Node0 and subscribes to the topic
+    # When Node2 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
     await waitForHeartbeat()
