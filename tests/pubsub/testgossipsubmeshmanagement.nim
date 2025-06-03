@@ -190,7 +190,7 @@ suite "GossipSub Mesh Management":
 
     for i in 0 ..< numberOfNodes:
       let node = nodes[i]
-      checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+      checkUntilTimeout:
         node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
         node.mesh.getOrDefault(topic).len == expectedNumberOfPeers
         node.fanout.len == 0
@@ -213,7 +213,7 @@ suite "GossipSub Mesh Management":
 
     for i in 0 ..< numberOfNodes:
       let node = nodes[i]
-      checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+      checkUntilTimeout:
         node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
         node.mesh.getOrDefault(topic).len >= dLow and
           node.mesh.getOrDefault(topic).len <= dHigh
@@ -463,7 +463,7 @@ suite "GossipSub Mesh Management":
       let node = nodes[i]
       for j in 0 ..< topics.len:
         let topic = topics[j]
-        checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+        checkUntilTimeout:
           node.topics.contains(topic)
           node.gossipsub[topic].len() == numberOfNodes - 1
           node.mesh[topic].len() == numberOfNodes - 1
@@ -477,7 +477,7 @@ suite "GossipSub Mesh Management":
       let node = nodes[i]
       for j in 0 ..< topics.len:
         let topic = topics[j]
-        checkUntilCustomTimeout(500.milliseconds, 20.milliseconds):
+        checkUntilTimeout:
           topic notin node.topics
           topic notin node.mesh
           topic notin node.gossipsub
