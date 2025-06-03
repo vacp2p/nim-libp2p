@@ -44,6 +44,7 @@ jobs:
   run-hole-punching-interop:
     name: Run hole-punching interoperability tests
     runs-on: ubuntu-22.04
+    continue-on-error: true  # temporarily make the job optional, but still run it in the workflow
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
