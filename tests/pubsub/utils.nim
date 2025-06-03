@@ -274,7 +274,7 @@ proc waitSub*(sender, receiver: auto, key: string) {.async.} =
 
   # this is for testing purposes only
   # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  checkUntilCustomTimeout(5.seconds, 20.milliseconds):
+  checkUntilTimeout:
     (fsub.gossipsub.hasKey(key) and fsub.gossipsub.hasPeerId(key, peerId)) or
       (fsub.mesh.hasKey(key) and fsub.mesh.hasPeerId(key, peerId)) or
       (fsub.fanout.hasKey(key) and fsub.fanout.hasPeerId(key, peerId))
@@ -310,7 +310,7 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
 
     return ok == nodes.len
 
-  checkUntilCustomTimeout(5.seconds, 20.milliseconds):
+  checkUntilTimeout:
     isGraphConnected()
 
 proc waitForMesh*(
@@ -323,51 +323,8 @@ proc waitForMesh*(
     gossipsubSender = GossipSub(sender)
     receiverPeerId = receiver.peerInfo.peerId
 
-  checkUntilCustomTimeout(timeoutDuration, 20.milliseconds):
+  checkUntilTimeout:
     gossipsubSender.mesh.hasPeerId(key, receiverPeerId)
-
-type PeerTableType* {.pure.} = enum
-  Gossipsub = "gossipsub"
-  Mesh = "mesh"
-  Fanout = "fanout"
-
-proc waitForPeersInTable*(
-    nodes: seq[auto],
-    topic: string,
-    peerCounts: seq[int],
-    table: PeerTableType,
-    timeout = 3.seconds,
-) {.async.} =
-  ## Wait until each node in `nodes` has at least the corresponding number of peers from `peerCounts`
-  ## in the specified table (mesh, gossipsub, or fanout) for the given topic
-
-  doAssert nodes.len == peerCounts.len, "Node count must match peer count expectations"
-
-  var satisfied = newSeq[bool](nodes.len)
-
-  # Helper proc to check current state and update satisfaction status
-  proc checkPeersCondition(): bool =
-    for i in 0 ..< nodes.len:
-      if not satisfied[i]:
-        let fsub = GossipSub(nodes[i])
-        let currentCount =
-          case table
-          of PeerTableType.Mesh:
-            fsub.mesh.getOrDefault(topic).len
-          of PeerTableType.Gossipsub:
-            fsub.gossipsub.getOrDefault(topic).len
-          of PeerTableType.Fanout:
-            fsub.fanout.getOrDefault(topic).len
-        satisfied[i] = currentCount >= peerCounts[i]
-    return satisfied.allIt(it)
-
-  checkUntilCustomTimeout(timeout, 20.milliseconds):
-    checkPeersCondition()
-
-proc waitForPeersInTable*(
-    node: auto, topic: string, peerCount: int, table: PeerTableType, timeout = 1.seconds
-) {.async.} =
-  await waitForPeersInTable(@[node], topic, @[peerCount], table, timeout)
 
 proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
