@@ -244,7 +244,7 @@ method dial*(
   except CatchableError as e:
     safeCloseWait(transp)
     raise newException(
-      transport.TransportDialError, "caught error in dial TorTransport: " & e.msg, e
+      transport.TransportDialError, "error in dial TorTransport: " & e.msg, e
     )
 
 method start*(

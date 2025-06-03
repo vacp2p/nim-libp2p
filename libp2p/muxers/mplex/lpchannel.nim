@@ -189,9 +189,7 @@ method readOnce*(
     return bytes
   except CancelledError as exc:
     await s.reset()
-    raise newException(
-      CancelledError, "Reading from LPChannel was cancelled: " & exc.msg, exc
-    )
+    raise exc
   except LPStreamError as exc:
     # Resetting is necessary because data has been lost in s.readBuf and
     # there's no way to gracefully recover / use the channel any more
@@ -252,17 +250,13 @@ proc completeWrite(
     s.activity = true
   except CancelledError as exc:
     # Chronos may still send the data
-    raise newException(
-      CancelledError, "Writing to LPChannel was cancelled: " & exc.msg, exc
-    )
+    raise exc
   except LPStreamConnDownError as exc:
     await s.reset()
     await s.conn.close()
-    raise newException(
-      LPStreamConnDownError, "Writing to LPChannel failed: " & exc.msg, exc
-    )
+    raise exc
   except LPStreamEOFError as exc:
-    raise newException(LPStreamEOFError, "Writing to LPChannel failed: " & exc.msg, exc)
+    raise exc
   except LPStreamError as exc:
     trace "exception in lpchannel write handler", s, description = exc.msg
     await s.reset()
