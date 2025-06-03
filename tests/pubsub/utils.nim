@@ -185,6 +185,7 @@ proc generateNodes*(
     gossipFactor: Option[float] = float.none(),
     opportunisticGraftThreshold: float = 0.0,
     historyLength = 20,
+    historyGossip = 5,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -205,7 +206,7 @@ proc generateNodes*(
             p.heartbeatInterval = heartbeatInterval
             p.floodPublish = floodPublish
             p.historyLength = historyLength
-            p.historyGossip = 20
+            p.historyGossip = historyGossip
             p.unsubscribeBackoff = unsubscribeBackoff
             p.pruneBackoff = pruneBackoff
             p.fanoutTTL = fanoutTTL
@@ -241,6 +242,18 @@ proc generateNodes*(
 
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
   return nodes.mapIt(GossipSub(it))
+
+proc getNodeByPeerId*[T: PubSub](nodes: seq[T], peerId: PeerId): GossipSub =
+  let filteredNodes = nodes.filterIt(it.peerInfo.peerId == peerId)
+  check:
+    filteredNodes.len == 1
+  return filteredNodes[0]
+
+proc getPeerByPeerId*[T: PubSub](node: T, topic: string, peerId: PeerId): PubSubPeer =
+  let filteredPeers = node.gossipsub[topic].toSeq().filterIt(it.peerId == peerId)
+  check:
+    filteredPeers.len == 1
+  return filteredPeers[0]
 
 proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
@@ -378,6 +391,18 @@ proc createCompleteHandler*(): (
     fut.complete(true)
 
   return (fut, handler)
+
+proc createCheckForMessages*(): (
+  ref seq[Message], proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
+) =
+  var messages = new seq[Message]
+  let checkForMessage = proc(
+      peer: PubSubPeer, msgs: var RPCMsg
+  ) {.gcsafe, raises: [].} =
+    for message in msgs.messages:
+      messages[].add(message)
+
+  return (messages, checkForMessage)
 
 proc createCheckForIHave*(): (
   ref seq[ControlIHave], proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].}
