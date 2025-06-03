@@ -60,6 +60,7 @@ proc main() {.async.} =
 
   await switch.start()
   await auxSwitch.start()
+  # await hpservice.run(switch)
 
   let relayAddr =
     try:
