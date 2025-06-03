@@ -39,21 +39,21 @@ suite "checkUntilTimeout helpers":
     checkUntilTimeout:
       a == b
 
-  asyncTest "checkUntilCustomTimeout should pass when the condition is true":
+  asyncTest "checkUntilTimeoutCustom should pass when the condition is true":
     let a = 2
     let b = 2
-    checkUntilCustomTimeout(2.seconds, 100.milliseconds):
+    checkUntilTimeoutCustom(2.seconds, 100.milliseconds):
       a == b
 
-  asyncTest "checkUntilCustomTimeout should pass when the conditions are true":
+  asyncTest "checkUntilTimeoutCustom should pass when the conditions are true":
     let a = 2
     let b = 2
-    checkUntilCustomTimeout(5.seconds, 100.milliseconds):
+    checkUntilTimeoutCustom(5.seconds, 100.milliseconds):
       a == b
       a == 2
       b == 2
 
-  asyncTest "checkUntilCustomTimeout should pass if condition becomes true after time":
+  asyncTest "checkUntilTimeoutCustom should pass if condition becomes true after time":
     var a = 1
     let b = 2
     proc makeConditionTrueLater() {.async.} =
@@ -61,7 +61,7 @@ suite "checkUntilTimeout helpers":
       a = 2
 
     asyncSpawn makeConditionTrueLater()
-    checkUntilCustomTimeout(200.milliseconds, 10.milliseconds):
+    checkUntilTimeoutCustom(200.milliseconds, 10.milliseconds):
       a == b
 
 suite "checkUntilTimeout helpers - failed":
@@ -71,13 +71,9 @@ suite "checkUntilTimeout helpers - failed":
     exitProcs.setProgramResult(QuitSuccess)
 
   asyncTest "checkUntilTimeout should timeout if condition is never true":
-    let a = 1
-    let b = 2
     checkUntilTimeout:
-      a == b
+      false
 
-  asyncTest "checkUntilCustomTimeout should timeout if condition is never true":
-    let a = 1
-    let b = 2
-    checkUntilCustomTimeout(100.milliseconds, 10.milliseconds):
-      a == b
+  asyncTest "checkUntilTimeoutCustom should timeout if condition is never true":
+    checkUntilTimeoutCustom(100.milliseconds, 10.milliseconds):
+      false
