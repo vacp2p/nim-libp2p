@@ -11,10 +11,6 @@ suite "GossipSub Message Cache":
   teardown:
     checkTrackers()
 
-  const
-    timeout = 1.seconds
-    interval = 50.milliseconds
-
   asyncTest "Received messages are added to the message cache":
     const
       numberOfNodes = 2
@@ -31,7 +27,7 @@ suite "GossipSub Message Cache":
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
     # Then Node1 receives the message and saves it in the cache 
-    checkUntilCustomTimeout(timeout, interval):
+    checkUntilTimeout:
       nodes[1].mcache.window(topic).len == 1
 
   asyncTest "Message cache history shifts on heartbeat and is cleared on shift":
@@ -58,7 +54,7 @@ suite "GossipSub Message Cache":
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
     # Then Node1 receives the message and saves it in the cache 
-    checkUntilCustomTimeout(timeout, interval):
+    checkUntilTimeout:
       nodes[1].mcache.window(topic).len == 1
 
     let messageId = nodes[1].mcache.window(topic).toSeq()[0]
@@ -164,13 +160,13 @@ suite "GossipSub Message Cache":
     tryPublish await nodeInsideMesh.publish(topic, "Hello!".toBytes()), 1
 
     # Then Node0 receives the message from NodeInsideMesh and saves it in its cache
-    checkUntilCustomTimeout(timeout, interval):
+    checkUntilTimeout:
       nodes[0].mcache.window(topic).len == 1
     let messageId = nodes[0].mcache.window(topic).toSeq()[0]
 
     # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat
     # Then NodeOutsideMesh responds with an IWant message to Node0
-    checkUntilCustomTimeout(timeout, interval):
+    checkUntilTimeout:
       receivedIWantsNode0[].len == 1
     let msgIdReceivedIWant = receivedIWantsNode0[][0].messageIDs[0]
 
@@ -179,7 +175,7 @@ suite "GossipSub Message Cache":
       messageId == msgIdReceivedIWant
 
     # Then Node0 relays the original message to NodeOutsideMesh
-    checkUntilCustomTimeout(timeout, interval):
+    checkUntilTimeout:
       receivedMessagesNodeOutsideMesh[].len == 1
     let msgIdRelayed =
       nodeOutsideMesh.msgIdProvider(receivedMessagesNodeOutsideMesh[][0])
@@ -204,7 +200,7 @@ suite "GossipSub Message Cache":
 
     # Then Node1 receives the message 
     # Get messageId from mcache 
-    checkUntilCustomTimeout(timeout, interval):
+    checkUntilTimeout:
       nodes[1].mcache.window(topic).len == 1
     let messageId = nodes[1].mcache.window(topic).toSeq()[0]
 
@@ -234,7 +230,7 @@ suite "GossipSub Message Cache":
 
     # Then Node1 receives the messages
     # Getting messageIds from mcache 
-    checkUntilCustomTimeout(timeout, interval):
+    checkUntilTimeout:
       nodes[1].mcache.window(topic).len == 2
 
     let messageId1 = nodes[1].mcache.window(topic).toSeq()[0]
