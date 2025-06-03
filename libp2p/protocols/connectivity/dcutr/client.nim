@@ -85,12 +85,7 @@ proc startSync*(
       for fut in futs:
         fut.cancel()
   except CancelledError as err:
-    raise newException(
-      CancelledError,
-      "Dcutr initiator was cancelled while trying to connect to the remote peer: " &
-        err.msg,
-      err,
-    )
+    raise err
   except AllFuturesFailedError as err:
     debug "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
       peerDialableAddrs, description = err.msg

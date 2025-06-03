@@ -295,9 +295,7 @@ proc handleHop*(
       await connDst.writeLp(encode(msgToSend).buffer)
       RelayMessage.decode(await connDst.readLp(r.msgSize))
     except CancelledError as exc:
-      raise newException(
-        CancelledError, "Writing stop handshake cancelled: " & exc.msg, exc
-      )
+      raise exc
     except CatchableError as exc:
       trace "error writing stop handshake or reading stop response",
         description = exc.msg

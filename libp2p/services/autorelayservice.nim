@@ -114,7 +114,7 @@ proc innerRun(
           self.backingOff.add(k)
           asyncSpawn self.manageBackedOff(k)
       except KeyError:
-        raiseAssert "checked with"
+        raiseAssert "checked with in"
 
     # Get all connected relayPeers
     self.peerAvailable.clear()

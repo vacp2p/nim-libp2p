@@ -145,9 +145,7 @@ proc dialPeerV1*(
   try:
     await conn.writeLp(pb.buffer)
   except CancelledError as exc:
-    raise newException(
-      CancelledError, "Cancelled while writing dialPeerV1: " & exc.msg, exc
-    )
+    raise exc
   except LPStreamError as exc:
     trace "error writing hop request", description = exc.msg
     raise newException(RelayV1DialError, "error writing hop request: " & exc.msg, exc)
@@ -156,9 +154,7 @@ proc dialPeerV1*(
     try:
       RelayMessage.decode(await conn.readLp(RelayClientMsgSize))
     except CancelledError as exc:
-      raise newException(
-        CancelledError, "Cancelled while reading stop response: " & exc.msg, exc
-      )
+      raise exc
     except LPStreamError as exc:
       trace "error reading stop response", description = exc.msg
       await sendStatus(conn, StatusV1.HopCantOpenDstStream)
@@ -207,9 +203,7 @@ proc dialPeerV2*(
       await conn.writeLp(pb.buffer)
       HopMessage.decode(await conn.readLp(RelayClientMsgSize)).tryGet()
     except CancelledError as exc:
-      raise newException(
-        CancelledError, "Cancelled while writing dialPeerV2: " & exc.msg, exc
-      )
+      raise exc
     except CatchableError as exc:
       trace "error reading stop response", description = exc.msg
       raise

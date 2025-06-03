@@ -60,9 +60,7 @@ proc dialAndUpgrade(
         except CancelledError as exc:
           trace "Dialing canceled",
             description = exc.msg, peerId = peerId.get(default(PeerId))
-          raise newException(
-            CancelledError, "Dialing canceled in dialAndUpgrade dial: " & exc.msg, exc
-          )
+          raise exc
         except CatchableError as exc:
           debug "Dialing failed",
             description = exc.msg, peerId = peerId.get(default(PeerId))
@@ -81,11 +79,7 @@ proc dialAndUpgrade(
           await transport.upgrade(dialed, peerId)
         except CancelledError as exc:
           await dialed.close()
-          raise newException(
-            CancelledError,
-            "Dialing canceled in dialAndUpgrade upgrade: " & exc.msg,
-            exc,
-          )
+          raise exc
         except CatchableError as exc:
           # If we failed to establish the connection through one transport,
           # we won't succeeded through another - no use in trying again
@@ -122,7 +116,7 @@ proc expandDnsAddr(
         try:
           address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
         except ResultError[void]:
-          raiseAssert "checked with"
+          raiseAssert "checked with if"
       else:
         address
     resolved = await self.nameResolver.resolveDnsAddr(toResolve)
@@ -215,11 +209,7 @@ proc internalConnect(
       await self.dialAndUpgrade(peerId, addrs, dir)
     except CancelledError as exc:
       slot.release()
-      raise newException(
-        CancelledError,
-        "exception in internalConnect calling dialAndUpgrade: " & exc.msg,
-        exc,
-      )
+      raise exc
     except CatchableError as exc:
       slot.release()
       raise newException(
@@ -242,11 +232,7 @@ proc internalConnect(
     return muxed
   except CancelledError as exc:
     await muxed.close()
-    raise newException(
-      CancelledError,
-      "Failed to finish outgoing upgrade in internalConnect: " & exc.msg,
-      exc,
-    )
+    raise exc
   except CatchableError as exc:
     trace "Failed to finish outgoing upgrade", description = exc.msg
     await muxed.close()

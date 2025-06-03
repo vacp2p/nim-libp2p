@@ -33,8 +33,6 @@ proc anyCompleted*[T](
         "None of the futures completed successfully: " & getCurrentExceptionMsg(),
       )
     except CancelledError as exc:
-      raise newException(
-        CancelledError, "One of the futures was cancelled: " & exc.msg, exc
-      )
+      raise exc
     except CatchableError:
       continue

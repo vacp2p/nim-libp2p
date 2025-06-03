@@ -253,11 +253,11 @@ method accept*(
       raise newTransportClosedError(exc)
     except TransportOsError as exc:
       raise (ref TcpTransportError)(
-        msg: "caught TransportOs error in accept:" & exc.msg, parent: exc
+        msg: "TransportOs error in accept:" & exc.msg, parent: exc
       )
     except common.TransportError as exc: # Needed for chronos 4.0.0 support
       raise (ref TcpTransportError)(
-        msg: "caught TransportError in accept: " & exc.msg, parent: exc
+        msg: "TransportError in accept: " & exc.msg, parent: exc
       )
     except CancelledError as exc:
       cancelAcceptFuts()
@@ -308,9 +308,8 @@ method dial*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      raise (ref TcpTransportError)(
-        msg: "TcpTransport dial caught error: " & exc.msg, parent: exc
-      )
+      raise
+        (ref TcpTransportError)(msg: "TcpTransport dial error: " & exc.msg, parent: exc)
 
   # If `stop` is called after `connect` but before `await` returns, we might
   # end up with a race condition where `stop` returns but not all connections

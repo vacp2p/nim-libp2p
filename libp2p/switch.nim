@@ -275,9 +275,8 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
           await transport.accept()
         except CatchableError as exc:
           slot.release()
-          raise newException(
-            CatchableError, "Exception accepting connection: " & exc.msg, exc
-          )
+          raise
+            newException(CatchableError, "failed to accept connection: " & exc.msg, exc)
       slot.trackConnection(conn)
       if isNil(conn):
         # A nil connection means that we might have hit a

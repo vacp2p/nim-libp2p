@@ -161,7 +161,7 @@ method start*(
           HttpServer.create(address, handshakeTimeout = self.handshakeTimeout)
       except CatchableError as exc:
         raise (ref WsTransportError)(
-          msg: "caught error in WsTransport start: " & exc.msg, parent: exc
+          msg: "error in WsTransport start: " & exc.msg, parent: exc
         )
 
     self.httpservers &= httpserver
@@ -343,7 +343,7 @@ method dial*(
   except CatchableError as e:
     safeClose(transp)
     raise newException(
-      transport.TransportDialError, "caught error in WsTransport dial: " & e.msg, e
+      transport.TransportDialError, "error in WsTransport dial: " & e.msg, e
     )
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =

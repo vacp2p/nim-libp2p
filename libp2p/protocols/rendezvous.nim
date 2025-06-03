@@ -625,7 +625,7 @@ proc request*(
           try:
             rdv.cookiesSaved[peer][namespace] = cookie
           except KeyError:
-            raiseAssert "checked with"
+            raiseAssert "checked with hasKeyOrPut"
     for r in resp.registrations:
       if limit == 0:
         return
@@ -641,7 +641,7 @@ proc request*(
           try:
             s[pr.peerId]
           except KeyError:
-            raiseAssert "checked with"
+            raiseAssert "checked with hasKey"
         if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
             prSaved.seqNo < pr.seqNo:
           s[pr.peerId] = (pr, r)
