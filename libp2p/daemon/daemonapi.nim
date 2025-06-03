@@ -1514,9 +1514,7 @@ proc pubsubSubscribe*(
     )
   except CancelledError as exc:
     await api.closeConnection(transp)
-    raise newException(
-      CancelledError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
-    )
+    raise exc
 
 proc pubsubSubscribe*(
     api: DaemonAPI, topic: string, handler: P2PPubSubCallback

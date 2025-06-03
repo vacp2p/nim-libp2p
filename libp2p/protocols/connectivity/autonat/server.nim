@@ -100,7 +100,7 @@ proc tryDial(
     await conn.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
     debug "Dial timeout", addrs, description = exc.msg
-    await conn.sendResponseError(DialError, "Dial timeout: " & exc.msg)
+    await conn.sendResponseError(DialError, "Dial timeout")
   finally:
     autonat.sem.release()
     for f in futs:
