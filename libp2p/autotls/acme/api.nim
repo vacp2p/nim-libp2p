@@ -107,23 +107,23 @@ type ACMECertificateResponse* = object
   rawCertificate: string
   certificateExpiry: DateTime
 
-template wrapSerialization(body: untyped): untyped =
+template handleError(msg: string, body: untyped): untyped =
   try:
     body
   except JsonKindError as exc:
-    raise newException(ACMEError, "Failed to decode JSON", exc)
+    raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except ValueError as exc:
-    raise newException(ACMEError, "Failed to decode JSON", exc)
+    raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except HttpError as exc:
-    raise newException(ACMEError, "Failed to connect to ACME server", exc)
+    raise newException(ACMEError, msg & ": Failed to connect to ACME server", exc)
   except CatchableError as exc:
-    raise newException(ACMEError, "Unexpected error", exc)
+    raise newException(ACMEError, msg & ": Unexpected error", exc)
 
 proc new*(
     T: typedesc[ACMEApi], acmeServerURL: string = LetsEncryptURL
 ): Future[ACMEApi] {.async: (raises: [ACMEError, CancelledError]).} =
   let session = HttpSessionRef.new()
-  let directory = wrapSerialization:
+  let directory = handleError("new API"):
     (
       await (
         await HttpClientRequestRef.get(session, acmeServerURL & "/directory").get().send()
@@ -184,13 +184,13 @@ proc signedAcmeRequest(
     needsJwk: bool = false,
     kid: Opt[Kid] = Opt.none(Kid),
 ): Future[ACMEResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  try:
-    let acmeHeader = await self.acmeHeader(url, key, needsJwk, kid)
+  let acmeHeader = await self.acmeHeader(url, key, needsJwk, kid)
+  let rawResponse = handleError("signedAcmeRequest"):
     var token = toJWT(%*{"header": acmeHeader, "claims": payload})
     let derPrivKey = key.seckey.rsakey.getBytes.get
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
     token.sign(pemPrivKey)
-    let rawResponse = await HttpClientRequestRef
+    await HttpClientRequestRef
     .post(
       self.session,
       url,
@@ -199,19 +199,15 @@ proc signedAcmeRequest(
     )
     .get()
     .send()
-    return ACMEResponse(
-      body: (await rawResponse.getResponseBody()), headers: rawResponse.headers
-    )
-  except HttpError as exc:
-    raise newException(ACMEError, "Failed to send HTTP request to the ACME server", exc)
-  except CatchableError as exc:
-    raise newException(ACMEError, "Failed to create JWT", exc)
+  return ACMEResponse(
+    body: (await rawResponse.getResponseBody()), headers: rawResponse.headers
+  )
 
 proc acmeRegister*(
     self: ACMEApi, key: KeyPair
 ): Future[ACMERegisterResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   let registerRequest = ACMERegisterRequest(termsOfServiceAgreed: true)
-  wrapSerialization:
+  handleError("acmeRegister"):
     let acmeResponse = (
       await self.signedAcmeRequest(
         self.directory.newAccount, registerRequest, key, needsJwk = true
@@ -230,7 +226,7 @@ proc requestChallenge*(
     identifiers: domains.mapIt(ACMEChallengeIdentifier(`type`: "dns", value: it))
   )
 
-  let (orderURL, challengeResponse) = wrapSerialization:
+  let (orderURL, challengeResponse) = handleError("requestChallenge (challenge)"):
     let acmeResponse = (
       await self.signedAcmeRequest(
         self.directory.newOrder, orderPayload, key, kid = Opt.some(kid)
@@ -245,7 +241,7 @@ proc requestChallenge*(
     raise newException(ACMEError, "Authorizations field is empty")
 
   # get challenges
-  let authorizationsResponse = wrapSerialization:
+  let authorizationsResponse = handleError("requestChallenge (authorizations)"):
     (
       await (
         await HttpClientRequestRef
@@ -270,29 +266,30 @@ proc notifyChallengeCompleted*(
 ): Future[void] {.async: (raises: [ACMEError, CancelledError]).} =
   let emptyPayload = newJObject()
 
-  let completedResponse = wrapSerialization:
+  let completedResponse = handleError("notifyChallengeCompleted (notify)"):
     (await self.signedAcmeRequest(chalURL, emptyPayload, key, kid = Opt.some(kid))).body.to(
       ACMECompletedResponse
     )
 
   # check until acme server is done (poll validation)
-  for _ in 0 .. retries:
-    let rawResponse =
-      try:
-        await HttpClientRequestRef
-        .get(self.session, completedResponse.checkURL)
-        .get()
-        .send()
-      except HttpError as exc:
-        raise newException(ACMEError, "Failed to connect to ACME server", exc)
-    let checkResponse = wrapSerialization:
-      (await rawResponse.getResponseBody()).to(ACMECheckResponse)
+  for i in 0 .. retries:
+    let (retryAfterHeader, checkResponse) = handleError(
+      "notifyChallengeCompleted (check " & $i & ")"
+    ):
+      let rawResponse = await HttpClientRequestRef
+      .get(self.session, completedResponse.checkURL)
+      .get()
+      .send()
+      (
+        rawResponse.headers.getString("Retry-After"),
+        (await rawResponse.getResponseBody()).to(ACMECheckResponse),
+      )
 
     case checkResponse.status
     of "pending":
       var retryAfter: Duration
       try:
-        retryAfter = parseInt(rawResponse.headers.getString("Retry-After")).seconds
+        retryAfter = parseInt(retryAfterHeader).seconds
       except ValueError:
         retryAfter = DefaultChalCompletedRetryTime
       await sleepAsync(retryAfter) # try again after some delay
@@ -334,19 +331,20 @@ proc finalizeCertificate*(
 
   # keep checking order until it's finalized
   var checkResponse: ACMECheckResponse
-  for _ in 0 .. retries:
-    let finalizedResponse = wrapSerialization:
+  for i in 0 .. retries:
+    let finalizedResponse = handleError("finalizeCertificate (first)"):
       (await self.signedAcmeRequest(finalizeURL, payload, key, kid = Opt.some(kid))).body.to(
         ACMEFinalizedResponse
       )
-    let rawResponse =
-      try:
+    let (retryAfterHeader, checkResponse) = handleError(
+      "notifyChallengeCompleted (check " & $i & ")"
+    ):
+      let rawResponse =
         await HttpClientRequestRef.get(self.session, orderURL).get().send()
-      except CatchableError as exc:
-        raise
-          newException(ACMEError, "Unexpected error while finalizing certificate", exc)
-    checkResponse = wrapSerialization:
-      (await rawResponse.getResponseBody()).to(ACMECheckResponse)
+      (
+        rawResponse.headers.getString("Retry-After"),
+        (await rawResponse.getResponseBody()).to(ACMECheckResponse),
+      )
 
     case checkResponse.status
     of "valid":
@@ -354,7 +352,7 @@ proc finalizeCertificate*(
     of "processing":
       var retryAfter: Duration
       try:
-        retryAfter = parseInt(rawResponse.headers.getString("Retry-After")).seconds
+        retryAfter = parseInt(retryAfterHeader).seconds
       except ValueError:
         retryAfter = DefaultFinalizeRetryTime
       await sleepAsync(retryAfter) # try again after some delay
@@ -367,7 +365,7 @@ proc downloadCertificate*(
     self: ACMEApi, orderURL: string
 ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
-    let orderResponse = wrapSerialization:
+    let orderResponse = handleError("downloadCertificate"):
       (
         await (await HttpClientRequestRef.get(self.session, orderURL).get().send()).getResponseBody()
       ).to(ACMEOrderResponse)
