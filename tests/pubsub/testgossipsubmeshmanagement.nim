@@ -218,111 +218,6 @@ suite "GossipSub Mesh Management":
           node.mesh.getOrDefault(topic).len <= dHigh
         node.fanout.len == 0
 
-  asyncTest "Unsubscribe backoff":
-    const
-      numberOfNodes = 3
-      topic = "foobar"
-      unsubscribeBackoff = 1.seconds # 1s is the minimum
-    let nodes = generateNodes(
-        numberOfNodes, gossip = true, unsubscribeBackoff = unsubscribeBackoff
-      )
-      .toGossipSub()
-
-    startNodesAndDeferStop(nodes)
-
-    # Nodes are connected to Node0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
-
-    check:
-      nodes[0].mesh[topic].len == numberOfNodes - 1
-
-    # When Node0 unsubscribes from the topic
-    nodes[0].unsubscribe(topic, voidTopicHandler)
-
-    # And subscribes back straight away
-    nodes[0].subscribe(topic, voidTopicHandler)
-
-    # Then its mesh is pruned and peers have applied unsubscribeBackoff
-    # Waiting more than one heartbeat (60ms) and less than unsubscribeBackoff (1s)
-    await sleepAsync(unsubscribeBackoff.div(2))
-    check:
-      not nodes[0].mesh.hasKey(topic)
-
-    # When unsubscribeBackoff period is done 
-    await sleepAsync(unsubscribeBackoff)
-
-    # Then on the next heartbeat mesh is rebalanced and peers are regrafted
-    check:
-      nodes[0].mesh[topic].len == numberOfNodes - 1
-
-  asyncTest "Prune backoff":
-    const
-      numberOfNodes = 9
-      topic = "foobar"
-      pruneBackoff = 1.seconds # 1s is the minimum
-      dValues = some(
-        DValues(
-          dLow: some(6),
-          dHigh: some(8),
-          d: some(6),
-          dLazy: some(6),
-          dScore: some(4),
-          dOut: some(2),
-        )
-      )
-    let
-      nodes = generateNodes(
-          numberOfNodes, gossip = true, dValues = dValues, pruneBackoff = pruneBackoff
-        )
-        .toGossipSub()
-      node0 = nodes[0]
-
-    startNodesAndDeferStop(nodes)
-
-    # Nodes are connected to Node0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(node0, nodes[i])
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-
-    checkUntilTimeout:
-      node0.mesh.getOrDefault(topic).len == numberOfNodes - 1
-
-    # When DValues of Node0 are updated to lower than initial dValues
-    const newDValues = some(
-      DValues(
-        dLow: some(2),
-        dHigh: some(4),
-        d: some(3),
-        dLazy: some(3),
-        dScore: some(2),
-        dOut: some(2),
-      )
-    )
-    node0.parameters.applyDValues(newDValues)
-
-    # Then Node0 mesh is pruned to newDValues.dHigh length
-    # And pruned peers have applied pruneBackoff
-    checkUntilTimeout:
-      node0.mesh.getOrDefault(topic).len == newDValues.get.dHigh.get
-
-    # When DValues of Node0 are updated back to the initial dValues
-    node0.parameters.applyDValues(dValues)
-
-    # Waiting more than one heartbeat (60ms) and less than pruneBackoff (1s)
-    await sleepAsync(pruneBackoff.div(2))
-    check:
-      node0.mesh.getOrDefault(topic).len == newDValues.get.dHigh.get
-
-    # When pruneBackoff period is done
-    await sleepAsync(pruneBackoff)
-
-    # Then on the next heartbeat mesh is rebalanced and peers are regrafted to the initial d value
-    check:
-      node0.mesh.getOrDefault(topic).len == dValues.get.d.get
-
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
@@ -505,3 +400,108 @@ suite "GossipSub Mesh Management":
           topic notin node.topics
           topic notin node.mesh
           topic notin node.gossipsub
+
+  asyncTest "Unsubscribe backoff":
+    const
+      numberOfNodes = 3
+      topic = "foobar"
+      unsubscribeBackoff = 1.seconds # 1s is the minimum
+    let nodes = generateNodes(
+        numberOfNodes, gossip = true, unsubscribeBackoff = unsubscribeBackoff
+      )
+      .toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    # Nodes are connected to Node0
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    check:
+      nodes[0].mesh[topic].len == numberOfNodes - 1
+
+    # When Node0 unsubscribes from the topic
+    nodes[0].unsubscribe(topic, voidTopicHandler)
+
+    # And subscribes back straight away
+    nodes[0].subscribe(topic, voidTopicHandler)
+
+    # Then its mesh is pruned and peers have applied unsubscribeBackoff
+    # Waiting more than one heartbeat (60ms) and less than unsubscribeBackoff (1s)
+    await sleepAsync(unsubscribeBackoff.div(2))
+    check:
+      not nodes[0].mesh.hasKey(topic)
+
+    # When unsubscribeBackoff period is done 
+    await sleepAsync(unsubscribeBackoff)
+
+    # Then on the next heartbeat mesh is rebalanced and peers are regrafted
+    check:
+      nodes[0].mesh[topic].len == numberOfNodes - 1
+
+  asyncTest "Prune backoff":
+    const
+      numberOfNodes = 9
+      topic = "foobar"
+      pruneBackoff = 1.seconds # 1s is the minimum
+      dValues = some(
+        DValues(
+          dLow: some(6),
+          dHigh: some(8),
+          d: some(6),
+          dLazy: some(6),
+          dScore: some(4),
+          dOut: some(2),
+        )
+      )
+    let
+      nodes = generateNodes(
+          numberOfNodes, gossip = true, dValues = dValues, pruneBackoff = pruneBackoff
+        )
+        .toGossipSub()
+      node0 = nodes[0]
+
+    startNodesAndDeferStop(nodes)
+
+    # Nodes are connected to Node0
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(node0, nodes[i])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+
+    checkUntilTimeout:
+      node0.mesh.getOrDefault(topic).len == numberOfNodes - 1
+
+    # When DValues of Node0 are updated to lower than initial dValues
+    const newDValues = some(
+      DValues(
+        dLow: some(2),
+        dHigh: some(4),
+        d: some(3),
+        dLazy: some(3),
+        dScore: some(2),
+        dOut: some(2),
+      )
+    )
+    node0.parameters.applyDValues(newDValues)
+
+    # Then Node0 mesh is pruned to newDValues.dHigh length
+    # And pruned peers have applied pruneBackoff
+    checkUntilTimeout:
+      node0.mesh.getOrDefault(topic).len == newDValues.get.dHigh.get
+
+    # When DValues of Node0 are updated back to the initial dValues
+    node0.parameters.applyDValues(dValues)
+
+    # Waiting more than one heartbeat (60ms) and less than pruneBackoff (1s)
+    await sleepAsync(pruneBackoff.div(2))
+    check:
+      node0.mesh.getOrDefault(topic).len == newDValues.get.dHigh.get
+
+    # When pruneBackoff period is done
+    await sleepAsync(pruneBackoff)
+
+    # Then on the next heartbeat mesh is rebalanced and peers are regrafted to the initial d value
+    check:
+      node0.mesh.getOrDefault(topic).len == dValues.get.d.get
