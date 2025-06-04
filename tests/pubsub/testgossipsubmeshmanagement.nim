@@ -175,7 +175,7 @@ suite "GossipSub Mesh Management":
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut
 
-  asyncTest "dont prune peers if mesh len is less than d_high":
+  asyncTest "Nodes graft peers according to DValues - numberOfNodes < dHigh":
     let
       numberOfNodes = 5
       topic = "foobar"
@@ -194,7 +194,7 @@ suite "GossipSub Mesh Management":
         node.mesh.getOrDefault(topic).len == expectedNumberOfPeers
         node.fanout.len == 0
 
-  asyncTest "prune peers if mesh len is higher than d_high":
+  asyncTest "Nodes graft peers according to DValues - numberOfNodes > dHigh":
     let
       numberOfNodes = 15
       topic = "foobar"
