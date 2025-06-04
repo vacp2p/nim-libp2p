@@ -27,7 +27,7 @@ suite "AutoTLS":
     defer:
       await api.close()
     let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
-    let registerResponse = await api.acmeRegister(key)
+    let registerResponse = await api.requestRegister(key)
     # account was registered (kid set)
     check registerResponse.kid != ""
     if registerResponse.kid == "":
