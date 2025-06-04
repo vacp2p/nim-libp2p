@@ -17,6 +17,7 @@ const
   DefaultFinalizeRetries = 10
   DefaultFinalizeRetryTime = 1.seconds
   DefaultRandStringSize = 256
+  ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
 
 type Nonce = string
 type Kid = string
@@ -31,10 +32,6 @@ type ACMEApi* = object
   directory: ACMEDirectory
   session*: HttpSessionRef
   acmeServerURL: string
-
-type ACMEResponse = object
-  body: JsonNode
-  headers: HttpTable
 
 type JWK = object
   kty: string
@@ -149,22 +146,19 @@ proc acmeHeader(
   if not needsJwk and kid.isNone:
     raise newException(ACMEError, "kid not set")
 
-  # TODO: check if scheme is RSA
-  let pubkey = key.pubkey.rsakey
-  let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
-  let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))
-  let n = base64UrlEncode(nArray)
-  let e = base64UrlEncode(eArray)
-
   let newNonce = await self.newNonce()
   if needsJwk:
+    # TODO: check if scheme is RSA
+    let pubkey = key.pubkey.rsakey
+    let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
+    let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))
     ACMERequestHeader(
       kind: ACMEJwkRequest,
       alg: Alg,
       typ: "JWT",
       nonce: newNonce,
       url: url,
-      jwk: JWK(kty: "RSA", n: n, e: e),
+      jwk: JWK(kty: "RSA", n: base64UrlEncode(nArray), e: base64UrlEncode(eArray)),
     )
   else:
     ACMERequestHeader(
@@ -176,80 +170,74 @@ proc acmeHeader(
       kid: kid.get(),
     )
 
-proc signedAcmeRequest(
+proc createSignedAcmeRequest(
     self: ACMEApi,
     url: string,
     payload: auto,
     key: KeyPair,
     needsJwk: bool = false,
     kid: Opt[Kid] = Opt.none(Kid),
-): Future[ACMEResponse] {.async: (raises: [ACMEError, CancelledError]).} =
+): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
   let acmeHeader = await self.acmeHeader(url, key, needsJwk, kid)
-  let rawResponse = handleError("signedAcmeRequest"):
+  handleError("createSignedAcmeRequest"):
     var token = toJWT(%*{"header": acmeHeader, "claims": payload})
     let derPrivKey = key.seckey.rsakey.getBytes.get
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
     token.sign(pemPrivKey)
-    await HttpClientRequestRef
-    .post(
-      self.session,
-      url,
-      body = $token.toFlattenedJson(),
-      headers = [("Content-Type", "application/jose+json")],
-    )
-    .get()
-    .send()
-  return ACMEResponse(
-    body: (await rawResponse.getResponseBody()), headers: rawResponse.headers
-  )
+    $token.toFlattenedJson()
 
 proc acmeRegister*(
     self: ACMEApi, key: KeyPair
 ): Future[ACMERegisterResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   let registerRequest = ACMERegisterRequest(termsOfServiceAgreed: true)
   handleError("acmeRegister"):
-    let acmeResponse = (
-      await self.signedAcmeRequest(
-        self.directory.newAccount, registerRequest, key, needsJwk = true
-      )
+    let payload = await self.createSignedAcmeRequest(
+      self.directory.newAccount, registerRequest, key, needsJwk = true
     )
+    let rawResponse = await HttpClientRequestRef
+    .post(
+      self.session, self.directory.newAccount, body = payload, headers = ACMEHttpHeaders
+    )
+    .get()
+    .send()
+    let body = await rawResponse.getResponseBody()
+    let headers = rawResponse.headers
     ACMERegisterResponse(
-      status: acmeResponse.body["status"].getStr,
-      kid: acmeResponse.headers.getString("location"),
+      status: body["status"].getStr, kid: headers.getString("location")
     )
 
 proc requestChallenge*(
     self: ACMEApi, domains: seq[string], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
   # request challenge from ACME server
-  let orderPayload = ACMEChallengeRequest(
+  let orderRequest = ACMEChallengeRequest(
     identifiers: domains.mapIt(ACMEChallengeIdentifier(`type`: "dns", value: it))
   )
-
   let (orderURL, challengeResponse) = handleError("requestChallenge (challenge)"):
-    let acmeResponse = (
-      await self.signedAcmeRequest(
-        self.directory.newOrder, orderPayload, key, kid = Opt.some(kid)
-      )
+    let payload = await self.createSignedAcmeRequest(
+      self.directory.newOrder, orderRequest, key, kid = Opt.some(kid)
     )
-    (
-      acmeResponse.headers.getString("location"),
-      acmeResponse.body.to(ACMEChallengeResponse),
+    let rawResponse = await HttpClientRequestRef
+    .post(
+      self.session, self.directory.newOrder, body = payload, headers = ACMEHttpHeaders
     )
+    .get()
+    .send()
+    let body = await rawResponse.getResponseBody()
+    let headers = rawResponse.headers
+    (headers.getString("location"), body.to(ACMEChallengeResponse))
 
   if challengeResponse.authorizations.len() == 0:
     raise newException(ACMEError, "Authorizations field is empty")
 
   # get challenges
   let authorizationsResponse = handleError("requestChallenge (authorizations)"):
-    (
-      await (
-        await HttpClientRequestRef
-        .get(self.session, challengeResponse.authorizations[0])
-        .get()
-        .send()
-      ).getResponseBody()
-    ).to(ACMEAuthorizationsResponse)
+    let rawResponse = await HttpClientRequestRef
+    .get(self.session, challengeResponse.authorizations[0])
+    .get()
+    .send()
+    let body = await rawResponse.getResponseBody()
+    body.to(ACMEAuthorizationsResponse)
 
   let dns01 = authorizationsResponse.challenges.filterIt(it.`type` == "dns-01")[0]
 
@@ -264,12 +252,15 @@ proc notifyChallengeCompleted*(
     kid: Kid,
     retries: int = DefaultChalCompletedRetries,
 ): Future[void] {.async: (raises: [ACMEError, CancelledError]).} =
-  let emptyPayload = newJObject()
-
-  let completedResponse = handleError("notifyChallengeCompleted (notify)"):
-    (await self.signedAcmeRequest(chalURL, emptyPayload, key, kid = Opt.some(kid))).body.to(
-      ACMECompletedResponse
-    )
+  let completedResponse = handleError("notifyChallengeCompleted (send notify)"):
+    let payload =
+      await self.createSignedAcmeRequest(chalURL, %*{}, key, kid = Opt.some(kid))
+    let rawResponse = await HttpClientRequestRef
+    .post(self.session, chalURL, body = payload, headers = ACMEHttpHeaders)
+    .get()
+    .send()
+    let body = await rawResponse.getResponseBody()
+    body.to(ACMECompletedResponse)
 
   # check until acme server is done (poll validation)
   for i in 0 .. retries:
@@ -280,10 +271,8 @@ proc notifyChallengeCompleted*(
       .get(self.session, completedResponse.checkURL)
       .get()
       .send()
-      (
-        rawResponse.headers.getString("Retry-After"),
-        (await rawResponse.getResponseBody()).to(ACMECheckResponse),
-      )
+      let body = await rawResponse.getResponseBody()
+      (rawResponse.headers.getString("Retry-After"), body.to(ACMECheckResponse))
 
     case checkResponse.status
     of "pending":
@@ -327,61 +316,60 @@ proc finalizeCertificate*(
     raise newException(ACMEError, "Failed to create CSR")
 
   let b64CSR = base64.encode(derCSR.toSeq, safe = true)
-  let payload = %*{"csr": b64CSR}
 
-  # keep checking order until it's finalized
-  var checkResponse: ACMECheckResponse
-  for i in 0 .. retries:
-    let finalizedResponse = handleError("finalizeCertificate (first)"):
-      (await self.signedAcmeRequest(finalizeURL, payload, key, kid = Opt.some(kid))).body.to(
-        ACMEFinalizedResponse
-      )
-    let (retryAfterHeader, checkResponse) = handleError(
-      "notifyChallengeCompleted (check " & $i & ")"
-    ):
+  # call finalize and keep checking order until cert is valid (done)
+  handleError("finalizeCertificate (send finalize)"):
+    let payload = await self.createSignedAcmeRequest(
+      finalizeURL, %*{"csr": b64CSR}, key, kid = Opt.some(kid)
+    )
+    let rawResponse = await HttpClientRequestRef
+    .post(self.session, finalizeURL, body = payload, headers = ACMEHttpHeaders)
+    .get()
+    .send()
+    let body = await rawResponse.getResponseBody()
+    let finalizeResponse = body.to(ACMEFinalizedResponse)
+
+  handleError("finalizeCertificate (check finalized)"):
+    var checkResponse: ACMECheckResponse
+    for i in 0 .. retries:
       let rawResponse =
         await HttpClientRequestRef.get(self.session, orderURL).get().send()
-      (
-        rawResponse.headers.getString("Retry-After"),
-        (await rawResponse.getResponseBody()).to(ACMECheckResponse),
-      )
+      let body = await rawResponse.getResponseBody()
+      let retryAfterHeader = rawResponse.headers.getString("Retry-After")
+      checkResponse = body.to(ACMECheckResponse)
 
-    case checkResponse.status
-    of "valid":
-      return true
-    of "processing":
-      var retryAfter: Duration
-      try:
-        retryAfter = parseInt(retryAfterHeader).seconds
-      except ValueError:
-        retryAfter = DefaultFinalizeRetryTime
-      await sleepAsync(retryAfter) # try again after some delay
-    else:
-      return false
+      case checkResponse.status
+      of "valid":
+        return true
+      of "processing":
+        var retryAfter: Duration
+        try:
+          retryAfter = parseInt(retryAfterHeader).seconds
+        except ValueError:
+          retryAfter = DefaultFinalizeRetryTime
+        await sleepAsync(retryAfter) # try again after some delay
+      else:
+        return false
 
   return false
 
 proc downloadCertificate*(
     self: ACMEApi, orderURL: string
 ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  try:
-    let orderResponse = handleError("downloadCertificate"):
-      (
-        await (await HttpClientRequestRef.get(self.session, orderURL).get().send()).getResponseBody()
-      ).to(ACMEOrderResponse)
+  let orderResponse = handleError("downloadCertificate (get download URL)"):
+    let rawResponse =
+      await HttpClientRequestRef.get(self.session, orderURL).get().send()
+    let body = await rawResponse.getResponseBody()
+    body.to(ACMEOrderResponse)
 
+  handleError("downloadCertificate (download cert)"):
     let certificateDownloadURL = orderResponse.certificate
     let certificateExpiry = parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'")
 
-    let certificateResponse =
+    let rawResponse =
       await HttpClientRequestRef.get(self.session, certificateDownloadURL).get().send()
+    let rawBody = await rawResponse.getBodyBytes()
 
-    let rawCertificate = bytesToString(await certificateResponse.getBodyBytes())
-
-    return ACMECertificateResponse(
-      rawCertificate: rawCertificate, certificateExpiry: certificateExpiry
+    ACMECertificateResponse(
+      rawCertificate: bytesToString(rawBody), certificateExpiry: certificateExpiry
     )
-  except HttpError as exc:
-    raise newException(ACMEError, "Failed to connect to ACME server", exc)
-  except ValueError as exc:
-    raise newException(ACMEError, "Unexpected error while downloading certificate", exc)
