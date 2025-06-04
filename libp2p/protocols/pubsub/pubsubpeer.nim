@@ -495,7 +495,7 @@ proc send*(
     msg: RPCMsg,
     anonymize: bool,
     isHighPriority: bool,
-    useCustomConn: bool,
+    useCustomConn: bool = false,
 ) {.raises: [].} =
   ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
   ##

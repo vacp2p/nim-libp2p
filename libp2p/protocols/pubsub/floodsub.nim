@@ -171,12 +171,7 @@ method rpcHandler*(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    f.broadcast(
-      toSendPeers,
-      RPCMsg(messages: @[msg]),
-      isHighPriority = false,
-      useCustomConn = false,
-    )
+    f.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "Forwared message to peers", peers = toSendPeers.len
 
   f.updateMetrics(rpcMsg)
@@ -197,7 +192,7 @@ method init*(f: FloodSub) =
   f.codec = FloodSubCodec
 
 method publish*(
-    f: FloodSub, topic: string, data: seq[byte]
+    f: FloodSub, topic: string, data: seq[byte], useCustomConn: bool = false
 ): Future[int] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
@@ -233,9 +228,7 @@ method publish*(
     return 0
 
   # Try to send to all peers that are known to be interested
-  f.broadcast(
-    peers, RPCMsg(messages: @[msg]), isHighPriority = true, useCustomConn = false
-  )
+  f.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
 
   when defined(libp2p_expensive_metrics):
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
