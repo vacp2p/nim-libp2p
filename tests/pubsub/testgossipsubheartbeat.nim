@@ -282,6 +282,7 @@ suite "GossipSub Heartbeat":
       topic = "foobar"
       heartbeatInterval = 200.milliseconds
       historyLength = 3
+      gossipThreshold = -100.0
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
@@ -289,7 +290,7 @@ suite "GossipSub Heartbeat":
         dValues =
           some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
         heartbeatInterval = heartbeatInterval,
-        gossipThreshold = -100.0,
+        gossipThreshold = gossipThreshold,
       )
       .toGossipSub()
 
@@ -313,7 +314,7 @@ suite "GossipSub Heartbeat":
     # As when IWant is processed, messages are removed from sentIHaves history 
     let nodeOutsideMesh = nodes.getNodeByPeerId(peerOutsideMesh.peerId)
     for p in nodeOutsideMesh.gossipsub[topic].toSeq():
-      p.score = -200.0
+      p.score = 2 * gossipThreshold
 
     # When NodeInsideMesh sends a messages to the topic
     let peerInsideMesh = nodes[0].mesh[topic].toSeq()[0]
