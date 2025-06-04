@@ -175,6 +175,33 @@ suite "GossipSub Mesh Management":
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut
 
+  asyncTest "rebalanceMesh Degree Hi - dScore controls number of peers to retain by score when pruning":
+    # Given GossipSub node starting with 13 peers in mesh
+    let
+      topic = "foobar"
+      totalPeers = 13
+
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
+      totalPeers, topic, populateGossipsub = true, populateMesh = true
+    )
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And mesh is larger than dHigh
+    gossipSub.parameters.dLow = 4
+    gossipSub.parameters.d = 6
+    gossipSub.parameters.dHigh = 8
+    gossipSub.parameters.dOut = 3
+    gossipSub.parameters.dScore = 13
+
+    check gossipSub.mesh[topic].len == totalPeers
+
+    # When mesh is rebalanced
+    gossipSub.rebalanceMesh(topic)
+
+    # Then prunning is not triggered when mesh is not larger than dScore
+    check gossipSub.mesh[topic].len == totalPeers
+
   asyncTest "Nodes graft peers according to DValues - numberOfNodes < dHigh":
     let
       numberOfNodes = 5
