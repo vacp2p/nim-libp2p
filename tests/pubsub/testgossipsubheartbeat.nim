@@ -311,16 +311,13 @@ suite "GossipSub Heartbeat":
     # When a nodeOutsideMesh receives an IHave message, it responds with an IWant to request the full message from Node0
     # Setting `peer.score < gossipThreshold` to prevent the nodeOutsideMesh from sending the IWant
     # As when IWant is processed, messages are removed from sentIHaves history 
-    let nodeOutsideMesh =
-      nodes.filterIt(it.peerInfo.peerId == peerOutsideMesh.peerId)[0]
+    let nodeOutsideMesh = nodes.getNodeByPeerId(peerOutsideMesh.peerId)
     for p in nodeOutsideMesh.gossipsub[topic].toSeq():
       p.score = -200.0
 
     # When NodeInsideMesh sends a messages to the topic
-    let nodeInsideMesh = nodes.filterIt(
-      it.peerInfo.peerId != peerOutsideMesh.peerId and
-        it.peerInfo.peerId != nodes[0].peerInfo.peerId
-    )[0]
+    let peerInsideMesh = nodes[0].mesh[topic].toSeq()[0]
+    let nodeInsideMesh = nodes.getNodeByPeerId(peerInsideMesh.peerId)
     tryPublish await nodeInsideMesh.publish(topic, newSeq[byte](1000)), 1
 
     # When next heartbeat occurs
