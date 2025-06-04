@@ -9,11 +9,10 @@
 
 {.used.}
 
-import stew/byteutils
 import utils
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../helpers, ../utils/[futures]
+import ../helpers
 
 suite "GossipSub Mesh Management":
   teardown:
@@ -219,85 +218,43 @@ suite "GossipSub Mesh Management":
           node.mesh.getOrDefault(topic).len <= dHigh
         node.fanout.len == 0
 
-  asyncTest "GossipSub unsub - resub faster than backoff":
-    # For this test to work we'd require a way to disable fanout.
-    # There's not a way to toggle it, and mocking it didn't work as there's not a reliable mock available.
-    skip()
-    return
-
-    # Instantiate handlers and validators
-    var handlerFut0 = newFuture[bool]()
-    proc handler0(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      handlerFut0.complete(true)
-
-    var handlerFut1 = newFuture[bool]()
-    proc handler1(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      handlerFut1.complete(true)
-
-    var validatorFut = newFuture[bool]()
-    proc validator(
-        topic: string, message: Message
-    ): Future[ValidationResult] {.async.} =
-      check topic == "foobar"
-      validatorFut.complete(true)
-      result = ValidationResult.Accept
-
-    # Setup nodes and start switches
-    let
-      nodes = generateNodes(2, gossip = true, unsubscribeBackoff = 5.seconds)
+  asyncTest "Unsubscribe backoff":
+    # Given 3 Nodes, connected to Node0 and subscribed to the topic
+    const
+      numberOfNodes = 3
       topic = "foobar"
+      unsubscribeBackoff = 1.seconds # 1s is the minimum
+    let nodes = generateNodes(
+        numberOfNodes, gossip = true, unsubscribeBackoff = unsubscribeBackoff
+      )
+      .toGossipSub()
 
-    # Connect nodes
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
 
-    # Subscribe both nodes to the topic and node1 (receiver) to the validator
-    nodes[0].subscribe(topic, handler0)
-    nodes[1].subscribe(topic, handler1)
-    nodes[1].addValidator("foobar", validator)
-    await sleepAsync(DURATION_TIMEOUT)
+    for i in 1 ..< numberOfNodes:
+      await connectNodes(nodes[0], nodes[i])
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
 
-    # Wait for both nodes to verify others' subscription
-    var subs: seq[Future[void]]
-    subs &= waitSub(nodes[1], nodes[0], topic)
-    subs &= waitSub(nodes[0], nodes[1], topic)
-    await allFuturesThrowing(subs)
-
-    # When unsubscribing and resubscribing in a short time frame, the backoff period should be triggered
-    nodes[1].unsubscribe(topic, handler1)
-    await sleepAsync(DURATION_TIMEOUT)
-    nodes[1].subscribe(topic, handler1)
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Backoff is set to 5 seconds, and the amount of sleeping time since the unsubsribe until now is 3-4s~
-    # Meaning, the subscription shouldn't have been processed yet because it's still in backoff period
-    # When publishing under this condition
-    discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Then the message should not be received:
     check:
-      validatorFut.toState().isPending()
-      handlerFut1.toState().isPending()
-      handlerFut0.toState().isPending()
+      nodes[0].mesh[topic].len == 2
 
-    validatorFut.reset()
-    handlerFut0.reset()
-    handlerFut1.reset()
+    # When Node0 unsubscribes from the topic
+    nodes[0].unsubscribe(topic, voidTopicHandler)
 
-    # If we wait backoff period to end, around 1-2s
-    await waitForMesh(nodes[0], nodes[1], topic, 3.seconds)
+    # And subscribes back straight away
+    nodes[0].subscribe(topic, voidTopicHandler)
 
-    discard await nodes[0].publish("foobar", "Hello!".toBytes())
-    await sleepAsync(DURATION_TIMEOUT)
-
-    # Then the message should be received
+    # Then its mesh is pruned and peers have applied unsubscribeBackoff
+    # Waiting more than one heartbeat (60ms) and less than unsubscribeBackoff (1s)
+    await sleepAsync(unsubscribeBackoff.div(2))
     check:
-      validatorFut.toState().isCompleted()
-      handlerFut1.toState().isCompleted()
-      handlerFut0.toState().isPending()
+      not nodes[0].mesh.hasKey(topic)
+
+    # When unsubscribeBackoff period is done, on the next heartbeat mesh is rebalanced and peers are regrafted
+    await sleepAsync(unsubscribeBackoff)
+    check:
+      nodes[0].mesh[topic].len == 2
 
   asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =
