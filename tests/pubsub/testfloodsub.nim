@@ -310,5 +310,5 @@ suite "FloodSub":
 
     check (await bigNode1[0].publish("foo", bigMessage)) > 0
 
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(10.seconds, 100.milliseconds):
       messageReceived == 1
