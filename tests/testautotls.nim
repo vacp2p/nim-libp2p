@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -25,6 +23,9 @@ import
     ]
 
 import ./helpers
+
+when defined(linux) and defined(amd64):
+  {.used.}
 
 suite "AutoTLS":
   var api {.threadvar.}: ACMEApi

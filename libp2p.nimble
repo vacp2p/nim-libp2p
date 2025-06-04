@@ -62,6 +62,9 @@ task testfilter, "Run PKI filter test":
   runTest("testpkifilter")
   runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
+task testautotls, "Runs AutoTLS tests":
+  runTest("testautotls")
+
 task test, "Runs the test suite":
   runTest("testall")
   exec "nimble testfilter"

@@ -78,7 +78,7 @@ jobs:
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
-        
+
       - name: Install dependencies (pinned)
         if: ${{ inputs.pinned_deps }}
         run: |
@@ -96,3 +96,4 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
+          nimble testautotls
