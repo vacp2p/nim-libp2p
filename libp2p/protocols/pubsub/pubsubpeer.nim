@@ -59,6 +59,8 @@ declareCounter(
   "number of peers disconnected due to over non-prio queue capacity",
 )
 
+var countConnectedFut: uint64 = 0
+
 const DefaultMaxNumElementsInNonPriorityQueue* = 1024
 
 type
@@ -231,6 +233,7 @@ proc closeSendConn(
 
   if not p.connectedFut.finished:
     p.connectedFut.complete()
+    countConnectedFut.dec()
 
   try:
     if p.onEvent != nil:
@@ -243,6 +246,7 @@ proc connectOnce(
     p: PubSubPeer
 ): Future[void] {.async: (raises: [CancelledError, GetConnDialError, LPError]).} =
   try:
+    debug "AAAAA connectOnce", countConnectedFut
     if p.connectedFut.finished:
       p.connectedFut = newFuture[void]()
     let newConn =
@@ -262,6 +266,7 @@ proc connectOnce(
     # Topic subscription relies on either connectedFut
     # to be completed, or onEvent to be called later
     p.connectedFut.complete()
+    countConnectedFut.dec()
     p.sendConn = newConn
     p.address =
       if p.sendConn.observedAddr.isSome:
@@ -285,6 +290,7 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
       if p.disconnected:
         if not p.connectedFut.finished:
           p.connectedFut.complete()
+          countConnectedFut.dec()
         return
       await connectOnce(p)
   except CancelledError as exc:
@@ -346,6 +352,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
   if p.sendConn == nil:
     # Wait for a send conn to be setup. `connectOnce` will
     # complete this even if the sendConn setup failed
+    countConnectedFut.inc()
     discard await race(p.connectedFut)
 
   var conn = p.sendConn
