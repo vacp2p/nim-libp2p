@@ -2,8 +2,8 @@ import chronos
 
 const
   IdLength* = 32 # 256-bit IDs
-  k* = 20 # bucket size
-  alpha* = 3 # parallelism factor
+  k* = 20 # replication parameter
+  alpha* = 10 # concurrency parameter
   ttl* = 24.hours
   maxBuckets* = 256
 

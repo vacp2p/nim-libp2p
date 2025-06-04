@@ -1,69 +1,88 @@
 import algorithm
 import bearssl/rand
 import chronos
+import chronicles
 import ./consts
-import ../../peerid
+import ./keys
 import ./xordistance
+import ../../peerid
+import sequtils
+
+logScope:
+  topics = "kad-dht rtable"
 
 type
-  PeerEntry* = object
-    peerId*: PeerId
+  NodeEntry* = object
+    nodeId*: Key
     lastSeen*: Moment
 
   Bucket* = object
-    peers*: seq[PeerEntry]
+    peers*: seq[NodeEntry]
 
-  RoutingTable* = object
-    selfId*: PeerId
+  RoutingTable* = ref object
+    selfId*: Key
     buckets*: seq[Bucket]
 
-proc bucketIndex*(selfId, peerId: PeerId): int =
-  let distance = xorDistance(selfId, peerId)
+proc init*(T: typedesc[RoutingTable], selfId: Key): T =
+  return RoutingTable(selfId: selfId, buckets: @[])
+
+proc bucketIndex*(selfId, key: Key): int =
+  let distance = xorDistance(selfId, key)
   return distance.leadingZeros
 
-proc findPeer(bucket: var Bucket, peerId: PeerId): int =
+proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
-    if p.peerId == peerId:
-      return i
-  return -1
+    if p.nodeId == nodeId:
+      return Opt.some(i)
+  return Opt.none(int)
 
-proc insert*(rtable: var RoutingTable, peerId: PeerId) =
-  if peerId == rtable.selfId:
+proc insert*(rtable: var RoutingTable, nodeId: Key) =
+  if nodeId == rtable.selfId:
     return # No self insertion
 
-  let idx = bucketIndex(rtable.selfId, peerId)
+  let idx = bucketIndex(rtable.selfId, nodeId)
   if idx >= maxBuckets:
-    return # TODO: log?
+    trace "cannot insert node. max buckets have been reached",
+      nodeId, bucketIdx = idx, maxBuckets
+    return
 
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
     rtable.buckets.setLen(idx + 1)
 
   var bucket = rtable.buckets[idx]
-  let i = findPeer(bucket, peerId)
-  if i != -1:
-    bucket.peers[i].lastSeen = Moment.now()
+  let keyx = peerIndexInBucket(bucket, nodeId)
+  if keyx.isSome:
+    bucket.peers[keyx.unsafeValue].lastSeen = Moment.now()
   else:
     if bucket.peers.len < k:
-      bucket.peers.add PeerEntry(peerId: peerId, lastSeen: Moment.now())
+      bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
     else:
-      discard # eviction policy goes here, rn we drop
+      # TODO: eviction policy goes here, rn we drop the node
+      trace "cannot insert node in bucket, dropping node",
+        nodeId, bucket = k, bucketIdx = idx
 
   rtable.buckets[idx] = bucket
 
-proc findClosest*(rtable: RoutingTable, targetId: PeerId, count: int): seq[PeerId] =
-  var allPeers: seq[PeerId] = @[]
+proc insert*(rtable: var RoutingTable, peerId: PeerId) =
+  insert(rtable, peerId.toKey())
+
+proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
+  var allNodes: seq[Key] = @[]
 
   for bucket in rtable.buckets:
     for p in bucket.peers:
-      allPeers.add(p.peerId)
+      allNodes.add(p.nodeId)
 
-  allPeers.sort(
-    proc(a, b: PeerId): int =
+  allNodes.sort(
+    proc(a, b: Key): int =
       cmp(xorDistance(a, targetId), xorDistance(b, targetId))
   )
 
-  return allPeers[0 ..< min(count, allPeers.len)]
+  return allNodes[0 ..< min(count, allNodes.len)]
+
+proc findClosestPeers*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
+  findClosest(rtable, targetId, count).mapIt(it.peerId)
 
 proc isStale*(bucket: Bucket): bool =
   if bucket.peers.len == 0:
@@ -73,9 +92,9 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomIdInBucketRange*(
-    selfId: PeerId, bucketIndex: int, rng: ref HmacDrbgContext
-): PeerId =
+proc randomKeyInBucketRange*(
+    selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext
+): Key =
   var raw = selfId.getBytes()
 
   # zero higher bits
@@ -107,7 +126,4 @@ proc randomIdInBucketRange*(
     else:
       raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
 
-  return PeerId(data: raw)
-
-proc init*(T: typedesc[RoutingTable], selfId: PeerId): T =
-  return RoutingTable(selfId: selfId, buckets: @[])
+  return raw.toKey()

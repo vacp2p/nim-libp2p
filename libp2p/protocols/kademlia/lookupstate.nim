@@ -1,22 +1,22 @@
 import ./consts
 import ./protobuf
 import ./xordistance
-import ./routingtable
+import ./keys
 import ../../[peerid, peerinfo]
 import algorithm
 import chronicles
 
 type
-  LookupPeer* = object
+  LookupNode* = object
     peerId: PeerId
     distance: XorDistance
-    queried: bool # have we already queried this peer?
+    queried: bool # have we already queried this node?
     pending: bool # is there an active request rn?
     failed: bool # did the query timeout or error?
 
   LookupState* = object
-    targetId: PeerId
-    shortlist: seq[LookupPeer] # current known closest peers
+    targetId: Key
+    shortlist: seq[LookupNode] # current known closest node
     activeQueries*: int # how many queries in flight
     alpha: int # parallelism level
     k: int # number of closest nodes to find
@@ -33,11 +33,12 @@ proc updateShortlist*(
 ) =
   for newPeer in msg.closerPeers:
     if not alreadyInShortlist(state, newPeer):
-      let peerInfo = PeerInfo(peerId: PeerId.init(newPeer.id).get(), addrs: newPeer.addrs) # TODO:
+      let peerInfo =
+        PeerInfo(peerId: PeerId.init(newPeer.id).get(), addrs: newPeer.addrs)
       try:
         onInsert(peerInfo)
         state.shortlist.add(
-          LookupPeer(
+          LookupNode(
             peerId: peerInfo.peerId,
             distance: xorDistance(peerInfo.peerId, state.targetId),
             queried: false,
@@ -49,7 +50,7 @@ proc updateShortlist*(
         debug "could not update shortlist", err = exc.msg
 
   state.shortlist.sort(
-    proc(a, b: LookupPeer): int =
+    proc(a, b: LookupNode): int =
       cmp(a.distance, b.distance)
   )
 
@@ -80,7 +81,7 @@ proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
         break
   return selected
 
-proc init*(T: type LookupState, targetId: PeerId, initialPeers: seq[PeerId]): T =
+proc init*(T: type LookupState, targetId: Key, initialPeers: seq[PeerId]): T =
   result = LookupState(
     targetId: targetId,
     shortlist: @[],
@@ -89,11 +90,11 @@ proc init*(T: type LookupState, targetId: PeerId, initialPeers: seq[PeerId]): T 
     k: k,
     done: false,
   )
-  for peer in initialPeers:
+  for p in initialPeers:
     result.shortlist.add(
-      LookupPeer(
-        peerId: peer,
-        distance: xorDistance(peer, targetId),
+      LookupNode(
+        peerId: p,
+        distance: xorDistance(p, targetId),
         queried: false,
         pending: false,
         failed: false,
@@ -101,9 +102,10 @@ proc init*(T: type LookupState, targetId: PeerId, initialPeers: seq[PeerId]): T 
     )
 
   result.shortlist.sort(
-    proc(a, b: LookupPeer): int =
+    proc(a, b: LookupNode): int =
       cmp(a.distance, b.distance)
   )
+
 
 proc checkConvergence*(state: LookupState): bool =
   let ready = state.activeQueries == 0

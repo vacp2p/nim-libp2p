@@ -1,6 +1,7 @@
 import ./consts
-import ../../peerid
+import ./keys
 import nimcrypto/sha2
+import ../../peerid
 
 type XorDistance* = array[IdLength, byte]
 
@@ -30,11 +31,25 @@ proc `<`*(a, b: XorDistance): bool =
 proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
-proc xorDistance*(a, b: PeerId): XorDistance =
-  let rawA = sha256.digest(a.getBytes()).data
-  let rawB = sha256.digest(b.getBytes()).data
+proc hashFor(k: Key): seq[byte] =
+  return
+    @(
+      case k.kind
+      of KeyType.PeerId:
+        sha256.digest(k.peerId.getBytes()).data
+      of KeyType.Raw:
+        sha256.digest(k.data).data
+      of KeyType.Undefined:
+        k.data
+    )
 
+proc xorDistance*(a, b: Key): XorDistance =
+  let hashA = a.hashFor()
+  let hashB = b.hashFor()
   var response: XorDistance
-  for i in 0 ..< rawA.len:
-    response[i] = rawA[i] xor rawB[i]
+  for i in 0 ..< hashA.len:
+    response[i] = hashA[i] xor hashB[i]
   return response
+
+proc xorDistance*(a: PeerId, b: Key): XorDistance =
+  xorDistance(a.toKey(), b)

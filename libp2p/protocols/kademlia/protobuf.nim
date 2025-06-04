@@ -21,8 +21,8 @@ type
   ConnectionType* {.pure.} = enum
     notConnected = 0
     connected = 1
-    canConnect = 2 # Deprecated
-    cannotConnect = 3 # Deprecated
+    canConnect = 2 # Unused
+    cannotConnect = 3 # Unused
 
   Peer* {.public.} = object
     id*: seq[byte]

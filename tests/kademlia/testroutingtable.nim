@@ -1,65 +1,68 @@
-import unittest, sequtils
+import unittest
 import chronos
-import ../../libp2p/peerid
 import ../../libp2p/crypto/crypto
-import ../../libp2p/protocols/kademlia/[routingtable, consts]
+import ../../libp2p/protocols/kademlia/[routingtable, consts, keys]
 
-proc tPeerId*(x: byte): PeerId =
-  var buf = newSeqWith(32, 0'u8)
+proc testKey*(x: byte): Key =
+  var buf: array[IdLength, byte]
   buf[31] = x
-  return PeerId(data: buf)
+  return Key(kind: KeyType.Undefined, data: buf)
 
 suite "routing table":
-  test "insert single peer in correct bucket":
-    let selfId = tPeerId(0)
+  test "insert single key in correct bucket":
+    let selfId = testKey(0)
     var rt = RoutingTable.init(selfId)
-    let other = tPeerId(0b10000000)
+    let other = testKey(0b10000000)
     rt.insert(other)
 
     let idx = bucketIndex(selfId, other)
     check rt.buckets.len > idx
     check rt.buckets[idx].peers.len == 1
-    check rt.buckets[idx].peers[0].peerId == other
+    check rt.buckets[idx].peers[0].nodeId == other
 
   test "does not insert beyond capacity":
-    let selfId = tPeerId(0)
+    let selfId = testKey(0)
     var rt = RoutingTable.init(selfId)
     let targetBucket = 6
     for _ in 0 ..< k + 5:
       let rng = crypto.newRng()
-      let peerId = randomIdInBucketRange(selfId, targetBucket, rng)
-      rt.insert(peerId)
+      var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
+      kid.kind = KeyType.Undefined
+        # Overriding so we don't use sha for comparing xor distances
+      rt.insert(kid)
 
     check targetBucket < rt.buckets.len
     let bucket = rt.buckets[targetBucket]
     check bucket.peers.len <= k
 
-  test "findClosest returns sorted peers":
-    let selfId = tPeerId(0)
+  test "findClosest returns sorted keys":
+    let selfId = testKey(0)
     var rt = RoutingTable.init(selfId)
-    let ids = @[tPeerId(1), tPeerId(2), tPeerId(3), tPeerId(4), tPeerId(5)]
+    let ids = @[testKey(1), testKey(2), testKey(3), testKey(4), testKey(5)]
     for id in ids:
       rt.insert(id)
 
-    let res = rt.findClosest(tPeerId(1), 3)
+    let res = rt.findClosest(testKey(1), 3)
 
     check res.len == 3
-    check res[0] == tPeerId(1)
+    check res[0] == testKey(1)
 
-  test "isStale returns true for empty or old peers":
+  test "isStale returns true for empty or old keys":
     var bucket: Bucket
     check isStale(bucket) == true
 
-    bucket.peers = @[PeerEntry(peerId: tPeerId(1), lastSeen: Moment.now() - 40.minutes)]
+    bucket.peers = @[NodeEntry(nodeId: testKey(1), lastSeen: Moment.now() - 40.minutes)]
     check isStale(bucket) == true
 
-    bucket.peers = @[PeerEntry(peerId: tPeerId(1), lastSeen: Moment.now())]
+    bucket.peers = @[NodeEntry(nodeId: testKey(1), lastSeen: Moment.now())]
     check isStale(bucket) == false
 
-  test "randomIdInBucketRange returns id at correct distance":
-    let selfId = tPeerId(0)
+  test "randomKeyInBucketRange returns id at correct distance":
+    let selfId = testKey(0)
     let targetBucket = 3
     let rng = crypto.newRng()
-    let rid = randomIdInBucketRange(selfId, targetBucket, rng)
+    var rid = randomKeyInBucketRange(selfId, targetBucket, rng)
+    rid.kind = KeyType.Undefined
+      # Overriding so we don't use sha for comparing xor distances
     let idx = bucketIndex(selfId, rid)
     check idx == targetBucket
