@@ -25,7 +25,7 @@ suite "AutoTLS":
   asyncTest "test ACME":
     let api = await ACMEApi.new(acmeServerURL = LetsEncryptURLStaging)
     defer:
-      await api.session.closeWait()
+      await api.close()
     let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
     let registerResponse = await api.acmeRegister(key)
     # account was registered (kid set)

@@ -5,8 +5,6 @@ import chronos/apps/http/httpclient, jwt, results, bearssl/pem
 import ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
-import ../../transports/tls/certificate_ffi
-import ../../transports/tls/certificate
 
 const
   LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
@@ -30,7 +28,7 @@ type ACMEDirectory = object
 
 type ACMEApi* = object
   directory: ACMEDirectory
-  session*: HttpSessionRef
+  session: HttpSessionRef
   acmeServerURL: string
 
 type JWK = object
@@ -113,6 +111,8 @@ template handleError(msg: string, body: untyped): untyped =
     raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except HttpError as exc:
     raise newException(ACMEError, msg & ": Failed to connect to ACME server", exc)
+  except CancelledError as exc:
+    raise newException(CancelledError, msg & ": Future cancelled", exc)
   except CatchableError as exc:
     raise newException(ACMEError, msg & ": Unexpected error", exc)
 
@@ -121,13 +121,12 @@ proc new*(
 ): Future[ACMEApi] {.async: (raises: [ACMEError, CancelledError]).} =
   let session = HttpSessionRef.new()
   let directory = handleError("new API"):
-    (
-      await (
-        await HttpClientRequestRef.get(session, acmeServerURL & "/directory").get().send()
-      ).getResponseBody()
-    ).to(ACMEDirectory)
+    let rawResponse =
+      await HttpClientRequestRef.get(session, acmeServerURL & "/directory").get().send()
+    let body = await rawResponse.getResponseBody()
+    body.to(ACMEDirectory)
 
-  return ACMEApi(session: session, directory: directory, acmeServerURL: acmeServerURL)
+  ACMEApi(session: session, directory: directory, acmeServerURL: acmeServerURL)
 
 proc newNonce(
     self: ACMEApi
@@ -245,14 +244,14 @@ proc requestChallenge*(
     finalizeURL: challengeResponse.finalize, orderURL: orderURL, dns01: dns01
   )
 
-proc notifyChallengeCompleted*(
+proc challengeCompleted*(
     self: ACMEApi,
     chalURL: string,
     key: KeyPair,
     kid: Kid,
     retries: int = DefaultChalCompletedRetries,
 ): Future[void] {.async: (raises: [ACMEError, CancelledError]).} =
-  let completedResponse = handleError("notifyChallengeCompleted (send notify)"):
+  let completedResponse = handleError("challengeCompleted (send notify)"):
     let payload =
       await self.createSignedAcmeRequest(chalURL, %*{}, key, kid = Opt.some(kid))
     let rawResponse = await HttpClientRequestRef
@@ -265,7 +264,7 @@ proc notifyChallengeCompleted*(
   # check until acme server is done (poll validation)
   for i in 0 .. retries:
     let (retryAfterHeader, checkResponse) = handleError(
-      "notifyChallengeCompleted (check " & $i & ")"
+      "challengeCompleted (check " & $i & ")"
     ):
       let rawResponse = await HttpClientRequestRef
       .get(self.session, completedResponse.checkURL)
@@ -300,21 +299,7 @@ proc finalizeCertificate*(
     kid: Kid,
     retries: int = DefaultFinalizeRetries,
 ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
-  var certKey: cert_key_t
-  var certCtx: cert_context_t
-  var derCSR: ptr cert_buffer = nil
-
-  let personalizationStr = "libp2p_autotls"
-  if cert_init_drbg(
-    personalizationStr.cstring, personalizationStr.len.csize_t, certCtx.addr
-  ) != CERT_SUCCESS:
-    raise newException(ACMEError, "Failed to initialize certCtx")
-  if cert_generate_key(certCtx, certKey.addr) != CERT_SUCCESS:
-    raise newException(ACMEError, "Failed to generate cert key")
-
-  if cert_signing_req(domain.cstring, certKey, derCSR.addr) != CERT_SUCCESS:
-    raise newException(ACMEError, "Failed to create CSR")
-
+  let derCSR = createCSR(domain)
   let b64CSR = base64.encode(derCSR.toSeq, safe = true)
 
   # call finalize and keep checking order until cert is valid (done)
@@ -373,3 +358,6 @@ proc downloadCertificate*(
     ACMECertificateResponse(
       rawCertificate: bytesToString(rawBody), certificateExpiry: certificateExpiry
     )
+
+proc close*(self: ACMEApi): Future[void] {.async: (raises: [CancelledError]).} =
+  await self.session.closeWait()
