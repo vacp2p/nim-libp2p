@@ -9,7 +9,6 @@
 
 {.push raises: [].}
 
-# import std/[strformat, net] # uncomment after re-enabling AutoTLSManager
 import chronos
 import chronos/apps/http/httpclient
 import

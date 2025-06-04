@@ -18,7 +18,7 @@ proc getResponseBody*(
     let responseBody = bytesToString(await response.getBodyBytes()).parseJson()
     return responseBody
   except CancelledError as exc:
-    raise newException(CancelledError, "Future cancelled", exc)
+    raise exc
   except CatchableError as exc:
     raise
       newException(ACMEError, "Unexpected error occurred while getting body bytes", exc)

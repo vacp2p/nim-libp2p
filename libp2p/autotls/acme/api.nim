@@ -6,6 +6,8 @@ import ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
 
+export ACMEError
+
 const
   LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
   LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
@@ -56,6 +58,9 @@ type ACMERegisterRequest* = object
   termsOfServiceAgreed: bool
   contact: seq[string]
 
+type ACMERegisterResponseBody = object
+  status*: AccountStatus
+
 type ACMERegisterResponse* = object
   kid*: Kid
   status*: AccountStatus
@@ -73,10 +78,16 @@ type ACMEChallengeIdentifier = object
 type ACMEChallengeRequest = object
   identifiers: seq[ACMEChallengeIdentifier]
 
+type ACMEChallengeResponseBody = object
+  status: string
+  authorizations: seq[string]
+  finalize: string
+
 type ACMEChallengeResponse* = object
   status: string
   authorizations: seq[string]
   finalize: string
+  orderURL: string
 
 type ACMEChallengeResponseWrapper* = object
   finalizeURL*: string
@@ -106,12 +117,10 @@ type ACMECertificateResponse* = object
 template handleError(msg: string, body: untyped): untyped =
   try:
     body
-  # re-raise ACMEError
   except ACMEError as exc:
-    raise (ref ACMEError)(exc)
-  # re-raise CancelledError
+    raise exc
   except CancelledError as exc:
-    raise (ref CancelledError)(exc)
+    raise exc
   except JsonKindError as exc:
     raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except ValueError as exc:
@@ -174,6 +183,16 @@ proc acmeHeader(
       kid: kid.get(),
     )
 
+proc post(
+    self: ACMEApi, url: string, payload: string
+): Future[HttpClientResponseRef] {.
+    async: (raises: [ACMEError, HttpError, CancelledError])
+.} =
+  await HttpClientRequestRef
+  .post(self.session, url, body = payload, headers = ACMEHttpHeaders)
+  .get()
+  .send()
+
 proc createSignedAcmeRequest(
     self: ACMEApi,
     url: string,
@@ -201,23 +220,18 @@ proc requestRegister*(
     let payload = await self.createSignedAcmeRequest(
       self.directory.newAccount, registerRequest, key, needsJwk = true
     )
-    let rawResponse = await HttpClientRequestRef
-    .post(
-      self.session, self.directory.newAccount, body = payload, headers = ACMEHttpHeaders
-    )
-    .get()
-    .send()
+    let rawResponse = await self.post(self.directory.newAccount, payload)
     let body = await rawResponse.getResponseBody()
     let headers = rawResponse.headers
+    let acmeResponseBody = body.to(ACMERegisterResponseBody)
+
     ACMERegisterResponse(
-      status: body["status"].getStr, kid: headers.getString("location")
+      status: acmeResponseBody.status, kid: headers.getString("location")
     )
 
 proc requestNewOrder(
     self: ACMEApi, domains: seq[string], key: KeyPair, kid: Kid
-): Future[(string, ACMEChallengeResponse)] {.
-    async: (raises: [ACMEError, CancelledError])
-.} =
+): Future[ACMEChallengeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   # request challenge from ACME server
   let orderRequest = ACMEChallengeRequest(
     identifiers: domains.mapIt(ACMEChallengeIdentifier(`type`: "dns", value: it))
@@ -226,20 +240,25 @@ proc requestNewOrder(
     let payload = await self.createSignedAcmeRequest(
       self.directory.newOrder, orderRequest, key, kid = Opt.some(kid)
     )
-    let rawResponse = await HttpClientRequestRef
-    .post(
-      self.session, self.directory.newOrder, body = payload, headers = ACMEHttpHeaders
-    )
-    .get()
-    .send()
+    let rawResponse = await self.post(self.directory.newOrder, payload)
     let body = await rawResponse.getResponseBody()
     let headers = rawResponse.headers
-    (headers.getString("location"), body.to(ACMEChallengeResponse))
+
+    let challengeResponseBody = body.to(ACMEChallengeResponseBody)
+    if challengeResponseBody.authorizations.len() == 0:
+      raise newException(ACMEError, "Authorizations field is empty")
+    ACMEChallengeResponse(
+      status: challengeResponseBody.status,
+      authorizations: challengeResponseBody.authorizations,
+      finalize: challengeResponseBody.finalize,
+      orderURL: headers.getString("location"),
+    )
 
 proc requestAuthorizations(
     self: ACMEApi, authorizations: seq[string], key: KeyPair, kid: Kid
 ): Future[ACMEAuthorizationsResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestAuthorizations"):
+    doAssert authorizations.len > 0
     let rawResponse =
       await HttpClientRequestRef.get(self.session, authorizations[0]).get().send()
     let body = await rawResponse.getResponseBody()
@@ -248,18 +267,15 @@ proc requestAuthorizations(
 proc requestChallenge*(
     self: ACMEApi, domains: seq[string], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
-  let (orderURL, challengeResponse) = await self.requestNewOrder(domains, key, kid)
-
-  if challengeResponse.authorizations.len() == 0:
-    raise newException(ACMEError, "Authorizations field is empty")
+  let challengeResponse = await self.requestNewOrder(domains, key, kid)
 
   let authorizationsResponse =
     await self.requestAuthorizations(challengeResponse.authorizations, key, kid)
 
-  let dns01 = authorizationsResponse.challenges.filterIt(it.`type` == "dns-01")[0]
-
   return ACMEChallengeResponseWrapper(
-    finalizeURL: challengeResponse.finalize, orderURL: orderURL, dns01: dns01
+    finalizeURL: challengeResponse.finalize,
+    orderURL: challengeResponse.orderURL,
+    dns01: authorizationsResponse.challenges.filterIt(it.`type` == "dns-01")[0],
   )
 
 proc requestCheck(
@@ -284,10 +300,7 @@ proc requestCompleted(
   handleError("challengeCompleted (send notify)"):
     let payload =
       await self.createSignedAcmeRequest(chalURL, %*{}, key, kid = Opt.some(kid))
-    let rawResponse = await HttpClientRequestRef
-    .post(self.session, chalURL, body = payload, headers = ACMEHttpHeaders)
-    .get()
-    .send()
+    let rawResponse = await self.post(chalURL, payload)
     let body = await rawResponse.getResponseBody()
     body.to(ACMECompletedResponse)
 
@@ -324,10 +337,7 @@ proc requestFinalize*(
     let payload = await self.createSignedAcmeRequest(
       finalizeURL, %*{"csr": b64CSR}, key, kid = Opt.some(kid)
     )
-    let rawResponse = await HttpClientRequestRef
-    .post(self.session, finalizeURL, body = payload, headers = ACMEHttpHeaders)
-    .get()
-    .send()
+    let rawResponse = await self.post(finalizeURL, payload)
     let body = await rawResponse.getResponseBody()
     body.to(ACMEFinalizedResponse)
 
@@ -372,15 +382,13 @@ proc downloadCertificate*(
   let orderResponse = await self.requestGetOrder(orderURL)
 
   handleError("downloadCertificate"):
-    let certificateDownloadURL = orderResponse.certificate
-    let certificateExpiry = parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'")
-
-    let rawResponse =
-      await HttpClientRequestRef.get(self.session, certificateDownloadURL).get().send()
-    let rawBody = await rawResponse.getBodyBytes()
-
+    let rawResponse = await HttpClientRequestRef
+    .get(self.session, orderResponse.certificate)
+    .get()
+    .send()
     ACMECertificateResponse(
-      rawCertificate: bytesToString(rawBody), certificateExpiry: certificateExpiry
+      rawCertificate: bytesToString(await rawResponse.getBodyBytes()),
+      certificateExpiry: parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
     )
 
 proc close*(self: ACMEApi): Future[void] {.async: (raises: [CancelledError]).} =
