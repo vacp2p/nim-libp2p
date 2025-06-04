@@ -134,7 +134,7 @@ proc innerRun(
       try:
         await one(toSeq(self.relayPeers.values())) or self.peerAvailable.wait()
       except ValueError:
-        raiseAssert "checked with"
+        raiseAssert "checked with relayPeers.len()"
     else:
       await self.peerAvailable.wait()
 
