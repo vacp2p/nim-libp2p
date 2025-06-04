@@ -14,19 +14,31 @@
 # import std/[strformat, net] # uncomment after re-enabling AutoTLSManager
 import chronos
 import chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/api, wire]
+import
+  ../libp2p/
+    [
+      stream/connection,
+      upgrademngrs/upgrade,
+      autotls/acme/api,
+      autotls/acme/utils,
+      wire,
+    ]
 
 import ./helpers
 
 suite "AutoTLS":
-  teardown:
+  var api {.threadvar.}: ACMEApi
+  var key {.threadvar.}: KeyPair
+
+  asyncTeardown:
+    await api.close()
     checkTrackers()
 
-  asyncTest "test ACME":
-    let api = await ACMEApi.new(acmeServerURL = LetsEncryptURLStaging)
-    defer:
-      await api.close()
-    let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+  asyncSetup:
+    api = await ACMEApi.new(acmeServerURL = LetsEncryptURLStaging)
+    key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+
+  asyncTest "test request challenge":
     let registerResponse = await api.requestRegister(key)
     # account was registered (kid set)
     check registerResponse.kid != ""
@@ -43,3 +55,14 @@ suite "AutoTLS":
     check challenge.dns01.`type`.len() > 0
     check challenge.dns01.status.len() > 0
     check challenge.dns01.token.len() > 0
+
+  asyncTest "test register with unsupported keys":
+    let unsupportedSchemes = [PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA]
+    for scheme in unsupportedSchemes:
+      let unsupportedKey = KeyPair.random(scheme, newRng()[]).get()
+      expect(ACMEError):
+        discard await api.requestRegister(unsupportedKey)
+
+  asyncTest "test request challenge with invalid kid":
+    expect(ACMEError):
+      discard await api.requestChallenge(@["domain.com"], key, "invalid_kid_here")

@@ -106,14 +106,18 @@ type ACMECertificateResponse* = object
 template handleError(msg: string, body: untyped): untyped =
   try:
     body
+  # re-raise ACMEError
+  except ACMEError as exc:
+    raise (ref ACMEError)(exc)
+  # re-raise CancelledError
+  except CancelledError as exc:
+    raise (ref CancelledError)(exc)
   except JsonKindError as exc:
     raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except ValueError as exc:
     raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except HttpError as exc:
     raise newException(ACMEError, msg & ": Failed to connect to ACME server", exc)
-  except CancelledError as exc:
-    raise newException(CancelledError, msg & ": Future cancelled", exc)
   except CatchableError as exc:
     raise newException(ACMEError, msg & ": Unexpected error", exc)
 
@@ -178,6 +182,9 @@ proc createSignedAcmeRequest(
     needsJwk: bool = false,
     kid: Opt[Kid] = Opt.none(Kid),
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+  if key.pubkey.scheme != PKScheme.RSA or key.seckey.scheme != PKScheme.RSA:
+    raise newException(ACMEError, "Unsupported signing key type")
+
   let acmeHeader = await self.acmeHeader(url, key, needsJwk, kid)
   handleError("createSignedAcmeRequest"):
     var token = toJWT(%*{"header": acmeHeader, "claims": payload})
