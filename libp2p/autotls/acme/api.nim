@@ -1,4 +1,4 @@
-import options, base64, sequtils, json
+import options, base64, sequtils, strutils, json
 from times import DateTime, parse
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
 
@@ -21,7 +21,6 @@ const
 
 type Nonce = string
 type Kid = string
-type AccountStatus = string
 
 type ACMEDirectory = object
   newNonce: string
@@ -58,17 +57,28 @@ type ACMERegisterRequest* = object
   termsOfServiceAgreed: bool
   contact: seq[string]
 
+type ACMEAccountStatus = enum
+  valid
+  deactivated
+  revoked
+
 type ACMERegisterResponseBody = object
-  status*: AccountStatus
+  status*: ACMEAccountStatus
 
 type ACMERegisterResponse* = object
   kid*: Kid
-  status*: AccountStatus
+  status*: ACMEAccountStatus
+
+type ACMEChallengeStatus* {.pure.} = enum
+  pending = "pending"
+  processing = "processing"
+  valid = "valid"
+  invalid = "invalid"
 
 type ACMEChallenge = object
   url*: string
   `type`*: string
-  status*: string
+  status*: ACMEChallengeStatus
   token*: string
 
 type ACMEChallengeIdentifier = object
@@ -79,12 +89,12 @@ type ACMEChallengeRequest = object
   identifiers: seq[ACMEChallengeIdentifier]
 
 type ACMEChallengeResponseBody = object
-  status: string
+  status: ACMEChallengeStatus
   authorizations: seq[string]
   finalize: string
 
 type ACMEChallengeResponse* = object
-  status: string
+  status: ACMEChallengeStatus
   authorizations: seq[string]
   finalize: string
   orderURL: string
@@ -100,8 +110,23 @@ type ACMEAuthorizationsResponse* = object
 type ACMECompletedResponse* = object
   checkURL: string
 
+type ACMEOrderStatus* {.pure.} = enum
+  pending = "pending"
+  ready = "ready"
+  processing = "processing"
+  valid = "valid"
+  invalid = "invalid"
+
+type ACMECheckKind = enum
+  ACMEOrderCheck
+  ACMEChallengeCheck
+
 type ACMECheckResponse* = object
-  status: string
+  case kind: ACMECheckKind
+  of ACMEOrderCheck:
+    orderStatus: ACMEOrderStatus
+  of ACMEChallengeCheck:
+    chalStatus: ACMEChallengeStatus
   retryAfter: Duration
 
 type ACMEFinalizedResponse* = object
@@ -159,9 +184,11 @@ proc acmeHeader(
   if not needsJwk and kid.isNone:
     raise newException(ACMEError, "kid not set")
 
+  if key.pubkey.scheme != PKScheme.RSA or key.seckey.scheme != PKScheme.RSA:
+    raise newException(ACMEError, "Unsupported signing key type")
+
   let newNonce = await self.requestNonce()
   if needsJwk:
-    # TODO: check if scheme is RSA
     let pubkey = key.pubkey.rsakey
     let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
     let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))
@@ -279,7 +306,7 @@ proc requestChallenge*(
   )
 
 proc requestCheck(
-    self: ACMEApi, checkURL: string, key: KeyPair, kid: Kid
+    self: ACMEApi, checkURL: string, checkKind: ACMECheckKind, key: KeyPair, kid: Kid
 ): Future[ACMECheckResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCheck"):
     let rawResponse =
@@ -292,7 +319,25 @@ proc requestCheck(
       except ValueError:
         DefaultChalCompletedRetryTime
 
-    ACMECheckResponse(status: body["status"].getStr, retryAfter: retryAfter)
+    case checkKind
+    of ACMEOrderCheck:
+      try:
+        ACMECheckResponse(
+          kind: checkKind,
+          orderStatus: parseEnum[ACMEOrderStatus](body["status"].getStr),
+          retryAfter: retryAfter,
+        )
+      except ValueError:
+        raise newException(ACMEError, "Invalid order status: " & body["status"].getStr)
+    of ACMEChallengeCheck:
+      try:
+        ACMECheckResponse(
+          kind: checkKind,
+          chalStatus: parseEnum[ACMEChallengeStatus](body["status"].getStr),
+          retryAfter: retryAfter,
+        )
+      except ValueError:
+        raise newException(ACMEError, "Invalid order status: " & body["status"].getStr)
 
 proc requestCompleted(
     self: ACMEApi, chalURL: string, key: KeyPair, kid: Kid
@@ -314,17 +359,18 @@ proc challengeCompleted*(
   let completedResponse = await self.requestCompleted(chalURL, key, kid)
   # check until acme server is done (poll validation)
   for i in 0 .. retries:
-    let checkResponse = await self.requestCheck(completedResponse.checkURL, key, kid)
-    case checkResponse.status
-    of "pending":
+    let checkResponse =
+      await self.requestCheck(completedResponse.checkURL, ACMEChallengeCheck, key, kid)
+    case checkResponse.chalStatus
+    of ACMEChallengeStatus.pending:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
-    of "valid":
+    of ACMEChallengeStatus.valid:
       return
     else:
       raise newException(
         ACMEError,
-        "Failed challenge completion: expected 'valid', got '" & checkResponse.status &
-          "'",
+        "Failed challenge completion: expected 'valid', got '" &
+          $checkResponse.chalStatus & "'",
       )
 
 proc requestFinalize*(
@@ -356,11 +402,11 @@ proc finalizeCertificate*(
   handleError("finalizeCertificate (check finalized)"):
     var checkResponse: ACMECheckResponse
     for i in 0 .. retries:
-      let checkResponse = await self.requestCheck(orderURL, key, kid)
-      case checkResponse.status
-      of "valid":
+      let checkResponse = await self.requestCheck(orderURL, ACMEOrderCheck, key, kid)
+      case checkResponse.orderStatus
+      of ACMEOrderStatus.valid:
         return true
-      of "processing":
+      of ACMEOrderStatus.processing:
         await sleepAsync(checkResponse.retryAfter) # try again after some delay
       else:
         return false

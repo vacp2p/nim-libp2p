@@ -45,7 +45,7 @@ suite "AutoTLS Integration":
 
     check challenge.dns01.url.len() > 0
     check challenge.dns01.`type`.len() > 0
-    check challenge.dns01.status.len() > 0
+    check challenge.dns01.status == ACMEChallengeStatus.pending
     check challenge.dns01.token.len() > 0
 
   asyncTest "test register with unsupported keys":
