@@ -2,7 +2,6 @@
 
 import unittest2
 import chronos
-import std/tables
 import results
 
 import ../../libp2p/protocols/pubsub/gossipsub/[types]
@@ -257,4 +256,140 @@ suite "GossipSubParams validation":
   test "maxNumElementsInNonPriorityQueue succeeds when positive":
     var params = newDefaultValidParams()
     params.maxNumElementsInNonPriorityQueue = 1
+    check params.validateParameters().isOk()
+
+suite "TopicParams validation":
+  proc newDefaultValidTopicParams(): TopicParams =
+    result = TopicParams.init()
+
+  test "default topic parameters are valid":
+    var params = newDefaultValidTopicParams()
+    check params.validateParameters().isOk()
+
+  test "timeInMeshWeight fails when zero":
+    const errorMessage =
+      "gossipsub: timeInMeshWeight parameter error, Must be a small positive value"
+    var params = newDefaultValidTopicParams()
+    params.timeInMeshWeight = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "timeInMeshWeight fails when greater than 1":
+    const errorMessage =
+      "gossipsub: timeInMeshWeight parameter error, Must be a small positive value"
+    var params = newDefaultValidTopicParams()
+    params.timeInMeshWeight = 1.1
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "timeInMeshWeight succeeds when exactly 1":
+    var params = newDefaultValidTopicParams()
+    params.timeInMeshWeight = 1.0
+    check params.validateParameters().isOk()
+
+  test "timeInMeshWeight succeeds when small positive value":
+    var params = newDefaultValidTopicParams()
+    params.timeInMeshWeight = 0.01
+    check params.validateParameters().isOk()
+
+  test "timeInMeshCap fails when zero":
+    const errorMessage =
+      "gossipsub: timeInMeshCap parameter error, Should be a positive value"
+    var params = newDefaultValidTopicParams()
+    params.timeInMeshCap = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "timeInMeshCap succeeds when positive":
+    var params = newDefaultValidTopicParams()
+    params.timeInMeshCap = 10.0
+    check params.validateParameters().isOk()
+
+  test "firstMessageDeliveriesWeight fails when zero":
+    const errorMessage =
+      "gossipsub: firstMessageDeliveriesWeight parameter error, Should be a positive value"
+    var params = newDefaultValidTopicParams()
+    params.firstMessageDeliveriesWeight = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "firstMessageDeliveriesWeight succeeds when positive":
+    var params = newDefaultValidTopicParams()
+    params.firstMessageDeliveriesWeight = 1.0
+    check params.validateParameters().isOk()
+
+  test "meshMessageDeliveriesWeight fails when zero":
+    const errorMessage =
+      "gossipsub: meshMessageDeliveriesWeight parameter error, Should be a negative value"
+    var params = newDefaultValidTopicParams()
+    params.meshMessageDeliveriesWeight = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "meshMessageDeliveriesWeight succeeds when negative":
+    var params = newDefaultValidTopicParams()
+    params.meshMessageDeliveriesWeight = -1.0
+    check params.validateParameters().isOk()
+
+  test "meshMessageDeliveriesThreshold fails when zero":
+    const errorMessage =
+      "gossipsub: meshMessageDeliveriesThreshold parameter error, Should be a positive value"
+    var params = newDefaultValidTopicParams()
+    params.meshMessageDeliveriesThreshold = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "meshMessageDeliveriesThreshold succeeds when positive":
+    var params = newDefaultValidTopicParams()
+    params.meshMessageDeliveriesThreshold = 5.0
+    check params.validateParameters().isOk()
+
+  test "meshMessageDeliveriesCap fails when less than threshold":
+    const errorMessage =
+      "gossipsub: meshMessageDeliveriesCap parameter error, Should be >= meshMessageDeliveriesThreshold"
+    var params = newDefaultValidTopicParams()
+    params.meshMessageDeliveriesThreshold = 10.0
+    params.meshMessageDeliveriesCap = 9.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "meshMessageDeliveriesCap succeeds when equal to threshold":
+    var params = newDefaultValidTopicParams()
+    params.meshMessageDeliveriesThreshold = 10.0
+    params.meshMessageDeliveriesCap = 10.0
+    check params.validateParameters().isOk()
+
+  test "meshFailurePenaltyWeight fails when zero":
+    const errorMessage =
+      "gossipsub: meshFailurePenaltyWeight parameter error, Should be a negative value"
+    var params = newDefaultValidTopicParams()
+    params.meshFailurePenaltyWeight = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "meshFailurePenaltyWeight succeeds when negative":
+    var params = newDefaultValidTopicParams()
+    params.meshFailurePenaltyWeight = -1.0
+    check params.validateParameters().isOk()
+
+  test "invalidMessageDeliveriesWeight fails when zero":
+    const errorMessage =
+      "gossipsub: invalidMessageDeliveriesWeight parameter error, Should be a negative value"
+    var params = newDefaultValidTopicParams()
+    params.invalidMessageDeliveriesWeight = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "invalidMessageDeliveriesWeight succeeds when negative":
+    var params = newDefaultValidTopicParams()
+    params.invalidMessageDeliveriesWeight = -1.0
     check params.validateParameters().isOk()

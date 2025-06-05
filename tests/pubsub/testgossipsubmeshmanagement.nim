@@ -18,10 +18,6 @@ suite "GossipSub Mesh Management":
   teardown:
     checkTrackers()
 
-  asyncTest "topic params":
-    let params = TopicParams.init()
-    params.validateParameters().tryGet()
-
   asyncTest "subscribe/unsubscribeAll":
     let topic = "foobar"
     let (gossipSub, conns, peers) =
