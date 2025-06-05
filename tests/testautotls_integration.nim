@@ -11,22 +11,14 @@
 
 import chronos
 import chronos/apps/http/httpclient
-import
-  ../libp2p/
-    [
-      stream/connection,
-      upgrademngrs/upgrade,
-      autotls/acme/api,
-      autotls/acme/utils,
-      wire,
-    ]
+import ../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/api, wire]
 
 import ./helpers
 
 when defined(linux) and defined(amd64):
   {.used.}
 
-suite "AutoTLS":
+suite "AutoTLS Integration":
   var api {.threadvar.}: ACMEApi
   var key {.threadvar.}: KeyPair
 
