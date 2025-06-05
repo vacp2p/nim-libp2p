@@ -17,3 +17,6 @@ testutils;https://github.com/status-im/nim-testutils@#9e842bd58420d23044bc55e160
 unittest2;https://github.com/status-im/nim-unittest2@#8b51e99b4a57fcfb31689230e75595f024543024
 websock;https://github.com/status-im/nim-websock@#d5cd89062cd2d168ef35193c7d29d2102921d97e
 zlib;https://github.com/status-im/nim-zlib@#daa8723fd32299d4ca621c837430c29a5a11e19a
+jwt;https://github.com/vacp2p/nim-jwt@#18f8378de52b241f321c1f9ea905456e89b95c6f
+bearssl_pkey_decoder;https://github.com/vacp2p/bearssl_pkey_decoder@#21dd3710df9345ed2ad8bf8f882761e07863b8e0
+bio;https://github.com/xzeshen/bio@#0f5ed58b31c678920b6b4f7c1783984e6660be97
