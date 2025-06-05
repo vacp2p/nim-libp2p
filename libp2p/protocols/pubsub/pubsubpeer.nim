@@ -96,15 +96,15 @@ type
     sendNonPriorityTask: Future[void]
 
   CustomConnCreationProc* = proc(
-      destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
-    ): Connection {.gcsafe, raises: [].}
-  
+    destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+  ): Connection {.gcsafe, raises: [].}
+
   CustomPeerSelectionProc* = proc(
-      allPeers: HashSet[PubSubPeer],
-      directPeers: HashSet[PubSubPeer],
-      meshPeers: HashSet[PubSubPeer],
-      fanoutPeers: HashSet[PubSubPeer],
-    ): HashSet[PubSubPeer] {.gcsafe, raises: [].}
+    allPeers: HashSet[PubSubPeer],
+    directPeers: HashSet[PubSubPeer],
+    meshPeers: HashSet[PubSubPeer],
+    fanoutPeers: HashSet[PubSubPeer],
+  ): HashSet[PubSubPeer] {.gcsafe, raises: [].}
 
   CustomConnectionCallbacks* = object
     customConnCreationCB*: CustomConnCreationProc
@@ -375,11 +375,11 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
 ): Future[void] {.async: (raises: []).} =
-  type
-    ConnectionType = enum
-      ctCustom
-      ctSend
-      ctSlow
+  type ConnectionType = enum
+    ctCustom
+    ctSend
+    ctSlow
+
   var slowPath = false
   let (conn, connType) =
     if useCustomConn and p.customConnCallbacks.isSome:

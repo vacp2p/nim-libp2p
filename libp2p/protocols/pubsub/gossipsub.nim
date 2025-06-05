@@ -702,20 +702,24 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-proc makePeersForPublishUsingCustomConn(g: GossipSub, topic: string): HashSet[PubSubPeer] =
+proc makePeersForPublishUsingCustomConn(
+    g: GossipSub, topic: string
+): HashSet[PubSubPeer] =
   assert g.customConnCallbacks.isSome,
     "GossipSub misconfiguration: useCustomConn was true, but no customConnCallbacks provided"
 
   trace "Selecting peers via custom connection callback"
 
   return g.customConnCallbacks.get().customPeerSelectionCB(
-    g.gossipsub.getOrDefault(topic),
-    g.subscribedDirectPeers.getOrDefault(topic),
-    g.mesh.getOrDefault(topic),
-    g.fanout.getOrDefault(topic),
-  )
+      g.gossipsub.getOrDefault(topic),
+      g.subscribedDirectPeers.getOrDefault(topic),
+      g.mesh.getOrDefault(topic),
+      g.fanout.getOrDefault(topic),
+    )
 
-proc makePeersForPublishDefault(g: GossipSub, topic: string, data: seq[byte]): HashSet[PubSubPeer] =
+proc makePeersForPublishDefault(
+    g: GossipSub, topic: string, data: seq[byte]
+): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
   # Always include direct peers
@@ -767,7 +771,7 @@ proc makePeersForPublishDefault(g: GossipSub, topic: string, data: seq[byte]): H
     # Attempting to publish counts as fanout send (even if the message
     # ultimately is not sent)
     g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
-  
+
   return peers
 
 method publish*(
@@ -790,7 +794,7 @@ method publish*(
       g.makePeersForPublishUsingCustomConn(topic)
     else:
       g.makePeersForPublishDefault(topic, data)
-  
+
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
     debug "No peers for topic, skipping publish",
