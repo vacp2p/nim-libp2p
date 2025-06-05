@@ -95,16 +95,20 @@ type
     # Task for processing non-priority message queue.
     sendNonPriorityTask: Future[void]
 
-  CustomConnectionCallbacks* = object
-    customConnCreationCB*: proc(
+  CustomConnCreationProc* = proc(
       destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
     ): Connection {.gcsafe, raises: [].}
-    peerSelectionCB*: proc(
+  
+  CustomPeerSelectionProc* = proc(
       allPeers: HashSet[PubSubPeer],
       directPeers: HashSet[PubSubPeer],
       meshPeers: HashSet[PubSubPeer],
       fanoutPeers: HashSet[PubSubPeer],
     ): HashSet[PubSubPeer] {.gcsafe, raises: [].}
+
+  CustomConnectionCallbacks* = object
+    customConnCreationCB*: CustomConnCreationProc
+    customPeerSelectionCB*: CustomPeerSelectionProc
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn # callback to establish a new send connection
@@ -371,27 +375,28 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
 ): Future[void] {.async: (raises: []).} =
+  type
+    ConnectionType = enum
+      ctCustom
+      ctSend
+      ctSlow
   var slowPath = false
   let (conn, connType) =
     if useCustomConn and p.customConnCallbacks.isSome:
-      let address =
-        if p.address.isSome:
-          some(p.address.get)
-        else:
-          none(MultiAddress)
+      let address = p.address
       (
         p.customConnCallbacks.get().customConnCreationCB(address, p.peerId, p.codec),
-        "custom connection",
+        ctCustom,
       )
     elif p.sendConn != nil and not p.sendConn.closed():
-      (p.sendConn, "send connection")
+      (p.sendConn, ctSend)
     else:
       slowPath = true
-      (nil, "slow path")
+      (nil, ctSlow)
 
   if not slowPath:
     trace "sending encoded msg to peer",
-      conntype = connType, conn = conn, encoded = shortLog(msg)
+      conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
     if not f.completed():
       sendMsgContinue(conn, f)
