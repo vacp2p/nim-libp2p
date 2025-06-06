@@ -61,7 +61,7 @@ declareCounter(
 )
 declareGauge(libp2p_gossipsub_received_iwants, "received iwants", labels = ["kind"])
 declareCounter(
-  libp2p_gossipsub_preamble_saved_iwants, 
+  libp2p_gossipsub_preamble_saved_iwants,
   "number of iwant requests avoided by preamble",
   labels = ["topic"],
 )
@@ -299,9 +299,10 @@ proc handleIHave*(
             if peer.iHaveBudget <= 0:
               break
             elif msgId notin res.messageIDs:
-              
               if g.ongoingReceives.hasKey(msgId) or g.ongoingIWantReceives.hasKey(msgId):
-                libp2p_gossipsub_preamble_saved_iwants.inc(labelValues = [ihave.topicID])
+                libp2p_gossipsub_preamble_saved_iwants.inc(
+                  labelValues = [ihave.topicID]
+                )
                 continue
               res.messageIDs.add(msgId)
               dec peer.iHaveBudget
@@ -349,7 +350,7 @@ proc handleIWant*(
 
 proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPreamble]) =
   let starts = Moment.now()
-  let bytesPerSecond = 3_750_000'u64    # 30Mbps, TODO: replace with running mesh average
+  let bytesPerSecond = 3_750_000'u64 # 30Mbps, TODO: replace with running mesh average
 
   for preamble in preambles:
     dec peer.preambleBudget
@@ -377,20 +378,23 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
             sender: peer, startAt: starts, expiresAt: expires
             )
         trace "preamble: ignoring out of mesh peer", peer
-        continue 
+        continue
 
       g.ongoingReceives[preamble.messageID] = PreambleInfo(
-        messageLength: preamble.messageLength, 
-        sender: peer, 
-        startAt: starts, expiresAt: expires
-        )
+        messageLength: preamble.messageLength,
+        sender: peer,
+        startAt: starts,
+        expiresAt: expires,
+      )
       #TODO: send imreceiving only if received from faster mesh members
       g.broadcast(peers, RPCMsg(control: some(ControlMessage(
         imreceiving: @[ControlIMReceiving(messageID: preamble.messageID, 
         messageLength: preamble.messageLength)]
       ))), isHighPriority = true)
 
-proc handleIMReceiving*(g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]) =
+proc handleIMReceiving*(
+    g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]
+) =
   for imreceiving in imreceivings:
     if peer.heIsReceivings.len > 50:
       break
@@ -400,7 +404,6 @@ proc handleIMReceiving*(g: GossipSub, peer: PubSubPeer, imreceivings: seq[Contro
         continue
     peer.heIsReceivings[imreceiving.messageID] = imreceiving.messageLength
     #No need to check mcache. In that case, we might have already transmitted/transmitting
-    
 
 proc commitMetrics(metrics: var MeshMetrics) =
   libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)

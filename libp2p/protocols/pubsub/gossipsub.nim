@@ -52,7 +52,8 @@ declareCounter(
   libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant"
 )
 declareCounter(
-  libp2p_gossipsub_imreceiving_saved_messages, "number of duplicates avoided by imreceiving"
+  libp2p_gossipsub_imreceiving_saved_messages,
+  "number of duplicates avoided by imreceiving",
 )
 declareCounter(
   libp2p_gossipsub_saved_bytes,
@@ -351,7 +352,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
-  g.handlePreamble(peer, control.preamble)  
+  g.handlePreamble(peer, control.preamble)
   g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
@@ -508,7 +509,6 @@ proc validateAndRelay(
       return false
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
-
 
     let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
     g.broadcast(preamblePeers, RPCMsg(control: some(ControlMessage(preamble: @[ControlPreamble(
