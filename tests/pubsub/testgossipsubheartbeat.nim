@@ -144,9 +144,8 @@ suite "GossipSub Heartbeat":
     await waitForHeartbeat(heartbeatInterval)
 
     let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
-    const maxOpportunisticGraftsPerHeartbeat = 2
     check:
-      actualGrafts.len == maxOpportunisticGraftsPerHeartbeat
+      actualGrafts.len == MaxOpportunisticGraftPeers
       actualGrafts.allIt(it in expectedGrafts)
 
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":

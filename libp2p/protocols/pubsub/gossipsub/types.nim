@@ -51,6 +51,7 @@ const
   # go: https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L155
   IHaveMaxLength* = 5000
   IDontWantMaxCount* = 1000 # maximum number of IDontWant messages in history
+  MaxOpportunisticGraftPeers* = 2
 
 type
   TopicInfo* = object # gossip 1.1 related

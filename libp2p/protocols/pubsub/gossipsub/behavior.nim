@@ -538,8 +538,8 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
               it.peerId notin backingOff:
             avail.add(it)
 
-            # by spec, grab only 2
-            if avail.len > 1:
+            # by spec, grab only up to MaxOpportunisticGraftPeers
+            if avail.len >= MaxOpportunisticGraftPeers:
               break
 
       for peer in avail:
