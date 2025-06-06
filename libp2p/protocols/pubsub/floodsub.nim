@@ -192,7 +192,7 @@ method init*(f: FloodSub) =
   f.codec = FloodSubCodec
 
 method publish*(
-    f: FloodSub, topic: string, data: seq[byte]
+    f: FloodSub, topic: string, data: seq[byte], useCustomConn: bool = false
 ): Future[int] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
