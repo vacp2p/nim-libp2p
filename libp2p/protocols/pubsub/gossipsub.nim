@@ -52,6 +52,10 @@ declareCounter(
   libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant"
 )
 declareCounter(
+  libp2p_gossipsub_imreceiving_saved_messages,
+  "number of duplicates avoided by imreceiving",
+)
+declareCounter(
   libp2p_gossipsub_saved_bytes,
   "bytes saved by gossipsub optimizations",
   labels = ["kind"],
@@ -222,6 +226,7 @@ method init*(g: GossipSub) =
       raise exc
 
   g.handler = handler
+  g.codecs &= GossipSubCodec_14
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
@@ -239,6 +244,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
+  peer.preambleBudget = PreamblePeerBudget
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
@@ -346,11 +352,13 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
+  g.handlePreamble(peer, control.preamble)
+  g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
-  let messages = g.handleIWant(peer, control.iwant)
+  let (messages, msgIDs) = g.handleIWant(peer, control.iwant)
 
   let
     isPruneNotEmpty = respControl.prune.len > 0
@@ -371,13 +379,23 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
 
   if messages.len > 0:
-    for smsg in messages:
+    var preambles: seq[ControlPreamble]
+    for i, smsg in messages:
       let topic = smsg.topic
       if g.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
       else:
         libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
 
+      # should we send preamble here? (Not in specs so far)
+      # So receiver will send IMReciving only for preambles received from mesh members
+      preambles.add(ControlPreamble(
+        topicID: smsg.topic, messageID: msgIDs[i], messageLength: smsg.data.len.uint32
+        ))
+    
+    g.broadcast(@[peer], RPCMsg(control: some(ControlMessage(
+      preamble: preambles))), isHighPriority = true)
+      
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
     g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
@@ -485,10 +503,18 @@ proc validateAndRelay(
             msg.data.len.int64, labelValues = ["idontwant"]
           )
           return true
+      if it.heIsReceivings.hasKey(msgId):
+        libp2p_gossipsub_imreceiving_saved_messages.inc
+        return true
       return false
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
+    let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
+    g.broadcast(preamblePeers, RPCMsg(control: some(ControlMessage(preamble: @[ControlPreamble(
+      topicID: msg.topic, messageID: msgId, messageLength: msg.data.len.uint32)]))), 
+      isHighPriority = true
+    )
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
@@ -602,6 +628,8 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
+    g.ongoingReceives.del(msgId)
+    g.ongoingIWantReceives.del(msgId)
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
