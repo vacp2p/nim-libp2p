@@ -96,45 +96,51 @@ proc newConnectedPeerHandler(
 method setup*(
     self: HPService, switch: Switch
 ): Future[bool] {.async: (raises: [CancelledError]).} =
+  debug "Setting up HPService"
+
   var hasBeenSetup = await procCall Service(self).setup(switch)
   hasBeenSetup = hasBeenSetup and await self.autonatService.setup(switch)
 
-  if hasBeenSetup:
-    try:
-      let dcutrProto = Dcutr.new(switch)
-      switch.mount(dcutrProto)
-    except LPError as err:
-      error "Failed to mount Dcutr", err = err.msg
+  if not hasBeenSetup:
+    return false
+  
+  try:
+    let dcutrProto = Dcutr.new(switch)
+    switch.mount(dcutrProto)
+  except LPError as err:
+    error "Failed to mount Dcutr", err = err.msg
 
-    self.newConnectedPeerHandler = proc(
-        peerId: PeerId, event: PeerEvent
-    ) {.async: (raises: [CancelledError]).} =
-      await newConnectedPeerHandler(self, switch, peerId, event)
+  self.newConnectedPeerHandler = proc(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    await newConnectedPeerHandler(self, switch, peerId, event)
 
-    switch.connManager.addPeerEventHandler(
-      self.newConnectedPeerHandler, PeerEventKind.Joined
-    )
+  switch.connManager.addPeerEventHandler(
+    self.newConnectedPeerHandler, PeerEventKind.Joined
+  )
 
-    self.onNewStatusHandler = proc(
-        networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NetworkReachability.NotReachable and
-          not self.autoRelayService.isRunning():
-        discard await self.autoRelayService.setup(switch)
-      elif networkReachability == NetworkReachability.Reachable and
-          self.autoRelayService.isRunning():
-        discard await self.autoRelayService.stop(switch)
+  self.onNewStatusHandler = proc(
+      networkReachability: NetworkReachability, confidence: Opt[float]
+  ) {.async: (raises: [CancelledError]).} =
+    if networkReachability == NetworkReachability.NotReachable and
+        not self.autoRelayService.isRunning():
+      discard await self.autoRelayService.setup(switch)
+    elif networkReachability == NetworkReachability.Reachable and
+        self.autoRelayService.isRunning():
+      discard await self.autoRelayService.stop(switch)
 
-      # We do it here instead of in the AutonatService because this is useful only when hole punching.
-      for t in switch.transports:
-        t.networkReachability = networkReachability
+    # We do it here instead of in the AutonatService because this is useful only when hole punching.
+    for t in switch.transports:
+      t.networkReachability = networkReachability
 
-    self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
-  return hasBeenSetup
+  self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
+  
+  return true
 
 method run*(
     self: HPService, switch: Switch
 ) {.public, async: (raises: [CancelledError]).} =
+  debug "Starting up HPService"
   await self.autonatService.run(switch)
 
 method stop*(
