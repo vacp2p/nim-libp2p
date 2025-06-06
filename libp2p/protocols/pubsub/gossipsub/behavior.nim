@@ -690,7 +690,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
     for peer in allPeers:
       control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
       for msgId in ihave.messageIDs:
-        peer.sentIHaves[^1].incl(msgId)
+        peer.sentIHaves[0].incl(msgId)
 
   libp2p_gossipsub_cache_window_size.set(cacheWindowSize.int64)
 
