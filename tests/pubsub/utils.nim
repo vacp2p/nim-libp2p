@@ -185,6 +185,7 @@ proc generateNodes*(
     opportunisticGraftThreshold: float = 0.0,
     historyLength = 20,
     historyGossip = 5,
+    gossipThreshold = -100.0,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -213,6 +214,7 @@ proc generateNodes*(
             p.overheadRateLimit = overheadRateLimit
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
             p.opportunisticGraftThreshold = opportunisticGraftThreshold
+            p.gossipThreshold = gossipThreshold
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p

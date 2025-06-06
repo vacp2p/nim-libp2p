@@ -249,7 +249,7 @@ suite "GossipSub Heartbeat":
     checkUntilTimeout:
       peer.iDontWants.len == historyLength
 
-    # When Node0 sends 5 messages to the topic 
+    # When Node0 sends 5 messages to the topic
     const msgCount = 5
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
@@ -282,6 +282,7 @@ suite "GossipSub Heartbeat":
       topic = "foobar"
       heartbeatInterval = 200.milliseconds
       historyLength = 3
+      gossipThreshold = -100.0
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
@@ -289,6 +290,7 @@ suite "GossipSub Heartbeat":
         dValues =
           some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
         heartbeatInterval = heartbeatInterval,
+        gossipThreshold = gossipThreshold,
       )
       .toGossipSub()
 
@@ -300,25 +302,45 @@ suite "GossipSub Heartbeat":
     await waitForHeartbeat(heartbeatInterval)
 
     # Find Peer outside of mesh to which Node 0 will send IHave
-    let peer =
+    let peerOutsideMesh =
       nodes[0].gossipsub[topic].toSeq().filterIt(it notin nodes[0].mesh[topic])[0]
 
     # Wait for history to populate
     checkUntilTimeout:
-      peer.sentIHaves.len == historyLength
+      peerOutsideMesh.sentIHaves.len == historyLength
 
-    # When Node0 sends a messages to the topic
-    tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
+    # When a nodeOutsideMesh receives an IHave message, it responds with an IWant to request the full message from Node0
+    # Setting `peer.score < gossipThreshold` to prevent the nodeOutsideMesh from sending the IWant
+    # As when IWant is processed, messages are removed from sentIHaves history 
+    let nodeOutsideMesh = nodes.getNodeByPeerId(peerOutsideMesh.peerId)
+    for p in nodeOutsideMesh.gossipsub[topic].toSeq():
+      p.score = 2 * gossipThreshold
+
+    # When NodeInsideMesh sends a messages to the topic
+    let peerInsideMesh = nodes[0].mesh[topic].toSeq()[0]
+    let nodeInsideMesh = nodes.getNodeByPeerId(peerInsideMesh.peerId)
+    tryPublish await nodeInsideMesh.publish(topic, newSeq[byte](1000)), 1
 
     # When next heartbeat occurs
     # Then IHave is sent and sentIHaves is populated 
     checkUntilTimeout:
-      peer.sentIHaves[^1].len == 1
+      peerOutsideMesh.sentIHaves[0].len == 1
 
-    # Need to clear mCache as node would keep populating sentIHaves
+    # Need to clear mCache as node would keep populating sentIHaves until cache is shifted enough times
     nodes[0].clearMCache()
 
-    # When next heartbeat occurs 
-    # Then last element of sentIHaves history is pruned 
-    checkUntilTimeout:
-      peer.sentIHaves[^1].len == 0
+    for i in 0 ..< historyLength:
+      # When heartbeat happens
+      # And history moves (new element added at start, last element pruned)
+      checkUntilTimeout:
+        peerOutsideMesh.sentIHaves[i].len == 0
+
+      # Then sentIHaves messages are moved to the next element
+      var expectedHistory = newSeqWith(historyLength, 0)
+      let nextIndex = i + 1
+      if nextIndex < historyLength:
+        expectedHistory[nextIndex] = 1
+
+      # Until they reach last element and are pruned
+      checkUntilTimeout:
+        peerOutsideMesh.sentIHaves.mapIt(it.len) == expectedHistory
