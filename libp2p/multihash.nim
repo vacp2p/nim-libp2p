@@ -567,7 +567,7 @@ proc init*(mhtype: typedesc[MultiHash], data: string): MhResult[MultiHash] {.inl
 proc init58*(mhtype: typedesc[MultiHash], data: string): MultiHash {.inline.} =
   ## Create MultiHash from BASE58 encoded string representation ``data``.
   if MultiHash.decode(Base58.decode(data), result) == -1:
-    raise newException(MultihashError, "Incorrect MultiHash binary format")
+    raise newException(MultihashError, "Incorrect MultiHash binary format in init58")
 
 proc cmp(a: openArray[byte], b: openArray[byte]): bool {.inline.} =
   if len(a) != len(b):

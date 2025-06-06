@@ -458,7 +458,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       try:
         g.mesh[topic]
       except KeyError:
-        raiseAssert "have peers"
+        raiseAssert "have peers: " & getCurrentExceptionMsg()
     )
     # avoid pruning peers we are currently grafting in this heartbeat
     prunes.keepIf do(x: PubSubPeer) -> bool:
@@ -514,7 +514,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       try:
         g.mesh[topic]
       except KeyError:
-        raiseAssert "have peers"
+        raiseAssert "have peers: " & getCurrentExceptionMsg()
     )
     # grafting so high score has priority
     peers.sort(byScore, SortOrder.Descending)

@@ -218,7 +218,7 @@ method init*(g: GossipSub) =
     try:
       await g.handleConn(conn, proto)
     except CancelledError as exc:
-      trace "Unexpected cancellation in gossipsub handler", conn
+      trace "Unexpected cancellation in gossipsub handler", conn, description = exc.msg
       raise exc
 
   g.handler = handler

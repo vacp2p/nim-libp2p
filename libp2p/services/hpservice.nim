@@ -55,7 +55,7 @@ proc tryStartingDirectConn(
       if not isRelayed.get(false) and address.isPublicMA():
         return await tryConnect(address)
     except CatchableError as err:
-      debug "Failed to create direct connection.", err = err.msg
+      debug "Failed to create direct connection.", description = err.msg
       continue
   return false
 
@@ -91,7 +91,7 @@ proc newConnectedPeerHandler(
   except CancelledError as err:
     raise err
   except CatchableError as err:
-    debug "Hole punching failed during dcutr", err = err.msg
+    debug "Hole punching failed during dcutr", description = err.msg
 
 method setup*(
     self: HPService, switch: Switch
@@ -104,7 +104,7 @@ method setup*(
       let dcutrProto = Dcutr.new(switch)
       switch.mount(dcutrProto)
     except LPError as err:
-      error "Failed to mount Dcutr", err = err.msg
+      error "Failed to mount Dcutr", description = err.msg
 
     self.newConnectedPeerHandler = proc(
         peerId: PeerId, event: PeerEvent

@@ -70,7 +70,7 @@ proc bridge*(
       try: # https://github.com/status-im/nim-chronos/issues/516
         discard await race(futSrc, futDst)
       except ValueError:
-        raiseAssert("Futures list is not empty")
+        raiseAssert("Futures list is not empty: " & getCurrentExceptionMsg())
       if futSrc.finished():
         bufRead = await futSrc
         if bufRead > 0:

@@ -233,7 +233,7 @@ proc upgrader(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    raise newException(UpgradeError, e.msg, e)
+    raise newException(UpgradeError, "catchable error upgrader: " & e.msg, e)
 
 proc upgradeMonitor(
     switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
@@ -275,7 +275,8 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
           await transport.accept()
         except CatchableError as exc:
           slot.release()
-          raise exc
+          raise
+            newException(CatchableError, "failed to accept connection: " & exc.msg, exc)
       slot.trackConnection(conn)
       if isNil(conn):
         # A nil connection means that we might have hit a

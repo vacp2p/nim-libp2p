@@ -160,7 +160,9 @@ method start*(
         else:
           HttpServer.create(address, handshakeTimeout = self.handshakeTimeout)
       except CatchableError as exc:
-        raise (ref WsTransportError)(msg: exc.msg, parent: exc)
+        raise (ref WsTransportError)(
+          msg: "error in WsTransport start: " & exc.msg, parent: exc
+        )
 
     self.httpservers &= httpserver
 
@@ -309,7 +311,9 @@ method accept*(
     debug "OS Error", description = exc.msg
   except CatchableError as exc:
     info "Unexpected error accepting connection", description = exc.msg
-    raise newException(transport.TransportError, exc.msg, exc)
+    raise newException(
+      transport.TransportError, "Error in WsTransport accept: " & exc.msg, exc
+    )
 
 method dial*(
     self: WsTransport,
@@ -338,7 +342,9 @@ method dial*(
     raise e
   except CatchableError as e:
     safeClose(transp)
-    raise newException(transport.TransportDialError, e.msg, e)
+    raise newException(
+      transport.TransportDialError, "error in WsTransport dial: " & e.msg, e
+    )
 
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):

@@ -76,7 +76,7 @@ proc dial*(
     if not dstPeerId.init(($(sma[^1].tryGet())).split('/')[2]):
       raise newException(RelayDialError, "Destination doesn't exist")
   except RelayDialError as e:
-    raise e
+    raise newException(RelayDialError, "dial address not valid: " & e.msg, e)
   except CatchableError:
     raise newException(RelayDialError, "dial address not valid")
 
@@ -100,13 +100,13 @@ proc dial*(
     raise e
   except DialFailedError as e:
     safeClose(rc)
-    raise newException(RelayDialError, "dial relay peer failed", e)
+    raise newException(RelayDialError, "dial relay peer failed: " & e.msg, e)
   except RelayV1DialError as e:
     safeClose(rc)
-    raise e
+    raise newException(RelayV1DialError, "dial relay v1 failed: " & e.msg, e)
   except RelayV2DialError as e:
     safeClose(rc)
-    raise e
+    raise newException(RelayV2DialError, "dial relay v2 failed: " & e.msg, e)
 
 method dial*(
     self: RelayTransport,
@@ -121,7 +121,8 @@ method dial*(
     except CancelledError as e:
       raise e
     except CatchableError as e:
-      raise newException(transport.TransportDialError, e.msg, e)
+      raise
+        newException(transport.TransportDialError, "Caught error in dial: " & e.msg, e)
 
 method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
   try:
