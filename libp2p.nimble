@@ -62,7 +62,7 @@ task testfilter, "Run PKI filter test":
   runTest("testpkifilter")
   runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
-task testautotls, "Runs AutoTLS tests":
+task testautotls_integration, "Runs AutoTLS tests":
   runTest("testautotls_integration")
 
 task test, "Runs the test suite":
