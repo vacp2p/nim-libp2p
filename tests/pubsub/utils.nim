@@ -129,7 +129,6 @@ proc setupGossipSubWithPeers*(
 
 proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
   await allFuturesThrowing(conns.mapIt(it.close()))
-  await gossipSub.switch.stop()
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =

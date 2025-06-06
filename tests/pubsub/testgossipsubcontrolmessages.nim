@@ -1,6 +1,7 @@
 {.used.}
 
 import std/[sequtils]
+import stew/byteutils
 import utils
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
@@ -511,3 +512,32 @@ suite "GossipSub Control Messages":
     check:
       toSeq(nodeC.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
       toSeq(nodeA.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
+
+  asyncTest "Max IDONTWANT messages per heartbeat per peer":
+    # Given GossipSub node with 1 peer
+    let
+      topic = "foobar"
+      totalPeers = 1
+
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(totalPeers, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let peer = peers[0]
+
+    # And sequence of iDontWants with more messages than max number (1200)
+    proc generateMessageIds(count: int): seq[MessageId] =
+      return (0 ..< count).mapIt(("msg_id_" & $it & $Moment.now()).toBytes())
+
+    let iDontWants =
+      @[
+        ControlIWant(messageIDs: generateMessageIds(600)),
+        ControlIWant(messageIDs: generateMessageIds(600)),
+      ]
+
+    # When node handles iDontWants
+    gossipSub.handleIDontWant(peer, iDontWants)
+
+    # Then it saves max 1001 messages in the history and the rest is dropped
+    check:
+      peer.iDontWants[0].len == 1001
