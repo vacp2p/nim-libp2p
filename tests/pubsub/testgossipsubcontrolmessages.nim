@@ -538,6 +538,6 @@ suite "GossipSub Control Messages":
     # When node handles iDontWants
     gossipSub.handleIDontWant(peer, iDontWants)
 
-    # Then it saves max 1001 messages in the history and the rest is dropped
+    # Then it saves max IDontWantMaxCount messages in the history and the rest is dropped
     check:
-      peer.iDontWants[0].len == 1001
+      peer.iDontWants[0].len == IDontWantMaxCount
