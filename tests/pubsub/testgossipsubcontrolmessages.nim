@@ -148,9 +148,8 @@ suite "GossipSub Control Messages":
     n0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
     n1.broadcast(@[p0], RPCMsg(control: some(graftMessage)), isHighPriority = false)
 
-    await waitForPeersInTable(
-      nodes, topic, newSeqWith(numberOfNodes, 1), PeerTableType.Mesh
-    )
+    checkUntilTimeout:
+      nodes.allIt(it.mesh.getOrDefault(topic).len == 1)
 
     # Then the peers are GRAFTed
     check:
