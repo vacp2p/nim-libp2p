@@ -85,7 +85,6 @@ type
     topicID*: string
     messageID*: MessageId
     messageLength*: uint32
-  
   ControlIMReceiving* = object
     messageID*: MessageId
     messageLength*: uint32
@@ -194,22 +193,18 @@ proc byteSize(controlPrune: ControlPrune): int =
 static:
   expectedFields(ControlPreamble, @["topicID", "messageID", "messageLength"])
 proc byteSize(controlPreamble: ControlPreamble): int =
-  controlPreamble.topicID.len + controlPreamble.messageID.len + 4
-    # 4 bytes for uint32
+  controlPreamble.topicID.len + controlPreamble.messageID.len + 4 # 4 bytes for uint32
 
 proc byteSize*(preambles: seq[ControlPreamble]): int =
   preambles.foldl(a + b.byteSize, 0)
 
-
 static:
   expectedFields(ControlIMReceiving, @["messageID", "messageLength"])
 proc byteSize(controlIMreceiving: ControlIMReceiving): int =
-  controlIMreceiving.messageID.len + 4
-    # 4 bytes for uint32
+  controlIMreceiving.messageID.len + 4 # 4 bytes for uint32
 
 proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
-
 
 static:
   expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving"])
@@ -217,7 +212,8 @@ proc byteSize(control: ControlMessage): int =
   control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
     control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
     control.idontwant.foldl(a + b.byteSize, 0) +
-    control.preamble.foldl(a + b.byteSize, 0) + control.imreceiving.foldl(a + b.byteSize, 0)
+    control.preamble.foldl(a + b.byteSize, 0) +
+    control.imreceiving.foldl(a + b.byteSize, 0)
 
 static:
   expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])

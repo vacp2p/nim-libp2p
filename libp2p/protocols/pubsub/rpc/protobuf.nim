@@ -257,7 +257,8 @@ proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[ControlIMReceiving] {.inli
   else:
     trace "decodeIMReceiving: messageID is missing"
   if ?pb.getField(2, control.messageLength):
-    trace "decodeIMReceiving: read message Length", message_length = control.messageLength
+    trace "decodeIMReceiving: read message Length",
+      message_length = control.messageLength
   else:
     trace "decodeIMReceiving: message Length is missing"
   ok(control)
@@ -290,10 +291,10 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     if ?cpb.getRepeatedField(5, idontwant):
       for item in idontwant:
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
-    if ? cpb.getRepeatedField(6, preamble):
+    if ?cpb.getRepeatedField(6, preamble):
       for item in preamble:
         control.preamble.add(?decodePreamble(initProtoBuffer(item)))
-    if ? cpb.getRepeatedField(7, imreceiving):
+    if ?cpb.getRepeatedField(7, imreceiving):
       for item in imreceiving:
         control.imreceiving.add(?decodeIMReceiving(initProtoBuffer(item)))
     trace "decodeControl: message statistics",
