@@ -305,7 +305,7 @@ proc handleIHave*(
 proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWant]) =
   for dontWant in iDontWants:
     for messageId in dontWant.messageIDs:
-      if peer.iDontWants[0].len > 1000:
+      if peer.iDontWants[0].len >= IDontWantMaxCount:
         break
       peer.iDontWants[0].incl(g.salt(messageId))
 
@@ -538,8 +538,8 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
               it.peerId notin backingOff:
             avail.add(it)
 
-            # by spec, grab only 2
-            if avail.len > 1:
+            # by spec, grab only up to MaxOpportunisticGraftPeers
+            if avail.len >= MaxOpportunisticGraftPeers:
               break
 
       for peer in avail:
