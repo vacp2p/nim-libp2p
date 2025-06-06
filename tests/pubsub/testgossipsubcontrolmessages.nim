@@ -527,9 +527,7 @@ suite "GossipSub Control Messages":
 
     # And sequence of iDontWants with more messages than max number (1200)
     proc generateMessageIds(count: int): seq[MessageId] =
-      result = newSeq[MessageId](count)
-      for i in 0 ..< count:
-        result[i] = ("msg_id_" & $i & $Moment.now()).toBytes()
+      return (0 ..< count).mapIt(("msg_id_" & $it & $Moment.now()).toBytes())
 
     let iDontWants =
       @[
