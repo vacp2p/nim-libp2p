@@ -58,9 +58,23 @@ suite "GossipSubParams validation":
     params.gossipThreshold = -0.1
     check params.validateParameters().isOk()
 
+  test "pruneBackoff fails when zero":
+    const errorMessage =
+      "gossipsub: pruneBackoff parameter error, Must be at least 1 second"
+    var params = newDefaultValidParams()
+    params.pruneBackoff = 0.seconds
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "pruneBackoff succeeds when positive":
+    var params = newDefaultValidParams()
+    params.pruneBackoff = 1.seconds
+    check params.validateParameters().isOk()
+
   test "unsubscribeBackoff fails when zero":
     const errorMessage =
-      "gossipsub: unsubscribeBackoff parameter error, Must be > 0 seconds"
+      "gossipsub: unsubscribeBackoff parameter error, Must be at least 1 second"
     var params = newDefaultValidParams()
     params.unsubscribeBackoff = 0.seconds
     let res = params.validateParameters()
