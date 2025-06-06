@@ -129,7 +129,6 @@ proc setupGossipSubWithPeers*(
 
 proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
   await allFuturesThrowing(conns.mapIt(it.close()))
-  await gossipSub.switch.stop()
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
@@ -186,6 +185,7 @@ proc generateNodes*(
     opportunisticGraftThreshold: float = 0.0,
     historyLength = 20,
     historyGossip = 5,
+    gossipThreshold = -100.0,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -214,6 +214,7 @@ proc generateNodes*(
             p.overheadRateLimit = overheadRateLimit
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
             p.opportunisticGraftThreshold = opportunisticGraftThreshold
+            p.gossipThreshold = gossipThreshold
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
