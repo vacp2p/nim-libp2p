@@ -50,7 +50,7 @@ const
   # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572
   # go: https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L155
   IHaveMaxLength* = 5000
-  IDontWantMaxCount = 1000 # maximum number of IDontWant messages in history
+  IDontWantMaxCount* = 1000 # maximum number of IDontWant messages in history
 
 type
   TopicInfo* = object # gossip 1.1 related
