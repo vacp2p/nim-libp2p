@@ -305,7 +305,7 @@ proc handleIHave*(
 proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWant]) =
   for dontWant in iDontWants:
     for messageId in dontWant.messageIDs:
-      if peer.iDontWants[0].len > 1000:
+      if peer.iDontWants[0].len >= IDontWantMaxCount:
         break
       peer.iDontWants[0].incl(g.salt(messageId))
 
