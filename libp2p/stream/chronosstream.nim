@@ -34,8 +34,6 @@ when defined(libp2p_agents_metrics):
   declareCounter libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"]
   declareCounter libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"]
 
-declareCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
-
 func shortLog*(conn: ChronosStream): auto =
   try:
     if conn == nil:
