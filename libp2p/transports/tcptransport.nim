@@ -287,7 +287,7 @@ method dial*(
   let ta = initTAddress(address).valueOr:
     raise (ref TcpTransportError)(msg: "Unsupported address: " & $address)
 
-  trace "Dialing remote peer", address = $address
+  debug "Dialing remote peer 111", address = $address
   let transp =
     try:
       await(
@@ -300,8 +300,10 @@ method dial*(
           connect(ta, flags = self.clientFlags)
       )
     except CancelledError as exc:
+      debug "tcp connect cancelled"
       raise exc
     except CatchableError as exc:
+      debug "tcp connect got error", msg = exc.msg
       raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
 
   # If `stop` is called after `connect` but before `await` returns, we might
@@ -320,6 +322,7 @@ method dial*(
       safeCloseWait(transp)
       raise (ref TcpTransportError)(msg: exc.msg)
 
+  debug "Dialing remote peer BEFORE CONN HANDLER"
   self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.raises: [].} =
