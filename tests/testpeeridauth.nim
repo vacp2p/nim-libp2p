@@ -11,13 +11,16 @@
 
 {.push raises: [].}
 
+import json, uri
 import chronos
 import chronos/apps/http/httpclient
 import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth, wire]
 
 import ./helpers
 
-const AuthPeerURL = "https://registration.libp2p.direct/v1/_acme-challenge"
+const
+  AuthPeerURL = "https://registration.libp2p.direct/v1/_acme-challenge"
+  HttpPeerAuthFailed = 401
 
 suite "PeerID Auth":
   var api {.threadvar.}: PeerIDAuthApi
@@ -29,8 +32,8 @@ suite "PeerID Auth":
 
   asyncSetup:
     let rng = newRng()
-    api = PeerIDAuthApi.new(rng[])
-    peerInfo = PeerInfo.new(KeyPair.random(PKScheme.RSA, rng[]).get())
+    api = PeerIDAuthApi.new(rng)
+    peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng[]).get())
 
   asyncTest "test peerID send":
     let payload =
@@ -44,12 +47,11 @@ suite "PeerID Auth":
         ]
       }
 
-    # check without bearer
-    let bearer = await api.send(peerInfo, AuthPeerURL, payload)
-    check bearer.len > 0
+    let (bearer, responseWithoutBearer) =
+      await api.sendWithoutBearer(parseUri(AuthPeerURL), peerInfo, payload)
+    check responseWithoutBearer.status != HttpPeerAuthFailed
+    doAssert bearer.token.len > 0
 
-    # check with bearer
-    api.bearer = Opt.some(bearer)
-    let bearer = await api.send(peerInfo, AuthPeerURL, payload)
-    # TODO: check if thing was sent
-    check false
+    let responseWithBearer =
+      await api.sendWithBearer(parseUri(AuthPeerURL), peerInfo, payload, bearer)
+    check responseWithBearer.status != HttpPeerAuthFailed

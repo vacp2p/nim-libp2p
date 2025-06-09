@@ -1,4 +1,4 @@
-import base64, json, strutils
+import base64, json, strutils, uri, times
 import chronos/apps/http/httpclient, results, chronicles, bio
 import ./peerinfo, ./crypto/crypto
 
@@ -13,13 +13,15 @@ const ChallengeDefaultLen = 48
 
 type PeerIDAuthError* = object of LPError
 
-type BearerToken* = string
+type BearerToken* = object
+  token*: string
+  expires*: Opt[DateTime]
+
 type PeerIDAuthChallenge = string
 type PeerIDAuthOpaque = string
 type PeerIDAuthSignature = string
 
 type PeerIDAuthApi* = object
-  bearer*: Opt[BearerToken]
   session: HttpSessionRef
   rng: ref HmacDrbgContext
 
@@ -31,6 +33,7 @@ type PeerIDAuthAuthenticationResponse* = object
 type PeerIDAuthAuthorizationResponse* = object
   sig: PeerIDAuthSignature
   bearer: BearerToken
+  rawResponse: HttpClientResponseRef
 
 type SigParam = object
   k: string
@@ -38,6 +41,14 @@ type SigParam = object
 
 proc new*(T: typedesc[PeerIDAuthApi], rng: ref HmacDrbgContext): PeerIDAuthApi =
   PeerIDAuthApi(session: HttpSessionRef.new(), rng: rng)
+
+proc sampleChar(ctx: var HmacDrbgContext, choices: string): char =
+  ## Samples a random character from the input string using the DRBG context
+  if choices.len == 0:
+    raise newException(ValueError, "Cannot sample from an empty string")
+  var idx: uint32
+  ctx.generate(idx)
+  return choices[uint32(idx mod uint32(choices.len))]
 
 proc randomChallenge(
     rng: ref HmacDrbgContext, challengeLen: int = ChallengeDefaultLen
@@ -129,14 +140,12 @@ proc checkSignature(
   )
 
 proc post(
-    self: PeerIDAuthApi, url: string, payload: string, authHeader: string
-): Future[HttpClientResponseRef] {.
-    async: (raises: [ACMEError, HttpError, CancelledError])
-.} =
+    self: PeerIDAuthApi, uri: string, payload: string, authHeader: string
+): Future[HttpClientResponseRef] {.async: (raises: [HttpError, CancelledError]).} =
   await HttpClientRequestRef
   .post(
     self.session,
-    url,
+    uri,
     body = payload,
     headers = [
       ("Content-Type", "application/json"),
@@ -148,13 +157,13 @@ proc post(
   .send()
 
 proc requestAuthentication(
-    self: PeerIDAuthApi, url: string
+    self: PeerIDAuthApi, uri: Uri
 ): Future[PeerIDAuthAuthenticationResponse] {.
     async: (raises: [PeerIDAuthError, CancelledError])
 .} =
   let rawResponse =
     try:
-      await HttpClientRequestRef.get(self.session, url).get().send()
+      await HttpClientRequestRef.get(self.session, $uri).get().send()
     except HttpError as exc:
       raise newException(PeerIDAuthError, "Failed to start PeerID Auth", exc)
 
@@ -185,11 +194,18 @@ proc pubkeyBytes(pubkey: PublicKey): seq[byte] {.raises: [PeerIDAuthError].} =
       PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey", exc
     )
 
+proc parse3339DateTime(timeStr: string): DateTime =
+  let parts = timeStr.split('.')
+  let base = parse(parts[0], "yyyy-MM-dd'T'HH:mm:ss")
+  let millis = parseInt(parts[1].strip(chars = {'Z'}))
+  result = base + initDuration(milliseconds = millis)
+
 proc requestAuthorization(
     self: PeerIDAuthApi,
     peerInfo: PeerInfo,
-    url: string,
+    uri: Uri,
     challengeClient: PeerIDAuthChallenge,
+    challengeServer: PeerIDAuthChallenge,
     serverPubkey: PublicKey,
     opaque: PeerIDAuthOpaque,
     payload: auto,
@@ -197,66 +213,76 @@ proc requestAuthorization(
     async: (raises: [PeerIDAuthError, CancelledError])
 .} =
   let clientPubkeyB64 = peerInfo.publicKey.pubkeyBytes().encode(safe = true)
-  let sig = peerInfo.privateKey.sign(challengeClient, serverPubkey, hostname)
+  let sig = peerInfo.privateKey.sign(challengeClient, serverPubkey, uri.hostname)
   let authHeader =
     PeerIDAuthPrefix & " public-key=\"" & clientPubkeyB64 & "\"" & ", opaque=\"" & opaque &
-    "\"" & ", challenge-server=\"" & self.rng.randomChallenge() & "\"" & ", sig=\"" & sig &
-    "\""
+    "\"" & ", challenge-server=\"" & challengeServer & "\"" & ", sig=\"" & sig & "\""
   let rawResponse =
     try:
-      await self.post(url, $payload, authHeader)
+      await self.post($uri, $payload, authHeader)
     except HttpError as exc:
       raise newException(
         PeerIDAuthError, "Failed to send Authorization for PeerID Auth", exc
       )
 
-  let authenticationInfo =
-    authorizationResponse.headers.getString("authentication-info")
+  let authenticationInfo = rawResponse.headers.getString("authentication-info")
+
+  let bearerExpires =
+    try:
+      Opt.some(parse3339DateTime(extractField(authenticationInfo, "expires")))
+    except ValueError, PeerIDAuthError:
+      Opt.none(DateTime)
 
   PeerIDAuthAuthorizationResponse(
     sig: PeerIDAuthSignature(extractField(authenticationInfo, "sig")),
-    bearer: BearerToken(extractField(authenticationInfo, "bearer")),
+    bearer: BearerToken(
+      token: extractField(authenticationInfo, "bearer"), expires: bearerExpires
+    ),
+    rawResponse: rawResponse,
   )
 
-proc authenticate(
-    self: PeerIDAuthApi,
-    url: string,
-    hostname: string,
-    peerInfo: PeerInfo,
-    payload: auto,
-): Future[BearerToken] {.async: (raises: [PeerIDAuthError, CancelledError]).} =
+proc sendWithoutBearer*(
+    self: PeerIDAuthApi, uri: Uri, peerInfo: PeerInfo, payload: auto
+): Future[(BearerToken, HttpClientResponseRef)] {.
+    async: (raises: [PeerIDAuthError, CancelledError])
+.} =
   # Authenticate in three ways as per the PeerID Auth spec
   # https://github.com/libp2p/specs/blob/master/http/peer-id-auth.md
 
-  let authenticationResponse = await self.requestAuthentication(url)
+  let authenticationResponse = await self.requestAuthentication(uri)
 
+  let challengeServer = self.rng.randomChallenge()
   let authorizationResponse = await self.requestAuthorization(
-    peerInfo, url, authenticationResponse.challengeClient,
-    authenticationResponse.serverPubkey, payload,
+    peerInfo, uri, authenticationResponse.challengeClient, challengeServer,
+    authenticationResponse.serverPubkey, authenticationResponse.opaque, payload,
   )
 
   if not checkSignature(
-    authorizationResponse.sig, authenticationResponse.serverPubkey,
-    authenticationResponse.challengeServer, peerInfo.publicKey, hostname,
+    authorizationResponse.sig, authenticationResponse.serverPubkey, challengeServer,
+    peerInfo.publicKey, uri.hostname,
   ):
     raise newException(PeerIDAuthError, "Failed to validate server's signature")
 
-  return authorizationResponse.bearer
+  return (authorizationResponse.bearer, authorizationResponse.rawResponse)
 
-proc send*(
-    self: PeerIDAuthApi, peerInfo: PeerInfo, url: string, payload: auto
-): Future[void] {.async: (raises: [AutoTLSError, PeerIDAuthError, CancelledError]).} =
-  if self.bearer.isNone:
-    self.bearer = Opt.some(await self.authenticate(url, session, peerInfo, payload))
-    return
-
-  let authHeader = PeerIDAuthPrefix & " bearer=\"" & self.bearer.get & "\""
-  try:
-    await self.post(url, $payload, authHeader)
-  except HttpError as exc:
-    raise newException(
-      PeerIDAuthError, "Failed to send request with bearer token for PeerID Auth", exc
-    )
+proc sendWithBearer*(
+    self: PeerIDAuthApi,
+    uri: Uri,
+    peerInfo: PeerInfo,
+    payload: auto,
+    bearer: BearerToken,
+): Future[HttpClientResponseRef] {.async: (raises: [PeerIDAuthError, CancelledError]).} =
+  if bearer.expires.isSome and DateTime(bearer.expires.get) < now():
+    raise newException(PeerIDAuthError, "Bearer expired")
+  let authHeader = PeerIDAuthPrefix & " bearer=\"" & bearer.token & "\""
+  let rawResponse =
+    try:
+      await self.post($uri, $payload, authHeader)
+    except HttpError as exc:
+      raise newException(
+        PeerIDAuthError, "Failed to send request with bearer token for PeerID Auth", exc
+      )
+  return rawResponse
 
 proc close*(self: PeerIDAuthApi): Future[void] {.async: (raises: [CancelledError]).} =
   await self.session.closeWait()
