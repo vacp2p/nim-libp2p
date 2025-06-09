@@ -110,6 +110,35 @@ macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): u
     else:
       `elseBody`
 
+template withNone*[T](self: Opt[T] | Option[T], body: untyped): untyped =
+  ## This template provides a convenient way to work with `Option` types in Nim.
+  ## It allows you to execute a block of code (`body`) only when the `Option` is empty.
+  ## This the opposite of what withValue does.
+  ##
+  ## `self` is the `Option` instance being checked.
+  ## `body` is a block of code that is executed only if `self` is none.
+  ##
+  ## Example:
+  ## ```nim
+  ## let myOpt = Opt.none(int)
+  ## myOpt.withNone:
+  ##   echo "myOpt is none!"
+  ## ```
+  ##
+  ## Note: This is a template, and it will be inlined at the call site, offering good performance.
+  let temp = (self)
+  if temp.isNone:
+    body
+
+template withNone*[T, E](self: Result[T, E], body: untyped): untyped =
+  self.toOpt().withNone(body)
+
+macro withNone*[T](self: Opt[T] | Option[T], body, elseStmt: untyped): untyped =
+  let elseBody = elseStmt[0]
+  quote:
+    let temp = (`self`)
+    if temp.isNone: `body` else: `elseBody`
+
 template valueOr*[T](self: Option[T], body: untyped): untyped =
   let temp = (self)
   if temp.isSome:

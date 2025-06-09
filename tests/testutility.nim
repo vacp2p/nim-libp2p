@@ -70,7 +70,7 @@ suite "Utility":
     check not (compiles do:
       result: uint = safeConvert[int](11.uint))
 
-suite "withValue and valueOr templates":
+suite "withValue, withNone and valueOr templates":
   type
     TestObj = ref object
       x: int
@@ -140,6 +140,44 @@ suite "withValue and valueOr templates":
       v.x.inc()
 
     check obj.x == 8
+
+  test "withNone calls right branch when Opt/Option is some":
+    var counter = 0
+    # check Opt/Option withNone with else
+    Opt.some(counter).withNone:
+      fail()
+    else:
+      counter.inc()
+    Opt.some(counter).withNone:
+      fail()
+    else:
+      counter.inc()
+    check counter == 2
+
+    # check Opt/Option withValue without else
+    Opt.some(counter).withNone:
+      fail()
+    Opt.some(counter).withNone:
+      fail()
+
+  test "withNone calls right branch when Opt/Option is none":
+    var counter = 1
+    # check Opt/Option withValue with else
+    Opt.none(int).withNone:
+      counter.inc()
+    else:
+      fail()
+    none(int).withNone:
+      counter.inc()
+    else:
+      fail()
+
+    # check Opt/Option withValue without else
+    Opt.none(int).withNone:
+      counter.inc()
+    none(int).withNone:
+      counter.inc()
+    check counter == 5
 
   test "valueOr calls with and without proc call":
     var obj = none(TestObj).valueOr:
