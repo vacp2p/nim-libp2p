@@ -1,7 +1,8 @@
 import std/sequtils
-import pkg/chronos
-import pkg/chronicles
-import pkg/quic
+import chronos
+import chronicles
+import metrics
+import quic
 import results
 import ../multiaddress
 import ../multicodec
@@ -58,6 +59,7 @@ method readOnce*(
     result = min(nbytes, stream.cached.len)
     copyMem(pbytes, addr stream.cached[0], result)
     stream.cached = stream.cached[result ..^ 1]
+    libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
   except CatchableError as exc:
     raise newLPStreamEOFError()
 
@@ -66,6 +68,7 @@ method write*(
     stream: QuicStream, bytes: seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   mapExceptions(await stream.stream.write(bytes))
+  libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
 
 {.pop.}
 

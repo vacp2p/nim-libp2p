@@ -52,6 +52,8 @@ func shortLog*(conn: Connection): string =
 chronicles.formatIt(Connection):
   shortLog(it)
 
+declarePublicCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
+
 method initStream*(s: Connection) =
   if s.objName.len == 0:
     s.objName = ConnectionTrackerName
