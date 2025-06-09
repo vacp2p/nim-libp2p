@@ -54,7 +54,10 @@ proc perf*(
 
   while size > 0:
     let toRead = min(size, PerfSize)
-    await conn.readExactly(addr buf[0], toRead.int)
+    try:
+      await conn.readExactly(addr buf[0], toRead.int)
+    except LPStreamClosedError:
+      break
     size = size - toRead
     p.stats.duration = Moment.now() - start
     p.stats.downloadBytes += toRead
