@@ -241,7 +241,7 @@ proc requestAuthorization(
     rawResponse: rawResponse,
   )
 
-proc sendWithoutBearer*(
+proc sendWithoutBearer(
     self: PeerIDAuthApi, uri: Uri, peerInfo: PeerInfo, payload: auto
 ): Future[(BearerToken, HttpClientResponseRef)] {.
     async: (raises: [PeerIDAuthError, CancelledError])
@@ -265,14 +265,16 @@ proc sendWithoutBearer*(
 
   return (authorizationResponse.bearer, authorizationResponse.rawResponse)
 
-proc sendWithBearer*(
+proc sendWithBearer(
     self: PeerIDAuthApi,
     uri: Uri,
     peerInfo: PeerInfo,
     payload: auto,
     bearer: BearerToken,
-): Future[HttpClientResponseRef] {.async: (raises: [PeerIDAuthError, CancelledError]).} =
-  if bearer.expires.isSome and DateTime(bearer.expires.get) < now():
+): Future[(BearerToken, HttpClientResponseRef)] {.
+    async: (raises: [PeerIDAuthError, CancelledError])
+.} =
+  if bearer.expires.isSome and DateTime(bearer.expires.get) <= now():
     raise newException(PeerIDAuthError, "Bearer expired")
   let authHeader = PeerIDAuthPrefix & " bearer=\"" & bearer.token & "\""
   let rawResponse =
@@ -282,7 +284,21 @@ proc sendWithBearer*(
       raise newException(
         PeerIDAuthError, "Failed to send request with bearer token for PeerID Auth", exc
       )
-  return rawResponse
+  return (bearer, rawResponse)
+
+proc send*(
+    self: PeerIDAuthApi,
+    uri: Uri,
+    peerInfo: PeerInfo,
+    payload: auto,
+    bearer: BearerToken = BearerToken(),
+): Future[(BearerToken, HttpClientResponseRef)] {.
+    async: (raises: [PeerIDAuthError, CancelledError])
+.} =
+  if bearer.token == "":
+    await self.sendWithoutBearer(uri, peerInfo, payload)
+  else:
+    await self.sendWithBearer(uri, peerInfo, payload, bearer)
 
 proc close*(self: PeerIDAuthApi): Future[void] {.async: (raises: [CancelledError]).} =
   await self.session.closeWait()

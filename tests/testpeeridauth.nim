@@ -48,10 +48,10 @@ suite "PeerID Auth":
       }
 
     let (bearer, responseWithoutBearer) =
-      await api.sendWithoutBearer(parseUri(AuthPeerURL), peerInfo, payload)
+      await api.send(parseUri(AuthPeerURL), peerInfo, payload)
     check responseWithoutBearer.status != HttpPeerAuthFailed
     doAssert bearer.token.len > 0
 
-    let responseWithBearer =
-      await api.sendWithBearer(parseUri(AuthPeerURL), peerInfo, payload, bearer)
+    let (_, responseWithBearer) =
+      await api.send(parseUri(AuthPeerURL), peerInfo, payload, bearer)
     check responseWithBearer.status != HttpPeerAuthFailed
