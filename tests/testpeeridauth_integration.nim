@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -17,6 +15,9 @@ import chronos/apps/http/httpclient
 import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth, wire]
 
 import ./helpers
+
+when defined(linux) and defined(amd64):
+  {.used.}
 
 const
   AuthPeerURL = "https://registration.libp2p.direct/v1/_acme-challenge"

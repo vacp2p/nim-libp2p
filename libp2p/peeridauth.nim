@@ -1,15 +1,26 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+{.push raises: [].}
+
 import base64, json, strutils, uri, times
 import chronos/apps/http/httpclient, results, chronicles, bio
 import ./peerinfo, ./crypto/crypto, ./varint.nim
 
 logScope:
-  topics = "libp2p peerid auth"
+  topics = "libp2p peeridauth"
 
-const NimLibp2pUserAgent = "nim-libp2p"
-const PeerIDAuthPrefix = "libp2p-PeerID"
-const ChallengeCharset =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-const ChallengeDefaultLen = 48
+const
+  NimLibp2pUserAgent = "nim-libp2p"
+  PeerIDAuthPrefix = "libp2p-PeerID"
+  ChallengeCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  ChallengeDefaultLen = 48
 
 type PeerIDAuthError* = object of LPError
 
@@ -17,9 +28,9 @@ type BearerToken* = object
   token*: string
   expires*: Opt[DateTime]
 
-type PeerIDAuthChallenge = string
 type PeerIDAuthOpaque = string
 type PeerIDAuthSignature = string
+type PeerIDAuthChallenge = string
 
 type PeerIDAuthApi* = object
   session: HttpSessionRef
@@ -42,7 +53,9 @@ type SigParam = object
 proc new*(T: typedesc[PeerIDAuthApi], rng: ref HmacDrbgContext): PeerIDAuthApi =
   PeerIDAuthApi(session: HttpSessionRef.new(), rng: rng)
 
-proc sampleChar(ctx: var HmacDrbgContext, choices: string): char =
+proc sampleChar(
+    ctx: var HmacDrbgContext, choices: string
+): char {.raises: [ValueError].} =
   ## Samples a random character from the input string using the DRBG context
   if choices.len == 0:
     raise newException(ValueError, "Cannot sample from an empty string")
@@ -187,7 +200,9 @@ proc pubkeyBytes(pubkey: PublicKey): seq[byte] {.raises: [PeerIDAuthError].} =
       PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey", exc
     )
 
-proc parse3339DateTime(timeStr: string): DateTime =
+proc parse3339DateTime(
+    timeStr: string
+): DateTime {.raises: [ValueError, TimeParseError].} =
   let parts = timeStr.split('.')
   let base = parse(parts[0], "yyyy-MM-dd'T'HH:mm:ss")
   let millis = parseInt(parts[1].strip(chars = {'Z'}))
@@ -223,8 +238,7 @@ proc requestAuthorization(
   let bearerExpires =
     try:
       Opt.some(parse3339DateTime(extractField(authenticationInfo, "expires")))
-    except ValueError, PeerIDAuthError:
-      debug "'expires' field not found in bearer response"
+    except ValueError, PeerIDAuthError, TimeParseError:
       Opt.none(DateTime)
 
   PeerIDAuthAuthorizationResponse(
