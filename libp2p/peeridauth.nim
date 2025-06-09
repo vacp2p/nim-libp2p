@@ -1,6 +1,6 @@
 import base64, json, strutils, uri, times
 import chronos/apps/http/httpclient, results, chronicles, bio
-import ./peerinfo, ./crypto/crypto
+import ./peerinfo, ./crypto/crypto, ./varint.nim
 
 logScope:
   topics = "libp2p peerid auth"
@@ -69,21 +69,14 @@ proc extractField(data, key: string): string {.raises: [PeerIDAuthError].} =
       return segment.split("=", 1)[1].strip(chars = {' ', '"'})
   raise newException(PeerIDAuthError, "Failed to find " & key & " in " & data)
 
-proc encodeVarint(n: int): seq[byte] =
-  var varInt: seq[byte] = @[]
-  var x = uint64(n)
-  while x != 0:
-    var byteVal = byte(x and 0x7F)
-    x = x shr 7
-    if x != 0:
-      byteVal = byteVal or 0x80
-    varInt.add(byteVal)
-  return varInt
-
-proc genDataToSign(parts: seq[SigParam], prefix: string = PeerIDAuthPrefix): seq[byte] =
+proc genDataToSign(
+    parts: seq[SigParam], prefix: string = PeerIDAuthPrefix
+): seq[byte] {.raises: [PeerIDAuthError].} =
   var buf: seq[byte] = prefix.toByteSeq()
   for p in parts:
-    buf.add encodeVarint(p.k.len + p.v.len + 1)
+    let varintLen = PB.encodeVarint(hint(p.k.len + p.v.len + 1)).valueOr:
+      raise newException(PeerIDAuthError, "could not encode fields length to varint")
+    buf.add varintLen
     buf.add (p.k & "=").toByteSeq()
     buf.add p.v
   return buf
@@ -110,7 +103,7 @@ proc sign(
     publicKey: PublicKey,
     hostname: string,
     clientSender: bool = true,
-): PeerIDAuthSignature =
+): PeerIDAuthSignature {.raises: [PeerIDAuthError].} =
   let bytesToSign =
     getSigParams(clientSender, hostname, challenge, publicKey).genDataToSign()
   PeerIDAuthSignature(
@@ -150,7 +143,7 @@ proc post(
     headers = [
       ("Content-Type", "application/json"),
       ("User-Agent", NimLibp2pUserAgent),
-      ("authorization", authHeader),
+      ("Authorization", authHeader),
     ],
   )
   .get()
@@ -231,6 +224,7 @@ proc requestAuthorization(
     try:
       Opt.some(parse3339DateTime(extractField(authenticationInfo, "expires")))
     except ValueError, PeerIDAuthError:
+      debug "'expires' field not found in bearer response"
       Opt.none(DateTime)
 
   PeerIDAuthAuthorizationResponse(
