@@ -34,4 +34,4 @@ import
   testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
   testhpservice, testutility, testhelpers, testwildcardresolverservice
 
-import kademlia/testencoding
+import kademlia/[testencoding, testroutingtable]
