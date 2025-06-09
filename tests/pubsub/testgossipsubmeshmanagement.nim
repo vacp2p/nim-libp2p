@@ -9,8 +9,9 @@
 
 {.used.}
 
-import utils
 import chronicles
+import std/[sequtils]
+import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../helpers
 
@@ -401,28 +402,24 @@ suite "GossipSub Mesh Management":
     await waitForHeartbeat()
 
     # Then all nodes should be subscribed to the topics initially
-    for i in 0 ..< numberOfNodes:
-      let node = nodes[i]
-      for j in 0 ..< topics.len:
-        let topic = topics[j]
-        checkUntilTimeout:
-          node.topics.contains(topic)
-          node.gossipsub[topic].len() == numberOfNodes - 1
-          node.mesh[topic].len() == numberOfNodes - 1
+    for i in 0 ..< topics.len:
+      let topic = topics[i]
+      checkUntilTimeout:
+        nodes.allIt(it.topics.contains(topic))
+        nodes.allIt(it.gossipsub.getOrDefault(topic).len() == numberOfNodes - 1)
+        nodes.allIt(it.mesh.getOrDefault(topic).len() == numberOfNodes - 1)
 
     # When they unsubscribe from all topics
     for topic in topics:
       unsubscribeAllNodes(nodes, topic, voidTopicHandler)
 
     # Then topics should be removed from mesh and gossipsub
-    for i in 0 ..< numberOfNodes:
-      let node = nodes[i]
-      for j in 0 ..< topics.len:
-        let topic = topics[j]
-        checkUntilTimeout:
-          topic notin node.topics
-          topic notin node.mesh
-          topic notin node.gossipsub
+    for i in 0 ..< topics.len:
+      let topic = topics[i]
+      checkUntilTimeout:
+        nodes.allIt(not it.topics.contains(topic))
+        nodes.allIt(topic notin it.gossipsub)
+        nodes.allIt(topic notin it.mesh)
 
   asyncTest "Unsubscribe backoff":
     const

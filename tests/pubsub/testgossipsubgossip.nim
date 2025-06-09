@@ -306,15 +306,13 @@ suite "GossipSub Gossip Protocol":
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)
-    check (await nodes[0].publish(topic, largeMsg)) == 1
-    await waitForHeartbeat()
+    tryPublish await nodes[0].publish(topic, largeMsg), 1
 
     # Only node 2 should have received the iDontWant message
-    let receivedIDontWants = messages[].mapIt(it[].len)
-    check:
-      receivedIDontWants[0] == 0
-      receivedIDontWants[1] == 0
-      receivedIDontWants[2] == 1
+    checkUntilTimeout:
+      messages[].mapIt(it[].len)[2] == 1
+      messages[].mapIt(it[].len)[1] == 0
+      messages[].mapIt(it[].len)[0] == 0
 
   asyncTest "e2e - GossipSub peer exchange":
     # A, B & C are subscribed to something
