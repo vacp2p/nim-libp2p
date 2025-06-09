@@ -257,7 +257,7 @@ suite "GossipSub Heartbeat":
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Then Node1 receives 5 iDontWant messages from Node0
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(3.seconds, 50.milliseconds):
       peer.iDontWants[0].len == msgCount
 
     for i in 0 ..< historyLength:
