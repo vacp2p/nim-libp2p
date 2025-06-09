@@ -609,7 +609,9 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="broadcast" href="#broadcast"><span>broadcast:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)" href="libp2p/protocols/pubsub/pubsub.html#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool">pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)</a></li>
+          data-doc-search-tag="pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool;
+          useCustomConn: bool = false)" href="libp2p/protocols/pubsub/pubsub.html#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool%2Cbool">pubsub: broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool;
+          useCustomConn: bool = false)</a></li>
           </ul></dd>
 <dt><a name="BufferStream" href="#BufferStream"><span>BufferStream:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -1006,6 +1008,18 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="Curver25519GenError" href="#Curver25519GenError"><span>Curver25519GenError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="Curve25519Error.Curver25519GenError" href="libp2p/crypto/curve25519.html#Curver25519GenError">Curve25519Error.Curver25519GenError</a></li>
+          </ul></dd>
+<dt><a name="CustomConnCreationProc" href="#CustomConnCreationProc"><span>CustomConnCreationProc:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: CustomConnCreationProc" href="libp2p/protocols/pubsub/pubsubpeer.html#CustomConnCreationProc">pubsubpeer: CustomConnCreationProc</a></li>
+          </ul></dd>
+<dt><a name="CustomConnectionCallbacks" href="#CustomConnectionCallbacks"><span>CustomConnectionCallbacks:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: CustomConnectionCallbacks" href="libp2p/protocols/pubsub/pubsubpeer.html#CustomConnectionCallbacks">pubsubpeer: CustomConnectionCallbacks</a></li>
+          </ul></dd>
+<dt><a name="CustomPeerSelectionProc" href="#CustomPeerSelectionProc"><span>CustomPeerSelectionProc:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsubpeer: CustomPeerSelectionProc" href="libp2p/protocols/pubsub/pubsubpeer.html#CustomPeerSelectionProc">pubsubpeer: CustomPeerSelectionProc</a></li>
           </ul></dd>
 <dt><a name="D2Const" href="#D2Const"><span>D2Const:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -2594,14 +2608,18 @@ window.addEventListener('DOMContentLoaded', main);
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false): P:type" href="libp2p/protocols/pubsub/pubsub.html#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams">pubsub: init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
+                               parameters: PubParams = false;
+    customConnCallbacks: Option[CustomConnectionCallbacks] = none(
+    CustomConnectionCallbacks)): P:type" href="libp2p/protocols/pubsub/pubsub.html#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams%2COption%5BCustomConnectionCallbacks%5D">pubsub: init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
                                triggerSelf: bool = false;
                                anonymize: bool = false;
                                verifySignature: bool = true; sign: bool = true;
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false): P:type</a></li>
+                               parameters: PubParams = false;
+    customConnCallbacks: Option[CustomConnectionCallbacks] = none(
+    CustomConnectionCallbacks)): P:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="message: init(T: type Message; peer: Option[PeerInfo]; data: seq[byte]; topic: string;
      seqno: Option[uint64]; sign: bool = true): Message" href="libp2p/protocols/pubsub/rpc/message.html#init%2CtypeMessage%2COption%5BPeerInfo%5D%2Cseq%5Bbyte%5D%2Cstring%2COption%5Buint64%5D%2Cbool">message: init(T: type Message; peer: Option[PeerInfo]; data: seq[byte]; topic: string;
@@ -2809,7 +2827,7 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="join" href="#join"><span>join:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="lpstream: join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/stream/lpstream.html#join%2CLPStream">lpstream: join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]</a></li>
+          data-doc-search-tag="lpstream: join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]" href="libp2p/stream/lpstream.html#join.e%2CLPStream">lpstream: join(s: LPStream): InternalRaisesFuture[void, (CancelledError,)]</a></li>
           </ul></dd>
 <dt><a name="key" href="#key"><span>key:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -3415,9 +3433,13 @@ window.addEventListener('DOMContentLoaded', main);
           <li><a class="reference external"
           data-doc-search-tag="pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2Cint%2COpt%5BTokenBucket%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket);
+    customConnCallbacks: Option[CustomConnectionCallbacks] = none(
+    CustomConnectionCallbacks)): T:type" href="libp2p/protocols/pubsub/pubsubpeer.html#new%2Ctypedesc%5BPubSubPeer%5D%2CPeerId%2CGetConn%2COnEvent%2Cstring%2Cint%2Cint%2COpt%5BTokenBucket%5D%2COption%5BCustomConnectionCallbacks%5D">pubsubpeer: new(T: typedesc[PubSubPeer]; peerId: PeerId; getConn: GetConn; onEvent: OnEvent;
     codec: string; maxMessageSize: int; maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue;
-    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket)): T:type</a></li>
+    overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket);
+    customConnCallbacks: Option[CustomConnectionCallbacks] = none(
+    CustomConnectionCallbacks)): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng();
     minDuration = MinimumDuration; maxDuration = MaximumDuration): T:type" href="libp2p/protocols/rendezvous.html#new%2Ctypedesc%5BRendezVous%5D%2Cref.HmacDrbgContext">rendezvous: new(T: typedesc[RendezVous]; rng: ref HmacDrbgContext = newRng();
@@ -3937,17 +3959,17 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="publish" href="#publish"><span>publish:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="floodsub: publish(f: FloodSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]" href="libp2p/protocols/pubsub/floodsub.html#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D">floodsub: publish(f: FloodSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]</a></li>
+          data-doc-search-tag="floodsub: publish(f: FloodSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]" href="libp2p/protocols/pubsub/floodsub.html#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool">floodsub: publish(f: FloodSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="gossipsub: publish(g: GossipSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]" href="libp2p/protocols/pubsub/gossipsub.html#publish.e%2CGossipSub%2Cstring%2Cseq%5Bbyte%5D">gossipsub: publish(g: GossipSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]</a></li>
+          data-doc-search-tag="gossipsub: publish(g: GossipSub; topic: string; data: seq[byte];
+        useCustomConn: bool = false): InternalRaisesFuture[int, void]" href="libp2p/protocols/pubsub/gossipsub.html#publish.e%2CGossipSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool">gossipsub: publish(g: GossipSub; topic: string; data: seq[byte];
+        useCustomConn: bool = false): InternalRaisesFuture[int, void]</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pubsub: publish(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]" href="libp2p/protocols/pubsub/pubsub.html#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D">pubsub: publish(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]</a></li>
+          data-doc-search-tag="pubsub: publish(p: PubSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]" href="libp2p/protocols/pubsub/pubsub.html#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool">pubsub: publish(p: PubSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]</a></li>
           </ul></dd>
 <dt><a name="PubSub" href="#PubSub"><span>PubSub:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -4102,21 +4124,21 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="readExactly" href="#readExactly"><span>readExactly:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
-    void, (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readExactly%2CLPStream%2Cpointer%2Cint">lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
+    void, (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readExactly.e%2CLPStream%2Cpointer%2Cint">lpstream: readExactly(s: LPStream; pbytes: pointer; nbytes: int): InternalRaisesFuture[
     void, (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readLine" href="#readLine"><span>readLine:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: readLine(s: LPStream; limit = 0; sep = &quot;\r
 &quot;): InternalRaisesFuture[string,
-    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readLine%2CLPStream%2Cint%2Cstring">lpstream: readLine(s: LPStream; limit = 0; sep = &quot;\r
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readLine.e%2CLPStream%2Cint%2Cstring">lpstream: readLine(s: LPStream; limit = 0; sep = &quot;\r
 &quot;): InternalRaisesFuture[string,
     (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readLp" href="#readLp"><span>readLp:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: readLp(s: LPStream; maxSize: int): InternalRaisesFuture[seq[byte],
-    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readLp%2CLPStream%2Cint">lpstream: readLp(s: LPStream; maxSize: int): InternalRaisesFuture[seq[byte],
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readLp.e%2CLPStream%2Cint">lpstream: readLp(s: LPStream; maxSize: int): InternalRaisesFuture[seq[byte],
     (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="readMessage" href="#readMessage"><span>readMessage:</span></a></dt><dd><ul class="simple">
@@ -4172,7 +4194,7 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="readVarint" href="#readVarint"><span>readVarint:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: readVarint(conn: LPStream): InternalRaisesFuture[uint64,
-    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readVarint%2CLPStream">lpstream: readVarint(conn: LPStream): InternalRaisesFuture[uint64,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#readVarint.e%2CLPStream">lpstream: readVarint(conn: LPStream): InternalRaisesFuture[uint64,
     (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="vbuffer: readVarint(vb: var VBuffer; value: var LPSomeUVarint): int" href="libp2p/vbuffer.html#readVarint%2CVBuffer%2CLPSomeUVarint">vbuffer: readVarint(vb: var VBuffer; value: var LPSomeUVarint): int</a></li>
@@ -4657,13 +4679,19 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="send" href="#send"><span>send:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)" href="libp2p/protocols/pubsub/pubsub.html#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool">pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)</a></li>
+          data-doc-search-tag="pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool;
+     useCustomConn: bool = false)" href="libp2p/protocols/pubsub/pubsub.html#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool%2Cbool">pubsub: send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool;
+     useCustomConn: bool = false)</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool; isHighPriority: bool)" href="libp2p/protocols/pubsub/pubsubpeer.html#send%2CPubSubPeer%2CRPCMsg%2Cbool%2Cbool">pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool; isHighPriority: bool)</a></li>
+          data-doc-search-tag="pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool; isHighPriority: bool;
+     useCustomConn: bool = false)" href="libp2p/protocols/pubsub/pubsubpeer.html#send%2CPubSubPeer%2CRPCMsg%2Cbool%2Cbool%2Cbool">pubsubpeer: send(p: PubSubPeer; msg: RPCMsg; anonymize: bool; isHighPriority: bool;
+     useCustomConn: bool = false)</a></li>
           </ul></dd>
 <dt><a name="sendEncoded" href="#sendEncoded"><span>sendEncoded:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]; isHighPriority: bool): Future[void]" href="libp2p/protocols/pubsub/pubsubpeer.html#sendEncoded%2CPubSubPeer%2Cseq%5Bbyte%5D%2Cbool">pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]; isHighPriority: bool): Future[void]</a></li>
+          data-doc-search-tag="pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]; isHighPriority: bool;
+            useCustomConn: bool = false): Future[void]" href="libp2p/protocols/pubsub/pubsubpeer.html#sendEncoded%2CPubSubPeer%2Cseq%5Bbyte%5D%2Cbool%2Cbool">pubsubpeer: sendEncoded(p: PubSubPeer; msg: seq[byte]; isHighPriority: bool;
+            useCustomConn: bool = false): Future[void]</a></li>
           </ul></dd>
 <dt><a name="sendHopStatus" href="#sendHopStatus"><span>sendHopStatus:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5700,11 +5728,11 @@ window.addEventListener('DOMContentLoaded', main);
 <dt><a name="writeLp" href="#writeLp"><span>writeLp:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: writeLp(s: LPStream; msg: openArray[byte]): InternalRaisesFuture[void,
-    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#writeLp%2CLPStream%2CopenArray%5Bbyte%5D">lpstream: writeLp(s: LPStream; msg: openArray[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#writeLp.e%2CLPStream%2CopenArray%5Bbyte%5D">lpstream: writeLp(s: LPStream; msg: openArray[byte]): InternalRaisesFuture[void,
     (CancelledError, LPStreamError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="lpstream: writeLp(s: LPStream; msg: string): InternalRaisesFuture[void,
-    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#writeLp%2CLPStream%2Cstring">lpstream: writeLp(s: LPStream; msg: string): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]" href="libp2p/stream/lpstream.html#writeLp.e%2CLPStream%2Cstring">lpstream: writeLp(s: LPStream; msg: string): InternalRaisesFuture[void,
     (CancelledError, LPStreamError)]</a></li>
           </ul></dd>
 <dt><a name="writeLPVarint" href="#writeLPVarint"><span>writeLPVarint:</span></a></dt><dd><ul class="simple">
@@ -5816,7 +5844,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-09 16:23:26 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-09 17:38:49 UTC</small>
       </div>
     </div>
   </div>

@@ -269,7 +269,8 @@ window.addEventListener("DOMContentLoaded", main2);
                        ## 
                        ##  defaults to 1mB
   rng*: ref HmacDrbgContext
-  knownTopics*: HashSet[string]">PubSub</a></li>
+  knownTopics*: HashSet[string]
+  customConnCallbacks*: Option[CustomConnectionCallbacks]">PubSub</a></li>
   <li><a class="reference" href="#SubscriptionValidator"
     title="SubscriptionValidator {.public.} = proc (topic: string): bool {.raises: [],
     gcsafe.}">SubscriptionValidator</a></li>
@@ -303,8 +304,10 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">broadcast
-      <li><a class="reference" href="#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool"
-    title="broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)">broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool)</a></li>
+      <li><a class="reference" href="#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool%2Cbool"
+    title="broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool;
+          useCustomConn: bool = false)">broadcast(p: PubSub; sendPeers: auto; msg: RPCMsg; isHighPriority: bool;
+          useCustomConn: bool = false)</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">handleData
@@ -315,7 +318,7 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">init
-      <li><a class="reference" href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams"
+      <li><a class="reference" href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams%2COption%5BCustomConnectionCallbacks%5D"
     title="init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
                                triggerSelf: bool = false;
                                anonymize: bool = false;
@@ -323,14 +326,18 @@ window.addEventListener("DOMContentLoaded", main2);
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false): P:type">init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
+                               parameters: PubParams = false;
+    customConnCallbacks: Option[CustomConnectionCallbacks] = none(
+    CustomConnectionCallbacks)): P:type">init[PubParams: object | bool](P: typedesc[PubSub]; switch: Switch;
                                triggerSelf: bool = false;
                                anonymize: bool = false;
                                verifySignature: bool = true; sign: bool = true;
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider; subscriptionValidator: SubscriptionValidator = nil;
                                maxMessageSize: int = 1024 * 1024;
                                rng: ref HmacDrbgContext = newRng();
-                               parameters: PubParams = false): P:type</a></li>
+                               parameters: PubParams = false;
+    customConnCallbacks: Option[CustomConnectionCallbacks] = none(
+    CustomConnectionCallbacks)): P:type</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">removeObserver
@@ -339,8 +346,10 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">send
-      <li><a class="reference" href="#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool"
-    title="send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)">send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool)</a></li>
+      <li><a class="reference" href="#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool%2Cbool"
+    title="send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool;
+     useCustomConn: bool = false)">send(p: PubSub; peer: PubSubPeer; msg: RPCMsg; isHighPriority: bool;
+     useCustomConn: bool = false)</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">sendSubs
@@ -411,10 +420,10 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">publish
-      <li><a class="reference" href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D"
-    title="publish(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]">publish(p: PubSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]</a></li>
+      <li><a class="reference" href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool"
+    title="publish(p: PubSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]">publish(p: PubSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">removeValidator
@@ -733,6 +742,7 @@ class="link-seesrc" target="_blank">Source</a>
                        <span class="Comment">##  defaults to 1mB</span>
   <span class="Identifier">rng</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span>
   <span class="Identifier">knownTopics</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">HashSet</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
+  <span class="Identifier">customConnCallbacks</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><a href="pubsubpeer.html#CustomConnectionCallbacks"><span class="Identifier">CustomConnectionCallbacks</span></a><span class="Other">]</span>
 </pre></dt>
 <dd>
 
@@ -836,15 +846,15 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L700"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L716"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L700" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L716" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="broadcast,PubSub,auto,RPCMsg,bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool"><span class="Identifier">broadcast</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">sendPeers</span><span class="Other">:</span> <span class="Identifier">auto</span><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span> <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">)</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="broadcast,PubSub,auto,RPCMsg,bool,bool" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#broadcast%2CPubSub%2Cauto%2CRPCMsg%2Cbool%2Cbool"><span class="Identifier">broadcast</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">sendPeers</span><span class="Other">:</span> <span class="Identifier">auto</span><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span> <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span>
+               <span class="Identifier">useCustomConn</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>This procedure attempts to send a <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> (of type <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt>) to a specified group of peers in the PubSub network.</p>
@@ -857,9 +867,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L205"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L210"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L205" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L210" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -871,14 +881,14 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L392"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L404"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L392" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L404" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="init,typedesc[PubSub],Switch,bool,bool,bool,bool,MsgIdProvider,SubscriptionValidator,int,ref.HmacDrbgContext,PubParams" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">PubParams</span><span class="Other">:</span> <span class="Keyword">object</span> <span class="Operator">|</span> <span class="Identifier">bool</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">P</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">switch</span><span class="Other">:</span> <a href="../../transports/transport.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">;</span>
+<div id="init,typedesc[PubSub],Switch,bool,bool,bool,bool,MsgIdProvider,SubscriptionValidator,int,ref.HmacDrbgContext,PubParams,Option[CustomConnectionCallbacks]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BPubSub%5D%2CSwitch%2Cbool%2Cbool%2Cbool%2Cbool%2CMsgIdProvider%2CSubscriptionValidator%2Cint%2Cref.HmacDrbgContext%2CPubParams%2COption%5BCustomConnectionCallbacks%5D"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">PubParams</span><span class="Other">:</span> <span class="Keyword">object</span> <span class="Operator">|</span> <span class="Identifier">bool</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">P</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">switch</span><span class="Other">:</span> <a href="../../transports/transport.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">;</span>
                                     <span class="Identifier">triggerSelf</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
                                     <span class="Identifier">anonymize</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
                                     <span class="Identifier">verifySignature</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span>
@@ -886,15 +896,17 @@ class="link-seesrc" target="_blank">Source</a>
     <span class="Identifier">subscriptionValidator</span><span class="Other">:</span> <a href="pubsub.html#SubscriptionValidator"><span class="Identifier">SubscriptionValidator</span></a> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">;</span>
                                     <span class="Identifier">maxMessageSize</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="DecNumber">1024</span> <span class="Operator">*</span> <span class="DecNumber">1024</span><span class="Other">;</span>
                                     <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span> <span class="Other">=</span> <span class="Identifier">newRng</span><span class="Other">(</span><span class="Other">)</span><span class="Other">;</span>
-                                    <span class="Identifier">parameters</span><span class="Other">:</span> <span class="Identifier">PubParams</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">P:type</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><a href="pubsub.html#InitializationError"><span class="Identifier">InitializationError</span></a><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+                                    <span class="Identifier">parameters</span><span class="Other">:</span> <span class="Identifier">PubParams</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
+    <span class="Identifier">customConnCallbacks</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><a href="pubsubpeer.html#CustomConnectionCallbacks"><span class="Identifier">CustomConnectionCallbacks</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">none</span><span class="Other">(</span>
+    <a href="pubsubpeer.html#CustomConnectionCallbacks"><span class="Identifier">CustomConnectionCallbacks</span></a><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">P:type</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><a href="pubsub.html#InitializationError"><span class="Identifier">InitializationError</span></a><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L639"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L651"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L639" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L651" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -905,16 +917,16 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L703"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L719"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L703" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L719" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="send,PubSub,PubSubPeer,RPCMsg,bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool"><span class="Identifier">send</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span> <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">)</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="send,PubSub,PubSubPeer,RPCMsg,bool,bool" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#send%2CPubSub%2CPubSubPeer%2CRPCMsg%2Cbool%2Cbool"><span class="Identifier">send</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <a href="rpc/messages.html#RPCMsg"><span class="Identifier">RPCMsg</span></a><span class="Other">;</span> <span class="Identifier">isHighPriority</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span>
+          <span class="Identifier">useCustomConn</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>This procedure attempts to send a <tt class="docutils literal"><span class="pre"><span class="Identifier">msg</span></span></tt> (of type <tt class="docutils literal"><span class="pre"><span class="Identifier">RPCMsg</span></span></tt>) to the specified remote peer in the PubSub network.</p>
@@ -927,9 +939,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L189"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L190"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L189" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L190" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -940,9 +952,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 send subscriptions to remote peer
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L271"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L277"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L271" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L277" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -958,9 +970,9 @@ class="link-seesrc" target="_blank">Source</a>
 </dl>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L534"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L546"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L534" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L546" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -971,9 +983,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe from a <tt class="docutils literal"><span class="pre">topic</span></tt> string 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L505"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L517"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L505" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L517" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -984,9 +996,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe from a list of <tt class="docutils literal"><span class="pre">topic</span></tt> handlers
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L518"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L530"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L518" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L530" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -997,9 +1009,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 unsubscribe every <tt class="docutils literal"><span class="pre"><span class="Identifier">handler</span></span></tt> from <tt class="docutils literal"><span class="pre"><span class="Identifier">topic</span></span></tt>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L523"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L535"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L523" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L535" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1009,9 +1021,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L289"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L295"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L289" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L295" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1027,9 +1039,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Add a validator to a <tt class="docutils literal"><span class="pre"><span class="Identifier">topic</span></span></tt>. Each new message received in this will be sent to <tt class="docutils literal"><span class="pre"><span class="Identifier">hook</span></span></tt>. <tt class="docutils literal"><span class="pre"><span class="Identifier">hook</span></span></tt> can return either <tt class="docutils literal"><span class="pre"><span class="Identifier">Accept</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">Ignore</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">Reject</span></span></tt> (which can descore the peer)
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L580"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L592"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L580" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L592" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1041,9 +1053,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L354"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L360"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L354" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L360" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1061,9 +1073,9 @@ class="link-seesrc" target="_blank">Source</a>
 </ol>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L430"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L442"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L430" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L442" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1074,9 +1086,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 perform pubsub initialization
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L574"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L586"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L574" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L586" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1087,9 +1099,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L341"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L347"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L341" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L347" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1100,25 +1112,26 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L486"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L498"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L486" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L498" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="publish.e,PubSub,string,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D"><span class="Identifier">publish</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-                 <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="publish.e,PubSub,string,seq[byte],bool" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool"><span class="Identifier">publish</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="pubsub.html#PubSub"><span class="Identifier">PubSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
+               <span class="Identifier">useCustomConn</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>publish to a <tt class="docutils literal"><span class="pre">topic</span></tt></p>
 <p>The return value is the number of neighbours that we attempted to send the message to, excluding self. Note that this is an optimistic number of attempts - the number of peers that actually receive the message might be lower.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L562"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L574"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L562" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L574" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1129,9 +1142,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L590"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L602"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L590" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L602" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1144,9 +1157,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Handler that must be overridden by concrete implementation
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L333"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L339"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L333" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L339" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1157,9 +1170,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 subscribe to remote peer to receive/send pubsub messages 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L461"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L473"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L461" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L473" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1170,9 +1183,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 handle peer disconnects 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L180"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L181"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L180" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L181" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1184,9 +1197,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L601"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsub.nim#L613"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L601" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsub.nim#L613" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -1205,7 +1218,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-09 16:23:25 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-09 17:38:48 UTC</small>
       </div>
     </div>
   </div>

@@ -261,10 +261,10 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">publish
-      <li><a class="reference" href="#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D"
-    title="publish(f: FloodSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]">publish(f: FloodSub; topic: string; data: seq[byte]): InternalRaisesFuture[int,
-    void]</a></li>
+      <li><a class="reference" href="#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool"
+    title="publish(f: FloodSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]">publish(f: FloodSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+    int, void]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">rpcHandler
@@ -419,10 +419,11 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
-<div id="publish.e,FloodSub,string,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D"><span class="Identifier">publish</span></a><span class="Other">(</span><span class="Identifier">f</span><span class="Other">:</span> <a href="floodsub.html#FloodSub"><span class="Identifier">FloodSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                 <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="publish.e,FloodSub,string,seq[byte],bool" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool"><span class="Identifier">publish</span></a><span class="Other">(</span><span class="Identifier">f</span><span class="Other">:</span> <a href="floodsub.html#FloodSub"><span class="Identifier">FloodSub</span></a><span class="Other">;</span> <span class="Identifier">topic</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
+               <span class="Identifier">useCustomConn</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.
+    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -471,7 +472,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-09 16:23:26 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-09 17:38:48 UTC</small>
       </div>
     </div>
   </div>
