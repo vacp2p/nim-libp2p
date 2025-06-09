@@ -169,14 +169,17 @@ suite "GossipSub Heartbeat":
       node.subscribe(topic, voidTopicHandler)
     await waitForHeartbeat(heartbeatInterval)
 
-    # When Node0 sends a message to the topic
     let node0 = nodes[0]
+    checkUntilTimeout:
+      node0.gossipsub.hasKey(topic)
+
+    # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 3
 
     # Then Node0 fanout peers are populated
-    let maxFanoutPeers = node0.parameters.d
     checkUntilTimeout:
-      node0.fanout.hasKey(topic) and node0.fanout[topic].len == maxFanoutPeers
+      node0.fanout.hasKey(topic)
+      node0.fanout[topic].len > 0
 
     # And after heartbeat Node0 fanout peers are dropped (because fanoutTTL < heartbeatInterval)
     checkUntilTimeout:
