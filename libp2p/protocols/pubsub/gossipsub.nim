@@ -702,24 +702,27 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-method publish*(
+proc makePeersForPublishUsingCustomConn(
+    g: GossipSub, topic: string
+): HashSet[PubSubPeer] =
+  assert g.customConnCallbacks.isSome,
+    "GossipSub misconfiguration: useCustomConn was true, but no customConnCallbacks provided"
+
+  trace "Selecting peers via custom connection callback"
+
+  return g.customConnCallbacks.get().customPeerSelectionCB(
+      g.gossipsub.getOrDefault(topic),
+      g.subscribedDirectPeers.getOrDefault(topic),
+      g.mesh.getOrDefault(topic),
+      g.fanout.getOrDefault(topic),
+    )
+
+proc makePeersForPublishDefault(
     g: GossipSub, topic: string, data: seq[byte]
-): Future[int] {.async: (raises: []).} =
-  logScope:
-    topic
-
-  if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
-    return 0
-
-  # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
-
-  trace "Publishing message on topic", data = data.shortLog
-
+): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
-  # add always direct peers
+  # Always include direct peers
   peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
   if topic in g.topics: # if we're subscribed use the mesh
@@ -769,6 +772,29 @@ method publish*(
     # ultimately is not sent)
     g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
+  return peers
+
+method publish*(
+    g: GossipSub, topic: string, data: seq[byte], useCustomConn: bool = false
+): Future[int] {.async: (raises: []).} =
+  logScope:
+    topic
+
+  if topic.len <= 0: # data could be 0/empty
+    debug "Empty topic, skipping publish"
+    return 0
+
+  # base returns always 0
+  discard await procCall PubSub(g).publish(topic, data)
+
+  trace "Publishing message on topic", data = data.shortLog
+
+  let peers =
+    if useCustomConn:
+      g.makePeersForPublishUsingCustomConn(topic)
+    else:
+      g.makePeersForPublishDefault(topic, data)
+
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
     debug "No peers for topic, skipping publish",
@@ -807,7 +833,12 @@ method publish*(
   if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
     g.sendIDontWant(msg, msgId, peers)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  g.broadcast(
+    peers,
+    RPCMsg(messages: @[msg]),
+    isHighPriority = true,
+    useCustomConn = useCustomConn,
+  )
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
