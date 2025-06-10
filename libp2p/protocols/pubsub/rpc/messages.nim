@@ -85,6 +85,7 @@ type
     topicID*: string
     messageID*: MessageId
     messageLength*: uint32
+
   ControlIMReceiving* = object
     messageID*: MessageId
     messageLength*: uint32
@@ -207,7 +208,10 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
 static:
-  expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving"])
+  expectedFields(
+    ControlMessage,
+    @["ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving"],
+  )
 proc byteSize(control: ControlMessage): int =
   control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
     control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +

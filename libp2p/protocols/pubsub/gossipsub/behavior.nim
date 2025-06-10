@@ -323,8 +323,7 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
 ): tuple[messages: seq[Message], ids: seq[MessageId]] =
-  var
-    invalidRequests = 0
+  var invalidRequests = 0
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
   else:
@@ -364,7 +363,8 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
       continue
     else:
       var toSendPeers = HashSet[PubSubPeer]()
-      g.mesh.withValue(preamble.topicID, peers): toSendPeers.incl(peers[])
+      g.mesh.withValue(preamble.topicID, peers):
+        toSendPeers.incl(peers[])
       toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
       var peers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
       let transmissionTimeMs = (preamble.messageLength.uint64 * 1000) div bytesPerSecond
@@ -374,9 +374,11 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
       if peer notin peers:
         if preamble.messageID notin g.ongoingIWantReceives:
           g.ongoingIWantReceives[preamble.messageID] = PreambleInfo(
-            messageLength: preamble.messageLength, 
-            sender: peer, startAt: starts, expiresAt: expires
-            )
+            messageLength: preamble.messageLength,
+            sender: peer,
+            startAt: starts,
+            expiresAt: expires,
+          )
         trace "preamble: ignoring out of mesh peer", peer
         continue
 
@@ -387,10 +389,22 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
         expiresAt: expires,
       )
       #TODO: send imreceiving only if received from faster mesh members
-      g.broadcast(peers, RPCMsg(control: some(ControlMessage(
-        imreceiving: @[ControlIMReceiving(messageID: preamble.messageID, 
-        messageLength: preamble.messageLength)]
-      ))), isHighPriority = true)
+      g.broadcast(
+        peers,
+        RPCMsg(
+          control: some(
+            ControlMessage(
+              imreceiving:
+                @[
+                  ControlIMReceiving(
+                    messageID: preamble.messageID, messageLength: preamble.messageLength
+                  )
+                ]
+            )
+          )
+        ),
+        isHighPriority = true,
+      )
 
 proc handleIMReceiving*(
     g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]

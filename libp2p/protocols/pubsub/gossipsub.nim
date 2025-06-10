@@ -389,13 +389,18 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
       # should we send preamble here? (Not in specs so far)
       # So receiver will send IMReciving only for preambles received from mesh members
-      preambles.add(ControlPreamble(
-        topicID: smsg.topic, messageID: msgIDs[i], messageLength: smsg.data.len.uint32
-        ))
-    
-    g.broadcast(@[peer], RPCMsg(control: some(ControlMessage(
-      preamble: preambles))), isHighPriority = true)
-      
+      preambles.add(
+        ControlPreamble(
+          topicID: smsg.topic, messageID: msgIDs[i], messageLength: smsg.data.len.uint32
+        )
+      )
+
+    g.broadcast(
+      @[peer],
+      RPCMsg(control: some(ControlMessage(preamble: preambles))),
+      isHighPriority = true,
+    )
+
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
     g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
@@ -511,9 +516,23 @@ proc validateAndRelay(
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
-    g.broadcast(preamblePeers, RPCMsg(control: some(ControlMessage(preamble: @[ControlPreamble(
-      topicID: msg.topic, messageID: msgId, messageLength: msg.data.len.uint32)]))), 
-      isHighPriority = true
+    g.broadcast(
+      preamblePeers,
+      RPCMsg(
+        control: some(
+          ControlMessage(
+            preamble:
+              @[
+                ControlPreamble(
+                  topicID: msg.topic,
+                  messageID: msgId,
+                  messageLength: msg.data.len.uint32,
+                )
+              ]
+          )
+        )
+      ),
+      isHighPriority = true,
     )
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
