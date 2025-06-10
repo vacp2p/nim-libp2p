@@ -357,10 +357,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
         .withAddress(wsAddress)
         .withRng(crypto.newRng())
         .withMplex()
-        .withTransport(
-          proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-            WsTransport.new(upgr)
-        )
+        .withWsTransport()
         .withNoise()
         .build()
 
