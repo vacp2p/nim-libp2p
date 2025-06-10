@@ -16,6 +16,8 @@
 <img src="https://img.shields.io/badge/nim-%3E%3D1.2.0-orange.svg?style=flat-square" />
 </p>
 
+tests
+
 # Table of Contents
 - [Background](#background)
 - [Install](#install)
