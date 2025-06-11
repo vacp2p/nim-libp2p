@@ -23,10 +23,13 @@ type Stats* = object
   duration*: Duration
 
 type PerfClient* = ref object
-  stats*: Stats
+  stats: Stats
 
 proc new*(T: typedesc[PerfClient]): T =
   return T()
+
+proc currentStats*(p: PerfClient): Stats =
+  p.stats
 
 proc perf*(
     p: PerfClient, conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0
@@ -73,5 +76,5 @@ proc perf*(
   p.stats.isFinal = true
 
   trace "finishing performance benchmark", p.stats.duration
-  
+
   return p.stats.duration
