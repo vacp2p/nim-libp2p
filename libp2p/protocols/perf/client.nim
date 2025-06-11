@@ -45,8 +45,12 @@ proc perf*(
     let toWrite = min(size, PerfSize)
     await conn.write(buf[0 ..< toWrite])
     size -= toWrite
-    p.stats.duration = Moment.now() - start
-    p.stats.uploadBytes += toWrite
+
+    # set stats using copy value to avoid race condition
+    var statsCopy = p.stats
+    statsCopy.duration = Moment.now() - start
+    statsCopy.uploadBytes += toWrite
+    p.stats = statsCopy
 
   await conn.close()
 
@@ -59,8 +63,12 @@ proc perf*(
     except LPStreamClosedError:
       break
     size = size - toRead
-    p.stats.duration = Moment.now() - start
-    p.stats.downloadBytes += toRead
+
+    # set stats using copy value to avoid race condition
+    var statsCopy = p.stats
+    statsCopy.duration = Moment.now() - start
+    statsCopy.downloadBytes += toRead
+    p.stats = statsCopy
 
   p.stats.isFinal = true
 
