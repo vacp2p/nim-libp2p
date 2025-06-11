@@ -61,10 +61,7 @@ proc perf*(
 
   while size > 0:
     let toRead = min(size, PerfSize)
-    try:
-      await conn.readExactly(addr buf[0], toRead.int)
-    except LPStreamClosedError:
-      break
+    await conn.readExactly(addr buf[0], toRead.int)
     size = size - toRead
 
     # set stats using copy value to avoid race condition
