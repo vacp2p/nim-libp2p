@@ -39,15 +39,12 @@ suite "kademlia protobuffers":
 
   test "peer encode/decode":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").tryGet()
-    let peer = Peer(id: @[1'u8, 2, 3], addrs: @[maddr], connection: connected)
+    let peer =
+      Peer(id: @[1'u8, 2, 3], addrs: @[maddr], connection: ConnectionType.connected)
     let encoded = peer.encode()
-    let decoded = Peer.decode(initProtoBuffer(encoded.buffer)).valFromResultOption
+    var decoded = Peer.decode(initProtoBuffer(encoded.buffer)).valFromResultOption
     check:
-      decoded.id == peer.id
-      decoded.addrs == peer.addrs
-      decoded.addrs.len == 1
-      decoded.addrs[0].data == maddr.data
-      decoded.connection == connected
+      decoded == peer
 
   test "message encode/decode roundtrip":
     let maddr = MultiAddress.init("/ip4/10.0.0.1/tcp/4001").tryGet()
@@ -63,11 +60,7 @@ suite "kademlia protobuffers":
     let encoded = msg.encode()
     let decoded = Message.decode(encoded.buffer).valFromResultOption
     check:
-      decoded.msgType == MessageType.findNode
-      decoded.key.get() == @[7'u8]
-      decoded.record.get().key.get() == @[1'u8]
-      decoded.closerPeers.len == 1
-      decoded.providerPeers.len == 1
+      decoded == msg
 
   test "decode record with missing fields":
     var pb = initProtoBuffer()
@@ -126,9 +119,7 @@ suite "kademlia protobuffers":
     let encoded = peer.encode()
     let decoded = Peer.decode(initProtoBuffer(encoded.buffer)).valFromResultOption
     check:
-      decoded.id == @[0x42'u8]
-      decoded.addrs.len == 0
-      decoded.connection == ConnectionType.notConnected
+      decoded == peer
 
   test "message with empty closer/provider peers":
     let msg = Message(
@@ -141,9 +132,7 @@ suite "kademlia protobuffers":
     let encoded = msg.encode()
     let decoded = Message.decode(encoded.buffer).valFromResultOption
     check:
-      decoded.msgType == MessageType.ping
-      decoded.closerPeers.len == 0
-      decoded.providerPeers.len == 0
+      decoded == msg
 
   test "peer with addr but missing id":
     var pb = initProtoBuffer()

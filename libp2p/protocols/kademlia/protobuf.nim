@@ -41,9 +41,7 @@ type
 
 proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [].}
 
-proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Option[T]) {.raises: [].} =
-  opt.withValue(v):
-    pb.write(field, v)
+proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Option[T]) {.raises: [].}
 
 proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
@@ -52,9 +50,6 @@ proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   pb.writeOpt(5, record.timeReceived)
   pb.finish()
   return pb
-
-proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [].} =
-  pb.write(field, value.encode())
 
 proc encode*(peer: Peer): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
@@ -84,6 +79,13 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [].} =
   pb.finish()
 
   return pb
+
+proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Option[T]) {.raises: [].} =
+  opt.withValue(v):
+    pb.write(field, v)
+
+proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [].} =
+  pb.write(field, value.encode())
 
 proc getOptionField[T: ProtoScalar | string | seq[byte]](
     pb: ProtoBuffer, field: int, output: var Option[T]
