@@ -75,6 +75,6 @@ proc perf*(
 
   p.stats.isFinal = true
 
-  trace "finishing performance benchmark", p.stats.duration
+  trace "finishing performance benchmark", duration = p.stats.duration
 
   return p.stats.duration
