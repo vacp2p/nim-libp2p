@@ -72,6 +72,6 @@ proc perf*(
 
   p.stats.isFinal = true
 
-  let duration = Moment.now() - start
-  trace "finishing performance benchmark", duration
-  return duration
+  trace "finishing performance benchmark", p.stats.duration
+  
+  return p.stats.duration
