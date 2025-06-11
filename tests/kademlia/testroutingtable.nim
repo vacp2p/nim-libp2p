@@ -19,28 +19,30 @@ proc testKey*(x: byte): Key =
   buf[31] = x
   return Key(kind: KeyType.Undefined, data: buf)
 
+let rng = crypto.newRng()
+
 suite "routing table":
-  test "insert single key in correct bucket":
+  test "inserts single key in correct bucket":
     let selfId = testKey(0)
     var rt = RoutingTable.init(selfId)
     let other = testKey(0b10000000)
-    rt.insert(other)
+    discard rt.insert(other)
 
     let idx = bucketIndex(selfId, other)
-    check rt.buckets.len > idx
-    check rt.buckets[idx].peers.len == 1
-    check rt.buckets[idx].peers[0].nodeId == other
+    check:
+      rt.buckets.len > idx
+      rt.buckets[idx].peers.len == 1
+      rt.buckets[idx].peers[0].nodeId == other
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)
     var rt = RoutingTable.init(selfId)
     let targetBucket = 6
     for _ in 0 ..< k + 5:
-      let rng = crypto.newRng()
       var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
       kid.kind = KeyType.Undefined
         # Overriding so we don't use sha for comparing xor distances
-      rt.insert(kid)
+      discard rt.insert(kid)
 
     check targetBucket < rt.buckets.len
     let bucket = rt.buckets[targetBucket]
@@ -51,12 +53,13 @@ suite "routing table":
     var rt = RoutingTable.init(selfId)
     let ids = @[testKey(1), testKey(2), testKey(3), testKey(4), testKey(5)]
     for id in ids:
-      rt.insert(id)
+      discard rt.insert(id)
 
     let res = rt.findClosest(testKey(1), 3)
 
-    check res.len == 3
-    check res[0] == testKey(1)
+    check:
+      res.len == 3
+      res[0] == testKey(1)
 
   test "isStale returns true for empty or old keys":
     var bucket: Bucket
@@ -71,7 +74,6 @@ suite "routing table":
   test "randomKeyInBucketRange returns id at correct distance":
     let selfId = testKey(0)
     let targetBucket = 3
-    let rng = crypto.newRng()
     var rid = randomKeyInBucketRange(selfId, targetBucket, rng)
     rid.kind = KeyType.Undefined
       # Overriding so we don't use sha for comparing xor distances

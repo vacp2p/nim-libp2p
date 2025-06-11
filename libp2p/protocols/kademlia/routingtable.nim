@@ -27,8 +27,7 @@ proc init*(T: typedesc[RoutingTable], selfId: Key): T =
   return RoutingTable(selfId: selfId, buckets: @[])
 
 proc bucketIndex*(selfId, key: Key): int =
-  let distance = xorDistance(selfId, key)
-  return distance.leadingZeros
+  return xorDistance(selfId, key).leadingZeros
 
 proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -36,15 +35,15 @@ proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
       return Opt.some(i)
   return Opt.none(int)
 
-proc insert*(rtable: var RoutingTable, nodeId: Key) =
+proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
-    return # No self insertion
+    return false # No self insertion
 
   let idx = bucketIndex(rtable.selfId, nodeId)
   if idx >= maxBuckets:
     trace "cannot insert node. max buckets have been reached",
       nodeId, bucketIdx = idx, maxBuckets
-    return
+    return false
 
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
@@ -54,17 +53,18 @@ proc insert*(rtable: var RoutingTable, nodeId: Key) =
   let keyx = peerIndexInBucket(bucket, nodeId)
   if keyx.isSome:
     bucket.peers[keyx.unsafeValue].lastSeen = Moment.now()
+  elif bucket.peers.len < k:
+    bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
   else:
-    if bucket.peers.len < k:
-      bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
-    else:
-      # TODO: eviction policy goes here, rn we drop the node
-      trace "cannot insert node in bucket, dropping node",
-        nodeId, bucket = k, bucketIdx = idx
+    # TODO: eviction policy goes here, rn we drop the node
+    trace "cannot insert node in bucket, dropping node",
+      nodeId, bucket = k, bucketIdx = idx
+    return false
 
   rtable.buckets[idx] = bucket
+  return true
 
-proc insert*(rtable: var RoutingTable, peerId: PeerId) =
+proc insert*(rtable: var RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
@@ -97,7 +97,7 @@ proc randomKeyInBucketRange*(
 ): Key =
   var raw = selfId.getBytes()
 
-  # zero higher bits
+  # zero out higher bits
   for i in 0 ..< bucketIndex:
     let byteIdx = i div 8
     let bitInByte = 7 - (i mod 8)

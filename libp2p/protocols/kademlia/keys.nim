@@ -38,12 +38,11 @@ template `==`*(a, b: Key): bool =
   a.getBytes() == b.getBytes()
 
 proc shortLog*(k: Key): string =
-  return
-    case k.kind
-    of KeyType.PeerId:
-      "PeerId:" & $k.peerId
-    of KeyType.Raw, KeyType.Undefined:
-      $k.kind & ":" & toHex(k.data)
+  case k.kind
+  of KeyType.PeerId:
+    "PeerId:" & $k.peerId
+  of KeyType.Raw, KeyType.Undefined:
+    $k.kind & ":" & toHex(k.data)
 
 chronicles.formatIt(Key):
   shortLog(it)
