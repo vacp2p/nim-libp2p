@@ -47,12 +47,12 @@ proc perf*(
   while size > 0:
     let toWrite = min(size, PerfSize)
     await conn.write(buf[0 ..< toWrite])
-    size -= toWrite
+    size -= toWrite.uint64
 
     # set stats using copy value to avoid race condition
     var statsCopy = p.stats
     statsCopy.duration = Moment.now() - start
-    statsCopy.uploadBytes += toWrite
+    statsCopy.uploadBytes += toWrite.uint64
     p.stats = statsCopy
 
   await conn.close()
@@ -62,12 +62,12 @@ proc perf*(
   while size > 0:
     let toRead = min(size, PerfSize)
     await conn.readExactly(addr buf[0], toRead.int)
-    size = size - toRead
+    size = size - toRead.uint64
 
     # set stats using copy value to avoid race condition
     var statsCopy = p.stats
     statsCopy.duration = Moment.now() - start
-    statsCopy.downloadBytes += toRead
+    statsCopy.downloadBytes += toRead.uint64
     p.stats = statsCopy
 
   p.stats.isFinal = true
