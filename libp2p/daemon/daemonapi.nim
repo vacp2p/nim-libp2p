@@ -967,10 +967,9 @@ proc openStream*(
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  except ResultError[ProtoError]:
+  except ResultError[ProtoError] as e:
     await api.closeConnection(transp)
-    raise
-      newException(DaemonLocalError, "Wrong message type: " & getCurrentExceptionMsg())
+    raise newException(DaemonLocalError, "Wrong message type: " & e.msg, e)
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   # must not specify raised exceptions as this is StreamCallback from chronos

@@ -54,8 +54,8 @@ when defined(libp2p_agents_metrics):
   proc safeToLowerAscii*(s: string): Result[string, cstring] =
     try:
       ok(s.toLowerAscii())
-    except CatchableError:
-      err("toLowerAscii failed: " & getCurrentExceptionMsg())
+    except CatchableError as e:
+      err("toLowerAscii failed: " & e.msg)
 
   const
     KnownLibP2PAgents* {.strdefine.} = "nim-libp2p"

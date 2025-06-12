@@ -87,6 +87,5 @@ when isMainModule:
     let dump = if cmd == "dump": true else: false
     try:
       echo parseFile(paramStr(2), dump)
-    except:
-      fatal "Could not read pbcap file",
-        description = getCurrentExceptionMsg(), filename = path
+    except CatchableError as e:
+      fatal "Could not read pbcap file", description = e.msg, filename = path

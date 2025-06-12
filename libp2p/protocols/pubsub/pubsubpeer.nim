@@ -214,11 +214,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
         conn, peer = p, closed = conn.closed, description = exc.msg
     finally:
       await conn.close()
-  except CancelledError:
+  except CancelledError as e:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
-    trace "Unexpected cancellation in PubSubPeer.handle",
-      description = getCurrentExceptionMsg()
+    trace "Unexpected cancellation in PubSubPeer.handle", description = e.msg
   finally:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
 

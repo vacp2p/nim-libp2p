@@ -419,8 +419,8 @@ proc save(
     )
     rdv.namespaces[nsSalted].add(rdv.registered.high)
   #    rdv.registerEvent.fire()
-  except KeyError:
-    doAssert false, "Should have key: " & getCurrentExceptionMsg()
+  except KeyError as e:
+    doAssert false, "Should have key: " & e.msg
 
 proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   trace "Received Register", peerId = conn.peerId, ns = r.ns

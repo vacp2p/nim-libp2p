@@ -127,9 +127,8 @@ proc expandDnsAddr(
       var peerIdBytes: seq[byte]
       try:
         peerIdBytes = lastPart.protoArgument().tryGet()
-      except ResultError[string]:
-        raiseAssert "expandDnsAddr failed in expandDnsAddr protoArgument: " &
-          getCurrentExceptionMsg()
+      except ResultError[string] as e:
+        raiseAssert "expandDnsAddr failed in expandDnsAddr protoArgument: " & e.msg
 
       let addrPeerId = PeerId.init(peerIdBytes).tryGet()
       result.add((resolvedAddress[0 ..^ 2].tryGet(), Opt.some(addrPeerId)))
@@ -187,9 +186,8 @@ proc internalConnect(
   defer:
     try:
       lock.release()
-    except AsyncLockError:
-      raiseAssert "lock must have been acquired in line above: " &
-        getCurrentExceptionMsg()
+    except AsyncLockError as e:
+      raiseAssert "lock must have been acquired in line above: " & e.msg
 
   if reuseConnection:
     peerId.withValue(peerId):

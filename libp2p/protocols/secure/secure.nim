@@ -110,8 +110,8 @@ proc handleConn(
           fut2 = sconn.join()
         try: # https://github.com/status-im/nim-chronos/issues/516
           discard await race(fut1, fut2)
-        except ValueError:
-          raiseAssert("Futures list is not empty: " & getCurrentExceptionMsg())
+        except ValueError as e:
+          raiseAssert("Futures list is not empty: " & e.msg)
         # at least one join() completed, cancel pending one, if any
         if not fut1.finished:
           await fut1.cancelAndWait()

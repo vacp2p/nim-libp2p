@@ -78,8 +78,8 @@ proc getDnsResponse(
 
     try:
       await receivedDataFuture.wait(5.seconds) #unix default
-    except AsyncTimeoutError:
-      raise newException(IOError, "DNS server timeout: " & getCurrentExceptionMsg())
+    except AsyncTimeoutError as e:
+      raise newException(IOError, "DNS server timeout: " & e.msg, e)
 
     let rawResponse = sock.getMessage()
     try:

@@ -84,10 +84,8 @@ proc main() {.async.} =
     debug "Dialing relay...", relayMA
     let relayId = await switch.connect(relayMA).wait(30.seconds)
     debug "Connected to relay", relayId
-  except AsyncTimeoutError:
-    raise newException(
-      CatchableError, "Connection to relay timed out: " & getCurrentExceptionMsg()
-    )
+  except AsyncTimeoutError as e:
+    raise newException(CatchableError, "Connection to relay timed out: " & e.msg, e)
 
   # Wait for our relay address to be published
   while not switch.peerInfo.addrs.anyIt(it.contains(multiCodec("p2p-circuit")).tryGet()):
@@ -132,8 +130,8 @@ try:
     return "done"
 
   discard waitFor(mainAsync().wait(4.minutes))
-except AsyncTimeoutError:
-  error "Program execution timed out: " & getCurrentExceptionMsg()
+except AsyncTimeoutError as e:
+  error "Program execution timed out", description = e.msg
   quit(-1)
 except CatchableError as e:
   error "Unexpected error", description = e.msg
