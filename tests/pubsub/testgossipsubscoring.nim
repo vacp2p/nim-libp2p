@@ -12,7 +12,7 @@
 import std/[sequtils]
 import stew/byteutils
 import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[messages]
 import ../../libp2p/muxers/muxer
 import ../helpers
@@ -406,7 +406,7 @@ suite "GossipSub Scoring":
       nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries in
         50.0 .. 66.0
 
-  asyncTest "GossipThreshold - do not respond to IHave if peer score is below threshold":
+  asyncTest "GossipThreshold - do not handle IHave if peer score is below threshold":
     let topic = "foobar"
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
@@ -417,12 +417,37 @@ suite "GossipSub Scoring":
     let peer = peers[0]
     peer.score = -200.0
 
+    # and IHave message
     let id = @[0'u8, 1, 2, 3]
     let msg = ControlIHave(topicID: topic, messageIDs: @[id])
 
-    # When IHave message is handled
+    # When IHave is handled
     let iWant = gossipSub.handleIHave(peer, @[msg])
 
     # Then IHave is ignored
     check:
       iWant.messageIDs.len == 0
+
+  asyncTest "GossipThreshold - do not handle IWant if peer score is below threshold":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # Given peer with score below GossipThreshold
+    gossipSub.parameters.gossipThreshold = -100.0
+    let peer = peers[0]
+    peer.score = -200.0
+
+    # and IWant message with MsgId in mcache and sentIHaves
+    let id = @[0'u8, 1, 2, 3]
+    gossipSub.mcache.put(id, Message())
+    peer.sentIHaves[0].incl(id)
+    let msg = ControlIWant(messageIDs: @[id])
+
+    # When IWant is handled
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then IWant is ignored
+    check:
+      messages.len == 0
