@@ -108,7 +108,7 @@ try:
     return "done"
 
   discard waitFor(mainAsync().wait(testTimeout))
-except AsyncTimeoutError:
+except AsyncTimeoutError as e:
   error "Program execution timed out", description = e.msg
   quit(-1)
 except CatchableError as e:
