@@ -96,6 +96,7 @@ proc setupGossipSubWithPeers*(
   let gossipSub = TestGossipSub.init(newStandardSwitch())
 
   for topic in topics:
+    gossipSub.subscribe(topic, voidTopicHandler)
     gossipSub.topicParams[topic] = TopicParams.init()
     gossipSub.mesh[topic] = initHashSet[PubSubPeer]()
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()

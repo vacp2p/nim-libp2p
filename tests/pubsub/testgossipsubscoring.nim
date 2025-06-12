@@ -15,7 +15,8 @@ import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[messages]
 import ../../libp2p/muxers/muxer
-import ../helpers, ../utils/[futures]
+import ../helpers
+import ../utils/[futures]
 
 suite "GossipSub Scoring":
   teardown:
@@ -404,3 +405,24 @@ suite "GossipSub Scoring":
     check:
       nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries in
         50.0 .. 66.0
+
+  asyncTest "GossipThreshold - do not respond to IHave if peer score is below threshold":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # Given peer with score below GossipThreshold
+    gossipSub.parameters.gossipThreshold = -100.0
+    let peer = peers[0]
+    peer.score = -200.0
+
+    let id = @[0'u8, 1, 2, 3]
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id])
+
+    # When IHave message is handled
+    let iWant = gossipSub.handleIHave(peer, @[msg])
+
+    # Then IHave is ignored
+    check:
+      iWant.messageIDs.len == 0
