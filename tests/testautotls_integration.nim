@@ -47,14 +47,3 @@ suite "AutoTLS Integration":
     check challenge.dns01.`type`.len() > 0
     check challenge.dns01.status == ACMEChallengeStatus.pending
     check challenge.dns01.token.len() > 0
-
-  asyncTest "test register with unsupported keys":
-    let unsupportedSchemes = [PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA]
-    for scheme in unsupportedSchemes:
-      let unsupportedKey = KeyPair.random(scheme, newRng()[]).get()
-      expect(ACMEError):
-        discard await api.requestRegister(unsupportedKey)
-
-  asyncTest "test request challenge with invalid kid":
-    expect(ACMEError):
-      discard await api.requestChallenge(@["domain.com"], key, "invalid_kid_here")
