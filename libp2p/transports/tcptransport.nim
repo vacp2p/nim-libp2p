@@ -133,7 +133,9 @@ method start*(
           try:
             createStreamServer(ta, flags = self.flags)
           except common.TransportError as exc:
-            raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+            raise (ref TcpTransportError)(
+              msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
+            )
 
       self.servers &= server
 
@@ -250,9 +252,13 @@ method accept*(
     except TransportUseClosedError as exc:
       raise newTransportClosedError(exc)
     except TransportOsError as exc:
-      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      raise (ref TcpTransportError)(
+        msg: "TransportOs error in accept:" & exc.msg, parent: exc
+      )
     except common.TransportError as exc: # Needed for chronos 4.0.0 support
-      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      raise (ref TcpTransportError)(
+        msg: "TransportError in accept: " & exc.msg, parent: exc
+      )
     except CancelledError as exc:
       cancelAcceptFuts()
       raise exc
@@ -302,7 +308,8 @@ method dial*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      raise
+        (ref TcpTransportError)(msg: "TcpTransport dial error: " & exc.msg, parent: exc)
 
   # If `stop` is called after `connect` but before `await` returns, we might
   # end up with a race condition where `stop` returns but not all connections
@@ -318,7 +325,7 @@ method dial*(
       MultiAddress.init(transp.remoteAddress).expect("remote address is valid")
     except TransportOsError as exc:
       safeCloseWait(transp)
-      raise (ref TcpTransportError)(msg: exc.msg)
+      raise (ref TcpTransportError)(msg: "MultiAddress.init error in dial: " & exc.msg)
 
   self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
 
