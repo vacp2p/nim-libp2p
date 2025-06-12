@@ -451,3 +451,34 @@ suite "GossipSub Scoring":
     # Then IWant is ignored
     check:
       messages.len == 0
+
+  asyncTest "GossipThreshold - do not trigger PeerExchange on Prune":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # Given peer with score below GossipThreshold
+    gossipSub.parameters.gossipThreshold = -100.0
+    let peer = peers[0]
+    peer.score = -200.0
+
+    # and RoutingRecordsHandler added
+    var routingRecordsFut = newFuture[void]()
+    gossipSub.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        routingRecordsFut.complete()
+    )
+
+    # and Prune message
+    let msg = ControlPrune(
+      topicID: topic, peers: @[PeerInfoMsg(peerId: peer.peerId)], backoff: 123'u64
+    )
+
+    # When Prune is handled
+    gossipSub.handlePrune(peer, @[msg])
+
+    # Then handler is not triggered
+    let result = await waitForState(routingRecordsFut, HEARTBEAT_TIMEOUT)
+    check:
+      result.isCancelled()
