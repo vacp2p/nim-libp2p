@@ -176,6 +176,7 @@ type
     rng*: ref HmacDrbgContext
 
     knownTopics*: HashSet[string]
+    customConnCallbacks*: Option[CustomConnectionCallbacks]
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
@@ -187,7 +188,11 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
 proc send*(
-    p: PubSub, peer: PubSubPeer, msg: RPCMsg, isHighPriority: bool
+    p: PubSub,
+    peer: PubSubPeer,
+    msg: RPCMsg,
+    isHighPriority: bool,
+    useCustomConn: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
   ##
@@ -200,13 +205,14 @@ proc send*(
   ## priority messages have been sent.
 
   trace "sending pubsub message to peer", peer, payload = shortLog(msg)
-  peer.send(msg, p.anonymize, isHighPriority)
+  peer.send(msg, p.anonymize, isHighPriority, useCustomConn)
 
 proc broadcast*(
     p: PubSub,
     sendPeers: auto, # Iteratble[PubSubPeer]
     msg: RPCMsg,
     isHighPriority: bool,
+    useCustomConn: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
   ##
@@ -261,12 +267,12 @@ proc broadcast*(
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg, isHighPriority)
+      p.send(peer, msg, isHighPriority, useCustomConn)
   else:
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded, isHighPriority)
+      asyncSpawn peer.sendEncoded(encoded, isHighPriority, useCustomConn)
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, topics: openArray[string], subscribe: bool
@@ -373,8 +379,14 @@ method getOrCreatePeer*(
     p.onPubSubPeerEvent(peer, event)
 
   # create new pubsub peer
-  let pubSubPeer =
-    PubSubPeer.new(peerId, getConn, onEvent, protoNegotiated, p.maxMessageSize)
+  let pubSubPeer = PubSubPeer.new(
+    peerId,
+    getConn,
+    onEvent,
+    protoNegotiated,
+    p.maxMessageSize,
+    customConnCallbacks = p.customConnCallbacks,
+  )
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -558,7 +570,7 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
   p.updateTopicMetrics(topic)
 
 method publish*(
-    p: PubSub, topic: string, data: seq[byte]
+    p: PubSub, topic: string, data: seq[byte], useCustomConn: bool = false
 ): Future[int] {.base, async: (raises: []), public.} =
   ## publish to a ``topic``
   ##
@@ -648,6 +660,8 @@ proc init*[PubParams: object | bool](
     maxMessageSize: int = 1024 * 1024,
     rng: ref HmacDrbgContext = newRng(),
     parameters: PubParams = false,
+    customConnCallbacks: Option[CustomConnectionCallbacks] =
+      none(CustomConnectionCallbacks),
 ): P {.raises: [InitializationError], public.} =
   let pubsub =
     when PubParams is bool:
@@ -663,6 +677,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
+        customConnCallbacks: customConnCallbacks,
       )
     else:
       P(
@@ -678,6 +693,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
+        customConnCallbacks: customConnCallbacks,
       )
 
   proc peerEventHandler(
