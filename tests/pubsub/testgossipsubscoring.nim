@@ -482,3 +482,26 @@ suite "GossipSub Scoring":
     let result = await waitForState(routingRecordsFut, HEARTBEAT_TIMEOUT)
     check:
       result.isCancelled()
+
+  asyncTest "GossipThreshold - do not select peer for IHave broadcast if peer score is below threshold":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(1, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # Given peer with score below GossipThreshold
+    gossipSub.parameters.gossipThreshold = -100.0
+    let peer = peers[0]
+    peer.score = -200.0
+
+    # and message in cache
+    let id = @[0'u8, 1, 2, 3]
+    gossipSub.mcache.put(id, Message(topic: topic))
+
+    # When Node selects peers for IHave broadcast
+    let gossipPeers = gossipSub.getGossipPeers()
+
+    # Then peer is not selected
+    check:
+      gossipPeers.len == 0
