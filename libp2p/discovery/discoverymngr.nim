@@ -113,7 +113,7 @@ proc add*(dm: DiscoveryManager, di: DiscoveryInterface) =
         try:
           query.peers.putNoWait(pa)
         except AsyncQueueFullError as exc:
-          debug "Cannot push discovered peer to queue"
+          debug "Cannot push discovered peer to queue", description = exc.msg
 
 proc request*(dm: DiscoveryManager, pa: PeerAttributes): DiscoveryQuery =
   var query = DiscoveryQuery(attr: pa, peers: newAsyncQueue[PeerAttributes]())

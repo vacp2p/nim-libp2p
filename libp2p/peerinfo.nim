@@ -101,8 +101,10 @@ proc new*(
   let pubkey =
     try:
       key.getPublicKey().tryGet()
-    except CatchableError:
-      raise newException(PeerInfoError, "invalid private key")
+    except CatchableError as e:
+      raise newException(
+        PeerInfoError, "invalid private key creating PeerInfo: " & e.msg, e
+      )
 
   let peerId = PeerId.init(key).tryGet()
 

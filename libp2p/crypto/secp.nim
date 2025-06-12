@@ -85,8 +85,9 @@ proc init*(sig: var SkSignature, data: string): SkResult[void] =
   var buffer: seq[byte]
   try:
     buffer = hexToSeqByte(data)
-  except ValueError:
-    return err("secp: Hex to bytes failed")
+  except ValueError as e:
+    let errMsg = "secp: Hex to bytes failed: " & e.msg
+    return err(errMsg.cstring)
   init(sig, buffer)
 
 proc init*(t: typedesc[SkPrivateKey], data: openArray[byte]): SkResult[SkPrivateKey] =

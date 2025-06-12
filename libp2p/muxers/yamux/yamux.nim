@@ -587,10 +587,12 @@ method handle*(m: Yamux) {.async: (raises: []).} =
         let channel =
           try:
             m.channels[header.streamId]
-          except KeyError:
+          except KeyError as e:
             raise newException(
               YamuxError,
-              "Stream was cleaned up before handling data: " & $header.streamId,
+              "Stream was cleaned up before handling data: " & $header.streamId & " : " &
+                e.msg,
+              e,
             )
 
         if header.msgType == WindowUpdate:

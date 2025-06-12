@@ -595,13 +595,13 @@ template exceptionToAssert(body: untyped): untyped =
     try:
       res = body
     except OSError as exc:
-      raise exc
+      raise newException(OSError, "failure in exceptionToAssert: " & exc.msg, exc)
     except IOError as exc:
-      raise exc
+      raise newException(IOError, "failure in exceptionToAssert: " & exc.msg, exc)
     except Defect as exc:
-      raise exc
+      raise newException(Defect, "failure in exceptionToAssert: " & exc.msg, exc)
     except Exception as exc:
-      raiseAssert exc.msg
+      raiseAssert "Exception captured in exceptionToAssert: " & exc.msg
     when defined(nimHasWarnBareExcept):
       {.pop.}
     res
@@ -967,9 +967,9 @@ proc openStream*(
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  except ResultError[ProtoError]:
+  except ResultError[ProtoError] as e:
     await api.closeConnection(transp)
-    raise newException(DaemonLocalError, "Wrong message type!")
+    raise newException(DaemonLocalError, "Wrong message type: " & e.msg, e)
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   # must not specify raised exceptions as this is StreamCallback from chronos
@@ -1023,10 +1023,10 @@ proc addHandler*(
       api.servers.add(P2PServer(server: server, address: maddress))
   except DaemonLocalError as e:
     await removeHandler()
-    raise e
+    raise newException(DaemonLocalError, "Could not add stream handler: " & e.msg, e)
   except TransportError as e:
     await removeHandler()
-    raise e
+    raise newException(TransportError, "Could not add stream handler: " & e.msg, e)
   except CancelledError as e:
     await removeHandler()
     raise e
@@ -1503,10 +1503,14 @@ proc pubsubSubscribe*(
       result = ticket
   except DaemonLocalError as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(
+      DaemonLocalError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
+    )
   except TransportError as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(
+      TransportError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
+    )
   except CancelledError as exc:
     await api.closeConnection(transp)
     raise exc

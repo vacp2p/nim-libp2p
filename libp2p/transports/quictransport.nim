@@ -101,7 +101,7 @@ proc getStream*(
     return QuicStream.new(stream, session.observedAddr, session.peerId)
   except CatchableError as exc:
     # TODO: incomingStream is using {.async.} with no raises
-    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
+    raise (ref QuicTransportError)(msg: "error in getStream: " & exc.msg, parent: exc)
 
 method getWrapped*(self: QuicSession): P2PConnection =
   nil
@@ -119,7 +119,7 @@ method newStream*(
   try:
     return await m.quicSession.getStream(Direction.Out)
   except CatchableError as exc:
-    raise newException(MuxerError, exc.msg, exc)
+    raise newException(MuxerError, "error in newStream: " & exc.msg, exc)
 
 proc handleStream(m: QuicMuxer, chann: QuicStream) {.async: (raises: []).} =
   ## call the muxer stream handler for this channel
@@ -236,11 +236,16 @@ method start*(
   except QuicConfigError as exc:
     doAssert false, "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
-    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
+    raise (ref QuicTransportError)(
+      msg: "tlscert error in quic start: " & exc.msg, parent: exc
+    )
   except QuicError as exc:
-    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
+    raise
+      (ref QuicTransportError)(msg: "quicerror in quic start: " & exc.msg, parent: exc)
   except TransportOsError as exc:
-    raise (ref QuicTransportError)(msg: exc.msg, parent: exc)
+    raise (ref QuicTransportError)(
+      msg: "transport error in quic start: " & exc.msg, parent: exc
+    )
   self.running = true
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
@@ -318,7 +323,7 @@ method dial*(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    raise newException(QuicTransportDialError, e.msg, e)
+    raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
 
 method upgrade*(
     self: QuicTransport, conn: P2PConnection, peerId: Opt[PeerId]

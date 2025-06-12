@@ -78,23 +78,23 @@ proc getDnsResponse(
 
     try:
       await receivedDataFuture.wait(5.seconds) #unix default
-    except AsyncTimeoutError:
-      raise newException(IOError, "DNS server timeout")
+    except AsyncTimeoutError as e:
+      raise newException(IOError, "DNS server timeout: " & e.msg, e)
 
     let rawResponse = sock.getMessage()
     try:
       parseResponse(string.fromBytes(rawResponse))
     except IOError as exc:
-      raise exc
+      raise newException(IOError, "Failed to parse DNS response: " & exc.msg, exc)
     except OSError as exc:
-      raise exc
+      raise newException(OSError, "Failed to parse DNS response: " & exc.msg, exc)
     except ValueError as exc:
-      raise exc
+      raise newException(ValueError, "Failed to parse DNS response: " & exc.msg, exc)
     except Exception as exc:
       # Nim 1.6: parseResponse can has a raises: [Exception, ..] because of
       # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
       # it can't actually raise though
-      raiseAssert exc.msg
+      raiseAssert "Exception parsing DN response: " & exc.msg
   finally:
     await sock.closeWait()
 
