@@ -434,6 +434,33 @@ proc sendIDontWant(
     isHighPriority = true,
   )
 
+const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
+
+proc sendPreamble(
+    g: GossipSub, msg: Message, msgId: MessageId, toSendPeers: var HashSet[PubSubPeer]
+) =
+  if msg.data.len < preambleMessageSizeThreshold:
+    return
+
+  let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
+
+  g.broadcast(
+    preamblePeers,
+    RPCMsg(
+      control: some(
+        ControlMessage(
+          preamble:
+            @[
+              ControlPreamble(
+                topicID: msg.topic, messageID: msgId, messageLength: msg.data.len.uint32
+              )
+            ]
+        )
+      )
+    ),
+    isHighPriority = true,
+  )
+
 const iDontWantMessageSizeThreshold* = 512
 
 proc isLargeMessage(msg: Message, msgId: MessageId): bool =
@@ -515,25 +542,8 @@ proc validateAndRelay(
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
-    let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
-    g.broadcast(
-      preamblePeers,
-      RPCMsg(
-        control: some(
-          ControlMessage(
-            preamble:
-              @[
-                ControlPreamble(
-                  topicID: msg.topic,
-                  messageID: msgId,
-                  messageLength: msg.data.len.uint32,
-                )
-              ]
-          )
-        )
-      ),
-      isHighPriority = true,
-    )
+    g.sendPreamble(msg, msgId, toSendPeers)
+
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
@@ -836,7 +846,7 @@ method publish*(
 
   trace "Publishing message on topic", data = data.shortLog
 
-  let peers =
+  var peers =
     if useCustomConn:
       g.makePeersForPublishUsingCustomConn(topic)
     else:
@@ -879,6 +889,8 @@ method publish*(
 
   if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
     g.sendIDontWant(msg, msgId, peers)
+
+  g.sendPreamble(msg, msgId, peers)
 
   g.broadcast(
     peers,
