@@ -55,7 +55,8 @@ when defined(libp2p_agents_metrics):
     try:
       ok(s.toLowerAscii())
     except CatchableError as e:
-      err("toLowerAscii failed: " & e.msg)
+      let errMsg = "toLowerAscii failed: " & e.msg
+      err(errMsg.cstring)
 
   const
     KnownLibP2PAgents* {.strdefine.} = "nim-libp2p"
