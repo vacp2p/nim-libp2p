@@ -12,7 +12,7 @@
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
 import "."/[types, scoring]
-import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
+import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub, bandwidth]
 import "../rpc"/[messages]
 import
   "../../.."/[
@@ -347,9 +347,16 @@ proc handleIWant*(
         result.ids.add(mid)
   return result
 
+proc medianDownloadRate(p: var HashSet[PubSubPeer]): float =
+  let vals = p.toSeq().mapIt(it.bandwidthTracking.upload.value())
+  let mid = vals.len div 2
+  if vals.len mod 2 == 0:
+    (vals[mid - 1] + vals[mid]) / 2
+  else:
+    vals[mid]
+
 proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPreamble]) =
   let starts = Moment.now()
-  let bytesPerSecond = 3_750_000'u64 # 30Mbps, TODO: replace with running mesh average
 
   for preamble in preambles:
     dec peer.preambleBudget
@@ -367,6 +374,7 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
         toSendPeers.incl(peers[])
       toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
       var peers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
+      let bytesPerSecond = toSendPeers.medianDownloadRate().uint64
       let transmissionTimeMs = (preamble.messageLength.uint64 * 1000) div bytesPerSecond
       let expires = starts + transmissionTimeMs.int64.milliseconds
 
@@ -860,3 +868,9 @@ proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
+
+proc bandwithHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
+  heartbeat "Gossipsub Peer Bandwidth Tracking", 1.seconds:
+    for (topic, peers) in g.gossipsub.pairs:
+      for peer in peers.items:
+        peer.bandwidthTracking.update()

@@ -951,6 +951,7 @@ method start*(
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
+  g.bandwidthHeartbeatFut = g.bandwithHeartbeat()
   g.started = true
   fut
 
@@ -967,6 +968,7 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   # stop heartbeat interval
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
+  g.bandwithHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()
   g.heartbeatFut = nil
   fut
