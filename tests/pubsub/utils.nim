@@ -20,6 +20,7 @@ import
   ]
 import ../helpers
 import chronicles
+import metrics
 
 export builders
 
@@ -34,6 +35,12 @@ proc waitForHeartbeat*(multiplier: int = 1) {.async.} =
 
 proc waitForHeartbeat*(timeout: Duration) {.async.} =
   await sleepAsync(timeout)
+
+proc waitForHeartbeatByEvent*[T: PubSub](node: T, multiplier: int = 1) {.async.} =
+  for _ in 0 ..< multiplier:
+    let evnt = newAsyncEvent()
+    node.heartbeatEvents &= evnt
+    await evnt.wait()
 
 type
   TestGossipSub* = ref object of GossipSub
@@ -186,6 +193,7 @@ proc generateNodes*(
     historyLength = 20,
     historyGossip = 5,
     gossipThreshold = -100.0,
+    decayInterval = 1.seconds,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -215,6 +223,7 @@ proc generateNodes*(
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
             p.opportunisticGraftThreshold = opportunisticGraftThreshold
             p.gossipThreshold = gossipThreshold
+            p.decayInterval = decayInterval
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
@@ -531,3 +540,22 @@ proc baseTestProcedure*(
 
 proc `$`*(peer: PubSubPeer): string =
   shortLog(peer)
+
+proc currentRateLimitHits*(): float64 =
+  try:
+    libp2p_gossipsub_peers_rate_limit_hits.valueByName(
+      "libp2p_gossipsub_peers_rate_limit_hits_total", @["nim-libp2p"]
+    )
+  except KeyError:
+    0
+
+proc addDirectPeer*[T: PubSub](node: T, target: T) {.async.} =
+  doAssert node.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
+    "Could not add same peer"
+  await node.addDirectPeer(target.switch.peerInfo.peerId, target.switch.peerInfo.addrs)
+
+proc addDirectPeerStar*[T: PubSub](nodes: seq[T]) {.async.} =
+  for node in nodes:
+    for target in nodes:
+      if node.switch.peerInfo.peerId != target.switch.peerInfo.peerId:
+        await addDirectPeer(node, target)
