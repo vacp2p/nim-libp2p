@@ -20,7 +20,8 @@ import
   ../../stream/connection,
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
-  ../../utility
+  ../../utility,
+  ./bandwidth
 
 export peerid, connection, deques
 
@@ -120,7 +121,7 @@ type
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-
+    bandwidthTracking*: BandwidthTracking
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iDontWants*: Deque[HashSet[SaltedId]]
@@ -219,6 +220,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
         var data = await conn.readLp(p.maxMessageSize)
+        p.bandwidthTracking.download.track(data.len)
         trace "read data from peer",
           conn, peer = p, closed = conn.closed, data = data.shortLog
 
@@ -344,6 +346,12 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
+proc writeMsg(
+    p: PubSubPeer, conn: Connection, msg: seq[byte]
+) {.async: (raises: [LPStreamError, CancelledError]).} =
+  await conn.writeLp(msg)
+  p.bandwidthTracking.upload.track(msg.len)
+
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
   # Continuation for a pending `sendMsg` future from below
   try:
@@ -372,7 +380,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-  await sendMsgContinue(conn, conn.writeLp(msg))
+  await sendMsgContinue(conn, p.writeMsg(conn, msg))
 
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
@@ -399,7 +407,7 @@ proc sendMsg(
   if not slowPath:
     trace "sending encoded msg to peer",
       conntype = $connType, conn = conn, encoded = shortLog(msg)
-    let f = conn.writeLp(msg)
+    let f = p.writeMsg(conn, msg)
     if not f.completed():
       sendMsgContinue(conn, f)
     else:
@@ -610,6 +618,9 @@ proc new*(
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
+    bandwidthTracking: BandwidthTracking(
+      upload: ExponentialMovingAverage.init(), download: ExponentialMovingAverage.init()
+    ),
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
