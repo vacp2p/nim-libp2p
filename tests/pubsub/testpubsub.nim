@@ -1,7 +1,7 @@
 {.used.}
 
 import
-  testgossipsubcontrolmessages, testgossipsubfanout, testgossipsubcustomconn,
-  testgossipsubgossip, testgossipsubheartbeat, testgossipsubmeshmanagement,
-  testgossipsubmessagecache, testgossipsubmessagehandling, testgossipsubparams,
-  testgossipsubscoring, testfloodsub, testmcache, testtimedcache, testmessage
+  testbehavior, testgossipsub, testgossipsubparams, testmcache, testmessage,
+  testscoring, testtimedcache
+
+import ./integration/testpubsubintegration

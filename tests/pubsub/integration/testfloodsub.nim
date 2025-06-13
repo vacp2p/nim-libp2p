@@ -12,8 +12,8 @@
 import sequtils, tables, sets
 import chronos, stew/byteutils
 import
-  utils,
-  ../../libp2p/[
+  ../utils,
+  ../../../libp2p/[
     switch,
     stream/connection,
     crypto/crypto,
@@ -23,9 +23,9 @@ import
     protocols/pubsub/peertable,
     protocols/pubsub/pubsubpeer,
   ]
-import ../../libp2p/protocols/pubsub/errors as pubsub_errors
+import ../../../libp2p/protocols/pubsub/errors as pubsub_errors
 
-import ../helpers
+import ../../helpers
 
 proc waitSub(sender, receiver: auto, key: string) {.async.} =
   # turn things deterministic
@@ -38,7 +38,7 @@ proc waitSub(sender, receiver: auto, key: string) {.async.} =
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
 
-suite "FloodSub":
+suite "FloodSub Integration":
   teardown:
     checkTrackers()
 
