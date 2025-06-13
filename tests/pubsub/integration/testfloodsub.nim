@@ -38,7 +38,7 @@ proc waitSub(sender, receiver: auto, key: string) {.async.} =
     dec ceil
     doAssert(ceil > 0, "waitSub timeout!")
 
-suite "FloodSub":
+suite "FloodSub Integration":
   teardown:
     checkTrackers()
 
