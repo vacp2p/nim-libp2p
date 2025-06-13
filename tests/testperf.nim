@@ -52,11 +52,11 @@ proc runTest(server: Switch, client: Switch) {.async.} =
   var perfClient = PerfClient.new()
   discard await perfClient.perf(conn, bytesToUpload, bytesToDownload)
 
-  let finalStats = perfClient.currentStats()
+  let stats = perfClient.currentStats()
   check:
-    finalStats.isFinal == true
-    finalStats.uploadBytes == bytesToUpload
-    finalStats.downloadBytes == bytesToDownload
+    stats.isFinal == true
+    stats.uploadBytes == bytesToUpload
+    stats.downloadBytes == bytesToDownload
 
 suite "Perf protocol":
   teardown:
@@ -72,3 +72,38 @@ suite "Perf protocol":
     let server = createSwitch(isServer = true, useMplex = true)
     let client = createSwitch(useMplex = true)
     await runTest(server, client)
+
+  asyncTest "perf with exception":
+    let server = createSwitch(isServer = true, useMplex = true)
+    let client = createSwitch(useMplex = true)
+
+    await server.start()
+    await client.start()
+
+    defer:
+      await client.stop()
+      await server.stop()
+
+    let conn =
+      await client.dial(server.peerInfo.peerId, server.peerInfo.addrs, PerfCodec)
+    var perfClient = PerfClient.new()
+    var perfFut: Future[Duration]
+    try:
+      perfFut = perfClient.perf(conn, 1.uint64, 1000000000000.uint64)
+    except CatchableError:
+      discard
+
+    await sleepAsync(50.milliseconds)
+
+    var stats = perfClient.currentStats()
+    check:
+      stats.isFinal == false
+      stats.uploadBytes == 1
+
+    perfFut.cancel() # cancelling future will raise exception
+    await sleepAsync(50.milliseconds)
+
+    stats = perfClient.currentStats()
+    check:
+      stats.isFinal == true
+      stats.uploadBytes == 1

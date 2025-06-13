@@ -36,41 +36,47 @@ proc perf*(
 ): Future[Duration] {.public, async: (raises: [CancelledError, LPStreamError]).} =
   trace "starting performance benchmark", conn, sizeToWrite, sizeToRead
 
-  var
-    size = sizeToWrite
-    buf: array[PerfSize, byte]
-
   p.stats = Stats()
-  let start = Moment.now()
 
-  await conn.write(toSeq(toBytesBE(sizeToRead)))
-  while size > 0:
-    let toWrite = min(size, PerfSize)
-    await conn.write(buf[0 ..< toWrite])
-    size -= toWrite.uint
+  try:
+    var
+      size = sizeToWrite
+      buf: array[PerfSize, byte]
 
-    # set stats using copy value to avoid race condition
-    var statsCopy = p.stats
-    statsCopy.duration = Moment.now() - start
-    statsCopy.uploadBytes += toWrite.uint
-    p.stats = statsCopy
+    let start = Moment.now()
 
-  await conn.close()
+    await conn.write(toSeq(toBytesBE(sizeToRead)))
+    while size > 0:
+      let toWrite = min(size, PerfSize)
+      await conn.write(buf[0 ..< toWrite])
+      size -= toWrite.uint
 
-  size = sizeToRead
+      # set stats using copy value to avoid race condition
+      var statsCopy = p.stats
+      statsCopy.duration = Moment.now() - start
+      statsCopy.uploadBytes += toWrite.uint
+      p.stats = statsCopy
 
-  while size > 0:
-    let toRead = min(size, PerfSize)
-    await conn.readExactly(addr buf[0], toRead.int)
-    size = size - toRead.uint
+    await conn.close()
 
-    # set stats using copy value to avoid race condition
-    var statsCopy = p.stats
-    statsCopy.duration = Moment.now() - start
-    statsCopy.downloadBytes += toRead.uint
-    p.stats = statsCopy
+    size = sizeToRead
 
-  p.stats.isFinal = true
+    while size > 0:
+      let toRead = min(size, PerfSize)
+      await conn.readExactly(addr buf[0], toRead.int)
+      size = size - toRead.uint
+
+      # set stats using copy value to avoid race condition
+      var statsCopy = p.stats
+      statsCopy.duration = Moment.now() - start
+      statsCopy.downloadBytes += toRead.uint
+      p.stats = statsCopy
+  except CancelledError as e:
+    raise e
+  except LPStreamError as e:
+    raise e
+  finally:
+    p.stats.isFinal = true
 
   trace "finishing performance benchmark", duration = p.stats.duration
 
