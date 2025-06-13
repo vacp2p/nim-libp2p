@@ -129,3 +129,50 @@ suite "GossipSub Behavior":
     # Then it saves max IDontWantMaxCount messages in the history and the rest is dropped
     check:
       peer.iDontWants[0].len == IDontWantMaxCount
+
+  asyncTest "`replenishFanout` Degree Lo":
+    let topic = "foobar"
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    check gossipSub.gossipsub[topic].len == 15
+    gossipSub.replenishFanout(topic)
+    check gossipSub.fanout[topic].len == gossipSub.parameters.d
+
+  asyncTest "`dropFanoutPeers` drop expired fanout topics":
+    let topic = "foobar"
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(6, topic, populateGossipsub = true, populateFanout = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(1.millis)
+    await sleepAsync(5.millis) # allow the topic to expire 
+
+    check gossipSub.fanout[topic].len == gossipSub.parameters.d
+
+    gossipSub.dropFanoutPeers()
+    check topic notin gossipSub.fanout
+
+  asyncTest "`dropFanoutPeers` leave unexpired fanout topics":
+    let
+      topic1 = "foobar1"
+      topic2 = "foobar2"
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
+      6, @[topic1, topic2], populateGossipsub = true, populateFanout = true
+    )
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(1.millis)
+    gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(1.minutes)
+    await sleepAsync(5.millis) # allow first topic to expire 
+
+    check gossipSub.fanout[topic1].len == gossipSub.parameters.d
+    check gossipSub.fanout[topic2].len == gossipSub.parameters.d
+
+    gossipSub.dropFanoutPeers()
+    check topic1 notin gossipSub.fanout
+    check topic2 in gossipSub.fanout
