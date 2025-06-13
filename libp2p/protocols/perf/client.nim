@@ -29,7 +29,7 @@ proc new*(T: typedesc[PerfClient]): T =
   return T()
 
 proc currentStats*(p: PerfClient): Stats =
-  p.stats
+  return p.stats
 
 proc perf*(
     p: PerfClient, conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0
