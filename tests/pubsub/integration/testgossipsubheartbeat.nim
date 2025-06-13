@@ -1,11 +1,11 @@
 {.used.}
 
 import std/[sequtils]
-import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../helpers
+import ../utils
+import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../helpers
 
-suite "GossipSub Heartbeat":
+suite "GossipSub Integration - Heartbeat":
   teardown:
     checkTrackers()
 
