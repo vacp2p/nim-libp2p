@@ -19,8 +19,10 @@ const
   DefaultRandStringSize = 256
   ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
 
-type Nonce* = string
+type Domain* = string
 type Kid* = string
+type Nonce* = string
+type SignedACMERequest* = string
 
 type ACMEDirectory* = object
   newNonce*: string
@@ -95,12 +97,12 @@ type ACMEChallengeRequest = object
 type ACMEChallengeResponseBody = object
   status: ACMEChallengeStatus
   authorizations: seq[string]
-  finalize: string
+  finalizeURL: string
 
 type ACMEChallengeResponse* = object
   status*: ACMEChallengeStatus
   authorizations*: seq[string]
-  finalize*: string
+  finalizeURL*: string
   orderURL*: string
 
 type ACMEChallengeResponseWrapper* = object
@@ -161,13 +163,13 @@ template handleError*(msg: string, body: untyped): untyped =
     raise newException(ACMEError, msg & ": Unexpected error", exc)
 
 method post*(
-  self: ACMEApi, url: string, payload: string
+  self: ACMEApi, url: Uri, payload: SignedACMERequest
 ): Future[HTTPResponse] {.
   async: (raises: [ACMEError, HttpError, CancelledError]), base
 .}
 
 method get*(
-  self: ACMEApi, url: string
+  self: ACMEApi, url: Uri
 ): Future[HTTPResponse] {.
   async: (raises: [ACMEError, HttpError, CancelledError]), base
 .}
@@ -225,39 +227,39 @@ proc acmeHeader(
     )
 
 method post*(
-    self: ACMEApi, url: string, payload: string
+    self: ACMEApi, uri: Uri, payload: SignedACMERequest
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
   let rawResponse = await HttpClientRequestRef
-  .post(self.session, url, body = payload, headers = ACMEHttpHeaders)
+  .post(self.session, $uri, body = payload, headers = ACMEHttpHeaders)
   .get()
   .send()
   let body = await rawResponse.getResponseBody()
   HTTPResponse(body: body, headers: rawResponse.headers)
 
 method get*(
-    self: ACMEApi, url: string
+    self: ACMEApi, uri: Uri
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
-  let rawResponse = await HttpClientRequestRef.get(self.session, url).get().send()
+  let rawResponse = await HttpClientRequestRef.get(self.session, $uri).get().send()
   let body = await rawResponse.getResponseBody()
   HTTPResponse(body: body, headers: rawResponse.headers)
 
-proc createSignedAcmeRequest(
+proc createSignedACMERequest(
     self: ACMEApi,
-    url: string,
+    uri: Uri,
     payload: auto,
     key: KeyPair,
     needsJwk: bool = false,
     kid: Opt[Kid] = Opt.none(Kid),
-): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+): Future[SignedACMERequest] {.async: (raises: [ACMEError, CancelledError]).} =
   if key.pubkey.scheme != PKScheme.RSA or key.seckey.scheme != PKScheme.RSA:
     raise newException(ACMEError, "Unsupported signing key type")
 
   let acmeHeader = await self.acmeHeader(url, key, needsJwk, kid)
-  handleError("createSignedAcmeRequest"):
+  handleError("createSignedACMERequest"):
     var token = toJWT(%*{"header": acmeHeader, "claims": payload})
     let derPrivKey = key.seckey.rsakey.getBytes.get
     let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
@@ -269,7 +271,7 @@ proc requestRegister*(
 ): Future[ACMERegisterResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   let registerRequest = ACMERegisterRequest(termsOfServiceAgreed: true)
   handleError("acmeRegister"):
-    let payload = await self.createSignedAcmeRequest(
+    let payload = await self.createSignedACMERequest(
       self.directory.newAccount, registerRequest, key, needsJwk = true
     )
     let acmeResponse = await self.post(self.directory.newAccount, payload)
@@ -280,14 +282,14 @@ proc requestRegister*(
     )
 
 proc requestNewOrder*(
-    self: ACMEApi, domains: seq[string], key: KeyPair, kid: Kid
+    self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   # request challenge from ACME server
   let orderRequest = ACMEChallengeRequest(
     identifiers: domains.mapIt(ACMEChallengeIdentifier(`type`: "dns", value: it))
   )
   handleError("requestNewOrder"):
-    let payload = await self.createSignedAcmeRequest(
+    let payload = await self.createSignedACMERequest(
       self.directory.newOrder, orderRequest, key, kid = Opt.some(kid)
     )
     let acmeResponse = await self.post(self.directory.newOrder, payload)
@@ -298,7 +300,7 @@ proc requestNewOrder*(
     ACMEChallengeResponse(
       status: challengeResponseBody.status,
       authorizations: challengeResponseBody.authorizations,
-      finalize: challengeResponseBody.finalize,
+      finalizeURL: challengeResponseBody.finalize,
       orderURL: acmeResponse.headers.keyOrError("location"),
     )
 
@@ -311,7 +313,7 @@ proc requestAuthorizations*(
     acmeResponse.body.to(ACMEAuthorizationsResponse)
 
 proc requestChallenge*(
-    self: ACMEApi, domains: seq[string], key: KeyPair, kid: Kid
+    self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
   let challengeResponse = await self.requestNewOrder(domains, key, kid)
 
@@ -325,7 +327,7 @@ proc requestChallenge*(
   )
 
 proc requestCheck*(
-    self: ACMEApi, checkURL: string, checkKind: ACMECheckKind, key: KeyPair, kid: Kid
+    self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: KeyPair, kid: Kid
 ): Future[ACMECheckResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCheck"):
     let acmeResponse = await self.get(checkURL)
@@ -364,7 +366,7 @@ proc requestCompleted*(
 ): Future[ACMECompletedResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCompleted (send notify)"):
     let payload =
-      await self.createSignedAcmeRequest(chalURL, %*{}, key, kid = Opt.some(kid))
+      await self.createSignedACMERequest(chalURL, %*{}, key, kid = Opt.some(kid))
     let acmeResponse = await self.post(chalURL, payload)
     acmeResponse.body.to(ACMECompletedResponse)
 
@@ -402,13 +404,13 @@ proc completeChallenge*(
   return await self.checkChallengeCompleted(chalURL, key, kid, retries = retries)
 
 proc requestFinalize*(
-    self: ACMEApi, domain: string, finalizeURL: string, key: KeyPair, kid: Kid
+    self: ACMEApi, domain: Domain, finalizeURL: uri, key: KeyPair, kid: Kid
 ): Future[ACMEFinalizeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   let derCSR = createCSR(domain)
   let b64CSR = base64.encode(derCSR.toSeq, safe = true)
 
   handleError("requestFinalize"):
-    let payload = await self.createSignedAcmeRequest(
+    let payload = await self.createSignedACMERequest(
       finalizeURL, %*{"csr": b64CSR}, key, kid = Opt.some(kid)
     )
     let acmeResponse = await self.post(finalizeURL, payload)
@@ -417,7 +419,7 @@ proc requestFinalize*(
 
 proc checkCertFinalized*(
     self: ACMEApi,
-    orderURL: string,
+    orderURL: Uri,
     key: KeyPair,
     kid: Kid,
     retries: int = DefaultChalCompletedRetries,
@@ -441,9 +443,9 @@ proc checkCertFinalized*(
 
 proc certificateFinalized*(
     self: ACMEApi,
-    domain: string,
-    finalizeURL: string,
-    orderURL: string,
+    domain: Domain,
+    finalizeURL: Uri,
+    orderURL: Uri,
     key: KeyPair,
     kid: Kid,
     retries: int = DefaultFinalizeRetries,
@@ -453,16 +455,16 @@ proc certificateFinalized*(
   return await self.checkCertFinalized(orderURL, key, kid, retries = retries)
 
 proc requestGetOrder*(
-    self: ACMEApi, orderURL: string
+    self: ACMEApi, orderURL: Uri
 ): Future[ACMEOrderResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestGetOrder"):
-    let acmeResponse = await self.get(orderURL)
+    let acmeResponse = await self.get($orderURL)
     acmeResponse.body.to(ACMEOrderResponse)
 
 proc downloadCertificate*(
-    self: ACMEApi, orderURL: string
+    self: ACMEApi, orderURL: Uri
 ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let orderResponse = await self.requestGetOrder(orderURL)
+  let orderResponse = await self.requestGetOrder($orderURL)
 
   handleError("downloadCertificate"):
     let rawResponse = await HttpClientRequestRef

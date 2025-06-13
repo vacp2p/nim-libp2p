@@ -27,11 +27,11 @@ method requestNonce*(
   return self.acmeServerURL & "/acme/1234"
 
 method post*(
-    self: MockACMEApi, url: string, payload: string
+    self: MockACMEApi, uri: Uri, payload: SignedACMERequest
 ): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
   HTTPResponse(body: self.mockedBody, headers: self.mockedHeaders)
 
 method get*(
-    self: MockACMEApi, url: string
+    self: MockACMEApi, uri: Uri
 ): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
   HTTPResponse(body: self.mockedBody, headers: self.mockedHeaders)

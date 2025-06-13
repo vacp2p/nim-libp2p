@@ -1,0 +1,238 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+{.push raises: [].}
+{.push public.}
+
+import
+  net,
+  results,
+  chronos,
+  chronicles,
+  bearssl/rand,
+  bio,
+  json,
+  sequtils,
+  chronos/apps/http/httpclient
+
+import ./acme/client
+import ../peeridauth/client
+import ../nameresolving/dnsresolver
+import ../wire
+import ../crypto/crypto
+import ../peerinfo
+import ../utils/heartbeat
+
+logScope:
+  topics = "libp2p autotls"
+
+const
+  DefaultDnsServers =
+    @[
+      initTAddress("1.1.1.1:53"),
+      initTAddress("1.0.0.1:53"),
+      initTAddress("[2606:4700:4700::1111]:53"),
+    ]
+  DefaultRenewCheckTime = 1.hours
+  DefaultDnsRetries = 10
+  DefaultDnsRetryTime = 1.seconds
+
+type AutoTLSCertificate* = object
+  cert*: TLSCertificate
+  expiry*: Moment
+
+type AutoTLSClient = ref object
+  bearer*: Opt[BearerToken]
+  peerInfo: Opt[PeerInfo]
+  peerIDAuthClient: PeerIDAuthClient
+
+type AutoTLSManager* = object
+  autoTLSClient: AutoTLSClient
+  acmeClient: ACMEClient
+  cert*: Opt[AutoTLSCertificate]
+  certReady*: AsyncEvent
+  dnsResolver: DnsResolver
+  fut: Future[void]
+  ipAddress: Opt[IpAddress]
+  renewCheckTime: Duration
+
+proc new*(
+    T: typedesc[AutoTLSManager],
+    acmeClient: ref ACMEClient = nil,
+    dnsResolver: DnsResolver = DnsResolver.new(DefaultDnsServers),
+    ipAddress: Opt[IpAddress] = Opt.none(IpAddress),
+): AutoTLSManager =
+  T(
+    fut: nil,
+    cert: Opt.none(AutoTLSCertificate),
+    certReady: newAsyncEvent(),
+    acmeClient: acmeClient,
+    dnsResolver: dnsResolver,
+    peerInfo: Opt.none(PeerInfo),
+    bearerToken: Opt.none(BearerToken),
+    renewCheckTime: DefaultRenewCheckTime,
+    ipAddress: ipAddress,
+  )
+
+proc checkDNSRecords(
+    self: AutoTLSManager,
+    ip4Domain: string,
+    acmeChalDomain: string,
+    keyAuthorization: KeyAuthorization
+    retries: int = DefaultDnsRetries,
+): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
+  var txt: seq[string]
+  var ip4: seq[TransportAddress]
+
+  for _ in 0 .. retries:
+    txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
+    try:
+      ip4 = await self.dnsResolver.resolveIp(ip4Domain, 0.Port)
+    except CatchableError as exc:
+      error "Failed to resolve IP", description = exc.msg # retry
+    if txt.len > 0 and txt[0] == keyAuthorization and ip4.len > 0:
+      return true
+    await sleepAsync(DefaultDnsRetryTime)
+
+  return false
+
+method issueCertificate(
+    self: AutoTLSManager
+): Future[void] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
+  trace "Issuing new certificate"
+  let peerInfo = self.peerInfo.valueOr:
+    raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
+
+  # generate autotls domain string: "*.{peerID}.libp2p.direct"
+  let base36PeerId = encodePeerId(peerInfo.peerId)
+  let baseDomain = base36PeerId & "." & AutoTLSDNSServer
+  let domain = "*." & baseDomain
+
+  trace "Requesting ACME challenge"
+  let keyAuthorization = self.acmeClient.getKeyAuthorization(@[domain])
+
+  trace "Sending challenge to AutoTLS broker"
+  let strMultiaddresses: seq[string] = peerInfo.addrs.mapIt($it)
+  let payload = %*{"value": keyAuthorization, "addresses": strMultiaddresses}
+  let registrationURL = "https://" & AutoTLSBroker & "/v1/_acme-challenge"
+  var response: HttpClientResponseRef
+  var bearerToken: BearerToken
+  if self.bearerToken.isSome:
+    (bearerToken, response) = await peerIdAuthSend(
+      registrationURL,
+      self.httpSession,
+      peerInfo,
+      payload,
+      bearerToken = self.bearerToken,
+    )
+  else:
+    # authenticate, send challenge and save bearerToken for future requests
+    (bearerToken, response) =
+      await peerIdAuthSend(registrationURL, self.httpSession, peerInfo, payload)
+    self.bearerToken = Opt.some(bearerToken)
+  if response.status != HttpOk:
+    raise newException(
+      AutoTLSError, "Failed to authenticate with AutoTLS Broker at " & AutoTLSBroker
+    )
+
+  # no need to do anything from this point forward if there are not public ip addresses on host
+  let hostPrimaryIP: IpAddress =
+    try:
+      let ip = self.ipAddress.valueOr:
+        checkedGetPrimaryIPAddr()
+      if not isPublicIPv4(ip):
+        raise newException(AutoTLSError, "Host does not have a public IPv4 address")
+      ip
+    except GetPrimaryIPError as exc:
+      raise newException(AutoTLSError, "Failed to get primary IP address for host", exc)
+    except CatchableError as exc:
+      raise newException(
+        AutoTLSError, "Unexpected error while getting primary IP address for host", exc
+      )
+
+  debug "Waiting for DNS record to be set"
+
+  # if my ip address is 100.10.10.3 then the ip4Domain will be:
+  #     100-10-10-3.{peerIdBase36}.libp2p.direct
+  # and acme challenge TXT domain will be:
+  #     _acme-challenge.{peerIdBase36}.libp2p.direct
+  let dashedIpAddr = ($hostPrimaryIP).replace(".", "-")
+  let acmeChalDomain = "_acme-challenge." & baseDomain
+  let ip4Domain = dashedIpAddr & "." & baseDomain
+  if not await self.checkDNSRecords(ip4Domain, acmeChalDomain, keyAuthorization):
+    raise newException(AutoTLSError, "DNS records not set")
+
+  debug "Notifying challenge completion to ACME server"
+  let chalURL = dns01Challenge.getJSONField("url").getStr
+  await self.acmeClient.notifyChallengeCompleted(chalURL)
+
+  debug "Finalize cert request with CSR"
+  if not await self.acmeClient.finalizeCertificate(domain, finalizeURL, orderURL):
+    raise newException(AutoTLSError, "ACME certificate finalization request failed")
+
+  debug "Downloading certificate"
+  let (rawCert, expiry) = await self.acmeClient.downloadCertificate(orderURL)
+
+  trace "Installing certificate"
+  try:
+    self.cert = Opt.some(TLSCertificate.init(rawCert))
+    self.certExpiry = Opt.some(asMoment(expiry))
+  except TLSStreamProtocolError:
+    raise newException(AutoTLSError, "Could not parse downloaded certificates")
+  self.certReady.fire()
+
+proc manageCertificate(
+    self: AutoTLSManager
+): Future[void] {.async: (raises: [AutoTLSError, CancelledError]).} =
+  trace "Starting AutoTLS manager"
+
+  debug "Registering ACME Client"
+  if self.acmeClient.isNil:
+    self.acmeClient = await ACMEClient.new()
+
+  heartbeat "Certificate Management", self.renewCheckTime:
+    if self.cert.isNone or self.certExpiry.isNone:
+      try:
+        await self.issueCertificate()
+      except CatchableError as exc:
+        error "Failed to issue certificate", err = exc.msg
+        break
+
+    # AutoTLSManager will renew the cert 1h before it expires
+    let expiry = self.certExpiry.get
+    let waitTime: Duration = expiry - Moment.now - self.renewCheckTime
+    if waitTime <= self.renewCheckTime:
+      try:
+        await self.issueCertificate()
+      except CatchableError as exc:
+        error "Failed to renew certificate", err = exc.msg
+        break
+
+method start*(
+    self: AutoTLSManager, peerInfo: PeerInfo
+): Future[void] {.base, async: (raises: [CancelledError]).} =
+  if not self.fut.isNil:
+    warn "Starting AutoTLS twice"
+    return
+
+  self.peerInfo = Opt.some(peerInfo)
+  self.fut = self.manageCertificate()
+
+method stop*(self: AutoTLSManager): Future[void] {.base, async: (raises: []).} =
+  trace "AutoTLS stop"
+  if self.fut.isNil:
+    warn "Stopping AutoTLS without starting it"
+    return
+
+  await self.fut.cancelAndWait()
+  self.fut = nil
+  if not self.acmeClient.isNil:
+    await self.acmeClient.session.closeWait()
+  if not self.httpSession.isNil:
+    await self.httpSession.closeWait()
