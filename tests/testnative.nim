@@ -32,6 +32,6 @@ import
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
   testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
-  testhpservice, testutility, testhelpers, testwildcardresolverservice
+  testhpservice, testutility, testhelpers, testwildcardresolverservice, testperf
 
 import kademlia/testencoding
