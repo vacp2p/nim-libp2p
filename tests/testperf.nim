@@ -89,12 +89,14 @@ suite "Perf protocol":
     var perfClient = PerfClient.new()
     var perfFut: Future[Duration]
     try:
+      # start perf future with large download request
+      # this will make perf execute for longer so we can cancel it
       perfFut = perfClient.perf(conn, 1.uint64, 1000000000000.uint64)
     except CatchableError:
       discard
 
+    # after some time upload should be finished
     await sleepAsync(50.milliseconds)
-
     var stats = perfClient.currentStats()
     check:
       stats.isFinal == false
@@ -103,6 +105,7 @@ suite "Perf protocol":
     perfFut.cancel() # cancelling future will raise exception
     await sleepAsync(50.milliseconds)
 
+    # after cancelling perf, stats must indicate that it is final one
     stats = perfClient.currentStats()
     check:
       stats.isFinal == true
