@@ -10,8 +10,10 @@
 {.used.}
 
 import chronicles
+import stew/byteutils
 import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
 import ../helpers
 
 suite "GossipSub":
@@ -40,3 +42,54 @@ suite "GossipSub":
       topic notin gossipSub.topics # not in local topics
       topic notin gossipSub.mesh # not in mesh
       topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
+
+  asyncTest "Drop messages of topics without subscription":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate messages
+    var seqno = 0'u64
+    for i in 0 .. 5:
+      let conn = conns[i]
+      let peer = peers[i]
+      inc seqno
+      let msg = Message.init(conn.peerId, ("bar" & $i).toBytes(), topic, some(seqno))
+      await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    check gossipSub.mcache.msgs.len == 0
+
+  asyncTest "subscription limits":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+    gossipSub.topicsHigh = 10
+
+    var tooManyTopics: seq[string]
+    for i in 0 .. gossipSub.topicsHigh + 10:
+      tooManyTopics &= "topic" & $i
+    let lotOfSubs = RPCMsg.withSubs(tooManyTopics, true)
+
+    let conn = TestBufferStream.new(noop)
+    let peerId = randomPeerId()
+    conn.peerId = peerId
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(lotOfSubs, false))
+
+    check:
+      gossipSub.gossipsub.len == gossipSub.topicsHigh
+      peer.behaviourPenalty > 0.0
+
+    await conn.close()
+    await gossipSub.switch.stop()
+
+  asyncTest "invalid message bytes":
+    let gossipSub = TestGossipSub.init(newStandardSwitch())
+
+    let peerId = randomPeerId()
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    expect(CatchableError):
+      await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
+
+    await gossipSub.switch.stop()
