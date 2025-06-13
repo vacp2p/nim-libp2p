@@ -33,6 +33,5 @@ import
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
   testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
   testhpservice, testutility, testhelpers, testwildcardresolverservice, testperf
-  testhpservice, testutility, testhelpers, testwildcardresolverservice
 
 import kademlia/testencoding
