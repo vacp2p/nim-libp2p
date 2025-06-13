@@ -887,10 +887,11 @@ method publish*(
 
   g.mcache.put(msgId, msg)
 
-  if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
-    g.sendIDontWant(msg, msgId, peers)
+  if g.parameters.sendIDontWantOnPublish:
+    if isLargeMessage(msg, msgId):
+      g.sendIDontWant(msg, msgId, peers)
 
-  g.sendPreamble(msg, msgId, peers)
+    g.sendPreamble(msg, msgId, peers)
 
   g.broadcast(
     peers,
