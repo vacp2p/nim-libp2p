@@ -505,3 +505,25 @@ suite "GossipSub Scoring":
     # Then peer is not selected
     check:
       gossipPeers.len == 0
+
+  asyncTest "PublishThreshold - do not graft when peer score below threshold":
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # Given peer with score below publishThreshold
+    gossipSub.parameters.publishThreshold = -100.0
+    let peer = peers[0]
+    peer.score = -200.0
+
+    # and Graft message
+    let msg = ControlGraft(topicID: topic)
+
+    # When Graft is handled
+    let prunes = gossipSub.handleGraft(peer, @[msg])
+
+    # Then peer is ignored and not added to prunes
+    check:
+      gossipSub.mesh[topic].len == 0
+      prunes.len == 0
