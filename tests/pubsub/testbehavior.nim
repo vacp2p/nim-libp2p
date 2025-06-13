@@ -5,7 +5,10 @@ import stew/byteutils
 import utils
 import chronicles
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../libp2p/protocols/pubsub/rpc/[message]
 import ../helpers
+
+const MsgIdSuccess = "msg id gen success"
 
 suite "GossipSub Behavior":
   teardown:
@@ -176,3 +179,115 @@ suite "GossipSub Behavior":
     gossipSub.dropFanoutPeers()
     check topic1 notin gossipSub.fanout
     check topic2 in gossipSub.fanout
+
+  asyncTest "`getGossipPeers` - should gather up to degree D non intersecting peers":
+    let topic = "foobar"
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(45, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate mesh and fanout peers 
+    for i in 0 ..< 30:
+      let peer = peers[i]
+      if i mod 2 == 0:
+        gossipSub.fanout[topic].incl(peer)
+      else:
+        gossipSub.grafted(peer, topic)
+        gossipSub.mesh[topic].incl(peer)
+
+    # generate gossipsub (free standing) peers
+    for i in 30 ..< 45:
+      let peer = peers[i]
+      gossipSub.gossipsub[topic].incl(peer)
+
+    # generate messages
+    var seqno = 0'u64
+    for i in 0 .. 5:
+      let conn = conns[i]
+      inc seqno
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
+
+    check gossipSub.fanout[topic].len == 15
+    check gossipSub.mesh[topic].len == 15
+    check gossipSub.gossipsub[topic].len == 15
+
+    let gossipPeers = gossipSub.getGossipPeers()
+    check gossipPeers.len == gossipSub.parameters.d
+    for p in gossipPeers.keys:
+      check not gossipSub.fanout.hasPeerId(topic, p.peerId)
+      check not gossipSub.mesh.hasPeerId(topic, p.peerId)
+
+  asyncTest "`getGossipPeers` - should not crash on missing topics in mesh":
+    let topic = "foobar"
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate mesh and fanout peers 
+    for i, peer in peers:
+      if i mod 2 == 0:
+        gossipSub.fanout[topic].incl(peer)
+      else:
+        gossipSub.gossipsub[topic].incl(peer)
+
+    # generate messages
+    var seqno = 0'u64
+    for i in 0 .. 5:
+      let conn = conns[i]
+      inc seqno
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
+
+    let gossipPeers = gossipSub.getGossipPeers()
+    check gossipPeers.len == gossipSub.parameters.d
+
+  asyncTest "`getGossipPeers` - should not crash on missing topics in fanout":
+    let topic = "foobar"
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate mesh and fanout peers 
+    for i, peer in peers:
+      if i mod 2 == 0:
+        gossipSub.mesh[topic].incl(peer)
+        gossipSub.grafted(peer, topic)
+      else:
+        gossipSub.gossipsub[topic].incl(peer)
+
+    # generate messages
+    var seqno = 0'u64
+    for i in 0 .. 5:
+      let conn = conns[i]
+      inc seqno
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
+
+    let gossipPeers = gossipSub.getGossipPeers()
+    check gossipPeers.len == gossipSub.parameters.d
+
+  asyncTest "`getGossipPeers` - should not crash on missing topics in gossip":
+    let topic = "foobar"
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # generate mesh and fanout peers 
+    for i, peer in peers:
+      if i mod 2 == 0:
+        gossipSub.mesh[topic].incl(peer)
+        gossipSub.grafted(peer, topic)
+      else:
+        gossipSub.fanout[topic].incl(peer)
+
+    # generate messages
+    var seqno = 0'u64
+    for i in 0 .. 5:
+      let conn = conns[i]
+      inc seqno
+      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
+
+    let gossipPeers = gossipSub.getGossipPeers()
+    check gossipPeers.len == 0
