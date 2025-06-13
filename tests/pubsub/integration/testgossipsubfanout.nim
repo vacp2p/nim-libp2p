@@ -9,7 +9,6 @@
 
 {.used.}
 
-import std/[sequtils]
 import stew/byteutils
 import chronicles
 import ../utils
