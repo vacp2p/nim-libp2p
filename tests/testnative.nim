@@ -28,8 +28,11 @@ import
   transports/tls/testcertificate
 
 import
-  testnameresolve, testmultistream, testbufferstream, testidentify,
+  testautotls, testnameresolve, testmultistream, testbufferstream, testidentify,
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
   testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
   testhpservice, testutility, testhelpers, testwildcardresolverservice, testperf
+  testhpservice, testutility, testhelpers, testwildcardresolverservice
+
+import kademlia/testencoding

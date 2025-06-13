@@ -24,16 +24,16 @@ const
   HttpPeerAuthFailed = 401
 
 suite "PeerID Auth":
-  var api {.threadvar.}: PeerIDAuthApi
+  var client {.threadvar.}: PeerIDAuthClient
   var peerInfo {.threadvar.}: PeerInfo
 
   asyncTeardown:
-    await api.close()
+    await client.close()
     checkTrackers()
 
   asyncSetup:
     let rng = newRng()
-    api = PeerIDAuthApi.new(rng)
+    client = PeerIDAuthClient.new(rng)
     peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng[]).get())
 
   asyncTest "test peerID send":
@@ -49,10 +49,10 @@ suite "PeerID Auth":
       }
 
     let (bearer, responseWithoutBearer) =
-      await api.send(parseUri(AuthPeerURL), peerInfo, payload)
+      await client.send(parseUri(AuthPeerURL), peerInfo, payload)
     check responseWithoutBearer.status != HttpPeerAuthFailed
     doAssert bearer.token.len > 0
 
     let (_, responseWithBearer) =
-      await api.send(parseUri(AuthPeerURL), peerInfo, payload, bearer)
+      await client.send(parseUri(AuthPeerURL), peerInfo, payload, bearer)
     check responseWithBearer.status != HttpPeerAuthFailed

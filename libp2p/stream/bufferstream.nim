@@ -199,8 +199,10 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
       elif s.pushing:
         if not s.readQueue.empty():
           discard s.readQueue.popFirstNoWait()
-  except AsyncQueueFullError, AsyncQueueEmptyError:
-    raiseAssert(getCurrentExceptionMsg())
+  except AsyncQueueFullError as e:
+    raiseAssert("closeImpl failed queue full: " & e.msg)
+  except AsyncQueueEmptyError as e:
+    raiseAssert("closeImpl failed queue empty: " & e.msg)
 
   trace "Closed BufferStream", s
 

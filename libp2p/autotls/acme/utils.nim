@@ -4,6 +4,11 @@ import ../../transports/tls/certificate_ffi
 
 type ACMEError* = object of LPError
 
+proc keyOrError*(table: HttpTable, key: string): string {.raises: [ValueError].} =
+  if not table.contains(key):
+    raise newException(ValueError, "key " & key & " not present in headers")
+  table.getString(key)
+
 proc base64UrlEncode*(data: seq[byte]): string =
   ## Encodes data using base64url (RFC 4648 §5) — no padding, URL-safe
   var encoded = base64.encode(data, safe = true)

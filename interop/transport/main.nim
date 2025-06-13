@@ -80,7 +80,7 @@ proc main() {.async.} =
       try:
         redisClient.bLPop(@["listenerAddr"], testTimeout.seconds.int)[1]
       except Exception as e:
-        raise newException(CatchableError, e.msg)
+        raise newException(CatchableError, "Exception calling bLPop: " & e.msg, e)
     let
       remoteAddr = MultiAddress.init(listenerAddr).tryGet()
       dialingStart = Moment.now()
@@ -105,8 +105,8 @@ try:
     return "done"
 
   discard waitFor(mainAsync().wait(testTimeout))
-except AsyncTimeoutError:
-  error "Program execution timed out."
+except AsyncTimeoutError as e:
+  error "Program execution timed out", description = e.msg
   quit(-1)
 except CatchableError as e:
   error "Unexpected error", description = e.msg
