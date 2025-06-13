@@ -22,7 +22,7 @@ suite "GossipSub Mesh Management":
   asyncTest "subscribe/unsubscribeAll":
     let topic = "foobar"
     let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
+      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
