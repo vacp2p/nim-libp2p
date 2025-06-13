@@ -11,11 +11,11 @@
 
 import chronos
 import stew/byteutils
-import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
-import ../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../libp2p/stream/connection
-import ../helpers
+import ../utils
+import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
+import ../../../libp2p/protocols/pubsub/rpc/[messages]
+import ../../../libp2p/stream/connection
+import ../../helpers
 
 type DummyConnection* = ref object of Connection
 
@@ -30,7 +30,7 @@ proc new*(T: typedesc[DummyConnection]): DummyConnection =
   let instance = T()
   instance
 
-suite "GossipSub Custom Connection Support":
+suite "GossipSub Integration - Custom Connection Support":
   teardown:
     checkTrackers()
 
