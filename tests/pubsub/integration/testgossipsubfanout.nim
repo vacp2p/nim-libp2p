@@ -12,63 +12,16 @@
 import std/[sequtils]
 import stew/byteutils
 import chronicles
-import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, peertable]
-import ../../libp2p/protocols/pubsub/rpc/[messages]
-import ../helpers
+import ../utils
+import ../../../libp2p/protocols/pubsub/[gossipsub, peertable]
+import ../../../libp2p/protocols/pubsub/rpc/[messages]
+import ../../helpers
 
-suite "GossipSub Fanout Management":
+suite "GossipSub Integration - Fanout Management":
   teardown:
     checkTrackers()
 
-  asyncTest "`replenishFanout` Degree Lo":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    check gossipSub.gossipsub[topic].len == 15
-    gossipSub.replenishFanout(topic)
-    check gossipSub.fanout[topic].len == gossipSub.parameters.d
-
-  asyncTest "`dropFanoutPeers` drop expired fanout topics":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(6, topic, populateGossipsub = true, populateFanout = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    gossipSub.lastFanoutPubSub[topic] = Moment.fromNow(1.millis)
-    await sleepAsync(5.millis) # allow the topic to expire 
-
-    check gossipSub.fanout[topic].len == gossipSub.parameters.d
-
-    gossipSub.dropFanoutPeers()
-    check topic notin gossipSub.fanout
-
-  asyncTest "`dropFanoutPeers` leave unexpired fanout topics":
-    let
-      topic1 = "foobar1"
-      topic2 = "foobar2"
-    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
-      6, @[topic1, topic2], populateGossipsub = true, populateFanout = true
-    )
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    gossipSub.lastFanoutPubSub[topic1] = Moment.fromNow(1.millis)
-    gossipSub.lastFanoutPubSub[topic2] = Moment.fromNow(1.minutes)
-    await sleepAsync(5.millis) # allow first topic to expire 
-
-    check gossipSub.fanout[topic1].len == gossipSub.parameters.d
-    check gossipSub.fanout[topic2].len == gossipSub.parameters.d
-
-    gossipSub.dropFanoutPeers()
-    check topic1 notin gossipSub.fanout
-    check topic2 in gossipSub.fanout
-
-  asyncTest "e2e - GossipSub send over fanout A -> B":
+  asyncTest "GossipSub send over fanout A -> B":
     let (passed, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2, gossip = true)
@@ -107,7 +60,7 @@ suite "GossipSub Fanout Management":
 
     check observed == 2
 
-  asyncTest "e2e - GossipSub send over fanout A -> B for subscribed topic":
+  asyncTest "GossipSub send over fanout A -> B for subscribed topic":
     let (passed, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2, gossip = true, unsubscribeBackoff = 10.minutes)
