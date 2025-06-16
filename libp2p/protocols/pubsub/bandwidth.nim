@@ -1,37 +1,34 @@
+import chronos
 import std/atomics
 
 const defaultAlpha = 0.3
+const initialRate = 2_500_000.0     #bytes per second
 
 type
   ExponentialMovingAverage* = object
     alpha: float
-    value: float
-    accum: Atomic[int]
+    value: Atomic[float64]
 
   BandwidthTracking* = ref object
-    upload*: ExponentialMovingAverage
     download*: ExponentialMovingAverage
 
 proc init*(
     T: type[ExponentialMovingAverage], alpha: float = defaultAlpha
 ): ExponentialMovingAverage =
-  ExponentialMovingAverage(alpha: alpha, value: 0.0)
+  result.alpha  = alpha
+  result.value.store(initialRate)
 
 proc init*(T: type[BandwidthTracking], alpha: float = defaultAlpha): BandwidthTracking =
   BandwidthTracking(
-    upload: ExponentialMovingAverage.new(), download: ExponentialMovingAverage.new()
+    download: ExponentialMovingAverage.new()
   )
 
-proc update(e: var ExponentialMovingAverage) =
-  let sample = e.accum.exchange(0)
-  e.value = e.alpha * float(sample) + (1.0 - e.alpha) * e.value
-
-proc track*(e: var ExponentialMovingAverage, bytes: int) =
-  e.accum.atomicInc(bytes)
+proc update*(e: var ExponentialMovingAverage, startAt: Moment, bytes: int) =
+  let elapsedTime = Moment.now() - startAt
+  let curSample = (bytes*1000)/elapsedTime.milliseconds
+  let oldSample = e.value.load()
+  let ema = e.alpha * float(curSample) + (1.0 - e.alpha) * oldSample
+  e.value.store(ema)
 
 proc value*(e: var ExponentialMovingAverage): float =
-  e.value
-
-proc update*(b: var BandwidthTracking) =
-  b.upload.update()
-  b.download.update()
+  e.value.load()
