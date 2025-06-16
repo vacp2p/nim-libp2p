@@ -16,35 +16,68 @@ import ./core, ../../stream/connection
 logScope:
   topics = "libp2p perf"
 
-type PerfClient* = ref object of RootObj
+type Stats* = object
+  isFinal*: bool
+  uploadBytes*: uint
+  downloadBytes*: uint
+  duration*: Duration
+
+type PerfClient* = ref object
+  stats: Stats
+
+proc new*(T: typedesc[PerfClient]): T =
+  return T()
+
+proc currentStats*(p: PerfClient): Stats =
+  return p.stats
 
 proc perf*(
-    _: typedesc[PerfClient],
-    conn: Connection,
-    sizeToWrite: uint64 = 0,
-    sizeToRead: uint64 = 0,
+    p: PerfClient, conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0
 ): Future[Duration] {.public, async: (raises: [CancelledError, LPStreamError]).} =
-  var
-    size = sizeToWrite
-    buf: array[PerfSize, byte]
-  let start = Moment.now()
   trace "starting performance benchmark", conn, sizeToWrite, sizeToRead
 
-  await conn.write(toSeq(toBytesBE(sizeToRead)))
-  while size > 0:
-    let toWrite = min(size, PerfSize)
-    await conn.write(buf[0 ..< toWrite])
-    size -= toWrite
+  p.stats = Stats()
 
-  await conn.close()
+  try:
+    var
+      size = sizeToWrite
+      buf: array[PerfSize, byte]
 
-  size = sizeToRead
+    let start = Moment.now()
 
-  while size > 0:
-    let toRead = min(size, PerfSize)
-    await conn.readExactly(addr buf[0], toRead.int)
-    size = size - toRead
+    await conn.write(toSeq(toBytesBE(sizeToRead)))
+    while size > 0:
+      let toWrite = min(size, PerfSize)
+      await conn.write(buf[0 ..< toWrite])
+      size -= toWrite.uint
 
-  let duration = Moment.now() - start
-  trace "finishing performance benchmark", duration
-  return duration
+      # set stats using copy value to avoid race condition
+      var statsCopy = p.stats
+      statsCopy.duration = Moment.now() - start
+      statsCopy.uploadBytes += toWrite.uint
+      p.stats = statsCopy
+
+    await conn.close()
+
+    size = sizeToRead
+
+    while size > 0:
+      let toRead = min(size, PerfSize)
+      await conn.readExactly(addr buf[0], toRead.int)
+      size = size - toRead.uint
+
+      # set stats using copy value to avoid race condition
+      var statsCopy = p.stats
+      statsCopy.duration = Moment.now() - start
+      statsCopy.downloadBytes += toRead.uint
+      p.stats = statsCopy
+  except CancelledError as e:
+    raise e
+  except LPStreamError as e:
+    raise e
+  finally:
+    p.stats.isFinal = true
+
+  trace "finishing performance benchmark", duration = p.stats.duration
+
+  return p.stats.duration
