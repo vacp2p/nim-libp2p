@@ -11,193 +11,13 @@
 
 import chronicles
 import std/[sequtils]
-import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../helpers
+import ../utils
+import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../helpers
 
-suite "GossipSub Mesh Management":
+suite "GossipSub Integration - Mesh Management":
   teardown:
     checkTrackers()
-
-  asyncTest "subscribe/unsubscribeAll":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    # test via dynamic dispatch
-    gossipSub.PubSub.subscribe(topic, voidTopicHandler)
-
-    check:
-      gossipSub.topics.contains(topic)
-      gossipSub.gossipsub[topic].len() > 0
-      gossipSub.mesh[topic].len() > 0
-
-    # test via dynamic dispatch
-    gossipSub.PubSub.unsubscribeAll(topic)
-
-    check:
-      topic notin gossipSub.topics # not in local topics
-      topic notin gossipSub.mesh # not in mesh
-      topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
-
-  asyncTest "`rebalanceMesh` Degree Lo":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    check gossipSub.peers.len == 15
-    gossipSub.rebalanceMesh(topic)
-    check gossipSub.mesh[topic].len == gossipSub.parameters.d
-
-  asyncTest "rebalanceMesh - bad peers":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var scoreLow = -11'f64
-    for peer in peers:
-      peer.score = scoreLow
-      scoreLow += 1.0
-
-    check gossipSub.peers.len == 15
-    gossipSub.rebalanceMesh(topic)
-    # low score peers should not be in mesh, that's why the count must be 4
-    check gossipSub.mesh[topic].len == 4
-    for peer in gossipSub.mesh[topic]:
-      check peer.score >= 0.0
-
-  asyncTest "`rebalanceMesh` Degree Hi":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    check gossipSub.mesh[topic].len == 15
-    gossipSub.rebalanceMesh(topic)
-    check gossipSub.mesh[topic].len ==
-      gossipSub.parameters.d + gossipSub.parameters.dScore
-
-  asyncTest "rebalanceMesh fail due to backoff":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    for peer in peers:
-      gossipSub.backingOff.mgetOrPut(topic, initTable[PeerId, Moment]()).add(
-        peer.peerId, Moment.now() + 1.hours
-      )
-      let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
-      # there must be a control prune due to violation of backoff
-      check prunes.len != 0
-
-    check gossipSub.peers.len == 15
-    gossipSub.rebalanceMesh(topic)
-    # expect 0 since they are all backing off
-    check gossipSub.mesh[topic].len == 0
-
-  asyncTest "rebalanceMesh fail due to backoff - remote":
-    let topic = "foobar"
-    let (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    check gossipSub.peers.len == 15
-    gossipSub.rebalanceMesh(topic)
-    check gossipSub.mesh[topic].len != 0
-
-    for peer in peers:
-      gossipSub.handlePrune(
-        peer,
-        @[
-          ControlPrune(
-            topicID: topic,
-            peers: @[],
-            backoff: gossipSub.parameters.pruneBackoff.seconds.uint64,
-          )
-        ],
-      )
-
-    # expect topic cleaned up since they are all pruned
-    check topic notin gossipSub.mesh
-
-  asyncTest "rebalanceMesh Degree Hi - audit scenario":
-    let
-      topic = "foobar"
-      numInPeers = 6
-      numOutPeers = 7
-      totalPeers = numInPeers + numOutPeers
-
-    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
-      totalPeers, topic, populateGossipsub = true, populateMesh = true
-    )
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    gossipSub.parameters.dScore = 4
-    gossipSub.parameters.d = 6
-    gossipSub.parameters.dOut = 3
-    gossipSub.parameters.dHigh = 12
-    gossipSub.parameters.dLow = 4
-
-    for i in 0 ..< numInPeers:
-      let conn = conns[i]
-      let peer = peers[i]
-      conn.transportDir = Direction.In
-      peer.score = 40.0
-
-    for i in numInPeers ..< totalPeers:
-      let conn = conns[i]
-      let peer = peers[i]
-      conn.transportDir = Direction.Out
-      peer.score = 10.0
-
-    check gossipSub.mesh[topic].len == 13
-    gossipSub.rebalanceMesh(topic)
-    # ensure we are above dlow
-    check gossipSub.mesh[topic].len > gossipSub.parameters.dLow
-    var outbound = 0
-    for peer in gossipSub.mesh[topic]:
-      if peer.sendConn.transportDir == Direction.Out:
-        inc outbound
-    # ensure we give priority and keep at least dOut outbound peers
-    check outbound >= gossipSub.parameters.dOut
-
-  asyncTest "rebalanceMesh Degree Hi - dScore controls number of peers to retain by score when pruning":
-    # Given GossipSub node starting with 13 peers in mesh
-    let
-      topic = "foobar"
-      totalPeers = 13
-
-    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
-      totalPeers, topic, populateGossipsub = true, populateMesh = true
-    )
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    # And mesh is larger than dHigh
-    gossipSub.parameters.dLow = 4
-    gossipSub.parameters.d = 6
-    gossipSub.parameters.dHigh = 8
-    gossipSub.parameters.dOut = 3
-    gossipSub.parameters.dScore = 13
-
-    check gossipSub.mesh[topic].len == totalPeers
-
-    # When mesh is rebalanced
-    gossipSub.rebalanceMesh(topic)
-
-    # Then prunning is not triggered when mesh is not larger than dScore
-    check gossipSub.mesh[topic].len == totalPeers
 
   asyncTest "Nodes graft peers according to DValues - numberOfNodes < dHigh":
     let
@@ -242,7 +62,7 @@ suite "GossipSub Mesh Management":
           node.mesh.getOrDefault(topic).len <= dHigh
         node.fanout.len == 0
 
-  asyncTest "e2e - GossipSub should add remote peer topic subscriptions":
+  asyncTest "GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
 
@@ -261,7 +81,7 @@ suite "GossipSub Mesh Management":
       "foobar" in gossip1.gossipsub
       gossip1.gossipsub.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
-  asyncTest "e2e - GossipSub should add remote peer topic subscriptions if both peers are subscribed":
+  asyncTest "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
 

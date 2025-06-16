@@ -11,12 +11,12 @@
 
 import std/[sequtils, enumerate]
 import stew/byteutils
-import utils
 import sugar
 import chronicles
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
-import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
-import ../helpers, ../utils/[futures]
+import ../utils
+import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
+import ../../../libp2p/protocols/pubsub/rpc/[message]
+import ../../helpers, ../../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
 
@@ -72,62 +72,11 @@ proc createMessages(
 
   return (iwantMessageIds, sentMessages)
 
-suite "GossipSub Message Handling":
+suite "GossipSub Integration - Message Handling":
   teardown:
     checkTrackers()
 
-  asyncTest "Drop messages of topics without subscription":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    # generate messages
-    var seqno = 0'u64
-    for i in 0 .. 5:
-      let conn = conns[i]
-      let peer = peers[i]
-      inc seqno
-      let msg = Message.init(conn.peerId, ("bar" & $i).toBytes(), topic, some(seqno))
-      await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
-
-    check gossipSub.mcache.msgs.len == 0
-
-  asyncTest "subscription limits":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-    gossipSub.topicsHigh = 10
-
-    var tooManyTopics: seq[string]
-    for i in 0 .. gossipSub.topicsHigh + 10:
-      tooManyTopics &= "topic" & $i
-    let lotOfSubs = RPCMsg.withSubs(tooManyTopics, true)
-
-    let conn = TestBufferStream.new(noop)
-    let peerId = randomPeerId()
-    conn.peerId = peerId
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(lotOfSubs, false))
-
-    check:
-      gossipSub.gossipsub.len == gossipSub.topicsHigh
-      peer.behaviourPenalty > 0.0
-
-    await conn.close()
-    await gossipSub.switch.stop()
-
-  asyncTest "invalid message bytes":
-    let gossipSub = TestGossipSub.init(newStandardSwitch())
-
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    expect(CatchableError):
-      await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
-
-    await gossipSub.switch.stop()
-
-  asyncTest "e2e - Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":
+  asyncTest "Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":
     # This test checks if two messages, each below the maxSize, are correctly split when their combined size exceeds maxSize.
     # Expected: Both messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
@@ -154,7 +103,7 @@ suite "GossipSub Message Handling":
 
     await teardownTest(gossip0, gossip1)
 
-  asyncTest "e2e - Discard IWANT replies when both messages individually exceed maxSize":
+  asyncTest "Discard IWANT replies when both messages individually exceed maxSize":
     # This test checks if two messages, each exceeding the maxSize, are discarded and not sent.
     # Expected: No messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
@@ -181,7 +130,7 @@ suite "GossipSub Message Handling":
 
     await teardownTest(gossip0, gossip1)
 
-  asyncTest "e2e - Process IWANT replies when both messages are below maxSize":
+  asyncTest "Process IWANT replies when both messages are below maxSize":
     # This test checks if two messages, both below the maxSize, are correctly processed and sent.
     # Expected: Both messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
@@ -208,7 +157,7 @@ suite "GossipSub Message Handling":
 
     await teardownTest(gossip0, gossip1)
 
-  asyncTest "e2e - Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
+  asyncTest "Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
     # This test checks if, when given two messages where one is below maxSize and the other exceeds it, only the smaller message is processed and sent.
     # Expected: Only the smaller message should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
@@ -469,7 +418,7 @@ suite "GossipSub Message Handling":
       validatedCounter == 1
       sendCounter == 2
 
-  asyncTest "e2e - GossipSub send over mesh A -> B":
+  asyncTest "GossipSub send over mesh A -> B":
     var passed: Future[bool] = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
@@ -499,7 +448,7 @@ suite "GossipSub Message Handling":
       gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
       not gossip2.fanout.hasPeerId("foobar", gossip1.peerInfo.peerId)
 
-  asyncTest "e2e - GossipSub should not send to source & peers who already seen":
+  asyncTest "GossipSub should not send to source & peers who already seen":
     # 3 nodes: A, B, C
     # A publishes, C relays, B is having a long validation
     # so B should not send to anyone
@@ -565,7 +514,7 @@ suite "GossipSub Message Handling":
 
     await bFinished
 
-  asyncTest "e2e - GossipSub send over floodPublish A -> B":
+  asyncTest "GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check topic == "foobar"
@@ -595,7 +544,7 @@ suite "GossipSub Message Handling":
       "foobar" notin gossip2.gossipsub
       not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
 
-  asyncTest "e2e - GossipSub floodPublish limit":
+  asyncTest "GossipSub floodPublish limit":
     let
       nodes = setupNodes(20)
       gossip1 = GossipSub(nodes[0])
@@ -607,7 +556,7 @@ suite "GossipSub Message Handling":
     await connectNodes(nodes[1 ..^ 1], nodes[0])
     await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, 17)
 
-  asyncTest "e2e - GossipSub floodPublish limit with bandwidthEstimatebps = 0":
+  asyncTest "GossipSub floodPublish limit with bandwidthEstimatebps = 0":
     let
       nodes = setupNodes(20)
       gossip1 = GossipSub(nodes[0])
@@ -620,7 +569,7 @@ suite "GossipSub Message Handling":
     await connectNodes(nodes[1 ..^ 1], nodes[0])
     await baseTestProcedure(nodes, gossip1, nodes.len - 1, nodes.len - 1)
 
-  asyncTest "e2e - GossipSub with multiple peers":
+  asyncTest "GossipSub with multiple peers":
     var runs = 10
 
     let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
@@ -662,7 +611,7 @@ suite "GossipSub Message Handling":
       check:
         "foobar" in gossip.gossipsub
 
-  asyncTest "e2e - GossipSub with multiple peers (sparse)":
+  asyncTest "GossipSub with multiple peers (sparse)":
     var runs = 10
 
     let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
@@ -711,7 +660,7 @@ suite "GossipSub Message Handling":
         gossip.fanout.len == 0
         gossip.mesh["foobar"].len > 0
 
-  asyncTest "e2e - GossipSub with multiple peers - control deliver (sparse)":
+  asyncTest "GossipSub with multiple peers - control deliver (sparse)":
     var runs = 10
 
     let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
