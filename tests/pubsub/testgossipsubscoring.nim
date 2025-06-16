@@ -407,15 +407,18 @@ suite "GossipSub Scoring":
         50.0 .. 66.0
 
   asyncTest "GossipThreshold - do not handle IHave if peer score is below threshold":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    const
+      topic = "foobar"
+      gossipThreshold = -100.0
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     # Given peer with score below GossipThreshold
-    gossipSub.parameters.gossipThreshold = -100.0
-    let peer = peers[0]
-    peer.score = -200.0
+    gossipSub.parameters.gossipThreshold = gossipThreshold
+    peer.score = gossipThreshold - 100.0
 
     # and IHave message
     let id = @[0'u8, 1, 2, 3]
@@ -429,15 +432,18 @@ suite "GossipSub Scoring":
       iWant.messageIDs.len == 0
 
   asyncTest "GossipThreshold - do not handle IWant if peer score is below threshold":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    const
+      topic = "foobar"
+      gossipThreshold = -100.0
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     # Given peer with score below GossipThreshold
-    gossipSub.parameters.gossipThreshold = -100.0
-    let peer = peers[0]
-    peer.score = -200.0
+    gossipSub.parameters.gossipThreshold = gossipThreshold
+    peer.score = gossipThreshold - 100.0
 
     # and IWant message with MsgId in mcache and sentIHaves
     let id = @[0'u8, 1, 2, 3]
@@ -453,15 +459,18 @@ suite "GossipSub Scoring":
       messages.len == 0
 
   asyncTest "GossipThreshold - do not trigger PeerExchange on Prune":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    const
+      topic = "foobar"
+      gossipThreshold = -100.0
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     # Given peer with score below GossipThreshold
-    gossipSub.parameters.gossipThreshold = -100.0
-    let peer = peers[0]
-    peer.score = -200.0
+    gossipSub.parameters.gossipThreshold = gossipThreshold
+    peer.score = gossipThreshold - 100.0
 
     # and RoutingRecordsHandler added
     var routingRecordsFut = newFuture[void]()
@@ -484,16 +493,19 @@ suite "GossipSub Scoring":
       result.isCancelled()
 
   asyncTest "GossipThreshold - do not select peer for IHave broadcast if peer score is below threshold":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(1, topic, populateGossipsub = true)
+    const
+      topic = "foobar"
+      gossipThreshold = -100.0
+    let
+      (gossipSub, conns, peers) =
+        setupGossipSubWithPeers(1, topic, populateGossipsub = true)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     # Given peer with score below GossipThreshold
-    gossipSub.parameters.gossipThreshold = -100.0
-    let peer = peers[0]
-    peer.score = -200.0
+    gossipSub.parameters.gossipThreshold = gossipThreshold
+    peer.score = gossipThreshold - 100.0
 
     # and message in cache
     let id = @[0'u8, 1, 2, 3]
@@ -507,15 +519,18 @@ suite "GossipSub Scoring":
       gossipPeers.len == 0
 
   asyncTest "PublishThreshold - do not graft when peer score below threshold":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    const
+      topic = "foobar"
+      publishThreshold = -100.0
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     # Given peer with score below publishThreshold
-    gossipSub.parameters.publishThreshold = -100.0
-    let peer = peers[0]
-    peer.score = -200.0
+    gossipSub.parameters.publishThreshold = publishThreshold
+    peer.score = publishThreshold - 100.0
 
     # and Graft message
     let msg = ControlGraft(topicID: topic)
