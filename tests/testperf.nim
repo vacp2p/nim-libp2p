@@ -63,7 +63,6 @@ suite "Perf protocol":
     checkTrackers()
 
   asyncTest "tcp::yamux":
-    return # nim-libp2p#1462 test fails with stream closed error
     let server = createSwitch(isServer = true, useYamux = true)
     let client = createSwitch(useYamux = true)
     await runTest(server, client)
