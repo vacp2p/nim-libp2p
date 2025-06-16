@@ -136,6 +136,7 @@ type
     overheadRateLimitOpt*: Opt[TokenBucket]
     preambleBudget*: int
     heIsReceivings*: Table[MessageId, uint32]
+    heIsSendings*: Table[MessageId, Moment]
 
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
@@ -220,7 +221,6 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
         var data = await conn.readLp(p.maxMessageSize)
-        p.bandwidthTracking.download.track(data.len)
         trace "read data from peer",
           conn, peer = p, closed = conn.closed, data = data.shortLog
 
@@ -350,7 +350,6 @@ proc writeMsg(
     p: PubSubPeer, conn: Connection, msg: seq[byte]
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
   await conn.writeLp(msg)
-  p.bandwidthTracking.upload.track(msg.len)
 
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
   # Continuation for a pending `sendMsg` future from below
@@ -619,7 +618,7 @@ proc new*(
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
     bandwidthTracking: BandwidthTracking(
-      upload: ExponentialMovingAverage.init(), download: ExponentialMovingAverage.init()
+      download: ExponentialMovingAverage.init()
     ),
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))

@@ -348,7 +348,7 @@ proc handleIWant*(
   return result
 
 proc medianDownloadRate(p: var HashSet[PubSubPeer]): float =
-  let vals = p.toSeq().mapIt(it.bandwidthTracking.upload.value())
+  let vals = p.toSeq().mapIt(it.bandwidthTracking.download.value())
   let mid = vals.len div 2
   if vals.len mod 2 == 0:
     (vals[mid - 1] + vals[mid]) / 2
@@ -364,19 +364,22 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
       return
     if g.hasSeen(g.salt(preamble.messageID)):
       continue
-
+    if peer.heIsSendings.hasKey(preamble.messageID):
+      continue
     if g.ongoingReceives.hasKey(preamble.messageID):
       #TODO: add to conflicts_watch if length is different
       continue
     else:
+      peer.heIsSendings[preamble.messageID] = starts
       var toSendPeers = HashSet[PubSubPeer]()
       g.mesh.withValue(preamble.topicID, peers):
         toSendPeers.incl(peers[])
       toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
       var peers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
-      let bytesPerSecond = toSendPeers.medianDownloadRate().uint64
+      let bytesPerSecond = peer.bandwidthTracking.download.value().uint64
       let transmissionTimeMs = (preamble.messageLength.uint64 * 1000) div bytesPerSecond
-      let expires = starts + transmissionTimeMs.int64.milliseconds
+      #Need many testruns to precisely adjust safety margin
+      let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
 
       #We send imreceiving only if received from mesh members
       if peer notin peers:
@@ -396,23 +399,24 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
         startAt: starts,
         expiresAt: expires,
       )
-      #TODO: send imreceiving only if received from faster mesh members
-      g.broadcast(
-        peers,
-        RPCMsg(
-          control: some(
-            ControlMessage(
-              imreceiving:
-                @[
-                  ControlIMReceiving(
-                    messageID: preamble.messageID, messageLength: preamble.messageLength
-                  )
-                ]
+      #Send imreceiving only if received from faster mesh members
+      if bytesPerSecond >= toSendPeers.medianDownloadRate().uint64:
+        g.broadcast(
+          peers,
+          RPCMsg(
+            control: some(
+              ControlMessage(
+                imreceiving:
+                  @[
+                    ControlIMReceiving(
+                      messageID: preamble.messageID, messageLength: preamble.messageLength
+                    )
+                  ]
+              )
             )
-          )
-        ),
-        isHighPriority = true,
-      )
+          ),
+          isHighPriority = true,
+        )
 
 proc handleIMReceiving*(
     g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]
@@ -868,9 +872,3 @@ proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
-
-proc bandwithHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
-  heartbeat "Gossipsub Peer Bandwidth Tracking", 1.seconds:
-    for (topic, peers) in g.gossipsub.pairs:
-      for peer in peers.items:
-        peer.bandwidthTracking.update()
