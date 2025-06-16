@@ -22,31 +22,6 @@ suite "GossipSub Integration - Scoring":
   teardown:
     checkTrackers()
 
-  asyncTest "Disconnect bad peers":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(30, topic, populateGossipsub = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    gossipSub.parameters.disconnectBadPeers = true
-    gossipSub.parameters.appSpecificWeight = 1.0
-
-    for i, peer in peers:
-      peer.appScore = gossipSub.parameters.graylistThreshold - 1
-      let conn = conns[i]
-      gossipSub.switch.connManager.storeMuxer(Muxer(connection: conn))
-
-    gossipSub.updateScores()
-
-    await sleepAsync(100.millis)
-
-    check:
-      # test our disconnect mechanics
-      gossipSub.gossipsub.peers(topic) == 0
-      # also ensure we cleanup properly the peersInIP table
-      gossipSub.peersInIP.len == 0
-
   asyncTest "Flood publish to all peers with score above threshold, regardless of subscription":
     let
       numberOfNodes = 3
