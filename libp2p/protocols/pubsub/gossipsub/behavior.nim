@@ -409,7 +409,8 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
                 imreceiving:
                   @[
                     ControlIMReceiving(
-                      messageID: preamble.messageID, messageLength: preamble.messageLength
+                      messageID: preamble.messageID,
+                      messageLength: preamble.messageLength,
                     )
                   ]
               )

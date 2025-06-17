@@ -192,8 +192,6 @@ type
     heartbeatFut*: Future[void] # cancellation future for heartbeat interval
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
-    #bandwidthHeartbeatFut*: Future[void]
-      # cancellation future for bandwidth tracking heartbeat interval
     heartbeatRunning*: bool
 
     peerStats*: Table[PeerId, PeerStats]
