@@ -9,8 +9,8 @@
 
 {.used.}
 
-import stew/byteutils
 import chronos/rateLimit
+import stew/byteutils
 import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
@@ -104,7 +104,7 @@ suite "GossipSub":
     # And signature verification disabled to avoid message being dropped
     gossipSub.verifySignature = false
 
-      # And peer disconnection is enabled when rate limit is exceeded
+    # And peer disconnection is enabled when rate limit is exceeded
     gossipSub.parameters.disconnectPeerAboveRateLimit = true
 
     # And low overheadRateLimit is set
@@ -147,7 +147,35 @@ suite "GossipSub":
     # When the GossipSub processes the message
     await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
-    # Then the `invalidMessageDeliveries` counter in the peers stats should be incremented 
+    # Then the peer's invalidMessageDeliveries counter is incremented 
+    gossipSub.peerStats.withValue(peer.peerId, stats):
+      check:
+        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
+
+  asyncTest "Peer is punished if message id generation fails":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification disabled to avoid message being dropped
+    gossipSub.verifySignature = false
+
+    # And a custom msgIdProvider is set that always returns an error
+    func customMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+      err(ValidationResult.Reject)
+    gossipSub.msgIdProvider = customMsgIdProvider
+
+    # And a message is created
+    var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(1'u64))
+
+    # When the GossipSub processes the message
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    # Then the peer's invalidMessageDeliveries counter is incremented
     gossipSub.peerStats.withValue(peer.peerId, stats):
       check:
         stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
