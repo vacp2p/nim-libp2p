@@ -70,6 +70,7 @@ type
   PreambleInfo* = ref object # gossipsub 1.4 related
     messageId*: MessageId
     messageLength*: uint32
+    topicId*: string
     sender*: PubSubPeer
     startAt*: Moment
     expiresAt*: Moment
