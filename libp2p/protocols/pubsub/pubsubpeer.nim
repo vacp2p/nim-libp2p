@@ -617,9 +617,7 @@ proc new*(
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
-    bandwidthTracking: BandwidthTracking(
-      download: ExponentialMovingAverage.init()
-    ),
+    bandwidthTracking: BandwidthTracking(download: ExponentialMovingAverage.init()),
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
