@@ -28,13 +28,11 @@ proc `[]`*(ps: var PreambleStore, msgId: MessageId): PreambleInfo =
 proc `[]=`*(ps: var PreambleStore, msgId: MessageId, entry: PreambleInfo) =
   insert(ps, msgId, entry)
 
-proc del*(ps: var PreambleStore, msgId: MessageId): bool =
+proc del*(ps: var PreambleStore, msgId: MessageId) =
   try:
     if ps.byId.hasKey(msgId):
       ps.byId[msgId].deleted = true
       ps.byId.del(msgId)
-      return true
-    return false
   except KeyError:
     assert false, "checked with hasKey"
 

@@ -33,7 +33,7 @@ import
 import results
 export results
 
-import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
+import ./gossipsub/[types, scoring, behavior, receivestore], ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 
@@ -972,7 +972,7 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
     return fut
 
   # stop heartbeat interval
-  g.preambleExpirationLoop.cancelSoon()
+  g.preambleExpirationFut.cancelSoon()
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()

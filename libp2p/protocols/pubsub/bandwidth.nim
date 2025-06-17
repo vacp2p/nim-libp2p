@@ -24,9 +24,9 @@ proc init*(T: type[BandwidthTracking], alpha: float = defaultAlpha): BandwidthTr
 
 proc update*(e: var ExponentialMovingAverage, startAt: Moment, bytes: int) =
   let elapsedTime = Moment.now() - startAt
-  let curSample = (bytes * 1000) / elapsedTime.milliseconds
+  let curSample = float(bytes * 1000) / elapsedTime.milliseconds.float
   let oldSample = e.value.load()
-  let ema = e.alpha * float(curSample) + (1.0 - e.alpha) * oldSample
+  let ema = e.alpha * curSample + (1.0 - e.alpha) * oldSample
   e.value.store(ema)
 
 proc value*(e: var ExponentialMovingAverage): float =
