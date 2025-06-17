@@ -387,6 +387,7 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
           g.ongoingIWantReceives[preamble.messageID] = PreambleInfo(
             messageId: preamble.messageID,
             messageLength: preamble.messageLength,
+            topicId: preamble.topicID,
             sender: peer,
             startAt: starts,
             expiresAt: expires,
@@ -398,6 +399,7 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
       g.ongoingReceives[preamble.messageID] = PreambleInfo(
         messageId: preamble.messageID,
         messageLength: preamble.messageLength,
+        topicId: preamble.topicID,
         sender: peer,
         startAt: starts,
         expiresAt: expires,
@@ -884,12 +886,47 @@ proc preambleExpirationHeartbeat*(g: GossipSub) {.async: (raises: [CancelledErro
     while true:
       let expiredOngoingReceive = g.ongoingReceives.popExpired(Moment.now()).valueOr:
         break
-      # TODO: use expiredOngoingReceive
+
+      var toSendPeers = HashSet[PubSubPeer]()
+      g.mesh.withValue(expiredOngoingReceive.topicId, peers):
+        toSendPeers.incl(peers[])
+      var peers = toSendPeers.filterIt(it.codec == GossipSubCodec_14).toSeq()
+      if peers.len == 0:
+        continue # TODO: what to do if no peer is available?
+
+      g.rng.shuffle(peers)
+
+      let starts = Moment.now()
+
+      g.broadcast(
+        @[peers[0]],
+        RPCMsg(
+          control: some(
+            ControlMessage(
+              iwant: @[ControlIWant(messageIDs: @[expiredOngoingReceive.messageId])]
+            )
+          )
+        ),
+        isHighPriority = true,
+      )
+
+      let bytesPerSecond = peers[0].bandwidthTracking.download.value().uint64
+      let transmissionTimeMs =
+        (expiredOngoingReceive.messageLength.uint64 * 1000) div bytesPerSecond
+      #Need many testruns to precisely adjust safety margin
+      let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
+
+      g.ongoingIWantReceives[expiredOngoingReceive.messageId] = PreambleInfo(
+        messageId: expiredOngoingReceive.messageId,
+        messageLength: expiredOngoingReceive.messageLength,
+        topicId: expiredOngoingReceive.topicId,
+        sender: peers[0],
+        startAt: starts,
+        expiresAt: expires,
+      )
 
     while true:
       let expiredOngoingIWantReceived = g.ongoingIWantReceives.popExpired(Moment.now()).valueOr:
         break
       # TODO: use expiredOngoingIWantReceived
-
-    # TODO: send IWANT to any mesh member (preferably) for the expired msgId
-    # re-enter masgId in the ongoingIWantReceives list
+      # TODO: what should we do here?
