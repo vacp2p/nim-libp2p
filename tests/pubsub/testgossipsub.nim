@@ -9,7 +9,6 @@
 
 {.used.}
 
-import chronicles
 import stew/byteutils
 import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
@@ -81,7 +80,6 @@ suite "GossipSub":
       peer.behaviourPenalty > 0.0
 
     await conn.close()
-    await gossipSub.switch.stop()
 
   asyncTest "invalid message bytes":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
@@ -92,4 +90,27 @@ suite "GossipSub":
     expect(CatchableError):
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
-    await gossipSub.switch.stop()
+  asyncTest "Peer is punished if message contains invalid sequence number":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification disabled to avoid message being dropped
+    gossipSub.verifySignature = false
+
+    # And a message is created with invalid sequence number
+    let seqno = 1'u64
+    var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(seqno))
+    msg.seqno = ("1").toBytes()
+
+    # When the GossipSub processes the message
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    # Then the `invalidMessageDeliveries` counter in the peers stats should be incremented 
+    gossipSub.peerStats.withValue(peer.peerId, stats):
+      check:
+        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
