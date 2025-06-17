@@ -10,8 +10,9 @@
 {.used.}
 
 import stew/byteutils
+import chronos/rateLimit
 import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
 import ../helpers
 
@@ -90,6 +91,43 @@ suite "GossipSub":
     expect(CatchableError):
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
+  asyncTest "Peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+      rateLimitHits = currentRateLimitHits("unknown")
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification disabled to avoid message being dropped
+    gossipSub.verifySignature = false
+
+      # And peer disconnection is enabled when rate limit is exceeded
+    gossipSub.parameters.disconnectPeerAboveRateLimit = true
+
+    # And low overheadRateLimit is set
+    const
+      bytes = 1
+      interval = 1.millis
+      overheadRateLimit = Opt.some((bytes, interval))
+
+    gossipSub.parameters.overheadRateLimit = overheadRateLimit
+    peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
+
+    # And a message is created that will exceed the overhead rate limit
+    var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(1'u64))
+
+    # When the GossipSub processes the message
+    # Then it throws an exception due to peer disconnection
+    expect(PeerRateLimitError):
+      await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    # And the rate limit hit counter is incremented
+    check:
+      currentRateLimitHits("unknown") == rateLimitHits + 1
+
   asyncTest "Peer is punished if message contains invalid sequence number":
     # Given a GossipSub instance with one peer
     const topic = "foobar"
@@ -103,8 +141,7 @@ suite "GossipSub":
     gossipSub.verifySignature = false
 
     # And a message is created with invalid sequence number
-    let seqno = 1'u64
-    var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(seqno))
+    var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(1'u64))
     msg.seqno = ("1").toBytes()
 
     # When the GossipSub processes the message
