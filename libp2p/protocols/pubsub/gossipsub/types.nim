@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import chronos
-import std/[options, tables, sets]
+import std/[options, tables, sets, heapqueue]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
@@ -67,11 +67,17 @@ type
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
 
-  PreambleInfo* = object # gossipsub 1.4 related
+  PreambleInfo* = ref object # gossipsub 1.4 related
+    messageId*: MessageId
     messageLength*: uint32
     sender*: PubSubPeer
     startAt*: Moment
     expiresAt*: Moment
+    deleted*: bool # tombstone marker
+
+  PreambleStore* = object
+    byId*: Table[MessageId, PreambleInfo]
+    heap*: HeapQueue[PreambleInfo]
 
   TopicParams* {.public.} = object
     topicWeight*: float64
@@ -170,7 +176,7 @@ type
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
-  OngoingReceivesTable* = Table[MessageId, PreambleInfo]
+  OngoingReceivesStore* = PreambleStore
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
   RoutingRecordsHandler* = proc(
@@ -190,6 +196,8 @@ type
     mcache*: MCache # messages cache
     validationSeen*: ValidationSeenTable # peers who sent us message in validation
     heartbeatFut*: Future[void] # cancellation future for heartbeat interval
+    preambleExpirationFut*: Future[void]
+      # cancellation future for preamble expiration heartbeat interval
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
@@ -202,8 +210,8 @@ type
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
 
     heartbeatEvents*: seq[AsyncEvent]
-    ongoingReceives*: OngoingReceivesTable # list of messages we are receiving
-    ongoingIWantReceives*: OngoingReceivesTable # list of iwant replies we are receiving
+    ongoingReceives*: OngoingReceivesStore # list of messages we are receiving
+    ongoingIWantReceives*: OngoingReceivesStore # list of iwant replies we are receiving
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64
