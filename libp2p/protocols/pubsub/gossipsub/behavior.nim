@@ -11,7 +11,7 @@
 
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
-import "."/[types, scoring]
+import "."/[types, scoring, receivestore]
 import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub, bandwidth]
 import "../rpc"/[messages]
 import
@@ -383,17 +383,20 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
 
       #We send imreceiving only if received from mesh members
       if peer notin peers:
-        if preamble.messageID notin g.ongoingIWantReceives:
+        if not g.ongoingIWantReceives.hasKey(preamble.messageID):
           g.ongoingIWantReceives[preamble.messageID] = PreambleInfo(
+            messageId: preamble.messageID,
             messageLength: preamble.messageLength,
             sender: peer,
             startAt: starts,
             expiresAt: expires,
           )
+
         trace "preamble: ignoring out of mesh peer", peer
         continue
 
       g.ongoingReceives[preamble.messageID] = PreambleInfo(
+        messageId: preamble.messageID,
         messageLength: preamble.messageLength,
         sender: peer,
         startAt: starts,
@@ -873,3 +876,20 @@ proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
     for trigger in g.heartbeatEvents:
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
+
+proc preambleExpirationHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
+  heartbeat "GossipSub: Preamble Expiration", 200.milliseconds:
+    trace "running preamble expiration heartbeat", instance = cast[int](g)
+
+    while true:
+      let expiredOngoingReceive = g.ongoingReceives.popExpired(Moment.now()).valueOr:
+        break
+      # TODO: use expiredOngoingReceive
+
+    while true:
+      let expiredOngoingIWantReceived = g.ongoingIWantReceives.popExpired(Moment.now()).valueOr:
+        break
+      # TODO: use expiredOngoingIWantReceived
+
+    # TODO: send IWANT to any mesh member (preferably) for the expired msgId
+    # re-enter masgId in the ongoingIWantReceives list
