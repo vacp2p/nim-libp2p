@@ -179,3 +179,26 @@ suite "GossipSub":
     gossipSub.peerStats.withValue(peer.peerId, stats):
       check:
         stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
+
+  asyncTest "Peer is punished when signature verification fails":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification enabled
+    gossipSub.verifySignature = true
+
+    # And a message without signature is created
+    var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(1'u64))
+
+    # When the GossipSub processes the message
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    # Then the peer's invalidMessageDeliveries counter is incremented
+    gossipSub.peerStats.withValue(peer.peerId, stats):
+      check:
+        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
