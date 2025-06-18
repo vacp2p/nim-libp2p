@@ -34,8 +34,10 @@ proc getResponseBody*(
     response: HttpClientResponseRef
 ): Future[JsonNode] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
-    let responseBody = bytesToString(await response.getBodyBytes()).parseJson()
-    return responseBody
+    let bodyBytes = await response.getBodyBytes()
+    if bodyBytes.len > 0:
+      return bytesToString(bodyBytes).parseJson()
+    return %*{} # empty body
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

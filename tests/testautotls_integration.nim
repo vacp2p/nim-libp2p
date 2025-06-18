@@ -11,7 +11,15 @@
 
 import chronos
 import chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/api, wire]
+import
+  ../libp2p/
+    [
+      stream/connection,
+      upgrademngrs/upgrade,
+      autotls/acme/api,
+      autotls/acme/client,
+      wire,
+    ]
 
 import ./helpers
 
@@ -19,31 +27,42 @@ when defined(linux) and defined(amd64):
   {.used.}
 
 suite "AutoTLS Integration":
-  var api {.threadvar.}: ACMEApi
-  var key {.threadvar.}: KeyPair
-
   asyncTeardown:
-    await api.close()
     checkTrackers()
 
-  asyncSetup:
-    api = await ACMEApi.new(acmeServerURL = LetsEncryptURLStaging)
-    key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
-
-  asyncTest "test request challenge":
-    let registerResponse = await api.requestRegister(key)
+  asyncTest "request challenge without ACMEClient (ACMEApi only)":
+    let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+    let acmeApi = await ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+    defer:
+      await acmeApi.close()
+    let registerResponse = await acmeApi.requestRegister(key)
     # account was registered (kid set)
     check registerResponse.kid != ""
     if registerResponse.kid == "":
       raiseAssert "unable to register acme account"
 
     # challenge requested
-    let challenge =
-      await api.requestChallenge(@["some.dummy.domain.com"], key, registerResponse.kid)
-    check challenge.finalizeURL.len() > 0
-    check challenge.orderURL.len() > 0
+    let challenge = await acmeApi.requestChallenge(
+      @["some.dummy.domain.com"], key, registerResponse.kid
+    )
+    check challenge.finalize.len() > 0
+    check challenge.order.len() > 0
 
     check challenge.dns01.url.len() > 0
-    check challenge.dns01.`type`.len() > 0
+    check challenge.dns01.`type` == ACMEChallengeType.dns01
+    check challenge.dns01.status == ACMEChallengeStatus.pending
+    check challenge.dns01.token.len() > 0
+
+  asyncTest "request challenge with ACMEClient":
+    let acme = await ACMEClient.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+    defer:
+      await acme.close()
+
+    let challenge = await acme.getChallenge(@["some.dummy.domain.com"])
+
+    check challenge.finalize.len() > 0
+    check challenge.order.len() > 0
+    check challenge.dns01.url.len() > 0
+    check challenge.dns01.`type` == ACMEChallengeType.dns01
     check challenge.dns01.status == ACMEChallengeStatus.pending
     check challenge.dns01.token.len() > 0

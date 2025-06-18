@@ -9,6 +9,7 @@
 
 {.push raises: [].}
 
+import uri
 import chronos, results, bio
 
 import ./api, ./utils
@@ -27,7 +28,7 @@ proc new*(
     api: Opt[ACMEApi] = Opt.none(ACMEApi),
     key: Opt[KeyPair] = Opt.none(KeyPair),
     rng: ref HmacDrbgContext = newRng(),
-    acmeServerURL: string = LetsEncryptURL,
+    acmeServerURL: Uri = parseUri(LetsEncryptURL),
 ): Future[T] {.async: (raises: [ACMEError, CancelledError]).} =
   let api = api.valueOr:
     await ACMEApi.new()
@@ -36,8 +37,35 @@ proc new*(
   let registerResponse = await api.requestRegister(key)
   T(api: api, key: key, kid: registerResponse.kid)
 
-proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
+proc genKeyAuthorization(self: ACMEClient, token: string): KeyAuthorization =
   base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toByteSeq).data))
+
+proc getChallenge*(
+    self: ACMEClient, domains: seq[api.Domain]
+): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
+  await self.api.requestChallenge(domains, self.key, self.kid)
+
+proc getCertificate*(
+    self: ACMEClient, domain: api.Domain, challenge: ACMEChallengeResponseWrapper
+): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
+  let chalURL = challenge.dns01.url
+  discard
+    await self.api.requestCompleted(parseUri(challenge.dns01.url), self.key, self.kid)
+
+  let completed = await self.api.checkChallengeCompleted(
+    parseUri(challenge.dns01.url), self.key, self.kid
+  )
+  if not completed:
+    raise
+      newException(ACMEError, "Failed to signal ACME server about challenge completion")
+
+  let finalized = await self.api.certificateFinalized(
+    domain, parseUri(challenge.finalize), parseUri(challenge.order), self.key, self.kid
+  )
+  if not finalized:
+    raise newException(ACMEError, "Failed to finalize certificate for domain " & domain)
+
+  await self.api.downloadCertificate(parseUri(challenge.order))
 
 proc close*(self: ACMEClient): Future[void] {.async: (raises: [CancelledError]).} =
   await self.api.close()
