@@ -127,6 +127,92 @@ suite "GossipSub":
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
+  asyncTest "Peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+      rateLimitHits = currentRateLimitHits("unknown")
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer disconnection is enabled when rate limit is exceeded
+    gossipSub.parameters.disconnectPeerAboveRateLimit = true
+
+    # And low overheadRateLimit is set
+    const
+      bytes = 1
+      interval = 1.millis
+      overheadRateLimit = Opt.some((bytes, interval))
+
+    gossipSub.parameters.overheadRateLimit = overheadRateLimit
+    peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
+
+    # When invalid RPC data is sent that fails to decode
+    expect(PeerRateLimitError):
+      await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
+
+    # And the rate limit hit counter is incremented
+    check:
+      currentRateLimitHits("unknown") == rateLimitHits + 1
+
+  asyncTest "Peer is punished and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+      rateLimitHits = currentRateLimitHits("unknown")
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer disconnection is disabled when rate limit is exceeded to not raise PeerRateLimitError
+    gossipSub.parameters.disconnectPeerAboveRateLimit = false
+
+    # And low overheadRateLimit is set
+    const
+      bytes = 1
+      interval = 1.millis
+      overheadRateLimit = Opt.some((bytes, interval))
+
+    gossipSub.parameters.overheadRateLimit = overheadRateLimit
+    peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
+
+    # And initial behavior penalty is zero
+    check:
+      peer.behaviourPenalty == 0.0
+
+    # When invalid RPC data is sent that fails to decode
+    expect(PeerMessageDecodeError):
+      await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
+
+    # And the rate limit hit counter is incremented
+    check:
+      currentRateLimitHits("unknown") == rateLimitHits + 1
+      peer.behaviourPenalty == 0.1
+
+  asyncTest "Peer is punished when decodeRpcMsg fails":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And initial behavior penalty is zero
+    check:
+      peer.behaviourPenalty == 0.0
+
+    # When invalid RPC data is sent that fails to decode
+    expect(PeerMessageDecodeError):
+      await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
+
+    # Then the peer is penalized with behavior penalty
+    check:
+      peer.behaviourPenalty == 0.1
+
   asyncTest "Peer is punished when message contains invalid sequence number":
     # Given a GossipSub instance with one peer
     let
