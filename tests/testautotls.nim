@@ -13,11 +13,18 @@
 
 import sequtils, json
 import chronos, chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/mockapi, wire]
+import
+  ../libp2p/[
+    stream/connection,
+    upgrademngrs/upgrade,
+    autotls/acme/mockapi,
+    autotls/acme/client,
+    wire,
+  ]
 
 import ./helpers
 
-suite "AutoTLS ACME Client":
+suite "AutoTLS ACME API":
   var api {.threadvar.}: MockACMEApi
   var key {.threadvar.}: KeyPair
 
@@ -176,3 +183,22 @@ suite "AutoTLS ACME Client":
 
     expect(ACMEError):
       discard await api.requestGetOrder("some-order-url")
+
+suite "AutoTLS ACME Client":
+  var acmeApi {.threadvar.}: MockACMEApi
+  var acme {.threadvar.}: ACMEClient
+
+  asyncSetup:
+    acmeApi = await MockACMEApi.new()
+    acmeApi.mockedHeaders = HttpTable.init()
+
+  asyncTeardown:
+    await acme.close()
+    checkTrackers()
+
+  asyncTest "client registers new account when instantiated":
+    acmeApi.mockedBody = %*{"status": "valid"}
+    acmeApi.mockedHeaders.add("location", "some-expected-kid")
+
+    acme = await ACMEClient.new(api = Opt.some(ACMEApi(acmeApi)))
+    check acme.kid == "some-expected-kid"
