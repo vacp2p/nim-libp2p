@@ -33,7 +33,7 @@ import
 import results
 export results
 
-import ./gossipsub/[types, scoring, behavior, receivestore], ../../utils/heartbeat
+import ./gossipsub/[types, scoring, behavior, preamblestore], ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 

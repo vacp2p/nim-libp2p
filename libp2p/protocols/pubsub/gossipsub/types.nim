@@ -67,6 +67,10 @@ type
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
 
+  PeerSet* = object
+    order*: seq[PeerId]
+    peers*: HashSet[PeerId]
+
   PreambleInfo* = ref object # gossipsub 1.4 related
     messageId*: MessageId
     messageLength*: uint32
@@ -75,6 +79,7 @@ type
     startAt*: Moment
     expiresAt*: Moment
     deleted*: bool # tombstone marker
+    peerSet*: PeerSet
 
   PreambleStore* = object
     byId*: Table[MessageId, PreambleInfo]

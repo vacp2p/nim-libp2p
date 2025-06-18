@@ -1,10 +1,29 @@
-import std/[tables, heapqueue, options]
+import std/[tables, heapqueue, sets, options]
 import ./types
 import chronos
 import ../rpc/messages
+import ../../../peerid
+import ../pubsubpeer
 
 proc `<`(a, b: PreambleInfo): bool =
   a.expiresAt < b.expiresAt
+
+proc init*(
+    _: typedesc[PreambleInfo],
+    preamble: ControlPreamble,
+    sender: PubSubPeer,
+    starts: Moment,
+    expiresAt: Moment,
+): PreambleInfo =
+  PreambleInfo(
+    messageId: preamble.messageID,
+    messageLength: preamble.messageLength,
+    topicId: preamble.topicID,
+    sender: sender,
+    startAt: starts,
+    expiresAt: expiresAt,
+    peerSet: PeerSet(order: @[], peers: initHashSet[PeerId]()),
+  )
 
 proc initPreambleStore*(): PreambleStore =
   result.byId = initTable[MessageId, PreambleInfo]()
@@ -55,5 +74,28 @@ template withValue*(ps: var PreambleStore, key: MessageId, value, body: untyped)
     if ps.hasKey(key):
       let value {.inject.} = ps.byId[key]
       body
-  except KeyError:
+  except system.KeyError:
     assert false, "checked with in"
+
+const maxPossiblePeersOnPeerSet = 6
+
+proc addPossiblePeerToQuery*(
+    ps: var PreambleStore, msgId: MessageId, peer: PubSubPeer
+) =
+  if not ps.hasKey(msgId):
+    return
+
+  try:
+    var preamble = ps[msgId]
+    if not preamble.peerSet.peers.contains(peer.peerId):
+      if preamble.peerSet.order.len == maxPossiblePeersOnPeerSet:
+        let evicted: PeerId = preamble.peerSet.order[0]
+        preamble.peerSet.order.delete(0)
+        preamble.peerSet.peers.excl(evicted)
+      preamble.peerSet.order.add(peer.peerId)
+      preamble.peerSet.peers.incl(peer.peerId)
+  except KeyError:
+    assert false, "checked with hasKey"
+
+proc possiblePeersToQuery*(preamble: PreambleInfo): seq[PeerId] =
+  preamble.peerSet.order
