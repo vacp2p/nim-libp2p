@@ -128,7 +128,7 @@ suite "GossipSub":
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
-  asyncTest "Peer is punished if message contains invalid sequence number":
+  asyncTest "Peer is punished when message contains invalid sequence number":
     # Given a GossipSub instance with one peer
     const topic = "foobar"
     let
@@ -152,7 +152,7 @@ suite "GossipSub":
       check:
         stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
 
-  asyncTest "Peer is punished if message id generation fails":
+  asyncTest "Peer is punished when message id generation fails":
     # Given a GossipSub instance with one peer
     const topic = "foobar"
     let
