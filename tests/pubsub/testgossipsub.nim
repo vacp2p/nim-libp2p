@@ -202,3 +202,35 @@ suite "GossipSub":
     gossipSub.peerStats.withValue(peer.peerId, stats):
       check:
         stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
+
+  asyncTest "Peer is punished when message validation is rejected":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification disabled to avoid message being dropped earlier
+    gossipSub.verifySignature = false
+
+    # And a custom validator that always rejects messages
+    proc rejectingValidator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      return ValidationResult.Reject
+
+    # Register the rejecting validator for the topic
+    gossipSub.addValidator(topic, rejectingValidator)
+
+    # And a message is created
+    var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(1'u64))
+
+    # When the GossipSub processes the message
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    # Then the peer's invalidMessageDeliveries counter is incremented
+    gossipSub.peerStats.withValue(peer.peerId, stats):
+      check:
+        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
