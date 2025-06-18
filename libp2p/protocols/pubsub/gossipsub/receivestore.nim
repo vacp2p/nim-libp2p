@@ -41,7 +41,7 @@ proc len*(ps: var PreambleStore): int =
 
 proc popExpired*(ps: var PreambleStore, now: Moment): Option[PreambleInfo] =
   while ps.heap.len > 0:
-    if not ps.heap[0].deleted:
+    if ps.heap[0].deleted:
       discard ps.heap.pop()
     elif ps.heap[0].expiresAt <= now:
       let top = ps.heap.pop()
