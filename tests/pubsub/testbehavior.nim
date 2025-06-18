@@ -1,6 +1,6 @@
 {.used.}
 
-import std/[sequtils]
+import std/[sequtils, tables]
 import stew/byteutils
 import utils
 import chronicles
@@ -244,6 +244,59 @@ suite "GossipSub Behavior":
     check:
       gossipSub.mesh[topic].len == 0
       prunes.len == 0
+
+  asyncTest "handleGraft - penalizes direct peer attempting to graft":
+    # Given a GossipSub instance with one direct peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And the peer is configured as a direct peer
+    gossipSub.parameters.directPeers[peer.peerId] = @[]
+
+    # And initial behavior penalty is zero
+    check:
+      peer.behaviourPenalty == 0.0
+
+    # When a GRAFT message is handled
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then the peer is penalized with behavior penalty
+    # And receives PRUNE in response
+    check:
+      peer.behaviourPenalty == 0.1
+      prunes.len == 1
+
+  asyncTest "handleGraft - penalizes peer for grafting during backoff period":
+    # Given a GossipSub instance with one peer
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And the peer is in backoff period for the topic
+    gossipSub.backingOff.mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] =
+      Moment.now() + 1.hours
+
+    # And initial behavior penalty is zero
+    check:
+      peer.behaviourPenalty == 0.0
+
+    # When a GRAFT message is handled
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then the peer is penalized with behavior penalty
+    # And receives PRUNE in response
+    check:
+      peer.behaviourPenalty == 0.1
+      prunes.len == 1
 
   asyncTest "replenishFanout - Degree Lo":
     let topic = "foobar"
