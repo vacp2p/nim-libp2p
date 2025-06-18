@@ -19,8 +19,10 @@ const
   DefaultRandStringSize = 256
   ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
 
-type Nonce* = string
+type Authorization* = string
+type Domain* = string
 type Kid* = string
+type Nonce* = string
 
 type ACMEDirectory* = object
   newNonce*: string
@@ -303,7 +305,7 @@ proc requestNewOrder*(
     )
 
 proc requestAuthorizations*(
-    self: ACMEApi, authorizations: seq[string], key: KeyPair, kid: Kid
+    self: ACMEApi, authorizations: seq[Authorization], key: KeyPair, kid: Kid
 ): Future[ACMEAuthorizationsResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestAuthorizations"):
     doAssert authorizations.len > 0
@@ -311,7 +313,7 @@ proc requestAuthorizations*(
     acmeResponse.body.to(ACMEAuthorizationsResponse)
 
 proc requestChallenge*(
-    self: ACMEApi, domains: seq[string], key: KeyPair, kid: Kid
+    self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
   let challengeResponse = await self.requestNewOrder(domains, key, kid)
 
