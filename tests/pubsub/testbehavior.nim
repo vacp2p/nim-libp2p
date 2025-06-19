@@ -2,8 +2,8 @@
 
 import std/[sequtils, tables]
 import stew/byteutils
-import utils
 import chronicles
+import ./utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../libp2p/protocols/pubsub/rpc/[message]
 import ../helpers

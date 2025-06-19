@@ -11,7 +11,7 @@
 
 import chronos/rateLimit
 import stew/byteutils
-import utils
+import ./utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
 import ../helpers

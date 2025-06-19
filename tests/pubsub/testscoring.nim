@@ -3,7 +3,7 @@
 import chronos
 import math
 import std/[options, tables, sets]
-import utils
+import ./utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/gossipsub/[types, scoring]
 import ../../libp2p/muxers/muxer

@@ -4,4 +4,4 @@ import
   testbehavior, testgossipsub, testgossipsubparams, testmcache, testmessage,
   testscoring, testtimedcache
 
-import ./integration/testpubsubintegration
+import ./integration/atestpubsubintegration
