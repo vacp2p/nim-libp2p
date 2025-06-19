@@ -10,6 +10,7 @@
 {.used.}
 
 import chronos
+import math
 import sequtils
 import std/[options, tables, sets]
 import utils
@@ -97,10 +98,10 @@ suite "GossipSub Scoring":
       await teardownGossipSub(gossipSub, conns)
 
     gossipSub.topicParams[topic] = TopicParams(
-      topicWeight: 1.0,
-      timeInMeshWeight: 0.1,
-      timeInMeshQuantum: 1.seconds,
-      timeInMeshCap: 5.0,
+      topicWeight: 1.0, # No multiplication factor
+      timeInMeshWeight: 1.0, # Weight = 1.0
+      timeInMeshQuantum: 1.seconds, # 1 second quantum
+      timeInMeshCap: 10.0, # Cap at 10.0
     )
 
     let now = Moment.now()
@@ -114,7 +115,7 @@ suite "GossipSub Scoring":
     gossipSub.withPeerStats(peers[1].peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(
         inMesh: true,
-        graftTime: now - 10.seconds, # 10 seconds in mesh (should be capped)
+        graftTime: now - 12.seconds, # 12 seconds in mesh (should be capped at 10)
       )
 
     gossipSub.withPeerStats(peers[2].peerId) do(stats: var PeerStats):
@@ -124,12 +125,16 @@ suite "GossipSub Scoring":
 
     gossipSub.updateScores()
 
-    # Peer 0: 2 seconds * 0.1 = 0.2
-    check abs(peers[0].score - 0.2) < 0.001
-    # Peer 1: capped at 5.0 * 0.1 = 0.5
-    check abs(peers[1].score - 0.5) < 0.001
-    # Peer 2: not in mesh, score should be 0
-    check peers[2].score == 0.0
+    # Score calculation breakdown:
+    # P1 formula: min(meshTime / timeInMeshQuantum, timeInMeshCap) * timeInMeshWeight * topicWeight
+
+    check:
+      # Peer 0: min(2.0s / 1s, 10.0) * 1.0 * 1.0 = 2.0
+      round(peers[0].score, 1) == 2.0
+      # Peer 1: min(12.0s / 1s, 10.0) * 1.0 * 1.0 = 10.0 (capped at timeInMeshCap)
+      round(peers[1].score, 1) == 10.0
+      # Peer 2: not in mesh, score should be 0
+      round(peers[2].score, 1) == 0.0
 
   asyncTest "First message deliveries scoring (P2)":
     const topic = "foobar"
