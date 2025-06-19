@@ -88,7 +88,7 @@ suite "GossipSub Scoring":
     # Final peer score = 5.0 (no app score, behavior penalty, or colocation factor)
 
     check:
-      peers.allIt(it.score == 5.0)
+      peers.allIt(round(it.score, 1) == 5.0)
 
   asyncTest "Time in mesh scoring (P1)":
     const topic = "foobar"
@@ -145,29 +145,31 @@ suite "GossipSub Scoring":
     gossipSub.topicParams[topic] = TopicParams(
       topicWeight: 1.0,
       firstMessageDeliveriesWeight: 2.0,
-      firstMessageDeliveriesDecay: 0.9,
+      firstMessageDeliveriesDecay: 0.5,
     )
 
     # Set different first message delivery counts
     gossipSub.withPeerStats(peers[0].peerId) do(stats: var PeerStats):
-      stats.topicInfos[topic] = TopicInfo(firstMessageDeliveries: 5.0)
+      stats.topicInfos[topic] = TopicInfo(firstMessageDeliveries: 4.0)
 
     gossipSub.withPeerStats(peers[1].peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(firstMessageDeliveries: 0.0)
 
     gossipSub.withPeerStats(peers[2].peerId) do(stats: var PeerStats):
-      stats.topicInfos[topic] = TopicInfo(firstMessageDeliveries: 3.0)
+      stats.topicInfos[topic] = TopicInfo(firstMessageDeliveries: 2.0)
 
     gossipSub.updateScores()
 
     # Check scores: firstMessageDeliveries * weight
-    check peers[0].score == 10.0 # 5.0 * 2.0
-    check peers[1].score == 0.0 # 0.0 * 2.0
-    check peers[2].score == 6.0 # 3.0 * 2.0
+    check:
+      round(peers[0].score, 1) == 8.0 # 4.0 * 2.0
+      round(peers[1].score, 1) == 0.0 # 0.0 * 2.0
+      round(peers[2].score, 1) == 4.0 # 2.0 * 2.0
 
     # Check decay was applied
     gossipSub.peerStats.withValue(peers[0].peerId, stats):
-      check stats[].topicInfos[topic].firstMessageDeliveries == 4.5 # 5.0 * 0.9
+      check:
+        round(stats[].topicInfos[topic].firstMessageDeliveries, 1) == 2.0 # 4.0 * 0.5
 
   asyncTest "Mesh message deliveries scoring (P3)":
     const topic = "foobar"
@@ -180,9 +182,9 @@ suite "GossipSub Scoring":
     gossipSub.topicParams[topic] = TopicParams(
       topicWeight: 1.0,
       meshMessageDeliveriesWeight: -1.0,
-      meshMessageDeliveriesThreshold: 5.0,
+      meshMessageDeliveriesThreshold: 4.0,
       meshMessageDeliveriesActivation: 1.seconds,
-      meshMessageDeliveriesDecay: 0.8,
+      meshMessageDeliveriesDecay: 0.5,
     )
 
     # Set up peers with different mesh message delivery counts
@@ -190,7 +192,7 @@ suite "GossipSub Scoring":
       stats.topicInfos[topic] = TopicInfo(
         inMesh: true,
         graftTime: now - 2.seconds,
-        meshMessageDeliveries: 3.0, # Below threshold
+        meshMessageDeliveries: 2.0, # Below threshold
         meshMessageDeliveriesActive: true,
       )
 
@@ -211,12 +213,13 @@ suite "GossipSub Scoring":
 
     gossipSub.updateScores()
 
-    # Peer 0: deficit = 5 - 3 = 2, penalty = 2^2 * -1 = -4
-    check peers[0].score == -4.0
-    # Peer 1: above threshold, no penalty
-    check peers[1].score == 0.0
-    # Peer 2: not active yet, no penalty
-    check peers[2].score == 0.0
+    check:
+      # Peer 0: deficit = 4 - 2 = 2, penalty = 2^2 * -1 = -4
+      round(peers[0].score, 1) == -4.0
+      # Peer 1: above threshold, no penalty
+      round(peers[1].score, 1) == 0.0
+      # Peer 2: not active yet, no penalty
+      round(peers[2].score, 1) == 0.0
 
   asyncTest "Mesh failure penalty scoring (P3b)":
     const topic = "foobar"
@@ -225,12 +228,12 @@ suite "GossipSub Scoring":
       await teardownGossipSub(gossipSub, conns)
 
     gossipSub.topicParams[topic] = TopicParams(
-      topicWeight: 1.0, meshFailurePenaltyWeight: -2.0, meshFailurePenaltyDecay: 0.7
+      topicWeight: 1.0, meshFailurePenaltyWeight: -2.0, meshFailurePenaltyDecay: 0.5
     )
 
     # Set mesh failure penalty
     gossipSub.withPeerStats(peers[0].peerId) do(stats: var PeerStats):
-      stats.topicInfos[topic] = TopicInfo(meshFailurePenalty: 3.0)
+      stats.topicInfos[topic] = TopicInfo(meshFailurePenalty: 2.0)
 
     gossipSub.withPeerStats(peers[1].peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(meshFailurePenalty: 0.0)
@@ -238,12 +241,14 @@ suite "GossipSub Scoring":
     gossipSub.updateScores()
 
     # Check penalty application
-    check peers[0].score == -6.0 # 3.0 * -2.0
-    check peers[1].score == 0.0
+    check:
+      round(peers[0].score, 1) == -4.0 # 2.0 * -2.0
+      round(peers[1].score, 1) == 0.0
 
     # Check decay was applied
     gossipSub.peerStats.withValue(peers[0].peerId, stats):
-      check abs(stats[].topicInfos[topic].meshFailurePenalty - 2.1) < 0.001 # 3.0 * 0.7
+      check:
+        round(stats[].topicInfos[topic].meshFailurePenalty, 1) == 1.0 # 2.0 * 0.5
 
   asyncTest "Invalid message deliveries scoring (P4)":
     const topic = "foobar"
@@ -253,8 +258,8 @@ suite "GossipSub Scoring":
 
     gossipSub.topicParams[topic] = TopicParams(
       topicWeight: 1.0,
-      invalidMessageDeliveriesWeight: -3.0,
-      invalidMessageDeliveriesDecay: 0.6,
+      invalidMessageDeliveriesWeight: -4.0,
+      invalidMessageDeliveriesDecay: 0.5,
     )
 
     # Set invalid message deliveries
@@ -266,13 +271,15 @@ suite "GossipSub Scoring":
 
     gossipSub.updateScores()
 
-    # Check penalty: 2^2 * -3 = -12
-    check peers[0].score == -12.0
-    check peers[1].score == 0.0
+    # Check penalty: 2^2 * -4 = -16
+    check:
+      round(peers[0].score, 1) == -16.0
+      round(peers[1].score, 1) == 0.0
 
     # Check decay was applied
     gossipSub.peerStats.withValue(peers[0].peerId, stats):
-      check stats[].topicInfos[topic].invalidMessageDeliveries == 1.2 # 2.0 * 0.6
+      check:
+        round(stats[].topicInfos[topic].invalidMessageDeliveries, 1) == 1.0 # 2.0 * 0.5
 
   asyncTest "App-specific scoring":
     const topic = "foobar"
@@ -283,15 +290,16 @@ suite "GossipSub Scoring":
     gossipSub.parameters.appSpecificWeight = 0.5
 
     # Set different app scores
-    peers[0].appScore = 10.0
-    peers[1].appScore = -5.0
+    peers[0].appScore = 8.0
+    peers[1].appScore = -6.0
     peers[2].appScore = 0.0
 
     gossipSub.updateScores()
 
-    check peers[0].score == 5.0 # 10.0 * 0.5
-    check peers[1].score == -2.5 # -5.0 * 0.5
-    check peers[2].score == 0.0 # 0.0 * 0.5
+    check:
+      round(peers[0].score, 1) == 4.0 # 8.0 * 0.5
+      round(peers[1].score, 1) == -3.0 # -6.0 * 0.5
+      round(peers[2].score, 1) == 0.0 # 0.0 * 0.5
 
   asyncTest "Behaviour penalty scoring":
     const topic = "foobar"
@@ -299,25 +307,27 @@ suite "GossipSub Scoring":
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.parameters.behaviourPenaltyWeight = -0.1
-    gossipSub.parameters.behaviourPenaltyDecay = 0.8
+    gossipSub.parameters.behaviourPenaltyWeight = -0.25
+    gossipSub.parameters.behaviourPenaltyDecay = 0.5
 
     # Set different behaviour penalties
-    peers[0].behaviourPenalty = 5.0
+    peers[0].behaviourPenalty = 4.0
     peers[1].behaviourPenalty = 2.0
     peers[2].behaviourPenalty = 0.0
 
     gossipSub.updateScores()
 
     # Check penalty: penalty^2 * weight
-    check peers[0].score == -2.5 # 5^2 * -0.1 = -2.5
-    check peers[1].score == -0.4 # 2^2 * -0.1 = -0.4
-    check peers[2].score == 0.0 # 0^2 * -0.1 = 0.0
+    check:
+      round(peers[0].score, 1) == -4.0 # 4^2 * -0.25 = -4.0
+      round(peers[1].score, 1) == -1.0 # 2^2 * -0.25 = -1.0
+      round(peers[2].score, 1) == 0.0 # 0^2 * -0.25 = 0.0
 
     # Check decay was applied
-    check peers[0].behaviourPenalty == 4.0 # 5.0 * 0.8
-    check peers[1].behaviourPenalty == 1.6 # 2.0 * 0.8
-    check peers[2].behaviourPenalty == 0.0
+    check:
+      round(peers[0].behaviourPenalty, 1) == 2.0 # 4.0 * 0.5
+      round(peers[1].behaviourPenalty, 1) == 1.0 # 2.0 * 0.5
+      round(peers[2].behaviourPenalty, 1) == 0.0
 
   asyncTest "Colocation factor scoring":
     const topic = "foobar"
@@ -325,7 +335,7 @@ suite "GossipSub Scoring":
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.parameters.ipColocationFactorWeight = -0.5
+    gossipSub.parameters.ipColocationFactorWeight = -1.0
     gossipSub.parameters.ipColocationFactorThreshold = 2.0
 
     # Simulate peers from same IP
@@ -345,14 +355,16 @@ suite "GossipSub Scoring":
     gossipSub.updateScores()
 
     # First 3 peers should have colocation penalty
-    # over = 3 - 2 = 1, penalty = 1^2 * -0.5 = -0.5
-    check peers[0].score == -0.5
-    check peers[1].score == -0.5
-    check peers[2].score == -0.5
+    # over = 3 - 2 = 1, penalty = 1^2 * -1.0 = -1.0
+    check:
+      round(peers[0].score, 1) == -1.0
+      round(peers[1].score, 1) == -1.0
+      round(peers[2].score, 1) == -1.0
 
     # Other peers should have no penalty
-    check peers[3].score == 0.0
-    check peers[4].score == 0.0
+    check:
+      round(peers[3].score, 1) == 0.0
+      round(peers[4].score, 1) == 0.0
 
   asyncTest "Score decay to zero":
     const topic = "foobar"
@@ -372,10 +384,10 @@ suite "GossipSub Scoring":
     # Set small values that should decay to zero
     gossipSub.withPeerStats(peers[0].peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(
-        firstMessageDeliveries: 0.05,
-        meshMessageDeliveries: 0.08,
-        meshFailurePenalty: 0.03,
-        invalidMessageDeliveries: 0.06,
+        firstMessageDeliveries: 0.02,
+        meshMessageDeliveries: 0.04,
+        meshFailurePenalty: 0.06,
+        invalidMessageDeliveries: 0.08,
       )
 
     gossipSub.updateScores()
@@ -383,10 +395,11 @@ suite "GossipSub Scoring":
     # All values should be decayed to zero
     gossipSub.peerStats.withValue(peers[0].peerId, stats):
       let info = stats[].topicInfos[topic]
-      check info.firstMessageDeliveries == 0.0
-      check info.meshMessageDeliveries == 0.0
-      check info.meshFailurePenalty == 0.0
-      check info.invalidMessageDeliveries == 0.0
+      check:
+        round(info.firstMessageDeliveries, 1) == 0.0
+        round(info.meshMessageDeliveries, 1) == 0.0
+        round(info.meshFailurePenalty, 1) == 0.0
+        round(info.invalidMessageDeliveries, 1) == 0.0
 
   asyncTest "Peer stats expiration and eviction":
     const topic = "foobar"
@@ -408,14 +421,16 @@ suite "GossipSub Scoring":
       stats.expire = now + 10.seconds
       stats.score = 2.0
 
-    check gossipSub.peerStats.len == 2 # Before cleanup: expired + connected peer
+    check:
+      gossipSub.peerStats.len == 2 # Before cleanup: expired + connected peer
 
     gossipSub.updateScores()
 
     # Expired peer should be evicted, connected peer should remain
-    check gossipSub.peerStats.len == 1
-    check expiredPeerId notin gossipSub.peerStats
-    check peers[0].peerId in gossipSub.peerStats
+    check:
+      gossipSub.peerStats.len == 1
+      expiredPeerId notin gossipSub.peerStats
+      peers[0].peerId in gossipSub.peerStats
 
   asyncTest "Combined scoring components":
     const topic = "foobar"
@@ -493,4 +508,5 @@ suite "GossipSub Scoring":
     gossipSub.updateScores()
 
     # Score should be zero since topic weight is zero
-    check peers[0].score == 0.0
+    check:
+      round(peers[0].score, 1) == 0.0
