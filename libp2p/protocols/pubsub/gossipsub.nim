@@ -12,6 +12,7 @@
 {.push raises: [].}
 
 import std/[sets, sequtils]
+import stew/[endians2]
 import chronos, chronicles, metrics
 import chronos/ratelimit
 import
@@ -648,6 +649,8 @@ method rpcHandler*(
     for m in rpcMsg.messages:
       libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
+  let fromPeerID = peer
+
   trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
@@ -715,6 +718,12 @@ method rpcHandler*(
 
       # onto the next message
       continue
+
+    if msg.data.len == 100:
+      info "Received message from handler",
+        msgid = uint64.fromBytesLE(msg.data[8 ..< 16]),
+        fromPeerID = fromPeerID,
+        orig = uint64.fromBytesLE(msg.data[0 ..< 8])
 
     libp2p_gossipsub_received.inc()
 
