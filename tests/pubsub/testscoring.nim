@@ -344,7 +344,7 @@ suite "GossipSub Scoring":
     peers[1].address = some(sharedAddress)
     peers[2].address = some(sharedAddress) # 3 peers from same IP
 
-    # Manually add to peersInIP to simulate real colocation detection
+    # Manually add to peersInIP to simulate colocation detection
     gossipSub.peersInIP[sharedAddress] =
       toHashSet([peers[0].peerId, peers[1].peerId, peers[2].peerId])
 
@@ -354,15 +354,13 @@ suite "GossipSub Scoring":
 
     gossipSub.updateScores()
 
-    # First 3 peers should have colocation penalty
-    # over = 3 - 2 = 1, penalty = 1^2 * -1.0 = -1.0
     check:
+      # First 3 peers should have colocation penalty
+      # over = 3 - 2 = 1, penalty = 1^2 * -1.0 = -1.0
       round(peers[0].score, 1) == -1.0
       round(peers[1].score, 1) == -1.0
       round(peers[2].score, 1) == -1.0
-
-    # Other peers should have no penalty
-    check:
+      # Other peers should have no penalty
       round(peers[3].score, 1) == 0.0
       round(peers[4].score, 1) == 0.0
 
@@ -432,63 +430,82 @@ suite "GossipSub Scoring":
       expiredPeerId notin gossipSub.peerStats
       peers[0].peerId in gossipSub.peerStats
 
-  asyncTest "Combined scoring components":
+  asyncTest "Combined scoring":
     const topic = "foobar"
     var (gossipSub, conns, peers) =
       setupGossipSubWithPeers(1, topic, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    # Set up comprehensive topic parameters
+    # Set up comprehensive topic parameters with round numbers
     let now = Moment.now()
     gossipSub.topicParams[topic] = TopicParams(
       topicWeight: 2.0,
-      timeInMeshWeight: 0.1,
+      timeInMeshWeight: 0.25, # P1
       timeInMeshQuantum: 1.seconds,
       timeInMeshCap: 10.0,
-      firstMessageDeliveriesWeight: 1.0,
-      meshMessageDeliveriesWeight: -0.5,
-      meshMessageDeliveriesThreshold: 3.0,
+      firstMessageDeliveriesWeight: 1.0, # P2
+      meshMessageDeliveriesWeight: -1.0, # P3
+      meshMessageDeliveriesThreshold: 4.0,
       meshMessageDeliveriesActivation: 1.seconds,
-      meshFailurePenaltyWeight: -1.0,
-      invalidMessageDeliveriesWeight: -2.0,
+      meshFailurePenaltyWeight: -2.0, # P3b
+      invalidMessageDeliveriesWeight: -1.0, # P4
     )
 
     gossipSub.parameters.appSpecificWeight = 0.5
-    gossipSub.parameters.behaviourPenaltyWeight = -0.1
+    gossipSub.parameters.behaviourPenaltyWeight = -0.25
 
-    # Set up comprehensive peer state
+    # Set up peer state with round numbers
     let peer = peers[0]
-    peer.appScore = 4.0
+    peer.appScore = 6.0
     peer.behaviourPenalty = 2.0
 
     gossipSub.withPeerStats(peer.peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(
         inMesh: true,
-        graftTime: now - 3.seconds, # 3 seconds in mesh
+        graftTime: now - 4.seconds, # 4 seconds in mesh
         meshMessageDeliveriesActive: true,
-        firstMessageDeliveries: 5.0,
-        meshMessageDeliveries: 2.0, # Below threshold
-        meshFailurePenalty: 1.0,
-        invalidMessageDeliveries: 1.0,
+        firstMessageDeliveries: 3.0, # P2 component
+        meshMessageDeliveries: 2.0, # P3 component (below threshold)
+        meshFailurePenalty: 1.0, # P3b component
+        invalidMessageDeliveries: 2.0, # P4 component
       )
 
     gossipSub.updateScores()
 
-    # Calculate expected score:
-    # Topic score = (timeInMesh + firstMsgDel + meshMsgDelPenalty + meshFailure + invalidMsg) * topicWeight
-    # timeInMesh = 3.0 * 0.1 = 0.3
-    # firstMsgDel = 5.0 * 1.0 = 5.0
-    # meshMsgDelPenalty = (3-2)^2 * -0.5 = 1 * -0.5 = -0.5
-    # meshFailure = 1.0 * -1.0 = -1.0
-    # invalidMsg = 1^2 * -2.0 = -2.0
-    # topicScore = (0.3 + 5.0 - 0.5 - 1.0 - 2.0) * 2.0 = 1.8 * 2.0 = 3.6
+    # Calculate expected score step by step:
+    # 
+    # P1 (time in mesh): meshTime / timeInMeshQuantum * timeInMeshWeight
+    #                   = 4.0s / 1s * 0.25 = 1.0
+    # 
+    # P2 (first message deliveries): firstMessageDeliveries * firstMessageDeliveriesWeight
+    #                                = 3.0 * 1.0 = 3.0
+    # 
+    # P3 (mesh message deliveries): deficit = max(0, threshold - deliveries)
+    #                               deficit = max(0, 4.0 - 2.0) = 2.0
+    #                               penalty = deficit^2 * weight = 2.0^2 * -1.0 = -4.0
+    # 
+    # P3b (mesh failure penalty): meshFailurePenalty * meshFailurePenaltyWeight
+    #                             = 1.0 * -2.0 = -2.0
+    # 
+    # P4 (invalid message deliveries): invalidMessageDeliveries^2 * invalidMessageDeliveriesWeight
+    #                                  = 2.0^2 * -1.0 = -4.0
+    # 
+    # Topic score = (P1 + P2 + P3 + P3b + P4) * topicWeight
+    #             = (1.0 + 3.0 + (-4.0) + (-2.0) + (-4.0)) * 2.0
+    #             = (1.0 + 3.0 - 4.0 - 2.0 - 4.0) * 2.0
+    #             = -6.0 * 2.0 = -12.0
+    # 
+    # App score = appScore * appSpecificWeight = 6.0 * 0.5 = 3.0
+    # 
+    # Behaviour penalty = behaviourPenalty^2 * behaviourPenaltyWeight
+    #                   = 2.0^2 * -0.25 = 4.0 * -0.25 = -1.0
+    # 
+    # Final score = topicScore + appScore + behaviourPenalty
+    #             = -12.0 + 3.0 + (-1.0) = -10.0
 
-    # appScore = 4.0 * 0.5 = 2.0
-    # behaviourPenalty = 2^2 * -0.1 = -0.4
-    # Total = 3.6 + 2.0 - 0.4 = 5.2
-
-    check abs(peer.score - 5.2) < 0.001 # Allow for floating point precision
+    check:
+      round(peer.score, 1) == -10.0
 
   asyncTest "Zero topic weight skips scoring":
     const topic = "foobar"
