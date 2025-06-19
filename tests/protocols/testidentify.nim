@@ -12,7 +12,7 @@
 import options
 import chronos
 import
-  ../libp2p/[
+  ../../libp2p/[
     protocols/identify,
     multiaddress,
     peerinfo,
@@ -26,7 +26,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ./helpers
+import ../helpers
 
 suite "Identify":
   teardown:

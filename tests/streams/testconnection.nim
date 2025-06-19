@@ -10,9 +10,9 @@
 # those terms.
 
 import chronos
-import ../libp2p/[stream/connection, stream/bufferstream]
+import ../../libp2p/[stream/connection, stream/bufferstream]
 
-import ./helpers
+import ../helpers
 
 suite "Connection":
   asyncTest "close":

@@ -12,9 +12,9 @@
 import std/[sequtils, tables]
 import results
 import chronos
-import ../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
+import ../../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
 
-import helpers
+import ../helpers
 
 proc getMuxer(peerId: PeerId, dir: Direction = Direction.In): Muxer =
   return Muxer(connection: Connection.new(peerId, dir, Opt.none(MultiAddress)))

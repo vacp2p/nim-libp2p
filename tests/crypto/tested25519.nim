@@ -12,8 +12,8 @@
 ## Test vectors are from RFC 8032 (https://tools.ietf.org/html/rfc8032)
 import unittest2
 import nimcrypto/utils
-import ../libp2p/crypto/crypto
-import ../libp2p/crypto/ed25519/ed25519
+import ../../libp2p/crypto/crypto
+import ../../libp2p/crypto/ed25519/ed25519
 
 const TestsCount = 20
 

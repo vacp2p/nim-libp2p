@@ -10,7 +10,7 @@
 # those terms.
 
 import unittest2
-import ../libp2p/[cid, multihash, multicodec]
+import ../../libp2p/[cid, multihash, multicodec]
 
 suite "Content identifier CID test suite":
   test "CIDv0 test vector":

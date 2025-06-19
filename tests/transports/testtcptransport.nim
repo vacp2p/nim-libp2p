@@ -11,7 +11,7 @@
 
 import chronos, stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     stream/connection,
     transports/transport,
     transports/tcptransport,
@@ -22,7 +22,7 @@ import
     wire,
   ]
 
-import ./helpers, ./commontransport
+import ../helpers, ./commontransport
 
 suite "TCP transport":
   teardown:

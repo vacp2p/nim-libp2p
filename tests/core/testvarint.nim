@@ -10,7 +10,7 @@
 # those terms.
 
 import unittest2
-import ../libp2p/varint
+import ../../libp2p/varint
 
 const PBedgeValues = [
   0'u64,

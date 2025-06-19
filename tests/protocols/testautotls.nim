@@ -13,9 +13,9 @@
 
 import sequtils, json
 import chronos, chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/mockapi, wire]
+import ../../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/mockapi, wire]
 
-import ./helpers
+import ../helpers
 
 suite "AutoTLS ACME Client":
   var api {.threadvar.}: MockACMEApi

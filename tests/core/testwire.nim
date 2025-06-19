@@ -9,9 +9,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ./helpers
-import ../libp2p/multiaddress
-import ../libp2p/wire
+import ../helpers
+import ../../libp2p/multiaddress
+import ../../libp2p/wire
 
 suite "Wire":
   test "initTAddress returns ok and correct result for a Unix domain address":

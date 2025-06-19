@@ -10,7 +10,7 @@
 # those terms.
 
 import unittest2
-import ../libp2p/crypto/minasn1
+import ../../libp2p/crypto/minasn1
 import nimcrypto/utils as ncrutils
 
 const Asn1EdgeValues = [

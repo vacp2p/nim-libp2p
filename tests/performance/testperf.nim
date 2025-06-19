@@ -12,8 +12,8 @@
 import chronos
 import ../libp2p
 import
-  ../libp2p/[switch, protocols/perf/client, protocols/perf/server, protocols/perf/core]
-import ./helpers
+  ../../libp2p/[switch, protocols/perf/client, protocols/perf/server, protocols/perf/core]
+import ../helpers
 
 proc createSwitch(
     isServer: bool = false, useMplex: bool = false, useYamux: bool = false

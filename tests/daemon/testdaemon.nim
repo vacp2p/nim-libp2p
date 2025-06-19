@@ -1,11 +1,11 @@
 import chronos, unittest2, helpers
 import
-  ../libp2p/daemon/daemonapi,
-  ../libp2p/multiaddress,
-  ../libp2p/multicodec,
-  ../libp2p/cid,
-  ../libp2p/multihash,
-  ../libp2p/peerid
+  ../../libp2p/daemon/daemonapi,
+  ../../libp2p/multiaddress,
+  ../../libp2p/multicodec,
+  ../../libp2p/cid,
+  ../../libp2p/multihash,
+  ../../libp2p/peerid
 
 when defined(nimHasUsed):
   {.used.}

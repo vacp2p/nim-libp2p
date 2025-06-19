@@ -12,7 +12,7 @@
 import chronos, stew/byteutils
 import chronicles
 import
-  ../libp2p/[
+  ../../libp2p/[
     switch,
     errors,
     multistream,
@@ -33,7 +33,7 @@ import
     upgrademngrs/muxedupgrade,
     connmanager,
   ]
-import ./helpers
+import ../helpers
 
 const TestCodec = "/test/proto/1.0.0"
 

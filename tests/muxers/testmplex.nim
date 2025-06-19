@@ -12,7 +12,7 @@
 import strformat, random, sequtils
 import chronos, nimcrypto/utils, chronicles, stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     errors,
     stream/connection,
     stream/bufferstream,
@@ -27,7 +27,7 @@ import
     varint,
   ]
 
-import ./helpers
+import ../helpers
 
 suite "Mplex":
   teardown:

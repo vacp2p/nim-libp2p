@@ -10,8 +10,8 @@
 # those terms.
 
 import unittest2
-import ../libp2p/protobuf/minprotobuf
-import ../libp2p/varint
+import ../../libp2p/protobuf/minprotobuf
+import ../../libp2p/varint
 import stew/byteutils, strutils
 
 suite "MinProtobuf test suite":

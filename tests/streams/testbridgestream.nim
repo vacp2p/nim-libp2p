@@ -11,7 +11,7 @@
 
 import ./helpers
 import stew/byteutils
-import ../libp2p/stream/bridgestream
+import ../../libp2p/stream/bridgestream
 
 suite "BridgeStream":
   asyncTest "send-receive":

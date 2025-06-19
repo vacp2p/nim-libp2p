@@ -12,9 +12,9 @@
 import json, uri
 import chronos
 import chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth, wire]
+import ../../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth, wire]
 
-import ./helpers
+import ../helpers
 
 when defined(linux) and defined(amd64):
   {.used.}

@@ -10,7 +10,7 @@ when defined(nimHasUsed):
   {.used.}
 
 import unittest2
-import ../libp2p/crypto/crypto
+import ../../libp2p/crypto/crypto
 import nimcrypto/utils
 
 let rng = newRng()

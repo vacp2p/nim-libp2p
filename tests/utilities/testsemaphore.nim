@@ -12,9 +12,9 @@
 import random
 import chronos
 
-import ../libp2p/utils/semaphore
+import ../../libp2p/utils/semaphore
 
-import ./helpers
+import ../helpers
 
 randomize()
 

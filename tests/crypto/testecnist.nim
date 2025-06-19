@@ -11,7 +11,7 @@
 
 import unittest2
 import nimcrypto/utils
-import ../libp2p/crypto/[crypto, ecnist]
+import ../../libp2p/crypto/[crypto, ecnist]
 import results
 
 const

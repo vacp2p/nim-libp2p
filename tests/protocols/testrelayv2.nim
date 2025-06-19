@@ -12,13 +12,13 @@
 import bearssl, chronos, options
 import ../libp2p
 import
-  ../libp2p/[
+  ../../libp2p/[
     protocols/connectivity/relay/relay,
     protocols/connectivity/relay/messages,
     protocols/connectivity/relay/utils,
     protocols/connectivity/relay/client,
   ]
-import ./helpers
+import ../helpers
 import std/times
 import stew/byteutils
 

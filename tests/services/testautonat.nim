@@ -12,7 +12,7 @@
 import std/options
 import chronos
 import
-  ../libp2p/[
+  ../../libp2p/[
     transports/tcptransport,
     upgrademngrs/upgrade,
     builders,

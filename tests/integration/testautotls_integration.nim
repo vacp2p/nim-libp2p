@@ -11,9 +11,9 @@
 
 import chronos
 import chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/api, wire]
+import ../../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/api, wire]
 
-import ./helpers
+import ../helpers
 
 when defined(linux) and defined(amd64):
   {.used.}

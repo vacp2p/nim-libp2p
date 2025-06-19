@@ -11,7 +11,7 @@
 
 import unittest2
 import stew/byteutils
-import ../libp2p/stream/streamseq
+import ../../libp2p/stream/streamseq
 
 suite "StreamSeq":
   test "basics":

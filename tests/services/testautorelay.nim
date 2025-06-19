@@ -12,13 +12,13 @@
 import chronos, options
 import ../libp2p
 import
-  ../libp2p/[
+  ../../libp2p/[
     crypto/crypto,
     protocols/connectivity/relay/relay,
     protocols/connectivity/relay/client,
     services/autorelayservice,
   ]
-import ./helpers
+import ../helpers
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
   var builder = SwitchBuilder

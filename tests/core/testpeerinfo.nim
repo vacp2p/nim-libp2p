@@ -12,13 +12,13 @@
 import options
 import chronos
 import
-  ../libp2p/crypto/crypto,
-  ../libp2p/multicodec,
-  ../libp2p/peerinfo,
-  ../libp2p/peerid,
-  ../libp2p/routing_record
+  ../../libp2p/crypto/crypto,
+  ../../libp2p/multicodec,
+  ../../libp2p/peerinfo,
+  ../../libp2p/peerid,
+  ../../libp2p/routing_record
 
-import ./helpers
+import ../helpers
 
 suite "PeerInfo":
   test "Should init with private key":

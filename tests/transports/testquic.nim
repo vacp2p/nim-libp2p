@@ -2,7 +2,7 @@
 
 import chronos, stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     stream/connection,
     transports/transport,
     transports/quictransport,
@@ -12,7 +12,7 @@ import
     errors,
     wire,
   ]
-import ./helpers
+import ../helpers
 
 proc createServerAcceptConn(
     server: QuicTransport

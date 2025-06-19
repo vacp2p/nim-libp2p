@@ -12,7 +12,7 @@
 import std/[sequtils, tables]
 import chronos
 import
-  ../libp2p/[
+  ../../libp2p/[
     stream/connection,
     transports/tcptransport,
     upgrademngrs/upgrade,
@@ -22,7 +22,7 @@ import
     nameresolving/mockresolver,
   ]
 
-import ./helpers
+import ../helpers
 #
 #Cloudflare
 const fallbackDnsServers =

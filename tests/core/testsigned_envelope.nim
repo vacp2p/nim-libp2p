@@ -11,7 +11,7 @@
 
 import unittest2
 import stew/byteutils
-import ../libp2p/[signed_envelope]
+import ../../libp2p/[signed_envelope]
 
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":

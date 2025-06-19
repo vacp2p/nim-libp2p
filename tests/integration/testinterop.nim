@@ -2,7 +2,7 @@
 
 import helpers, commoninterop
 import ../libp2p
-import ../libp2p/crypto/crypto, ../libp2p/protocols/connectivity/relay/relay
+import ../../libp2p/crypto/crypto, ../libp2p/protocols/connectivity/relay/relay
 
 proc switchMplexCreator(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),

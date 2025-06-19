@@ -15,7 +15,7 @@ import std/sequtils
 
 import unittest2
 import stew/byteutils
-import ../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
+import ../../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
 
 type PatternVector = object
   pattern: MaPattern

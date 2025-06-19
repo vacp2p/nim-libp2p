@@ -13,14 +13,14 @@ import std/[options, sequtils]
 import chronos, metrics
 import unittest2
 import
-  ../libp2p/[
+  ../../libp2p/[
     builders,
     switch,
     protocols/connectivity/autonat/client,
     protocols/connectivity/autonat/service,
   ]
-import ../libp2p/nameresolving/[nameresolver, mockresolver]
-import ./helpers
+import ../../libp2p/nameresolving/[nameresolver, mockresolver]
+import ../helpers
 import stubs/autonatclientstub
 
 proc createSwitch(

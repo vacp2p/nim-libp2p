@@ -10,7 +10,7 @@
 # those terms.
 
 import unittest2
-import ../libp2p/multibase
+import ../../libp2p/multibase
 import results
 
 const GoTestVectors = [

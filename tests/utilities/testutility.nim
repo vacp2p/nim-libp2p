@@ -11,8 +11,8 @@
 # those terms.
 
 import options
-import ./helpers
-import ../libp2p/utility
+import ../helpers
+import ../../libp2p/utility
 
 suite "Utility":
 

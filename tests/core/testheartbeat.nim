@@ -14,8 +14,8 @@
 when not defined(macosx):
   import chronos
 
-  import ../libp2p/utils/heartbeat
-  import ./helpers
+  import ../../libp2p/utils/heartbeat
+  import ../helpers
 
   suite "Heartbeat":
     asyncTest "simple heartbeat":

@@ -13,7 +13,7 @@
 ## https://github.com/libp2p/go-libp2p-peer
 import unittest2
 import nimcrypto/utils, stew/base58
-import ../libp2p/crypto/crypto, ../libp2p/peerid
+import ../../libp2p/crypto/crypto, ../../libp2p/peerid
 import bearssl/hash
 
 const

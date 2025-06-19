@@ -11,14 +11,14 @@
 
 import options, chronos, sets
 import
-  ../libp2p/[
+  ../../libp2p/[
     protocols/rendezvous,
     switch,
     builders,
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ./helpers, ./utils/async_tests
+import ../helpers, ./utils/async_tests
 
 proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder

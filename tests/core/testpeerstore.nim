@@ -12,10 +12,10 @@
 import
   unittest2,
   std/[tables, sequtils],
-  ../libp2p/crypto/crypto,
-  ../libp2p/multiaddress,
-  ../libp2p/peerid,
-  ../libp2p/peerstore,
+  ../../libp2p/crypto/crypto,
+  ../../libp2p/multiaddress,
+  ../../libp2p/peerid,
+  ../../libp2p/peerstore,
   ./helpers
 
 suite "PeerStore":

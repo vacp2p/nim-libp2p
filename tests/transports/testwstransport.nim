@@ -11,7 +11,7 @@
 
 import chronos, stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     stream/connection,
     transports/transport,
     transports/wstransport,
@@ -20,7 +20,7 @@ import
     errors,
   ]
 
-import ./helpers, ./commontransport
+import ../helpers, ./commontransport
 
 const
   SecureKey =

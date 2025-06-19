@@ -13,7 +13,7 @@ import options, sequtils
 import chronos
 import stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     errors,
     dial,
     switch,
@@ -37,7 +37,7 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ./helpers
+import ../helpers
 
 const TestCodec = "/test/proto/1.0.0"
 

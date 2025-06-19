@@ -10,7 +10,7 @@
 # those terms.
 
 import unittest2
-import ../libp2p/crypto/[crypto, secp]
+import ../../libp2p/crypto/[crypto, secp]
 
 let rng = newRng()
 

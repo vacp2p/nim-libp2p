@@ -11,7 +11,7 @@
 
 import unittest2
 import nimcrypto/utils
-import ../libp2p/multihash
+import ../../libp2p/multihash
 
 const RustTestVectors = [
   ["sha1", "beep boop", "11147C8357577F51D4F0A8D393AA1AAAFB28863D9421"],

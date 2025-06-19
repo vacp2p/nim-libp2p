@@ -12,18 +12,18 @@
 import strformat, stew/byteutils
 import chronos
 import
-  ../libp2p/multistream,
-  ../libp2p/stream/bufferstream,
-  ../libp2p/stream/connection,
-  ../libp2p/multiaddress,
-  ../libp2p/transports/transport,
-  ../libp2p/transports/tcptransport,
-  ../libp2p/protocols/protocol,
-  ../libp2p/upgrademngrs/upgrade
+  ../../libp2p/multistream,
+  ../../libp2p/stream/bufferstream,
+  ../../libp2p/stream/connection,
+  ../../libp2p/multiaddress,
+  ../../libp2p/transports/transport,
+  ../../libp2p/transports/tcptransport,
+  ../../libp2p/protocols/protocol,
+  ../../libp2p/upgrademngrs/upgrade
 
 {.push raises: [].}
 
-import ./helpers
+import ../helpers
 
 when defined(nimHasUsed):
   {.used.}

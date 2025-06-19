@@ -11,8 +11,8 @@
 
 import chronos
 
-import ../libp2p/utils/future
-import ./helpers
+import ../../libp2p/utils/future
+import ../helpers
 
 suite "Future":
   asyncTest "anyCompleted must complete with first completed future":
