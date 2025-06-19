@@ -1,4 +1,4 @@
-import options, base64, sequtils, strutils, json, uri
+import options, sequtils, strutils, json, uri
 from times import DateTime, parse
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
 
@@ -83,6 +83,13 @@ type ACMEChallengeStatus* {.pure.} = enum
   valid = "valid"
   invalid = "invalid"
 
+type ACMEOrderStatus* {.pure.} = enum
+  pending = "pending"
+  ready = "ready"
+  processing = "processing"
+  valid = "valid"
+  invalid = "invalid"
+
 type ACMEChallengeType* {.pure.} = enum
   dns01 = "dns-01"
   http01 = "http-01"
@@ -104,12 +111,12 @@ type ACMEChallengeRequest = object
   identifiers: seq[ACMEChallengeIdentifier]
 
 type ACMEChallengeResponseBody = object
-  status: ACMEChallengeStatus
+  status: ACMEOrderStatus
   authorizations: seq[Authorization]
   finalize: string
 
 type ACMEChallengeResponse* = object
-  status*: ACMEChallengeStatus
+  status*: ACMEOrderStatus
   authorizations*: seq[Authorization]
   finalize*: string
   order*: string
@@ -123,14 +130,7 @@ type ACMEAuthorizationsResponse* = object
   challenges*: seq[ACMEChallenge]
 
 type ACMECompletedResponse* = object
-  checkURL: string
-
-type ACMEOrderStatus* {.pure.} = enum
-  pending = "pending"
-  ready = "ready"
-  processing = "processing"
-  valid = "valid"
-  invalid = "invalid"
+  url: string
 
 type ACMECheckKind* = enum
   ACMEOrderCheck
@@ -152,15 +152,16 @@ type ACMEOrderResponse* = object
   expires: string
 
 type ACMECertificateResponse* = object
-  rawCertificate: string
-  certificateExpiry: DateTime
+  rawCertificate*: string
+  certificateExpiry*: DateTime
 
-proc toString*(status: ACMEChallengeStatus): string =
+proc toString*(status: ACMEOrderStatus): string =
   case status
-  of pending: "pending"
-  of processing: "processing"
-  of valid: "valid"
-  of invalid: "invalid"
+  of ACMEOrderStatus.pending: "pending"
+  of ACMEOrderStatus.ready: "ready"
+  of ACMEOrderStatus.processing: "processing"
+  of ACMEOrderStatus.valid: "valid"
+  of ACMEOrderStatus.invalid: "invalid"
 
 template handleError*(msg: string, body: untyped): untyped =
   try:
@@ -332,20 +333,22 @@ proc requestAuthorizations*(
 proc requestChallenge*(
     self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
-  let challengeResponse = await self.requestNewOrder(domains, key, kid)
-  if challengeResponse.status != ACMEChallengeStatus.pending:
+  let orderResponse = await self.requestNewOrder(domains, key, kid)
+  if orderResponse.status != ACMEOrderStatus.pending and
+      orderResponse.status != ACMEOrderStatus.ready:
+    # ready is a valid status when renewing certs before expiry
     raise newException(
-      ACMEError, "Invalid new challenge status: " & challengeResponse.status.toString
+      ACMEError, "Invalid new order status: " & orderResponse.status.toString
     )
 
   let authorizationsResponse =
-    await self.requestAuthorizations(challengeResponse.authorizations, key, kid)
+    await self.requestAuthorizations(orderResponse.authorizations, key, kid)
   if authorizationsResponse.challenges.len == 0:
     raise newException(ACMEError, "No challenges received")
 
   return ACMEChallengeResponseWrapper(
-    finalize: challengeResponse.finalize,
-    order: challengeResponse.order,
+    finalize: orderResponse.finalize,
+    order: orderResponse.order,
     dns01: authorizationsResponse.challenges.filterIt(
       it.`type` == ACMEChallengeType.dns01
     )[0],
@@ -431,12 +434,9 @@ proc completeChallenge*(
 proc requestFinalize*(
     self: ACMEApi, domain: Domain, finalize: Uri, key: KeyPair, kid: Kid
 ): Future[ACMEFinalizeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let derCSR = createCSR(domain)
-  let b64CSR = base64.encode(derCSR.toSeq, safe = true)
-
   handleError("requestFinalize"):
     let payload = await self.createSignedAcmeRequest(
-      finalize, %*{"csr": b64CSR}, key, kid = Opt.some(kid)
+      finalize, %*{"csr": createCSR(domain)}, key, kid = Opt.some(kid)
     )
     let acmeResponse = await self.post(finalize, payload)
     # server responds with updated order response

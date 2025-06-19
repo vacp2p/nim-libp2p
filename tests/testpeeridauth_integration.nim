@@ -12,7 +12,7 @@
 import json, uri
 import chronos
 import chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth, wire]
+import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth/client, wire]
 
 import ./helpers
 
@@ -54,5 +54,5 @@ suite "PeerID Auth":
     doAssert bearer.token.len > 0
 
     let (_, responseWithBearer) =
-      await client.send(parseUri(AuthPeerURL), peerInfo, payload, bearer)
+      await client.send(parseUri(AuthPeerURL), peerInfo, payload, Opt.some(bearer))
     check responseWithBearer.status != HttpPeerAuthFailed

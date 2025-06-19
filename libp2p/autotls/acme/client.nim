@@ -16,6 +16,8 @@ import ./api, ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
 
+export api
+
 type KeyAuthorization* = string
 
 type ACMEClient* = object
@@ -37,7 +39,7 @@ proc new*(
   let registerResponse = await api.requestRegister(key)
   T(api: api, key: key, kid: registerResponse.kid)
 
-proc genKeyAuthorization(self: ACMEClient, token: string): KeyAuthorization =
+proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
   base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toByteSeq).data))
 
 proc getChallenge*(
@@ -48,13 +50,8 @@ proc getChallenge*(
 proc getCertificate*(
     self: ACMEClient, domain: api.Domain, challenge: ACMEChallengeResponseWrapper
 ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let chalURL = challenge.dns01.url
-  discard
-    await self.api.requestCompleted(parseUri(challenge.dns01.url), self.key, self.kid)
-
-  let completed = await self.api.checkChallengeCompleted(
-    parseUri(challenge.dns01.url), self.key, self.kid
-  )
+  let chalURL = parseUri(challenge.dns01.url)
+  let completed = await self.api.completeChallenge(chalURL, self.key, self.kid)
   if not completed:
     raise
       newException(ACMEError, "Failed to signal ACME server about challenge completion")

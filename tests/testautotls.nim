@@ -55,7 +55,7 @@ suite "AutoTLS ACME API":
 
     let challengeResponse =
       await api.requestNewOrder(@["some.dummy.domain.com"], key, "kid")
-    check challengeResponse.status == ACMEChallengeStatus.pending
+    check challengeResponse.status == ACMEOrderStatus.pending
     check challengeResponse.authorizations ==
       ["http://example.com/expected-authorizations-url"]
     check challengeResponse.finalize == "http://example.com/expected-finalize-url"
