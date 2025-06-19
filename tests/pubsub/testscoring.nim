@@ -473,6 +473,6 @@ suite "GossipSub Scoring":
 
     gossipSub.updateScores()
 
-    # Score should be zero since topic weight is zero 
+    # Score should be zero since topic weight is zero
     check:
       round(peers[0].score, 1) == 0.0
