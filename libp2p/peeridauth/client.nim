@@ -22,6 +22,8 @@ const
   ChallengeCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
   ChallengeDefaultLen = 48
 
+export Domain
+
 type PeerIDAuthClient* = ref object of RootObj
   session: HttpSessionRef
   rng: ref HmacDrbgContext
@@ -55,7 +57,9 @@ type SigParam = object
   k: string
   v: seq[byte]
 
-proc new*(T: typedesc[PeerIDAuthClient], rng: ref HmacDrbgContext): PeerIDAuthClient =
+proc new*(
+    T: typedesc[PeerIDAuthClient], rng: ref HmacDrbgContext = newRng()
+): PeerIDAuthClient =
   PeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 
 proc sampleChar(
@@ -151,12 +155,12 @@ proc checkSignature*(
   )
 
 method post*(
-    self: PeerIDAuthClient, uri: string, payload: string, authHeader: string
+    self: PeerIDAuthClient, uri: Uri, payload: string, authHeader: string
 ): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]), base.} =
   let rawResponse = await HttpClientRequestRef
   .post(
     self.session,
-    uri,
+    $uri,
     body = payload,
     headers = [
       ("Content-Type", "application/json"),
@@ -174,9 +178,15 @@ method post*(
   )
 
 method get*(
-    self: PeerIDAuthClient, uri: string
-): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]), base.} =
-  let rawResponse = await HttpClientRequestRef.get(self.session, $uri).get().send()
+    self: PeerIDAuthClient, uri: Uri
+): Future[PeerIDAuthResponse] {.
+    async: (raises: [PeerIDAuthError, HttpError, CancelledError]), base
+.} =
+  if self.session.isNil:
+    raise newException(PeerIDAuthError, "Session is nil")
+  let req = HttpClientRequestRef.get(self.session, $uri).valueOr:
+    raise newException(PeerIDAuthError, "Could not get request obj")
+  let rawResponse = await req.send()
   PeerIDAuthResponse(
     status: rawResponse.status,
     headers: rawResponse.headers,
@@ -190,7 +200,7 @@ proc requestAuthentication*(
 .} =
   let response =
     try:
-      await self.get($uri)
+      await self.get(uri)
     except HttpError as exc:
       raise newException(PeerIDAuthError, "Failed to start PeerID Auth", exc)
 
@@ -248,7 +258,7 @@ proc requestAuthorization*(
     "\"" & ", challenge-server=\"" & challengeServer & "\"" & ", sig=\"" & sig & "\""
   let response =
     try:
-      await self.post($uri, $payload, authHeader)
+      await self.post(uri, $payload, authHeader)
     except HttpError as exc:
       raise newException(
         PeerIDAuthError, "Failed to send Authorization for PeerID Auth", exc
@@ -308,7 +318,7 @@ proc sendWithBearer(
   let authHeader = PeerIDAuthPrefix & " bearer=\"" & bearer.token & "\""
   let response =
     try:
-      await self.post($uri, $payload, authHeader)
+      await self.post(uri, $payload, authHeader)
     except HttpError as exc:
       raise newException(
         PeerIDAuthError, "Failed to send request with bearer token for PeerID Auth", exc
@@ -320,14 +330,14 @@ proc send*(
     uri: Uri,
     peerInfo: PeerInfo,
     payload: auto,
-    bearer: BearerToken = BearerToken(),
+    bearer: Opt[BearerToken] = Opt.none(BearerToken),
 ): Future[(BearerToken, PeerIDAuthResponse)] {.
     async: (raises: [PeerIDAuthError, CancelledError])
 .} =
-  if bearer.token == "":
-    await self.sendWithoutBearer(uri, peerInfo, payload)
+  if bearer.isSome:
+    await self.sendWithBearer(uri, peerInfo, payload, bearer.get)
   else:
-    await self.sendWithBearer(uri, peerInfo, payload, bearer)
+    await self.sendWithoutBearer(uri, peerInfo, payload)
 
 proc close*(
     self: PeerIDAuthClient

@@ -63,7 +63,7 @@ suite "AutoTLS ACME API":
 
     let challengeResponse =
       await api.requestNewOrder(@["some.dummy.domain.com"], key, "kid")
-    check challengeResponse.status == ACMEChallengeStatus.pending
+    check challengeResponse.status == ACMEOrderStatus.pending
     check challengeResponse.authorizations ==
       ["http://example.com/expected-authorizations-url"]
     check challengeResponse.finalize == "http://example.com/expected-finalize-url"
@@ -110,8 +110,7 @@ suite "AutoTLS ACME API":
   asyncTest "challenge completed successful":
     api.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     discard await api.sendChallengeCompleted(
@@ -131,8 +130,7 @@ suite "AutoTLS ACME API":
   asyncTest "challenge completed max retries reached":
     api.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     discard await api.sendChallengeCompleted(
@@ -155,8 +153,7 @@ suite "AutoTLS ACME API":
   asyncTest "challenge completed invalid":
     api.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     discard await api.sendChallengeCompleted(
@@ -327,8 +324,7 @@ suite "AutoTLS ACME Client":
     # request completed successful
     acmeApi.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     # finalize is invalid

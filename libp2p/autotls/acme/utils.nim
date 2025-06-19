@@ -1,6 +1,7 @@
 import base64, strutils, chronos/apps/http/httpclient, json
 import ../../errors
 import ../../transports/tls/certificate_ffi
+import ../../transports/tls/certificate
 import ../../crypto/crypto
 import ../../crypto/rsa
 
@@ -62,3 +63,5 @@ proc createCSR*(domain: string): string {.raises: [ACMEError].} =
 
   if cert_signing_req(domain.cstring, certKey, derCSR.addr) != CERT_SUCCESS:
     raise newException(ACMEError, "Failed to create CSR")
+
+  base64.encode(derCSR.toSeq, safe = true)
