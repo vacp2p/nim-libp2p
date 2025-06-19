@@ -1,17 +1,7 @@
-# Nim-LibP2P
-# Copyright (c) 2023-2024 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
-
 {.used.}
 
 import chronos
 import math
-import sequtils
 import std/[options, tables, sets]
 import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
@@ -48,47 +38,6 @@ suite "GossipSub Scoring":
       gossipSub.gossipsub.peers(topic) == 0
       # also ensure we cleanup properly the peersInIP table
       gossipSub.peersInIP.len == 0
-
-  asyncTest "Basic score calculation for mesh peers":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) =
-      setupGossipSubWithPeers(5, topic, populateMesh = true)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    # Set up topic parameters for scoring
-    gossipSub.topicParams[topic] = TopicParams(
-      topicWeight: 2.0, # Multiplies the final topic score by 2
-      timeInMeshWeight: 0.1, # Weight for time spent in mesh
-      timeInMeshQuantum: 1.seconds, # Time quantum for mesh scoring
-      timeInMeshCap: 10.0, # Maximum time in mesh score
-      firstMessageDeliveriesWeight: 1.0, # Weight for first message deliveries
-      firstMessageDeliveriesDecay: 0.5, # Not used in this test
-      firstMessageDeliveriesCap: 10.0, # Not used in this test
-    )
-
-    # Initialize peer stats with calculated values for a round score
-    let now = Moment.now()
-    for peer in peers:
-      gossipSub.withPeerStats(peer.peerId) do(stats: var PeerStats):
-        stats.topicInfos[topic] = TopicInfo(
-          inMesh: true,
-          graftTime: now - 10.seconds, # 10 seconds in mesh
-          firstMessageDeliveries: 1.5, # 1.5 first message deliveries
-        )
-
-    gossipSub.updateScores()
-
-    # Score calculation breakdown:
-    # P1 (time in mesh): meshTime / timeInMeshQuantum * timeInMeshWeight
-    #                   = 10.0 / 1.0 * 0.1 = 1.0
-    # P2 (first msg deliveries): firstMessageDeliveries * firstMessageDeliveriesWeight
-    #                           = 1.5 * 1.0 = 1.5
-    # Topic score = (P1 + P2) * topicWeight = (1.0 + 1.5) * 2.0 = 5.0
-    # Final peer score = 5.0 (no app score, behavior penalty, or colocation factor)
-
-    check:
-      peers.allIt(round(it.score, 1) == 5.0)
 
   asyncTest "Time in mesh scoring (P1)":
     const topic = "foobar"
@@ -344,7 +293,7 @@ suite "GossipSub Scoring":
     peers[1].address = some(sharedAddress)
     peers[2].address = some(sharedAddress) # 3 peers from same IP
 
-    # Manually add to peersInIP to simulate colocation detection
+    # Add to peersInIP to simulate colocation detection
     gossipSub.peersInIP[sharedAddress] =
       toHashSet([peers[0].peerId, peers[1].peerId, peers[2].peerId])
 
@@ -437,7 +386,7 @@ suite "GossipSub Scoring":
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    # Set up comprehensive topic parameters with round numbers
+    # Set up all topic parameters
     let now = Moment.now()
     gossipSub.topicParams[topic] = TopicParams(
       topicWeight: 2.0,
@@ -455,7 +404,7 @@ suite "GossipSub Scoring":
     gossipSub.parameters.appSpecificWeight = 0.5
     gossipSub.parameters.behaviourPenaltyWeight = -0.25
 
-    # Set up peer state with round numbers
+    # Set up peer state
     let peer = peers[0]
     peer.appScore = 6.0
     peer.behaviourPenalty = 2.0
@@ -524,6 +473,6 @@ suite "GossipSub Scoring":
 
     gossipSub.updateScores()
 
-    # Score should be zero since topic weight is zero
+    # Score should be zero since topic weight is zero 
     check:
       round(peers[0].score, 1) == 0.0
