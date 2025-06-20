@@ -13,10 +13,10 @@ import std/[sequtils, enumerate]
 import stew/byteutils
 import sugar
 import chronicles
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
-import ../../../libp2p/protocols/pubsub/rpc/[message]
-import ../../helpers, ../../utils/[futures]
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
+import ../../libp2p/protocols/pubsub/rpc/[message]
+import ../helpers, ../utils/[futures]
 
 const MsgIdSuccess = "msg id gen success"
 

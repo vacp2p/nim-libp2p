@@ -22,7 +22,7 @@ import
     wire,
   ]
 
-import ../helpers, ./commontransport
+import ../helpers, ../commontransport
 
 suite "TCP transport":
   teardown:

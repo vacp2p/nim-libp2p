@@ -11,11 +11,11 @@
 
 import chronos
 import stew/byteutils
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../../libp2p/stream/connection
-import ../../helpers
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
+import ../../libp2p/protocols/pubsub/rpc/[messages]
+import ../../libp2p/stream/connection
+import ../helpers
 
 type DummyConnection* = ref object of Connection
 

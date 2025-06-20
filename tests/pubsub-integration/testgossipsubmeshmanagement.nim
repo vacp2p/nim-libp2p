@@ -11,9 +11,9 @@
 
 import chronicles
 import std/[sequtils]
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../helpers
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../helpers
 
 suite "GossipSub Integration - Mesh Management":
   teardown:

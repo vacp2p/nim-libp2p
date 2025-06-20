@@ -1,4 +1,5 @@
-import chronos, unittest2, helpers
+import chronos, unittest2
+import ../helpers
 import
   ../../libp2p/daemon/daemonapi,
   ../../libp2p/multiaddress,

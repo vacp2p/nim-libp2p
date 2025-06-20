@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ./helpers
+import ../helpers
 import unittest2
 from std/exitprocs import nil
 

@@ -12,10 +12,10 @@
 import std/[sequtils]
 import stew/byteutils
 import chronicles
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../libp2p/protocols/pubsub/rpc/[message]
-import ../../helpers, ../../utils/[futures]
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../libp2p/protocols/pubsub/rpc/[message]
+import ../helpers, ../utils/[futures]
 
 suite "GossipSub Integration - Gossip Protocol":
   teardown:

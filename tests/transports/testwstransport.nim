@@ -20,7 +20,7 @@ import
     errors,
   ]
 
-import ../helpers, ./commontransport
+import ../helpers, ../commontransport
 
 const
   SecureKey =

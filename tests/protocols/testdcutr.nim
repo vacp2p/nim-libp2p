@@ -14,11 +14,11 @@ import unittest2
 
 import ../../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../../libp2p/protocols/connectivity/dcutr/[client, server]
-from ../libp2p/protocols/connectivity/autonat/core import NetworkReachability
+from ../../libp2p/protocols/connectivity/autonat/core import NetworkReachability
 import ../../libp2p/builders
 import ../../libp2p/utils/future
 import ../helpers
-import ./stubs/switchstub
+import ../stubs/switchstub
 
 suite "Dcutr":
   teardown:

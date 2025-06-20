@@ -10,7 +10,7 @@
 # those terms.
 
 import chronos, options
-import ../libp2p
+import ../../libp2p
 import
   ../../libp2p/[
     crypto/crypto,

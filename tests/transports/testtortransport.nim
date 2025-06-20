@@ -23,7 +23,7 @@ import
     builders,
   ]
 
-import ../helpers, ./stubs/torstub, ./commontransport
+import ../helpers, ../stubs/torstub, ../commontransport
 
 const torServer = initTAddress("127.0.0.1", 9050.Port)
 var stub: TorServerStub

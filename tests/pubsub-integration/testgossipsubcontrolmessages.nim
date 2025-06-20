@@ -2,9 +2,9 @@
 
 import std/[sequtils]
 import chronicles
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../helpers
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../helpers
 
 suite "GossipSub Integration - Control Messages":
   teardown:

@@ -11,10 +11,10 @@
 
 import stew/byteutils
 import chronicles
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, peertable]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../helpers
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, peertable]
+import ../../libp2p/protocols/pubsub/rpc/[messages]
+import ../helpers
 
 suite "GossipSub Integration - Fanout Management":
   teardown:

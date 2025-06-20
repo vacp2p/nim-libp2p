@@ -10,7 +10,7 @@
 # those terms.
 
 import bearssl, chronos, options
-import ../libp2p
+import ../../libp2p
 import
   ../../libp2p/[
     protocols/connectivity/relay/relay,

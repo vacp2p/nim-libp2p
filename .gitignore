@@ -25,3 +25,7 @@ go-libp2p-daemon/
 tests/**/test*[^.]* 
 !tests/**/*.*
 !tests/**/Dockerfile
+
+# Testament
+tests/megatest.nim
+testresults

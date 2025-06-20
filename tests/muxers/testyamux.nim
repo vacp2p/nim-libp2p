@@ -11,7 +11,8 @@
 
 import sugar
 import chronos
-import ../../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux], ./helpers
+import
+  ../../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux], ../helpers
 
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()

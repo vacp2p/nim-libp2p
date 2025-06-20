@@ -21,7 +21,7 @@ import
   ]
 import ../../libp2p/nameresolving/[nameresolver, mockresolver]
 import ../helpers
-import stubs/autonatclientstub
+import ../stubs/autonatclientstub
 
 proc createSwitch(
     autonatSvc: Service = nil,

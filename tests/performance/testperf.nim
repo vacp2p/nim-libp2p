@@ -10,9 +10,10 @@
 # those terms.
 
 import chronos
-import ../libp2p
+import ../../libp2p
 import
-  ../../libp2p/[switch, protocols/perf/client, protocols/perf/server, protocols/perf/core]
+  ../../libp2p/
+    [switch, protocols/perf/client, protocols/perf/server, protocols/perf/core]
 import ../helpers
 
 proc createSwitch(

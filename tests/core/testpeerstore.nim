@@ -16,7 +16,7 @@ import
   ../../libp2p/multiaddress,
   ../../libp2p/peerid,
   ../../libp2p/peerstore,
-  ./helpers
+  ../helpers
 
 suite "PeerStore":
   # Testvars

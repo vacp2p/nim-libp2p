@@ -15,12 +15,13 @@ import chronos
 
 import unittest2
 import ../helpers
-import ./stubs/switchstub
-import ../../libp2p/[builders, switch, wire, services/hpservice, services/autorelayservice]
+import ../stubs/switchstub
+import
+  ../../libp2p/[builders, switch, wire, services/hpservice, services/autorelayservice]
 import ../../libp2p/protocols/connectivity/relay/[relay, client]
 import ../../libp2p/protocols/connectivity/autonat/[service]
 import ../../libp2p/nameresolving/[nameresolver, mockresolver]
-import stubs/autonatclientstub
+import ../stubs/autonatclientstub
 
 proc createSwitch(
     r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil

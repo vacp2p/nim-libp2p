@@ -21,7 +21,7 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ],
-  ./helpers
+  ../helpers
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder

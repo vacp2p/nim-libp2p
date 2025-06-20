@@ -11,11 +11,11 @@
 
 import std/[sequtils]
 import stew/byteutils
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../helpers
-import ../../utils/[futures]
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
+import ../../libp2p/protocols/pubsub/rpc/[messages]
+import ../helpers
+import ../utils/[futures]
 
 suite "GossipSub Integration - Scoring":
   teardown:

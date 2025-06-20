@@ -2,10 +2,10 @@
 
 import std/[sequtils]
 import stew/byteutils
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, floodsub]
-import ../../../libp2p/protocols/pubsub/rpc/[messages, message]
-import ../../helpers
+import ../pubsub/utils
+import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, floodsub]
+import ../../libp2p/protocols/pubsub/rpc/[messages, message]
+import ../helpers
 
 suite "GossipSub Integration - Message Cache":
   teardown:

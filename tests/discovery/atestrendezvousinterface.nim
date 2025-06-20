@@ -9,7 +9,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import sequtils, strutils
 import chronos
 import ../../libp2p/[protocols/rendezvous, switch, builders]
 import ../../libp2p/discovery/[rendezvousinterface, discoverymngr]
@@ -33,7 +32,7 @@ type
 
   MockErrorRendezVous = ref object of MockRendezVous
 
-method advertise*(self: MockRendezVous, namespace: string, ttl: Duration) {.async.} =
+proc advertise*(self: MockRendezVous, namespace: string, ttl: Duration) {.async.} =
   if namespace == "ns1":
     self.numAdvertiseNs1 += 1
   elif namespace == "ns2":
@@ -41,9 +40,7 @@ method advertise*(self: MockRendezVous, namespace: string, ttl: Duration) {.asyn
   # Forward the call to the actual implementation
   await procCall RendezVous(self).advertise(namespace, ttl)
 
-method advertise*(
-    self: MockErrorRendezVous, namespace: string, ttl: Duration
-) {.async.} =
+proc advertise*(self: MockErrorRendezVous, namespace: string, ttl: Duration) {.async.} =
   await procCall MockRendezVous(self).advertise(namespace, ttl)
   raise newException(CatchableError, "MockErrorRendezVous.advertise")
 
