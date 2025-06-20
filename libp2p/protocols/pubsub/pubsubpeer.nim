@@ -20,7 +20,8 @@ import
   ../../stream/connection,
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
-  ../../utility
+  ../../utility,
+  ./bandwidth
 
 export peerid, connection, deques
 
@@ -120,7 +121,7 @@ type
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-
+    bandwidthTracking*: BandwidthTracking
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iDontWants*: Deque[HashSet[SaltedId]]
@@ -133,6 +134,9 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
+    preambleBudget*: int
+    heIsReceivings*: Table[MessageId, uint32]
+    heIsSendings*: Table[MessageId, Moment]
 
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
@@ -342,6 +346,11 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
+proc writeMsg(
+    p: PubSubPeer, conn: Connection, msg: seq[byte]
+) {.async: (raises: [LPStreamError, CancelledError]).} =
+  await conn.writeLp(msg)
+
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
   # Continuation for a pending `sendMsg` future from below
   try:
@@ -370,7 +379,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-  await sendMsgContinue(conn, conn.writeLp(msg))
+  await sendMsgContinue(conn, p.writeMsg(conn, msg))
 
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
@@ -397,7 +406,7 @@ proc sendMsg(
   if not slowPath:
     trace "sending encoded msg to peer",
       conntype = $connType, conn = conn, encoded = shortLog(msg)
-    let f = conn.writeLp(msg)
+    let f = p.writeMsg(conn, msg)
     if not f.completed():
       sendMsgContinue(conn, f)
     else:
@@ -608,6 +617,7 @@ proc new*(
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
+    bandwidthTracking: BandwidthTracking(download: ExponentialMovingAverage.init()),
   )
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
