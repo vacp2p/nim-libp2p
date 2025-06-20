@@ -1037,35 +1037,36 @@ suite "Switch":
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
 
-  asyncTest "e2e quic transport":
-    let
-      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+  when defined(libp2p_quic_support):
+    asyncTest "e2e quic transport":
+      let
+        quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+        quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
 
-      srcSwitch = SwitchBuilder
-        .new()
-        .withAddress(quicAddress1)
-        .withRng(crypto.newRng())
-        .withQuicTransport()
-        .withNoise()
-        .build()
+        srcSwitch = SwitchBuilder
+          .new()
+          .withAddress(quicAddress1)
+          .withRng(crypto.newRng())
+          .withQuicTransport()
+          .withNoise()
+          .build()
 
-      destSwitch = SwitchBuilder
-        .new()
-        .withAddress(quicAddress2)
-        .withRng(crypto.newRng())
-        .withQuicTransport()
-        .withNoise()
-        .build()
+        destSwitch = SwitchBuilder
+          .new()
+          .withAddress(quicAddress2)
+          .withRng(crypto.newRng())
+          .withQuicTransport()
+          .withNoise()
+          .build()
 
-    await destSwitch.start()
-    await srcSwitch.start()
+      await destSwitch.start()
+      await srcSwitch.start()
 
-    await srcSwitch.connect(destSwitch.peerInfo.peerId, destSwitch.peerInfo.addrs)
-    check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
+      await srcSwitch.connect(destSwitch.peerInfo.peerId, destSwitch.peerInfo.addrs)
+      check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
 
-    await destSwitch.stop()
-    await srcSwitch.stop()
+      await destSwitch.stop()
+      await srcSwitch.stop()
 
   asyncTest "mount unstarted protocol":
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
