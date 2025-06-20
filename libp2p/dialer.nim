@@ -337,6 +337,7 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
+    reuseConnection = true,
 ): Future[Connection] {.async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
@@ -355,7 +356,8 @@ method dial*(
 
   try:
     trace "Dialing (new)", peerId, protos
-    conn = await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+    conn =
+      await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection)
     trace "Opening stream", conn
     stream = await self.connManager.getStream(conn)
 
