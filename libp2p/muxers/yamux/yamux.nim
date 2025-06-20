@@ -512,7 +512,14 @@ method close*(m: Yamux) {.async: (raises: []).} =
   trace "Closing yamux"
   let channels = toSeq(m.channels.values())
   for channel in channels:
-    await channel.reset(isLocal = true)
+    for (d, s, fut) in channel.sendQueue:
+      fut.fail(newLPStreamEOFError())
+    channel.sendQueue = @[]
+    channel.sendWindow = 0
+    channel.closedLocally = true
+    channel.opened = false
+    await channel.remoteClosed()
+    channel.receivedData.fire()
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
   except CancelledError as exc:
@@ -587,10 +594,12 @@ method handle*(m: Yamux) {.async: (raises: []).} =
         let channel =
           try:
             m.channels[header.streamId]
-          except KeyError:
+          except KeyError as e:
             raise newException(
               YamuxError,
-              "Stream was cleaned up before handling data: " & $header.streamId,
+              "Stream was cleaned up before handling data: " & $header.streamId & " : " &
+                e.msg,
+              e,
             )
 
         if header.msgType == WindowUpdate:

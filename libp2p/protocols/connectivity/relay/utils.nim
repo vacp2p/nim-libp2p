@@ -69,8 +69,8 @@ proc bridge*(
     while not connSrc.closed() and not connDst.closed():
       try: # https://github.com/status-im/nim-chronos/issues/516
         discard await race(futSrc, futDst)
-      except ValueError:
-        raiseAssert("Futures list is not empty")
+      except ValueError as e:
+        raiseAssert("Futures list is not empty: " & e.msg)
       if futSrc.finished():
         bufRead = await futSrc
         if bufRead > 0:

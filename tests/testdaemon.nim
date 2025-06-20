@@ -116,8 +116,8 @@ suite "libp2p-daemon test suite":
     check:
       waitFor(connectStreamTest()) == true
   asyncTest "GossipSub test":
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(10.seconds, 100.milliseconds):
       (await pubsubTest({PSGossipSub}))
   asyncTest "FloodSub test":
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(10.seconds, 100.milliseconds):
       (await pubsubTest({PSFloodSub}))

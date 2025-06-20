@@ -230,10 +230,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
         conn, peer = p, closed = conn.closed, description = exc.msg
     finally:
       await conn.close()
-  except CancelledError:
+  except CancelledError as e:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
-    trace "Unexpected cancellation in PubSubPeer.handle"
+    trace "Unexpected cancellation in PubSubPeer.handle", description = e.msg
   finally:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
 
@@ -266,7 +266,7 @@ proc connectOnce(
         await p.getConn().wait(5.seconds)
       except AsyncTimeoutError as error:
         trace "getConn timed out", description = error.msg
-        raise (ref LPError)(msg: "Cannot establish send connection")
+        raise (ref LPError)(msg: "Cannot establish send connection: " & error.msg)
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all

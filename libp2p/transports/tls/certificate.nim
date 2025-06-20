@@ -118,8 +118,8 @@ proc makeASN1Time(time: Time): string {.inline.} =
     try:
       let f = initTimeFormat("yyyyMMddhhmmss")
       format(time.utc(), f)
-    except TimeFormatParseError:
-      raiseAssert "time format is const and checked with test"
+    except TimeFormatParseError as e:
+      raiseAssert "time format is const and checked with test: " & e.msg
 
   return str & "Z"
 
@@ -278,7 +278,7 @@ proc parse*(
     validTo = parseCertTime($certParsed.valid_to)
   except TimeParseError as e:
     raise newException(
-      CertificateParsingError, "Failed to parse certificate validity time, " & $e.msg
+      CertificateParsingError, "Failed to parse certificate validity time: " & $e.msg, e
     )
 
   P2pCertificate(
