@@ -59,14 +59,14 @@ task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub")
 
 task testfilter, "Run PKI filter test":
-  runTest("testpkifilter")
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
+  runTest("services/testpkifilter")
+  runTest("services/testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
 task testintegration, "Runs integraion tests":
   runTest("testintegration")
 
 task test, "Runs the test suite":
-  runTest("testall")
+  exec "testament all"
   exec "nimble testfilter"
 
 task website, "Build the website":
