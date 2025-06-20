@@ -55,6 +55,7 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
+    reuseConnection = true,
 ): Future[Connection] {.base, async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
