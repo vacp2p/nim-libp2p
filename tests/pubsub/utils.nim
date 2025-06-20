@@ -542,10 +542,10 @@ proc baseTestProcedure*(
 proc `$`*(peer: PubSubPeer): string =
   shortLog(peer)
 
-proc currentRateLimitHits*(): float64 =
+proc currentRateLimitHits*(label: string = "nim-libp2p"): float64 =
   try:
     libp2p_gossipsub_peers_rate_limit_hits.valueByName(
-      "libp2p_gossipsub_peers_rate_limit_hits_total", @["nim-libp2p"]
+      "libp2p_gossipsub_peers_rate_limit_hits_total", @[label]
     )
   except KeyError:
     0
