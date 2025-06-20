@@ -17,7 +17,7 @@ import ../../libp2p/protocols/kademlia/[routingtable, consts, keys]
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
-  return Key(kind: KeyType.Undefined, data: buf)
+  return Key(kind: KeyType.Unhashed, data: buf)
 
 let rng = crypto.newRng()
 
@@ -40,7 +40,7 @@ suite "routing table":
     let targetBucket = 6
     for _ in 0 ..< k + 5:
       var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
-      kid.kind = KeyType.Undefined
+      kid.kind = KeyType.Unhashed
         # Overriding so we don't use sha for comparing xor distances
       discard rt.insert(kid)
 
@@ -59,7 +59,7 @@ suite "routing table":
 
     check:
       res.len == 3
-      res[0] == testKey(1)
+      res == @[testKey(1), testKey(3), testKey(2)]
 
   test "isStale returns true for empty or old keys":
     var bucket: Bucket
@@ -75,7 +75,9 @@ suite "routing table":
     let selfId = testKey(0)
     let targetBucket = 3
     var rid = randomKeyInBucketRange(selfId, targetBucket, rng)
-    rid.kind = KeyType.Undefined
+    rid.kind = KeyType.Unhashed
       # Overriding so we don't use sha for comparing xor distances
     let idx = bucketIndex(selfId, rid)
-    check idx == targetBucket
+    check:
+      idx == targetBucket
+      rid != selfId

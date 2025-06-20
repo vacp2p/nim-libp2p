@@ -5,7 +5,7 @@ import stew/byteutils
 
 type
   KeyType* {.pure.} = enum
-    Undefined
+    Unhashed
     Raw
     PeerId
 
@@ -13,7 +13,7 @@ type
     case kind*: KeyType
     of KeyType.PeerId:
       peerId*: PeerId
-    of KeyType.Raw, KeyType.Undefined:
+    of KeyType.Raw, KeyType.Unhashed:
       data*: array[IdLength, byte]
 
 proc toKey*(s: seq[byte]): Key =
@@ -31,17 +31,17 @@ proc getBytes*(k: Key): seq[byte] =
     case k.kind
     of KeyType.PeerId:
       k.peerId.getBytes()
-    of KeyType.Raw, KeyType.Undefined:
+    of KeyType.Raw, KeyType.Unhashed:
       @(k.data)
 
 template `==`*(a, b: Key): bool =
-  a.getBytes() == b.getBytes()
+  a.getBytes() == b.getBytes() and a.kind == b.kind
 
 proc shortLog*(k: Key): string =
   case k.kind
   of KeyType.PeerId:
     "PeerId:" & $k.peerId
-  of KeyType.Raw, KeyType.Undefined:
+  of KeyType.Raw, KeyType.Unhashed:
     $k.kind & ":" & toHex(k.data)
 
 chronicles.formatIt(Key):

@@ -5,7 +5,7 @@ import ../../peerid
 
 type XorDistance* = array[IdLength, byte]
 
-proc countLeadingZeroBits(b: byte): int =
+proc countLeadingZeroBits*(b: byte): int =
   for i in 0 .. 7:
     if (b and (0x80'u8 shr i)) != 0:
       return i
@@ -39,7 +39,7 @@ proc hashFor(k: Key): seq[byte] =
         sha256.digest(k.peerId.getBytes()).data
       of KeyType.Raw:
         sha256.digest(k.data).data
-      of KeyType.Undefined:
+      of KeyType.Unhashed:
         k.data
     )
 
