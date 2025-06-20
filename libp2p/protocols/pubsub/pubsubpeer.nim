@@ -382,7 +382,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
     debug "No send connection", p, payload = shortLog(msg)
     return
 
-  trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+  info "sending encoded msg to peer", conn, encoded = shortLog(msg)
   await sendMsgContinue(conn, conn.writeLp(msg))
 
 proc sendMsg(
@@ -408,7 +408,7 @@ proc sendMsg(
       (nil, ctSlow)
 
   if not slowPath:
-    trace "sending encoded msg to peer",
+    info "sending encoded msg to peer",
       conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
     if not f.completed():
