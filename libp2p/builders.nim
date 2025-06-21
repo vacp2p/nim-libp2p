@@ -15,7 +15,7 @@ runnableExamples:
 
 {.push raises: [].}
 
-import options, tables, chronos, chronicles, sequtils
+import options, tables, chronos, chronicles, sequtils, uri
 import
   switch,
   peerid,
@@ -30,6 +30,7 @@ import
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
+  autotls/manager,
   nameresolving/nameresolver,
   errors,
   utility
@@ -65,6 +66,7 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
+    autotls: AutoTLSManager
     circuitRelay: Relay
     rdv: RendezVous
     services: seq[Service]
@@ -252,6 +254,16 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
+proc withAutotls*(
+    b: SwitchBuilder,
+    acmeServerURL: Uri = parseUri(LetsEncryptURL),
+    ipAddress = Opt.none(IpAddress),
+): SwitchBuilder {.public.} =
+  b.autotls = AutoTLSManager.new(
+    rng = b.rng, acmeServerURL = acmeServerURL, ipAddress = ipAddress
+  )
+  b
+
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = r
   b
@@ -330,6 +342,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     secureManagers = secureManagerInstances,
     connManager = connManager,
     ms = ms,
+    autotls = b.autotls,
     nameResolver = b.nameResolver,
     peerStore = peerStore,
     services = b.services,
