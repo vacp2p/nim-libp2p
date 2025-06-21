@@ -11,13 +11,20 @@
 
 {.push raises: [].}
 
-import sequtils, json
+import sequtils, json, uri
 import chronos, chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, autotls/acme/mockapi, wire]
+import
+  ../libp2p/[
+    stream/connection,
+    upgrademngrs/upgrade,
+    autotls/acme/mockapi,
+    autotls/acme/client,
+    wire,
+  ]
 
 import ./helpers
 
-suite "AutoTLS ACME Client":
+suite "AutoTLS ACME API":
   var api {.threadvar.}: MockACMEApi
   var key {.threadvar.}: KeyPair
 
@@ -41,24 +48,25 @@ suite "AutoTLS ACME Client":
     api.mockedBody =
       %*{
         "status": "pending",
-        "authorizations": ["expected-authorizations-url"],
-        "finalize": "expected-finalize-url",
+        "authorizations": ["http://example.com/expected-authorizations-url"],
+        "finalize": "http://example.com/expected-finalize-url",
       }
-    api.mockedHeaders.set("location", "expected-order-url")
+    api.mockedHeaders.set("location", "http://example.com/expected-order-url")
 
     let challengeResponse =
       await api.requestNewOrder(@["some.dummy.domain.com"], key, "kid")
     check challengeResponse.status == ACMEChallengeStatus.pending
-    check challengeResponse.authorizations == ["expected-authorizations-url"]
-    check challengeResponse.finalize == "expected-finalize-url"
-    check challengeResponse.orderURL == "expected-order-url"
+    check challengeResponse.authorizations ==
+      ["http://example.com/expected-authorizations-url"]
+    check challengeResponse.finalize == "http://example.com/expected-finalize-url"
+    check challengeResponse.order == "http://example.com/expected-order-url"
 
     # reset mocked obj for second request
     api.mockedBody =
       %*{
         "challenges": [
           {
-            "url": "expected-dns01-url",
+            "url": "http://example.com/expected-dns01-url",
             "type": "dns-01",
             "status": "pending",
             "token": "expected-dns01-token",
@@ -70,10 +78,12 @@ suite "AutoTLS ACME Client":
       await api.requestAuthorizations(challengeResponse.authorizations, key, "kid")
     check authorizationsResponse.challenges.len > 0
 
-    let dns01 = authorizationsResponse.challenges.filterIt(it.`type` == "dns-01")[0]
-    check dns01.url == "expected-dns01-url"
-    check dns01.`type` == "dns-01"
-    check dns01.token == "expected-dns01-token"
+    let dns01 = authorizationsResponse.challenges.filterIt(
+      it.`type` == ACMEChallengeType.dns01
+    )[0]
+    check dns01.url == "http://example.com/expected-dns01-url"
+    check dns01.`type` == ACMEChallengeType.dns01
+    check dns01.token == ACMEChallengeToken("expected-dns01-token")
     check dns01.status == ACMEChallengeStatus.pending
 
   asyncTest "register with unsupported keys":
@@ -83,43 +93,54 @@ suite "AutoTLS ACME Client":
       expect(ACMEError):
         discard await api.requestRegister(unsupportedKey)
 
-  asyncTest "request challenge with invalid kid":
-    expect(ACMEError):
-      discard await api.requestChallenge(@["domain.com"], key, "invalid_kid_here")
-
   asyncTest "challenge completed successful":
-    api.mockedBody = %*{"checkURL": "some-check-url"}
-    discard await api.requestCompleted("some-chal-url", key, "kid")
+    api.mockedBody = %*{"checkURL": "http://example.com/some-check-url"}
+    discard await api.requestCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
 
     api.mockedBody = %*{"status": "valid"}
     api.mockedHeaders.add("Retry-After", "1")
-    let completed = await api.checkChallengeCompleted("some-chal-url", key, "kid")
+    let completed = await api.checkChallengeCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
     check completed == true
 
   asyncTest "challenge completed max retries reached":
-    api.mockedBody = %*{"checkURL": "some-check-url"}
-    discard await api.requestCompleted("some-chal-url", key, "kid")
+    api.mockedBody = %*{"checkURL": "http://example.com/some-check-url"}
+    discard await api.requestCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
 
     api.mockedBody = %*{"status": "pending"}
     api.mockedHeaders.add("Retry-After", "1")
-    let completed =
-      await api.checkChallengeCompleted("some-chal-url", key, "kid", retries = 1)
+    let completed = await api.checkChallengeCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid", retries = 1
+    )
     check completed == false
 
   asyncTest "challenge completed invalid":
-    api.mockedBody = %*{"checkURL": "some-check-url"}
-    discard await api.requestCompleted("some-chal-url", key, "kid")
+    api.mockedBody = %*{"checkURL": "http://example.com/some-check-url"}
+    discard await api.requestCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
 
     api.mockedBody = %*{"status": "invalid"}
     api.mockedHeaders.add("Retry-After", "1")
     expect(ACMEError):
-      discard await api.checkChallengeCompleted("some-chal-url", key, "kid")
+      discard await api.checkChallengeCompleted(
+        parseUri("http://example.com/some-chal-url"), key, "kid"
+      )
 
   asyncTest "finalize certificate successful":
     api.mockedBody = %*{"status": "valid"}
     api.mockedHeaders.add("Retry-After", "1")
     let finalized = await api.certificateFinalized(
-      "some-domain", "some-finalize-url", "some-order-url", key, "kid"
+      "some-domain",
+      parseUri("http://example.com/some-finalize-url"),
+      parseUri("http://example.com/some-order-url"),
+      key,
+      "kid",
     )
     check finalized == true
 
@@ -127,7 +148,12 @@ suite "AutoTLS ACME Client":
     api.mockedBody = %*{"status": "processing"}
     api.mockedHeaders.add("Retry-After", "1")
     let finalized = await api.certificateFinalized(
-      "some-domain", "some-finalize-url", "some-order-url", key, "kid", retries = 1
+      "some-domain",
+      parseUri("http://example.com/some-finalize-url"),
+      parseUri("http://example.com/some-order-url"),
+      key,
+      "kid",
+      retries = 1,
     )
     check finalized == false
 
@@ -136,7 +162,11 @@ suite "AutoTLS ACME Client":
     api.mockedHeaders.add("Retry-After", "1")
     expect(ACMEError):
       discard await api.certificateFinalized(
-        "some-domain", "some-finalize-url", "some-order-url", key, "kid"
+        "some-domain",
+        parseUri("http://example.com/some-finalize-url"),
+        parseUri("http://example.com/some-order-url"),
+        key,
+        "kid",
       )
 
   asyncTest "expect error on invalid JSON response":
@@ -160,19 +190,48 @@ suite "AutoTLS ACME Client":
 
     expect(ACMEError):
       discard await api.requestCheck(
-        "some-check-url", ACMECheckKind.ACMEOrderCheck, key, "kid"
+        parseUri("http://example.com/some-check-url"),
+        ACMECheckKind.ACMEOrderCheck,
+        key,
+        "kid",
       )
 
     expect(ACMEError):
       discard await api.requestCheck(
-        "some-check-url", ACMECheckKind.ACMEChallengeCheck, key, "kid"
+        parseUri("http://example.com/some-check-url"),
+        ACMECheckKind.ACMEChallengeCheck,
+        key,
+        "kid",
       )
 
     expect(ACMEError):
-      discard await api.requestCompleted("some-chal-url", key, "kid")
+      discard await api.requestCompleted(
+        parseUri("http://example.com/some-chal-url"), key, "kid"
+      )
 
     expect(ACMEError):
-      discard await api.requestFinalize("some-domain", "some-finalize-url", key, "kid")
+      discard await api.requestFinalize(
+        "some-domain", parseUri("http://example.com/some-finalize-url"), key, "kid"
+      )
 
     expect(ACMEError):
-      discard await api.requestGetOrder("some-order-url")
+      discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
+
+suite "AutoTLS ACME Client":
+  var acmeApi {.threadvar.}: MockACMEApi
+  var acme {.threadvar.}: ACMEClient
+
+  asyncSetup:
+    acmeApi = await MockACMEApi.new()
+    acmeApi.mockedHeaders = HttpTable.init()
+
+  asyncTeardown:
+    await acme.close()
+    checkTrackers()
+
+  asyncTest "client registers new account when instantiated":
+    acmeApi.mockedBody = %*{"status": "valid"}
+    acmeApi.mockedHeaders.add("location", "some-expected-kid")
+
+    acme = await ACMEClient.new(api = Opt.some(ACMEApi(acmeApi)))
+    check acme.kid == "some-expected-kid"
