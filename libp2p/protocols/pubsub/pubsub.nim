@@ -570,7 +570,11 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
   p.updateTopicMetrics(topic)
 
 method publish*(
-    p: PubSub, topic: string, data: seq[byte], useCustomConn: bool = false
+    p: PubSub,
+    topic: string,
+    data: seq[byte],
+    useCustomConn: bool = false,
+    skipMCache: bool = false,
 ): Future[int] {.base, async: (raises: []), public.} =
   ## publish to a ``topic``
   ##

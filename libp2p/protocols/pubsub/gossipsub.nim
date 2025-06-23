@@ -784,7 +784,11 @@ proc makePeersForPublishDefault(
   return peers
 
 method publish*(
-    g: GossipSub, topic: string, data: seq[byte], useCustomConn: bool = false
+    g: GossipSub,
+    topic: string,
+    data: seq[byte],
+    useCustomConn: bool = false,
+    skipMCache: bool = false,
 ): Future[int] {.async: (raises: []).} =
   logScope:
     topic
@@ -837,7 +841,9 @@ method publish*(
     trace "Dropping already-seen message"
     return 0
 
-  g.mcache.put(msgId, msg)
+  if skipMCache:
+    # If `skipMCache` enabled, don't add to mcache
+    g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
     g.sendIDontWant(msg, msgId, peers)
