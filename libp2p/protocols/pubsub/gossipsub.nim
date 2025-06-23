@@ -841,7 +841,7 @@ method publish*(
     trace "Dropping already-seen message"
     return 0
 
-  if skipMCache:
+  if not skipMCache:
     # If `skipMCache` enabled, don't add to mcache
     g.mcache.put(msgId, msg)
 
