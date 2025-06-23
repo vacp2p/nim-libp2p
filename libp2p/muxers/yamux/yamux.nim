@@ -517,6 +517,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
     channel.sendQueue = @[]
     channel.sendWindow = 0
     channel.closedLocally = true
+    channel.isReset = true
     channel.opened = false
     await channel.remoteClosed()
     channel.receivedData.fire()
