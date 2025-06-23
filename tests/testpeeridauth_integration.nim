@@ -12,7 +12,7 @@
 import json, uri
 import chronos
 import chronos/apps/http/httpclient
-import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth, wire]
+import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth/client, wire]
 
 import ./helpers
 
