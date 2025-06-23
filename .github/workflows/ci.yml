@@ -120,3 +120,4 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" 
           nimble test
+          nimble testdaemon
