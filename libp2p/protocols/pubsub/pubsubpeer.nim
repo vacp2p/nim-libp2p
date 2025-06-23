@@ -383,6 +383,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
     return
 
   info "sending encoded msg to peer", conn, encoded = shortLog(msg)
+  writeStackTrace()
   await sendMsgContinue(conn, conn.writeLp(msg))
 
 proc sendMsg(
