@@ -770,7 +770,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
 
     cacheWindowSize += midsSeq.len
 
-    trace "got messages to emit", size = midsSeq.len
+    info "got messages to emit", size = midsSeq.len
 
     # not in spec
     # similar to rust: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/behaviour.rs#L2101
