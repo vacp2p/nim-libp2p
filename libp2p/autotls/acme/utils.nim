@@ -1,6 +1,8 @@
 import base64, strutils, chronos/apps/http/httpclient, json
 import ../../errors
 import ../../transports/tls/certificate_ffi
+import ../../crypto/crypto
+import ../../crypto/rsa
 
 type ACMEError* = object of LPError
 
@@ -16,12 +18,26 @@ proc base64UrlEncode*(data: seq[byte]): string =
   encoded.removeSuffix("=")
   return encoded
 
+proc thumbprint*(key: KeyPair): string =
+  doAssert key.seckey.scheme == PKScheme.RSA, "unsupported keytype"
+  let pubkey = key.pubkey.rsakey
+  let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
+  let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))
+
+  let n = base64UrlEncode(nArray)
+  let e = base64UrlEncode(eArray)
+  let keyJson = %*{"e": e, "kty": "RSA", "n": n}
+  let digest = sha256.digest($keyJson)
+  return base64UrlEncode(@(digest.data))
+
 proc getResponseBody*(
     response: HttpClientResponseRef
 ): Future[JsonNode] {.async: (raises: [ACMEError, CancelledError]).} =
   try:
-    let responseBody = bytesToString(await response.getBodyBytes()).parseJson()
-    return responseBody
+    let bodyBytes = await response.getBodyBytes()
+    if bodyBytes.len > 0:
+      return bytesToString(bodyBytes).parseJson()
+    return %*{} # empty body
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
