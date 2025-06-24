@@ -9,14 +9,15 @@ import ../../libp2p/protocols/pubsub/rpc/[message]
 import ../helpers
 import ../utils/[futures]
 
-const MsgIdSuccess = "msg id gen success"
-
 suite "GossipSub Behavior":
+  const
+    topic = "foobar"
+    MsgIdSuccess = "msg id gen success"
+
   teardown:
     checkTrackers()
 
   asyncTest "handleIHave - peers with no budget should not request messages":
-    let topic = "foobar"
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -46,7 +47,6 @@ suite "GossipSub Behavior":
       gossipSub.mcache.msgs.len == 1
 
   asyncTest "handleIHave - peers with budget should request messages":
-    let topic = "foobar"
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -78,9 +78,7 @@ suite "GossipSub Behavior":
       gossipSub.mcache.msgs.len == 1
 
   asyncTest "handleIHave - do not handle IHave if peer score is below GossipThreshold threshold":
-    const
-      topic = "foobar"
-      gossipThreshold = -100.0
+    const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -103,7 +101,6 @@ suite "GossipSub Behavior":
       iWant.messageIDs.len == 0
 
   asyncTest "handleIWant - peers with budget should request messages":
-    let topic = "foobar"
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -131,9 +128,7 @@ suite "GossipSub Behavior":
       gossipSub.mcache.msgs.len == 1
 
   asyncTest "handleIWant - do not handle IWant if peer score is below GossipThreshold threshold":
-    const
-      topic = "foobar"
-      gossipThreshold = -100.0
+    const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -159,11 +154,7 @@ suite "GossipSub Behavior":
 
   asyncTest "handleIDontWant - Max IDONTWANT messages per heartbeat per peer":
     # Given GossipSub node with 1 peer
-    let
-      topic = "foobar"
-      totalPeers = 1
-
-    let (gossipSub, conns, peers) = setupGossipSubWithPeers(totalPeers, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -187,9 +178,7 @@ suite "GossipSub Behavior":
       peer.iDontWants[0].len == IDontWantMaxCount
 
   asyncTest "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
-    const
-      topic = "foobar"
-      gossipThreshold = -100.0
+    const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -221,9 +210,7 @@ suite "GossipSub Behavior":
       result.isCancelled()
 
   asyncTest "handleGraft - do not graft when peer score below PublishThreshold threshold":
-    const
-      topic = "foobar"
-      publishThreshold = -100.0
+    const publishThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -247,7 +234,6 @@ suite "GossipSub Behavior":
 
   asyncTest "handleGraft - penalizes direct peer attempting to graft":
     # Given a GossipSub instance with one direct peer
-    const topic = "foobar"
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -273,7 +259,6 @@ suite "GossipSub Behavior":
 
   asyncTest "handleGraft - penalizes peer for grafting during backoff period":
     # Given a GossipSub instance with one peer
-    const topic = "foobar"
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -299,7 +284,6 @@ suite "GossipSub Behavior":
       prunes.len == 1
 
   asyncTest "replenishFanout - Degree Lo":
-    let topic = "foobar"
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -310,7 +294,6 @@ suite "GossipSub Behavior":
     check gossipSub.fanout[topic].len == gossipSub.parameters.d
 
   asyncTest "dropFanoutPeers - drop expired fanout topics":
-    let topic = "foobar"
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(6, topic, populateGossipsub = true, populateFanout = true)
     defer:
@@ -325,7 +308,7 @@ suite "GossipSub Behavior":
     check topic notin gossipSub.fanout
 
   asyncTest "dropFanoutPeers - leave unexpired fanout topics":
-    let
+    const
       topic1 = "foobar1"
       topic2 = "foobar2"
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(
@@ -346,7 +329,6 @@ suite "GossipSub Behavior":
     check topic2 in gossipSub.fanout
 
   asyncTest "getGossipPeers - should gather up to degree D non intersecting peers":
-    let topic = "foobar"
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(45, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -384,7 +366,6 @@ suite "GossipSub Behavior":
       check not gossipSub.mesh.hasPeerId(topic, p.peerId)
 
   asyncTest "getGossipPeers - should not crash on missing topics in mesh":
-    let topic = "foobar"
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -408,7 +389,6 @@ suite "GossipSub Behavior":
     check gossipPeers.len == gossipSub.parameters.d
 
   asyncTest "getGossipPeers - should not crash on missing topics in fanout":
-    let topic = "foobar"
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -433,7 +413,6 @@ suite "GossipSub Behavior":
     check gossipPeers.len == gossipSub.parameters.d
 
   asyncTest "getGossipPeers - should not crash on missing topics in gossip":
-    let topic = "foobar"
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -458,9 +437,7 @@ suite "GossipSub Behavior":
     check gossipPeers.len == 0
 
   asyncTest "getGossipPeers - do not select peer for IHave broadcast if peer score is below GossipThreshold threshold":
-    const
-      topic = "foobar"
-      gossipThreshold = -100.0
+    const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) =
         setupGossipSubWithPeers(1, topic, populateGossipsub = true)
@@ -484,7 +461,6 @@ suite "GossipSub Behavior":
       gossipPeers.len == 0
 
   asyncTest "rebalanceMesh - Degree Lo":
-    let topic = "foobar"
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -495,7 +471,6 @@ suite "GossipSub Behavior":
     check gossipSub.mesh[topic].len == gossipSub.parameters.d
 
   asyncTest "rebalanceMesh - bad peers":
-    let topic = "foobar"
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -514,7 +489,6 @@ suite "GossipSub Behavior":
       check peer.score >= 0.0
 
   asyncTest "rebalanceMesh - Degree Hi":
-    let topic = "foobar"
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
@@ -526,7 +500,6 @@ suite "GossipSub Behavior":
       gossipSub.parameters.d + gossipSub.parameters.dScore
 
   asyncTest "rebalanceMesh - fail due to backoff":
-    let topic = "foobar"
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -546,7 +519,6 @@ suite "GossipSub Behavior":
     check gossipSub.mesh[topic].len == 0
 
   asyncTest "rebalanceMesh - fail due to backoff - remote":
-    let topic = "foobar"
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
@@ -572,8 +544,7 @@ suite "GossipSub Behavior":
     check topic notin gossipSub.mesh
 
   asyncTest "rebalanceMesh - Degree Hi - audit scenario":
-    let
-      topic = "foobar"
+    const
       numInPeers = 6
       numOutPeers = 7
       totalPeers = numInPeers + numOutPeers
@@ -615,10 +586,7 @@ suite "GossipSub Behavior":
 
   asyncTest "rebalanceMesh - Degree Hi - dScore controls number of peers to retain by score when pruning":
     # Given GossipSub node starting with 13 peers in mesh
-    let
-      topic = "foobar"
-      totalPeers = 13
-
+    const totalPeers = 13
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(
       totalPeers, topic, populateGossipsub = true, populateMesh = true
     )

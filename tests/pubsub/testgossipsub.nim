@@ -129,7 +129,6 @@ suite "GossipSub":
 
   asyncTest "Peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
-    const topic = "foobar"
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -159,7 +158,6 @@ suite "GossipSub":
 
   asyncTest "Peer is punished and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
-    const topic = "foobar"
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -194,7 +192,6 @@ suite "GossipSub":
 
   asyncTest "Peer is punished when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
-    const topic = "foobar"
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
