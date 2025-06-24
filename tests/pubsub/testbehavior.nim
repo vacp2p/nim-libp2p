@@ -146,7 +146,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id])
 
     # When IWant is handled
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then IWant is ignored
     check:

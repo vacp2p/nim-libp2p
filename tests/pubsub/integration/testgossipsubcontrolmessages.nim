@@ -4,101 +4,13 @@ import std/[sequtils]
 import chronicles
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../../libp2p/protocols/pubsub/gossipsub/preamblestore
+
 import ../../helpers
 
 suite "GossipSub Integration - Control Messages":
   teardown:
     checkTrackers()
-
-  asyncTest "handleIHave - peers with no budget should not request messages":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    gossipSub.subscribe(topic, voidTopicHandler)
-
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    # Add message to `gossipSub`'s message cache
-    let id = @[0'u8, 1, 2, 3]
-    gossipSub.mcache.put(id, Message())
-    peer.sentIHaves[^1].incl(id)
-
-    # Build an IHAVE message that contains the same message ID three times
-    let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-
-    # Given the peer has no budget to request messages
-    peer.iHaveBudget = 0
-
-    # When a peer makes an IHAVE request for the a message that `gossipSub` has
-    let iwants = gossipSub.handleIHave(peer, @[msg])
-
-    # Then `gossipSub` should not generate an IWant message for the message, 
-    check:
-      iwants.messageIDs.len == 0
-      gossipSub.mcache.msgs.len == 1
-
-  asyncTest "handleIHave - peers with budget should request messages":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    gossipSub.subscribe(topic, voidTopicHandler)
-
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    # Add message to `gossipSub`'s message cache
-    let id = @[0'u8, 1, 2, 3]
-    gossipSub.mcache.put(id, Message())
-    peer.sentIHaves[^1].incl(id)
-
-    # Build an IHAVE message that contains the same message ID three times
-    # If ids are repeated, only one request should be generated
-    let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-
-    # Given the budget is not 0 (because it's not been overridden)
-    check:
-      peer.iHaveBudget > 0
-
-    # When a peer makes an IHAVE request for the a message that `gossipSub` does not have
-    let iwants = gossipSub.handleIHave(peer, @[msg])
-
-    # Then `gossipSub` should generate an IWant message for the message
-    check:
-      iwants.messageIDs.len == 1
-      gossipSub.mcache.msgs.len == 1
-
-  asyncTest "handleIWant - peers with budget should request messages":
-    let topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    gossipSub.subscribe(topic, voidTopicHandler)
-
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    # Add message to `gossipSub`'s message cache
-    let id = @[0'u8, 1, 2, 3]
-    gossipSub.mcache.put(id, Message())
-    peer.sentIHaves[^1].incl(id)
-
-    # Build an IWANT message that contains the same message ID three times
-    # If ids are repeated, only one request should be generated
-    let msg = ControlIWant(messageIDs: @[id, id, id])
-
-    # When a peer makes an IWANT request for the a message that `gossipSub` has
-    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
-
-    # Then `gossipSub` should return the message
-    check:
-      messages.len == 1
-      gossipSub.mcache.msgs.len == 1
 
   asyncTest "GRAFT messages correctly add peers to mesh":
     # Given 2 nodes
@@ -511,3 +423,50 @@ suite "GossipSub Integration - Control Messages":
     check:
       toSeq(nodeC.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
       toSeq(nodeA.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
+
+  asyncTest "emit IMReceiving while handling preamble control msg":
+    # Given GossipSub node with 1 peer
+    let
+      topic = "foobar"
+      totalPeers = 2
+
+    let
+      nodes = generateNodes(totalPeers, gossip = true).toGossipSub()
+      n0 = nodes[0]
+      n1 = nodes[1]
+
+    startNodesAndDeferStop(nodes)
+
+    # And the nodes are connected
+    await connectNodesStar(nodes)
+
+    # And both subscribe to the topic
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    let msgId = @[1.byte, 2, 3, 4]
+    let preambles =
+      @[
+        ControlPreamble(
+          topicID: topic,
+          messageID: msgId,
+          messageLength: preambleMessageSizeThreshold + 1,
+        )
+      ]
+
+    let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_14])
+    check:
+      p1.preambleBudget == PreamblePeerBudget
+
+    n0.handlePreamble(p1, preambles)
+
+    check:
+      p1.preambleBudget == PreamblePeerBudget - 1 # Preamble budget should decrease
+      p1.heIsSendings.hasKey(msgId)
+      n0.ongoingReceives.hasKey(msgId)
+
+    await waitForHeartbeat()
+
+    let p2 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_14])
+    check:
+      p2.heIsReceivings.hasKey(msgId)

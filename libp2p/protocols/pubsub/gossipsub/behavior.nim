@@ -353,8 +353,12 @@ proc handleIWant*(
         result.ids.add(mid)
   return result
 
-proc medianDownloadRate(p: var HashSet[PubSubPeer]): float =
-  let vals = p.toSeq().mapIt(it.bandwidthTracking.download.value())
+proc medianDownloadRate*(p: var HashSet[PubSubPeer]): float =
+  if p.len == 0:
+    return 0
+
+  let vals = p.toSeq().mapIt(it.bandwidthTracking.download.value()).sorted()
+  echo vals
   let mid = vals.len div 2
   if vals.len mod 2 == 0:
     (vals[mid - 1] + vals[mid]) / 2
@@ -389,6 +393,7 @@ proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPream
 
       #We send imreceiving only if received from mesh members
       if peer notin peers:
+        echo "NOPT IN PEERS"
         if not g.ongoingIWantReceives.hasKey(preamble.messageID):
           g.ongoingIWantReceives[preamble.messageID] =
             PreambleInfo.init(preamble, peer, starts, expires)
