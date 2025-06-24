@@ -346,11 +346,6 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
-proc writeMsg(
-    p: PubSubPeer, conn: Connection, msg: seq[byte]
-) {.async: (raises: [LPStreamError, CancelledError]).} =
-  await conn.writeLp(msg)
-
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
   # Continuation for a pending `sendMsg` future from below
   try:
@@ -379,7 +374,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
-  await sendMsgContinue(conn, p.writeMsg(conn, msg))
+  await sendMsgContinue(conn, conn.writeLp(msg))
 
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
@@ -406,7 +401,7 @@ proc sendMsg(
   if not slowPath:
     trace "sending encoded msg to peer",
       conntype = $connType, conn = conn, encoded = shortLog(msg)
-    let f = p.writeMsg(conn, msg)
+    let f = conn.writeLp(msg)
     if not f.completed():
       sendMsgContinue(conn, f)
     else:

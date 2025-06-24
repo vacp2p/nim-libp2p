@@ -2,6 +2,6 @@
 
 import
   testbehavior, testgossipsub, testgossipsubparams, testmcache, testmessage,
-  testscoring, testtimedcache
+  testscoring, testtimedcache, testpreamblestore
 
 import ./integration/testpubsubintegration
