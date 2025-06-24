@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -17,18 +17,15 @@ import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
 import ../helpers
 
 suite "GossipSub":
-  const topic = "foobar"
-  var gossipSub {.threadvar.}: TestGossipSub
-  var conns {.threadvar.}: seq[Connection]
-  var peers {.threadvar.}: seq[PubSubPeer]
-
-  asyncTeardown:
-    await teardownGossipSub(gossipSub, conns)
+  teardown:
     checkTrackers()
 
   asyncTest "subscribe/unsubscribeAll":
-    (gossipSub, conns, peers) =
+    let topic = "foobar"
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # test via dynamic dispatch
     gossipSub.PubSub.subscribe(topic, voidTopicHandler)
@@ -47,7 +44,10 @@ suite "GossipSub":
       topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
 
   asyncTest "Drop messages of topics without subscription":
-    (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    let topic = "foobar"
+    var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # generate messages
     var seqno = 0'u64
@@ -93,10 +93,13 @@ suite "GossipSub":
 
   asyncTest "Peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
     # Given a GossipSub instance with one peer
-    (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    const topic = "foobar"
     let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
       rateLimitHits = currentRateLimitHits("unknown")
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # And signature verification disabled to avoid message being dropped
     gossipSub.verifySignature = false
@@ -127,8 +130,12 @@ suite "GossipSub":
 
   asyncTest "Peer is punished when message contains invalid sequence number":
     # Given a GossipSub instance with one peer
-    (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    let peer = peers[0]
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # And signature verification disabled to avoid message being dropped
     gossipSub.verifySignature = false
@@ -147,8 +154,12 @@ suite "GossipSub":
 
   asyncTest "Peer is punished when message id generation fails":
     # Given a GossipSub instance with one peer
-    (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    let peer = peers[0]
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # And signature verification disabled to avoid message being dropped
     gossipSub.verifySignature = false
@@ -171,8 +182,12 @@ suite "GossipSub":
 
   asyncTest "Peer is punished when signature verification fails":
     # Given a GossipSub instance with one peer
-    (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    let peer = peers[0]
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # And signature verification enabled
     gossipSub.verifySignature = true
@@ -190,8 +205,12 @@ suite "GossipSub":
 
   asyncTest "Peer is punished when message validation is rejected":
     # Given a GossipSub instance with one peer
-    (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    let peer = peers[0]
+    const topic = "foobar"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # And signature verification disabled to avoid message being dropped earlier
     gossipSub.verifySignature = false
