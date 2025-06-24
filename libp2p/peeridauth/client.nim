@@ -182,7 +182,7 @@ method get*(
 ): Future[PeerIDAuthResponse] {.
     async: (raises: [PeerIDAuthError, HttpError, CancelledError]), base
 .} =
-  if self.session.isNil:
+  if self.session.isNil():
     raise newException(PeerIDAuthError, "Session is nil")
   let req = HttpClientRequestRef.get(self.session, $uri).valueOr:
     raise newException(PeerIDAuthError, "Could not get request obj")
@@ -313,7 +313,7 @@ proc sendWithBearer(
 ): Future[(BearerToken, PeerIDAuthResponse)] {.
     async: (raises: [PeerIDAuthError, CancelledError])
 .} =
-  if bearer.expires.isSome and DateTime(bearer.expires.get) <= now():
+  if bearer.expires.isSome() and DateTime(bearer.expires.get) <= now():
     raise newException(PeerIDAuthError, "Bearer expired")
   let authHeader = PeerIDAuthPrefix & " bearer=\"" & bearer.token & "\""
   let response =
@@ -334,7 +334,7 @@ proc send*(
 ): Future[(BearerToken, PeerIDAuthResponse)] {.
     async: (raises: [PeerIDAuthError, CancelledError])
 .} =
-  if bearer.isSome:
+  if bearer.isSome():
     await self.sendWithBearer(uri, peerInfo, payload, bearer.get)
   else:
     await self.sendWithoutBearer(uri, peerInfo, payload)

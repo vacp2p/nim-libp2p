@@ -12,31 +12,25 @@
 
 import net, results, json, sequtils
 
-from times import DateTime, toTime, toUnix
-
-import chronos/apps/http/httpclient, stew/base36, chronos, chronicles, bearssl/rand
+import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand
 
 import
+  ./utils,
   ./acme/client,
   ../peeridauth/client,
-  ../nameresolving/dnsresolver,
   ../wire,
   ../crypto/crypto,
   ../peerinfo,
-  ../peerid,
-  ../multihash,
-  ../multicodec,
-  ../errors,
-  ../cid,
-  ../utils/heartbeat
-
-export LetsEncryptURL
+  ../utils/heartbeat,
+  ../nameresolving/dnsresolver
 
 logScope:
   topics = "libp2p autotls"
 
+export LetsEncryptURL, AutoTLSError
+
 const
-  DefaultDnsServers =
+  DefaultDnsServers* =
     @[
       initTAddress("1.1.1.1:53"),
       initTAddress("1.0.0.1:53"),
@@ -44,15 +38,11 @@ const
     ]
   DefaultRenewCheckTime = 1.hours
   DefaultRenewBufferTime = 1.hours
-  DefaultDnsRetries = 10
-  DefaultDnsRetryTime = 1.seconds
 
   AutoTLSBroker* = "registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
   HttpOk* = 200
   HttpCreated* = 201
-
-type AutoTLSError* = object of LPError
 
 type SigParam = object
   k: string
@@ -100,79 +90,13 @@ proc new*(
     ipAddress: ipAddress,
   )
 
-proc checkedGetPrimaryIPAddr*(): IpAddress {.raises: [AutoTLSError].} =
-  # This is so that we don't need to catch Exceptions directly
-  # since we support 1.6.16 and getPrimaryIPAddr before nim 2 didn't have explicit .raises. pragmas
-  try:
-    return getPrimaryIPAddr()
-  except Exception as exc:
-    raise newException(AutoTLSError, "Error while getting primary IP address", exc)
-
-proc isIPv4*(ip: IpAddress): bool =
-  ip.family == IpAddressFamily.IPv4
-
-proc isPublic*(ip: IpAddress): bool {.raises: [AutoTLSError].} =
-  let ip = $ip
-  try:
-    not (
-      ip.startsWith("10.") or
-      (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
-      ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
-    )
-  except ValueError as exc:
-    raise newException(AutoTLSError, "Failed to parse IP address", exc)
-
-proc asMoment*(dt: DateTime): Moment =
-  let unixTime: int64 = dt.toTime.toUnix
-  return Moment.init(unixTime, Second)
-
-proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
-  var mh: MultiHash
-  let decodeResult = MultiHash.decode(peerId.data, mh)
-  if decodeResult.isErr or decodeResult.get() == -1:
-    raise
-      newException(AutoTLSError, "Failed to decode PeerId: invalid multihash format")
-
-  let cidResult = Cid.init(CIDv1, multiCodec("libp2p-key"), mh)
-  if cidResult.isErr:
-    raise newException(AutoTLSError, "Failed to initialize CID from multihash")
-
-  return Base36.encode(cidResult.get().data.buffer)
-
-proc checkDNSRecords(
-    self: AutoTLSManager,
-    ipAddress: IpAddress,
-    baseDomain: api.Domain,
-    keyAuth: KeyAuthorization,
-    retries: int = DefaultDnsRetries,
-): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  # if my ip address is 100.10.10.3 then the ip4Domain will be:
-  #     100-10-10-3.{peerIdBase36}.libp2p.direct
-  # and acme challenge TXT domain will be:
-  #     _acme-challenge.{peerIdBase36}.libp2p.direct
-  let dashedIpAddr = ($ipAddress).replace(".", "-")
-  let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
-  let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
-
-  var txt: seq[string]
-  var ip4: seq[TransportAddress]
-  for _ in 0 .. retries:
-    txt = await self.dnsResolver.resolveTxt(acmeChalDomain)
-    try:
-      ip4 = await self.dnsResolver.resolveIp(ip4Domain, 0.Port)
-    except CatchableError as exc:
-      error "Failed to resolve IP", description = exc.msg # retry
-    if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
-      return true
-    await sleepAsync(DefaultDnsRetryTime)
-
-  return false
+proc getIpAddress(self: AutoTLSManager): IpAddress {.raises: [AutoTLSError].} =
+  return self.ipAddress.valueOr:
+    getPublicIPADdress()
 
 method issueCertificate(
     self: AutoTLSManager
-): Future[void] {.
-    base, async: (raises: [AutoTLSError, ACMEError, PeerIDAuthError, CancelledError])
-.} =
+) {.base, async: (raises: [AutoTLSError, ACMEError, PeerIDAuthError, CancelledError]).} =
   trace "Issuing new certificate"
   let peerInfo = self.peerInfo.valueOr:
     raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
@@ -195,7 +119,7 @@ method issueCertificate(
   trace "Sending challenge to AutoTLS broker"
   let (bearer, response) =
     await self.brokerClient.send(registrationURL, peerInfo, payload, self.bearer)
-  if self.bearer.isNone:
+  if self.bearer.isNone():
     # save bearer token for future
     self.bearer = Opt.some(bearer)
   if response.status != HttpOk:
@@ -204,10 +128,8 @@ method issueCertificate(
     )
 
   debug "Waiting for DNS record to be set"
-  let ipAddress = self.ipAddress.valueOr:
-    raise newException(AutoTLSError, "No public IPv4 address specified")
-
-  let dnsSet = await self.checkDNSRecords(ipAddress, baseDomain, keyAuth)
+  let dnsSet =
+    await checkDNSRecords(self.dnsResolver, self.getIpAddress(), baseDomain, keyAuth)
   if not dnsSet:
     raise newException(AutoTLSError, "DNS records not set")
 
@@ -224,33 +146,19 @@ method issueCertificate(
 
 proc manageCertificate(
     self: AutoTLSManager
-): Future[void] {.async: (raises: [AutoTLSError, ACMEError, CancelledError]).} =
+) {.async: (raises: [AutoTLSError, ACMEError, CancelledError]).} =
   trace "Starting AutoTLS manager"
-  let ipAddress = self.ipAddress.valueOr:
-    try:
-      let ip = self.ipAddress.valueOr:
-        checkedGetPrimaryIPAddr()
-      if not ip.isIPv4:
-        raise newException(AutoTLSError, "Host does not have an IPv4 address")
-      if not ip.isPublic:
-        raise newException(AutoTLSError, "Host does not have a public IPv4 address")
-      ip
-    except AutoTLSError as exc:
-      raise exc
-    except CatchableError as exc:
-      raise newException(
-        AutoTLSError, "Unexpected error while getting primary IP address for host", exc
-      )
-  self.ipAddress = Opt.some(ipAddress)
 
   debug "Registering ACME account"
-  if self.acmeClient.isNone:
+  if self.acmeClient.isNone():
     self.acmeClient = Opt.some(await ACMEClient.new(acmeServerURL = self.acmeServerURL))
 
   heartbeat "Certificate Management", self.renewCheckTime:
-    if self.cert.isNone or self.certExpiry.isNone:
+    if self.cert.isNone() or self.certExpiry.isNone():
       try:
         await self.issueCertificate()
+      except CancelledError as exc:
+        raise exc
       except CatchableError as exc:
         error "Failed to issue certificate", err = exc.msg
         break
@@ -261,32 +169,32 @@ proc manageCertificate(
     if waitTime <= self.renewBufferTime:
       try:
         await self.issueCertificate()
+      except CancelledError as exc:
+        raise exc
       except CatchableError as exc:
         error "Failed to renew certificate", err = exc.msg
         break
 
 method start*(
     self: AutoTLSManager, peerInfo: PeerInfo
-): Future[void] {.base, async: (raises: [CancelledError]).} =
-  if not self.managerFut.isNil:
+) {.base, async: (raises: [CancelledError]).} =
+  if not self.managerFut.isNil():
     warn "Starting AutoTLS twice"
     return
 
   self.peerInfo = Opt.some(peerInfo)
   self.managerFut = self.manageCertificate()
 
-method stop*(
-    self: AutoTLSManager
-): Future[void] {.base, async: (raises: [CancelledError]).} =
+method stop*(self: AutoTLSManager) {.base, async: (raises: [CancelledError]).} =
   trace "AutoTLS stop"
-  if self.managerFut.isNil:
+  if self.managerFut.isNil():
     warn "AutoTLS manager not running"
     return
 
   await self.managerFut.cancelAndWait()
   self.managerFut = nil
 
-  if self.acmeClient.isSome:
+  if self.acmeClient.isSome():
     await self.acmeClient.get.close()
 
   await self.brokerClient.close()

@@ -68,5 +68,5 @@ proc getCertificate*(
 
   await self.api.downloadCertificate(orderURL)
 
-proc close*(self: ACMEClient): Future[void] {.async: (raises: [CancelledError]).} =
+proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =
   await self.api.close()

@@ -50,13 +50,13 @@ suite "AutoTLS Integration":
     let challenge = await acmeApi.requestChallenge(
       @["some.dummy.domain.com"], key, registerResponse.kid
     )
-    check challenge.finalize.len() > 0
-    check challenge.order.len() > 0
+    check challenge.finalize.len > 0
+    check challenge.order.len > 0
 
-    check challenge.dns01.url.len() > 0
-    check challenge.dns01.`type` == ACMEChallengeType.dns01
-    check challenge.dns01.status == ACMEChallengeStatus.pending
-    check challenge.dns01.token.len() > 0
+    check challenge.dns01.url.len > 0
+    check challenge.dns01.`type` == ACMEChallengeType.DNS01
+    check challenge.dns01.status == ACMEChallengeStatus.PENDING
+    check challenge.dns01.token.len > 0
 
   asyncTest "request challenge with ACMEClient":
     let acme = await ACMEClient.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
@@ -65,12 +65,13 @@ suite "AutoTLS Integration":
 
     let challenge = await acme.getChallenge(@["some.dummy.domain.com"])
 
-    check challenge.finalize.len() > 0
-    check challenge.order.len() > 0
-    check challenge.dns01.url.len() > 0
-    check challenge.dns01.`type` == ACMEChallengeType.dns01
-    check challenge.dns01.status == ACMEChallengeStatus.pending
-    check challenge.dns01.token.len() > 0
+    check challenge.finalize.len > 0
+    check challenge.order.len > 0
+    check challenge.dns01.url.len > 0
+    check challenge.dns01.`type` == ACMEChallengeType.DNS01
+    check challenge.dns01.status == ACMEChallengeStatus.PENDING
+    check challenge.dns01.token.len > 0
+
   asyncTest "AutoTLSManager correctly downloads challenges":
     let ip = checkedGetPrimaryIPAddr()
     if not ip.isIPv4() or not ip.isPublic():
@@ -91,19 +92,15 @@ suite "AutoTLS Integration":
     switch.autotls.renewCheckTime = 1.seconds
 
     await switch.start()
+    defer:
+      await switch.stop()
 
     # wait for cert to be ready
     await switch.autotls.certReady.wait()
     # clear since we'll use it again for renewal
     switch.autotls.certReady.clear()
 
-    let dnsResolver = DnsResolver.new(
-      @[
-        initTAddress("1.1.1.1:53"),
-        initTAddress("1.0.0.1:53"),
-        initTAddress("[2606:4700:4700::1111]:53"),
-      ]
-    )
+    let dnsResolver = DnsResolver.new(DefaultDnsServers)
     let base36PeerId = encodePeerId(switch.peerInfo.peerId)
     let dnsTXTRecord = (
       await dnsResolver.resolveTxt(
@@ -122,9 +119,6 @@ suite "AutoTLS Integration":
     # invalidate certificate
     switch.autotls.certExpiry = Opt.some(Moment.now - 2.hours)
 
-    # cert was invalidated correctly
-    check switch.autotls.certExpiry.get < Moment.now
-
     # wait for cert to be renewed
     await switch.autotls.certReady.wait()
 
@@ -139,5 +133,3 @@ suite "AutoTLS Integration":
 
     # cert is valid
     check certExpiry > Moment.now
-
-    await switch.stop()

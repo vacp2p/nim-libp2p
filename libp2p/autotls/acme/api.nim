@@ -78,22 +78,22 @@ type ACMERegisterResponse* = object
   status*: ACMEAccountStatus
 
 type ACMEChallengeStatus* {.pure.} = enum
-  pending = "pending"
-  processing = "processing"
-  valid = "valid"
-  invalid = "invalid"
+  PENDING = "pending"
+  PROCESSING = "processing"
+  VALID = "valid"
+  INVALID = "invalid"
 
 type ACMEOrderStatus* {.pure.} = enum
-  pending = "pending"
-  ready = "ready"
-  processing = "processing"
-  valid = "valid"
-  invalid = "invalid"
+  PENDING = "pending"
+  READY = "ready"
+  PROCESSING = "processing"
+  VALID = "valid"
+  INVALID = "invalid"
 
 type ACMEChallengeType* {.pure.} = enum
-  dns01 = "dns-01"
-  http01 = "http-01"
-  tlsalpn01 = "tls-alpn-01"
+  DNS01 = "dns-01"
+  HTTP01 = "http-01"
+  TLSALPN01 = "tls-alpn-01"
 
 type ACMEChallengeToken* = string
 
@@ -213,7 +213,7 @@ method requestNonce*(
 proc acmeHeader(
     self: ACMEApi, uri: Uri, key: KeyPair, needsJwk: bool, kid: Opt[Kid]
 ): Future[ACMERequestHeader] {.async: (raises: [ACMEError, CancelledError]).} =
-  if not needsJwk and kid.isNone:
+  if not needsJwk and kid.isNone():
     raise newException(ACMEError, "kid not set")
 
   if key.pubkey.scheme != PKScheme.RSA or key.seckey.scheme != PKScheme.RSA:
@@ -318,7 +318,7 @@ proc requestNewOrder*(
     let acmeResponse =
       await self.post(parseUri((await self.getDirectory()).newOrder), payload)
     let challengeResponseBody = acmeResponse.body.to(ACMEChallengeResponseBody)
-    if challengeResponseBody.authorizations.len() == 0:
+    if challengeResponseBody.authorizations.len == 0:
       raise newException(ACMEError, "Authorizations field is empty")
     ACMEChallengeResponse(
       status: challengeResponseBody.status,
@@ -339,8 +339,8 @@ proc requestChallenge*(
     self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
   let orderResponse = await self.requestNewOrder(domains, key, kid)
-  if orderResponse.status != ACMEOrderStatus.pending and
-      orderResponse.status != ACMEOrderStatus.ready:
+  if orderResponse.status != ACMEOrderStatus.PENDING and
+      orderResponse.status != ACMEOrderStatus.READY:
     # ready is a valid status when renewing certs before expiry
     raise newException(ACMEError, "Invalid new order status: " & $orderResponse.status)
 
@@ -353,7 +353,7 @@ proc requestChallenge*(
     finalize: orderResponse.finalize,
     order: orderResponse.order,
     dns01: authorizationsResponse.challenges.filterIt(
-      it.`type` == ACMEChallengeType.dns01
+      it.`type` == ACMEChallengeType.DNS01
     )[0],
       # getting the first element is safe since we checked that authorizationsResponse.challenges.len != 0
   )
@@ -412,9 +412,9 @@ proc checkChallengeCompleted*(
   for i in 0 .. retries:
     let checkResponse = await self.requestCheck(checkURL, ACMEChallengeCheck, key, kid)
     case checkResponse.chalStatus
-    of ACMEChallengeStatus.pending:
+    of ACMEChallengeStatus.PENDING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
-    of ACMEChallengeStatus.valid:
+    of ACMEChallengeStatus.VALID:
       return true
     else:
       raise newException(
@@ -456,9 +456,9 @@ proc checkCertFinalized*(
   for i in 0 .. retries:
     let checkResponse = await self.requestCheck(order, ACMEOrderCheck, key, kid)
     case checkResponse.orderStatus
-    of ACMEOrderStatus.valid:
+    of ACMEOrderStatus.VALID:
       return true
-    of ACMEOrderStatus.processing:
+    of ACMEOrderStatus.PROCESSING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
     else:
       raise newException(
@@ -505,5 +505,5 @@ proc downloadCertificate*(
       certificateExpiry: parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
     )
 
-proc close*(self: ACMEApi): Future[void] {.async: (raises: [CancelledError]).} =
+proc close*(self: ACMEApi) {.async: (raises: [CancelledError]).} =
   await self.session.closeWait()
