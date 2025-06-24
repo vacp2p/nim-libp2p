@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
 import chronos
@@ -11,12 +20,13 @@ import ../../libp2p/[multiaddress, peerid]
 import ../helpers
 
 suite "GossipSub Scoring":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Disconnect bad peers":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(30, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -40,17 +50,16 @@ suite "GossipSub Scoring":
       gossipSub.peersInIP.len == 0
 
   asyncTest "Time in mesh scoring (P1)":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(3, topic, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
     gossipSub.topicParams[topic] = TopicParams(
-      topicWeight: 1.0, # No multiplication factor
-      timeInMeshWeight: 1.0, # Weight = 1.0
-      timeInMeshQuantum: 1.seconds, # 1 second quantum
-      timeInMeshCap: 10.0, # Cap at 10.0
+      topicWeight: 1.0,
+      timeInMeshWeight: 1.0,
+      timeInMeshQuantum: 1.seconds,
+      timeInMeshCap: 10.0,
     )
 
     let now = Moment.now()
@@ -58,13 +67,14 @@ suite "GossipSub Scoring":
     # Set different mesh times for peers
     gossipSub.withPeerStats(peers[0].peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(
-        inMesh: true, graftTime: now - 2.seconds # 2 seconds in mesh
+        inMesh: true, graftTime: now - 2.seconds # seconds in mesh
       )
 
     gossipSub.withPeerStats(peers[1].peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(
         inMesh: true,
-        graftTime: now - 12.seconds, # 12 seconds in mesh (should be capped at 10)
+        graftTime: now - 12.seconds,
+          # seconds in mesh (should be capped at timeInMeshCap)
       )
 
     gossipSub.withPeerStats(peers[2].peerId) do(stats: var PeerStats):
@@ -86,8 +96,7 @@ suite "GossipSub Scoring":
       round(peers[2].score, 1) == 0.0
 
   asyncTest "First message deliveries scoring (P2)":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -121,8 +130,7 @@ suite "GossipSub Scoring":
         round(stats[].topicInfos[topic].firstMessageDeliveries, 1) == 2.0 # 4.0 * 0.5
 
   asyncTest "Mesh message deliveries scoring (P3)":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(3, topic, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -171,8 +179,7 @@ suite "GossipSub Scoring":
       round(peers[2].score, 1) == 0.0
 
   asyncTest "Mesh failure penalty scoring (P3b)":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -200,8 +207,7 @@ suite "GossipSub Scoring":
         round(stats[].topicInfos[topic].meshFailurePenalty, 1) == 1.0 # 2.0 * 0.5
 
   asyncTest "Invalid message deliveries scoring (P4)":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -231,8 +237,7 @@ suite "GossipSub Scoring":
         round(stats[].topicInfos[topic].invalidMessageDeliveries, 1) == 1.0 # 2.0 * 0.5
 
   asyncTest "App-specific scoring":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -251,8 +256,7 @@ suite "GossipSub Scoring":
       round(peers[2].score, 1) == 0.0 # 0.0 * 0.5
 
   asyncTest "Behaviour penalty scoring":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -279,8 +283,7 @@ suite "GossipSub Scoring":
       round(peers[2].behaviourPenalty, 1) == 0.0
 
   asyncTest "Colocation factor scoring":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(5, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(5, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -291,7 +294,7 @@ suite "GossipSub Scoring":
     let sharedAddress = MultiAddress.init("/ip4/192.168.1.1/tcp/4001").tryGet()
     peers[0].address = some(sharedAddress)
     peers[1].address = some(sharedAddress)
-    peers[2].address = some(sharedAddress) # 3 peers from same IP
+    peers[2].address = some(sharedAddress)
 
     # Add to peersInIP to simulate colocation detection
     gossipSub.peersInIP[sharedAddress] =
@@ -314,8 +317,7 @@ suite "GossipSub Scoring":
       round(peers[4].score, 1) == 0.0
 
   asyncTest "Score decay to zero":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -349,8 +351,7 @@ suite "GossipSub Scoring":
         round(info.invalidMessageDeliveries, 1) == 0.0
 
   asyncTest "Peer stats expiration and eviction":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -380,8 +381,7 @@ suite "GossipSub Scoring":
       peers[0].peerId in gossipSub.peerStats
 
   asyncTest "Combined scoring":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) =
+    let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(1, topic, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -412,7 +412,7 @@ suite "GossipSub Scoring":
     gossipSub.withPeerStats(peer.peerId) do(stats: var PeerStats):
       stats.topicInfos[topic] = TopicInfo(
         inMesh: true,
-        graftTime: now - 4.seconds, # 4 seconds in mesh
+        graftTime: now - 4.seconds, # seconds in mesh
         meshMessageDeliveriesActive: true,
         firstMessageDeliveries: 3.0, # P2 component
         meshMessageDeliveries: 2.0, # P3 component (below threshold)
@@ -457,8 +457,7 @@ suite "GossipSub Scoring":
       round(peer.score, 1) == -10.0
 
   asyncTest "Zero topic weight skips scoring":
-    const topic = "foobar"
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
