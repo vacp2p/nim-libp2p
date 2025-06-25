@@ -310,8 +310,9 @@ suite "AutoTLS ACME Client":
       )
     )
 
-    acme = await ACMEClient.new(api = Opt.some(ACMEApi(acmeApi)))
-    check acme.kid == "some-expected-kid"
+    acme = ACMEClient.new(api = ACMEApi(acmeApi))
+    let kid = await acme.getKid()
+    check kid == "some-expected-kid"
 
   asyncTest "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
     # register successful
@@ -340,8 +341,9 @@ suite "AutoTLS ACME Client":
         body: %*{"status": "invalid"}, headers: HttpTable.init(@[("Retry-After", "0")])
       )
     )
-    acme = await ACMEClient.new(api = Opt.some(ACMEApi(acmeApi)))
-    check acme.kid == "some-expected-kid"
+    acme = ACMEClient.new(api = ACMEApi(acmeApi))
+    let kid = await acme.getKid()
+    check kid == "some-expected-kid"
 
     let challenge = ACMEChallengeResponseWrapper(
       finalize: "https://finalize.com",
