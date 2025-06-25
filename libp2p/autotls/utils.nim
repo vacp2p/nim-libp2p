@@ -52,7 +52,7 @@ proc isPublic*(ip: IpAddress): bool {.raises: [AutoTLSError].} =
   except ValueError as exc:
     raise newException(AutoTLSError, "Failed to parse IP address", exc)
 
-proc getPublicIPADdress*(): IpAddress {.raises: [AutoTLSError].} =
+proc getPublicIPAddress*(): IpAddress {.raises: [AutoTLSError].} =
   try:
     let ip = checkedGetPrimaryIPAddr()
     if not ip.isIPv4():

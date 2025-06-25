@@ -15,14 +15,14 @@ import net, results, json, sequtils
 import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand
 
 import
-  ./utils,
   ./acme/client,
-  ../peeridauth/client,
-  ../wire,
+  ./utils,
   ../crypto/crypto,
+  ../nameresolving/dnsresolver,
+  ../peeridauth/client,
   ../peerinfo,
   ../utils/heartbeat,
-  ../nameresolving/dnsresolver
+  ../wire
 
 logScope:
   topics = "libp2p autotls"
@@ -72,6 +72,8 @@ proc new*(
     dnsResolver: DnsResolver = DnsResolver.new(DefaultDnsServers),
     acmeServerURL: Uri = parseUri(LetsEncryptURL),
     ipAddress: Opt[IpAddress] = Opt.none(IpAddress),
+    renewCheckTime: Duration = DefaultRenewCheckTime,
+    renewBufferTime: Duration = DefaultRenewBufferTime,
 ): AutoTLSManager =
   T(
     rng: rng,
@@ -83,8 +85,8 @@ proc new*(
     brokerClient: brokerClient,
     dnsResolver: dnsResolver,
     bearer: Opt.none(BearerToken),
-    renewCheckTime: DefaultRenewCheckTime,
-    renewBufferTime: DefaultRenewBufferTime,
+    renewCheckTime: renewCheckTime,
+    renewBufferTime: renewBufferTime,
     peerInfo: Opt.none(PeerInfo),
     acmeServerURL: acmeServerURL,
     ipAddress: ipAddress,
@@ -92,14 +94,16 @@ proc new*(
 
 proc getIpAddress(self: AutoTLSManager): IpAddress {.raises: [AutoTLSError].} =
   return self.ipAddress.valueOr:
-    getPublicIPADdress()
+    getPublicIPAddress()
 
 method issueCertificate(
     self: AutoTLSManager
 ) {.base, async: (raises: [AutoTLSError, ACMEError, PeerIDAuthError, CancelledError]).} =
   trace "Issuing new certificate"
-  let peerInfo = self.peerInfo.valueOr:
-    raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
+
+  assert self.peerInfo.isSome(), "Cannot issue new certificate: peerInfo not set"
+
+  let peerInfo = self.peerInfo.get()
 
   # generate autotls domain string: "*.{peerID}.libp2p.direct"
   let base36PeerId = encodePeerId(peerInfo.peerId)
@@ -147,8 +151,6 @@ method issueCertificate(
 proc manageCertificate(
     self: AutoTLSManager
 ) {.async: (raises: [AutoTLSError, ACMEError, CancelledError]).} =
-  trace "Starting AutoTLS manager"
-
   debug "Registering ACME account"
   if self.acmeClient.isNone():
     self.acmeClient = Opt.some(await ACMEClient.new(acmeServerURL = self.acmeServerURL))
@@ -179,10 +181,11 @@ method start*(
     self: AutoTLSManager, peerInfo: PeerInfo
 ) {.base, async: (raises: [CancelledError]).} =
   if not self.managerFut.isNil():
-    warn "Starting AutoTLS twice"
+    warn "Trying to start AutoTLSManager twice"
     return
 
   self.peerInfo = Opt.some(peerInfo)
+  trace "Starting AutoTLS manager"
   self.managerFut = self.manageCertificate()
 
 method stop*(self: AutoTLSManager) {.base, async: (raises: [CancelledError]).} =
