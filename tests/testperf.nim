@@ -16,18 +16,29 @@ import
 import ./helpers
 
 proc createSwitch(
-    isServer: bool = false, useMplex: bool = false, useYamux: bool = false
+    isServer: bool = false,
+    useQuic: bool = false,
+    useMplex: bool = false,
+    useYamux: bool = false,
 ): Switch =
-  var builder = SwitchBuilder
-    .new()
-    .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withNoise()
-  if useMplex:
-    builder = builder.withMplex()
-  if useYamux:
-    builder = builder.withYamux()
+  var builder = SwitchBuilder.new()
+  builder = builder.withRng(newRng()).withNoise()
+
+  if useQuic:
+    builder = builder.withQuicTransport().withAddresses(
+        @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
+      )
+  else:
+    builder = builder.withTcpTransport().withAddresses(
+        @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      )
+
+    if useMplex:
+      builder = builder.withMplex()
+    elif useYamux:
+      builder = builder.withYamux()
+    else:
+      raiseAssert "must use mplex or yamux"
 
   var switch = builder.build()
 
@@ -43,13 +54,12 @@ proc runTest(server: Switch, client: Switch) {.async.} =
 
   await server.start()
   await client.start()
-
   defer:
     await client.stop()
     await server.stop()
 
   let conn = await client.dial(server.peerInfo.peerId, server.peerInfo.addrs, PerfCodec)
-  var perfClient = PerfClient.new()
+  let perfClient = PerfClient.new()
   discard await perfClient.perf(conn, bytesToUpload, bytesToDownload)
 
   let stats = perfClient.currentStats()
@@ -58,9 +68,48 @@ proc runTest(server: Switch, client: Switch) {.async.} =
     stats.uploadBytes == bytesToUpload
     stats.downloadBytes == bytesToDownload
 
+proc runTestWithException(server: Switch, client: Switch) {.async.} =
+  await server.start()
+  await client.start()
+  defer:
+    await client.stop()
+    await server.stop()
+
+  let conn = await client.dial(server.peerInfo.peerId, server.peerInfo.addrs, PerfCodec)
+  let perfClient = PerfClient.new()
+  var perfFut: Future[Duration]
+  try:
+    # start perf future with large download request
+    # this will make perf execute for longer so we can cancel it
+    perfFut = perfClient.perf(conn, 1.uint64, 1000000000000.uint64)
+  except CatchableError:
+    discard
+
+  # after some time upload should be finished
+  await sleepAsync(50.milliseconds)
+  var stats = perfClient.currentStats()
+  check:
+    stats.isFinal == false
+    stats.uploadBytes == 1
+
+  perfFut.cancel() # cancelling future will raise exception
+  await sleepAsync(50.milliseconds)
+
+  # after cancelling perf, stats must indicate that it is final one
+  stats = perfClient.currentStats()
+  check:
+    stats.isFinal == true
+    stats.uploadBytes == 1
+
 suite "Perf protocol":
   teardown:
     checkTrackers()
+
+  asyncTest "quic":
+    return # nim-libp2p#1482: currently it does not work with quic
+    let server = createSwitch(isServer = true, useQuic = true)
+    let client = createSwitch(useQuic = true)
+    await runTest(server, client)
 
   asyncTest "tcp::yamux":
     let server = createSwitch(isServer = true, useYamux = true)
@@ -72,40 +121,12 @@ suite "Perf protocol":
     let client = createSwitch(useMplex = true)
     await runTest(server, client)
 
-  asyncTest "perf with exception":
+  asyncTest "perf with exception::yamux":
+    let server = createSwitch(isServer = true, useYamux = true)
+    let client = createSwitch(useYamux = true)
+    await runTestWithException(server, client)
+
+  asyncTest "perf with exception::mplex":
     let server = createSwitch(isServer = true, useMplex = true)
     let client = createSwitch(useMplex = true)
-
-    await server.start()
-    await client.start()
-
-    defer:
-      await client.stop()
-      await server.stop()
-
-    let conn =
-      await client.dial(server.peerInfo.peerId, server.peerInfo.addrs, PerfCodec)
-    var perfClient = PerfClient.new()
-    var perfFut: Future[Duration]
-    try:
-      # start perf future with large download request
-      # this will make perf execute for longer so we can cancel it
-      perfFut = perfClient.perf(conn, 1.uint64, 1000000000000.uint64)
-    except CatchableError:
-      discard
-
-    # after some time upload should be finished
-    await sleepAsync(50.milliseconds)
-    var stats = perfClient.currentStats()
-    check:
-      stats.isFinal == false
-      stats.uploadBytes == 1
-
-    perfFut.cancel() # cancelling future will raise exception
-    await sleepAsync(50.milliseconds)
-
-    # after cancelling perf, stats must indicate that it is final one
-    stats = perfClient.currentStats()
-    check:
-      stats.isFinal == true
-      stats.uploadBytes == 1
+    await runTestWithException(server, client)
