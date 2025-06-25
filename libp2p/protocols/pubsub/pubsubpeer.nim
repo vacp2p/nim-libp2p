@@ -546,9 +546,11 @@ proc send*(
   if encoded.len > p.maxMessageSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
       asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority, useCustomConn)
+    info "SEND ENCODED MSG 2", data = shortLog(msg), useCustomConn, isHighPriority
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+    info "SEND ENCODED MSG 3", data = shortLog(msg), useCustomConn, isHighPriority
     asyncSpawn p.sendEncoded(encoded, isHighPriority, useCustomConn)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
