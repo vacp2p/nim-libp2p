@@ -69,6 +69,12 @@ proc runTest(server: Switch, client: Switch) {.async.} =
     stats.downloadBytes == bytesToDownload
 
 proc runTestWithException(server: Switch, client: Switch) {.async.} =
+  const
+    bytesToUpload = 1.uint64
+    bytesToDownload = 10000000000.uint64
+      # use large downlaod request which will make perf to execute for longer
+      # giving us change to stop it
+
   await server.start()
   await client.start()
   defer:
@@ -77,29 +83,26 @@ proc runTestWithException(server: Switch, client: Switch) {.async.} =
 
   let conn = await client.dial(server.peerInfo.peerId, server.peerInfo.addrs, PerfCodec)
   let perfClient = PerfClient.new()
-  var perfFut: Future[Duration]
-  try:
-    # start perf future with large download request
-    # this will make perf execute for longer so we can cancel it
-    perfFut = perfClient.perf(conn, 1.uint64, 1000000000000.uint64)
-  except CatchableError:
-    discard
+  let perfFut = perfClient.perf(conn, bytesToUpload, bytesToDownload)
 
-  # after some time upload should be finished
-  await sleepAsync(50.milliseconds)
+  # after some time upload should be finished and download should be ongoing
+  await sleepAsync(200.milliseconds)
   var stats = perfClient.currentStats()
   check:
     stats.isFinal == false
-    stats.uploadBytes == 1
+    stats.uploadBytes == bytesToUpload
+    stats.downloadBytes > 0
 
-  perfFut.cancel() # cancelling future will raise exception
-  await sleepAsync(50.milliseconds)
+  perfFut.cancel() # cancelling future will raise exception in perfClient
+  await sleepAsync(10.milliseconds)
 
   # after cancelling perf, stats must indicate that it is final one
   stats = perfClient.currentStats()
   check:
     stats.isFinal == true
-    stats.uploadBytes == 1
+    stats.uploadBytes == bytesToUpload
+    stats.downloadBytes > 0
+    stats.downloadBytes < bytesToDownload # download must not be completed
 
 suite "Perf protocol":
   teardown:
