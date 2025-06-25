@@ -1,4 +1,4 @@
-import options, base64, sequtils, strutils, json, uri
+import options, sequtils, strutils, json, uri
 from times import DateTime, parse
 import chronos/apps/http/httpclient, jwt, results, bearssl/pem
 
@@ -78,15 +78,22 @@ type ACMERegisterResponse* = object
   status*: ACMEAccountStatus
 
 type ACMEChallengeStatus* {.pure.} = enum
-  pending = "pending"
-  processing = "processing"
-  valid = "valid"
-  invalid = "invalid"
+  PENDING = "pending"
+  PROCESSING = "processing"
+  VALID = "valid"
+  INVALID = "invalid"
+
+type ACMEOrderStatus* {.pure.} = enum
+  PENDING = "pending"
+  READY = "ready"
+  PROCESSING = "processing"
+  VALID = "valid"
+  INVALID = "invalid"
 
 type ACMEChallengeType* {.pure.} = enum
-  dns01 = "dns-01"
-  http01 = "http-01"
-  tlsalpn01 = "tls-alpn-01"
+  DNS01 = "dns-01"
+  HTTP01 = "http-01"
+  TLSALPN01 = "tls-alpn-01"
 
 type ACMEChallengeToken* = string
 
@@ -104,12 +111,12 @@ type ACMEChallengeRequest = object
   identifiers: seq[ACMEChallengeIdentifier]
 
 type ACMEChallengeResponseBody = object
-  status: ACMEChallengeStatus
+  status: ACMEOrderStatus
   authorizations: seq[Authorization]
   finalize: string
 
 type ACMEChallengeResponse* = object
-  status*: ACMEChallengeStatus
+  status*: ACMEOrderStatus
   authorizations*: seq[Authorization]
   finalize*: string
   order*: string
@@ -123,14 +130,7 @@ type ACMEAuthorizationsResponse* = object
   challenges*: seq[ACMEChallenge]
 
 type ACMECompletedResponse* = object
-  checkURL: string
-
-type ACMEOrderStatus* {.pure.} = enum
-  pending = "pending"
-  ready = "ready"
-  processing = "processing"
-  valid = "valid"
-  invalid = "invalid"
+  url: string
 
 type ACMECheckKind* = enum
   ACMEOrderCheck
@@ -152,8 +152,8 @@ type ACMEOrderResponse* = object
   expires: string
 
 type ACMECertificateResponse* = object
-  rawCertificate: string
-  certificateExpiry: DateTime
+  rawCertificate*: string
+  certificateExpiry*: DateTime
 
 template handleError*(msg: string, body: untyped): untyped =
   try:
@@ -213,7 +213,7 @@ method requestNonce*(
 proc acmeHeader(
     self: ACMEApi, uri: Uri, key: KeyPair, needsJwk: bool, kid: Opt[Kid]
 ): Future[ACMERequestHeader] {.async: (raises: [ACMEError, CancelledError]).} =
-  if not needsJwk and kid.isNone:
+  if not needsJwk and kid.isNone():
     raise newException(ACMEError, "kid not set")
 
   if key.pubkey.scheme != PKScheme.RSA or key.seckey.scheme != PKScheme.RSA:
@@ -318,7 +318,7 @@ proc requestNewOrder*(
     let acmeResponse =
       await self.post(parseUri((await self.getDirectory()).newOrder), payload)
     let challengeResponseBody = acmeResponse.body.to(ACMEChallengeResponseBody)
-    if challengeResponseBody.authorizations.len() == 0:
+    if challengeResponseBody.authorizations.len == 0:
       raise newException(ACMEError, "Authorizations field is empty")
     ACMEChallengeResponse(
       status: challengeResponseBody.status,
@@ -338,22 +338,22 @@ proc requestAuthorizations*(
 proc requestChallenge*(
     self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
-  let challengeResponse = await self.requestNewOrder(domains, key, kid)
-  if challengeResponse.status != ACMEChallengeStatus.pending:
-    raise newException(
-      ACMEError, "Invalid new challenge status: " & $challengeResponse.status
-    )
+  let orderResponse = await self.requestNewOrder(domains, key, kid)
+  if orderResponse.status != ACMEOrderStatus.PENDING and
+      orderResponse.status != ACMEOrderStatus.READY:
+    # ready is a valid status when renewing certs before expiry
+    raise newException(ACMEError, "Invalid new order status: " & $orderResponse.status)
 
   let authorizationsResponse =
-    await self.requestAuthorizations(challengeResponse.authorizations, key, kid)
+    await self.requestAuthorizations(orderResponse.authorizations, key, kid)
   if authorizationsResponse.challenges.len == 0:
     raise newException(ACMEError, "No challenges received")
 
   return ACMEChallengeResponseWrapper(
-    finalize: challengeResponse.finalize,
-    order: challengeResponse.order,
+    finalize: orderResponse.finalize,
+    order: orderResponse.order,
     dns01: authorizationsResponse.challenges.filterIt(
-      it.`type` == ACMEChallengeType.dns01
+      it.`type` == ACMEChallengeType.DNS01
     )[0],
       # getting the first element is safe since we checked that authorizationsResponse.challenges.len != 0
   )
@@ -396,7 +396,7 @@ proc requestCheck*(
 proc sendChallengeCompleted*(
     self: ACMEApi, chalURL: Uri, key: KeyPair, kid: Kid
 ): Future[ACMECompletedResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  handleError("sendChallengeCompleted (send notify)"):
+  handleError("sendChallengeCompleted"):
     let payload =
       await self.createSignedAcmeRequest(chalURL, %*{}, key, kid = Opt.some(kid))
     let acmeResponse = await self.post(chalURL, payload)
@@ -412,9 +412,9 @@ proc checkChallengeCompleted*(
   for i in 0 .. retries:
     let checkResponse = await self.requestCheck(checkURL, ACMEChallengeCheck, key, kid)
     case checkResponse.chalStatus
-    of ACMEChallengeStatus.pending:
+    of ACMEChallengeStatus.PENDING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
-    of ACMEChallengeStatus.valid:
+    of ACMEChallengeStatus.VALID:
       return true
     else:
       raise newException(
@@ -438,12 +438,9 @@ proc completeChallenge*(
 proc requestFinalize*(
     self: ACMEApi, domain: Domain, finalize: Uri, key: KeyPair, kid: Kid
 ): Future[ACMEFinalizeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let derCSR = createCSR(domain)
-  let b64CSR = base64.encode(derCSR.toSeq, safe = true)
-
   handleError("requestFinalize"):
     let payload = await self.createSignedAcmeRequest(
-      finalize, %*{"csr": b64CSR}, key, kid = Opt.some(kid)
+      finalize, %*{"csr": createCSR(domain)}, key, kid = Opt.some(kid)
     )
     let acmeResponse = await self.post(finalize, payload)
     # server responds with updated order response
@@ -459,9 +456,9 @@ proc checkCertFinalized*(
   for i in 0 .. retries:
     let checkResponse = await self.requestCheck(order, ACMEOrderCheck, key, kid)
     case checkResponse.orderStatus
-    of ACMEOrderStatus.valid:
+    of ACMEOrderStatus.VALID:
       return true
-    of ACMEOrderStatus.processing:
+    of ACMEOrderStatus.PROCESSING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
     else:
       raise newException(
@@ -508,5 +505,5 @@ proc downloadCertificate*(
       certificateExpiry: parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
     )
 
-proc close*(self: ACMEApi): Future[void] {.async: (raises: [CancelledError]).} =
+proc close*(self: ACMEApi) {.async: (raises: [CancelledError]).} =
   await self.session.closeWait()

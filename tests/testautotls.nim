@@ -63,7 +63,7 @@ suite "AutoTLS ACME API":
 
     let challengeResponse =
       await api.requestNewOrder(@["some.dummy.domain.com"], key, "kid")
-    check challengeResponse.status == ACMEChallengeStatus.pending
+    check challengeResponse.status == ACMEOrderStatus.PENDING
     check challengeResponse.authorizations ==
       ["http://example.com/expected-authorizations-url"]
     check challengeResponse.finalize == "http://example.com/expected-finalize-url"
@@ -93,12 +93,12 @@ suite "AutoTLS ACME API":
     check authorizationsResponse.challenges.len > 0
 
     let dns01 = authorizationsResponse.challenges.filterIt(
-      it.`type` == ACMEChallengeType.dns01
+      it.`type` == ACMEChallengeType.DNS01
     )[0]
     check dns01.url == "http://example.com/expected-dns01-url"
-    check dns01.`type` == ACMEChallengeType.dns01
+    check dns01.`type` == ACMEChallengeType.DNS01
     check dns01.token == ACMEChallengeToken("expected-dns01-token")
-    check dns01.status == ACMEChallengeStatus.pending
+    check dns01.status == ACMEChallengeStatus.PENDING
 
   asyncTest "register with unsupported keys":
     let unsupportedSchemes = [PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA]
@@ -110,8 +110,7 @@ suite "AutoTLS ACME API":
   asyncTest "challenge completed successful":
     api.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     discard await api.sendChallengeCompleted(
@@ -131,8 +130,7 @@ suite "AutoTLS ACME API":
   asyncTest "challenge completed max retries reached":
     api.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     discard await api.sendChallengeCompleted(
@@ -155,8 +153,7 @@ suite "AutoTLS ACME API":
   asyncTest "challenge completed invalid":
     api.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     discard await api.sendChallengeCompleted(
@@ -327,8 +324,7 @@ suite "AutoTLS ACME Client":
     # request completed successful
     acmeApi.mockedResponses.add(
       HTTPResponse(
-        body: %*{"checkURL": "http://example.com/some-check-url"},
-        headers: HttpTable.init(),
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
     )
     # finalize is invalid
@@ -352,8 +348,8 @@ suite "AutoTLS ACME Client":
       order: "https://order.com",
       dns01: ACMEChallenge(
         url: "https://some.domain",
-        `type`: ACMEChallengeType.dns01,
-        status: ACMEChallengeStatus.valid,
+        `type`: ACMEChallengeType.DNS01,
+        status: ACMEChallengeStatus.VALID,
         token: ACMEChallengeToken("some-token"),
       ),
     )

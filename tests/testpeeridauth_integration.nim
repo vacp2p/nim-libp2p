@@ -54,5 +54,5 @@ suite "PeerID Auth":
     doAssert bearer.token.len > 0
 
     let (_, responseWithBearer) =
-      await client.send(parseUri(AuthPeerURL), peerInfo, payload, bearer)
+      await client.send(parseUri(AuthPeerURL), peerInfo, payload, Opt.some(bearer))
     check responseWithBearer.status != HttpPeerAuthFailed
