@@ -4,7 +4,9 @@ import std/[sequtils]
 import chronicles
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../libp2p/protocols/pubsub/gossipsub/preamblestore
+
+when defined(libp2p_gossipsub_1_4):
+  import ../../../libp2p/protocols/pubsub/gossipsub/preamblestore
 
 import ../../helpers
 
@@ -424,49 +426,50 @@ suite "GossipSub Integration - Control Messages":
       toSeq(nodeC.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
       toSeq(nodeA.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
 
-  asyncTest "emit IMReceiving while handling preamble control msg":
-    # Given GossipSub node with 1 peer
-    let
-      topic = "foobar"
-      totalPeers = 2
+  when defined(libp2p_gossipsub_1_4):
+    asyncTest "emit IMReceiving while handling preamble control msg":
+      # Given GossipSub node with 1 peer
+      let
+        topic = "foobar"
+        totalPeers = 2
 
-    let
-      nodes = generateNodes(totalPeers, gossip = true).toGossipSub()
-      n0 = nodes[0]
-      n1 = nodes[1]
+      let
+        nodes = generateNodes(totalPeers, gossip = true).toGossipSub()
+        n0 = nodes[0]
+        n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+      startNodesAndDeferStop(nodes)
 
-    # And the nodes are connected
-    await connectNodesStar(nodes)
+      # And the nodes are connected
+      await connectNodesStar(nodes)
 
-    # And both subscribe to the topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+      # And both subscribe to the topic
+      subscribeAllNodes(nodes, topic, voidTopicHandler)
+      await waitForHeartbeat()
 
-    let msgId = @[1.byte, 2, 3, 4]
-    let preambles =
-      @[
-        ControlPreamble(
-          topicID: topic,
-          messageID: msgId,
-          messageLength: preambleMessageSizeThreshold + 1,
-        )
-      ]
+      let msgId = @[1.byte, 2, 3, 4]
+      let preambles =
+        @[
+          ControlPreamble(
+            topicID: topic,
+            messageID: msgId,
+            messageLength: preambleMessageSizeThreshold + 1,
+          )
+        ]
 
-    let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_14])
-    check:
-      p1.preambleBudget == PreamblePeerBudget
+      let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_14])
+      check:
+        p1.preambleBudget == PreamblePeerBudget
 
-    n0.handlePreamble(p1, preambles)
+      n0.handlePreamble(p1, preambles)
 
-    check:
-      p1.preambleBudget == PreamblePeerBudget - 1 # Preamble budget should decrease
-      p1.heIsSendings.hasKey(msgId)
-      n0.ongoingReceives.hasKey(msgId)
+      check:
+        p1.preambleBudget == PreamblePeerBudget - 1 # Preamble budget should decrease
+        p1.heIsSendings.hasKey(msgId)
+        n0.ongoingReceives.hasKey(msgId)
 
-    await waitForHeartbeat()
+      await waitForHeartbeat()
 
-    let p2 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_14])
-    check:
-      p2.heIsReceivings.hasKey(msgId)
+      let p2 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_14])
+      check:
+        p2.heIsReceivings.hasKey(msgId)

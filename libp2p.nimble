@@ -56,7 +56,7 @@ task testinterop, "Runs interop tests":
   runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
-  runTest("pubsub/testpubsub")
+  runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter")

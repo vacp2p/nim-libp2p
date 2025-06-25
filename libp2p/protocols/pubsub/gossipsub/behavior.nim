@@ -11,8 +11,8 @@
 
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
-import "."/[types, scoring, preamblestore]
-import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub, bandwidth]
+import "."/[types, scoring]
+import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
 import
   "../../.."/[
@@ -24,6 +24,9 @@ import
     signed_envelope,
     utils/heartbeat,
   ]
+when defined(libp2p_gossipsub_1_4):
+  import ./preamblestore
+  import ../bandwidth
 
 logScope:
   topics = "libp2p gossipsub"
@@ -282,9 +285,10 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       for handler in g.routingRecordsHandler:
         handler(peer.peerId, topic, routingRecords)
 
-proc addPossiblePeerToQuery(g: GossipSub, peer: PubSubPeer, messageId: MessageId) =
-  g.ongoingReceives.addPossiblePeerToQuery(messageId, peer)
-  g.ongoingIWantReceives.addPossiblePeerToQuery(messageId, peer)
+when defined(libp2p_gossipsub_1_4):
+  proc addPossiblePeerToQuery(g: GossipSub, peer: PubSubPeer, messageId: MessageId) =
+    g.ongoingReceives.addPossiblePeerToQuery(messageId, peer)
+    g.ongoingIWantReceives.addPossiblePeerToQuery(messageId, peer)
 
 proc handleIHave*(
     g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]
@@ -303,12 +307,14 @@ proc handleIHave*(
             if peer.iHaveBudget <= 0:
               break
             elif msgId notin res.messageIDs:
-              if g.ongoingReceives.hasKey(msgId) or g.ongoingIWantReceives.hasKey(msgId):
-                g.addPossiblePeerToQuery(peer, msgId)
-                libp2p_gossipsub_preamble_saved_iwants.inc(
-                  labelValues = [ihave.topicID]
-                )
-                continue
+              when defined(libp2p_gossipsub_1_4):
+                if g.ongoingReceives.hasKey(msgId) or
+                    g.ongoingIWantReceives.hasKey(msgId):
+                  g.addPossiblePeerToQuery(peer, msgId)
+                  libp2p_gossipsub_preamble_saved_iwants.inc(
+                    labelValues = [ihave.topicID]
+                  )
+                  continue
               res.messageIDs.add(msgId)
               dec peer.iHaveBudget
               trace "requested message via ihave", messageID = msgId
@@ -323,8 +329,9 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
       if peer.iDontWants[0].len >= IDontWantMaxCount:
         break
       peer.iDontWants[0].incl(g.salt(messageId))
-      peer.heIsReceivings.del(messageId)
-      g.addPossiblePeerToQuery(peer, messageId)
+      when defined(libp2p_gossipsub_1_4):
+        peer.heIsReceivings.del(messageId)
+        g.addPossiblePeerToQuery(peer, messageId)
 
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
@@ -353,89 +360,94 @@ proc handleIWant*(
         result.ids.add(mid)
   return result
 
-proc medianDownloadRate*(p: var HashSet[PubSubPeer]): float =
-  if p.len == 0:
-    return 0
+when defined(libp2p_gossipsub_1_4):
+  proc medianDownloadRate*(p: var HashSet[PubSubPeer]): float =
+    if p.len == 0:
+      return 0
 
-  let vals = p.toSeq().mapIt(it.bandwidthTracking.download.value()).sorted()
-  echo vals
-  let mid = vals.len div 2
-  if vals.len mod 2 == 0:
-    (vals[mid - 1] + vals[mid]) / 2
-  else:
-    vals[mid]
-
-proc handlePreamble*(g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPreamble]) =
-  let starts = Moment.now()
-
-  for preamble in preambles:
-    dec peer.preambleBudget
-    if peer.preambleBudget <= 0:
-      return
-    if g.hasSeen(g.salt(preamble.messageID)):
-      continue
-    if peer.heIsSendings.hasKey(preamble.messageID):
-      continue
-    if g.ongoingReceives.hasKey(preamble.messageID):
-      #TODO: add to conflicts_watch if length is different
-      continue
+    let vals = p.toSeq().mapIt(it.bandwidthTracking.download.value()).sorted()
+    echo vals
+    let mid = vals.len div 2
+    if vals.len mod 2 == 0:
+      (vals[mid - 1] + vals[mid]) / 2
     else:
-      peer.heIsSendings[preamble.messageID] = starts
-      var toSendPeers = HashSet[PubSubPeer]()
-      g.mesh.withValue(preamble.topicID, peers):
-        toSendPeers.incl(peers[])
-      toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
-      var peers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
-      let bytesPerSecond = peer.bandwidthTracking.download.value().uint64
-      let transmissionTimeMs = (preamble.messageLength.uint64 * 1000) div bytesPerSecond
-      #Need many testruns to precisely adjust safety margin
-      let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
+      vals[mid]
 
-      #We send imreceiving only if received from mesh members
-      if peer notin peers:
-        echo "NOPT IN PEERS"
-        if not g.ongoingIWantReceives.hasKey(preamble.messageID):
-          g.ongoingIWantReceives[preamble.messageID] =
-            PreambleInfo.init(preamble, peer, starts, expires)
+when defined(libp2p_gossipsub_1_4):
+  proc handlePreamble*(
+      g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPreamble]
+  ) =
+    let starts = Moment.now()
 
-        trace "preamble: ignoring out of mesh peer", peer
+    for preamble in preambles:
+      dec peer.preambleBudget
+      if peer.preambleBudget <= 0:
+        return
+      if g.hasSeen(g.salt(preamble.messageID)):
         continue
+      if peer.heIsSendings.hasKey(preamble.messageID):
+        continue
+      if g.ongoingReceives.hasKey(preamble.messageID):
+        #TODO: add to conflicts_watch if length is different
+        continue
+      else:
+        peer.heIsSendings[preamble.messageID] = starts
+        var toSendPeers = HashSet[PubSubPeer]()
+        g.mesh.withValue(preamble.topicID, peers):
+          toSendPeers.incl(peers[])
+        toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
+        var peers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
+        let bytesPerSecond = peer.bandwidthTracking.download.value().uint64
+        let transmissionTimeMs =
+          (preamble.messageLength.uint64 * 1000) div bytesPerSecond
+        #Need many testruns to precisely adjust safety margin
+        let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
 
-      g.ongoingReceives[preamble.messageID] =
-        PreambleInfo.init(preamble, peer, starts, expires)
+        #We send imreceiving only if received from mesh members
+        if peer notin peers:
+          if not g.ongoingIWantReceives.hasKey(preamble.messageID):
+            g.ongoingIWantReceives[preamble.messageID] =
+              PreambleInfo.init(preamble, peer, starts, expires)
 
-      #Send imreceiving only if received from faster mesh members
-      if bytesPerSecond >= toSendPeers.medianDownloadRate().uint64:
-        g.broadcast(
-          peers,
-          RPCMsg(
-            control: some(
-              ControlMessage(
-                imreceiving:
-                  @[
-                    ControlIMReceiving(
-                      messageID: preamble.messageID,
-                      messageLength: preamble.messageLength,
-                    )
-                  ]
+          trace "preamble: ignoring out of mesh peer", peer
+          continue
+
+        g.ongoingReceives[preamble.messageID] =
+          PreambleInfo.init(preamble, peer, starts, expires)
+
+        #Send imreceiving only if received from faster mesh members
+        if bytesPerSecond >= toSendPeers.medianDownloadRate().uint64:
+          g.broadcast(
+            peers,
+            RPCMsg(
+              control: some(
+                ControlMessage(
+                  imreceiving:
+                    @[
+                      ControlIMReceiving(
+                        messageID: preamble.messageID,
+                        messageLength: preamble.messageLength,
+                      )
+                    ]
+                )
               )
-            )
-          ),
-          isHighPriority = true,
-        )
+            ),
+            isHighPriority = true,
+          )
 
-proc handleIMReceiving*(
-    g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]
-) =
-  for imreceiving in imreceivings:
-    if peer.heIsReceivings.len > 50:
-      break
-    #Ignore if message length is different
-    g.ongoingReceives.withValue(imreceiving.messageID, pInfo):
-      if pInfo.messageLength != imreceiving.messageLength:
-        continue
-    peer.heIsReceivings[imreceiving.messageID] = imreceiving.messageLength
-    #No need to check mcache. In that case, we might have already transmitted/transmitting
+when defined(libp2p_gossipsub_1_4):
+  proc handleIMReceiving*(
+      g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]
+  ) =
+    for imreceiving in imreceivings:
+      if peer.heIsReceivings.len > 50:
+        break
+      #Ignore if message length is different
+      g.ongoingReceives.withValue(imreceiving.messageID, pInfo):
+        if pInfo.messageLength != imreceiving.messageLength:
+          continue
+      peer.heIsReceivings[imreceiving.messageID] = imreceiving.messageLength
+      #No need to check mcache. In that case, we might have already transmitted/transmitting
 
 proc commitMetrics(metrics: var MeshMetrics) =
   libp2p_gossipsub_low_peers_topics.set(metrics.lowPeersTopics)
@@ -809,7 +821,9 @@ proc onHeartbeat(g: GossipSub) =
         discard peer.iDontWants.popLast()
       peer.iHaveBudget = IHavePeerBudget
       peer.pingBudget = PingsPeerBudget
-      peer.preambleBudget = PreamblePeerBudget
+
+      when defined(libp2p_gossipsub_1_4):
+        peer.preambleBudget = PreamblePeerBudget
 
   var meshMetrics = MeshMetrics()
 
@@ -879,58 +893,63 @@ proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
       trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()
 
-proc preambleExpirationHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
-  heartbeat "GossipSub: Preamble Expiration", 200.milliseconds:
-    trace "running preamble expiration heartbeat", instance = cast[int](g)
+when defined(libp2p_gossipsub_1_4):
+  proc preambleExpirationHeartbeat*(
+      g: GossipSub
+  ) {.async: (raises: [CancelledError]).} =
+    heartbeat "GossipSub: Preamble Expiration", 200.milliseconds:
+      trace "running preamble expiration heartbeat", instance = cast[int](g)
 
-    while true:
-      var expiredOngoingReceive = g.ongoingReceives.popExpired(Moment.now()).valueOr:
-        break
+      while true:
+        var expiredOngoingReceive = g.ongoingReceives.popExpired(Moment.now()).valueOr:
+          break
 
-      var possiblePeers = expiredOngoingReceive.possiblePeersToQuery()
-      g.rng.shuffle(possiblePeers)
+        var possiblePeers = expiredOngoingReceive.possiblePeersToQuery()
+        g.rng.shuffle(possiblePeers)
 
-      var peer: PubSubPeer = nil
-      for peerId in possiblePeers:
-        try:
-          if g.peers.hasKey(peerId) and g.peers[peerId].codec == GossipSubCodec_14:
-            peer = g.peers[peerId]
-            break
-        except KeyError:
-          assert false, "checked with hasKey"
+        var peer: PubSubPeer = nil
+        for peerId in possiblePeers:
+          try:
+            if g.peers.hasKey(peerId) and g.peers[peerId].codec == GossipSubCodec_14:
+              peer = g.peers[peerId]
+              break
+          except KeyError:
+            assert false, "checked with hasKey"
 
-      if peer.isNil:
-        trace "no peer available to send IWANT for an expiredOngoingReceive",
-          messageID = expiredOngoingReceive.messageId
+        if peer.isNil:
+          trace "no peer available to send IWANT for an expiredOngoingReceive",
+            messageID = expiredOngoingReceive.messageId
 
-      let starts = Moment.now()
+        let starts = Moment.now()
 
-      g.broadcast(
-        @[peer],
-        RPCMsg(
-          control: some(
-            ControlMessage(
-              iwant: @[ControlIWant(messageIDs: @[expiredOngoingReceive.messageId])]
+        g.broadcast(
+          @[peer],
+          RPCMsg(
+            control: some(
+              ControlMessage(
+                iwant: @[ControlIWant(messageIDs: @[expiredOngoingReceive.messageId])]
+              )
             )
-          )
-        ),
-        isHighPriority = true,
-      )
+          ),
+          isHighPriority = true,
+        )
 
-      let bytesPerSecond = peer.bandwidthTracking.download.value().uint64
-      let transmissionTimeMs =
-        (expiredOngoingReceive.messageLength.uint64 * 1000) div bytesPerSecond
-      # Need many testruns to precisely adjust safety margin
-      let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
+        let bytesPerSecond = peer.bandwidthTracking.download.value().uint64
+        let transmissionTimeMs =
+          (expiredOngoingReceive.messageLength.uint64 * 1000) div bytesPerSecond
+        # Need many testruns to precisely adjust safety margin
+        let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
 
-      # Setting new data before reinserting the preamble
-      expiredOngoingReceive.startAt = starts
-      expiredOngoingReceive.expiresAt = expires
-      expiredOngoingReceive.sender = peer
-      g.ongoingIWantReceives[expiredOngoingReceive.messageId] = expiredOngoingReceive
+        # Setting new data before reinserting the preamble
+        expiredOngoingReceive.startAt = starts
+        expiredOngoingReceive.expiresAt = expires
+        expiredOngoingReceive.sender = peer
+        g.ongoingIWantReceives[expiredOngoingReceive.messageId] = expiredOngoingReceive
 
-    while true:
-      let expiredOngoingIWantReceived = g.ongoingIWantReceives.popExpired(Moment.now()).valueOr:
-        break
-      # TODO: use expiredOngoingIWantReceived
-      # TODO: what should we do here?
+      while true:
+        let expiredOngoingIWantReceived = g.ongoingIWantReceives.popExpired(
+          Moment.now()
+        ).valueOr:
+          break
+        # TODO: use expiredOngoingIWantReceived
+        # TODO: what should we do here?

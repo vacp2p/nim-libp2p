@@ -27,8 +27,10 @@ import
   ../../peerinfo,
   ../../peerid,
   ../../utility,
-  ../../switch,
-  ./bandwidth
+  ../../switch
+
+when defined(libp2p_gossipsub_1_4):
+  import ./bandwidth
 
 import results
 export results
@@ -227,7 +229,10 @@ method init*(g: GossipSub) =
       raise exc
 
   g.handler = handler
-  g.codecs &= GossipSubCodec_14
+
+  when defined(libp2p_gossipsub_1_4):
+    g.codecs &= GossipSubCodec_14
+
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
@@ -245,7 +250,9 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
-  peer.preambleBudget = PreamblePeerBudget
+
+  when defined(libp2p_gossipsub_1_4):
+    peer.preambleBudget = PreamblePeerBudget
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
@@ -353,8 +360,9 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
-  g.handlePreamble(peer, control.preamble)
-  g.handleIMReceiving(peer, control.imreceiving)
+  when defined(libp2p_gossipsub_1_4):
+    g.handlePreamble(peer, control.preamble)
+    g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
@@ -380,7 +388,9 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
 
   if messages.len > 0:
-    var preambles: seq[ControlPreamble]
+    when defined(libp2p_gossipsub_1_4):
+      var preambles: seq[ControlPreamble]
+
     for i, smsg in messages:
       let topic = smsg.topic
       if g.knownTopics.contains(topic):
@@ -388,19 +398,23 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       else:
         libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
 
-      # should we send preamble here? (Not in specs so far)
-      # So receiver will send IMReciving only for preambles received from mesh members
-      preambles.add(
-        ControlPreamble(
-          topicID: smsg.topic, messageID: msgIDs[i], messageLength: smsg.data.len.uint32
+      when defined(libp2p_gossipsub_1_4):
+        # should we send preamble here? (Not in specs so far)
+        # So receiver will send IMReciving only for preambles received from mesh members
+        preambles.add(
+          ControlPreamble(
+            topicID: smsg.topic,
+            messageID: msgIDs[i],
+            messageLength: smsg.data.len.uint32,
+          )
         )
-      )
 
-    g.broadcast(
-      @[peer],
-      RPCMsg(control: some(ControlMessage(preamble: preambles))),
-      isHighPriority = true,
-    )
+    when defined(libp2p_gossipsub_1_4):
+      g.broadcast(
+        @[peer],
+        RPCMsg(control: some(ControlMessage(preamble: preambles))),
+        isHighPriority = true,
+      )
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
@@ -435,32 +449,35 @@ proc sendIDontWant(
     isHighPriority = true,
   )
 
-const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
+when defined(libp2p_gossipsub_1_4):
+  const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
 
-proc sendPreamble(
-    g: GossipSub, msg: Message, msgId: MessageId, toSendPeers: var HashSet[PubSubPeer]
-) =
-  if msg.data.len < preambleMessageSizeThreshold:
-    return
+  proc sendPreamble(
+      g: GossipSub, msg: Message, msgId: MessageId, toSendPeers: var HashSet[PubSubPeer]
+  ) =
+    if msg.data.len < preambleMessageSizeThreshold:
+      return
 
-  let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
+    let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
 
-  g.broadcast(
-    preamblePeers,
-    RPCMsg(
-      control: some(
-        ControlMessage(
-          preamble:
-            @[
-              ControlPreamble(
-                topicID: msg.topic, messageID: msgId, messageLength: msg.data.len.uint32
-              )
-            ]
+    g.broadcast(
+      preamblePeers,
+      RPCMsg(
+        control: some(
+          ControlMessage(
+            preamble:
+              @[
+                ControlPreamble(
+                  topicID: msg.topic,
+                  messageID: msgId,
+                  messageLength: msg.data.len.uint32,
+                )
+              ]
+          )
         )
-      )
-    ),
-    isHighPriority = true,
-  )
+      ),
+      isHighPriority = true,
+    )
 
 const iDontWantMessageSizeThreshold* = 512
 
@@ -536,14 +553,16 @@ proc validateAndRelay(
             msg.data.len.int64, labelValues = ["idontwant"]
           )
           return true
-      if it.heIsReceivings.hasKey(msgId):
-        libp2p_gossipsub_imreceiving_saved_messages.inc
-        return true
+      when defined(libp2p_gossipsub_1_4):
+        if it.heIsReceivings.hasKey(msgId):
+          libp2p_gossipsub_imreceiving_saved_messages.inc
+          return true
       return false
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
-    g.sendPreamble(msg, msgId, toSendPeers)
+    when defined(libp2p_gossipsub_1_4):
+      g.sendPreamble(msg, msgId, toSendPeers)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
@@ -658,12 +677,14 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
-    if msg.data.len > preambleMessageSizeThreshold:
-      g.ongoingReceives.del(msgId)
-      g.ongoingIWantReceives.del(msgId)
-      var startTime: Moment
-      if peer.heIsSendings.pop(msgId, startTime):
-        peer.bandwidthTracking.download.update(startTime, msg.data.len)
+    when defined(libp2p_gossipsub_1_4):
+      if msg.data.len > preambleMessageSizeThreshold:
+        g.ongoingReceives.del(msgId)
+        g.ongoingIWantReceives.del(msgId)
+        var startTime: Moment
+        if peer.heIsSendings.pop(msgId, startTime):
+          peer.bandwidthTracking.download.update(startTime, msg.data.len)
+
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
@@ -896,7 +917,8 @@ method publish*(
     if isLargeMessage(msg, msgId):
       g.sendIDontWant(msg, msgId, peers)
 
-    g.sendPreamble(msg, msgId, peers)
+    when defined(libp2p_gossipsub_1_4):
+      g.sendPreamble(msg, msgId, peers)
 
   g.broadcast(
     peers,
@@ -957,7 +979,8 @@ method start*(
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
-  g.preambleExpirationFut = g.preambleExpirationHeartbeat()
+  when defined(libp2p_gossipsub_1_4):
+    g.preambleExpirationFut = g.preambleExpirationHeartbeat()
   g.started = true
   fut
 
@@ -972,7 +995,9 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
     return fut
 
   # stop heartbeat interval
-  g.preambleExpirationFut.cancelSoon()
+  when defined(libp2p_gossipsub_1_4):
+    g.preambleExpirationFut.cancelSoon()
+
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()

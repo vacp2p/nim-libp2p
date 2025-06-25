@@ -121,7 +121,10 @@ type
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-    bandwidthTracking*: BandwidthTracking
+
+    when defined(libp2p_gossipsub_1_4):
+      bandwidthTracking*: BandwidthTracking
+
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iDontWants*: Deque[HashSet[SaltedId]]
@@ -134,9 +137,11 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
-    preambleBudget*: int
-    heIsReceivings*: Table[MessageId, uint32]
-    heIsSendings*: Table[MessageId, Moment]
+
+    when defined(libp2p_gossipsub_1_4):
+      preambleBudget*: int
+      heIsReceivings*: Table[MessageId, uint32]
+      heIsSendings*: Table[MessageId, Moment]
 
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
@@ -612,8 +617,11 @@ proc new*(
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
-    bandwidthTracking: BandwidthTracking(download: ExponentialMovingAverage.init()),
   )
+
+  when defined(libp2p_gossipsub_1_4):
+    result.bandwidthTracking = BandwidthTracking(download: ExponentialMovingAverage.init())
+
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()

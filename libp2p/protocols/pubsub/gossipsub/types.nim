@@ -202,7 +202,8 @@ type
     mcache*: MCache # messages cache
     validationSeen*: ValidationSeenTable # peers who sent us message in validation
     heartbeatFut*: Future[void] # cancellation future for heartbeat interval
-    preambleExpirationFut*: Future[void]
+    when defined(libp2p_gossipsub_1_4):
+      preambleExpirationFut*: Future[void]
       # cancellation future for preamble expiration heartbeat interval
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
@@ -216,8 +217,11 @@ type
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
 
     heartbeatEvents*: seq[AsyncEvent]
-    ongoingReceives*: OngoingReceivesStore # list of messages we are receiving
-    ongoingIWantReceives*: OngoingReceivesStore # list of iwant replies we are receiving
+
+    when defined(libp2p_gossipsub_1_4):
+      ongoingReceives*: OngoingReceivesStore # list of messages we are receiving
+      ongoingIWantReceives*: OngoingReceivesStore
+        # list of iwant replies we are receiving
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64
