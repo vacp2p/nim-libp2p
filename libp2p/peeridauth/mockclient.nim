@@ -9,10 +9,9 @@
 
 {.push raises: [].}
 
+import uri
 import chronos, chronos/apps/http/httpclient
-import ../crypto/crypto
-
-import ./client
+import ../crypto/crypto, ./client
 
 export client
 
@@ -27,14 +26,14 @@ proc new*(
   MockPeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 
 method post*(
-    self: MockPeerIDAuthClient, uri: string, payload: string, authHeader: string
+    self: MockPeerIDAuthClient, uri: Uri, payload: string, authHeader: string
 ): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]).} =
   PeerIDAuthResponse(
     status: self.mockedStatus, headers: self.mockedHeaders, body: self.mockedBody
   )
 
 method get*(
-    self: MockPeerIDAuthClient, uri: string
+    self: MockPeerIDAuthClient, uri: Uri
 ): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]).} =
   PeerIDAuthResponse(
     status: self.mockedStatus, headers: self.mockedHeaders, body: self.mockedBody
