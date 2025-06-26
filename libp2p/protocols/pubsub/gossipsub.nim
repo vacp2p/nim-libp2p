@@ -792,9 +792,7 @@ method publish*(
 
   trace "Publishing message on topic", data = data.shortLog
 
-  var pubParams = publishParams.get(PublishParams())
-  if publishParams.isSome:
-    pubParams = publishParams.get()
+  let pubParams = publishParams.get(PublishParams())
 
   let peers =
     if pubParams.useCustomConn:
