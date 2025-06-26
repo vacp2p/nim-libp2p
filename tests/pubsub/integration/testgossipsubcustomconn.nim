@@ -69,7 +69,9 @@ suite "GossipSub Integration - Custom Connection Support":
     nodes[1].subscribe(topic, handler)
     await waitSub(nodes[0], nodes[1], topic)
 
-    tryPublish await nodes[0].publish(topic, "hello".toBytes(), useCustomConn = true), 1
+    tryPublish await nodes[0].publish(
+      topic, "hello".toBytes(), publishParams = some(PublishParams(useCustomConn: true))
+    ), 1
 
     check:
       peerSelectionCalled
@@ -90,7 +92,11 @@ suite "GossipSub Integration - Custom Connection Support":
 
     var raised = false
     try:
-      discard await nodes[0].publish(topic, "hello".toBytes(), useCustomConn = true)
+      discard await nodes[0].publish(
+        topic,
+        "hello".toBytes(),
+        publishParams = some(PublishParams(useCustomConn: true)),
+      )
     except Defect:
       raised = true
 
