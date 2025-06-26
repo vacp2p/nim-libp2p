@@ -775,7 +775,10 @@ proc makePeersForPublishDefault(
   return peers
 
 method publish*(
-    g: GossipSub, topic: string, data: seq[byte], useCustomConn: bool = false
+    g: GossipSub,
+    topic: string,
+    data: seq[byte],
+    publishParams: Option[PublishParams] = none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
   logScope:
     topic
@@ -789,8 +792,12 @@ method publish*(
 
   trace "Publishing message on topic", data = data.shortLog
 
+  var pubParams = publishParams.get(PublishParams())
+  if publishParams.isSome:
+    pubParams = publishParams.get()
+
   let peers =
-    if useCustomConn:
+    if pubParams.useCustomConn:
       g.makePeersForPublishUsingCustomConn(topic)
     else:
       g.makePeersForPublishDefault(topic, data)
@@ -828,7 +835,8 @@ method publish*(
     trace "Dropping already-seen message"
     return 0
 
-  g.mcache.put(msgId, msg)
+  if not pubParams.skipMCache:
+    g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
     g.sendIDontWant(msg, msgId, peers)
@@ -837,7 +845,7 @@ method publish*(
     peers,
     RPCMsg(messages: @[msg]),
     isHighPriority = true,
-    useCustomConn = useCustomConn,
+    useCustomConn = pubParams.useCustomConn,
   )
 
   if g.knownTopics.contains(topic):

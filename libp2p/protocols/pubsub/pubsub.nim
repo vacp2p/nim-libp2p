@@ -145,6 +145,10 @@ type
     ## we have to store it, which may be an attack vector.
     ## This callback can be used to reject topic we're not interested in
 
+  PublishParams* = object
+    useCustomConn*: bool
+    skipMCache*: bool
+
   PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
@@ -570,7 +574,10 @@ proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
   p.updateTopicMetrics(topic)
 
 method publish*(
-    p: PubSub, topic: string, data: seq[byte], useCustomConn: bool = false
+    p: PubSub,
+    topic: string,
+    data: seq[byte],
+    publishParams: Option[PublishParams] = none(PublishParams),
 ): Future[int] {.base, async: (raises: []), public.} =
   ## publish to a ``topic``
   ##
