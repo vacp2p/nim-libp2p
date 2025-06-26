@@ -257,7 +257,7 @@ proc updateRecvWindow(
     return
 
   let delta = channel.maxRecvWindow - inWindow
-  channel.recvWindow.inc(delta)
+  channel.recvWindow.inc(delta.int)
   await channel.conn.write(YamuxHeader.windowUpdate(channel.id, delta.uint32))
   trace "increasing the recvWindow", delta
 
