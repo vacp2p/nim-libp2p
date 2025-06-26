@@ -162,7 +162,7 @@ method connect*(
 
 method dial*(
     s: Switch, peerId: PeerId, protos: seq[string]
-): Future[Connection] {.
+): Future[Stream] {.
     public, async: (raises: [DialFailedError, CancelledError], raw: true)
 .} =
   ## Open a stream to a connected peer with the specified `protos`
@@ -171,7 +171,7 @@ method dial*(
 
 proc dial*(
     s: Switch, peerId: PeerId, proto: string
-): Future[Connection] {.
+): Future[Stream] {.
     public, async: (raises: [DialFailedError, CancelledError], raw: true)
 .} =
   ## Open a stream to a connected peer with the specified `proto`
@@ -184,7 +184,7 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
-): Future[Connection] {.
+): Future[Stream] {.
     public, async: (raises: [DialFailedError, CancelledError], raw: true)
 .} =
   ## Connected to a peer and open a stream
@@ -194,7 +194,7 @@ method dial*(
 
 proc dial*(
     s: Switch, peerId: PeerId, addrs: seq[MultiAddress], proto: string
-): Future[Connection] {.
+): Future[Stream] {.
     public, async: (raises: [DialFailedError, CancelledError], raw: true)
 .} =
   ## Connected to a peer and open a stream

@@ -29,12 +29,12 @@ proc new*(
 
   kad.codec = KadCodec
   kad.handler = proc(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      while not conn.atEof:
+      while not stream.atEof:
         let
-          buf = await conn.readLp(4096)
+          buf = await stream.readLp(4096)
           msg = Message.decode(buf).tryGet()
 
         # TODO: handle msg.msgType
@@ -42,9 +42,9 @@ proc new*(
       raise exc
     except CatchableError:
       error "could not handle request",
-        peerId = conn.PeerId, err = getCurrentExceptionMsg()
+        peerId = stream.PeerId, err = getCurrentExceptionMsg()
     finally:
-      await conn.close()
+      await stream.close()
 
   return kad
 

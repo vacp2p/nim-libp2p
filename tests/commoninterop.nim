@@ -239,11 +239,11 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
         await stream.close()
 
       await daemonNode.addHandler(protos, daemonHandler)
-      let conn = await nativeNode.dial(daemonPeer.peer, daemonPeer.addresses, protos[0])
-      await conn.writeLp(test & "\r\n")
+      let stream = await nativeNode.dial(daemonPeer.peer, daemonPeer.addresses, protos[0])
+      await stream.writeLp(test & "\r\n")
       check expect == (await wait(testFuture, 10.secs))
 
-      await conn.close()
+      await stream.close()
       await nativeNode.stop()
       await daemonNode.close()
 
@@ -253,10 +253,10 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       var testFuture = newFuture[string]("test.future")
       proc nativeHandler(
-          conn: Connection, proto: string
+          stream: Stream, proto: string
       ) {.async: (raises: [CancelledError]).} =
         try:
-          var line = string.fromBytes(await conn.readLp(1024))
+          var line = string.fromBytes(await stream.readLp(1024))
           check line == test
           testFuture.complete(line)
         except CancelledError as e:
@@ -264,7 +264,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
         except CatchableError:
           check false # should not be here
         finally:
-          await conn.close()
+          await stream.close()
 
       # custom proto
       var proto = new LPProtocol

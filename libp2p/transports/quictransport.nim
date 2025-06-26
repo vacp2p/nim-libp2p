@@ -32,11 +32,11 @@ const alpn = "libp2p"
 
 # Stream
 type QuicStream* = ref object of P2PConnection
-  stream: Stream
+  stream: quic.Stream
   cached: seq[byte]
 
 proc new(
-    _: type QuicStream, stream: Stream, oaddr: Opt[MultiAddress], peerId: PeerId
+    _: type QuicStream, stream: quic.Stream, oaddr: Opt[MultiAddress], peerId: PeerId
 ): QuicStream =
   let quicstream = QuicStream(stream: stream, observedAddr: oaddr, peerId: peerId)
   procCall P2PConnection(quicstream).initStream()
@@ -91,7 +91,7 @@ proc getStream*(
     session: QuicSession, direction = Direction.In
 ): Future[QuicStream] {.async: (raises: [QuicTransportError]).} =
   try:
-    var stream: Stream
+    var stream: quic.Stream
     case direction
     of Direction.In:
       stream = await session.connection.incomingStream()

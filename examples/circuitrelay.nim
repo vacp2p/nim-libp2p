@@ -27,17 +27,17 @@ proc main() {.async.} =
   var proto = new LPProtocol
   proto.codec = customProtoCodec
   proto.handler = proc(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      var msg = string.fromBytes(await conn.readLp(1024))
+      var msg = string.fromBytes(await stream.readLp(1024))
       echo "1 - Dst Received: ", msg
       assert "test1" == msg
-      await conn.writeLp("test2")
-      msg = string.fromBytes(await conn.readLp(1024))
+      await stream.writeLp("test2")
+      msg = string.fromBytes(await stream.readLp(1024))
       echo "2 - Dst Received: ", msg
       assert "test3" == msg
-      await conn.writeLp("test4")
+      await stream.writeLp("test4")
     except CancelledError as e:
       raise e
     except CatchableError as e:

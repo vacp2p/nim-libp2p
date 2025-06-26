@@ -42,7 +42,7 @@ method connect*(
 
 method dial*(
     self: Dial, peerId: PeerId, protos: seq[string]
-): Future[Connection] {.base, async: (raises: [DialFailedError, CancelledError]).} =
+): Future[Stream] {.base, async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream over an
   ## existing connection
   ##
@@ -55,7 +55,7 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
-): Future[Connection] {.base, async: (raises: [DialFailedError, CancelledError]).} =
+): Future[Stream] {.base, async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##

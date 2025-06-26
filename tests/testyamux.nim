@@ -45,14 +45,14 @@ suite "Yamux":
     asyncTest "Roundtrip of small messages":
       mSetup()
 
-      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+      yamuxb.streamHandler = proc(stream: Stream) {.async: (raises: []).} =
         try:
-          check (await conn.readLp(100)) == fromHex("1234")
-          await conn.writeLp(fromHex("5678"))
+          check (await stream.readLp(100)) == fromHex("1234")
+          await stream.writeLp(fromHex("5678"))
         except CancelledError, LPStreamError:
           return
         finally:
-          await conn.close()
+          await stream.close()
 
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]

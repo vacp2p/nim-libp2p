@@ -38,6 +38,8 @@ type
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
+  Stream* = Connection
+
 proc timeoutMonitor(s: Connection) {.async: (raises: []).}
 
 func shortLog*(conn: Connection): string =

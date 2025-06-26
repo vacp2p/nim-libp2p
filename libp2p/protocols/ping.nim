@@ -51,15 +51,15 @@ proc new*(
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
-      trace "handling ping", conn
+      trace "handling ping", stream
       var buf: array[PingSize, byte]
-      await conn.readExactly(addr buf[0], PingSize)
-      trace "echoing ping", conn, pingData = @buf
-      await conn.write(@buf)
+      await stream.readExactly(addr buf[0], PingSize)
+      trace "echoing ping", stream, pingData = @buf
+      await stream.write(@buf)
       if not isNil(p.pingHandler):
-        await p.pingHandler(conn.peerId)
+        await p.pingHandler(stream.peerId)
     except CancelledError as exc:
       trace "cancelled ping handler"
       raise exc

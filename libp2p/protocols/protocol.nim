@@ -17,7 +17,7 @@ export results
 const DefaultMaxIncomingStreams* = 10
 
 type
-  LPProtoHandler* = proc(conn: Connection, proto: string): Future[void] {.
+  LPProtoHandler* = proc(stream: Stream, proto: string): Future[void] {.
     async: (raises: [CancelledError])
   .}
 
@@ -60,8 +60,8 @@ func `codec=`*(p: LPProtocol, codec: string) =
 template `handler`*(p: LPProtocol): LPProtoHandler =
   p.handlerImpl
 
-template `handler`*(p: LPProtocol, conn: Connection, proto: string): Future[void] =
-  p.handlerImpl(conn, proto)
+template `handler`*(p: LPProtocol, stream: Stream, proto: string): Future[void] =
+  p.handlerImpl(stream, proto)
 
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
