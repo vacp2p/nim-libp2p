@@ -23,19 +23,17 @@ suite "GossipSub Integration - Skip MCache Support":
   asyncTest "publish with skipMCache prevents message from being added to mcache":
     let
       topic = "test"
-      handler = proc(topic: string, data: seq[byte]) {.async.} =
-        discard
       nodes = generateNodes(2, gossip = true)
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
-    let publishData = "hello".toBytes()
-
-    let msgId = GossipSub(nodes[0]).getMsgId(topic, publishData)
+    let
+      publishData = "hello".toBytes()
+      msgId = GossipSub(nodes[0]).getMsgId(topic, publishData)
 
     tryPublish await nodes[0].publish(
       topic, publishData, publishParams = some(PublishParams(skipMCache: true))
@@ -46,18 +44,17 @@ suite "GossipSub Integration - Skip MCache Support":
   asyncTest "publish without skipMCache adds message to mcache":
     let
       topic = "test"
-      handler = proc(topic: string, data: seq[byte]) {.async.} =
-        discard
       nodes = generateNodes(2, gossip = true)
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
-    let publishData = "hello".toBytes()
-    let msgId = GossipSub(nodes[0]).getMsgId(topic, publishData)
+    let
+      publishData = "hello".toBytes()
+      msgId = GossipSub(nodes[0]).getMsgId(topic, publishData)
 
     tryPublish await nodes[0].publish(
       topic, publishData, publishParams = none(PublishParams)
