@@ -23,7 +23,7 @@ suite "GossipSub Integration - Skip MCache Support":
   asyncTest "publish with skipMCache prevents message from being added to mcache":
     let
       topic = "test"
-      nodes = generateNodes(2, gossip = true)
+      nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -33,18 +33,18 @@ suite "GossipSub Integration - Skip MCache Support":
 
     let
       publishData = "hello".toBytes()
-      msgId = GossipSub(nodes[0]).getMsgId(topic, publishData)
+      msgId = nodes[0].getMsgId(topic, publishData)
 
     tryPublish await nodes[0].publish(
       topic, publishData, publishParams = some(PublishParams(skipMCache: true))
     ), 1
 
-    check msgId notin GossipSub(nodes[0]).mcache.msgs
+    check msgId notin nodes[0].mcache.msgs
 
   asyncTest "publish without skipMCache adds message to mcache":
     let
       topic = "test"
-      nodes = generateNodes(2, gossip = true)
+      nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -54,10 +54,10 @@ suite "GossipSub Integration - Skip MCache Support":
 
     let
       publishData = "hello".toBytes()
-      msgId = GossipSub(nodes[0]).getMsgId(topic, publishData)
+      msgId = nodes[0].getMsgId(topic, publishData)
 
     tryPublish await nodes[0].publish(
       topic, publishData, publishParams = none(PublishParams)
     ), 1
 
-    check msgId in GossipSub(nodes[0]).mcache.msgs
+    check msgId in nodes[0].mcache.msgs

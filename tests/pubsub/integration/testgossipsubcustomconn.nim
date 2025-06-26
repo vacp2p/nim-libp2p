@@ -37,13 +37,13 @@ suite "GossipSub Integration - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers custom connection and peer selection":
     let
       topic = "test"
-      nodes = generateNodes(2, gossip = true)
+      nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
       customConnCreated = false
       peerSelectionCalled = false
 
-    GossipSub(nodes[0]).customConnCallbacks = some(
+    nodes[0].customConnCallbacks = some(
       CustomConnectionCallbacks(
         customConnCreationCB: proc(
             destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
@@ -78,7 +78,7 @@ suite "GossipSub Integration - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
     let
       topic = "test"
-      nodes = generateNodes(2, gossip = true)
+      nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
