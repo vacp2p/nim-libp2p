@@ -620,7 +620,8 @@ proc new*(
   )
 
   when defined(libp2p_gossipsub_1_4):
-    result.bandwidthTracking = BandwidthTracking(download: ExponentialMovingAverage.init())
+    result.bandwidthTracking =
+      BandwidthTracking(download: ExponentialMovingAverage.init())
 
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))

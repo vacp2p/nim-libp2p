@@ -919,6 +919,7 @@ when defined(libp2p_gossipsub_1_4):
         if peer.isNil:
           trace "no peer available to send IWANT for an expiredOngoingReceive",
             messageID = expiredOngoingReceive.messageId
+          continue
 
         let starts = Moment.now()
 
