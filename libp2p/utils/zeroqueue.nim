@@ -11,7 +11,7 @@ type ZeroQueue* = object
   # ZeroQueue is queue structure optimized for efficient pushing and popping of 
   # byte sequences `seq[byte]`. This type is useful for streaming or buffering 
   # scenarios where chunks of binary data are accumulated and consumed incrementally.
-  data: seq[seq[byte]] = @[]
+  data: seq[seq[byte]]
 
 proc clear*(q: var ZeroQueue) =
   q.data = @[]
