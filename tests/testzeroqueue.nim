@@ -1,7 +1,15 @@
 {.used.}
 
-import unittest2
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
+import unittest2
 import ../libp2p/utils/zeroqueue
 
 proc toSeq(p: pointer, length: int): seq[byte] =
@@ -26,6 +34,11 @@ suite "ZeroQueue":
     check @[10'u8, 20, 30] == q.pop(3) # pop eactly the size
     check @[40'u8] == q.pop(1) # pop less the pushed
     check @[50'u8] == q.pop(5) # pop more then pushed
+    check q.isEmpty()
+
+    # should not push empty seq
+    q.push(@[])
+    q.push(@[])
     check q.isEmpty()
 
     let nbytes = 20

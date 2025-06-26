@@ -1,4 +1,16 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 type ZeroQueue* = object
+  # ZeroQueue is queue structure optimized for efficient pushing and popping of 
+  # byte sequences `seq[byte]`. This type is useful for streaming or buffering 
+  # scenarios where chunks of binary data are accumulated and consumed incrementally.
   data: seq[seq[byte]] = @[]
 
 proc clear*(q: var ZeroQueue) =
@@ -22,13 +34,18 @@ proc pop*(q: var ZeroQueue, count: int): seq[byte] =
     return @[]
 
   let first = q.data[0]
+
+  # first frame has up to requested count elements,
+  # queue will return this frame (frame might have less then requested)
   if first.len <= count:
     q.data = q.data[1 ..^ 1]
     return first
-  else:
-    let ret = first[0 ..< count]
-    q.data[0] = first[count ..^ 1]
-    return ret
+
+  # first frame has more elements then requested count, 
+  # queue will return view of first count elements, leaving the rest in the queue
+  let ret = first[0 ..< count]
+  q.data[0] = first[count ..^ 1]
+  return ret
 
 proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
   var consumed = 0
