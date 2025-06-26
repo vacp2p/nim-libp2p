@@ -421,8 +421,8 @@ suite "GossipSub Integration - Scoring":
     startNodesAndDeferStop(nodes)
 
     # And Node 0 is center node, connected to all others
-    await connectNodes(nodes[0], nodes[1]) # Center to Node 1 (control - valid messages)
-    await connectNodes(nodes[0], nodes[2]) # Center to Node 2 (invalid signatures) 
+    await connectNodes(nodes[0], nodes[1]) # center to Node 1 (valid messages)
+    await connectNodes(nodes[0], nodes[2]) # center to Node 2 (invalid messages) 
 
     nodes.subscribeAllNodes(topic, voidTopicHandler)
 
@@ -433,7 +433,7 @@ suite "GossipSub Integration - Scoring":
     ): Future[ValidationResult] {.async.} =
       validatedMessageCount.inc
       if string.fromBytes(message.data).contains("invalid"):
-        return ValidationResult.Reject # Reject invalid messages
+        return ValidationResult.Reject # reject invalid messages
       else:
         return ValidationResult.Accept
 
@@ -460,8 +460,8 @@ suite "GossipSub Integration - Scoring":
     # Then invalidMessageDeliveries stats are applied
     checkUntilTimeout:
       validatedMessageCount == messagesToSend * (numberOfNodes - 1)
-      centerNode.getInvalidDeliveries(nodes[1], topic) == 0.0 # valid msgs
-      centerNode.getInvalidDeliveries(nodes[2], topic) == 5.0 # invalid msgs
+      centerNode.getInvalidDeliveries(nodes[1], topic) == 0.0 # valid messages
+      centerNode.getInvalidDeliveries(nodes[2], topic) == 5.0 # invalid messages
 
     # When scoring hartbeat occurs (2nd scoring heartbeat)
     # Then peer scores are calculated
