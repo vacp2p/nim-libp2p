@@ -9,7 +9,7 @@
 
 {.used.}
 
-import std/[sequtils]
+import std/[sequtils, strutils]
 import stew/byteutils
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
@@ -357,6 +357,8 @@ suite "GossipSub Integration - Scoring":
     let nodes =
       generateNodes(2, gossip = true, decayInterval = decayInterval).toGossipSub()
 
+    nodes.setDefaultTopicParams(topic)
+
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
@@ -379,3 +381,120 @@ suite "GossipSub Integration - Scoring":
     check:
       nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries in
         50.0 .. 66.0
+
+  asyncTest "Invalid messages scoring":
+    proc getPeerScore(node: GossipSub, peerNode: GossipSub, topic: string): float64 =
+      return node.getPeerByPeerId(topic, peerNode.peerInfo.peerId).score
+
+    proc getInvalidDeliveries(
+        node: GossipSub, peerNode: GossipSub, topic: string
+    ): float64 =
+      node.peerStats.withValue(peerNode.peerInfo.peerId, stats):
+        return stats[].topicInfos.getOrDefault(topic).invalidMessageDeliveries
+
+    # Given GossipSub nodes with Topic Params
+    const
+      topic = "foobar"
+      numberOfNodes = 4
+
+    let
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          verifySignature = false,
+            # Disable signature verification to isolate validation penalties
+          decayInterval = 100.milliseconds, # scoring heartbeat interval
+          heartbeatInterval = 5.seconds,
+            # heartbeatInterval >>> decayInterval to prevent prunning peers with bad score
+          publishThreshold = -150.0,
+          graylistThreshold = -200.0,
+          disconnectBadPeers = false,
+        )
+        .toGossipSub()
+      centerNode = nodes[0]
+
+    nodes.setDefaultTopicParams(topic)
+    for node in nodes:
+      node.topicParams[topic].invalidMessageDeliveriesWeight = -10.0
+      node.topicParams[topic].invalidMessageDeliveriesDecay = 0.9
+
+    startNodesAndDeferStop(nodes)
+
+    # And Node 0 is center node, connected to all others
+    await connectNodes(nodes[0], nodes[1]) # Center to Node 1 (control - valid messages)
+    await connectNodes(nodes[0], nodes[2]) # Center to Node 2 (invalid signatures) 
+    await connectNodes(nodes[0], nodes[3]) # Center to Node 3 (custom validation failure)
+
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # And center node has messages validator: accept from node 1, reject from nodes 2&3
+    var messageCount = 0
+    proc validationHandler(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      messageCount.inc
+      # Simulate validation logic based on message content 
+      let messageStr = string.fromBytes(message.data)
+      if messageStr.contains("valid"):
+        return ValidationResult.Accept
+      else:
+        return ValidationResult.Reject # Reject invalid messages
+
+    nodes[0].addValidator(topic, validationHandler)
+
+    checkUntilTimeout:
+      centerNode.getPeerScore(nodes[1], topic) > 0
+      centerNode.getPeerScore(nodes[2], topic) > 0
+      centerNode.getPeerScore(nodes[3], topic) > 0
+      centerNode.mesh[topic].toSeq().len == 3
+
+    # When messages are broadcasted
+    for i in 0 ..< 5:
+      let validMsg = RPCMsg(
+        messages: @[Message(topic: topic, data: ("valid-message-" & $i).toBytes())]
+      )
+      nodes[1].broadcast(nodes[1].mesh[topic], validMsg, isHighPriority = true)
+
+      let invalidMsg =
+        RPCMsg(messages: @[Message(topic: topic, data: ("failed-sig-" & $i).toBytes())])
+      nodes[2].broadcast(nodes[2].mesh[topic], invalidMsg, isHighPriority = true)
+
+      let invalidMsg2 = RPCMsg(
+        messages: @[Message(topic: topic, data: ("failed-custom-" & $i).toBytes())]
+      )
+      nodes[3].broadcast(nodes[3].mesh[topic], invalidMsg2, isHighPriority = true)
+
+      await sleepAsync(1.milliseconds)
+
+    # And messages are processed
+    # Then invalidMessageDeliveries stats are applied
+    checkUntilTimeout:
+      messageCount == 15
+      centerNode.getInvalidDeliveries(nodes[1], topic) == 0.0 # valid msgs
+      centerNode.getInvalidDeliveries(nodes[2], topic) == 5.0 # invalid msgs
+      centerNode.getInvalidDeliveries(nodes[3], topic) == 5.0 # invalid msgs
+      centerNode.mesh[topic].toSeq().len == 3
+
+    # When scoring hartbeat occurs
+    # Then peer scores are calculated
+    checkUntilTimeout:
+      # node1: p1 (time in mesh) + p2 (first message deliveries)
+      centerNode.getPeerScore(nodes[1], topic) > 5.0 and
+        centerNode.getPeerScore(nodes[1], topic) < 6.0
+      # node2: p1 (time in mesh) - p4 (invalid message deliveries)
+      centerNode.getPeerScore(nodes[2], topic) < -249.0 and
+        centerNode.getPeerScore(nodes[2], topic) > -250.0
+      # node3: p1 (time in mesh) - p4 (invalid message deliveries)
+      centerNode.getPeerScore(nodes[3], topic) < -249.0 and
+        centerNode.getPeerScore(nodes[3], topic) > -250.0
+      # all peers are still connected
+      centerNode.mesh[topic].toSeq().len == 3
+
+    # When disconnecting peers with bad score (score < graylistThreshold) is enabled
+    for node in nodes:
+      node.parameters.disconnectBadPeers = true
+
+    # Then peers with bad score are disconnected on scoring heartbeat
+    checkUntilTimeout:
+      centerNode.mesh[topic].toSeq().len == 1

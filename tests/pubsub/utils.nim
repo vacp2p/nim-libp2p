@@ -195,6 +195,9 @@ proc generateNodes*(
     historyGossip = 5,
     gossipThreshold = -100.0,
     decayInterval = 1.seconds,
+    publishThreshold = -1000.0,
+    graylistThreshold = -10000.0,
+    disconnectBadPeers: bool = false,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -225,15 +228,14 @@ proc generateNodes*(
             p.opportunisticGraftThreshold = opportunisticGraftThreshold
             p.gossipThreshold = gossipThreshold
             p.decayInterval = decayInterval
+            p.publishThreshold = publishThreshold
+            p.graylistThreshold = graylistThreshold
+            p.disconnectBadPeers = disconnectBadPeers
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
           ),
         )
-        # set some testing params, to enable scores
-        g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
-        g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
-        g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
         if gossipSubVersion != "":
           g.codecs = @[gossipSubVersion]
         g.PubSub
@@ -253,6 +255,10 @@ proc generateNodes*(
 
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
   return nodes.mapIt(GossipSub(it))
+
+proc setDefaultTopicParams*(nodes: seq[GossipSub], topic: string): void =
+  for node in nodes:
+    node.topicParams.mgetOrPut(topic, TopicParams.init()).topicWeight = 1.0
 
 proc getNodeByPeerId*[T: PubSub](nodes: seq[T], peerId: PeerId): GossipSub =
   let filteredNodes = nodes.filterIt(it.peerInfo.peerId == peerId)
