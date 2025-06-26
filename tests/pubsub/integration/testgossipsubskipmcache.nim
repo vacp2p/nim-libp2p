@@ -38,7 +38,7 @@ suite "GossipSub Integration - Skip MCache Support":
     let msgId = GossipSub(nodes[0]).getMsgId(topic, publishData)
 
     tryPublish await nodes[0].publish(
-      topic, publishData, publishParams = some(PublishParams(useCustomConn: true))
+      topic, publishData, publishParams = some(PublishParams(skipMCache: true))
     ), 1
 
     check msgId notin GossipSub(nodes[0]).mcache.msgs
