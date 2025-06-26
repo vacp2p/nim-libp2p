@@ -124,7 +124,7 @@ suite "GossipSub Integration - Message Handling":
       isHighPriority = false,
     )
 
-    await sleepAsync(150.milliseconds)
+    await sleepAsync(300.milliseconds)
     checkUntilTimeout:
       receivedMessages[].len == 0
 

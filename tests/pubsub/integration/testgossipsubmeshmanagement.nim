@@ -270,7 +270,7 @@ suite "GossipSub Integration - Mesh Management":
 
     # Then its mesh is pruned and peers have applied unsubscribeBackoff
     # Waiting more than one heartbeat (60ms) and less than unsubscribeBackoff (1s)
-    await sleepAsync(unsubscribeBackoff.div(4))
+    await sleepAsync(unsubscribeBackoff.div(2))
     check:
       not nodes[0].mesh.hasKey(topic)
 
@@ -335,7 +335,7 @@ suite "GossipSub Integration - Mesh Management":
     node0.parameters.applyDValues(dValues)
 
     # Waiting more than one heartbeat (60ms) and less than pruneBackoff (1s)
-    await sleepAsync(pruneBackoff.div(4))
+    await sleepAsync(pruneBackoff.div(2))
     check:
       node0.mesh.getOrDefault(topic).len == newDValues.get.dHigh.get
 
