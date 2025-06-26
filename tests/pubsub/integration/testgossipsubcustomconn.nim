@@ -37,8 +37,6 @@ suite "GossipSub Integration - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers custom connection and peer selection":
     let
       topic = "test"
-      handler = proc(topic: string, data: seq[byte]) {.async.} =
-        discard
       nodes = generateNodes(2, gossip = true)
 
     var
@@ -66,7 +64,7 @@ suite "GossipSub Integration - Custom Connection Support":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(
@@ -80,14 +78,12 @@ suite "GossipSub Integration - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
     let
       topic = "test"
-      handler = proc(topic: string, data: seq[byte]) {.async.} =
-        discard
       nodes = generateNodes(2, gossip = true)
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
     var raised = false
