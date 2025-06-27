@@ -369,10 +369,15 @@ method getOrCreatePeer*(
       async: (raises: [CancelledError, GetConnDialError])
   .} =
     try:
-      return await p.switch.dial(peerId, protosToDial)
+      echo "DIALING PEER!!!!!!!!!!!!!!!", peerId
+      let x = await p.switch.dial(peerId, protosToDial)
+      echo "DIALED PEER!", peerId
+      return x
     except CancelledError as exc:
+      debug "CANCLLED DIAL PEER", peerId
       raise exc
     except DialFailedError as e:
+      debug "DIAL FAILED", peerId, err=e.msg
       raise (ref GetConnDialError)(parent: e)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =

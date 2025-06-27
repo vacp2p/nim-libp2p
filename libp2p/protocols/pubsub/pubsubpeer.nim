@@ -266,6 +266,7 @@ proc connectOnce(
       try:
         debug "TRYING TO GET CONN"
         await p.getConn().wait(5.seconds)
+        debug "GOT THE CONN!!!"
       except AsyncTimeoutError as error:
         debug "getConn timed out", description = error.msg
         raise (ref LPError)(msg: "Cannot establish send connection: " & error.msg)
