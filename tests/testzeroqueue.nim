@@ -23,16 +23,16 @@ suite "ZeroQueue":
     var q: ZeroQueue
     check q.len() == 0
     check q.isEmpty()
-    check q.popSeq(1).len == 0 # pop empty seq when queue is empty
+    check q.popChunkSeq(1).len == 0 # pop empty seq when queue is empty
 
     q.push(@[1'u8, 2, 3])
     q.push(@[4'u8, 5])
     check q.len() == 5
     check not q.isEmpty()
 
-    check q.popSeq(3) == @[1'u8, 2, 3] # pop eactly the size of the chunk
-    check q.popSeq(1) == @[4'u8] # pop less then size of the chunk
-    check q.popSeq(5) == @[5'u8] # pop more then size of the chunk
+    check q.popChunkSeq(3) == @[1'u8, 2, 3] # pop eactly the size of the chunk
+    check q.popChunkSeq(1) == @[4'u8] # pop less then size of the chunk
+    check q.popChunkSeq(5) == @[5'u8] # pop more then size of the chunk
     check q.isEmpty()
 
     # should not push empty seq
