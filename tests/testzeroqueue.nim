@@ -14,8 +14,9 @@ import ../libp2p/utils/zeroqueue
 
 proc toSeq(p: pointer, length: int): seq[byte] =
   let b = cast[ptr UncheckedArray[byte]](p)
-  result = newSeq[byte](length)
-  copyMem(result[0].addr, p, length)
+  var res = newSeq[byte](length)
+  copyMem(res[0].addr, p, length)
+  return res
 
 suite "ZeroQueue":
   test "push-pop":
@@ -54,7 +55,10 @@ suite "ZeroQueue":
     defer:
       dealloc(pbytes)
 
-    # consumeTo should fill up to nbytes (queue is emptied)
+    # consumeTo: on empty queue
+    check q.consumeTo(pbytes, nbytes) == 0
+
+    # consumeTo: emptying whole queue (multiple pushes)
     q.push(@[1'u8, 2, 3])
     q.push(@[4'u8, 5])
     q.push(@[6'u8, 7])
@@ -62,24 +66,50 @@ suite "ZeroQueue":
     check toSeq(pbytes, 7) == @[1'u8, 2, 3, 4, 5, 6, 7]
     check q.isEmpty()
 
-    # consumeTo should fill only 1 element, leaving 2 elements in the queue
+    # consumeTo: consuming one chunk of data in two steps
     q.push(@[1'u8, 2, 3])
+    # first consume
     check q.consumeTo(pbytes, 1) == 1
     check toSeq(pbytes, 1) == @[1'u8]
     check q.len() == 2
-    # assert remaning elements
+    # second consime
     check q.consumeTo(pbytes, nbytes) == 2
     check toSeq(pbytes, 2) == @[2'u8, 3]
     check q.isEmpty()
 
-    # consumeTo should fill only 3 element, leaving 2 elements in the queue
+    # consumeTo: consuming multiple chunks of data in two steps
     q.clear()
     q.push(@[4'u8, 5])
     q.push(@[1'u8, 2, 3])
+    # first consume
     check q.consumeTo(pbytes, 3) == 3
     check toSeq(pbytes, 3) == @[4'u8, 5, 1]
     check q.len() == 2
-    # assert remaning elements
+    # second consume
     check q.consumeTo(pbytes, nbytes) == 2
     check toSeq(pbytes, 2) == @[2'u8, 3]
+    check q.isEmpty()
+
+    # consumeTo: parially consume big push multiple times
+    q.clear()
+    q.push(newSeq[byte](20))
+    for i in 1 .. 10:
+      check q.consumeTo(pbytes, 2) == 2
+    check q.isEmpty()
+    check q.consumeTo(pbytes, 2) == 0
+
+    # consumeTo: parially consuming while pushing
+    q.push(@[1'u8, 2, 3])
+    check q.consumeTo(pbytes, 2) == 2
+    check toSeq(pbytes, 2) == @[1'u8, 2]
+    q.push(@[1'u8, 2, 3])
+    check q.consumeTo(pbytes, 2) == 2
+    check toSeq(pbytes, 2) == @[3'u8, 1]
+    q.push(@[1'u8, 2, 3])
+    check q.consumeTo(pbytes, 2) == 2
+    check toSeq(pbytes, 2) == @[2'u8, 3]
+    check q.consumeTo(pbytes, 2) == 2
+    check toSeq(pbytes, 2) == @[1'u8, 2]
+    check q.consumeTo(pbytes, 2) == 1
+    check toSeq(pbytes, 1) == @[3'u8]
     check q.isEmpty()
