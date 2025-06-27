@@ -362,11 +362,15 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
   if p.sendConn == nil:
     # Wait for a send conn to be setup. `connectOnce` will
     # complete this even if the sendConn setup failed
+    debug "await connected fut"
     discard await race(p.connectedFut)
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection", p, payload = shortLog(msg)
+    if conn == nil:
+      debug "No send connection - nil", p, payload = shortLog(msg)
+    else:
+      debug "No send connection - closed", p, payload = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
