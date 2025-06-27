@@ -97,7 +97,6 @@ proc getStream*(
       stream = await session.connection.incomingStream()
     of Direction.Out:
       stream = await session.connection.openStream()
-      await stream.write(@[]) # QUIC streams do not exist until data is sent
     return QuicStream.new(stream, session.observedAddr, session.peerId)
   except CatchableError as exc:
     # TODO: incomingStream is using {.async.} with no raises
@@ -113,7 +112,7 @@ type QuicMuxer = ref object of Muxer
 
 method newStream*(
     m: QuicMuxer, name: string = "", lazy: bool = false
-): Future[P2PConnection] {.
+): Future[connection.Connection] {.
     async: (raises: [CancelledError, LPStreamError, MuxerError])
 .} =
   try:
