@@ -45,9 +45,11 @@ proc new(
 template mapExceptions(body: untyped) =
   try:
     body
-  except QuicError:
+  except QuicError as ex:
+    debug "QUIC ERROR", err=ex.msg
     raise newLPStreamEOFError()
-  except CatchableError:
+  except CatchableError as ex:
+    debug "QUIC ERROR2", err=ex.msg
     raise newLPStreamEOFError()
 
 method readOnce*(
@@ -61,6 +63,7 @@ method readOnce*(
     stream.cached = stream.cached[result ..^ 1]
     libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
   except CatchableError as exc:
+    debug "QUIC ERROR", err=exc.msg
     raise newLPStreamEOFError()
 
 {.push warning[LockLevel]: off.}

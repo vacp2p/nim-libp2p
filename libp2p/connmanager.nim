@@ -342,7 +342,7 @@ proc getOutgoingSlot*(
   if forceDial:
     c.outSema.forceAcquire()
   elif not c.outSema.tryAcquire():
-    trace "Too many outgoing connections!",
+    debug "Too many outgoing connections!",
       available = c.outSema.count, max = c.outSema.size
     raise newTooManyConnectionsError()
   return ConnectionSlot(connManager: c, direction: Out)
