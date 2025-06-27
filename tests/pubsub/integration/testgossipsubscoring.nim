@@ -383,15 +383,6 @@ suite "GossipSub Integration - Scoring":
         50.0 .. 66.0
 
   asyncTest "Nodes publishing invalid messages are penalized and disconnected":
-    proc getPeerScore(node: GossipSub, peerNode: GossipSub, topic: string): float64 =
-      return node.getPeerByPeerId(topic, peerNode.peerInfo.peerId).score
-
-    proc getInvalidDeliveries(
-        node: GossipSub, peerNode: GossipSub, topic: string
-    ): float64 =
-      node.peerStats.withValue(peerNode.peerInfo.peerId, stats):
-        return stats[].topicInfos.getOrDefault(topic).invalidMessageDeliveries
-
     # Given GossipSub nodes with Topic Params
     const
       topic = "foobar"
@@ -412,6 +403,8 @@ suite "GossipSub Integration - Scoring":
         )
         .toGossipSub()
       centerNode = nodes[0]
+      node1peerId = nodes[1].peerInfo.peerId
+      node2peerId = nodes[2].peerInfo.peerId
 
     nodes.setDefaultTopicParams(topic)
     for node in nodes:
@@ -442,8 +435,8 @@ suite "GossipSub Integration - Scoring":
     # 1st scoring heartbeat
     checkUntilTimeout:
       centerNode.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      centerNode.getPeerScore(nodes[1], topic) > 0
-      centerNode.getPeerScore(nodes[2], topic) > 0
+      centerNode.getPeerScore(node1peerId, topic) > 0
+      centerNode.getPeerScore(node2peerId, topic) > 0
 
     # When messages are broadcasted
     const messagesToSend = 5
@@ -463,18 +456,20 @@ suite "GossipSub Integration - Scoring":
     # Then invalidMessageDeliveries stats are applied
     checkUntilTimeout:
       validatedMessageCount == messagesToSend * (numberOfNodes - 1)
-      centerNode.getInvalidDeliveries(nodes[1], topic) == 0.0 # valid messages
-      centerNode.getInvalidDeliveries(nodes[2], topic) == 5.0 # invalid messages
+      centerNode.getTopicInfo(node1peerId, topic).invalidMessageDeliveries == 0.0
+        # valid messages
+      centerNode.getTopicInfo(node2peerId, topic).invalidMessageDeliveries == 5.0
+        # invalid messages
 
     # When scoring hartbeat occurs (2nd scoring heartbeat)
     # Then peer scores are calculated
     checkUntilTimeout:
       # node1: p1 (time in mesh) + p2 (first message deliveries)
-      centerNode.getPeerScore(nodes[1], topic) > 5.0 and
-        centerNode.getPeerScore(nodes[1], topic) < 6.0
+      centerNode.getPeerScore(node1peerId, topic) > 5.0 and
+        centerNode.getPeerScore(node1peerId, topic) < 6.0
       # node2: p1 (time in mesh) - p4 (invalid message deliveries)
-      centerNode.getPeerScore(nodes[2], topic) < -249.0 and
-        centerNode.getPeerScore(nodes[2], topic) > -250.0
+      centerNode.getPeerScore(node2peerId, topic) < -249.0 and
+        centerNode.getPeerScore(node2peerId, topic) > -250.0
       # all peers are still connected
       centerNode.mesh[topic].toSeq().len == 2
 
@@ -485,3 +480,37 @@ suite "GossipSub Integration - Scoring":
     # Then peers with bad score are disconnected on scoring heartbeat (3rd scoring heartbeat)
     checkUntilTimeout:
       centerNode.mesh[topic].toSeq().len == 1
+
+  asyncTest "###":
+    # Given GossipSub nodes with Topic Params
+    const
+      topic = "foobar"
+      numberOfNodes = 2
+
+    let
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          # verifySignature = false,
+          #   # Disable signature verification to isolate validation penalties
+          decayInterval = 200.milliseconds, # scoring heartbeat interval
+          heartbeatInterval = 5.seconds,
+            # heartbeatInterval >>> decayInterval to prevent prunning peers with bad score
+          publishThreshold = -150.0,
+          graylistThreshold = -200.0,
+          disconnectBadPeers = false,
+        )
+        .toGossipSub()
+      centerNode = nodes[0]
+
+    nodes.setDefaultTopicParams(topic)
+    for node in nodes:
+      node.topicParams[topic].meshMessageDeliveriesActivation = 1.milliseconds
+      node.topicParams[topic].invalidMessageDeliveriesDecay = 0.9
+
+    startNodesAndDeferStop(nodes)
+
+    # And Node 0 is center node, connected to all others
+    await connectNodes(nodes[0], nodes[1]) # center to Node 1 (valid messages)
+
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
