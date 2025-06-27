@@ -252,7 +252,7 @@ proc updateRecvWindow(
   ##
   # In order to avoid spamming a window update everytime a byte is read,
   # we send it everytime half of the maxRecvWindow is read.
-  let inWindow = channel.recvWindow + channel.recvQueue.len()
+  let inWindow = channel.recvWindow + channel.recvQueue.len
   if inWindow > channel.maxRecvWindow div 2:
     return
 
@@ -309,7 +309,7 @@ proc gotDataFromRemote(
   channel.recvQueue.push(b)
   channel.receivedData.fire()
   when defined(libp2p_yamux_metrics):
-    libp2p_yamux_recv_queue.observe(channel.recvQueue.len().int64)
+    libp2p_yamux_recv_queue.observe(channel.recvQueue.len.int64)
   await channel.updateRecvWindow()
 
 proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
