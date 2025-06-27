@@ -15,8 +15,7 @@ import ../libp2p/utils/zeroqueue
 proc toSeq(p: pointer, length: int): seq[byte] =
   let b = cast[ptr UncheckedArray[byte]](p)
   result = newSeq[byte](length)
-  for i in 0 ..< length:
-    result[i] = b[i]
+  copyMem(result[0].addr, p, length)
 
 suite "ZeroQueue":
   test "push-pop":
