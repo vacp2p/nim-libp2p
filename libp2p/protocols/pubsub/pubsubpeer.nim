@@ -245,6 +245,7 @@ proc closeSendConn(
     await p.sendConn.close()
     p.sendConn = nil
 
+  debug "CLOSE SEND CONN", fin=p.connectedFut.finished
   if not p.connectedFut.finished:
     p.connectedFut.complete()
 
@@ -263,6 +264,7 @@ proc connectOnce(
       p.connectedFut = newFuture[void]()
     let newConn =
       try:
+        debug "TRYING TO GET CONN"
         await p.getConn().wait(5.seconds)
       except AsyncTimeoutError as error:
         debug "getConn timed out", description = error.msg
@@ -300,6 +302,7 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
     while true:
       if p.disconnected:
         if not p.connectedFut.finished:
+          debug "CONNECT COMPLETE 2"
           p.connectedFut.complete()
         return
       await connectOnce(p)
@@ -311,7 +314,9 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
     debug "Could not establish send connection", description = exc.msg
 
 proc connect*(p: PubSubPeer) =
+  debug "CONNECT..."
   if p.connected:
+    echo "Already connected"
     return
 
   asyncSpawn connectImpl(p)
