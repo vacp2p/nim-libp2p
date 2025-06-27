@@ -265,14 +265,14 @@ proc connectOnce(
       try:
         await p.getConn().wait(5.seconds)
       except AsyncTimeoutError as error:
-        trace "getConn timed out", description = error.msg
+        debug "getConn timed out", description = error.msg
         raise (ref LPError)(msg: "Cannot establish send connection: " & error.msg)
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
     # stop working so we make an effort to only keep a single channel alive
 
-    trace "Get new send connection", p, newConn
+    debug "Get new send connection", p, newConn
 
     # Careful to race conditions here.
     # Topic subscription relies on either connectedFut
