@@ -435,8 +435,8 @@ suite "GossipSub Integration - Scoring":
     # 1st scoring heartbeat
     checkUntilTimeout:
       centerNode.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      centerNode.getPeerScore(node1peerId, topic) > 0
-      centerNode.getPeerScore(node2peerId, topic) > 0
+      centerNode.getPeerScore(node1peerId) > 0
+      centerNode.getPeerScore(node2peerId) > 0
 
     # When messages are broadcasted
     const messagesToSend = 5
@@ -456,20 +456,20 @@ suite "GossipSub Integration - Scoring":
     # Then invalidMessageDeliveries stats are applied
     checkUntilTimeout:
       validatedMessageCount == messagesToSend * (numberOfNodes - 1)
-      centerNode.getTopicInfo(node1peerId, topic).invalidMessageDeliveries == 0.0
+      centerNode.getPeerTopicInfo(node1peerId, topic).invalidMessageDeliveries == 0.0
         # valid messages
-      centerNode.getTopicInfo(node2peerId, topic).invalidMessageDeliveries == 5.0
+      centerNode.getPeerTopicInfo(node2peerId, topic).invalidMessageDeliveries == 5.0
         # invalid messages
 
     # When scoring hartbeat occurs (2nd scoring heartbeat)
     # Then peer scores are calculated
     checkUntilTimeout:
       # node1: p1 (time in mesh) + p2 (first message deliveries)
-      centerNode.getPeerScore(node1peerId, topic) > 5.0 and
-        centerNode.getPeerScore(node1peerId, topic) < 6.0
+      centerNode.getPeerScore(node1peerId) > 5.0 and
+        centerNode.getPeerScore(node1peerId) < 6.0
       # node2: p1 (time in mesh) - p4 (invalid message deliveries)
-      centerNode.getPeerScore(node2peerId, topic) < -249.0 and
-        centerNode.getPeerScore(node2peerId, topic) > -250.0
+      centerNode.getPeerScore(node2peerId) < -249.0 and
+        centerNode.getPeerScore(node2peerId) > -250.0
       # all peers are still connected
       centerNode.mesh[topic].toSeq().len == 2
 
@@ -481,7 +481,7 @@ suite "GossipSub Integration - Scoring":
     checkUntilTimeout:
       centerNode.mesh[topic].toSeq().len == 1
 
-  asyncTest "###":
+  asyncTest "Nodes not meeting Mesh Message Deliveries Threshold are penalized":
     # Given GossipSub nodes with Topic Params
     const
       topic = "foobar"
@@ -491,26 +491,55 @@ suite "GossipSub Integration - Scoring":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          # verifySignature = false,
-          #   # Disable signature verification to isolate validation penalties
           decayInterval = 200.milliseconds, # scoring heartbeat interval
           heartbeatInterval = 5.seconds,
             # heartbeatInterval >>> decayInterval to prevent prunning peers with bad score
-          publishThreshold = -150.0,
-          graylistThreshold = -200.0,
           disconnectBadPeers = false,
         )
         .toGossipSub()
-      centerNode = nodes[0]
+      node1PeerId = nodes[1].peerInfo.peerId
 
     nodes.setDefaultTopicParams(topic)
     for node in nodes:
+      node.topicParams[topic].meshMessageDeliveriesThreshold = 5
       node.topicParams[topic].meshMessageDeliveriesActivation = 1.milliseconds
-      node.topicParams[topic].invalidMessageDeliveriesDecay = 0.9
+        # active from the start
+      node.topicParams[topic].meshMessageDeliveriesDecay = 0.9
+      node.topicParams[topic].meshMessageDeliveriesWeight = -10.0
+      node.topicParams[topic].meshFailurePenaltyDecay = 0.9
+      node.topicParams[topic].meshFailurePenaltyWeight = -5.0
 
     startNodesAndDeferStop(nodes)
 
-    # And Node 0 is center node, connected to all others
-    await connectNodes(nodes[0], nodes[1]) # center to Node 1 (valid messages)
-
+    # And Nodes are connected and subscribed to the topic
+    await connectNodes(nodes[0], nodes[1])
     nodes.subscribeAllNodes(topic, voidTopicHandler)
+
+    # When scoring heartbeat occurs
+    # Then Peer has negative score due to active meshMessageDeliveries deficit
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+      nodes[0].mesh.getOrDefault(topic).len == numberOfNodes - 1
+      # p1 (time in mesh) - p3 (mesh message deliveries)
+      nodes[0].getPeerScore(node1PeerId) < -249.0
+
+    # When Peer is unsubscribed
+    nodes[1].unsubscribe(topic, voidTopicHandler)
+
+    # Then meshFailurePenalty is applied due to active meshMessageDeliveries deficit
+    checkUntilTimeout:
+      nodes[0].getPeerTopicInfo(node1PeerId, topic).meshFailurePenalty == 25
+
+    # When next scoring heartbeat occurs
+    # Then Peer has negative score
+    checkUntilTimeout:
+      # p3b (mesh failure penalty) [p1 and p3 not calculated when peer was pruned]
+      nodes[0].getPeerScore(node1PeerId) == -125.0
+
+    # When Peer subscribes again
+    nodes[1].subscribe(topic, voidTopicHandler)
+
+    # Then Peer is not grafted to the mesh due to negative score (score was retained)
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+      nodes[0].mesh.getOrDefault(topic).len == 0

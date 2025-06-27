@@ -267,19 +267,20 @@ proc getNodeByPeerId*[T: PubSub](nodes: seq[T], peerId: PeerId): GossipSub =
   return filteredNodes[0]
 
 proc getPeerByPeerId*[T: PubSub](node: T, topic: string, peerId: PeerId): PubSubPeer =
-  let filteredPeers = node.gossipsub[topic].toSeq().filterIt(it.peerId == peerId)
+  let filteredPeers =
+    node.gossipsub.getOrDefault(topic).toSeq().filterIt(it.peerId == peerId)
   check:
     filteredPeers.len == 1
   return filteredPeers[0]
-
-proc getPeerScore*(node: GossipSub, peerId: PeerId, topic: string): float64 =
-  return node.getPeerByPeerId(topic, peerId).score
 
 proc getPeerStats*(node: GossipSub, peerId: PeerId): PeerStats =
   node.peerStats.withValue(peerId, stats):
     return stats[]
 
-proc getTopicInfo*(node: GossipSub, peerId: PeerId, topic: string): TopicInfo =
+proc getPeerScore*(node: GossipSub, peerId: PeerId): float64 =
+  return node.getPeerStats(peerId).score
+
+proc getPeerTopicInfo*(node: GossipSub, peerId: PeerId, topic: string): TopicInfo =
   return node.getPeerStats(peerId).topicInfos.getOrDefault(topic)
 
 proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
