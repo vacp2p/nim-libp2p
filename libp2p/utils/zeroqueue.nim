@@ -9,10 +9,13 @@
 
 import std/deques
 
-type Chunk = object
+type Chunk = ref object
   data: seq[byte]
   size: int
   start: int
+
+template clone(c: Chunk): Chunk =
+  Chunk(data: c.data, size: c.size, start: c.start)
 
 template newChunk(b: sink seq[byte]): Chunk =
   Chunk(data: b, size: b.len, start: 0)
@@ -52,7 +55,7 @@ proc popChunk(q: var ZeroQueue, count: int): Chunk {.inline.} =
 
   # first chunk has more elements then requested count, 
   # queue will return view of first count elements, leaving the rest in the queue
-  var ret = first
+  var ret = first.clone()
   ret.size = ret.start + count
   first.start += count
   q.chunks.addFirst(first)
