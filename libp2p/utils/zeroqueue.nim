@@ -61,7 +61,7 @@ proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
   while consumed < nbytes and not q.isEmpty():
     let chunk = q.popChunk(nbytes - consumed)
     let dest = cast[pointer](cast[ByteAddress](pbytes) + consumed)
-    let offsetPtr = cast[ptr byte](cast[int](chunk.data[0].addr) + chunk.start)
+    let offsetPtr = cast[ptr byte](cast[int](unsafeAddr chunk.data[0]) + chunk.start)
     copyMem(dest, offsetPtr, chunk.len())
     consumed += chunk.len()
 
@@ -73,7 +73,7 @@ proc popChunkSeq*(q: var ZeroQueue, count: int): seq[byte] =
 
   let chunk = q.popChunk(count)
   var dest = newSeq[byte](chunk.len())
-  let offsetPtr = cast[ptr byte](cast[int](chunk.data[0].addr) + chunk.start)
+  let offsetPtr = cast[ptr byte](cast[int](unsafeAddr chunk.data[0]) + chunk.start)
   copyMem(dest[0].addr, offsetPtr, chunk.len())
 
   return dest
