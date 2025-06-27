@@ -30,7 +30,7 @@ const
 
 type AutoTLSError* = object of LPError
 
-proc checkedGetPrimaryIPAddr(): IpAddress {.raises: [AutoTLSError].} =
+proc checkedGetPrimaryIPAddr*(): IpAddress {.raises: [AutoTLSError].} =
   # This is so that we don't need to catch Exceptions directly
   # since we support 1.6.16 and getPrimaryIPAddr before nim 2 didn't have explicit .raises. pragmas
   try:
