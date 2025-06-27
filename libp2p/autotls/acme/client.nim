@@ -16,6 +16,8 @@ import ./api, ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
 
+export api
+
 type KeyAuthorization* = string
 
 type ACMEClient* = object
@@ -37,13 +39,13 @@ proc new*(
   let registerResponse = await api.requestRegister(key)
   T(api: api, key: key, kid: registerResponse.kid)
 
-proc genKeyAuthorization(self: ACMEClient, token: string): KeyAuthorization =
+proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
   base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toByteSeq).data))
 
 proc getChallenge*(
     self: ACMEClient, domains: seq[api.Domain]
-): Future[ACMEChallengeResponseWrapper] {.raises: [ACMEError, CancelledError].} =
-  self.api.requestChallenge(domains, self.key, self.kid)
+): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
+  await self.api.requestChallenge(domains, self.key, self.kid)
 
 proc getCertificate*(
     self: ACMEClient, domain: api.Domain, challenge: ACMEChallengeResponseWrapper
@@ -66,5 +68,5 @@ proc getCertificate*(
 
   await self.api.downloadCertificate(orderURL)
 
-proc close*(self: ACMEClient): Future[void] {.async: (raises: [CancelledError]).} =
+proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =
   await self.api.close()
