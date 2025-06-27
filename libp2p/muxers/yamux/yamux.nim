@@ -12,6 +12,7 @@
 import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
+import ../../utils/zeroqueue
 
 export muxer
 
@@ -151,7 +152,7 @@ type
     opened: bool
     isSending: bool
     sendQueue: seq[ToSend]
-    recvQueue: seq[byte]
+    recvQueue: ZeroQueue
     isReset: bool
     remoteReset: bool
     closedRemotely: AsyncEvent
@@ -229,7 +230,6 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).}
   for (d, s, fut) in channel.sendQueue:
     fut.fail(newLPStreamEOFError())
   channel.sendQueue = @[]
-  channel.recvQueue = @[]
   channel.sendWindow = 0
   if not channel.closedLocally:
     if isLocal and not channel.isSending:
@@ -257,7 +257,7 @@ proc updateRecvWindow(
     return
 
   let delta = channel.maxRecvWindow - inWindow
-  channel.recvWindow.inc(delta)
+  channel.recvWindow.inc(delta.int)
   await channel.conn.write(YamuxHeader.windowUpdate(channel.id, delta.uint32))
   trace "increasing the recvWindow", delta
 
@@ -279,7 +279,7 @@ method readOnce*(
         newLPStreamConnDownError()
   if channel.isEof:
     raise newLPStreamRemoteClosedError()
-  if channel.recvQueue.len == 0:
+  if channel.recvQueue.isEmpty():
     channel.receivedData.clear()
     let
       closedRemotelyFut = channel.closedRemotely.wait()
@@ -290,28 +290,23 @@ method readOnce*(
       if not receivedDataFut.finished():
         await receivedDataFut.cancelAndWait()
     await closedRemotelyFut or receivedDataFut
-    if channel.closedRemotely.isSet() and channel.recvQueue.len == 0:
+    if channel.closedRemotely.isSet() and channel.recvQueue.isEmpty():
       channel.isEof = true
       return
         0 # we return 0 to indicate that the channel is closed for reading from now on
 
-  let toRead = min(channel.recvQueue.len, nbytes)
-
-  var p = cast[ptr UncheckedArray[byte]](pbytes)
-  toOpenArray(p, 0, nbytes - 1)[0 ..< toRead] =
-    channel.recvQueue.toOpenArray(0, toRead - 1)
-  channel.recvQueue = channel.recvQueue[toRead ..^ 1]
+  let consumed = channel.recvQueue.consumeTo(pbytes, nbytes)
 
   # We made some room in the recv buffer let the peer know
   await channel.updateRecvWindow()
   channel.activity = true
-  return toRead
+  return consumed
 
 proc gotDataFromRemote(
     channel: YamuxChannel, b: seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   channel.recvWindow -= b.len
-  channel.recvQueue = channel.recvQueue.concat(b)
+  channel.recvQueue.push(b)
   channel.receivedData.fire()
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_recv_queue.observe(channel.recvQueue.len.int64)
