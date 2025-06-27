@@ -403,7 +403,7 @@ suite "GossipSub Integration - Scoring":
           gossip = true,
           verifySignature = false,
             # Disable signature verification to isolate validation penalties
-          decayInterval = 100.milliseconds, # scoring heartbeat interval
+          decayInterval = 200.milliseconds, # scoring heartbeat interval
           heartbeatInterval = 5.seconds,
             # heartbeatInterval >>> decayInterval to prevent prunning peers with bad score
           publishThreshold = -150.0,
@@ -448,13 +448,16 @@ suite "GossipSub Integration - Scoring":
     # When messages are broadcasted
     const messagesToSend = 5
     for i in 0 ..< messagesToSend:
-      let validMsg =
-        RPCMsg(messages: @[Message(topic: topic, data: ("valid_" & $i).toBytes())])
-      nodes[1].broadcast(nodes[1].mesh[topic], validMsg, isHighPriority = true)
-
-      let invalidMsg =
-        RPCMsg(messages: @[Message(topic: topic, data: ("invalid_" & $i).toBytes())])
-      nodes[2].broadcast(nodes[2].mesh[topic], invalidMsg, isHighPriority = true)
+      nodes[1].broadcast(
+        nodes[1].mesh[topic],
+        RPCMsg(messages: @[Message(topic: topic, data: ("valid_" & $i).toBytes())]),
+        isHighPriority = true,
+      )
+      nodes[2].broadcast(
+        nodes[2].mesh[topic],
+        RPCMsg(messages: @[Message(topic: topic, data: ("invalid_" & $i).toBytes())]),
+        isHighPriority = true,
+      )
 
     # And messages are processed
     # Then invalidMessageDeliveries stats are applied
