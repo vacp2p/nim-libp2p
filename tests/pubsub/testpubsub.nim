@@ -5,3 +5,6 @@ import
   testscoring, testtimedcache
 
 import ./integration/testpubsubintegration
+
+when defined(libp2p_gossipsub_1_4):
+  import testpreamblestore

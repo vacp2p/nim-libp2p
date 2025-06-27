@@ -120,7 +120,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id, id, id])
 
     # When a peer makes an IWANT request for the a message that `gossipSub` has
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then `gossipSub` should return the message
     check:
@@ -146,7 +146,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id])
 
     # When IWant is handled
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then IWant is ignored
     check:

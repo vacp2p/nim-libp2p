@@ -77,6 +77,31 @@ proc write*(pb: var ProtoBuffer, field: int, iwant: ControlIWant) =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["iwant"])
 
+proc write*(pb: var ProtoBuffer, field: int, preamble: ControlPreamble) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, preamble.topicID)
+  ipb.write(2, preamble.messageID)
+  ipb.write(3, preamble.messageLength)
+
+  if len(ipb.buffer) > 0:
+    ipb.finish()
+    pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["preamble"])
+
+proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, imreceiving.messageID)
+  ipb.write(2, imreceiving.messageLength)
+
+  if len(ipb.buffer) > 0:
+    ipb.finish()
+    pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["imreceiving"])
+
 proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
   var ipb = initProtoBuffer()
   for ihave in control.ihave:
@@ -89,6 +114,11 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
     ipb.write(4, prune)
   for idontwant in control.idontwant:
     ipb.write(5, idontwant)
+  when defined(libp2p_gossipsub_1_4):
+    for preamble in control.preamble:
+      ipb.write(6, preamble)
+    for imreceiving in control.imreceiving:
+      ipb.write(7, imreceiving)
   if len(ipb.buffer) > 0:
     ipb.finish()
     pb.write(field, ipb)
@@ -197,6 +227,43 @@ proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] {.inline.} =
     trace "decodeIWant: no messageIDs"
   ok(control)
 
+proc decodePreamble*(pb: ProtoBuffer): ProtoResult[ControlPreamble] {.inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["preamble"])
+
+  trace "decodePreamble: decoding message"
+  var control = ControlPreamble()
+  if ?pb.getField(1, control.topicID):
+    trace "decodePreamble: read topicID", topic = control.topicID
+  else:
+    trace "decodePreamble: topicID is missing"
+  if ?pb.getField(2, control.messageID):
+    trace "decodePreamble: read messageID", message_id = control.messageID
+  else:
+    trace "decodePreamble: messageID is missing"
+  if ?pb.getField(3, control.messageLength):
+    trace "decodePreamble: read message Length", message_length = control.messageLength
+  else:
+    trace "decodePreamble: message Length is missing"
+  ok(control)
+
+proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[ControlIMReceiving] {.inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["imreceiving"])
+
+  trace "decodeIMReceiving: decoding message"
+  var control = ControlIMReceiving()
+  if ?pb.getField(1, control.messageID):
+    trace "decodeIMReceiving: read messageID", message_id = control.messageID
+  else:
+    trace "decodeIMReceiving: messageID is missing"
+  if ?pb.getField(2, control.messageLength):
+    trace "decodeIMReceiving: read message Length",
+      message_length = control.messageLength
+  else:
+    trace "decodeIMReceiving: message Length is missing"
+  ok(control)
+
 proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inline.} =
   trace "decodeControl: decoding message"
   var buffer: seq[byte]
@@ -208,6 +275,10 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     var graftpbs: seq[seq[byte]]
     var prunepbs: seq[seq[byte]]
     var idontwant: seq[seq[byte]]
+    when defined(libp2p_gossipsub_1_4):
+      var preamble: seq[seq[byte]]
+      var imreceiving: seq[seq[byte]]
+
     if ?cpb.getRepeatedField(1, ihavepbs):
       for item in ihavepbs:
         control.ihave.add(?decodeIHave(initProtoBuffer(item)))
@@ -223,6 +294,15 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     if ?cpb.getRepeatedField(5, idontwant):
       for item in idontwant:
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
+
+    when defined(libp2p_gossipsub_1_4):
+      if ?cpb.getRepeatedField(6, preamble):
+        for item in preamble:
+          control.preamble.add(?decodePreamble(initProtoBuffer(item)))
+      if ?cpb.getRepeatedField(7, imreceiving):
+        for item in imreceiving:
+          control.imreceiving.add(?decodeIMReceiving(initProtoBuffer(item)))
+
     trace "decodeControl: message statistics",
       graft_count = len(control.graft),
       prune_count = len(control.prune),
