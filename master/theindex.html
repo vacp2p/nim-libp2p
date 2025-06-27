@@ -4565,17 +4565,27 @@ window.addEventListener('DOMContentLoaded', main);
           </ul></dd>
 <dt><a name="publish" href="#publish"><span>publish:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="floodsub: publish(f: FloodSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
-    int, void]" href="libp2p/protocols/pubsub/floodsub.html#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool">floodsub: publish(f: FloodSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+          data-doc-search-tag="floodsub: publish(f: FloodSub; topic: string; data: seq[byte];
+        publishParams: Option[PublishParams] = none(PublishParams)): InternalRaisesFuture[
+    int, void]" href="libp2p/protocols/pubsub/floodsub.html#publish.e%2CFloodSub%2Cstring%2Cseq%5Bbyte%5D%2COption%5BPublishParams%5D">floodsub: publish(f: FloodSub; topic: string; data: seq[byte];
+        publishParams: Option[PublishParams] = none(PublishParams)): InternalRaisesFuture[
     int, void]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="gossipsub: publish(g: GossipSub; topic: string; data: seq[byte];
-        useCustomConn: bool = false): InternalRaisesFuture[int, void]" href="libp2p/protocols/pubsub/gossipsub.html#publish.e%2CGossipSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool">gossipsub: publish(g: GossipSub; topic: string; data: seq[byte];
-        useCustomConn: bool = false): InternalRaisesFuture[int, void]</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="pubsub: publish(p: PubSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
-    int, void]" href="libp2p/protocols/pubsub/pubsub.html#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D%2Cbool">pubsub: publish(p: PubSub; topic: string; data: seq[byte]; useCustomConn: bool = false): InternalRaisesFuture[
+        publishParams: Option[PublishParams] = none(PublishParams)): InternalRaisesFuture[
+    int, void]" href="libp2p/protocols/pubsub/gossipsub.html#publish.e%2CGossipSub%2Cstring%2Cseq%5Bbyte%5D%2COption%5BPublishParams%5D">gossipsub: publish(g: GossipSub; topic: string; data: seq[byte];
+        publishParams: Option[PublishParams] = none(PublishParams)): InternalRaisesFuture[
     int, void]</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="pubsub: publish(p: PubSub; topic: string; data: seq[byte];
+        publishParams: Option[PublishParams] = none(PublishParams)): InternalRaisesFuture[
+    int, void]" href="libp2p/protocols/pubsub/pubsub.html#publish.e%2CPubSub%2Cstring%2Cseq%5Bbyte%5D%2COption%5BPublishParams%5D">pubsub: publish(p: PubSub; topic: string; data: seq[byte];
+        publishParams: Option[PublishParams] = none(PublishParams)): InternalRaisesFuture[
+    int, void]</a></li>
+          </ul></dd>
+<dt><a name="PublishParams" href="#PublishParams"><span>PublishParams:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="pubsub: PublishParams" href="libp2p/protocols/pubsub/pubsub.html#PublishParams">pubsub: PublishParams</a></li>
           </ul></dd>
 <dt><a name="PubSub" href="#PubSub"><span>PubSub:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -6602,7 +6612,7 @@ window.addEventListener('DOMContentLoaded', main);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-27 16:52:18 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-06-27 21:40:16 UTC</small>
       </div>
     </div>
   </div>
