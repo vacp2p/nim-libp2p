@@ -382,7 +382,7 @@ suite "GossipSub Integration - Scoring":
       nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries in
         50.0 .. 66.0
 
-  asyncTest "Nodes publishing invalid messages are penalized and disconnected":
+  asyncTest "Nodes publishing invalid messages are penalised and disconnected":
     # Given GossipSub nodes with Topic Params
     const
       topic = "foobar"
@@ -413,13 +413,13 @@ suite "GossipSub Integration - Scoring":
 
     startNodesAndDeferStop(nodes)
 
-    # And Node 0 is center node, connected to all others
+    # And Node 0 is center node, connected to others
     await connectNodes(nodes[0], nodes[1]) # center to Node 1 (valid messages)
     await connectNodes(nodes[0], nodes[2]) # center to Node 2 (invalid messages) 
 
     nodes.subscribeAllNodes(topic, voidTopicHandler)
 
-    # And center node has message validator: accept from node 1, reject from nodes 2&3
+    # And center node has message validator: accept from node 1, reject from node 2
     var validatedMessageCount = 0
     proc validationHandler(
         topic: string, message: Message
@@ -481,7 +481,7 @@ suite "GossipSub Integration - Scoring":
     checkUntilTimeout:
       centerNode.mesh[topic].toSeq().len == 1
 
-  asyncTest "Nodes not meeting Mesh Message Deliveries Threshold are penalized":
+  asyncTest "Nodes not meeting Mesh Message Deliveries Threshold are penalised":
     # Given GossipSub nodes with Topic Params
     const
       topic = "foobar"
