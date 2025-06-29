@@ -88,7 +88,7 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
   var ticket1 = await api1.pubsubSubscribe("test-topic", pubsubHandler1)
   var ticket2 = await api2.pubsubSubscribe("test-topic", pubsubHandler2)
 
-  await sleepAsync(2.seconds)
+  await sleepAsync(1.seconds)
 
   var topics1 = await api1.pubsubGetTopics()
   var topics2 = await api2.pubsubGetTopics()
@@ -98,10 +98,10 @@ proc pubsubTest(f: set[P2PDaemonFlags]): Future[bool] {.async.} =
     var peers2 = await api2.pubsubListPeers("test-topic")
     if len(peers1) == 1 and len(peers2) == 1:
       # Publish test data via api1.
-      await sleepAsync(500.milliseconds)
+      await sleepAsync(250.milliseconds)
       await api1.pubsubPublish("test-topic", msgData)
       var res =
-        await one(allFutures(handlerFuture1, handlerFuture2), sleepAsync(10.seconds))
+        await one(allFutures(handlerFuture1, handlerFuture2), sleepAsync(5.seconds))
 
   await api1.close()
   await api2.close()
