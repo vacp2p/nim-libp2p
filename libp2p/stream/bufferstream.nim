@@ -116,8 +116,8 @@ method readOnce*(
 
   if s.returnedEof:
     raise newLPStreamEOFError()
-  
-  if not s.isEof and s.readBuf.isEmpty:
+
+  if not s.isEof and s.readBuf.len < nbytes:
     let buf =
       try:
         s.reading = true
