@@ -12,7 +12,7 @@
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics]
 import
-  ./coder, ../muxer, ../../stream/[bufferstream, connection, streamseq], ../../peerinfo
+  ./coder, ../muxer, ../../stream/[bufferstream, connection], ../../peerinfo
 
 export connection
 
