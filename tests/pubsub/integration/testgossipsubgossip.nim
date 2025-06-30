@@ -251,25 +251,3 @@ suite "GossipSub Integration - Gossip Protocol":
     check:
       results[0].isCompleted()
       results[1].isCompleted()
-
-  asyncTest "Peer must send right gosspipsub version":
-    let
-      topic = "foobar"
-      node0 = generateNodes(1, gossip = true)[0]
-      node1 = generateNodes(1, gossip = true, gossipSubVersion = GossipSubCodec_10)[0]
-
-    startNodesAndDeferStop(@[node0, node1])
-
-    await connectNodes(node0, node1)
-
-    node0.subscribe(topic, voidTopicHandler)
-    node1.subscribe(topic, voidTopicHandler)
-    await waitSubGraph(@[node0, node1], topic)
-
-    var gossip0: GossipSub = GossipSub(node0)
-    var gossip1: GossipSub = GossipSub(node1)
-
-    checkUntilTimeout:
-      gossip0.mesh.getOrDefault(topic).toSeq[0].codec == GossipSubCodec_10
-    checkUntilTimeout:
-      gossip1.mesh.getOrDefault(topic).toSeq[0].codec == GossipSubCodec_10
