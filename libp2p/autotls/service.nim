@@ -44,6 +44,8 @@ const
   AutoTLSDNSServer* = "libp2p.direct"
   HttpOk* = 200
   HttpCreated* = 201
+  # NoneIp is needed because nim 1.6.16 can't do proper generic inference
+  NoneIp = Opt.none(IpAddress)
 
 type SigParam = object
   k: string
@@ -53,7 +55,7 @@ type AutotlsCert* = ref object
   cert*: TLSCertificate
   expiry*: Moment
 
-type AutotlsConfig* = object
+type AutotlsConfig* = ref object
   acmeServerURL*: Uri
   dnsResolver*: DnsResolver
   ipAddress: Opt[IpAddress]
@@ -82,9 +84,9 @@ proc getCertWhenReady*(
 
 proc new*(
     T: typedesc[AutotlsConfig],
+    ipAddress: Opt[IpAddress] = NoneIp,
     nameServers: seq[TransportAddress] = DefaultDnsServers,
     acmeServerURL: Uri = parseUri(LetsEncryptURL),
-    ipAddress: Opt[IpAddress] = Opt.none(IpAddress),
     renewCheckTime: Duration = DefaultRenewCheckTime,
     renewBufferTime: Duration = DefaultRenewBufferTime,
 ): T =
@@ -100,7 +102,7 @@ proc new*(
     T: typedesc[AutotlsService],
     rng: ref HmacDrbgContext = newRng(),
     config: AutotlsConfig = AutotlsConfig.new(),
-): AutotlsService =
+): T =
   T(
     acmeClient: ACMEClient.new(api = ACMEApi.new(acmeServerURL = config.acmeServerURL)),
     brokerClient: PeerIDAuthClient.new(),

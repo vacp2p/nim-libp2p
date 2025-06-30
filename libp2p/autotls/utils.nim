@@ -54,8 +54,10 @@ proc isPublic*(ip: IpAddress): bool {.raises: [AutoTLSError].} =
 
 proc getPublicIPAddress*(): IpAddress {.raises: [AutoTLSError].} =
   let ip = checkedGetPrimaryIPAddr()
-  assert ip.isIPv4(), "Host does not have an IPv4 address"
-  assert ip.isPublic(), "Host does not have a public IPv4 address"
+  if not ip.isIPv4():
+    raise newException(AutoTLSError, "Host does not have an IPv4 address")
+  if not ip.isPublic():
+    raise newException(AutoTLSError, "Host does not have a public IPv4 address")
   return ip
 
 proc asMoment*(dt: DateTime): Moment =

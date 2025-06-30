@@ -466,6 +466,7 @@ proc checkCertFinalized*(
     else:
       error "Failed certificate finalization",
         description = "expected 'valid', got '" & $checkResponse.orderStatus & "'"
+      return false # do not try again
 
   return false
 

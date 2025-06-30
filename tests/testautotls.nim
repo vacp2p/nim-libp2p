@@ -228,14 +228,14 @@ suite "AutoTLS ACME API":
         body: %*{"status": "invalid"}, headers: HttpTable.init(@[("Retry-After", "0")])
       )
     )
-    expect(ACMEError):
-      discard await api.certificateFinalized(
-        "some-domain",
-        parseUri("http://example.com/some-finalize-url"),
-        parseUri("http://example.com/some-order-url"),
-        key,
-        "kid",
-      )
+    let finalized = await api.certificateFinalized(
+      "some-domain",
+      parseUri("http://example.com/some-finalize-url"),
+      parseUri("http://example.com/some-order-url"),
+      key,
+      "kid",
+    )
+    check finalized == false
 
   asyncTest "expect error on invalid JSON response":
     # add a couple invalid responses as they get popped by every get or post call
@@ -311,7 +311,7 @@ suite "AutoTLS ACME Client":
     )
 
     acme = ACMEClient.new(api = ACMEApi(acmeApi))
-    let kid = await acme.getKid()
+    let kid = await acme.getOrInitKid()
     check kid == "some-expected-kid"
 
   asyncTest "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
@@ -342,7 +342,7 @@ suite "AutoTLS ACME Client":
       )
     )
     acme = ACMEClient.new(api = ACMEApi(acmeApi))
-    let kid = await acme.getKid()
+    let kid = await acme.getOrInitKid()
     check kid == "some-expected-kid"
 
     let challenge = ACMEChallengeResponseWrapper(

@@ -39,7 +39,7 @@ proc new*(
     KeyPair.random(PKScheme.RSA, rng[]).get()
   T(api: api, key: key, kid: kid)
 
-proc getKid*(
+proc getOrInitKid*(
     self: ACMEClient
 ): Future[Kid] {.async: (raises: [ACMEError, CancelledError]).} =
   if self.kid.len == 0:
@@ -53,7 +53,7 @@ proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
 proc getChallenge*(
     self: ACMEClient, domains: seq[api.Domain]
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
-  await self.api.requestChallenge(domains, self.key, await self.getKid())
+  await self.api.requestChallenge(domains, self.key, await self.getOrInitKid())
 
 proc getCertificate*(
     self: ACMEClient, domain: api.Domain, challenge: ACMEChallengeResponseWrapper
@@ -61,24 +61,25 @@ proc getCertificate*(
   let chalURL = parseUri(challenge.dns01.url)
   let orderURL = parseUri(challenge.order)
   let finalizeURL = parseUri(challenge.finalize)
-  debug "sending challenge completed notification"
-  discard await self.api.sendChallengeCompleted(chalURL, self.key, await self.getKid())
+  trace "sending challenge completed notification"
+  discard
+    await self.api.sendChallengeCompleted(chalURL, self.key, await self.getOrInitKid())
 
-  debug "checking for completed challenge"
+  trace "checking for completed challenge"
   let completed =
-    await self.api.checkChallengeCompleted(chalURL, self.key, await self.getKid())
+    await self.api.checkChallengeCompleted(chalURL, self.key, await self.getOrInitKid())
   if not completed:
     raise
       newException(ACMEError, "Failed to signal ACME server about challenge completion")
 
-  debug "waiting for certificate to be finalized"
+  trace "waiting for certificate to be finalized"
   let finalized = await self.api.certificateFinalized(
-    domain, finalizeURL, orderURL, self.key, await self.getKid()
+    domain, finalizeURL, orderURL, self.key, await self.getOrInitKid()
   )
   if not finalized:
     raise newException(ACMEError, "Failed to finalize certificate for domain " & domain)
 
-  debug "downloading certificate"
+  trace "downloading certificate"
   await self.api.downloadCertificate(orderURL)
 
 proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =

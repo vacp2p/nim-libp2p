@@ -67,12 +67,13 @@ when defined(linux) and defined(amd64):
 
       let challenge = await acme.getChallenge(@["some.dummy.domain.com"])
 
-      check challenge.finalize.len > 0
-      check challenge.order.len > 0
-      check challenge.dns01.url.len > 0
-      check challenge.dns01.`type` == ACMEChallengeType.DNS01
-      check challenge.dns01.status == ACMEChallengeStatus.PENDING
-      check challenge.dns01.token.len > 0
+      check:
+        challenge.finalize.len > 0
+        challenge.order.len > 0
+        challenge.dns01.url.len > 0
+        challenge.dns01.`type` == ACMEChallengeType.DNS01
+        challenge.dns01.status == ACMEChallengeStatus.PENDING
+        challenge.dns01.token.len > 0
 
     asyncTest "AutotlsService correctly downloads challenges":
       let ip =
@@ -82,16 +83,16 @@ when defined(linux) and defined(amd64):
           skip() # host doesn't have public IPv4 address
           return
 
-      let config = AutotlsConfig.new(
-        acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
-      )
-
       let switch = SwitchBuilder
         .new()
         .withRng(newRng())
         .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
         .withTcpTransport()
-        .withAutotls(config = config)
+        .withAutotls(
+          config = AutotlsConfig.new(
+            acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
+          )
+        )
         .withYamux()
         .withNoise()
         .build()
@@ -101,13 +102,16 @@ when defined(linux) and defined(amd64):
         await switch.stop()
 
       # find autotls in list of services
-      var autotls: AutotlsService
+      var autotls: AutotlsService = nil
       for service in switch.services:
         try:
           autotls = AutotlsService(service)
           break
         except:
           continue
+
+      if autotls.isNil():
+        raiseAssert "autotls service not found in switch"
 
       # wait for cert to be ready
       await autotls.certReady.wait()
@@ -131,7 +135,8 @@ when defined(linux) and defined(amd64):
       let certBefore = cert
 
       # invalidate certificate
-      cert.expiry = Moment.now - 2.hours
+      let invalidCert = AutotlsCert.new(cert.cert, Moment.now - 2.hours)
+      autotls.cert = Opt.some(invalidCert)
 
       # wait for cert to be renewed
       await autotls.certReady.wait()
