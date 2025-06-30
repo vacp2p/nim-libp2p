@@ -393,7 +393,9 @@ suite "GossipSub Integration - Control Messages":
       topic = "foobar"
       nodeA = generateNodes(1, gossip = true).toGossipSub()[0]
       nodeB = generateNodes(1, gossip = true).toGossipSub()[0]
-      nodeC = generateNodes(1, gossip = true, gossipSubVersion = GossipSubCodec_11)
+      nodeC = generateNodes(
+        1, gossip = true, codecs = @[GossipSubCodec_11, GossipSubCodec_10]
+      )
       .toGossipSub()[0]
 
     startNodesAndDeferStop(@[nodeA, nodeB, nodeC])
