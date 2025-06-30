@@ -42,7 +42,7 @@ chronicles.formatIt(BufferStream):
   shortLog(it)
 
 proc len*(s: BufferStream): int =
-  s.readBuf.len + (if s.readQueue.len > 0: s.readQueue[0].len()
+  s.readBuf.len.int + (if s.readQueue.len > 0: s.readQueue[0].len()
   else: 0)
 
 method initStream*(s: BufferStream) =
