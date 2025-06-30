@@ -48,6 +48,7 @@ const
   PingsPeerBudget* = 100 # maximum of 6.4kb/heartbeat (6.4kb/s with default 1 second/hb)
   IHavePeerBudget* = 10
   PreamblePeerBudget* = 10
+  PullOperation* = false
   # the max amount of IHave to expose, not by spec, but go as example
   # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572
   # go: https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L155

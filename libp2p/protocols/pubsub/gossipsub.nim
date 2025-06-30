@@ -553,17 +553,32 @@ proc validateAndRelay(
             msg.data.len.int64, labelValues = ["idontwant"]
           )
           return true
-      when defined(libp2p_gossipsub_1_4):
-        if it.heIsReceivings.hasKey(msgId):
-          libp2p_gossipsub_imreceiving_saved_messages.inc
-          return true
       return false
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     when defined(libp2p_gossipsub_1_4):
-      g.sendPreamble(msg, msgId, toSendPeers)
+      proc isMsgInIMReceiving(it: PubSubPeer): bool =
+        if it.heIsReceivings.hasKey(msgId):
+          libp2p_gossipsub_imreceiving_saved_messages.inc
+          return true
+        return false
 
+      proc deferSend(deferPeers: HashSet[PubSubPeer]) {.async.} =
+        let receiveTimeMs = calculateReceiveTimeMs(msg.data.len)
+        await sleepAsync(receiveTimeMs.milliseconds)
+        for deferPeer in deferPeers:
+          if not deferPeer.isMsgInIdontWant:
+            #No need to send preamble at timeout
+            g.broadcast(@[deferPeer], RPCMsg(messages: @[msg]), isHighPriority = false)
+
+      let allPeers = toSendPeers
+      toSendPeers.exclIfIt(isMsgInIMReceiving(it))
+      g.sendPreamble(msg, msgId, toSendPeers)
+      if not PullOperation:
+        let receivingPeers = allPeers - toSendPeers
+        asyncSpawn deferSend(receivingPeers)
+ 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)

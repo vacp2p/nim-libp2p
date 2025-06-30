@@ -397,11 +397,9 @@ when defined(libp2p_gossipsub_1_4):
           toSendPeers.incl(peers[])
         toSendPeers.incl(g.subscribedDirectPeers.getOrDefault(preamble.topicID))
         var peers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
-        let bytesPerSecond = peer.bandwidthTracking.download.value().uint64
-        let transmissionTimeMs =
-          (preamble.messageLength.uint64 * 1000) div bytesPerSecond
-        #Need many testruns to precisely adjust safety margin
-        let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
+        let bytesPerSecond = peer.bandwidthTracking.download.value()
+        let transmissionTimeMs = calculateReceiveTimeMs(preamble.messageLength.int64, bytesPerSecond.int64)
+        let expires = starts + transmissionTimeMs.milliseconds
 
         #We send imreceiving only if received from mesh members
         if peer notin peers:
@@ -416,7 +414,7 @@ when defined(libp2p_gossipsub_1_4):
           PreambleInfo.init(preamble, peer, starts, expires)
 
         #Send imreceiving only if received from faster mesh members
-        if bytesPerSecond >= toSendPeers.medianDownloadRate().uint64:
+        if bytesPerSecond >= toSendPeers.medianDownloadRate():
           g.broadcast(
             peers,
             RPCMsg(
@@ -904,48 +902,48 @@ when defined(libp2p_gossipsub_1_4):
         var expiredOngoingReceive = g.ongoingReceives.popExpired(Moment.now()).valueOr:
           break
 
-        var possiblePeers = expiredOngoingReceive.possiblePeersToQuery()
-        g.rng.shuffle(possiblePeers)
+        if PullOperation:
+          var possiblePeers = expiredOngoingReceive.possiblePeersToQuery()
+          g.rng.shuffle(possiblePeers)
 
-        var peer: PubSubPeer = nil
-        for peerId in possiblePeers:
-          try:
-            if g.peers.hasKey(peerId) and g.peers[peerId].codec == GossipSubCodec_14:
-              peer = g.peers[peerId]
-              break
-          except KeyError:
-            assert false, "checked with hasKey"
+          var peer: PubSubPeer = nil
+          for peerId in possiblePeers:
+            try:
+              if g.peers.hasKey(peerId) and g.peers[peerId].codec == GossipSubCodec_14:
+                peer = g.peers[peerId]
+                break
+            except KeyError:
+              assert false, "checked with hasKey"
 
-        if peer.isNil:
-          trace "no peer available to send IWANT for an expiredOngoingReceive",
-            messageID = expiredOngoingReceive.messageId
-          continue
+          if peer.isNil:
+            trace "no peer available to send IWANT for an expiredOngoingReceive",
+              messageID = expiredOngoingReceive.messageId
+            continue
 
-        let starts = Moment.now()
+          let starts = Moment.now()
 
-        g.broadcast(
-          @[peer],
-          RPCMsg(
-            control: some(
-              ControlMessage(
-                iwant: @[ControlIWant(messageIDs: @[expiredOngoingReceive.messageId])]
+          g.broadcast(
+            @[peer],
+            RPCMsg(
+              control: some(
+                ControlMessage(
+                  iwant: @[ControlIWant(messageIDs: @[expiredOngoingReceive.messageId])]
+                )
               )
-            )
-          ),
-          isHighPriority = true,
-        )
+            ),
+            isHighPriority = true,
+          )
 
-        let bytesPerSecond = peer.bandwidthTracking.download.value().uint64
-        let transmissionTimeMs =
-          (expiredOngoingReceive.messageLength.uint64 * 1000) div bytesPerSecond
-        # Need many testruns to precisely adjust safety margin
-        let expires = starts + transmissionTimeMs.int64.milliseconds + 200.milliseconds
+          let bytesPerSecond = peer.bandwidthTracking.download.value()
+          let transmissionTimeMs = 
+            calculateReceiveTimeMs(expiredOngoingReceive.messageLength.int64, bytesPerSecond.int64)
+          let expires = starts + transmissionTimeMs.milliseconds
 
-        # Setting new data before reinserting the preamble
-        expiredOngoingReceive.startAt = starts
-        expiredOngoingReceive.expiresAt = expires
-        expiredOngoingReceive.sender = peer
-        g.ongoingIWantReceives[expiredOngoingReceive.messageId] = expiredOngoingReceive
+          # Setting new data before reinserting the preamble
+          expiredOngoingReceive.startAt = starts
+          expiredOngoingReceive.expiresAt = expires
+          expiredOngoingReceive.sender = peer
+          g.ongoingIWantReceives[expiredOngoingReceive.messageId] = expiredOngoingReceive
 
       while true:
         let expiredOngoingIWantReceived = g.ongoingIWantReceives.popExpired(
