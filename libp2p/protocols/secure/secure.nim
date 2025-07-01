@@ -15,7 +15,7 @@ import results
 import chronos, chronicles
 import
   ../protocol,
-  ../../stream/streamseq,
+  ../../utils/zeroqueue,
   ../../stream/connection,
   ../../multiaddress,
   ../../peerinfo
@@ -32,7 +32,7 @@ type
 
   SecureConn* = ref object of Connection
     stream*: Connection
-    buf: StreamSeq
+    buf: ZeroQueue
 
 func shortLog*(conn: SecureConn): auto =
   try:
@@ -174,11 +174,11 @@ method readOnce*(
   if s.isEof:
     raise newLPStreamEOFError()
 
-  if s.buf.data().len() == 0:
+  if s.buf.isEmpty:
     try:
       let buf = await s.readMessage() # Always returns >0 bytes or raises
       s.activity = true
-      s.buf.add(buf)
+      s.buf.push(buf)
     except LPStreamEOFError as err:
       s.isEof = true
       await s.close()
@@ -191,5 +191,4 @@ method readOnce*(
       await s.close()
       raise newException(LPStreamError, "Secure connection read error: " & err.msg, err)
 
-  var p = cast[ptr UncheckedArray[byte]](pbytes)
-  return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
+  return s.buf.consumeTo(pbytes, nbytes)
