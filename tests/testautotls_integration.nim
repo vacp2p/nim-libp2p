@@ -9,7 +9,6 @@
 
 {.push raises: [].}
 
-import uri
 import chronos
 import chronos/apps/http/httpclient
 import
