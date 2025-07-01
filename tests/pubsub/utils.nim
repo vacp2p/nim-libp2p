@@ -178,7 +178,7 @@ proc generateNodes*(
     enablePX: bool = false,
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
-    gossipSubVersion: string = "",
+    codecs: seq[string] = @[],
     sendIDontWantOnPublish: bool = false,
     heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
     floodPublish: bool = false,
@@ -228,8 +228,8 @@ proc generateNodes*(
         g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
         g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
         g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
-        if gossipSubVersion != "":
-          g.codecs = @[gossipSubVersion]
+        if codecs.len != 0:
+          g.codecs = codecs
         g.PubSub
       else:
         FloodSub.init(
