@@ -58,3 +58,36 @@ suite "GossipSub Integration - Compatibility":
 
       node2.getPeerByPeerId(topic, node0PeerId).codec == GossipSubCodec_10
       node2.getPeerByPeerId(topic, node1PeerId).codec == GossipSubCodec_10
+
+  asyncTest "IDONTWANT is sent only for GossipSubCodec_12":
+    # 4 nodes: nodeCenter in the center connected to the rest                  
+    let
+      nodeCenter = generateNodes(1, gossip = true).toGossipSub()[0]
+      nodeSender = generateNodes(1, gossip = true).toGossipSub()[0]
+      nodeCodec12 = generateNodes(1, gossip = true).toGossipSub()[0]
+      nodeCodec11 = generateNodes(
+        1, gossip = true, codecs = @[GossipSubCodec_11, GossipSubCodec_10]
+      )
+      .toGossipSub()[0]
+      nodes = @[nodeCenter, nodeSender, nodeCodec12, nodeCodec11]
+
+    startNodesAndDeferStop(nodes)
+
+    await connectNodes(nodeCenter, nodeSender)
+    await connectNodes(nodeCenter, nodeCodec12)
+    await connectNodes(nodeCenter, nodeCodec11)
+
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    await waitForHeartbeat()
+
+    # When A sends a message to the topic
+    tryPublish await nodeSender.publish(topic, newSeq[byte](10000)), 1
+
+    # Then nodeCenter sends IDONTWANT only to nodeCodec12 (because nodeCodec11.codec == GossipSubCodec_11)
+    checkUntilTimeout:
+      nodeCodec12.mesh.getOrDefault(topic).toSeq().allIt(
+        it.iDontWants.anyIt(it.len == 1)
+      )
+      nodeCodec11.mesh.getOrDefault(topic).toSeq().allIt(
+        it.iDontWants.allIt(it.len == 0)
+      )
