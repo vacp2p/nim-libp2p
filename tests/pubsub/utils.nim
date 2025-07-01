@@ -184,7 +184,7 @@ proc generateNodes*(
     enablePX: bool = false,
     overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
       Opt.none(tuple[bytes: int, interval: Duration]),
-    gossipSubVersion: string = "",
+    codecs: seq[string] = @[],
     sendIDontWantOnPublish: bool = false,
     heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
     floodPublish: bool = false,
@@ -195,6 +195,9 @@ proc generateNodes*(
     historyGossip = 5,
     gossipThreshold = -100.0,
     decayInterval = 1.seconds,
+    publishThreshold = -1000.0,
+    graylistThreshold = -10000.0,
+    disconnectBadPeers: bool = false,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -225,17 +228,16 @@ proc generateNodes*(
             p.opportunisticGraftThreshold = opportunisticGraftThreshold
             p.gossipThreshold = gossipThreshold
             p.decayInterval = decayInterval
+            p.publishThreshold = publishThreshold
+            p.graylistThreshold = graylistThreshold
+            p.disconnectBadPeers = disconnectBadPeers
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
           ),
         )
-        # set some testing params, to enable scores
-        g.topicParams.mgetOrPut("foobar", TopicParams.init()).topicWeight = 1.0
-        g.topicParams.mgetOrPut("foo", TopicParams.init()).topicWeight = 1.0
-        g.topicParams.mgetOrPut("bar", TopicParams.init()).topicWeight = 1.0
-        if gossipSubVersion != "":
-          g.codecs = @[gossipSubVersion]
+        if codecs.len != 0:
+          g.codecs = codecs
         g.PubSub
       else:
         FloodSub.init(
@@ -254,6 +256,10 @@ proc generateNodes*(
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
   return nodes.mapIt(GossipSub(it))
 
+proc setDefaultTopicParams*(nodes: seq[GossipSub], topic: string): void =
+  for node in nodes:
+    node.topicParams.mgetOrPut(topic, TopicParams.init()).topicWeight = 1.0
+
 proc getNodeByPeerId*[T: PubSub](nodes: seq[T], peerId: PeerId): GossipSub =
   let filteredNodes = nodes.filterIt(it.peerInfo.peerId == peerId)
   check:
@@ -261,10 +267,21 @@ proc getNodeByPeerId*[T: PubSub](nodes: seq[T], peerId: PeerId): GossipSub =
   return filteredNodes[0]
 
 proc getPeerByPeerId*[T: PubSub](node: T, topic: string, peerId: PeerId): PubSubPeer =
-  let filteredPeers = node.gossipsub[topic].toSeq().filterIt(it.peerId == peerId)
+  let filteredPeers =
+    node.gossipsub.getOrDefault(topic).toSeq().filterIt(it.peerId == peerId)
   check:
     filteredPeers.len == 1
   return filteredPeers[0]
+
+proc getPeerStats*(node: GossipSub, peerId: PeerId): PeerStats =
+  node.peerStats.withValue(peerId, stats):
+    return stats[]
+
+proc getPeerScore*(node: GossipSub, peerId: PeerId): float64 =
+  return node.getPeerStats(peerId).score
+
+proc getPeerTopicInfo*(node: GossipSub, peerId: PeerId, topic: string): TopicInfo =
+  return node.getPeerStats(peerId).topicInfos.getOrDefault(topic)
 
 proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,

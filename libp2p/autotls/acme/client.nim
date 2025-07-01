@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import uri
-import chronos, results, bio
+import chronos, results, bio, chronicles
 
 import ./api, ./utils
 import ../../crypto/crypto
@@ -20,24 +20,32 @@ export api
 
 type KeyAuthorization* = string
 
-type ACMEClient* = object
+type ACMEClient* = ref object
   api: ACMEApi
   key*: KeyPair
   kid*: Kid
 
+logScope:
+  topics = "libp2p acme client"
+
 proc new*(
     T: typedesc[ACMEClient],
-    api: Opt[ACMEApi] = Opt.none(ACMEApi),
-    key: Opt[KeyPair] = Opt.none(KeyPair),
     rng: ref HmacDrbgContext = newRng(),
-    acmeServerURL: Uri = parseUri(LetsEncryptURL),
-): Future[T] {.async: (raises: [ACMEError, CancelledError]).} =
-  let api = api.valueOr:
-    ACMEApi.new()
+    api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
+    key: Opt[KeyPair] = Opt.none(KeyPair),
+    kid: Kid = Kid(""),
+): T {.raises: [].} =
   let key = key.valueOr:
     KeyPair.random(PKScheme.RSA, rng[]).get()
-  let registerResponse = await api.requestRegister(key)
-  T(api: api, key: key, kid: registerResponse.kid)
+  T(api: api, key: key, kid: kid)
+
+proc getOrInitKid*(
+    self: ACMEClient
+): Future[Kid] {.async: (raises: [ACMEError, CancelledError]).} =
+  if self.kid.len == 0:
+    let registerResponse = await self.api.requestRegister(self.key)
+    self.kid = registerResponse.kid
+  return self.kid
 
 proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
   base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toByteSeq).data))
@@ -45,7 +53,7 @@ proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
 proc getChallenge*(
     self: ACMEClient, domains: seq[api.Domain]
 ): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
-  await self.api.requestChallenge(domains, self.key, self.kid)
+  await self.api.requestChallenge(domains, self.key, await self.getOrInitKid())
 
 proc getCertificate*(
     self: ACMEClient, domain: api.Domain, challenge: ACMEChallengeResponseWrapper
@@ -53,19 +61,25 @@ proc getCertificate*(
   let chalURL = parseUri(challenge.dns01.url)
   let orderURL = parseUri(challenge.order)
   let finalizeURL = parseUri(challenge.finalize)
-  discard await self.api.sendChallengeCompleted(chalURL, self.key, self.kid)
+  trace "sending challenge completed notification"
+  discard
+    await self.api.sendChallengeCompleted(chalURL, self.key, await self.getOrInitKid())
 
-  let completed = await self.api.checkChallengeCompleted(chalURL, self.key, self.kid)
+  trace "checking for completed challenge"
+  let completed =
+    await self.api.checkChallengeCompleted(chalURL, self.key, await self.getOrInitKid())
   if not completed:
     raise
       newException(ACMEError, "Failed to signal ACME server about challenge completion")
 
+  trace "waiting for certificate to be finalized"
   let finalized = await self.api.certificateFinalized(
-    domain, finalizeURL, orderURL, self.key, self.kid
+    domain, finalizeURL, orderURL, self.key, await self.getOrInitKid()
   )
   if not finalized:
     raise newException(ACMEError, "Failed to finalize certificate for domain " & domain)
 
+  trace "downloading certificate"
   await self.api.downloadCertificate(orderURL)
 
 proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =
