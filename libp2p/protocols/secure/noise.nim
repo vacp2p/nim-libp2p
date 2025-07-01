@@ -325,7 +325,7 @@ proc receiveHSMessage(
   readFrame(sconn)
 
 template sendHSMessage(sconn: Connection, parts: varargs[seq[byte]]): untyped =
-  # sends message (sends message frame) using multiple seq[byte] that 
+  # sends message (message frame) using multiple seq[byte] that 
   # concatenated represent entire mesage.
 
   var msgSize: int
