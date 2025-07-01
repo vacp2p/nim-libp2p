@@ -10,10 +10,9 @@
 {.push raises: [].}
 
 import std/strformat
-import stew/byteutils
 import chronos, chronicles, metrics
 import ../stream/connection
-import ./streamseq
+import ../utils/zeroqueue
 
 export connection
 
@@ -24,7 +23,7 @@ const BufferStreamTrackerName* = "BufferStream"
 
 type BufferStream* = ref object of Connection
   readQueue*: AsyncQueue[seq[byte]] # read queue for managing backpressure
-  readBuf*: StreamSeq # overflow buffer for readOnce
+  readBuf: ZeroQueue # zero queue buffer for readOnce
   pushing*: bool # number of ongoing push operations
   reading*: bool # is there an ongoing read? (only allow one)
   pushedEof*: bool # eof marker has been put on readQueue
@@ -43,7 +42,7 @@ chronicles.formatIt(BufferStream):
   shortLog(it)
 
 proc len*(s: BufferStream): int =
-  s.readBuf.len + (if s.readQueue.len > 0: s.readQueue[0].len()
+  s.readBuf.len.int + (if s.readQueue.len > 0: s.readQueue[0].len()
   else: 0)
 
 method initStream*(s: BufferStream) =
@@ -62,7 +61,7 @@ proc new*(T: typedesc[BufferStream], timeout: Duration = DefaultConnectionTimeou
   bufferStream
 
 method pushData*(
-    s: BufferStream, data: seq[byte]
+    s: BufferStream, data: sink seq[byte]
 ) {.base, async: (raises: [CancelledError, LPStreamError]).} =
   ## Write bytes to internal read buffer, use this to fill up the
   ## buffer with data.
@@ -107,7 +106,7 @@ method pushEof*(
     s.pushing = false
 
 method atEof*(s: BufferStream): bool =
-  s.isEof and s.readBuf.len == 0
+  s.isEof and s.readBuf.isEmpty
 
 method readOnce*(
     s: BufferStream, pbytes: pointer, nbytes: int
@@ -118,20 +117,12 @@ method readOnce*(
   if s.returnedEof:
     raise newLPStreamEOFError()
 
-  var p = cast[ptr UncheckedArray[byte]](pbytes)
-
-  # First consume leftovers from previous read
-  var rbytes = s.readBuf.consumeTo(toOpenArray(p, 0, nbytes - 1))
-
-  if rbytes < nbytes and not s.isEof:
-    # There's space in the buffer - consume some data from the read queue
-    s.reading = true
+  if not s.isEof and s.readBuf.len < nbytes:
     let buf =
       try:
+        s.reading = true
         await s.readQueue.popFirst()
       except CancelledError as exc:
-        # Not very efficient, but shouldn't happen often
-        s.readBuf.assign(@(p.toOpenArray(0, rbytes - 1)) & @(s.readBuf.data))
         raise exc
       finally:
         s.reading = false
@@ -141,28 +132,18 @@ method readOnce*(
       trace "EOF", s
       s.isEof = true
     else:
-      let remaining = min(buf.len, nbytes - rbytes)
-      toOpenArray(p, rbytes, nbytes - 1)[0 ..< remaining] =
-        buf.toOpenArray(0, remaining - 1)
-      rbytes += remaining
+      s.readBuf.push(buf)
 
-      if remaining < buf.len:
-        trace "add leftovers", s, len = buf.len - remaining
-        s.readBuf.add(buf.toOpenArray(remaining, buf.high))
-
-  if s.isEof and s.readBuf.len() == 0:
-    # We can clear the readBuf memory since it won't be used any more
-    s.readBuf = StreamSeq()
-
+  let consumed = s.readBuf.consumeTo(pbytes, nbytes)
   s.activity = true
 
   # We want to return 0 exactly once - after that, we'll start raising instead -
   # this is a bit nuts in a mixed exception / return value world, but allows the
   # consumer of the stream to rely on the 0-byte read as a "regular" EOF marker
   # (instead of _sometimes_ getting an exception).
-  s.returnedEof = rbytes == 0
+  s.returnedEof = consumed == 0
 
-  return rbytes
+  return consumed
 
 method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true).} =
   ## close the stream and clear the buffer
@@ -171,7 +152,6 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
   # First, make sure any new calls to `readOnce` and `pushData` etc will fail -
   # there may already be such calls in the event queue however
   s.isEof = true
-  s.readBuf = StreamSeq()
   s.pushedEof = true
 
   # Essentially we need to handle the following cases
