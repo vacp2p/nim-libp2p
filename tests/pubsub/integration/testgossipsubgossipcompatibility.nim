@@ -85,9 +85,5 @@ suite "GossipSub Integration - Compatibility":
 
     # Then nodeCenter sends IDONTWANT only to nodeCodec12 (because nodeCodec11.codec == GossipSubCodec_11)
     checkUntilTimeout:
-      nodeCodec12.mesh.getOrDefault(topic).toSeq().allIt(
-        it.iDontWants.anyIt(it.len == 1)
-      )
-      nodeCodec11.mesh.getOrDefault(topic).toSeq().allIt(
-        it.iDontWants.allIt(it.len == 0)
-      )
+      nodeCodec12.mesh.getOrDefault(topic).toSeq()[0].iDontWants.anyIt(it.len == 1)
+      nodeCodec11.mesh.getOrDefault(topic).toSeq()[0].iDontWants.allIt(it.len == 0)
