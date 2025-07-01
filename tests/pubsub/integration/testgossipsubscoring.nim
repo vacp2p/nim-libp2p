@@ -18,13 +18,14 @@ import ../../helpers
 import ../../utils/[futures]
 
 suite "GossipSub Integration - Scoring":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Flood publish to all peers with score above threshold, regardless of subscription":
     let
       numberOfNodes = 3
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true, floodPublish = true)
       g0 = GossipSub(nodes[0])
 
@@ -58,7 +59,6 @@ suite "GossipSub Integration - Scoring":
       results[1].isPending()
 
   asyncTest "Should not rate limit decodable messages below the size allowed":
-    const topic = "foobar"
     let
       nodes = generateNodes(
           2,
@@ -101,7 +101,6 @@ suite "GossipSub Integration - Scoring":
       currentRateLimitHits() == rateLimitHits
 
   asyncTest "Should rate limit undecodable messages above the size allowed":
-    const topic = "foobar"
     let
       nodes = generateNodes(
           2,
@@ -140,7 +139,6 @@ suite "GossipSub Integration - Scoring":
       currentRateLimitHits() == rateLimitHits + 2
 
   asyncTest "Should rate limit decodable messages above the size allowed":
-    const topic = "foobar"
     let
       nodes = generateNodes(
           2,
@@ -202,7 +200,6 @@ suite "GossipSub Integration - Scoring":
       currentRateLimitHits() == rateLimitHits + 2
 
   asyncTest "Should rate limit invalid messages above the size allowed":
-    const topic = "foobar"
     let
       nodes = generateNodes(
           2,
@@ -250,7 +247,6 @@ suite "GossipSub Integration - Scoring":
       currentRateLimitHits() == rateLimitHits + 2
 
   asyncTest "DirectPeers: don't kick direct peer with low score":
-    const topic = "foobar"
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -280,9 +276,7 @@ suite "GossipSub Integration - Scoring":
       futResult.isCompleted(true)
 
   asyncTest "Peers disconnections mechanics":
-    const
-      numberOfNodes = 10
-      topic = "foobar"
+    const numberOfNodes = 10
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
@@ -384,9 +378,7 @@ suite "GossipSub Integration - Scoring":
 
   asyncTest "Nodes publishing invalid messages are penalised and disconnected":
     # Given GossipSub nodes with Topic Params
-    const
-      topic = "foobar"
-      numberOfNodes = 3
+    const numberOfNodes = 3
 
     let
       nodes = generateNodes(
@@ -483,9 +475,7 @@ suite "GossipSub Integration - Scoring":
 
   asyncTest "Nodes not meeting Mesh Message Deliveries Threshold are penalised":
     # Given GossipSub nodes with Topic Params
-    const
-      topic = "foobar"
-      numberOfNodes = 2
+    const numberOfNodes = 2
 
     let
       nodes = generateNodes(
