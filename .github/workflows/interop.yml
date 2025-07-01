@@ -41,20 +41,22 @@ jobs:
           s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
 
-  run-hole-punching-interop:
-    name: Run hole-punching interoperability tests
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build image
-        run: docker buildx build --load -t nim-libp2p-head -f interop/hole-punching/Dockerfile .
-      - name: Run tests
-        uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
-        with:
-          test-filter: nim-libp2p-head
-          extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
-          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
-          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
-          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  # nim-libp2p#1367: hole punching tests are temporary disabled as they keep failing
+  # and issue does not seem to be on nim-libp2p side
+  # run-hole-punching-interop:
+  #   name: Run hole-punching interoperability tests
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: docker/setup-buildx-action@v3
+  #     - name: Build image
+  #       run: docker buildx build --load -t nim-libp2p-head -f interop/hole-punching/Dockerfile .
+  #     - name: Run tests
+  #       uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+  #       with:
+  #         test-filter: nim-libp2p-head
+  #         extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
+  #         s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+  #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+  #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
