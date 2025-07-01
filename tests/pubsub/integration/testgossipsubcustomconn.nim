@@ -37,15 +37,13 @@ suite "GossipSub Integration - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers custom connection and peer selection":
     let
       topic = "test"
-      handler = proc(topic: string, data: seq[byte]) {.async.} =
-        discard
-      nodes = generateNodes(2, gossip = true)
+      nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
       customConnCreated = false
       peerSelectionCalled = false
 
-    GossipSub(nodes[0]).customConnCallbacks = some(
+    nodes[0].customConnCallbacks = some(
       CustomConnectionCallbacks(
         customConnCreationCB: proc(
             destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
@@ -66,10 +64,12 @@ suite "GossipSub Integration - Custom Connection Support":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
-    tryPublish await nodes[0].publish(topic, "hello".toBytes(), useCustomConn = true), 1
+    tryPublish await nodes[0].publish(
+      topic, "hello".toBytes(), publishParams = some(PublishParams(useCustomConn: true))
+    ), 1
 
     check:
       peerSelectionCalled
@@ -78,19 +78,21 @@ suite "GossipSub Integration - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
     let
       topic = "test"
-      handler = proc(topic: string, data: seq[byte]) {.async.} =
-        discard
-      nodes = generateNodes(2, gossip = true)
+      nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
     var raised = false
     try:
-      discard await nodes[0].publish(topic, "hello".toBytes(), useCustomConn = true)
+      discard await nodes[0].publish(
+        topic,
+        "hello".toBytes(),
+        publishParams = some(PublishParams(useCustomConn: true)),
+      )
     except Defect:
       raised = true
 
