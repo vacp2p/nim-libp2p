@@ -208,7 +208,7 @@ window.addEventListener("DOMContentLoaded", main2);
       <li><a class="reference" href="#BufferStream"
     title="BufferStream = ref object of Connection
   readQueue*: AsyncQueue[seq[byte]]
-  readBuf*: StreamSeq
+  readBuf: ZeroQueue
   pushing*: bool
   reading*: bool
   pushedEof*: bool
@@ -264,9 +264,9 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">pushData
-      <li><a class="reference" href="#pushData.e%2CBufferStream%2Cseq%5Bbyte%5D"
-    title="pushData(s: BufferStream; data: seq[byte]): InternalRaisesFuture[void,
-    (CancelledError, LPStreamError)]">pushData(s: BufferStream; data: seq[byte]): InternalRaisesFuture[void,
+      <li><a class="reference" href="#pushData.e%2CBufferStream%2Csinkseq%5Bbyte%5D"
+    title="pushData(s: BufferStream; data: sink seq[byte]): InternalRaisesFuture[void,
+    (CancelledError, LPStreamError)]">pushData(s: BufferStream; data: sink seq[byte]): InternalRaisesFuture[void,
     (CancelledError, LPStreamError)]</a></li>
 
   </ul>
@@ -320,7 +320,7 @@ class="link-seesrc" target="_blank">Source</a>
   <div class="section" id="6">
 <h1><a class="toc-backref" href="#6">Imports</a></h1>
 <dl class="item">
-<a class="reference external" href="connection.html">connection</a>, <a class="reference external" href="streamseq.html">streamseq</a>
+<a class="reference external" href="connection.html">connection</a>, <a class="reference external" href="../utils/zeroqueue.html">../utils/zeroqueue</a>
 </dl></div>
 <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
@@ -328,7 +328,7 @@ class="link-seesrc" target="_blank">Source</a>
 <div id="BufferStream" class="tohide">
 <dt><pre><a href="bufferstream.html#BufferStream"><span class="Identifier">BufferStream</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="connection.html#Connection"><span class="Identifier">Connection</span></a>
   <span class="Identifier">readQueue</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">AsyncQueue</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span>
-  <span class="Identifier">readBuf</span><span class="Operator">*</span><span class="Other">:</span> <a href="streamseq.html#StreamSeq"><span class="Identifier">StreamSeq</span></a>
+  <span class="Identifier">readBuf</span><span class="Other">:</span> <a href="../utils/zeroqueue.html#ZeroQueue"><span class="Identifier">ZeroQueue</span></a>
   <span class="Identifier">pushing</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">reading</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">pushedEof</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
@@ -338,9 +338,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L25"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L24"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L25" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L24" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -355,9 +355,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L23"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L22"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L23" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L22" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -372,9 +372,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L45"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L44"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L45" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L44" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -385,9 +385,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L59"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L58"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L59" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L58" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -397,9 +397,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L33"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L32"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L33" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L32" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -414,9 +414,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L109"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L108"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L109" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L108" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -428,9 +428,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L167"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L148"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L167" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L148" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -441,26 +441,25 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L49"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L48"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L49" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L48" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="pushData.e,BufferStream,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#pushData.e%2CBufferStream%2Cseq%5Bbyte%5D"><span class="Identifier">pushData</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="bufferstream.html#BufferStream"><span class="Identifier">BufferStream</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
-    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                                       <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="pushData.e,BufferStream,sinkseq[byte]" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#pushData.e%2CBufferStream%2Csinkseq%5Bbyte%5D"><span class="Identifier">pushData</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <a href="bufferstream.html#BufferStream"><span class="Identifier">BufferStream</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">sink</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Write bytes to internal read buffer, use this to fill up the buffer with data.</p>
 <p><tt class="docutils literal"><span class="pre"><span class="Identifier">pushTo</span></span></tt> will block if the queue is full, thus maintaining backpressure. </p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L66"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L65"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L66" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L65" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -473,9 +472,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L92"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L91"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L92" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L91" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -487,9 +486,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L114"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L113"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L114" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L113" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -504,9 +503,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L42"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/bufferstream.nim#L41"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L42" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/bufferstream.nim#L41" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -525,7 +524,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-01 09:03:37 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-01 14:07:02 UTC</small>
       </div>
     </div>
   </div>
