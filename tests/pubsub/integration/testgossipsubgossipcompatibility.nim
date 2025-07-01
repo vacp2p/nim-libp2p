@@ -61,15 +61,17 @@ suite "GossipSub Integration - Compatibility":
 
   asyncTest "IDONTWANT is sent only for GossipSubCodec_12":
     # 4 nodes: nodeCenter in the center connected to the rest                  
+    var nodes = generateNodes(3, gossip = true).toGossipSub()
     let
-      nodeCenter = generateNodes(1, gossip = true).toGossipSub()[0]
-      nodeSender = generateNodes(1, gossip = true).toGossipSub()[0]
-      nodeCodec12 = generateNodes(1, gossip = true).toGossipSub()[0]
+      nodeCenter = nodes[0]
+      nodeSender = nodes[1]
+      nodeCodec12 = nodes[2]
       nodeCodec11 = generateNodes(
         1, gossip = true, codecs = @[GossipSubCodec_11, GossipSubCodec_10]
       )
       .toGossipSub()[0]
-      nodes = @[nodeCenter, nodeSender, nodeCodec12, nodeCodec11]
+
+    nodes &= nodeCodec11
 
     startNodesAndDeferStop(nodes)
 
