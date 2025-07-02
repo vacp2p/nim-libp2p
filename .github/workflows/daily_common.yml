@@ -85,7 +85,7 @@ jobs:
           nimble install_pinned
 
       - name: Install dependencies (latest)
-        if: ${{ inputs.pinned_deps != 'true' }}
+        if: ${{ inputs.pinned_deps == false }}
         run: |
           nimble install -y --depsOnly
 
@@ -96,4 +96,12 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
+
+      - name: Run integration tests
+        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
+        run: |
+          nim --version
+          nimble --version
+
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble testintegration
