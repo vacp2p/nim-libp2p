@@ -85,7 +85,7 @@ jobs:
           nimble install_pinned
 
       - name: Install dependencies (latest)
-        if: ${{ inputs.pinned_deps != 'true' }}
+        if: ${{ inputs.pinned_deps == false }}
         run: |
           nimble install -y --depsOnly
 
