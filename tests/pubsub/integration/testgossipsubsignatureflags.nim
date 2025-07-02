@@ -10,7 +10,6 @@
 {.used.}
 
 import unittest2
-import std/[sequtils]
 import chronos
 import stew/byteutils
 import ../utils
