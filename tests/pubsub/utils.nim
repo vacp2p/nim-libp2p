@@ -1,9 +1,3 @@
-# compile time options here
-const
-  libp2p_pubsub_sign {.booldefine.} = true
-  libp2p_pubsub_verify {.booldefine.} = true
-  libp2p_pubsub_anonymize {.booldefine.} = false
-
 import hashes, random, tables, sets, sequtils
 import chronos, results, stew/byteutils, chronos/ratelimit
 import
@@ -173,9 +167,9 @@ proc generateNodes*(
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     gossip: bool = false,
     triggerSelf: bool = false,
-    verifySignature: bool = libp2p_pubsub_verify,
-    anonymize: bool = libp2p_pubsub_anonymize,
-    sign: bool = libp2p_pubsub_sign,
+    sign: bool = true,
+    verifySignature: bool = true,
+    anonymize: bool = false,
     sendSignedPeerRecord = false,
     unsubscribeBackoff = 1.seconds,
     pruneBackoff = 1.minutes,
