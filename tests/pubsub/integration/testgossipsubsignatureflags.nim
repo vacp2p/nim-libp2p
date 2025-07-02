@@ -16,6 +16,7 @@ import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub]
 import ../../../libp2p/protocols/pubsub/rpc/[messages]
 import ../../helpers
+import ../../utils/futures
 
 suite "GossipSub Integration - Signature Flags":
   const
@@ -40,6 +41,9 @@ suite "GossipSub Integration - Signature Flags":
 
     tryPublish await nodes[0].publish(topic, testData), 1
 
+    checkUntilTimeout:
+      receivedMessages[].len > 0
+
     let receivedMessage = receivedMessages[][0]
     check:
       receivedMessage.data == testData
@@ -63,6 +67,9 @@ suite "GossipSub Integration - Signature Flags":
 
     tryPublish await nodes[0].publish(topic, testData), 1
 
+    checkUntilTimeout:
+      receivedMessages[].len > 0
+
     let receivedMessage = receivedMessages[][0]
     check:
       receivedMessage.data == testData
@@ -84,6 +91,9 @@ suite "GossipSub Integration - Signature Flags":
     let testData = "anonymous message".toBytes()
     tryPublish await nodes[0].publish(topic, testData), 1
 
+    checkUntilTimeout:
+      receivedMessages[].len > 0
+
     let receivedMessage = receivedMessages[][0]
     check:
       receivedMessage.data == testData
@@ -92,69 +102,116 @@ suite "GossipSub Integration - Signature Flags":
       receivedMessage.signature.len == 0
       receivedMessage.key.len == 0
 
-  type NodeConfig = tuple[sign: bool, verify: bool, anonymize: bool]
-  let scenarios =
-    @[
-      # (sender_config, receiver_config, should_work)
+  type NodeConfig = object
+    sign: bool
+    verify: bool
+    anonymize: bool
 
+  type Scenario = object
+    senderConfig: NodeConfig
+    receiverConfig: NodeConfig
+    shouldWork: bool
+
+  let scenarios: seq[Scenario] =
+    @[
       # valid combos
       # S default, R default
-      ((true, true, false), (true, true, false), true),
+      Scenario(
+        senderConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+        shouldWork: true,
+      ),
       # S default, R anonymous
-      ((true, true, false), (false, false, true), true),
+      Scenario(
+        senderConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+        shouldWork: true,
+      ),
       # S anonymous, R anonymous
-      ((false, false, true), (false, false, true), true),
+      Scenario(
+        senderConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+        shouldWork: true,
+      ),
       # S only sign, R only verify
-      ((true, false, false), (false, true, false), true),
+      Scenario(
+        senderConfig: NodeConfig(sign: true, verify: false, anonymize: false),
+        receiverConfig: NodeConfig(sign: false, verify: true, anonymize: false),
+        shouldWork: true,
+      ),
       # S only verify, R only sign
-      ((true, true, true), (false, false, false), true),
+      Scenario(
+        senderConfig: NodeConfig(sign: true, verify: true, anonymize: true),
+        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+        shouldWork: true,
+      ),
       # S anonymous (not signed despite the flag), R minimal
-      ((false, true, true), (true, false, false), true),
+      Scenario(
+        senderConfig: NodeConfig(sign: false, verify: true, anonymize: true),
+        receiverConfig: NodeConfig(sign: true, verify: false, anonymize: false),
+        shouldWork: true,
+      ),
       # S unsigned, R unsigned
-      ((false, false, false), (false, false, false), true),
+      Scenario(
+        senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+        shouldWork: true,
+      ),
 
       # invalid combos
       # S anonymous, R default
-      ((false, false, true), (true, true, false), false),
+      Scenario(
+        senderConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+        shouldWork: false,
+      ),
       # S unsigned, R anonymous but verify 
-      ((false, false, false), (true, true, true), false),
+      Scenario(
+        senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: true),
+        shouldWork: false,
+      ),
       # S unsigned, R default
-      ((false, false, false), (true, true, false), false),
+      Scenario(
+        senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+        shouldWork: false,
+      ),
     ]
 
   for scenario in scenarios:
     let title = "Compatibility matrix: " & $scenario
     asyncTest title:
       let
-        (senderConfig, receiverConfig, shouldWork) = scenario
         sender = generateNodes(
           1,
           gossip = true,
-          sign = senderConfig[0],
-          verifySignature = senderConfig[1],
-          anonymize = senderConfig[2],
+          sign = scenario.senderConfig.sign,
+          verifySignature = scenario.senderConfig.verify,
+          anonymize = scenario.senderConfig.anonymize,
         )[0]
         receiver = generateNodes(
           1,
           gossip = true,
-          sign = receiverConfig[0],
-          verifySignature = receiverConfig[1],
-          anonymize = receiverConfig[2],
+          sign = scenario.receiverConfig.sign,
+          verifySignature = scenario.receiverConfig.verify,
+          anonymize = scenario.receiverConfig.anonymize,
         )[0]
         nodes = @[sender, receiver]
 
       startNodesAndDeferStop(nodes)
       await connectNodesStar(nodes)
 
-      var messageReceived = false
-      proc handler(topic: string, data: seq[byte]) {.async.} =
-        messageReceived = true
+      let (messageReceivedFut, handler) = createCompleteHandler()
 
       nodes.subscribeAllNodes(topic, handler)
       await waitForHeartbeat()
 
       discard await sender.publish(topic, testData)
-      await waitForHeartbeat()
 
+      let messageReceived = await waitForState(messageReceivedFut, HEARTBEAT_TIMEOUT)
       check:
-        messageReceived == shouldWork
+        if scenario.shouldWork:
+          messageReceived.isCompleted(true)
+        else:
+          messageReceived.isCancelled()
