@@ -12,7 +12,7 @@
 import chronos
 import stew/byteutils
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
+import ../../../libp2p/protocols/pubsub/[gossipsub, peertable]
 import ../../../libp2p/protocols/pubsub/rpc/[messages]
 import ../../helpers
 
@@ -31,15 +31,14 @@ suite "GossipSub Integration - Skip MCache Support":
     nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
-    let
-      publishData = "hello".toBytes()
-      msgId = nodes[0].getMsgId(topic, publishData)
+    let publishData = "hello".toBytes()
 
     tryPublish await nodes[0].publish(
       topic, publishData, publishParams = some(PublishParams(skipMCache: true))
     ), 1
 
-    check msgId notin nodes[0].mcache.msgs
+    check:
+      nodes[0].mcache.msgs.len == 0
 
   asyncTest "publish without skipMCache adds message to mcache":
     let
@@ -52,12 +51,11 @@ suite "GossipSub Integration - Skip MCache Support":
     nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
-    let
-      publishData = "hello".toBytes()
-      msgId = nodes[0].getMsgId(topic, publishData)
+    let publishData = "hello".toBytes()
 
     tryPublish await nodes[0].publish(
       topic, publishData, publishParams = none(PublishParams)
     ), 1
 
-    check msgId in nodes[0].mcache.msgs
+    check:
+      nodes[0].mcache.msgs.len == 1
