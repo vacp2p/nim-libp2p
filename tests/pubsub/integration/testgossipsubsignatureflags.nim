@@ -40,12 +40,13 @@ suite "GossipSub Integration - Signature Flags":
 
     tryPublish await nodes[0].publish(topic, testData), 1
 
+    let receivedMessage = receivedMessages[][0]
     check:
-      receivedMessages[0].data == testData
-      receivedMessages[0].fromPeer.data.len > 0
-      receivedMessages[0].seqno.len > 0
-      receivedMessages[0].signature.len > 0
-      receivedMessages[0].key.len > 0
+      receivedMessage.data == testData
+      receivedMessage.fromPeer.data.len > 0
+      receivedMessage.seqno.len > 0
+      receivedMessage.signature.len > 0
+      receivedMessage.key.len > 0
 
   asyncTest "Sign flag - messages are not signed when sign=false":
     let nodes = generateNodes(
@@ -62,10 +63,11 @@ suite "GossipSub Integration - Signature Flags":
 
     tryPublish await nodes[0].publish(topic, testData), 1
 
+    let receivedMessage = receivedMessages[][0]
     check:
-      receivedMessages[0].data == testData
-      receivedMessages[0].signature.len == 0
-      receivedMessages[0].key.len == 0
+      receivedMessage.data == testData
+      receivedMessage.signature.len == 0
+      receivedMessage.key.len == 0
 
   asyncTest "Anonymize flag - messages are anonymous when anonymize=true":
     let nodes = generateNodes(
@@ -82,12 +84,13 @@ suite "GossipSub Integration - Signature Flags":
     let testData = "anonymous message".toBytes()
     tryPublish await nodes[0].publish(topic, testData), 1
 
+    let receivedMessage = receivedMessages[][0]
     check:
-      receivedMessages[0].data == testData
-      receivedMessages[0].fromPeer.data.len == 0
-      receivedMessages[0].seqno.len == 0
-      receivedMessages[0].signature.len == 0
-      receivedMessages[0].key.len == 0
+      receivedMessage.data == testData
+      receivedMessage.fromPeer.data.len == 0
+      receivedMessage.seqno.len == 0
+      receivedMessage.signature.len == 0
+      receivedMessage.key.len == 0
 
   type NodeConfig = tuple[sign: bool, verify: bool, anonymize: bool]
   let scenarios =
