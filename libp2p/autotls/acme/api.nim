@@ -1,12 +1,15 @@
 import options, sequtils, strutils, json, uri
 from times import DateTime, parse
-import chronos/apps/http/httpclient, jwt, results, bearssl/pem
+import chronos/apps/http/httpclient, jwt, results, bearssl/pem, chronicles
 
 import ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
 
 export ACMEError
+
+logScope:
+  topics = "libp2p acme api"
 
 const
   LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
@@ -461,12 +464,9 @@ proc checkCertFinalized*(
     of ACMEOrderStatus.PROCESSING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
     else:
-      raise newException(
-        ACMEError,
-        "Failed certificate finalization: expected 'valid', got '" &
-          $checkResponse.orderStatus & "'",
-      )
-      return false
+      error "Failed certificate finalization",
+        description = "expected 'valid', got '" & $checkResponse.orderStatus & "'"
+      return false # do not try again
 
   return false
 

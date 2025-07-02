@@ -30,7 +30,7 @@ const
 
 type AutoTLSError* = object of LPError
 
-proc checkedGetPrimaryIPAddr(): IpAddress {.raises: [AutoTLSError].} =
+proc checkedGetPrimaryIPAddr*(): IpAddress {.raises: [AutoTLSError].} =
   # This is so that we don't need to catch Exceptions directly
   # since we support 1.6.16 and getPrimaryIPAddr before nim 2 didn't have explicit .raises. pragmas
   try:
@@ -53,19 +53,12 @@ proc isPublic*(ip: IpAddress): bool {.raises: [AutoTLSError].} =
     raise newException(AutoTLSError, "Failed to parse IP address", exc)
 
 proc getPublicIPAddress*(): IpAddress {.raises: [AutoTLSError].} =
-  try:
-    let ip = checkedGetPrimaryIPAddr()
-    if not ip.isIPv4():
-      raise newException(AutoTLSError, "Host does not have an IPv4 address")
-    if not ip.isPublic():
-      raise newException(AutoTLSError, "Host does not have a public IPv4 address")
-    return ip
-  except AutoTLSError as exc:
-    raise exc
-  except CatchableError as exc:
-    raise newException(
-      AutoTLSError, "Unexpected error while getting primary IP address for host", exc
-    )
+  let ip = checkedGetPrimaryIPAddr()
+  if not ip.isIPv4():
+    raise newException(AutoTLSError, "Host does not have an IPv4 address")
+  if not ip.isPublic():
+    raise newException(AutoTLSError, "Host does not have a public IPv4 address")
+  return ip
 
 proc asMoment*(dt: DateTime): Moment =
   let unixTime: int64 = dt.toTime.toUnix
