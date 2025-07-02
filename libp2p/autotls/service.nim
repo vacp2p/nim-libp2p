@@ -12,7 +12,7 @@
 
 import net, results, json, sequtils
 
-import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand
+import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand, bearssl/pem
 
 import
   ./acme/client,
@@ -23,7 +23,9 @@ import
   ../peerinfo,
   ../switch,
   ../utils/heartbeat,
-  ../wire
+  ../wire,
+  ../crypto/crypto,
+  ../crypto/rsa
 
 logScope:
   topics = "libp2p autotls"
@@ -63,24 +65,18 @@ type AutotlsConfig* = ref object
   renewBufferTime*: Duration
 
 type AutotlsService* = ref object of Service
-  acmeClient: ACMEClient
+  acmeClient*: ACMEClient
   bearer*: Opt[BearerToken]
-  brokerClient: PeerIDAuthClient
+  brokerClient*: PeerIDAuthClient
   cert*: Opt[AutotlsCert]
   certReady*: AsyncEvent
-  config: AutotlsConfig
+  config*: AutotlsConfig
   managerFut: Future[void]
   peerInfo: PeerInfo
-  rng: ref HmacDrbgContext
+  rng*: ref HmacDrbgContext
 
 proc new*(T: typedesc[AutotlsCert], cert: TLSCertificate, expiry: Moment): T =
   T(cert: cert, expiry: expiry)
-
-proc getCertWhenReady*(
-    self: AutotlsService
-): Future[TLSCertificate] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  await self.certReady.wait()
-  return self.cert.get.cert
 
 proc new*(
     T: typedesc[AutotlsConfig],
@@ -114,6 +110,24 @@ proc new*(
     peerInfo: nil,
     rng: rng,
   )
+
+method getCertWhenReady*(
+    self: AutotlsService
+): Future[TLSCertificate] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
+  await self.certReady.wait()
+  self.certReady.clear()
+  return self.cert.get.cert
+
+method getTLSPrivkey*(
+    self: AutotlsService
+): TLSPrivateKey {.base, raises: [AutoTLSError, TLSStreamProtocolError].} =
+  let derPrivKey =
+    try:
+      self.acmeClient.key.seckey.rsakey.getBytes.get
+    except ValueError as exc:
+      raise newException(AutoTLSError, "Unable to get TLS private key", exc)
+  let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
+  TLSPrivateKey.init(pemPrivKey)
 
 method setup*(
     self: AutotlsService, switch: Switch

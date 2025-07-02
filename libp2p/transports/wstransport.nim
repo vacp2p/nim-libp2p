@@ -16,6 +16,7 @@ import results
 import chronos, chronicles
 import
   transport,
+  ../autotls/service,
   ../errors,
   ../wire,
   ../multicodec,
@@ -108,8 +109,9 @@ type WsTransport* = ref object of Transport
 
   acceptFuts: seq[Future[HttpRequest]]
 
-  tlsPrivateKey: TLSPrivateKey
-  tlsCertificate: TLSCertificate
+  tlsPrivateKey*: TLSPrivateKey
+  tlsCertificate*: TLSCertificate
+  autotls: AutotlsService
   tlsFlags: set[TLSFlags]
   flags: set[ServerFlags]
   handshakeTimeout: Duration
@@ -131,6 +133,18 @@ method start*(
 
   await procCall Transport(self).start(addrs)
   trace "Starting WS transport"
+
+  # use autotls if possible (and if cert/key not specified)
+  if not self.secure and not self.autotls.isNil():
+    try:
+      self.tlsCertificate = await self.autotls.getCertWhenReady()
+      self.tlsPrivateKey = self.autotls.getTLSPrivkey()
+    except AutoTLSError as exc:
+      raise newException(LPError, exc.msg, exc)
+    except TLSStreamProtocolError as exc:
+      raise newException(LPError, exc.msg, exc)
+    except CancelledError as exc:
+      raise newException(LPError, exc.msg, exc)
 
   self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)
 
@@ -356,6 +370,7 @@ proc new*(
     upgrade: Upgrade,
     tlsPrivateKey: TLSPrivateKey,
     tlsCertificate: TLSCertificate,
+    autotls: AutotlsService,
     tlsFlags: set[TLSFlags] = {},
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
@@ -368,6 +383,7 @@ proc new*(
     upgrader: upgrade,
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
+    autotls: autotls,
     tlsFlags: tlsFlags,
     flags: flags,
     factories: @factories,
@@ -389,6 +405,7 @@ proc new*(
     upgrade = upgrade,
     tlsPrivateKey = nil,
     tlsCertificate = nil,
+    autotls = nil,
     flags = flags,
     factories = @factories,
     rng = rng,
