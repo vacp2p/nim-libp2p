@@ -18,6 +18,7 @@ import
   transport,
   tcptransport,
   ../switch,
+  ../autotls/service,
   ../builders,
   ../stream/[lpstream, connection, chronosstream],
   ../multiaddress,
@@ -303,7 +304,7 @@ proc new*(
     flags: set[ServerFlags] = {},
 ): TorSwitch {.raises: [LPError], public.} =
   var builder = SwitchBuilder.new().withRng(rng).withTransport(
-      proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+      proc(upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService): Transport =
         TorTransport.new(torServer, flags, upgr)
     )
   if addresses.len != 0:

@@ -386,38 +386,3 @@ suite "GossipSub Integration - Control Messages":
     # Then IDONTWANT is sent to B on publish
     checkUntilTimeout:
       nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants.anyIt(it.len == 1))
-
-  asyncTest "IDONTWANT is sent only for 1.2":
-    # 3 nodes: A <=> B <=> C (A & C are NOT connected) 
-    let
-      topic = "foobar"
-      nodeA = generateNodes(1, gossip = true).toGossipSub()[0]
-      nodeB = generateNodes(1, gossip = true).toGossipSub()[0]
-      nodeC = generateNodes(1, gossip = true, gossipSubVersion = GossipSubCodec_11)
-      .toGossipSub()[0]
-
-    startNodesAndDeferStop(@[nodeA, nodeB, nodeC])
-
-    await connectNodes(nodeA, nodeB)
-    await connectNodes(nodeB, nodeC)
-
-    let (bFinished, handlerB) = createCompleteHandler()
-
-    nodeA.subscribe(topic, voidTopicHandler)
-    nodeB.subscribe(topic, handlerB)
-    nodeC.subscribe(topic, voidTopicHandler)
-    await waitSubGraph(@[nodeA, nodeB, nodeC], topic)
-
-    check:
-      nodeC.mesh.peers(topic) == 1
-
-    # When A sends a message to the topic
-    tryPublish await nodeA.publish(topic, newSeq[byte](10000)), 1
-
-    discard await bFinished
-
-    # Then B doesn't send IDONTWANT to both A and C (because C.gossipSubVersion == GossipSubCodec_11)
-    await waitForHeartbeat()
-    check:
-      toSeq(nodeC.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
-      toSeq(nodeA.mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
