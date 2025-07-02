@@ -96,4 +96,12 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
+
+      - name: Run integration tests
+        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
+        run: |
+          nim --version
+          nimble --version
+
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble testintegration
