@@ -120,7 +120,7 @@ method getCertWhenReady*(
 
 method getTLSPrivkey*(
     self: AutotlsService
-): TLSPrivateKey {.base, raises: [AutoTLSError, TLSStreamProtocolError].} =
+): TLSPrivateKey {.base, gcsafe, raises: [AutoTLSError, TLSStreamProtocolError].} =
   let derPrivKey =
     try:
       self.acmeClient.key.seckey.rsakey.getBytes.get

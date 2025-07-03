@@ -123,7 +123,7 @@ proc secure*(self: WsTransport): bool =
 
 method start*(
     self: WsTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
   ##
 
@@ -142,8 +142,6 @@ method start*(
     except AutoTLSError as exc:
       raise newException(LPError, exc.msg, exc)
     except TLSStreamProtocolError as exc:
-      raise newException(LPError, exc.msg, exc)
-    except CancelledError as exc:
       raise newException(LPError, exc.msg, exc)
 
   self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)

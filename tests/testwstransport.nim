@@ -233,7 +233,7 @@ suite "WebSocket transport":
 
     await transport1.stop()
 
-  asyncTest "no tlscertificate but autotls specified":
+  asyncTest "autotls certificate is used when manual tlscertificate is not specified":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
     let autotls = MockAutotlsService.new()
@@ -258,7 +258,7 @@ suite "WebSocket transport":
     # autotls should be used
     check wstransport.tlsCertificate == await autotls.getCertWhenReady()
 
-  asyncTest "tlscertificate and autotls specified":
+  asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
     let autotls = MockAutotlsService.new()
@@ -286,7 +286,7 @@ suite "WebSocket transport":
     check wstransport.tlsCertificate == secureCert
     check wstransport.tlsPrivateKey == secureKey
 
-  asyncTest "no tlscertificate or autotls specified":
+  asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
     let wstransport = WsTransport.new(
       Upgrade(),
