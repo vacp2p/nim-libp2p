@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import sequtils, std/[tables]
-import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
+import chronos, chronicles, metrics, stew/[endians2, objects]
 import ../muxer, ../../stream/connection
 import ../../utils/zeroqueue
 
@@ -340,8 +340,11 @@ proc trySend(
       bytesAvailable = channel.lengthSendQueue()
       toSend = min(channel.sendWindow, bytesAvailable)
 
+    if bytesAvailable == 0: 
+      return
+
     var
-      sendBuffer = newSeqUninitialized[byte](toSend)
+      sendParts: seq[seq[byte]] = @[]
       header = YamuxHeader.data(channel.id, toSend.uint32)
       inBuffer = 0
 
@@ -355,9 +358,13 @@ proc trySend(
       let (data, sent, fut) = channel.sendQueue[0]
       let bufferToSend = min(data.len - sent, toSend - inBuffer)
 
-      sendBuffer.toOpenArray(0, toSend - 1)[
-        inBuffer ..< (inBuffer + bufferToSend)
-      ] = channel.sendQueue[0].data.toOpenArray(sent, sent + bufferToSend - 1)
+      if sent == 0 and data.len <= (toSend - inBuffer):
+        sendParts.add(data)
+      else:
+        var buff = newSeqUninitialized[byte](bufferToSend)
+        let offsetPtr = cast[ptr byte](cast[int](unsafeAddr data[0]) + sent)
+        copyMem(buff[0].addr, offsetPtr, bufferToSend)
+        sendParts.add(buff)
       
       inBuffer.inc(bufferToSend)
       channel.sendQueue[0].sent.inc(bufferToSend)
@@ -371,7 +378,8 @@ proc trySend(
     channel.sendWindow.dec(toSend)
     try:
       await channel.conn.write(header.encode())
-      await channel.conn.write(sendBuffer)
+      for part in sendParts:
+        await channel.conn.write(part)
       channel.activity = true
       for fut in futures.items():
         fut.complete()
