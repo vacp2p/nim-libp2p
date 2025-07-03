@@ -206,6 +206,40 @@ suite "GossipSub Behavior":
     check:
       messages.len == 0
 
+  asyncTest "handleIWant - stops processing after 21 invalid requests":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And multiple message IDs
+    var messageIds: seq[MessageId]
+    for i in 0 ..< 25:
+      let id = @[i.uint8, 1, 2, 3]
+      messageIds.add(id)
+      gossipSub.mcache.put(id, Message())
+      # And the last 4 message IDs valid with sent IHaves
+      if i > 20:
+        peer.sentIHaves[0].incl(id)
+
+    # First 21 message IDs are invalid (not in sentIHaves)
+    # This means canAskIWant will return false for them
+    check:
+      peer.sentIHaves[0].len == 4
+
+    # And an IWANT message with 21 invalid + 4 valid requests
+    let msg = ControlIWant(messageIDs: messageIds)
+
+    # When IWANT is handled
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then processing stops after 21 invalid requests
+    # so the last 4 valid messages are not processed
+    check:
+      messages.len == 0
+
   asyncTest "handleIDontWant - Max IDONTWANT messages per heartbeat per peer":
     # Given GossipSub node with 1 peer
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
