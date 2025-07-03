@@ -384,6 +384,103 @@ suite "GossipSub Behavior":
       peer in gossipSub.mesh[topic]
       pruneResult.len == 0
 
+  asyncTest "handleGraft - reject peer when mesh at dHigh threshold":
+    # Given a GossipSub instance with mesh at dHigh threshold
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And configure dHigh to current mesh size
+    gossipSub.parameters.dHigh = 5
+
+    # And initially mesh has 5 peers, which equals dHigh
+    gossipSub.mesh.removePeer(topic, peer)
+    check:
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      peer notin gossipSub.mesh[topic]
+
+    # When peer sends GRAFT
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be rejected with PRUNE
+    check:
+      peer notin gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      prunes.len == 1
+
+  asyncTest "handleGraft - accept outbound peer when mesh at dHigh but below dOut threshold":
+    # Given a GossipSub instance with mesh at dHigh threshold but lacking outbound peers
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    for peer in peers:
+      peer.sendConn.transportDir = Direction.In
+
+    # And configure dHigh to current mesh size, dOut higher than current outbound count
+    gossipSub.parameters.dHigh = 5
+    gossipSub.parameters.dOut = 2
+
+    # And Peer to graft is outbound and not in the mesh
+    gossipSub.mesh.removePeer(topic, peer)
+    peer.sendConn.transportDir = Direction.Out
+
+    # And initially mesh has 5 peers at dHigh, but 0 outbound peers < dOut (2)
+    check:
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      gossipSub.mesh.outboundPeers(topic) < gossipSub.parameters.dOut
+      peer notin gossipSub.mesh[topic]
+
+    # When outbound peer sends GRAFT
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be accepted despite mesh being at dHigh
+    check:
+      peer in gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh + 1
+      prunes.len == 0
+
+  asyncTest "handleGraft - reject outbound peer when mesh at dHigh and dOut threshold met":
+    # Given a GossipSub instance with mesh at dHigh and dOut thresholds
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # Configure some existing peers as outbound to meet dOut threshold, peer to graft + 2 in the mesh
+    for i in 0 ..< 3:
+      peers[i].sendConn.transportDir = Direction.Out
+    # Rest as inbound
+    for i in 3 ..< 6:
+      peers[i].sendConn.transportDir = Direction.In
+
+    # And configure dHigh to current mesh size, dOut to current outbound count
+    gossipSub.parameters.dHigh = 5
+    gossipSub.parameters.dOut = 2
+
+    # Initially mesh has 5 peers at dHigh, and 2 outbound peers meeting dOut (2)
+    gossipSub.mesh.removePeer(topic, peer)
+    check:
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      gossipSub.mesh.outboundPeers(topic) == gossipSub.parameters.dOut
+      peer notin gossipSub.mesh[topic]
+
+    # When outbound peer sends GRAFT
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be rejected with PRUNE
+    check:
+      peer notin gossipSub.mesh[topic]
+      prunes.len == 1
+
   asyncTest "handleGraft - do not graft when peer score below PublishThreshold threshold":
     const publishThreshold = -100.0
     let
