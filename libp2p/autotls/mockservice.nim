@@ -25,7 +25,7 @@ proc getTLSPrivkey*(self: MockAutotlsService): TLSPrivateKey =
   self.mockedKey
 
 method getCertWhenReady*(
-    self: MockAutotlsService
+    self: MockAutotlsService, timeout: Duration = DefaultWaitTimeout
 ): Future[TLSCertificate] {.async: (raises: [AutoTLSError, CancelledError]).} =
   return self.mockedCert
 

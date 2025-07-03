@@ -41,6 +41,7 @@ const
     ]
   DefaultRenewCheckTime* = 1.hours
   DefaultRenewBufferTime = 1.hours
+  DefaultWaitTimeout* = 3.seconds
 
   AutoTLSBroker* = "registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
@@ -112,11 +113,12 @@ proc new*(
   )
 
 method getCertWhenReady*(
-    self: AutotlsService
+    self: AutotlsService, timeout: Duration = DefaultWaitTimeout
 ): Future[TLSCertificate] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
-  await self.certReady.wait()
-  self.certReady.clear()
-  return self.cert.get.cert
+  if await self.certReady.wait().withTimeout(timeout):
+    self.certReady.clear()
+    return self.cert.get.cert
+  raise newException(CancelledError, "timed out waiting for cert to be ready")
 
 method getTLSPrivkey*(
     self: AutotlsService
