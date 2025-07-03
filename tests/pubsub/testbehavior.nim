@@ -339,6 +339,51 @@ suite "GossipSub Behavior":
     check:
       result.isCancelled()
 
+  asyncTest "handleGraft - peer joins mesh for subscribed topic":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) =
+        setupGossipSubWithPeers(1, topic, populateFanout = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is not in mesh, but it is in fanout
+    check:
+      peer notin gossipSub.mesh[topic]
+      peer in gossipSub.fanout[topic]
+
+    # When peer sends GRAFT for the topic
+    let graftMsg = ControlGraft(topicID: topic)
+    let pruneResult = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be added to mesh, removed from fanout and no PRUNE sent
+    check:
+      peer in gossipSub.mesh[topic]
+      peer notin gossipSub.fanout.getOrDefault(topic)
+      pruneResult.len == 0
+
+  asyncTest "handleGraft - do not graft if peer already in mesh":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is already in mesh
+    check:
+      peer in gossipSub.mesh[topic]
+
+    # When peer sends GRAFT for the topic
+    let graftMsg = ControlGraft(topicID: topic)
+    let pruneResult = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then graft is skipped and no PRUNE sent
+    check:
+      peer in gossipSub.mesh[topic]
+      pruneResult.len == 0
+
   asyncTest "handleGraft - do not graft when peer score below PublishThreshold threshold":
     const publishThreshold = -100.0
     let
