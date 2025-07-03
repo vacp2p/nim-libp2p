@@ -137,8 +137,12 @@ method start*(
   # use autotls if possible (and if cert/key not specified)
   if not self.secure and not self.autotls.isNil():
     try:
+      echo "cert.isSome() == " & $self.autotls.cert.isSome()
+      echo "before getCertWhenReady"
       self.tlsCertificate = await self.autotls.getCertWhenReady()
+      echo "after getCertWhenReady"
       self.tlsPrivateKey = self.autotls.getTLSPrivkey()
+      echo "after getTLSPrivkey"
     except AutoTLSError as exc:
       raise newException(LPError, exc.msg, exc)
     except TLSStreamProtocolError as exc:

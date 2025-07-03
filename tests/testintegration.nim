@@ -10,4 +10,4 @@ when defined(linux) and defined(amd64):
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import testpeeridauth_integration, testautotls_integration
+import testpeeridauth_integration, testautotls_integration, testwstransport_integration
