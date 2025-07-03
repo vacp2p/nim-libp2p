@@ -265,6 +265,48 @@ suite "GossipSub Behavior":
     check:
       peer.iDontWants[0].len == IDontWantMaxCount
 
+  asyncTest "handlePrune - peer is pruned and backoff is set":
+    # Given a GossipSub instance with one peer in mesh
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And mesh contains peer initially
+    check:
+      gossipSub.mesh[topic].len == 1
+      peer in gossipSub.mesh[topic]
+
+    # And a Prune message with backoff > 0
+    let pruneMsg = ControlPrune(
+      topicID: topic, peers: @[], backoff: 300'u64 # 5 minutes backoff
+    )
+
+    # When handlePrune is called
+    gossipSub.handlePrune(peer, @[pruneMsg])
+
+    # Then peer is removed from mesh
+    check:
+      gossipSub.mesh.getOrDefault(topic).len == 0
+
+    # And backoff is set correctly
+    # Expected backoff calculation: prune.backoff (300s) + BackoffSlackTime (2s) = 302s
+    let expectedBackoffSeconds = 302'u64
+    let currentTime = Moment.now()
+    let expectedBackoffTime = Moment.fromNow(expectedBackoffSeconds.int64.seconds)
+
+    # And backoff table is properly populated
+    check:
+      topic in gossipSub.backingOff
+      peer.peerId in gossipSub.backingOff[topic]
+
+    # And backoff time is approximately the expected time (within 1 second tolerance)
+    let actualBackoffTime = gossipSub.backingOff[topic][peer.peerId]
+    let timeDifference = abs((actualBackoffTime - expectedBackoffTime).nanoseconds)
+    check:
+      timeDifference < 1.seconds.nanoseconds
+
   asyncTest "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
