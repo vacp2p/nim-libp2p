@@ -4,7 +4,7 @@ import std/[sequtils, tables]
 import stew/byteutils
 import utils
 import chronicles
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable]
 import ../../libp2p/protocols/pubsub/rpc/[message]
 import ../helpers
 import ../utils/[futures]
@@ -18,64 +18,50 @@ suite "GossipSub Behavior":
     checkTrackers()
 
   asyncTest "handleIHave - peers with no budget should not request messages":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.subscribe(topic, voidTopicHandler)
-
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    # Add message to `gossipSub`'s message cache
+    # And an IHAVE message
     let id = @[0'u8, 1, 2, 3]
-    gossipSub.mcache.put(id, Message())
-    peer.sentIHaves[^1].incl(id)
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id])
 
-    # Build an IHAVE message that contains the same message ID three times
-    let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-
-    # Given the peer has no budget to request messages
+    # And the peer has no budget to request messages
     peer.iHaveBudget = 0
 
-    # When a peer makes an IHAVE request for the a message that `gossipSub` has
+    # When IHave is handled
     let iwants = gossipSub.handleIHave(peer, @[msg])
 
-    # Then `gossipSub` should not generate an IWant message for the message, 
+    # Then gossipSub should not generate an IWANT message due to budget constraints
     check:
       iwants.messageIDs.len == 0
-      gossipSub.mcache.msgs.len == 1
 
   asyncTest "handleIHave - peers with budget should request messages":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.subscribe(topic, voidTopicHandler)
-
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    # Add message to `gossipSub`'s message cache
-    let id = @[0'u8, 1, 2, 3]
-    gossipSub.mcache.put(id, Message())
-    peer.sentIHaves[^1].incl(id)
-
-    # Build an IHAVE message that contains the same message ID three times
+    # And an IHAVE message that contains the same message ID three times
     # If ids are repeated, only one request should be generated
+    let id = @[0'u8, 1, 2, 3]
     let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
 
-    # Given the budget is not 0 (because it's not been overridden)
+    # Given the peer has budget to request messages
     check:
       peer.iHaveBudget > 0
 
-    # When a peer makes an IHAVE request for the a message that `gossipSub` does not have
+    # When IHave is handled
     let iwants = gossipSub.handleIHave(peer, @[msg])
 
-    # Then `gossipSub` should generate an IWant message for the message
+    # Then gossipSub should generate an IWANT message for the message
     check:
       iwants.messageIDs.len == 1
-      gossipSub.mcache.msgs.len == 1
 
   asyncTest "handleIHave - do not handle IHave if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
@@ -100,15 +86,35 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == 0
 
-  asyncTest "handleIWant - peers with budget should request messages":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+  asyncTest "handleIHave - peer sends IHAVE for messages already in cache, no IWANT generated":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.subscribe(topic, voidTopicHandler)
+    # And an IHAVE message
+    let id = @[0'u8, 1, 2, 3]
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id])
 
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
+    # And message has already been seen
+    check:
+      not gossipSub.addSeen(gossipSub.salt(id))
+
+    # When IHave is handled
+    let iWant = gossipSub.handleIHave(peer, @[msg])
+
+    # Then no IWANT should be generated
+    check:
+      iWant.messageIDs.len == 0
+
+  asyncTest "handleIWant - peers with budget should request messages":
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # Add message to `gossipSub`'s message cache
     let id = @[0'u8, 1, 2, 3]
