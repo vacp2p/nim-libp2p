@@ -109,7 +109,7 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == 0
 
-  asyncTest "handleIWant - peers with budget should request messages":
+  asyncTest "handleIWant - message is handled when in cache and with sent IHave":
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -152,6 +152,54 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id])
 
     # When IWant is handled
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then IWant is ignored
+    check:
+      messages.len == 0
+
+  asyncTest "handleIWant - message not handled without sent IHave":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And message in message cache but not in sentIHaves 
+    let id = @[0'u8, 1, 2, 3]
+    gossipSub.mcache.put(id, Message())
+    check:
+      peer.sentIHaves.allIt(id notin it)
+
+    # And an IWANT message 
+    let msg = ControlIWant(messageIDs: @[id])
+
+    # When IWANT is handled
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then IWant is ignored
+    check:
+      messages.len == 0
+
+  asyncTest "handleIWant - message not handled when not in cache":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And message in sentIHaves but not in cache
+    let id = @[0'u8, 1, 2, 3]
+    peer.sentIHaves[0].incl(id)
+    check:
+      gossipSub.mcache.msgs.len == 0
+
+    # And an IWANT message 
+    let msg = ControlIWant(messageIDs: @[id])
+
+    # When IWANT is handled
     let messages = gossipSub.handleIWant(peer, @[msg])
 
     # Then IWant is ignored
