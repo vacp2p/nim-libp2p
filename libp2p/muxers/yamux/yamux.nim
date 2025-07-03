@@ -88,20 +88,21 @@ proc `$`(header: YamuxHeader): string =
     ) & "}, " & "streamId: " & $header.streamId & ", " & "length: " & $header.length &
     "}"
 
-proc encode(header: YamuxHeader): array[12, byte] =
-  result[0] = header.version
-  result[1] = uint8(header.msgType)
-  result[2 .. 3] = toBytesBE(uint16(cast[uint8](header.flags)))
+proc encode(header: YamuxHeader): seq[byte] =
+  var hs = newSeqUninitialized[byte](12)
+  hs[0] = header.version
+  hs[1] = uint8(header.msgType)
+  hs[2 .. 3] = toBytesBE(uint16(cast[uint8](header.flags)))
     # workaround https://github.com/nim-lang/Nim/issues/21789
-  result[4 .. 7] = toBytesBE(header.streamId)
-  result[8 .. 11] = toBytesBE(header.length)
+  hs[4 .. 7] = toBytesBE(header.streamId)
+  hs[8 .. 11] = toBytesBE(header.length)
+  return hs
 
 proc write(
     conn: LPStream, header: YamuxHeader
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   trace "write directly on stream", h = $header
-  var buffer = header.encode()
-  conn.write(@buffer)
+  conn.write(header.encode())
 
 proc ping(T: type[YamuxHeader], flag: MsgFlags, pingData: uint32): T =
   T(version: YamuxVersion, msgType: MsgType.Ping, flags: {flag}, length: pingData)
@@ -303,7 +304,7 @@ method readOnce*(
   return consumed
 
 proc gotDataFromRemote(
-    channel: YamuxChannel, b: seq[byte]
+    channel: YamuxChannel, b: sink seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   channel.recvWindow -= b.len
   channel.recvQueue.push(b)
@@ -338,8 +339,9 @@ proc trySend(
     let
       bytesAvailable = channel.lengthSendQueue()
       toSend = min(channel.sendWindow, bytesAvailable)
+
     var
-      sendBuffer = newSeqUninitialized[byte](toSend + 12)
+      sendBuffer = newSeqUninitialized[byte](toSend)
       header = YamuxHeader.data(channel.id, toSend.uint32)
       inBuffer = 0
 
@@ -347,45 +349,45 @@ proc trySend(
       trace "last buffer we'll sent on this channel", toSend, bytesAvailable
       header.flags.incl({Fin})
 
-    sendBuffer[0 ..< 12] = header.encode()
-
     var futures: seq[Future[void].Raising([CancelledError, LPStreamError])]
     while inBuffer < toSend:
       # concatenate the different message we try to send into one buffer
       let (data, sent, fut) = channel.sendQueue[0]
       let bufferToSend = min(data.len - sent, toSend - inBuffer)
 
-      sendBuffer.toOpenArray(12, 12 + toSend - 1)[
+      sendBuffer.toOpenArray(0, toSend - 1)[
         inBuffer ..< (inBuffer + bufferToSend)
       ] = channel.sendQueue[0].data.toOpenArray(sent, sent + bufferToSend - 1)
+      
+      inBuffer.inc(bufferToSend)
       channel.sendQueue[0].sent.inc(bufferToSend)
       if channel.sendQueue[0].sent >= data.len:
         # if every byte of the message is in the buffer, add the write future to the
         # sequence of futures to be completed (or failed) when the buffer is sent
         futures.add(fut)
         channel.sendQueue.delete(0)
-      inBuffer.inc(bufferToSend)
 
     trace "try to send the buffer", h = $header
     channel.sendWindow.dec(toSend)
     try:
+      await channel.conn.write(header.encode())
       await channel.conn.write(sendBuffer)
+      channel.activity = true
+      for fut in futures.items():
+        fut.complete()
     except CancelledError:
       trace "cancelled sending the buffer"
       for fut in futures.items():
         fut.cancelSoon()
       await channel.reset()
-      break
+      return
     except LPStreamError as exc:
       trace "failed to send the buffer"
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures.items():
         fut.fail(connDown)
       await channel.reset()
-      break
-    for fut in futures.items():
-      fut.complete()
-    channel.activity = true
+      return
 
 method write*(
     channel: YamuxChannel, msg: seq[byte]
