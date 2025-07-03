@@ -86,7 +86,7 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == 0
 
-  asyncTest "handleIHave - peer sends IHAVE for messages already in cache, no IWANT generated":
+  asyncTest "handleIHave - do not handle IHave when message already in cache":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
