@@ -358,7 +358,7 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
   for fut in startFuts:
     if fut.failed:
       await s.stop()
-      raise newException(LPError, "starting transports failed", fut.error)
+      raise newException(LPError, "starting transports failed: " & $fut.errors.msg, fut.error)
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:
