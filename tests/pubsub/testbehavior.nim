@@ -17,6 +17,31 @@ suite "GossipSub Behavior":
   teardown:
     checkTrackers()
 
+  asyncTest "grafted - updates peer stats":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And no peer stats initially
+    check:
+      not gossipSub.peerStats[peer.peerId].topicInfos.hasKey(topic)
+
+    # When peer is grafted 
+    gossipSub.grafted(peer, topic)
+
+    # Then peer stats are updated
+    let stats = gossipSub.peerStats[peer.peerId]
+    let topicInfo = stats.topicInfos[topic]
+
+    check:
+      topicInfo.inMesh
+      topicInfo.meshTime == 0.seconds
+      topicInfo.graftTime <= Moment.now()
+      not topicInfo.meshMessageDeliveriesActive
+
   asyncTest "handleIHave - peers with no budget should not request messages":
     # Given a GossipSub instance with one peer
     let
