@@ -55,7 +55,7 @@ type
     connManager*: ConnManager
     transports*: seq[Transport]
     ms*: MultistreamSelect
-    acceptFuts: seq[Future[void]]
+    acceptFuts*: seq[Future[void]]
     dialer*: Dial
     peerStore*: PeerStore
     nameResolver*: NameResolver
@@ -256,7 +256,7 @@ proc upgradeMonitor(
       await conn.close()
     upgrades.release()
 
-proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
+proc accept*(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
 
@@ -336,14 +336,9 @@ proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
-  ## Start listening on every transport
-
-  if s.started:
-    warn "Switch has already been started"
-    return
-
-  debug "starting switch for peer", peerInfo = s.peerInfo
+proc startTransports*(
+    s: Switch
+) {.public, async: (raises: [CancelledError, LPError]).} =
   var startFuts: seq[Future[void]]
   for t in s.transports:
     let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
@@ -365,8 +360,19 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.listenAddrs &= t.addrs
 
+proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
+  ## Start listening on every transport
+
+  if s.started:
+    warn "Switch has already been started"
+    return
+
+  debug "starting switch for peer", peerInfo = s.peerInfo
+
   for service in s.services:
     discard await service.setup(s)
+
+  await s.startTransports()
 
   await s.peerInfo.update()
   await s.ms.start()

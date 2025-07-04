@@ -18,6 +18,7 @@ import
   ./acme/client,
   ./utils,
   ../crypto/crypto,
+  ../transports/tcptransport,
   ../nameresolving/dnsresolver,
   ../peeridauth/client,
   ../peerinfo,
@@ -117,17 +118,19 @@ proc new*(
 
 method setup*(
     self: AutotlsService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+): Future[bool] {.base, async: (raises: [LPError, CancelledError]).} =
   trace "Setting up AutotlsService"
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if hasBeenSetup:
-    self.peerInfo = switch.peerInfo
     if self.config.ipAddress.isNone():
       try:
         self.config.ipAddress = Opt.some(getPublicIPAddress())
       except AutoTLSError as exc:
         error "Failed to get public IP address", err = exc.msg
         return false
+    switch.addTransport(TcpTransport.new(upgrade = Upgrade()))
+    await switch.startTransports()
+    self.peerInfo = switch.peerInfo
     self.managerFut = self.run(switch)
   return hasBeenSetup
 

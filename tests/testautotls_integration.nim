@@ -87,14 +87,11 @@ when defined(linux) and defined(amd64):
         .new()
         .withRng(newRng())
         .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
-        .withTcpTransport()
         .withAutotls(
           config = AutotlsConfig.new(
             acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
           )
         )
-        .withYamux()
-        .withNoise()
         .build()
 
       await switch.start()
