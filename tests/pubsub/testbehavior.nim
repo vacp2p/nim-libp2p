@@ -79,6 +79,36 @@ suite "GossipSub Behavior":
       # And backoff should be set
       peer.peerId in gossipSub.backingOff[topic]
 
+  asyncTest "handleBackingOff - removes expired backoff entries":
+    # Given a GossipSub instance with some peers
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+      peer1 = peers[0]
+      peer2 = peers[1]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And backoff table
+    let now = Moment.now()
+    gossipSub.backingOff[topic] = initTable[PeerId, Moment]()
+    gossipSub.backingOff[topic][peer1.peerId] = now - 1.minutes # Expired
+    gossipSub.backingOff[topic][peer2.peerId] = now + 5.minutes # Non-expired
+
+    # And initially all peers are in backoff table
+    check:
+      gossipSub.backingOff[topic].len == 2
+      peer1.peerId in gossipSub.backingOff[topic]
+      peer2.peerId in gossipSub.backingOff[topic]
+
+    # When handleBackingOff is called
+    handleBackingOff(gossipSub.backingOff, topic)
+
+    # Then expired entries should be removed and non-expired should remain
+    check:
+      gossipSub.backingOff[topic].len == 1
+      peer1.peerId notin gossipSub.backingOff[topic]
+      peer2.peerId in gossipSub.backingOff[topic]
+
   asyncTest "handleIHave - peers with no budget should not request messages":
     # Given a GossipSub instance with one peer
     let
