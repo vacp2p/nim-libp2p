@@ -42,6 +42,43 @@ suite "GossipSub Behavior":
       topicInfo.graftTime <= Moment.now()
       not topicInfo.meshMessageDeliveriesActive
 
+  asyncTest "pruned - updates peer stats, applies penalty, and sets backoff":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is grafted and in mesh initially
+    gossipSub.grafted(peer, topic)
+
+    # And message deliveries are active but below threshold
+    gossipSub.topicParams[topic] = TopicParams.init()
+    gossipSub.topicParams[topic].meshMessageDeliveriesThreshold = 10
+    gossipSub.withPeerStats(peer.peerId) do(stats: var PeerStats):
+      var info = stats.topicInfos.getOrDefault(topic)
+      info.meshMessageDeliveriesActive = true
+      info.meshMessageDeliveries = 5
+      stats.topicInfos[topic] = info
+
+    # And no backoff is set initially
+    check:
+      topic notin gossipSub.backingOff
+
+    # When pruned is called 
+    gossipSub.pruned(peer, topic, setBackoff = true)
+
+    # Then peer stats are updated
+    let stats = gossipSub.peerStats[peer.peerId]
+    let topicInfo = stats.topicInfos[topic]
+
+    check:
+      not topicInfo.inMesh
+      topicInfo.meshFailurePenalty == 25.0
+      # And backoff should be set
+      peer.peerId in gossipSub.backingOff[topic]
+
   asyncTest "handleIHave - peers with no budget should not request messages":
     # Given a GossipSub instance with one peer
     let
