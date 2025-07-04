@@ -344,8 +344,11 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
     return
 
   debug "starting switch for peer", peerInfo = s.peerInfo
+
   var startFuts: seq[Future[void]]
   for t in s.transports:
+    echo "here1"
+    echo s.peerInfo.listenAddrs
     let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
 
     s.peerInfo.listenAddrs.keepItIf(it notin addrs)
@@ -365,10 +368,11 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
       s.acceptFuts.add(s.accept(t))
       s.peerInfo.listenAddrs &= t.addrs
 
+  await s.peerInfo.update()
+
   for service in s.services:
     discard await service.setup(s)
 
-  await s.peerInfo.update()
   await s.ms.start()
   s.started = true
 

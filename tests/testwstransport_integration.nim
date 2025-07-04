@@ -41,10 +41,8 @@ when defined(linux) and defined(amd64):
         skip() # host doesn't have public IPv4 address
         return
 
-      echo "1"
       let pingProtocol = Ping.new(rng = newRng())
 
-      echo "2"
       let switch1 = SwitchBuilder
         .new()
         .withRng(newRng())
@@ -57,23 +55,18 @@ when defined(linux) and defined(amd64):
         .withYamux()
         .withNoise()
         .build()
-      echo "3"
 
-      let switch2 = SwitchBuilder
-        .new()
-        .withRng(newRng())
-        .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet())
-        .withTcpTransport()
-        .withWsTransport()
-        .withAutotls(
-          config = AutotlsConfig.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
-        )
-        .withYamux()
-        .withNoise()
-        .build()
-
-      echo "4"
-      switch1.mount(pingProtocol)
+      # let switch2 = SwitchBuilder
+      #   .new()
+      #   .withRng(newRng())
+      #   .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet())
+      #   .withWsTransport()
+      #   .withAutotls(
+      #     config = AutotlsConfig.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+      #   )
+      #   .withYamux()
+      #   .withNoise()
+      #   .build()
 
       echo "5"
       await switch1.start()
