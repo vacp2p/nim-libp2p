@@ -1,3 +1,5 @@
+{.used.}
+
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -27,68 +29,55 @@ import
 
 from ./helpers import suite, asyncTest, asyncTeardown, checkTrackers, skip, check
 
-when defined(linux) and defined(amd64):
-  {.used.}
+suite "WebSocket transport integration":
+  teardown:
+    checkTrackers()
 
-  suite "WebSocket transport integration":
-    teardown:
-      checkTrackers()
+  asyncTest "autotls certificate is used when manual tlscertificate is not specified":
+    try:
+      discard getPublicIPAddress()
+    except:
+      skip() # host doesn't have public IPv4 address
+      return
 
-    asyncTest "autotls certificate is used when manual tlscertificate is not specified":
-      try:
-        discard getPublicIPAddress()
-      except:
-        skip() # host doesn't have public IPv4 address
-        return
+    let pingProtocol = Ping.new(rng = newRng())
 
-      echo "1"
-      let pingProtocol = Ping.new(rng = newRng())
+    let switch1 = SwitchBuilder
+      .new()
+      .withRng(newRng())
+      .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet())
+      .withTcpTransport()
+      .withWsTransport()
+      .withAutotls(
+        config = AutotlsConfig.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+      )
+      .withYamux()
+      .withNoise()
+      .build()
 
-      echo "2"
-      let switch1 = SwitchBuilder
-        .new()
-        .withRng(newRng())
-        .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet())
-        .withTcpTransport()
-        .withWsTransport()
-        .withAutotls(
-          config = AutotlsConfig.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
-        )
-        .withYamux()
-        .withNoise()
-        .build()
-      echo "3"
+    # let switch2 = SwitchBuilder
+    #   .new()
+    #   .withRng(newRng())
+    #   .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet())
+    #   .withWsTransport()
+    #   .withAutotls(
+    #     config = AutotlsConfig.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+    #   )
+    #   .withYamux()
+    #   .withNoise()
+    #   .build()
 
-      let switch2 = SwitchBuilder
-        .new()
-        .withRng(newRng())
-        .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet())
-        .withTcpTransport()
-        .withWsTransport()
-        .withAutotls(
-          config = AutotlsConfig.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
-        )
-        .withYamux()
-        .withNoise()
-        .build()
+    await switch1.start()
+    # await switch2.start()
 
-      echo "4"
-      switch1.mount(pingProtocol)
+    # # should succeed
+    # let conn =
+    #   await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
+    # echo "7"
+    # discard await pingProtocol.ping(conn)
+    # echo "8"
 
-      echo "5"
-      await switch1.start()
-      echo "5.1"
-      # await switch2.start()
-      # echo "6"
-
-      # # should succeed
-      # let conn =
-      #   await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, PingCodec)
-      # echo "7"
-      # discard await pingProtocol.ping(conn)
-      # echo "8"
-
-      defer:
-        #   await conn.close()
-        await switch1.stop()
-      #   await switch2.stop()
+    defer:
+      #   await conn.close()
+      await switch1.stop()
+    #   await switch2.stop()
