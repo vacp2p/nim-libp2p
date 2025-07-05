@@ -11,7 +11,7 @@
 
 import
   testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
-  testsemaphore, testheartbeat, testfuture, testzeroqueue
+  testsemaphore, testheartbeat, testfuture, testzeroqueue, testbytesview
 
 import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
 
