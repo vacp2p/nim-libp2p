@@ -241,7 +241,7 @@ suite "Hole Punching":
       switchAux.peerInfo.peerId, switchAux.peerInfo.addrs
     )
 
-    await sleepAsync(200.millis)
+    await sleepAsync(100.millis)
 
     await privatePeerSwitch1.connect(
       switchAux2.peerInfo.peerId, switchAux2.peerInfo.addrs
@@ -270,7 +270,7 @@ suite "Hole Punching":
     privatePeerSwitch2.connectStub = rcvConnectStub
 
     # wait for hole punching to finish in the background
-    await sleepAsync(600.millis)
+    await sleepAsync(300.millis)
 
     await allFuturesThrowing(
       privatePeerSwitch1.stop(),
