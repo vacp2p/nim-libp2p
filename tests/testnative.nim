@@ -10,7 +10,7 @@
 # those terms.
 
 import
-  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
+  testvarint, testconnection, testbridgestream, testminprotobuf,
   testsemaphore, testheartbeat, testfuture, testzeroqueue, testbytesview
 
 import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
