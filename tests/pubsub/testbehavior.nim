@@ -4,7 +4,8 @@ import std/[sequtils, tables]
 import stew/byteutils
 import utils
 import chronicles
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../libp2p/[routing_record, crypto/crypto, multiaddress]
+import ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable]
 import ../../libp2p/protocols/pubsub/rpc/[message]
 import ../helpers
 import ../utils/[futures]
@@ -17,65 +18,213 @@ suite "GossipSub Behavior":
   teardown:
     checkTrackers()
 
-  asyncTest "handleIHave - peers with no budget should not request messages":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+  asyncTest "grafted - updates peer stats":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.subscribe(topic, voidTopicHandler)
+    # And no peer stats initially
+    check:
+      not gossipSub.peerStats[peer.peerId].topicInfos.hasKey(topic)
 
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
+    # When peer is grafted 
+    gossipSub.grafted(peer, topic)
 
-    # Add message to `gossipSub`'s message cache
+    # Then peer stats are updated
+    let stats = gossipSub.peerStats[peer.peerId]
+    let topicInfo = stats.topicInfos[topic]
+
+    check:
+      topicInfo.inMesh
+      topicInfo.meshTime == 0.seconds
+      topicInfo.graftTime <= Moment.now()
+      not topicInfo.meshMessageDeliveriesActive
+
+  asyncTest "pruned - updates peer stats, applies penalty, and sets backoff":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is grafted and in mesh initially
+    gossipSub.grafted(peer, topic)
+
+    # And message deliveries are active but below threshold
+    gossipSub.topicParams[topic] = TopicParams.init()
+    gossipSub.topicParams[topic].meshMessageDeliveriesThreshold = 10
+    gossipSub.withPeerStats(peer.peerId) do(stats: var PeerStats):
+      var info = stats.topicInfos.getOrDefault(topic)
+      info.meshMessageDeliveriesActive = true
+      info.meshMessageDeliveries = 5
+      stats.topicInfos[topic] = info
+
+    # And no backoff is set initially
+    check:
+      topic notin gossipSub.backingOff
+
+    # When pruned is called 
+    gossipSub.pruned(peer, topic, setBackoff = true)
+
+    # Then peer stats are updated
+    let stats = gossipSub.peerStats[peer.peerId]
+    let topicInfo = stats.topicInfos[topic]
+
+    check:
+      not topicInfo.inMesh
+      topicInfo.meshFailurePenalty == 25.0
+      # And backoff should be set
+      peer.peerId in gossipSub.backingOff[topic]
+
+  asyncTest "handleBackingOff - removes expired backoff entries":
+    # Given a GossipSub instance with some peers
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+      peer1 = peers[0]
+      peer2 = peers[1]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And backoff table
+    let now = Moment.now()
+    gossipSub.backingOff[topic] = initTable[PeerId, Moment]()
+    gossipSub.backingOff[topic][peer1.peerId] = now - 1.minutes # Expired
+    gossipSub.backingOff[topic][peer2.peerId] = now + 5.minutes # Non-expired
+
+    # And initially all peers are in backoff table
+    check:
+      gossipSub.backingOff[topic].len == 2
+      peer1.peerId in gossipSub.backingOff[topic]
+      peer2.peerId in gossipSub.backingOff[topic]
+
+    # When handleBackingOff is called
+    handleBackingOff(gossipSub.backingOff, topic)
+
+    # Then expired entries should be removed and non-expired should remain
+    check:
+      gossipSub.backingOff[topic].len == 1
+      peer1.peerId notin gossipSub.backingOff[topic]
+      peer2.peerId in gossipSub.backingOff[topic]
+
+  asyncTest "peerExchangeList - returns empty list when PX disabled":
+    # Given a GossipSub instance with peers
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(3, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer exchange is disabled
+    gossipSub.parameters.enablePX = false
+
+    # And peers have good scores
+    for peer in peers:
+      peer.score = 10.0
+
+    # When peerExchangeList is called
+    let peerList = gossipSub.peerExchangeList(topic)
+
+    # Then empty list should be returned
+    check peerList.len == 0
+
+  asyncTest "peerExchangeList - returns filtered peers with SPR data":
+    # Given a GossipSub instance with multiple peers
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(4, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer exchange is enabled
+    gossipSub.parameters.enablePX = true
+
+    # And peers have mixed scores
+    # Good peers
+    peers[0].score = 10.0 # with SPR
+    peers[1].score = 5.0 # without SPR
+    peers[2].score = 0.0 # with SPR
+    # Bad peer
+    peers[3].score = -1.0
+
+    # And some peers have signed peer records in the SPRBook
+    let
+      rng = newRng()
+      mockPrivKey0 = PrivateKey.random(ECDSA, rng[]).tryGet()
+      mockPrivKey2 = PrivateKey.random(ECDSA, rng[]).tryGet()
+      mockAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+      peerRecord0 = PeerRecord.init(peers[0].peerId, @[mockAddr], 1)
+      peerRecord2 = PeerRecord.init(peers[2].peerId, @[mockAddr], 1)
+      mockRecord0 = SignedPeerRecord.init(mockPrivKey0, peerRecord0).tryGet()
+      mockRecord2 = SignedPeerRecord.init(mockPrivKey2, peerRecord2).tryGet()
+    gossipSub.switch.peerStore[SPRBook][peers[0].peerId] = mockRecord0.envelope
+    gossipSub.switch.peerStore[SPRBook][peers[2].peerId] = mockRecord2.envelope
+
+    # When peerExchangeList is called 
+    let peerInfoList = gossipSub.peerExchangeList(topic)
+
+    # Then the list should contain only peers with non-negative scores
+    check:
+      peerInfoList.len == 3
+      peerInfoList.allIt(it.peerId != peers[3].peerId)
+
+    # And peers with SPRs should have non-empty signedPeerRecord
+    let
+      peer0Info = peerInfoList.filterIt(it.peerId == peers[0].peerId)[0]
+      peer1Info = peerInfoList.filterIt(it.peerId == peers[1].peerId)[0]
+      peer2Info = peerInfoList.filterIt(it.peerId == peers[2].peerId)[0]
+
+    check:
+      peer0Info.signedPeerRecord == mockRecord0.envelope.encode().get()
+      peer1Info.signedPeerRecord.len == 0
+      peer2Info.signedPeerRecord == mockRecord2.envelope.encode().get()
+
+  asyncTest "handleIHave - peers with no budget should not request messages":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And an IHAVE message
     let id = @[0'u8, 1, 2, 3]
-    gossipSub.mcache.put(id, Message())
-    peer.sentIHaves[^1].incl(id)
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id])
 
-    # Build an IHAVE message that contains the same message ID three times
-    let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
-
-    # Given the peer has no budget to request messages
+    # And the peer has no budget to request messages
     peer.iHaveBudget = 0
 
-    # When a peer makes an IHAVE request for the a message that `gossipSub` has
+    # When IHave is handled
     let iwants = gossipSub.handleIHave(peer, @[msg])
 
-    # Then `gossipSub` should not generate an IWant message for the message, 
+    # Then gossipSub should not generate an IWANT message due to budget constraints
     check:
       iwants.messageIDs.len == 0
-      gossipSub.mcache.msgs.len == 1
 
   asyncTest "handleIHave - peers with budget should request messages":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.subscribe(topic, voidTopicHandler)
-
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
-
-    # Add message to `gossipSub`'s message cache
-    let id = @[0'u8, 1, 2, 3]
-    gossipSub.mcache.put(id, Message())
-    peer.sentIHaves[^1].incl(id)
-
-    # Build an IHAVE message that contains the same message ID three times
+    # And an IHAVE message that contains the same message ID three times
     # If ids are repeated, only one request should be generated
+    let id = @[0'u8, 1, 2, 3]
     let msg = ControlIHave(topicID: topic, messageIDs: @[id, id, id])
 
-    # Given the budget is not 0 (because it's not been overridden)
+    # Given the peer has budget to request messages
     check:
       peer.iHaveBudget > 0
 
-    # When a peer makes an IHAVE request for the a message that `gossipSub` does not have
+    # When IHave is handled
     let iwants = gossipSub.handleIHave(peer, @[msg])
 
-    # Then `gossipSub` should generate an IWant message for the message
+    # Then gossipSub should generate an IWANT message for the message
     check:
       iwants.messageIDs.len == 1
-      gossipSub.mcache.msgs.len == 1
 
   asyncTest "handleIHave - do not handle IHave if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
@@ -100,15 +249,35 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == 0
 
-  asyncTest "handleIWant - peers with budget should request messages":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+  asyncTest "handleIHave - do not handle IHave when message already in cache":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    gossipSub.subscribe(topic, voidTopicHandler)
+    # And an IHAVE message
+    let id = @[0'u8, 1, 2, 3]
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id])
 
-    let peerId = randomPeerId()
-    let peer = gossipSub.getPubSubPeer(peerId)
+    # And message has already been seen
+    check:
+      not gossipSub.addSeen(gossipSub.salt(id))
+
+    # When IHave is handled
+    let iWant = gossipSub.handleIHave(peer, @[msg])
+
+    # Then no IWANT should be generated
+    check:
+      iWant.messageIDs.len == 0
+
+  asyncTest "handleIWant - message is handled when in cache and with sent IHave":
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
 
     # Add message to `gossipSub`'s message cache
     let id = @[0'u8, 1, 2, 3]
@@ -152,6 +321,88 @@ suite "GossipSub Behavior":
     check:
       messages.len == 0
 
+  asyncTest "handleIWant - message not handled without sent IHave":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And message in message cache but not in sentIHaves 
+    let id = @[0'u8, 1, 2, 3]
+    gossipSub.mcache.put(id, Message())
+    check:
+      peer.sentIHaves.allIt(id notin it)
+
+    # And an IWANT message 
+    let msg = ControlIWant(messageIDs: @[id])
+
+    # When IWANT is handled
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then IWant is ignored
+    check:
+      messages.len == 0
+
+  asyncTest "handleIWant - message not handled when not in cache":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And message in sentIHaves but not in cache
+    let id = @[0'u8, 1, 2, 3]
+    peer.sentIHaves[0].incl(id)
+    check:
+      gossipSub.mcache.msgs.len == 0
+
+    # And an IWANT message 
+    let msg = ControlIWant(messageIDs: @[id])
+
+    # When IWANT is handled
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then IWant is ignored
+    check:
+      messages.len == 0
+
+  asyncTest "handleIWant - stops processing after 21 invalid requests":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And multiple message IDs
+    var messageIds: seq[MessageId]
+    for i in 0 ..< 25:
+      let id = @[i.uint8, 1, 2, 3]
+      messageIds.add(id)
+      gossipSub.mcache.put(id, Message())
+      # And the last 4 message IDs valid with sent IHaves
+      if i > 20:
+        peer.sentIHaves[0].incl(id)
+
+    # First 21 message IDs are invalid (not in sentIHaves)
+    # This means canAskIWant will return false for them
+    check:
+      peer.sentIHaves[0].len == 4
+
+    # And an IWANT message with 21 invalid + 4 valid requests
+    let msg = ControlIWant(messageIDs: messageIds)
+
+    # When IWANT is handled
+    let messages = gossipSub.handleIWant(peer, @[msg])
+
+    # Then processing stops after 21 invalid requests
+    # so the last 4 valid messages are not processed
+    check:
+      messages.len == 0
+
   asyncTest "handleIDontWant - Max IDONTWANT messages per heartbeat per peer":
     # Given GossipSub node with 1 peer
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -176,6 +427,48 @@ suite "GossipSub Behavior":
     # Then it saves max IDontWantMaxCount messages in the history and the rest is dropped
     check:
       peer.iDontWants[0].len == IDontWantMaxCount
+
+  asyncTest "handlePrune - peer is pruned and backoff is set":
+    # Given a GossipSub instance with one peer in mesh
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And mesh contains peer initially
+    check:
+      gossipSub.mesh[topic].len == 1
+      peer in gossipSub.mesh[topic]
+
+    # And a Prune message with backoff > 0
+    let pruneMsg = ControlPrune(
+      topicID: topic, peers: @[], backoff: 300'u64 # 5 minutes backoff
+    )
+
+    # When handlePrune is called
+    gossipSub.handlePrune(peer, @[pruneMsg])
+
+    # Then peer is removed from mesh
+    check:
+      gossipSub.mesh.getOrDefault(topic).len == 0
+
+    # And backoff is set correctly
+    # Expected backoff calculation: prune.backoff (300s) + BackoffSlackTime (2s) = 302s
+    let expectedBackoffSeconds = 302'u64
+    let currentTime = Moment.now()
+    let expectedBackoffTime = Moment.fromNow(expectedBackoffSeconds.int64.seconds)
+
+    # And backoff table is properly populated
+    check:
+      topic in gossipSub.backingOff
+      peer.peerId in gossipSub.backingOff[topic]
+
+    # And backoff time is approximately the expected time (within 1 second tolerance)
+    let actualBackoffTime = gossipSub.backingOff[topic][peer.peerId]
+    let timeDifference = abs((actualBackoffTime - expectedBackoffTime).nanoseconds)
+    check:
+      timeDifference < 1.seconds.nanoseconds
 
   asyncTest "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
@@ -208,6 +501,148 @@ suite "GossipSub Behavior":
     let result = await waitForState(routingRecordsFut, HEARTBEAT_TIMEOUT)
     check:
       result.isCancelled()
+
+  asyncTest "handleGraft - peer joins mesh for subscribed topic":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) =
+        setupGossipSubWithPeers(1, topic, populateFanout = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is not in mesh, but it is in fanout
+    check:
+      peer notin gossipSub.mesh[topic]
+      peer in gossipSub.fanout[topic]
+
+    # When peer sends GRAFT for the topic
+    let graftMsg = ControlGraft(topicID: topic)
+    let pruneResult = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be added to mesh, removed from fanout and no PRUNE sent
+    check:
+      peer in gossipSub.mesh[topic]
+      peer notin gossipSub.fanout.getOrDefault(topic)
+      pruneResult.len == 0
+
+  asyncTest "handleGraft - do not graft if peer already in mesh":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is already in mesh
+    check:
+      peer in gossipSub.mesh[topic]
+
+    # When peer sends GRAFT for the topic
+    let graftMsg = ControlGraft(topicID: topic)
+    let pruneResult = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then graft is skipped and no PRUNE sent
+    check:
+      peer in gossipSub.mesh[topic]
+      pruneResult.len == 0
+
+  asyncTest "handleGraft - reject peer when mesh at dHigh threshold":
+    # Given a GossipSub instance with mesh at dHigh threshold
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And configure dHigh to current mesh size
+    gossipSub.parameters.dHigh = 5
+
+    # And initially mesh has 5 peers, which equals dHigh
+    gossipSub.mesh.removePeer(topic, peer)
+    check:
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      peer notin gossipSub.mesh[topic]
+
+    # When peer sends GRAFT
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be rejected with PRUNE
+    check:
+      peer notin gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      prunes.len == 1
+
+  asyncTest "handleGraft - accept outbound peer when mesh at dHigh but below dOut threshold":
+    # Given a GossipSub instance with mesh at dHigh threshold but lacking outbound peers
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    for peer in peers:
+      peer.sendConn.transportDir = Direction.In
+
+    # And configure dHigh to current mesh size, dOut higher than current outbound count
+    gossipSub.parameters.dHigh = 5
+    gossipSub.parameters.dOut = 2
+
+    # And Peer to graft is outbound and not in the mesh
+    gossipSub.mesh.removePeer(topic, peer)
+    peer.sendConn.transportDir = Direction.Out
+
+    # And initially mesh has 5 peers at dHigh, but 0 outbound peers < dOut (2)
+    check:
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      gossipSub.mesh.outboundPeers(topic) < gossipSub.parameters.dOut
+      peer notin gossipSub.mesh[topic]
+
+    # When outbound peer sends GRAFT
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be accepted despite mesh being at dHigh
+    check:
+      peer in gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh + 1
+      prunes.len == 0
+
+  asyncTest "handleGraft - reject outbound peer when mesh at dHigh and dOut threshold met":
+    # Given a GossipSub instance with mesh at dHigh and dOut thresholds
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # Configure some existing peers as outbound to meet dOut threshold, peer to graft + 2 in the mesh
+    for i in 0 ..< 3:
+      peers[i].sendConn.transportDir = Direction.Out
+    # Rest as inbound
+    for i in 3 ..< 6:
+      peers[i].sendConn.transportDir = Direction.In
+
+    # And configure dHigh to current mesh size, dOut to current outbound count
+    gossipSub.parameters.dHigh = 5
+    gossipSub.parameters.dOut = 2
+
+    # Initially mesh has 5 peers at dHigh, and 2 outbound peers meeting dOut (2)
+    gossipSub.mesh.removePeer(topic, peer)
+    check:
+      gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
+      gossipSub.mesh.outboundPeers(topic) == gossipSub.parameters.dOut
+      peer notin gossipSub.mesh[topic]
+
+    # When outbound peer sends GRAFT
+    let graftMsg = ControlGraft(topicID: topic)
+    let prunes = gossipSub.handleGraft(peer, @[graftMsg])
+
+    # Then peer should be rejected with PRUNE
+    check:
+      peer notin gossipSub.mesh[topic]
+      prunes.len == 1
 
   asyncTest "handleGraft - do not graft when peer score below PublishThreshold threshold":
     const publishThreshold = -100.0
