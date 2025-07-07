@@ -191,6 +191,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
+      KeyPair.random(PKScheme.RSA, newRng()[]).get,
       key,
       "kid",
     )
@@ -209,6 +210,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
+      KeyPair.random(PKScheme.RSA, newRng()[]).get,
       key,
       "kid",
       retries = 1,
@@ -232,6 +234,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
+      KeyPair.random(PKScheme.RSA, newRng()[]).get,
       key,
       "kid",
     )
@@ -285,7 +288,11 @@ suite "AutoTLS ACME API":
 
     expect(ACMEError):
       discard await api.requestFinalize(
-        "some-domain", parseUri("http://example.com/some-finalize-url"), key, "kid"
+        "some-domain",
+        parseUri("http://example.com/some-finalize-url"),
+        KeyPair.random(PKScheme.RSA, newRng()[]).get,
+        key,
+        "kid",
       )
 
     expect(ACMEError):
@@ -356,4 +363,8 @@ suite "AutoTLS ACME Client":
       ),
     )
     expect(ACMEError):
-      discard await acme.getCertificate(api.Domain("some.domain"), challenge)
+      discard await acme.getCertificate(
+        api.Domain("some.domain"),
+        KeyPair.random(PKScheme.RSA, newRng()[]).get,
+        challenge,
+      )

@@ -210,7 +210,7 @@ method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises:
 
 method start*(
     self: QuicTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
 

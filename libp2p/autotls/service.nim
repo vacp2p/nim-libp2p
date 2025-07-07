@@ -10,19 +10,16 @@
 {.push raises: [].}
 {.push public.}
 
-import net, results, json, sequtils
-
-import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand
-
+import chronos, chronicles, net, results
+import chronos/apps/http/httpclient, bearssl/rand
 import
   ./acme/client,
   ./utils,
   ../crypto/crypto,
   ../nameresolving/dnsresolver,
   ../peeridauth/client,
-  ../peerinfo,
   ../switch,
-  ../utils/heartbeat,
+  ../peerinfo,
   ../wire
 
 logScope:
@@ -40,6 +37,9 @@ const
   DefaultRenewCheckTime* = 1.hours
   DefaultRenewBufferTime = 1.hours
 
+  DefaultIssueRetries = 3
+  DefaultIssueRetryTime = 1.seconds
+
   AutoTLSBroker* = "registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
   HttpOk* = 200
@@ -53,6 +53,7 @@ type SigParam = object
 
 type AutotlsCert* = ref object
   cert*: TLSCertificate
+  privkey*: TLSPrivateKey
   expiry*: Moment
 
 type AutotlsConfig* = ref object
@@ -61,27 +62,43 @@ type AutotlsConfig* = ref object
   ipAddress: Opt[IpAddress]
   renewCheckTime*: Duration
   renewBufferTime*: Duration
+  issueRetries*: int
+  issueRetryTime*: Duration
 
 type AutotlsService* = ref object of Service
-  acmeClient: ACMEClient
+  acmeClient*: ACMEClient
+  brokerClient*: PeerIDAuthClient
   bearer*: Opt[BearerToken]
-  brokerClient: PeerIDAuthClient
   cert*: Opt[AutotlsCert]
   certReady*: AsyncEvent
-  config: AutotlsConfig
+  running*: AsyncEvent
+  config*: AutotlsConfig
   managerFut: Future[void]
   peerInfo: PeerInfo
-  rng: ref HmacDrbgContext
+  rng*: ref HmacDrbgContext
 
 when defined(libp2p_autotls_support):
-  proc new*(T: typedesc[AutotlsCert], cert: TLSCertificate, expiry: Moment): T =
-    T(cert: cert, expiry: expiry)
+  import json, sequtils, bearssl/pem
 
-  proc getCertWhenReady*(
+  import
+    ../crypto/rsa,
+    ../utils/heartbeat,
+    ../transports/tcptransport,
+    ../transports/transport
+
+  proc new*(
+      T: typedesc[AutotlsCert],
+      cert: TLSCertificate,
+      privkey: TLSPrivateKey,
+      expiry: Moment,
+  ): T =
+    T(cert: cert, privkey: privkey, expiry: expiry)
+
+  method getCertWhenReady*(
       self: AutotlsService
-  ): Future[TLSCertificate] {.async: (raises: [AutoTLSError, CancelledError]).} =
+  ): Future[AutotlsCert] {.base, async: (raises: [AutoTLSError, CancelledError]).} =
     await self.certReady.wait()
-    return self.cert.get.cert
+    return self.cert.get
 
   proc new*(
       T: typedesc[AutotlsConfig],
@@ -90,6 +107,8 @@ when defined(libp2p_autotls_support):
       acmeServerURL: Uri = parseUri(LetsEncryptURL),
       renewCheckTime: Duration = DefaultRenewCheckTime,
       renewBufferTime: Duration = DefaultRenewBufferTime,
+      issueRetries: int = DefaultIssueRetries,
+      issueRetryTime: Duration = DefaultIssueRetryTime,
   ): T =
     T(
       dnsResolver: DnsResolver.new(nameServers),
@@ -97,6 +116,8 @@ when defined(libp2p_autotls_support):
       ipAddress: ipAddress,
       renewCheckTime: renewCheckTime,
       renewBufferTime: renewBufferTime,
+      issueRetries: issueRetries,
+      issueRetryTime: issueRetryTime,
     )
 
   proc new*(
@@ -111,6 +132,7 @@ when defined(libp2p_autotls_support):
       bearer: Opt.none(BearerToken),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
+      running: newAsyncEvent(),
       config: config,
       managerFut: nil,
       peerInfo: nil,
@@ -123,7 +145,6 @@ when defined(libp2p_autotls_support):
     trace "Setting up AutotlsService"
     let hasBeenSetup = await procCall Service(self).setup(switch)
     if hasBeenSetup:
-      self.peerInfo = switch.peerInfo
       if self.config.ipAddress.isNone():
         try:
           self.config.ipAddress = Opt.some(getPublicIPAddress())
@@ -135,12 +156,14 @@ when defined(libp2p_autotls_support):
 
   method issueCertificate(
       self: AutotlsService
-  ) {.
+  ): Future[bool] {.
       base, async: (raises: [AutoTLSError, ACMEError, PeerIDAuthError, CancelledError])
   .} =
     trace "Issuing certificate"
 
-    assert not self.peerInfo.isNil(), "Cannot issue new certificate: peerInfo not set"
+    if self.peerInfo.isNil():
+      error "Cannot issue new certificate: peerInfo not set"
+      return false
 
     # generate autotls domain string: "*.{peerID}.libp2p.direct"
     let baseDomain =
@@ -151,8 +174,15 @@ when defined(libp2p_autotls_support):
 
     trace "Requesting ACME challenge"
     let dns01Challenge = await acmeClient.getChallenge(@[domain])
+    trace "Generating key authorization"
     let keyAuth = acmeClient.genKeyAuthorization(dns01Challenge.dns01.token)
-    let strMultiaddresses: seq[string] = self.peerInfo.addrs.mapIt($it)
+
+    let addrs = await self.peerInfo.expandAddrs()
+    if addrs.len == 0:
+      error "Unable to authenticate with broker: no addresses"
+      return false
+
+    let strMultiaddresses: seq[string] = addrs.mapIt($it)
     let payload = %*{"value": keyAuth, "addresses": strMultiaddresses}
     let registrationURL = parseUri("https://" & AutoTLSBroker & "/v1/_acme-challenge")
 
@@ -163,57 +193,87 @@ when defined(libp2p_autotls_support):
       # save bearer token for future
       self.bearer = Opt.some(bearer)
     if response.status != HttpOk:
-      raise newException(
-        AutoTLSError, "Failed to authenticate with AutoTLS Broker at " & AutoTLSBroker
-      )
+      error "Failed to authenticate with AutoTLS Broker at " & AutoTLSBroker
+      debug "Broker message",
+        body = bytesToString(response.body), peerinfo = self.peerInfo
+      return false
 
-    debug "Waiting for DNS record to be set"
+    let dashedIpAddr = ($self.config.ipAddress.get()).replace(".", "-")
+    let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
+    let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
+    debug "Waiting for DNS record to be set", ip = ip4Domain, acme = acmeChalDomain
     let dnsSet = await checkDNSRecords(
       self.config.dnsResolver, self.config.ipAddress.get(), baseDomain, keyAuth
     )
     if not dnsSet:
-      raise newException(AutoTLSError, "DNS records not set")
+      error "DNS records not set"
+      return false
 
-    debug "Notifying challenge completion to ACME and downloading cert"
-    let certResponse = await acmeClient.getCertificate(domain, dns01Challenge)
+    trace "Notifying challenge completion to ACME and downloading cert"
+    let certKeyPair = KeyPair.random(PKScheme.RSA, self.rng[]).get()
 
-    debug "Installing certificate"
+    let certificate =
+      await acmeClient.getCertificate(domain, certKeyPair, dns01Challenge)
+
+    let derPrivKey = certKeyPair.seckey.rsakey.getBytes.valueOr:
+      raise newException(AutoTLSError, "Unable to get TLS private key")
+    let pemPrivKey: string = derPrivKey.pemEncode("PRIVATE KEY")
+    debug "autotls cert", pemPrivKey = pemPrivKey, cert = certificate.rawCertificate
+
+    trace "Installing certificate"
     let newCert =
       try:
         AutotlsCert.new(
-          TLSCertificate.init(certResponse.rawCertificate),
-          asMoment(certResponse.certificateExpiry),
+          TLSCertificate.init(certificate.rawCertificate),
+          TLSPrivateKey.init(pemPrivKey),
+          asMoment(certificate.certificateExpiry),
         )
       except TLSStreamProtocolError:
-        raise newException(AutoTLSError, "Could not parse downloaded certificates")
+        error "Could not parse downloaded certificates"
+        return false
     self.cert = Opt.some(newCert)
     self.certReady.fire()
-    debug "Certificate installed"
+    trace "Certificate installed"
+    true
+
+  proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError]).} =
+    for _ in 0 ..< self.config.issueRetries:
+      try:
+        if await self.issueCertificate():
+          return
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        error "Failed to issue certificate", err = exc.msg
+      await sleepAsync(self.config.issueRetryTime)
+    error "Failed to issue certificate"
 
   method run*(
       self: AutotlsService, switch: Switch
   ) {.async: (raises: [CancelledError]).} =
+    trace "Starting Autotls management"
+    self.running.fire()
+    self.peerInfo = switch.peerInfo
+
+    let tcpTransports = switch.transports
+      .filterIt(it of TcpTransport and it.running)
+      .mapIt(TcpTransport(it))
+
+    if tcpTransports.len == 0:
+      error "Could not find a running TcpTransport in switch"
+      return
+
+    let tcpTransport = tcpTransports[0]
+
     heartbeat "Certificate Management", self.config.renewCheckTime:
       if self.cert.isNone():
-        try:
-          await self.issueCertificate()
-        except CancelledError as exc:
-          raise exc
-        except CatchableError as exc:
-          error "Failed to issue certificate", err = exc.msg
-          break
+        await self.tryIssueCertificate()
 
       # AutotlsService will renew the cert 1h before it expires
       let cert = self.cert.get
       let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
       if waitTime <= self.config.renewBufferTime:
-        try:
-          await self.issueCertificate()
-        except CancelledError as exc:
-          raise exc
-        except CatchableError as exc:
-          error "Failed to renew certificate", err = exc.msg
-          break
+        await self.tryIssueCertificate()
 
   method stop*(
       self: AutotlsService, switch: Switch
