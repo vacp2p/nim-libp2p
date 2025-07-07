@@ -185,7 +185,7 @@ suite "GossipSub":
       check:
         stats[].topicInfos[topic].firstMessageDeliveries == 0.0
 
-  asyncTest "unsubscribePeer - removes peer from peersInIP collection":
+  asyncTest "unsubscribePeer - removes peer from peersInIP":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
