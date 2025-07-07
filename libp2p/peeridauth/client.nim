@@ -9,8 +9,8 @@
 
 {.push raises: [].}
 
-import base64, json, strutils, uri, times
-import chronos, chronos/apps/http/httpclient, results, chronicles, bio
+import base64, json, strutils, uri, times, stew/byteutils
+import chronos, chronos/apps/http/httpclient, results, chronicles
 import ../peerinfo, ../crypto/crypto, ../varint.nim
 
 logScope:
@@ -94,12 +94,12 @@ proc extractField(data, key: string): string {.raises: [PeerIDAuthError].} =
 proc genDataToSign(
     parts: seq[SigParam], prefix: string = PeerIDAuthPrefix
 ): seq[byte] {.raises: [PeerIDAuthError].} =
-  var buf: seq[byte] = prefix.toByteSeq()
+  var buf: seq[byte] = prefix.toBytes()
   for p in parts:
     let varintLen = PB.encodeVarint(hint(p.k.len + p.v.len + 1)).valueOr:
       raise newException(PeerIDAuthError, "could not encode fields length to varint")
     buf.add varintLen
-    buf.add (p.k & "=").toByteSeq()
+    buf.add (p.k & "=").toBytes()
     buf.add p.v
   return buf
 
@@ -108,15 +108,15 @@ proc getSigParams(
 ): seq[SigParam] =
   if clientSender:
     @[
-      SigParam(k: "challenge-client", v: challenge.toByteSeq()),
-      SigParam(k: "hostname", v: hostname.toByteSeq()),
+      SigParam(k: "challenge-client", v: challenge.toBytes()),
+      SigParam(k: "hostname", v: hostname.toBytes()),
       SigParam(k: "server-public-key", v: publicKey.getBytes().get()),
     ]
   else:
     @[
-      SigParam(k: "challenge-server", v: challenge.toByteSeq()),
+      SigParam(k: "challenge-server", v: challenge.toBytes()),
       SigParam(k: "client-public-key", v: publicKey.getBytes().get()),
-      SigParam(k: "hostname", v: hostname.toByteSeq()),
+      SigParam(k: "hostname", v: hostname.toBytes()),
     ]
 
 proc sign(
@@ -143,7 +143,7 @@ proc checkSignature*(
     getSigParams(false, hostname, challengeServer, clientPublicKey).genDataToSign()
   var serverSignature: Signature
   try:
-    if not serverSignature.init(base64.decode(serverSig).toByteSeq()):
+    if not serverSignature.init(base64.decode(serverSig).toBytes()):
       raise newException(
         PeerIDAuthError, "Failed to initialize Signature from base64 encoded sig"
       )
@@ -210,7 +210,7 @@ proc requestAuthentication*(
 
   let serverPubkey: PublicKey =
     try:
-      PublicKey.init(decode(extractField(wwwAuthenticate, "public-key")).toByteSeq()).valueOr:
+      PublicKey.init(decode(extractField(wwwAuthenticate, "public-key")).toBytes()).valueOr:
         raise newException(PeerIDAuthError, "Failed to initialize server public-key")
     except ValueError as exc:
       raise newException(PeerIDAuthError, "Failed to decode server public-key", exc)
