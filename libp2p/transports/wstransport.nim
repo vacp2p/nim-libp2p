@@ -16,6 +16,7 @@ import results
 import chronos, chronicles
 import
   transport,
+  ../autotls/service,
   ../errors,
   ../wire,
   ../multicodec,
@@ -105,11 +106,11 @@ type WsTransport* = ref object of Transport
   httpservers: seq[HttpServer]
   wsserver: WSServer
   connections: array[Direction, seq[WsStream]]
-
   acceptFuts: seq[Future[HttpRequest]]
 
-  tlsPrivateKey: TLSPrivateKey
-  tlsCertificate: TLSCertificate
+  tlsPrivateKey*: TLSPrivateKey
+  tlsCertificate*: TLSCertificate
+  autotls: AutotlsService
   tlsFlags: set[TLSFlags]
   flags: set[ServerFlags]
   handshakeTimeout: Duration
@@ -121,7 +122,7 @@ proc secure*(self: WsTransport): bool =
 
 method start*(
     self: WsTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
   ##
 
@@ -129,8 +130,25 @@ method start*(
     warn "WS transport already running"
     return
 
-  await procCall Transport(self).start(addrs)
+  if not self.secure and not self.autotls.isNil():
+    if not await self.autotls.running.wait().withTimeout(3.seconds):
+      error "Unable to upgrade, autotls not running"
+      await self.stop()
+      return
+
+    trace "Waiting for autotls certificate"
+    try:
+      self.tlsCertificate = await self.autotls.getCertWhenReady()
+      self.tlsPrivateKey = self.autotls.getTLSPrivkey()
+    except AutoTLSError as exc:
+      await self.stop()
+      raise newException(LPError, exc.msg, exc)
+    except TLSStreamProtocolError as exc:
+      await self.stop()
+      raise newException(LPError, exc.msg, exc)
+
   trace "Starting WS transport"
+  await procCall Transport(self).start(addrs)
 
   self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)
 
@@ -140,7 +158,7 @@ method start*(
         if self.secure:
           true
         else:
-          warn "Trying to listen on a WSS address without setting certificate!"
+          warn "Trying to listen on a WSS address without setting certificate or autotls!"
           false
       else:
         false
@@ -181,7 +199,6 @@ method start*(
 
   trace "Listening on", addresses = self.addrs
 
-  self.running = true
 
 method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport
@@ -255,8 +272,13 @@ proc connHandler(
 method accept*(
     self: WsTransport
 ): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  trace "WsTransport accept"
   ## accept a new WS connection
   ##
+  # wait until autotls is finished
+  while not self.running and not self.autotls.isNil():
+    trace "waiting for autotls"
+    await sleepAsync(3.seconds)
 
   if not self.running:
     raise newTransportClosedError()
@@ -349,6 +371,7 @@ method dial*(
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
+      debug "WS matching", address = address, match = WebSockets.match(address)
       return WebSockets.match(address)
 
 proc new*(
@@ -356,6 +379,7 @@ proc new*(
     upgrade: Upgrade,
     tlsPrivateKey: TLSPrivateKey,
     tlsCertificate: TLSCertificate,
+    autotls: AutotlsService,
     tlsFlags: set[TLSFlags] = {},
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
@@ -368,6 +392,7 @@ proc new*(
     upgrader: upgrade,
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
+    autotls: autotls,
     tlsFlags: tlsFlags,
     flags: flags,
     factories: @factories,
@@ -389,6 +414,7 @@ proc new*(
     upgrade = upgrade,
     tlsPrivateKey = nil,
     tlsCertificate = nil,
+    autotls = nil,
     flags = flags,
     factories = @factories,
     rng = rng,

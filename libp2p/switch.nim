@@ -20,6 +20,7 @@ import chronos, chronicles, metrics
 import
   stream/connection,
   transports/transport,
+  transports/tcptransport,
   upgrademngrs/upgrade,
   multistream,
   multiaddress,
@@ -347,13 +348,35 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
   var startFuts: seq[Future[void]]
   for t in s.transports:
     let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
-
     s.peerInfo.listenAddrs.keepItIf(it notin addrs)
 
+    debug "addresses", addrs = addrs
+
     if addrs.len > 0 or t.running:
-      startFuts.add(t.start(addrs))
+      let fut = t.start(addrs)
+      startFuts.add(fut)
+      if t of TcpTransport:
+        await fut
+        s.acceptFuts.add(s.accept(t))
+    s.peerInfo.listenAddrs &= t.addrs
+
+  # some transports require some services to be running
+  # in order to finish their startup process
+  for service in s.services:
+    discard await service.setup(s)
+
+  echo "here"
+  echo s.peerInfo.listenAddrs
+  echo s.peerInfo.addrs
+  await s.peerInfo.update()
+  echo "here after"
+  echo s.peerInfo.listenAddrs
+  echo s.peerInfo.addrs
 
   await allFutures(startFuts)
+
+  for t in s.transports:
+    s.peerInfo.listenAddrs &= t.addrs
 
   for fut in startFuts:
     if fut.failed:
@@ -364,13 +387,10 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
 
   for t in s.transports: # for each transport
     if t.addrs.len > 0 or t.running:
+      if t of TcpTransport:
+        continue # already added previously
       s.acceptFuts.add(s.accept(t))
-      s.peerInfo.listenAddrs &= t.addrs
 
-  for service in s.services:
-    discard await service.setup(s)
-
-  await s.peerInfo.update()
   await s.ms.start()
   s.started = true
 

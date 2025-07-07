@@ -107,7 +107,7 @@ proc new*(
 
 method start*(
     self: TcpTransport, addrs: seq[MultiAddress]
-): Future[void] {.async: (raises: [LPError, transport.TransportError]).} =
+): Future[void] {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## Start transport listening to the given addresses - for dial-only transports,
   ## start with an empty list
 

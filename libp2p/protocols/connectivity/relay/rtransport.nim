@@ -31,7 +31,7 @@ type RelayTransport* = ref object of Transport
 
 method start*(
     self: RelayTransport, ma: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   if self.selfRunning:
     trace "Relay transport already running"
     return
