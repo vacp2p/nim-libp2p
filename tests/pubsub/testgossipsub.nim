@@ -14,6 +14,7 @@ import stew/byteutils
 import utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
+import ../../libp2p/muxers/muxer
 import ../helpers
 
 suite "GossipSub":
@@ -21,6 +22,97 @@ suite "GossipSub":
 
   teardown:
     checkTrackers()
+
+  asyncTest "onNewPeer - sets peer stats and budgets and disconnects if bad score":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+      peerStats = PeerStats(
+        score: gossipSub.parameters.graylistThreshold - 1.0,
+        appScore: 10.0,
+        behaviourPenalty: 5.0,
+      )
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And existing peer stats are set
+    gossipSub.peerStats[peer.peerId] = peerStats
+
+    # And the peer is connected
+    gossipSub.switch.connManager.storeMuxer(Muxer(connection: conns[0]))
+    check:
+      gossipSub.switch.isConnected(peer.peerId)
+
+    # When onNewPeer is called
+    gossipSub.parameters.disconnectBadPeers = true
+    gossipSub.onNewPeer(peer)
+
+    # Then peer stats are updated
+    check:
+      peer.score == peerStats.score
+      peer.appScore == peerStats.appScore
+      peer.behaviourPenalty == peerStats.behaviourPenalty
+
+    # And peer budgets are set to default values
+    check:
+      peer.iHaveBudget == IHavePeerBudget
+      peer.pingBudget == PingsPeerBudget
+
+    # And peer is disconnected because score < graylistThreshold
+    checkUntilTimeout:
+      not gossipSub.switch.isConnected(peer.peerId)
+
+  asyncTest "onPubSubPeerEvent - StreamClosed removes peer from mesh and fanout":
+    # Given a GossipSub instance with one peer in both mesh and fanout
+    let
+      (gossipSub, conns, peers) =
+        setupGossipSubWithPeers(1, topic, populateMesh = true, populateFanout = true)
+      peer = peers[0]
+      event = PubSubPeerEvent(kind: PubSubPeerEventKind.StreamClosed)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    check:
+      gossipSub.mesh.hasPeerId(topic, peer.peerId)
+      gossipSub.fanout.hasPeerId(topic, peer.peerId)
+
+    # When StreamClosed event is handled
+    gossipSub.onPubSubPeerEvent(peer, event)
+
+    # Then peer is removed from both mesh and fanout
+    check:
+      not gossipSub.mesh.hasPeerId(topic, peer.peerId)
+      not gossipSub.fanout.hasPeerId(topic, peer.peerId)
+
+  asyncTest "onPubSubPeerEvent - DisconnectionRequested disconnects peer":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(
+        1, topic, populateGossipsub = true, populateMesh = true, populateFanout = true
+      )
+      peer = peers[0]
+      event = PubSubPeerEvent(kind: PubSubPeerEventKind.DisconnectionRequested)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And the peer is connected
+    gossipSub.switch.connManager.storeMuxer(Muxer(connection: conns[0]))
+    check:
+      gossipSub.switch.isConnected(peer.peerId)
+      gossipSub.mesh.hasPeerId(topic, peer.peerId)
+      gossipSub.fanout.hasPeerId(topic, peer.peerId)
+      gossipSub.gossipsub.hasPeerId(topic, peer.peerId)
+
+    # When DisconnectionRequested event is handled
+    gossipSub.onPubSubPeerEvent(peer, event)
+
+    # Then peer should be disconnected
+    checkUntilTimeout:
+      not gossipSub.switch.isConnected(peer.peerId)
+      not gossipSub.mesh.hasPeerId(topic, peer.peerId)
+      not gossipSub.fanout.hasPeerId(topic, peer.peerId)
+      not gossipSub.gossipsub.hasPeerId(topic, peer.peerId)
 
   asyncTest "subscribe/unsubscribeAll":
     let (gossipSub, conns, peers) =
