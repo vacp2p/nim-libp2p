@@ -114,6 +114,103 @@ suite "GossipSub":
       not gossipSub.fanout.hasPeerId(topic, peer.peerId)
       not gossipSub.gossipsub.hasPeerId(topic, peer.peerId)
 
+  asyncTest "unsubscribePeer - handles nil peer gracefully":
+    # Given a GossipSub instance
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(0, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And a non-existent peer ID
+    let nonExistentPeerId = randomPeerId()
+
+    # When unsubscribePeer is called with non-existent peer
+    gossipSub.unsubscribePeer(nonExistentPeerId)
+
+    # Then no errors occur (method returns early for nil peers)
+    check:
+      true
+
+  asyncTest "unsubscribePeer - removes peer from mesh, gossipsub, fanout and subscribedDirectPeers":
+    # Given a GossipSub instance with one peer in mesh
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(
+        1, topic, populateGossipsub = true, populateMesh = true, populateFanout = true
+      )
+      peer = peers[0]
+      peerId = peer.peerId
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is configured as a direct peer
+    gossipSub.parameters.directPeers[peerId] = @[]
+    discard gossipSub.subscribedDirectPeers.addPeer(topic, peer)
+
+    check:
+      gossipSub.mesh.hasPeerId(topic, peerId)
+      gossipSub.gossipsub.hasPeerId(topic, peerId)
+      gossipSub.fanout.hasPeerId(topic, peerId)
+      gossipSub.subscribedDirectPeers.hasPeerId(topic, peerId)
+
+    # When unsubscribePeer is called
+    gossipSub.unsubscribePeer(peerId)
+
+    # Then peer is removed from mesh
+    check:
+      not gossipSub.mesh.hasPeerId(topic, peerId)
+      not gossipSub.gossipsub.hasPeerId(topic, peerId)
+      not gossipSub.fanout.hasPeerId(topic, peerId)
+      not gossipSub.subscribedDirectPeers.hasPeerId(topic, peerId)
+
+  asyncTest "unsubscribePeer - resets firstMessageDeliveries in peerStats":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+      peerId = peer.peerId
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer stats with firstMessageDeliveries set
+    gossipSub.peerStats[peerId] = PeerStats()
+    gossipSub.peerStats[peerId].topicInfos[topic] =
+      TopicInfo(firstMessageDeliveries: 5.0)
+    check:
+      gossipSub.peerStats[peerId].topicInfos[topic].firstMessageDeliveries == 5.0
+
+    # When unsubscribePeer is called
+    gossipSub.unsubscribePeer(peerId)
+
+    # Then firstMessageDeliveries is reset to 0
+    gossipSub.peerStats.withValue(peerId, stats):
+      check:
+        stats[].topicInfos[topic].firstMessageDeliveries == 0.0
+
+  asyncTest "unsubscribePeer - removes peer from peersInIP collection":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+      peerId = peer.peerId
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer has an address and is in peersInIP collection
+    let testAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+    peer.address = some(testAddress)
+    gossipSub.peersInIP[testAddress] = initHashSet[PeerId]()
+    gossipSub.peersInIP[testAddress].incl(peerId)
+
+    # And verify peer is initially in peersInIP
+    check:
+      peerId in gossipSub.peersInIP[testAddress]
+
+    # When unsubscribePeer is called
+    gossipSub.unsubscribePeer(peerId)
+
+    # Then peer is removed from peersInIP collection and collection is cleaned up
+    check:
+      testAddress notin gossipSub.peersInIP # Empty collections are removed
+
   asyncTest "subscribe/unsubscribeAll":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
