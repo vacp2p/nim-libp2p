@@ -4,6 +4,7 @@ import std/[sequtils, tables]
 import stew/byteutils
 import utils
 import chronicles
+import ../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable]
 import ../../libp2p/protocols/pubsub/rpc/[message]
 import ../helpers
@@ -16,6 +17,168 @@ suite "GossipSub Behavior":
 
   teardown:
     checkTrackers()
+
+  asyncTest "grafted - updates peer stats":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And no peer stats initially
+    check:
+      not gossipSub.peerStats[peer.peerId].topicInfos.hasKey(topic)
+
+    # When peer is grafted 
+    gossipSub.grafted(peer, topic)
+
+    # Then peer stats are updated
+    let stats = gossipSub.peerStats[peer.peerId]
+    let topicInfo = stats.topicInfos[topic]
+
+    check:
+      topicInfo.inMesh
+      topicInfo.meshTime == 0.seconds
+      topicInfo.graftTime <= Moment.now()
+      not topicInfo.meshMessageDeliveriesActive
+
+  asyncTest "pruned - updates peer stats, applies penalty, and sets backoff":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is grafted and in mesh initially
+    gossipSub.grafted(peer, topic)
+
+    # And message deliveries are active but below threshold
+    gossipSub.topicParams[topic] = TopicParams.init()
+    gossipSub.topicParams[topic].meshMessageDeliveriesThreshold = 10
+    gossipSub.withPeerStats(peer.peerId) do(stats: var PeerStats):
+      var info = stats.topicInfos.getOrDefault(topic)
+      info.meshMessageDeliveriesActive = true
+      info.meshMessageDeliveries = 5
+      stats.topicInfos[topic] = info
+
+    # And no backoff is set initially
+    check:
+      topic notin gossipSub.backingOff
+
+    # When pruned is called 
+    gossipSub.pruned(peer, topic, setBackoff = true)
+
+    # Then peer stats are updated
+    let stats = gossipSub.peerStats[peer.peerId]
+    let topicInfo = stats.topicInfos[topic]
+
+    check:
+      not topicInfo.inMesh
+      topicInfo.meshFailurePenalty == 25.0
+      # And backoff should be set
+      peer.peerId in gossipSub.backingOff[topic]
+
+  asyncTest "handleBackingOff - removes expired backoff entries":
+    # Given a GossipSub instance with some peers
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+      peer1 = peers[0]
+      peer2 = peers[1]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And backoff table
+    let now = Moment.now()
+    gossipSub.backingOff[topic] = initTable[PeerId, Moment]()
+    gossipSub.backingOff[topic][peer1.peerId] = now - 1.minutes # Expired
+    gossipSub.backingOff[topic][peer2.peerId] = now + 5.minutes # Non-expired
+
+    # And initially all peers are in backoff table
+    check:
+      gossipSub.backingOff[topic].len == 2
+      peer1.peerId in gossipSub.backingOff[topic]
+      peer2.peerId in gossipSub.backingOff[topic]
+
+    # When handleBackingOff is called
+    handleBackingOff(gossipSub.backingOff, topic)
+
+    # Then expired entries should be removed and non-expired should remain
+    check:
+      gossipSub.backingOff[topic].len == 1
+      peer1.peerId notin gossipSub.backingOff[topic]
+      peer2.peerId in gossipSub.backingOff[topic]
+
+  asyncTest "peerExchangeList - returns empty list when PX disabled":
+    # Given a GossipSub instance with peers
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(3, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer exchange is disabled
+    gossipSub.parameters.enablePX = false
+
+    # And peers have good scores
+    for peer in peers:
+      peer.score = 10.0
+
+    # When peerExchangeList is called
+    let peerList = gossipSub.peerExchangeList(topic)
+
+    # Then empty list should be returned
+    check peerList.len == 0
+
+  asyncTest "peerExchangeList - returns filtered peers with SPR data":
+    # Given a GossipSub instance with multiple peers
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(4, topic, populateGossipsub = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer exchange is enabled
+    gossipSub.parameters.enablePX = true
+
+    # And peers have mixed scores
+    # Good peers
+    peers[0].score = 10.0 # with SPR
+    peers[1].score = 5.0 # without SPR
+    peers[2].score = 0.0 # with SPR
+    # Bad peer
+    peers[3].score = -1.0
+
+    # And some peers have signed peer records in the SPRBook
+    let
+      rng = newRng()
+      mockPrivKey0 = PrivateKey.random(ECDSA, rng[]).tryGet()
+      mockPrivKey2 = PrivateKey.random(ECDSA, rng[]).tryGet()
+      mockAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+      peerRecord0 = PeerRecord.init(peers[0].peerId, @[mockAddr], 1)
+      peerRecord2 = PeerRecord.init(peers[2].peerId, @[mockAddr], 1)
+      mockRecord0 = SignedPeerRecord.init(mockPrivKey0, peerRecord0).tryGet()
+      mockRecord2 = SignedPeerRecord.init(mockPrivKey2, peerRecord2).tryGet()
+    gossipSub.switch.peerStore[SPRBook][peers[0].peerId] = mockRecord0.envelope
+    gossipSub.switch.peerStore[SPRBook][peers[2].peerId] = mockRecord2.envelope
+
+    # When peerExchangeList is called 
+    let peerInfoList = gossipSub.peerExchangeList(topic)
+
+    # Then the list should contain only peers with non-negative scores
+    check:
+      peerInfoList.len == 3
+      peerInfoList.allIt(it.peerId != peers[3].peerId)
+
+    # And peers with SPRs should have non-empty signedPeerRecord
+    let
+      peer0Info = peerInfoList.filterIt(it.peerId == peers[0].peerId)[0]
+      peer1Info = peerInfoList.filterIt(it.peerId == peers[1].peerId)[0]
+      peer2Info = peerInfoList.filterIt(it.peerId == peers[2].peerId)[0]
+
+    check:
+      peer0Info.signedPeerRecord == mockRecord0.envelope.encode().get()
+      peer1Info.signedPeerRecord.len == 0
+      peer2Info.signedPeerRecord == mockRecord2.envelope.encode().get()
 
   asyncTest "handleIHave - peers with no budget should not request messages":
     # Given a GossipSub instance with one peer
