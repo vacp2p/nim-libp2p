@@ -194,7 +194,7 @@ suite "GossipSub":
     defer:
       await teardownGossipSub(gossipSub, conns)
 
-    # And peer has an address and is in peersInIP collection
+    # And peer has an address and is in peersInIP
     let testAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
     peer.address = some(testAddress)
     gossipSub.peersInIP[testAddress] = initHashSet[PeerId]()
@@ -207,9 +207,69 @@ suite "GossipSub":
     # When unsubscribePeer is called
     gossipSub.unsubscribePeer(peerId)
 
-    # Then peer is removed from peersInIP collection and collection is cleaned up
+    # Then peer is removed from peersInIP
     check:
-      testAddress notin gossipSub.peersInIP # Empty collections are removed
+      testAddress notin gossipSub.peersInIP
+
+  asyncTest "handleSubscribe via rpcHandler - subscribe and unsubscribe with direct peer":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And the peer is configured as a direct peer
+    gossipSub.parameters.directPeers[peer.peerId] = @[]
+
+    # When a subscribe message is sent via RPC handler
+    await gossipSub.rpcHandler(
+      peer, encodeRpcMsg(RPCMsg.withSubs(@[topic], true), false)
+    )
+
+    # Then the peer is added to gossipsub for the topic
+    # And the peer is added to subscribedDirectPeers
+    check:
+      gossipSub.gossipsub.hasPeer(topic, peer)
+      gossipSub.subscribedDirectPeers.hasPeer(topic, peer)
+
+    # When Peer is added to the mesh and fanout
+    discard gossipSub.mesh.addPeer(topic, peer)
+    discard gossipSub.fanout.addPeer(topic, peer)
+
+    # And an unsubscribe message is sent via RPC handler
+    await gossipSub.rpcHandler(
+      peer, encodeRpcMsg(RPCMsg.withSubs(@[topic], false), false)
+    )
+
+    # Then the peer is removed from gossipsub, mesh and fanout
+    # And the peer is removed from subscribedDirectPeers
+    check:
+      not gossipSub.gossipsub.hasPeer(topic, peer)
+      not gossipSub.mesh.hasPeer(topic, peer)
+      not gossipSub.fanout.hasPeer(topic, peer)
+      not gossipSub.subscribedDirectPeers.hasPeer(topic, peer)
+
+  asyncTest "handleSubscribe via rpcHandler - subscribe unknown peer":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And peer is not in gossipSub.peers
+    let nonExistentPeerId = randomPeerId()
+    peer.peerId = nonExistentPeerId # override PeerId
+
+    # When a subscribe message is sent via RPC handler
+    await gossipSub.rpcHandler(
+      peer, encodeRpcMsg(RPCMsg.withSubs(@[topic], true), false)
+    )
+
+    # Then the peer is ignored
+    check:
+      not gossipSub.gossipsub.hasPeer(topic, peer)
 
   asyncTest "subscribe/unsubscribeAll":
     let (gossipSub, conns, peers) =
