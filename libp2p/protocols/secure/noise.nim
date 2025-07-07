@@ -15,11 +15,12 @@ import chronicles
 import bearssl/[rand, hash]
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
-import ../../stream/[connection, streamseq]
+import ../../stream/[connection]
 import ../../peerid
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
+import ../../utils/bytesview
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
@@ -237,13 +238,14 @@ template write_e(): untyped =
   # Sets e (which must be empty) to GENERATE_KEYPAIR().
   # Appends e.public_key to the buffer. Calls MixHash(e.public_key).
   hs.e = genKeyPair(p.rng[])
-  msg.add hs.e.publicKey
   hs.ss.mixHash(hs.e.publicKey)
+
+  hs.e.publicKey.getBytes
 
 template write_s(): untyped =
   trace "noise write s"
   # Appends EncryptAndHash(s.public_key) to the buffer.
-  msg.add hs.ss.encryptAndHash(hs.s.publicKey)
+  hs.ss.encryptAndHash(hs.s.publicKey)
 
 template dh_ee(): untyped =
   trace "noise dh ee"
@@ -281,8 +283,9 @@ template read_e(): untyped =
   # Sets re (which must be empty) to the next DHLEN bytes from the message.
   # Calls MixHash(re.public_key).
   hs.re[0 .. Curve25519Key.high] = msg.toOpenArray(0, Curve25519Key.high)
-  msg.consume(Curve25519Key.len)
   hs.ss.mixHash(hs.re)
+
+  Curve25519Key.len
 
 template read_s(): untyped =
   trace "noise read s", size = msg.len
@@ -300,7 +303,7 @@ template read_s(): untyped =
       Curve25519Key.len
   hs.rs[0 .. Curve25519Key.high] = hs.ss.decryptAndHash(msg.toOpenArray(0, rsLen - 1))
 
-  msg.consume(rsLen)
+  rsLen
 
 proc readFrame(
     sconn: Connection
@@ -316,28 +319,25 @@ proc readFrame(
   await sconn.readExactly(addr buffer[0], buffer.len)
   return buffer
 
-proc writeFrame(
-    sconn: Connection, buf: openArray[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  doAssert buf.len <= uint16.high.int
-  var
-    lesize = buf.len.uint16
-    besize = lesize.toBytesBE
-    outbuf = newSeqOfCap[byte](besize.len + buf.len)
-  trace "writeFrame", sconn, size = lesize, data = shortLog(buf)
-  outbuf &= besize
-  outbuf &= buf
-  sconn.write(outbuf)
-
 proc receiveHSMessage(
     sconn: Connection
 ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   readFrame(sconn)
 
-proc sendHSMessage(
-    sconn: Connection, buf: openArray[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  writeFrame(sconn, buf)
+template sendHSMessage(sconn: Connection, parts: varargs[seq[byte]]): untyped =
+  # sends message (message frame) using multiple seq[byte] that 
+  # concatenated represent entire mesage.
+
+  var msgSize: int
+  for p in parts:
+    msgSize += p.len
+
+  trace "sendHSMessage", sconn, size = msgSize
+  doAssert msgSize <= uint16.high.int
+
+  await sconn.write(@(msgSize.uint16.toBytesBE))
+  for p in parts:
+    await sconn.write(p)
 
 proc handshakeXXOutbound(
     p: Noise, conn: Connection, p2pSecret: seq[byte]
@@ -348,38 +348,30 @@ proc handshakeXXOutbound(
   try:
     hs.ss.mixHash(p.commonPrologue)
     hs.s = p.noiseKeys
+    var remoteP2psecret: seq[byte]
 
-    # -> e
-    var msg: StreamSeq
+    block: # -> e
+      let ebytes = write_e()
+      # IK might use this btw!
+      let hbytes = hs.ss.encryptAndHash([])
 
-    write_e()
+      conn.sendHSMessage(ebytes, hbytes)
 
-    # IK might use this btw!
-    msg.add hs.ss.encryptAndHash([])
+    block: # <- e, ee, s, es
+      var msg = BytesView.init(await conn.receiveHSMessage())
+      msg.consume(read_e())
+      dh_ee()
+      msg.consume(read_s())
+      dh_es()
+      remoteP2psecret = hs.ss.decryptAndHash(msg.data())
 
-    await conn.sendHSMessage(msg.data)
+    block: # -> s, se
+      let sbytes = write_s()
+      dh_se()
+      # last payload must follow the encrypted way of sending
+      let hbytes = hs.ss.encryptAndHash(p2pSecret)
 
-    # <- e, ee, s, es
-
-    msg.assign(await conn.receiveHSMessage())
-
-    read_e()
-    dh_ee()
-    read_s()
-    dh_es()
-
-    let remoteP2psecret = hs.ss.decryptAndHash(msg.data)
-    msg.clear()
-
-    # -> s, se
-
-    write_s()
-    dh_se()
-
-    # last payload must follow the encrypted way of sending
-    msg.add hs.ss.encryptAndHash(p2pSecret)
-
-    await conn.sendHSMessage(msg.data)
+      conn.sendHSMessage(sbytes, hbytes)
 
     let (cs1, cs2) = hs.ss.split()
     return
@@ -397,41 +389,30 @@ proc handshakeXXInbound(
   try:
     hs.ss.mixHash(p.commonPrologue)
     hs.s = p.noiseKeys
+    var remoteP2psecret: seq[byte]
 
-    # -> e
+    block: # <- e
+      var msg = BytesView.init(await conn.receiveHSMessage())
+      msg.consume(read_e())
+      # we might use this early data one day, keeping it here for clarity
+      let earlyData {.used.} = hs.ss.decryptAndHash(msg.data())
 
-    var msg: StreamSeq
-    msg.add(await conn.receiveHSMessage())
+    block: # -> e, ee, s, es
+      let ebytes = write_e()
+      dh_ee()
+      let sbytes = write_s()
+      dh_es()
+      let hbytes = hs.ss.encryptAndHash(p2pSecret)
 
-    read_e()
+      conn.sendHSMessage(ebytes, sbytes, hbytes)
 
-    # we might use this early data one day, keeping it here for clarity
-    let earlyData {.used.} = hs.ss.decryptAndHash(msg.data)
+    block: # <- s, se
+      var msg = BytesView.init(await conn.receiveHSMessage())
+      msg.consume(read_s())
+      dh_se()
+      remoteP2psecret = hs.ss.decryptAndHash(msg.data())
 
-    # <- e, ee, s, es
-
-    msg.consume(msg.len)
-
-    write_e()
-    dh_ee()
-    write_s()
-    dh_es()
-
-    msg.add hs.ss.encryptAndHash(p2pSecret)
-
-    await conn.sendHSMessage(msg.data)
-    msg.clear()
-
-    # -> s, se
-
-    msg.add(await conn.receiveHSMessage())
-
-    read_s()
-    dh_se()
-
-    let
-      remoteP2psecret = hs.ss.decryptAndHash(msg.data)
-      (cs1, cs2) = hs.ss.split()
+    let (cs1, cs2) = hs.ss.split()
     return
       HandshakeResult(cs1: cs1, cs2: cs2, remoteP2psecret: remoteP2psecret, rs: hs.rs)
   finally:

@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import uri
-import chronos, results, bio, chronicles
+import chronos, results, chronicles, stew/byteutils
 
 import ./api, ./utils
 import ../../crypto/crypto
@@ -48,7 +48,7 @@ proc getOrInitKid*(
   return self.kid
 
 proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
-  base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toByteSeq).data))
+  base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toBytes).data))
 
 proc getChallenge*(
     self: ACMEClient, domains: seq[api.Domain]
