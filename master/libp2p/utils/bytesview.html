@@ -17,10 +17,10 @@
 <link href='https://fonts.googleapis.com/css?family=Source+Code+Pro:400,500,600' rel='stylesheet' type='text/css'/>
 
 <!-- CSS -->
-<title>libp2p/protocols/pubsub/errors</title>
-<link rel="stylesheet" type="text/css" href="../../../nimdoc.out.css">
+<title>libp2p/utils/bytesview</title>
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css">
 
-<script type="text/javascript" src="../../../dochack.js"></script>
+<script type="text/javascript" src="../../dochack.js"></script>
 
 <script type="text/javascript">
 function main() {
@@ -69,7 +69,7 @@ window.addEventListener('DOMContentLoaded', main);
 <body>
 <div class="document" id="documentId">
   <div class="container">
-    <h1 class="title">libp2p/protocols/pubsub/errors</h1>
+    <h1 class="title">libp2p/utils/bytesview</h1>
     <div class="row">
   <div class="three columns">
   <div class="theme-switch-wrapper">
@@ -82,7 +82,7 @@ window.addEventListener('DOMContentLoaded', main);
   <div id="global-links">
     <ul class="simple">
     <li>
-      <a href="../../../theindex.html">Index</a>
+      <a href="../../theindex.html">Index</a>
     </li>
     </ul>
   </div>
@@ -197,17 +197,49 @@ window.addEventListener("DOMContentLoaded", main2);
 </script>
 <ul class="simple simple-toc" id="toc-list">
 <li>
-  <a class="reference reference-toplevel" href="#6" id="56">Imports</a>
+  <a class="reference reference-toplevel" href="#7" id="57">Types</a>
   <ul class="simple simple-toc-section">
-    
+      <li><a class="reference" href="#BytesView"
+    title="BytesView = object
+  data: seq[byte]
+  rpos: int">BytesView</a></li>
+
   </ul>
 </li>
 <li>
-  <a class="reference reference-toplevel" href="#7" id="57">Types</a>
+  <a class="reference reference-toplevel" href="#12" id="62">Procs</a>
   <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#ValidationResult"
-    title="ValidationResult {.pure, public.} = enum
-  Accept, Reject, Ignore">ValidationResult</a></li>
+      <ul class="simple nested-toc-section">consume
+      <li><a class="reference" href="#consume%2CBytesView%2Cint"
+    title="consume(v: var BytesView; n: int)">consume(v: var BytesView; n: int)</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">init
+      <li><a class="reference" href="#init%2Ctypedesc%5BBytesView%5D%2Csinkseq%5Bbyte%5D"
+    title="init(t: typedesc[BytesView]; data: sink seq[byte]): BytesView">init(t: typedesc[BytesView]; data: sink seq[byte]): BytesView</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">len
+      <li><a class="reference" href="#len%2CBytesView"
+    title="len(v: BytesView): int">len(v: BytesView): int</a></li>
+
+  </ul>
+
+  </ul>
+</li>
+<li>
+  <a class="reference reference-toplevel" href="#18" id="68">Templates</a>
+  <ul class="simple simple-toc-section">
+      <ul class="simple nested-toc-section">data
+      <li><a class="reference" href="#data.t%2CBytesView"
+    title="data(v: BytesView): openArray[byte]">data(v: BytesView): openArray[byte]</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">toOpenArray
+      <li><a class="reference" href="#toOpenArray.t%2CBytesView%2Cint%2Cint"
+    title="toOpenArray(v: BytesView; b, e: int): openArray[byte]">toOpenArray(v: BytesView; b, e: int): openArray[byte]</a></li>
+
+  </ul>
 
   </ul>
 </li>
@@ -216,32 +248,99 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </div>
   &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/errors.nim#L1"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/bytesview.nim#L1"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/errors.nim#L1" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/bytesview.nim#L1" class="link-seesrc" target="_blank" >Edit</a>
 
   <div class="nine columns" id="content">
   <div id="tocRoot"></div>
   
   <p class="module-desc"></p>
-  <div class="section" id="6">
-<h1><a class="toc-backref" href="#6">Imports</a></h1>
-<dl class="item">
-<a class="reference external" href="../../utility.html">../../utility</a>
-</dl></div>
-<div class="section" id="7">
+  <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
 <dl class="item">
-<div id="ValidationResult" class="tohide">
-<dt><pre><a href="errors.html#ValidationResult"><span class="Identifier">ValidationResult</span></a> {.<span class="Identifier">pure</span><span class="Other">,</span> <span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">Accept</span><span class="Other">,</span> <span class="Identifier">Reject</span><span class="Other">,</span> <span class="Identifier">Ignore</span></pre></dt>
+<div id="BytesView" class="tohide">
+<dt><pre><a href="bytesview.html#BytesView"><span class="Identifier">BytesView</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
+  <span class="Identifier">rpos</span><span class="Other">:</span> <span class="Identifier">int</span>
+</pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/errors.nim#L6"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/bytesview.nim#L10"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/errors.nim#L6" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/bytesview.nim#L10" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+
+</dl></div>
+<div class="section" id="12">
+<h1><a class="toc-backref" href="#12">Procs</a></h1>
+<dl class="item">
+<div id="consume,BytesView,int" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#consume%2CBytesView%2Cint"><span class="Identifier">consume</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="bytesview.html#BytesView"><span class="Identifier">BytesView</span></a><span class="Other">;</span> <span class="Identifier">n</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/bytesview.nim#L20"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/bytesview.nim#L20" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="init,typedesc[BytesView],sinkseq[byte]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BBytesView%5D%2Csinkseq%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="bytesview.html#BytesView"><span class="Identifier">BytesView</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">sink</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="bytesview.html#BytesView"><span class="Identifier">BytesView</span></a></pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/bytesview.nim#L14"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/bytesview.nim#L14" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="len,BytesView" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#len%2CBytesView"><span class="Identifier">len</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <a href="bytesview.html#BytesView"><span class="Identifier">BytesView</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/bytesview.nim#L17"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/bytesview.nim#L17" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+
+</dl></div>
+<div class="section" id="18">
+<h1><a class="toc-backref" href="#18">Templates</a></h1>
+<dl class="item">
+<div id="data.t,BytesView" class="tohide">
+<dt><pre><span class="Keyword">template</span> <a href="#data.t%2CBytesView"><span class="Identifier">data</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <a href="bytesview.html#BytesView"><span class="Identifier">BytesView</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span></pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/bytesview.nim#L27"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/bytesview.nim#L27" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="toOpenArray.t,BytesView,int,int" class="tohide">
+<dt><pre><span class="Keyword">template</span> <a href="#toOpenArray.t%2CBytesView%2Cint%2Cint"><span class="Identifier">toOpenArray</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <a href="bytesview.html#BytesView"><span class="Identifier">BytesView</span></a><span class="Other">;</span> <span class="Identifier">b</span><span class="Other">,</span> <span class="Identifier">e</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span></pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/bytesview.nim#L24"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/bytesview.nim#L24" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -255,7 +354,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-07 14:30:16 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-07 14:30:12 UTC</small>
       </div>
     </div>
   </div>

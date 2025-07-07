@@ -320,7 +320,7 @@ class="link-seesrc" target="_blank">Source</a>
   <div class="section" id="6">
 <h1><a class="toc-backref" href="#6">Imports</a></h1>
 <dl class="item">
-<a class="reference external" href="../../stream/connection.html">../../stream/connection</a>, <a class="reference external" href="../../stream/streamseq.html">../../stream/streamseq</a>, <a class="reference external" href="../../peerid.html">../../peerid</a>, <a class="reference external" href="../../peerinfo.html">../../peerinfo</a>, <a class="reference external" href="../../protobuf/minprotobuf.html">../../protobuf/minprotobuf</a>, <a class="reference external" href="../../utility.html">../../utility</a>, <a class="reference external" href="secure.html">secure</a>, <a class="reference external" href="../../crypto/crypto.html">../../crypto/crypto</a>, <a class="reference external" href="../../crypto/chacha20poly1305.html">../../crypto/chacha20poly1305</a>, <a class="reference external" href="../../crypto/curve25519.html">../../crypto/curve25519</a>, <a class="reference external" href="../../crypto/hkdf.html">../../crypto/hkdf</a>
+<a class="reference external" href="../../stream/connection.html">../../stream/connection</a>, <a class="reference external" href="../../peerid.html">../../peerid</a>, <a class="reference external" href="../../peerinfo.html">../../peerinfo</a>, <a class="reference external" href="../../protobuf/minprotobuf.html">../../protobuf/minprotobuf</a>, <a class="reference external" href="../../utility.html">../../utility</a>, <a class="reference external" href="../../utils/bytesview.html">../../utils/bytesview</a>, <a class="reference external" href="secure.html">secure</a>, <a class="reference external" href="../../crypto/crypto.html">../../crypto/crypto</a>, <a class="reference external" href="../../crypto/chacha20poly1305.html">../../crypto/chacha20poly1305</a>, <a class="reference external" href="../../crypto/curve25519.html">../../crypto/curve25519</a>, <a class="reference external" href="../../crypto/hkdf.html">../../crypto/hkdf</a>
 </dl></div>
 <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
@@ -338,9 +338,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L78"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L79"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L78" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L79" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -353,9 +353,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L86"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L87"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L86" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L87" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -365,26 +365,14 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L92"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L93"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L92" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="NoiseError" class="tohide">
 <dt><pre><a href="noise.html#NoiseError"><span class="Identifier">NoiseError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a></pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L90"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L90" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="NoiseHandshakeError" class="tohide">
-<dt><pre><a href="noise.html#NoiseHandshakeError"><span class="Identifier">NoiseHandshakeError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="noise.html#NoiseError"><span class="Identifier">NoiseError</span></a></pre></dt>
 <dd>
 
 
@@ -395,15 +383,27 @@ class="link-seesrc" target="_blank">Source</a>
 
 </dd>
 </div>
+<div id="NoiseHandshakeError" class="tohide">
+<dt><pre><a href="noise.html#NoiseHandshakeError"><span class="Identifier">NoiseHandshakeError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="noise.html#NoiseError"><span class="Identifier">NoiseError</span></a></pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L92"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L92" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
 <div id="NoiseNonceMaxError" class="tohide">
 <dt><pre><a href="noise.html#NoiseNonceMaxError"><span class="Identifier">NoiseNonceMaxError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="noise.html#NoiseError"><span class="Identifier">NoiseError</span></a></pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L94"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L95"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L94" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L95" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -413,9 +413,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L93"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L94"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L94" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -430,9 +430,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L34"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L35"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L34" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L35" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -449,9 +449,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L632"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L613"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L632" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L613" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -461,9 +461,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L98"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L99"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L99" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -480,9 +480,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L622"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L603"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L622" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L603" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -496,9 +496,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L519"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L500"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L519" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L500" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -508,9 +508,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L628"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L609"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L628" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L609" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -523,9 +523,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L442"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L423"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L442" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L423" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -537,9 +537,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L473"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L454"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L473" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L454" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -554,9 +554,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L107"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/secure/noise.nim#L108"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L107" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/secure/noise.nim#L108" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -570,7 +570,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-04 21:15:47 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-07 14:30:13 UTC</small>
       </div>
     </div>
   </div>
