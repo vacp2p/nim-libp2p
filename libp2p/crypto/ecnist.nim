@@ -929,7 +929,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
   var data: array[Secret521Length, byte]
   let res = toSecret(pubkey, seckey, data)
   if res > 0:
-    result = newSeq[byte](res)
+    result = newSeqUninitialized[byte](res)
     copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte | char](
@@ -943,7 +943,7 @@ proc sign*[T: byte | char](
   var impl = ecGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
     var sig = new EcSignature
-    sig.buffer = newSeq[byte](256)
+    sig.buffer = newSeqUninitialized[byte](256)
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:

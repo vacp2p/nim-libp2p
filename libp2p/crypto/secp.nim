@@ -182,7 +182,7 @@ proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
-  result = newSeq[byte](72)
+  result = newSeqUninitialized[byte](72)
   let length = toBytes(sig, result)
   result.setLen(length)
 

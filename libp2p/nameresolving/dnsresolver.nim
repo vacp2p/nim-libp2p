@@ -37,7 +37,7 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
     let dataLen = requestStream.getPosition()
     requestStream.setPosition(0)
 
-    var buf = newSeq[byte](dataLen)
+    var buf = newSeqUninitialized[byte](dataLen)
     discard requestStream.readData(addr buf[0], dataLen)
     buf
   except IOError as exc:
