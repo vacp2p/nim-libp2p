@@ -12,7 +12,8 @@
 import chronos/rateLimit
 import stew/byteutils
 import utils
-import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
+import
+  ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
 import ../../libp2p/muxers/muxer
 import ../helpers
@@ -271,7 +272,7 @@ suite "GossipSub":
     check:
       not gossipSub.gossipsub.hasPeer(topic, peer)
 
-  asyncTest "subscribe/unsubscribeAll":
+  asyncTest "subscribe and unsubscribeAll":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
@@ -293,7 +294,7 @@ suite "GossipSub":
       topic notin gossipSub.mesh # not in mesh
       topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
 
-  asyncTest "Drop messages of topics without subscription":
+  asyncTest "rpcHandler - drop messages of topics without subscription":
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -309,7 +310,7 @@ suite "GossipSub":
 
     check gossipSub.mcache.msgs.len == 0
 
-  asyncTest "subscription limits":
+  asyncTest "rpcHandler - subscription limits":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
     gossipSub.topicsHigh = 10
 
@@ -331,7 +332,7 @@ suite "GossipSub":
 
     await conn.close()
 
-  asyncTest "invalid message bytes":
+  asyncTest "rpcHandler - invalid message bytes":
     let gossipSub = TestGossipSub.init(newStandardSwitch())
 
     let peerId = randomPeerId()
@@ -340,7 +341,7 @@ suite "GossipSub":
     expect(CatchableError):
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
-  asyncTest "Peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
+  asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -376,7 +377,7 @@ suite "GossipSub":
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
-  asyncTest "Peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+  asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -405,7 +406,7 @@ suite "GossipSub":
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
-  asyncTest "Peer is punished and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+  asyncTest "rpcHandler - peer is punished and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -439,7 +440,7 @@ suite "GossipSub":
       currentRateLimitHits("unknown") == rateLimitHits + 1
       peer.behaviourPenalty == 0.1
 
-  asyncTest "Peer is punished when decodeRpcMsg fails":
+  asyncTest "rpcHandler - peer is punished when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -459,7 +460,35 @@ suite "GossipSub":
     check:
       peer.behaviourPenalty == 0.1
 
-  asyncTest "Peer is punished when message contains invalid sequence number":
+  asyncTest "rpcHandler - message already seen - valid message dropped when ID already in seenMsgs":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification disabled to focus on seen message logic
+    gossipSub.verifySignature = false
+
+    # And a message is created
+    let msg = Message.init(peer.peerId, "bar".toBytes, topic, some(1'u64))
+    let data = encodeRpcMsg(RPCMsg(messages: @[msg]), false)
+
+    # And the message ID is marked as already seen
+    let messageId = gossipSub.msgIdProvider(msg).get
+    let saltedMessageId = gossipSub.salt(messageId)
+    check:
+      not gossipSub.addSeen(saltedMessageId)
+
+    # When the message is processed again
+    await gossipSub.rpcHandler(peer, data)
+
+    # Then the message should be dropped (not cached)
+    check:
+      gossipSub.mcache.msgs.len == 0
+
+  asyncTest "rpcHandler - peer is punished when message contains invalid sequence number":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -478,11 +507,10 @@ suite "GossipSub":
     await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented 
-    gossipSub.peerStats.withValue(peer.peerId, stats):
-      check:
-        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
+    check:
+      gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
 
-  asyncTest "Peer is punished when message id generation fails":
+  asyncTest "rpcHandler - peer is punished when message id generation fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -505,11 +533,10 @@ suite "GossipSub":
     await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented
-    gossipSub.peerStats.withValue(peer.peerId, stats):
-      check:
-        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
+    check:
+      gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
 
-  asyncTest "Peer is punished when signature verification fails":
+  asyncTest "rpcHandler - peer is punished when signature verification fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -527,11 +554,10 @@ suite "GossipSub":
     await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented
-    gossipSub.peerStats.withValue(peer.peerId, stats):
-      check:
-        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
+    check:
+      gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
 
-  asyncTest "Peer is punished when message validation is rejected":
+  asyncTest "rpcHandler - peer is punished when message validation is rejected":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -558,6 +584,74 @@ suite "GossipSub":
     await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented
-    gossipSub.peerStats.withValue(peer.peerId, stats):
-      check:
-        stats[].topicInfos[topic].invalidMessageDeliveries == 1.0
+    check:
+      gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
+
+  asyncTest "rpcHandler - message validation ignore drops message":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification disabled to avoid message being dropped
+    gossipSub.verifySignature = false
+
+    # And a custom validator that ignores messages
+    proc ignoringValidator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      return ValidationResult.Ignore
+
+    gossipSub.addValidator(topic, ignoringValidator)
+
+    # And a message is created
+    let msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(1'u64))
+    let msgId = gossipSub.msgIdProvider(msg).tryGet()
+
+    # When the message is processed via rpcHandler
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    # Then the message should not be cached
+    check:
+      gossipSub.mcache.get(msgId).isNone
+
+    # And the peer should not be punished
+    check:
+      gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 0.0
+
+  asyncTest "rpcHandler - message validation accept and successful relay":
+    # Given a GossipSub instance with one peer
+    let
+      (gossipSub, conns, peers) =
+        setupGossipSubWithPeers(5, topic, populateGossipsub = true, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And signature verification disabled to avoid message being dropped
+    gossipSub.verifySignature = false
+
+    # And a custom validator that accepts messages
+    proc acceptingValidator(
+        topic: string, message: Message
+    ): Future[ValidationResult] {.async.} =
+      return ValidationResult.Accept
+
+    gossipSub.addValidator(topic, acceptingValidator)
+
+    # And a message is created
+    let msg = Message.init(peer.peerId, ("bar").toBytes(), topic, some(1'u64))
+    let msgId = gossipSub.msgIdProvider(msg).tryGet()
+
+    # When the message is processed via rpcHandler
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
+
+    # Then the message should be cached
+    checkUntilTimeout:
+      gossipSub.mcache.get(msgId).isSome
+
+    # And the peer should be rewarded for delivery
+    check:
+      gossipSub.getPeerTopicInfo(peer.peerId, topic).firstMessageDeliveries == 1.0
