@@ -655,3 +655,41 @@ suite "GossipSub":
     # And the peer should be rewarded for delivery
     check:
       gossipSub.getPeerTopicInfo(peer.peerId, topic).firstMessageDeliveries == 1.0
+
+  asyncTest "onTopicSubscription - subscribe removes topic from fanout and rebalances mesh":
+    # Given a GossipSub instance with peers in gossipsub and fanout
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(5, topic, populateGossipsub = true, populateFanout = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # And the topic is in fanout with peers
+    check:
+      gossipSub.fanout[topic].len == peers.len
+      gossipSub.mesh[topic].len == 0
+
+    # When onTopicSubscription is called with subscribed = true
+    gossipSub.onTopicSubscription(topic, true)
+
+    check:
+      # Then the topic should be removed from fanout
+      topic notin gossipSub.fanout
+      # And mesh should be populated with peers (rebalanced)
+      gossipSub.mesh[topic].len == peers.len
+
+  asyncTest "onTopicSubscription - unsubscribe removes topic from mesh":
+    # Given a GossipSub instance with peers in mesh
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(3, topic, populateGossipsub = true, populateMesh = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    check:
+      gossipSub.mesh[topic].len == peers.len
+
+    # When onTopicSubscription is called with subscribed = false
+    gossipSub.onTopicSubscription(topic, false)
+
+    # Then the topic should be removed from mesh
+    check:
+      topic notin gossipSub.mesh
