@@ -17,10 +17,10 @@ import ./helpers
 suite "Future":
   asyncTest "anyCompleted must complete with first completed future":
     proc fut1() {.async.} =
-      await sleepAsync(100.milliseconds)
+      await sleepAsync(50.milliseconds)
 
     proc fut2() {.async.} =
-      await sleepAsync(200.milliseconds)
+      await sleepAsync(100.milliseconds)
 
     proc fut3() {.async.} =
       raise newException(CatchableError, "fut3")
@@ -55,10 +55,10 @@ suite "Future":
 
   asyncTest "anyCompleted with timeout":
     proc fut1() {.async.} =
-      await sleepAsync(100.milliseconds)
+      await sleepAsync(50.milliseconds)
 
     proc fut2() {.async.} =
-      await sleepAsync(200.milliseconds)
+      await sleepAsync(100.milliseconds)
 
     proc fut3() {.async: (raises: [ValueError]).} =
       # fut3 intentionally specifies raised ValueError 
