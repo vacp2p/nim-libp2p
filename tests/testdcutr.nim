@@ -115,7 +115,7 @@ suite "Dcutr":
         reuseConnection = true,
         dir = Direction.Out,
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
-      await sleepAsync(100.millis)
+      await sleepAsync(50.millis)
 
     let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectTimeoutProc)
     let publicSwitch = newStandardSwitch()
@@ -194,7 +194,7 @@ suite "Dcutr":
         reuseConnection = true,
         dir = Direction.Out,
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
-      await sleepAsync(100.millis)
+      await sleepAsync(50.millis)
 
     await ductrServerTest(connectProc)
 

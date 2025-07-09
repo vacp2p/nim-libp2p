@@ -32,7 +32,7 @@ suite "checkUntilTimeout helpers":
     var a = 1
     let b = 2
     proc makeConditionTrueLater() {.async.} =
-      await sleepAsync(100.milliseconds)
+      await sleepAsync(50.milliseconds)
       a = 2
 
     asyncSpawn makeConditionTrueLater()
@@ -57,7 +57,7 @@ suite "checkUntilTimeout helpers":
     var a = 1
     let b = 2
     proc makeConditionTrueLater() {.async.} =
-      await sleepAsync(100.milliseconds)
+      await sleepAsync(50.milliseconds)
       a = 2
 
     asyncSpawn makeConditionTrueLater()

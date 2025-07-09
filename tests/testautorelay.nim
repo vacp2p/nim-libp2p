@@ -86,7 +86,7 @@ suite "Autorelay":
     let autorelay = AutoRelayService.new(3, relayClient, checkMA, newRng())
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), switchRelay.start())
-    await sleepAsync(500.millis)
+    await sleepAsync(250.millis)
     await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
     await fut.wait(1.seconds)
     let addresses = autorelay.getAddresses()
