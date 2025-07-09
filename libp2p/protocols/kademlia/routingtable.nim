@@ -112,7 +112,7 @@ proc randomKeyInBucketRange*(
   let totalBits = raw.len * 8
   let lsbStart = bucketIndex + 1
   let lsbBytes = (totalBits - lsbStart + 7) div 8
-  var randomBuf = newSeq[byte](lsbBytes)
+  var randomBuf = newSeqUninitialized[byte](lsbBytes)
   hmacDrbgGenerate(rng[], randomBuf)
 
   for i in lsbStart ..< totalBits:

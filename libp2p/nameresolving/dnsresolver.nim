@@ -42,13 +42,13 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
     buf
   except IOError as exc:
     info "Failed to created DNS buffer", description = exc.msg
-    newSeq[byte](0)
+    newSeqUninitialized[byte](0)
   except OSError as exc:
     info "Failed to created DNS buffer", description = exc.msg
-    newSeq[byte](0)
+    newSeqUninitialized[byte](0)
   except ValueError as exc:
     info "Failed to created DNS buffer", description = exc.msg
-    newSeq[byte](0)
+    newSeqUninitialized[byte](0)
 
 proc getDnsResponse(
     dnsServer: TransportAddress, address: string, kind: QKind

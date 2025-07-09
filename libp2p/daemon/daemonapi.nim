@@ -496,7 +496,7 @@ proc recvMessage(
     size: uint
     length: int
     res: VarintResult[void]
-  var buffer = newSeq[byte](10)
+  var buffer = newSeqUninitialized[byte](10)
   try:
     for i in 0 ..< len(buffer):
       await conn.readExactly(addr buffer[i], 1)
@@ -957,8 +957,7 @@ proc openStream*(
       var res: seq[byte]
       if pb.getRequiredField(ResponseType.STREAMINFO.int, res).isOk():
         let resPb = initProtoBuffer(res)
-        # stream.peer = newSeq[byte]()
-        var raddress = newSeq[byte]()
+        var raddress = newSeqUninitialized[byte](0)
         stream.protocol = ""
         resPb.getRequiredField(1, stream.peer).tryGet()
         resPb.getRequiredField(2, raddress).tryGet()
@@ -977,7 +976,7 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var message = await transp.recvMessage()
   var pb = initProtoBuffer(message)
   var stream = new P2PStream
-  var raddress = newSeq[byte]()
+  var raddress = newSeqUninitialized[byte](0)
   stream.protocol = ""
   pb.getRequiredField(1, stream.peer).tryGet()
   pb.getRequiredField(2, raddress).tryGet()
@@ -1116,7 +1115,7 @@ proc dhtGetSinglePeerInfo(pb: ProtoBuffer): PeerInfo {.raises: [DaemonLocalError
     raise newException(DaemonLocalError, "Missing required field `peer`!")
 
 proc dhtGetSingleValue(pb: ProtoBuffer): seq[byte] {.raises: [DaemonLocalError].} =
-  result = newSeq[byte]()
+  result = newSeqUninitialized[byte](0)
   if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
@@ -1453,8 +1452,8 @@ proc pubsubPublish*(
     await api.closeConnection(transp)
 
 proc getPubsubMessage*(pb: ProtoBuffer): PubSubMessage =
-  result.data = newSeq[byte]()
-  result.seqno = newSeq[byte]()
+  result.data = newSeqUninitialized[byte](0)
+  result.seqno = newSeqUninitialized[byte](0)
   discard pb.getField(1, result.peer)
   discard pb.getField(2, result.data)
   discard pb.getField(3, result.seqno)

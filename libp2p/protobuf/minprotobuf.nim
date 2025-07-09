@@ -142,17 +142,18 @@ proc initProtoBuffer*(
   result.options = options
 
 proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
-  ## Initialize ProtoBuffer with new sequence of capacity ``cap``.
-  result.buffer = newSeq[byte]()
+  ## Initialize ProtoBuffer with new sequence of capacity ``cap``
   result.options = options
   if WithVarintLength in options:
     # Our buffer will start from position 10, so we can store length of buffer
     # in [0, 9].
+    result.buffer = newSeqUninitialized[byte](10)
     result.buffer.setLen(10)
     result.offset = 10
   elif {WithUint32LeLength, WithUint32BeLength} * options != {}:
     # Our buffer will start from position 4, so we can store length of buffer
     # in [0, 3].
+    result.buffer = newSeqUninitialized[byte](4)
     result.buffer.setLen(4)
     result.offset = 4
 
