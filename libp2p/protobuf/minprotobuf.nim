@@ -154,7 +154,6 @@ proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
     # Our buffer will start from position 4, so we can store length of buffer
     # in [0, 3].
     result.buffer = newSeqUninitialized[byte](4)
-    result.buffer.setLen(4)
     result.offset = 4
 
 proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
