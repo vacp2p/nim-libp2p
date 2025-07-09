@@ -41,7 +41,7 @@ suite "GossipSub Scoring":
 
     gossipSub.updateScores()
 
-    await sleepAsync(100.millis)
+    await sleepAsync(50.millis)
 
     check:
       # test our disconnect mechanics

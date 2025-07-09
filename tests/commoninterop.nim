@@ -80,7 +80,7 @@ proc testPubSubDaemonPublish(
 
   await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
 
-  await sleepAsync(1.seconds)
+  await sleepAsync(500.millis)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
   proc pubsubHandler(
@@ -90,12 +90,12 @@ proc testPubSubDaemonPublish(
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   pubsub.subscribe(testTopic, nativeHandler)
-  await sleepAsync(5.seconds)
+  await sleepAsync(3.seconds)
 
   proc publisher() {.async.} =
     while not finished:
       await daemonNode.pubsubPublish(testTopic, msgData)
-      await sleepAsync(500.millis)
+      await sleepAsync(250.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
@@ -132,7 +132,7 @@ proc testPubSubNodePublish(
 
   await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
 
-  await sleepAsync(1.seconds)
+  await sleepAsync(500.millis)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
   var times = 0
@@ -152,12 +152,12 @@ proc testPubSubNodePublish(
     discard
 
   pubsub.subscribe(testTopic, nativeHandler)
-  await sleepAsync(5.seconds)
+  await sleepAsync(3.seconds)
 
   proc publisher() {.async.} =
     while not finished:
       discard await pubsub.publish(testTopic, msgData)
-      await sleepAsync(500.millis)
+      await sleepAsync(250.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
@@ -210,7 +210,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       await nativeNode.stop()
       await daemonNode.close()
 
-      await sleepAsync(1.seconds)
+      await sleepAsync(500.millis)
 
     asyncTest "native -> daemon connection":
       var protos = @["/test-stream"]
@@ -292,7 +292,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       await stream.close()
       await nativeNode.stop()
       await daemonNode.close()
-      await sleepAsync(1.seconds)
+      await sleepAsync(500.millis)
 
     asyncTest "native -> daemon websocket connection":
       var protos = @["/test-stream"]
@@ -343,7 +343,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       await stream.close()
       await nativeNode.stop()
       await daemonNode.close()
-      await sleepAsync(1.seconds)
+      await sleepAsync(500.millis)
 
     asyncTest "daemon -> native websocket connection":
       var protos = @["/test-stream"]

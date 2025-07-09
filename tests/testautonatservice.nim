@@ -481,7 +481,7 @@ suite "Autonat Service":
     awaiter = newFuture[void]()
     await autonatService.run(switch1)
 
-    await sleepAsync(200.millis)
+    await sleepAsync(100.millis)
 
     check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
@@ -510,6 +510,6 @@ suite "Autonat Service":
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
-    await sleepAsync(500.milliseconds)
+    await sleepAsync(250.milliseconds)
 
     await allFuturesThrowing(switch1.stop(), switch2.stop())
