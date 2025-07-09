@@ -148,7 +148,6 @@ proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
     # Our buffer will start from position 10, so we can store length of buffer
     # in [0, 9].
     result.buffer = newSeqUninitialized[byte](10)
-    result.buffer.setLen(10)
     result.offset = 10
   elif {WithUint32LeLength, WithUint32BeLength} * options != {}:
     # Our buffer will start from position 4, so we can store length of buffer
