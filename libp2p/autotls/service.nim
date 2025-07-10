@@ -216,8 +216,11 @@ method stop*(
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
-    await self.acmeClient.close()
-    await self.brokerClient.close()
-    await self.managerFut.cancelAndWait()
-    self.managerFut = nil
+    if not self.acmeClient.isNil():
+      await self.acmeClient.close()
+    if not self.brokerClient.isNil():
+      await self.brokerClient.close()
+    if not self.managerFut.isNil():
+      await self.managerFut.cancelAndWait()
+      self.managerFut = nil
   return hasBeenStopped
