@@ -8,11 +8,14 @@ import ../pubsubpeer
 proc `<`(a, b: PreambleInfo): bool =
   a.expiresAt < b.expiresAt
 
+proc init*(_: typedesc[PeerSet]): PeerSet =
+  PeerSet(order: @[], peers: initHashSet[PeerId]())
+
 proc init*(
     _: typedesc[PreambleInfo],
     preamble: ControlPreamble,
     sender: PubSubPeer,
-    starts: Moment,
+    startsAt: Moment,
     expiresAt: Moment,
 ): PreambleInfo =
   PreambleInfo(
@@ -20,12 +23,12 @@ proc init*(
     messageLength: preamble.messageLength,
     topicId: preamble.topicID,
     sender: sender,
-    startAt: starts,
+    startsAt: startsAt,
     expiresAt: expiresAt,
-    peerSet: PeerSet(order: @[], peers: initHashSet[PeerId]()),
+    peerSet: PeerSet.init(),
   )
 
-proc initPreambleStore*(): PreambleStore =
+proc init*(_: typedesc[PreambleStore]): PreambleStore =
   result.byId = initTable[MessageId, PreambleInfo]()
   result.heap = initHeapQueue[PreambleInfo]()
 

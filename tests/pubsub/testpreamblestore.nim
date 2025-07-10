@@ -26,7 +26,7 @@ proc mockPreamble(
   PreambleInfo.init(
     ControlPreamble(messageID: id, messageLength: 123, topicID: "test"),
     sender = sender,
-    starts = now + startOffset,
+    startsAt = now + startOffset,
     expiresAt = now + expireOffset,
   )
 
@@ -37,14 +37,10 @@ suite "preamble store":
   const topic = "foobar"
 
   asyncTest "insert and retrieve":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var store = initPreambleStore()
-
+    var store = PreambleStore.init()
+    let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
-    let info = mockPreamble(m1, peers[0], 0.seconds, 5.seconds)
+    let info = mockPreamble(m1, peer, 0.seconds, 5.seconds)
 
     store.insert(m1, info)
     check:
@@ -52,14 +48,11 @@ suite "preamble store":
       store[m1] == info
 
   asyncTest "heap order is preserved on inserts":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var store = initPreambleStore()
+    var store = PreambleStore.init()
     for i in 0 .. 9:
       let id = MessageId(@[i.byte])
-      let p = mockPreamble(id, peers[0], 0.seconds, i.seconds)
+      let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
+      let p = mockPreamble(id, peer, 0.seconds, i.seconds)
       store.insert(id, p)
 
     var last = Moment.low()
@@ -71,17 +64,14 @@ suite "preamble store":
       last = popped.get().expiresAt
 
   asyncTest "deletion marks AND heap pop discards deleted":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var store = initPreambleStore()
+    var store = PreambleStore.init()
 
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
     let m2 = MessageId(@[2.byte, 2.byte, 2.byte])
 
-    let p1 = mockPreamble(m1, peers[0], 0.seconds, 1.seconds)
-    let p2 = mockPreamble(m2, peers[0], 0.seconds, 2.seconds)
+    let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
+    let p1 = mockPreamble(m1, peer, 0.seconds, 1.seconds)
+    let p2 = mockPreamble(m2, peer, 0.seconds, 2.seconds)
     store.insert(m1, p1)
     store.insert(m2, p2)
     store.del(m1)
@@ -92,15 +82,12 @@ suite "preamble store":
       res.get().messageId == m2 # p1 was skipped
 
   asyncTest "overwrite twice keeps latest, heap has garbage record":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var store = initPreambleStore()
+    var store = PreambleStore.init()
 
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
-    let a1 = mockPreamble(m1, peers[0], 0.seconds, 1.seconds)
-    let a2 = mockPreamble(m1, peers[0], 0.seconds, 5.seconds)
+    let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
+    let a1 = mockPreamble(m1, peer, 0.seconds, 1.seconds)
+    let a2 = mockPreamble(m1, peer, 0.seconds, 5.seconds)
     store.insert(m1, a1)
     store.insert(m1, a2) # a1 is marked deleted but still in heap
 
@@ -113,21 +100,18 @@ suite "preamble store":
       res2.get().messageId == m1
 
   asyncTest "possiblePeersToQuery is affected by eviction and caps at 6":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
 
-    var store = initPreambleStore()
-    store.insert(m1, mockPreamble(m1, peers[0]))
+    var store = PreambleStore.init()
+    let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
+    store.insert(m1, mockPreamble(m1, peer))
 
     # add 10 peers — only last 6 should survive
     var peersInserted: seq[PeerId] = @[]
     for i in 0 ..< 10:
       let peerId = randomPeerId()
       peersInserted.add(peerId)
-      let peer = gossipSub.getPubSubPeer(peerId)
+      let peer = PubSubPeer.new(peerId, nil, nil, GossipSubCodec_12, 0)
       store.addPossiblePeerToQuery(m1, peer)
 
     let peersToQuery = store[m1].possiblePeersToQuery()
@@ -136,30 +120,25 @@ suite "preamble store":
       peersToQuery == peersInserted[4 ..< 10]
 
   asyncTest "re-adding same peer doesn't evict or reorder":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var store = initPreambleStore()
+    var store = PreambleStore.init()
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
-    store.insert(m1, mockPreamble(m1, peers[0]))
+    let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
+
+    store.insert(m1, mockPreamble(m1, peer))
 
     for _ in 0 .. 10:
-      store.addPossiblePeerToQuery(m1, peers[0])
+      store.addPossiblePeerToQuery(m1, peer)
 
     let peersToQuery = store[m1].possiblePeersToQuery()
     check:
       peersToQuery.len == 1
-      peersToQuery[0] == peers[0].peerId
+      peersToQuery[0] == peer.peerId
 
   asyncTest "withValue macro works sanely":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var store = initPreambleStore()
+    var store = PreambleStore.init()
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
-    store.insert(m1, mockPreamble(m1, peers[0]))
+    let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
+    store.insert(m1, mockPreamble(m1, peer))
 
     var inside = false
     store.withValue(m1, val):
@@ -168,14 +147,11 @@ suite "preamble store":
     check inside
 
   asyncTest "len matches insert/delete":
-    var (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
-    defer:
-      await teardownGossipSub(gossipSub, conns)
-
-    var store = initPreambleStore()
+    var store = PreambleStore.init()
     check store.len == 0
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
-    store.insert(m1, mockPreamble(m1, peers[0]))
+    let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
+    store.insert(m1, mockPreamble(m1, peer))
     check store.len == 1
     store.del(m1)
     check store.len == 0

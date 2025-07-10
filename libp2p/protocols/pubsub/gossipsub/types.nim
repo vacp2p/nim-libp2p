@@ -74,7 +74,7 @@ type
     messageLength*: uint32
     topicId*: string
     sender*: PubSubPeer
-    startAt*: Moment
+    startsAt*: Moment
     expiresAt*: Moment
     deleted*: bool # tombstone marker
     peerSet*: PeerSet
