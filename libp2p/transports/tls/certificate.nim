@@ -98,7 +98,7 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
   ##
   let P2P_SIGNING_PREFIX = "libp2p-tls-handshake:".toBytes()
   let prefixLen = P2P_SIGNING_PREFIX.len.int
-  let msg = newSeq[byte](prefixLen + pubKey.len)
+  let msg = newSeqUninitialized[byte](prefixLen + pubKey.len)
   copyMem(msg[0].unsafeAddr, P2P_SIGNING_PREFIX[0].unsafeAddr, prefixLen)
   copyMem(msg[prefixLen].unsafeAddr, pubKey[0].unsafeAddr, pubKey.len.int)
 

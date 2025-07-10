@@ -533,7 +533,7 @@ proc decode*(
     let empty: seq[byte] = @[]
     ok(empty) # empty
   else:
-    var buffer = newSeq[byte](mb.decl(length - 1))
+    var buffer = newSeqUninitialized[byte](mb.decl(length - 1))
     var outlen = 0
     let res = mb.decr(inbytes.toOpenArray(1, length - 1), buffer, outlen)
     if res != MultiBaseStatus.Success:
