@@ -39,9 +39,11 @@ type
     closerPeers*: seq[Peer]
     providerPeers*: seq[Peer]
 
-proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [].}
+proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.}
 
-proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Option[T]) {.raises: [].}
+proc writeOpt*[T](
+  pb: var ProtoBuffer, field: int, opt: Option[T]
+) {.raises: [], gcsafe.}
 
 proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
@@ -60,7 +62,7 @@ proc encode*(peer: Peer): ProtoBuffer {.raises: [].} =
   pb.finish()
   return pb
 
-proc encode*(msg: Message): ProtoBuffer {.raises: [].} =
+proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
 
   pb.write(1, uint32(ord(msg.msgType)))
@@ -80,11 +82,13 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [].} =
 
   return pb
 
-proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Option[T]) {.raises: [].} =
+proc writeOpt*[T](
+    pb: var ProtoBuffer, field: int, opt: Option[T]
+) {.raises: [], gcsafe.} =
   opt.withValue(v):
     pb.write(field, v)
 
-proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [].} =
+proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.} =
   pb.write(field, value.encode())
 
 proc getOptionField[T: ProtoScalar | string | seq[byte]](
@@ -120,7 +124,7 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[Option[T]] =
 
   return ok(some(p))
 
-proc decode*(T: type Message, buf: seq[byte]): ProtoResult[Option[T]] =
+proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
   var
     m: Message
     key: seq[byte]
@@ -156,4 +160,4 @@ proc decode*(T: type Message, buf: seq[byte]): ProtoResult[Option[T]] =
     peer.withValue(peer):
       m.providerPeers.add(peer)
 
-  return ok(some(m))
+  return ok(m)
