@@ -26,6 +26,10 @@ proc toKey*(s: seq[byte]): Key =
 proc toKey*(p: PeerId): Key =
   return Key(kind: KeyType.PeerId, peerId: p)
 
+proc toPeerId*(k: Key): PeerId {.raises: [ValueError].} =
+  if k.kind != KeyType.PeerId:
+    raise newException(ValueError, "not a peerId")
+
 proc getBytes*(k: Key): seq[byte] =
   return
     case k.kind
