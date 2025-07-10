@@ -58,7 +58,7 @@ suite "kademlia protobuffers":
       providerPeers: @[peer],
     )
     let encoded = msg.encode()
-    let decoded = Message.decode(encoded.buffer).valFromResultOption
+    let decoded = Message.decode(encoded.buffer).tryGet()
     check:
       decoded == msg
 
@@ -109,7 +109,7 @@ suite "kademlia protobuffers":
     var pb = initProtoBuffer()
     pb.write(1, uint32(MessageType.getValue))
     pb.write(3, recordPb.buffer)
-    let decoded = Message.decode(pb.buffer).valFromResultOption
+    let decoded = Message.decode(pb.buffer).tryGet()
     check:
       decoded.record.isSome()
       decoded.record.get().key.isNone()
@@ -130,7 +130,7 @@ suite "kademlia protobuffers":
       providerPeers: @[],
     )
     let encoded = msg.encode()
-    let decoded = Message.decode(encoded.buffer).valFromResultOption
+    let decoded = Message.decode(encoded.buffer).tryGet()
     check:
       decoded == msg
 
