@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import chronos
-import std/[options, tables, sets]
+import std/[options, tables, sets, heapqueue]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
@@ -64,6 +64,24 @@ type
     meshMessageDeliveries*: float64
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
+
+  PeerSet* = object
+    order*: seq[PeerId]
+    peers*: HashSet[PeerId]
+
+  PreambleInfo* = ref object
+    messageId*: MessageId
+    messageLength*: uint32
+    topicId*: string
+    sender*: PubSubPeer
+    startAt*: Moment
+    expiresAt*: Moment
+    deleted*: bool # tombstone marker
+    peerSet*: PeerSet
+
+  PreambleStore* = object
+    byId*: Table[MessageId, PreambleInfo]
+    heap*: HeapQueue[PreambleInfo]
 
   TopicParams* {.public.} = object
     topicWeight*: float64
@@ -162,6 +180,7 @@ type
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
+  OngoingReceivesStore* = PreambleStore
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
   RoutingRecordsHandler* = proc(

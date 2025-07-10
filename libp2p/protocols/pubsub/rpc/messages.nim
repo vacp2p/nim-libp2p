@@ -79,6 +79,11 @@ type
     peers*: seq[PeerInfoMsg]
     backoff*: uint64
 
+  ControlPreamble* = object
+    topicID*: string
+    messageID*: MessageId
+    messageLength*: uint32
+
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
