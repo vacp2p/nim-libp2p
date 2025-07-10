@@ -37,18 +37,18 @@ proc questionToBuf(address: string, kind: QKind): seq[byte] =
     let dataLen = requestStream.getPosition()
     requestStream.setPosition(0)
 
-    var buf = newSeq[byte](dataLen)
+    var buf = newSeqUninitialized[byte](dataLen)
     discard requestStream.readData(addr buf[0], dataLen)
     buf
   except IOError as exc:
     info "Failed to created DNS buffer", description = exc.msg
-    newSeq[byte](0)
+    newSeqUninitialized[byte](0)
   except OSError as exc:
     info "Failed to created DNS buffer", description = exc.msg
-    newSeq[byte](0)
+    newSeqUninitialized[byte](0)
   except ValueError as exc:
     info "Failed to created DNS buffer", description = exc.msg
-    newSeq[byte](0)
+    newSeqUninitialized[byte](0)
 
 proc getDnsResponse(
     dnsServer: TransportAddress, address: string, kind: QKind

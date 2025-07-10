@@ -142,7 +142,7 @@ func init*(pid: var PeerId, data: string): bool =
   ## Initialize peer id from base58 encoded string representation.
   ##
   ## Returns ``true`` if peer was successfully initialiazed.
-  var p = newSeq[byte](len(data) + 4)
+  var p = newSeqUninitialized[byte](len(data) + 4)
   var length = 0
   if Base58.decode(data, p, length) == Base58Status.Success:
     p.setLen(length)

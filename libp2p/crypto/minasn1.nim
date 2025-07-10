@@ -679,15 +679,15 @@ proc init*(t: typedesc[Asn1Buffer], data: string): Asn1Buffer =
 
 proc init*(t: typedesc[Asn1Buffer]): Asn1Buffer =
   ## Initialize empty ``Asn1Buffer``.
-  Asn1Buffer(buffer: newSeq[byte]())
+  Asn1Buffer(buffer: newSeqUninitialized[byte](0))
 
 proc init*(t: typedesc[Asn1Composite], tag: Asn1Tag): Asn1Composite =
   ## Initialize ``Asn1Composite`` with tag ``tag``.
-  Asn1Composite(tag: tag, buffer: newSeq[byte]())
+  Asn1Composite(tag: tag, buffer: newSeqUninitialized[byte](0))
 
 proc init*(t: typedesc[Asn1Composite], idx: int): Asn1Composite =
   ## Initialize ``Asn1Composite`` with tag context-specific id ``id``.
-  Asn1Composite(tag: Asn1Tag.Context, idx: idx, buffer: newSeq[byte]())
+  Asn1Composite(tag: Asn1Tag.Context, idx: idx, buffer: newSeqUninitialized[byte](0))
 
 proc `$`*(buffer: Asn1Buffer): string =
   ## Return string representation of ``buffer``.

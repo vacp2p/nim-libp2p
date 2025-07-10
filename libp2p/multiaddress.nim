@@ -223,7 +223,7 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
 
 proc p2pBtS(vb: var VBuffer, s: var string): bool =
   ## P2P address bufferToString() implementation.
-  var address = newSeq[byte]()
+  var address = newSeqUninitialized[byte](0)
   if vb.readSeq(address) > 0:
     var mh: MultiHash
     if MultiHash.decode(address, mh).isOk:
@@ -232,7 +232,7 @@ proc p2pBtS(vb: var VBuffer, s: var string): bool =
 
 proc p2pVB(vb: var VBuffer): bool =
   ## P2P address validateBuffer() implementation.
-  var address = newSeq[byte]()
+  var address = newSeqUninitialized[byte](0)
   if vb.readSeq(address) > 0:
     var mh: MultiHash
     if MultiHash.decode(address, mh).isOk:
@@ -555,7 +555,7 @@ proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   ##
   ## If current MultiAddress do not have argument value, then result array will
   ## be empty.
-  var buffer = newSeq[byte](len(ma.data.buffer))
+  var buffer = newSeqUninitialized[byte](len(ma.data.buffer))
   let res = ?protoArgument(ma, buffer)
   buffer.setLen(res)
   ok(buffer)
@@ -569,7 +569,7 @@ proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
 
 proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
-  var data = newSeq[byte]()
+  var data = newSeqUninitialized[byte](0)
   var offset = 0
   var vb = ma
   var res: MultiAddress
@@ -643,7 +643,7 @@ proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
 iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
   ## Iterates over all addresses inside of MultiAddress ``ma``.
   var header: uint64
-  var data = newSeq[byte]()
+  var data = newSeqUninitialized[byte](0)
   var vb = ma
   while true:
     if vb.data.isEmpty():

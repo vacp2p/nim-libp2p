@@ -123,7 +123,7 @@ proc decode(data: openArray[char]): Result[Cid, CidError] =
     return err(CidError.Incorrect)
   if len(data) == 46:
     if data[0] == 'Q' and data[1] == 'm':
-      buffer = newSeq[byte](BTCBase58.decodedLength(len(data)))
+      buffer = newSeqUninitialized[byte](BTCBase58.decodedLength(len(data)))
       if BTCBase58.decode(data, buffer, plen) != Base58Status.Success:
         return err(CidError.Incorrect)
       buffer.setLen(plen)
@@ -131,7 +131,7 @@ proc decode(data: openArray[char]): Result[Cid, CidError] =
     let length = MultiBase.decodedLength(data[0], len(data))
     if length == -1:
       return err(CidError.Incorrect)
-    buffer = newSeq[byte](length)
+    buffer = newSeqUninitialized[byte](length)
     if MultiBase.decode(data, buffer, plen) != MultiBaseStatus.Success:
       return err(CidError.Incorrect)
     buffer.setLen(plen)

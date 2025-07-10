@@ -77,7 +77,7 @@ proc popChunkSeq*(q: var ZeroQueue, count: int): seq[byte] =
     return @[]
 
   let chunk = q.popChunk(count)
-  var dest = newSeq[byte](chunk.len())
+  var dest = newSeqUninitialized[byte](chunk.len())
   let offsetPtr = cast[ptr byte](cast[int](unsafeAddr chunk.data[0]) + chunk.start)
   copyMem(dest[0].addr, offsetPtr, chunk.len())
 
