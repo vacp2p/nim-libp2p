@@ -275,6 +275,12 @@ window.addEventListener("DOMContentLoaded", main2);
   lowPeersTopics*: int64
   healthyPeersTopics*: int64
   underDoutTopics*: int64">MeshMetrics</a></li>
+  <li><a class="reference" href="#OngoingReceivesStore"
+    title="OngoingReceivesStore = PreambleStore">OngoingReceivesStore</a></li>
+  <li><a class="reference" href="#PeerSet"
+    title="PeerSet = object
+  order*: seq[PeerId]
+  peers*: HashSet[PeerId]">PeerSet</a></li>
   <li><a class="reference" href="#PeerStats"
     title="PeerStats = object
   topicInfos*: Table[string, TopicInfo]
@@ -282,6 +288,20 @@ window.addEventListener("DOMContentLoaded", main2);
   score*: float64
   appScore*: float64
   behaviourPenalty*: float64">PeerStats</a></li>
+  <li><a class="reference" href="#PreambleInfo"
+    title="PreambleInfo = ref object
+  messageId*: MessageId
+  messageLength*: uint32
+  topicId*: string
+  sender*: PubSubPeer
+  startsAt*: Moment
+  expiresAt*: Moment
+  deleted*: bool
+  peerSet*: PeerSet">PreambleInfo</a></li>
+  <li><a class="reference" href="#PreambleStore"
+    title="PreambleStore = object
+  byId*: Table[MessageId, PreambleInfo]
+  heap*: HeapQueue[PreambleInfo]">PreambleStore</a></li>
   <li><a class="reference" href="#RoutingRecordsHandler"
     title="RoutingRecordsHandler = proc (peer: PeerId; tag: string;
                               peers: seq[RoutingRecordsPair]) {.gcsafe,
@@ -389,9 +409,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L163"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L181"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L163" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L181" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -420,9 +440,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L173"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L192"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L173" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L192" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -470,9 +490,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L105"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L123"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L105" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -490,9 +510,36 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L197"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L216"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L197" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L216" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="OngoingReceivesStore" class="tohide">
+<dt><pre><a href="types.html#OngoingReceivesStore"><span class="Identifier">OngoingReceivesStore</span></a> <span class="Other">=</span> <a href="types.html#PreambleStore"><span class="Identifier">PreambleStore</span></a></pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L183"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L183" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="PeerSet" class="tohide">
+<dt><pre><a href="types.html#PeerSet"><span class="Identifier">PeerSet</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">order</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span>
+  <span class="Identifier">peers</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">HashSet</span><span class="Other">[</span><a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L68"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -508,9 +555,45 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L97"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L115"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L97" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L115" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="PreambleInfo" class="tohide">
+<dt><pre><a href="types.html#PreambleInfo"><span class="Identifier">PreambleInfo</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+  <span class="Identifier">messageId</span><span class="Operator">*</span><span class="Other">:</span> <a href="../rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a>
+  <span class="Identifier">messageLength</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint32</span>
+  <span class="Identifier">topicId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">sender</span><span class="Operator">*</span><span class="Other">:</span> <a href="../pubsubpeer.html#PubSubPeer"><span class="Identifier">PubSubPeer</span></a>
+  <span class="Identifier">startsAt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Moment</span>
+  <span class="Identifier">expiresAt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Moment</span>
+  <span class="Identifier">deleted</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
+  <span class="Identifier">peerSet</span><span class="Operator">*</span><span class="Other">:</span> <a href="types.html#PeerSet"><span class="Identifier">PeerSet</span></a>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L72"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L72" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="PreambleStore" class="tohide">
+<dt><pre><a href="types.html#PreambleStore"><span class="Identifier">PreambleStore</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">byId</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><a href="../rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">,</span> <a href="types.html#PreambleInfo"><span class="Identifier">PreambleInfo</span></a><span class="Other">]</span>
+  <span class="Identifier">heap</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">HeapQueue</span><span class="Other">[</span><a href="types.html#PreambleInfo"><span class="Identifier">PreambleInfo</span></a><span class="Other">]</span>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L82"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L82" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -522,9 +605,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L167"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L186"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L167" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L186" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -534,9 +617,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L166"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L185"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L166" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L185" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -585,9 +668,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L68"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L86"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L86" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -597,9 +680,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L164"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/gossipsub/types.nim#L182"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L164" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/gossipsub/types.nim#L182" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -822,7 +905,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-11 17:31:41 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-11 20:51:35 UTC</small>
       </div>
     </div>
   </div>
