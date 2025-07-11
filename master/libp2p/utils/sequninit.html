@@ -17,7 +17,7 @@
 <link href='https://fonts.googleapis.com/css?family=Source+Code+Pro:400,500,600' rel='stylesheet' type='text/css'/>
 
 <!-- CSS -->
-<title>libp2p/upgrademngrs/muxedupgrade</title>
+<title>libp2p/utils/sequninit</title>
 <link rel="stylesheet" type="text/css" href="../../nimdoc.out.css">
 
 <script type="text/javascript" src="../../dochack.js"></script>
@@ -69,7 +69,7 @@ window.addEventListener('DOMContentLoaded', main);
 <body>
 <div class="document" id="documentId">
   <div class="container">
-    <h1 class="title">libp2p/upgrademngrs/muxedupgrade</h1>
+    <h1 class="title">libp2p/utils/sequninit</h1>
     <div class="row">
   <div class="three columns">
   <div class="theme-switch-wrapper">
@@ -197,51 +197,14 @@ window.addEventListener("DOMContentLoaded", main2);
 </script>
 <ul class="simple simple-toc" id="toc-list">
 <li>
-  <a class="reference reference-toplevel" href="#6" id="56">Imports</a>
+  <a class="reference reference-toplevel" href="#18" id="68">Templates</a>
   <ul class="simple simple-toc-section">
-    
-  </ul>
-</li>
-<li>
-  <a class="reference reference-toplevel" href="#7" id="57">Types</a>
-  <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#MuxedUpgrade"
-    title="MuxedUpgrade = ref object of Upgrade
-  muxers*: seq[MuxerProvider]
-  streamHandler*: StreamHandler">MuxedUpgrade</a></li>
-
-  </ul>
-</li>
-<li>
-  <a class="reference reference-toplevel" href="#12" id="62">Procs</a>
-  <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">new
-      <li><a class="reference" href="#new%2CtypeMuxedUpgrade%2Cseq%5BMuxerProvider%5D%2CopenArray%5BSecure%5D%2CMultistreamSelect"
-    title="new(T: type MuxedUpgrade; muxers: seq[MuxerProvider];
-    secureManagers: openArray[Secure] = []; ms: MultistreamSelect): T:type">new(T: type MuxedUpgrade; muxers: seq[MuxerProvider];
-    secureManagers: openArray[Secure] = []; ms: MultistreamSelect): T:type</a></li>
+      <ul class="simple nested-toc-section">newSeqUninit
+      <li><a class="reference" href="#newSeqUninit.t%2CNatural"
+    title="newSeqUninit[T: byte](len: Natural): seq[byte]">newSeqUninit[T: byte](len: Natural): seq[byte]</a></li>
 
   </ul>
 
-  </ul>
-</li>
-<li>
-  <a class="reference reference-toplevel" href="#14" id="64">Methods</a>
-  <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">upgrade
-      <li><a class="reference" href="#upgrade.e%2CMuxedUpgrade%2CConnection%2COpt%5BPeerId%5D"
-    title="upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
-    Muxer, (CancelledError, LPError)]">upgrade(self: MuxedUpgrade; conn: Connection; peerId: Opt[PeerId]): InternalRaisesFuture[
-    Muxer, (CancelledError, LPError)]</a></li>
-
-  </ul>
-
-  </ul>
-</li>
-<li>
-  <a class="reference reference-toplevel" href="#19" id="69">Exports</a>
-  <ul class="simple simple-toc-section">
-    
   </ul>
 </li>
 
@@ -249,82 +212,30 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </div>
   &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/upgrademngrs/muxedupgrade.nim#L1"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/sequninit.nim#L1"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/upgrademngrs/muxedupgrade.nim#L1" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/sequninit.nim#L1" class="link-seesrc" target="_blank" >Edit</a>
 
   <div class="nine columns" id="content">
   <div id="tocRoot"></div>
   
   <p class="module-desc"></p>
-  <div class="section" id="6">
-<h1><a class="toc-backref" href="#6">Imports</a></h1>
+  <div class="section" id="18">
+<h1><a class="toc-backref" href="#18">Templates</a></h1>
 <dl class="item">
-<a class="reference external" href="upgrade.html">upgrade</a>, <a class="reference external" href="../muxers/muxer.html">../muxers/muxer</a>
-</dl></div>
-<div class="section" id="7">
-<h1><a class="toc-backref" href="#7">Types</a></h1>
-<dl class="item">
-<div id="MuxedUpgrade" class="tohide">
-<dt><pre><a href="muxedupgrade.html#MuxedUpgrade"><span class="Identifier">MuxedUpgrade</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a>
-  <span class="Identifier">muxers</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../muxers/muxer.html#MuxerProvider"><span class="Identifier">MuxerProvider</span></a><span class="Other">]</span>
-  <span class="Identifier">streamHandler</span><span class="Operator">*</span><span class="Other">:</span> <a href="../muxers/muxer.html#StreamHandler"><span class="Identifier">StreamHandler</span></a>
-</pre></dt>
+<div id="newSeqUninit.t,Natural" class="tohide">
+<dt><pre><span class="Keyword">template</span> <a href="#newSeqUninit.t%2CNatural"><span class="Identifier">newSeqUninit</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">len</span><span class="Other">:</span> <span class="Identifier">Natural</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span></pre></dt>
 <dd>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/upgrademngrs/muxedupgrade.nim#L22"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/sequninit.nim#L6"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/upgrademngrs/muxedupgrade.nim#L22" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/sequninit.nim#L6" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 
-</dl></div>
-<div class="section" id="12">
-<h1><a class="toc-backref" href="#12">Procs</a></h1>
-<dl class="item">
-<div id="new,typeMuxedUpgrade,seq[MuxerProvider],openArray[Secure],MultistreamSelect" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2CtypeMuxedUpgrade%2Cseq%5BMuxerProvider%5D%2CopenArray%5BSecure%5D%2CMultistreamSelect"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Keyword">type</span> <span class="Identifier">MuxedUpgrade</span><span class="Other">;</span> <span class="Identifier">muxers</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../muxers/muxer.html#MuxerProvider"><span class="Identifier">MuxerProvider</span></a><span class="Other">]</span><span class="Other">;</span>
-         <span class="Identifier">secureManagers</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><a href="../protocols/secure/secure.html#Secure"><span class="Identifier">Secure</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">ms</span><span class="Other">:</span> <a href="../multistream.html#MultistreamSelect"><span class="Identifier">MultistreamSelect</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/upgrademngrs/muxedupgrade.nim#L90"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/upgrademngrs/muxedupgrade.nim#L90" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-
-</dl></div>
-<div class="section" id="14">
-<h1><a class="toc-backref" href="#14">Methods</a></h1>
-<dl class="item">
-<div id="upgrade.e,MuxedUpgrade,Connection,Opt[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#upgrade.e%2CMuxedUpgrade%2CConnection%2COpt%5BPeerId%5D"><span class="Identifier">upgrade</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="muxedupgrade.html#MuxedUpgrade"><span class="Identifier">MuxedUpgrade</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <a href="../muxers/muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-                                        <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                                        <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/upgrademngrs/muxedupgrade.nim#L68"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/upgrademngrs/muxedupgrade.nim#L68" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-
-</dl></div>
-<div class="section" id="19">
-<h1><a class="toc-backref" href="#19">Exports</a></h1>
-<dl class="item">
-<a href="../connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a>
 </dl></div>
 
   </div>
@@ -334,7 +245,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-11 13:21:59 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-11 13:21:14 UTC</small>
       </div>
     </div>
   </div>
