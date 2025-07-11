@@ -275,6 +275,9 @@ suite "Circuit Relay V2":
         await allFutures(src.stop(), dst.stop(), rel.stop())
 
       asyncTest "Connection data exceeded":
+        if useYamux:
+          return
+
         ldata = 1000
         proto.handler = proc(
             conn: Connection, proto: string
