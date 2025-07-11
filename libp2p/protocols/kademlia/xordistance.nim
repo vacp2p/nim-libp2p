@@ -17,6 +17,7 @@ proc leadingZeros*(dist: XorDistance): int =
       return i * 8 + countLeadingZeroBits(dist[i])
   return dist.len * 8
 
+#TODO: Is this a smell? I would expect to return a "is gt/lt/eq" enum
 proc cmp*(a, b: XorDistance): int =
   for i in 0 ..< IdLength:
     if a[i] < b[i]:

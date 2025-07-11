@@ -14,6 +14,10 @@ type
     pending: bool # is there an active request rn?
     failed: bool # did the query timeout or error?
 
+  #[TODO
+  LookupState alpha is a constant at time of writing this TODO. Constants should
+  be encapsulated at compile time.
+  ]#
   LookupState* = object
     targetId: Key
     shortlist: seq[LookupNode] # current known closest node
@@ -86,7 +90,7 @@ proc init*(T: type LookupState, targetId: Key, initialPeers: seq[PeerId]): T =
     targetId: targetId,
     shortlist: @[],
     activeQueries: 0,
-    alpha: alpha,
+    alpha: KAD_ALPHA,
     k: k,
     done: false,
   )

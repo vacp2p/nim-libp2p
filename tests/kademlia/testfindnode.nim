@@ -38,6 +38,3 @@ suite "KadDHT - FindNode":
     await sleepAsync(2.seconds)
 
     # TODO: test
-
-
-
