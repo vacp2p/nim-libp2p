@@ -25,9 +25,12 @@ proc createSwitch(
   builder = builder.withRng(newRng()).withNoise()
 
   if useQuic:
-    builder = builder.withQuicTransport().withAddresses(
-        @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
-      )
+    when defined(libp2p_quic_support):
+      builder = builder.withQuicTransport().withAddresses(
+          @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
+        )
+    else:
+      raiseAssert "QUIC not supported in this build"
   else:
     builder = builder.withTcpTransport().withAddresses(
         @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
@@ -109,10 +112,12 @@ suite "Perf protocol":
     checkTrackers()
 
   asyncTest "quic":
-    return # nim-libp2p#1482: currently it does not work with quic
-    let server = createSwitch(isServer = true, useQuic = true)
-    let client = createSwitch(useQuic = true)
-    await runTest(server, client)
+    when defined(libp2p_quic_support):
+      let server = createSwitch(isServer = true, useQuic = true)
+      let client = createSwitch(useQuic = true)
+      await runTest(server, client)
+    else:
+      skip()
 
   asyncTest "tcp::yamux":
     let server = createSwitch(isServer = true, useYamux = true)
