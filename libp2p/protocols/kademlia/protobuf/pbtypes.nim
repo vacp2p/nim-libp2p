@@ -20,6 +20,11 @@ TODO(Ben): ...
  - a `value == none` signals that an entry is empty, which would be the same as 0-len `seq`
 - Consider the idiom "`Record` hase key and value, a RecordEntry has a `Record` and `TimeReceived`"
 - consider `timeReceived` be a u64 millisecond representation
+- Consider using distinct types:
+ - Protobuf getting of fields relies on `seq[byte]`
+ - mitiprotobuf has similar reqs
+ - tried the `type Foo = object\n  data: seq[byte]` pattern and this caused a 
+   painful breadtrail of errors
 ]#
   Record* {.public.} = object
     key*: Option[seq[byte]]
