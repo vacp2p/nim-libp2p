@@ -11,6 +11,16 @@ import ../../../utility
 import ../../../multiaddress
 
 type
+  #[
+TODO(Ben): ...
+- Doc comment this
+- Consider the Option pattern here. 
+ - I don't think a record can exist without a key
+ - A record that exists in a bucket implies that it _must_ have a timeReceived value
+ - a `value == none` signals that an entry is empty, which would be the same as 0-len `seq`
+- Consider the idiom "`Record` hase key and value, a RecordEntry has a `Record` and `TimeReceived`"
+- consider `timeReceived` be a u64 millisecond representation
+]#
   Record* {.public.} = object
     key*: Option[seq[byte]]
     value*: Option[seq[byte]]
@@ -22,6 +32,7 @@ type
     addProvider = 2
     getProviders = 3
     findNode = 4
+    # TODO(Ben): Raise compiler warning where this deprecated variant is used
     ping = 5 # Deprecated
 
   ConnectionType* = enum
@@ -31,12 +42,14 @@ type
     cannotConnect = 3 # Unused
 
   Peer* {.public.} = object
+    # TODO: use PeerId
     id*: seq[byte]
     addrs*: seq[MultiAddress]
     connection*: ConnectionType
 
   Message* {.public.} = object
     msgType*: MessageType
+    # TODO: use distinct type
     key*: Option[seq[byte]]
     record*: Option[Record]
     closerPeers*: seq[Peer]

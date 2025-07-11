@@ -84,6 +84,7 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 proc findClosestPeers*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
   findClosest(rtable, targetId, count).mapIt(it.peerId)
 
+#TODO: currently set to 30mins. At some point, will want to config this.
 proc isStale*(bucket: Bucket): bool =
   if bucket.peers.len == 0:
     return true
