@@ -95,7 +95,7 @@ proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
   ipb.write(1, imreceiving.messageID)
   ipb.write(2, imreceiving.messageLength)
 
-  if len(ipb.buffer) > 0:
+  if ipb.buffer.len > 0:
     ipb.finish()
     pb.write(field, ipb)
 
