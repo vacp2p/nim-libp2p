@@ -20,7 +20,7 @@ import ../../peerid
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utility
-import ../../utils/bytesview
+import ../../utils/[bytesview, sequninit]
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
@@ -315,7 +315,7 @@ proc readFrame(
   if size == 0:
     return
 
-  var buffer = newSeqUninitialized[byte](size)
+  var buffer = newSeqUninit[byte](size)
   await sconn.readExactly(addr buffer[0], buffer.len)
   return buffer
 
@@ -458,7 +458,7 @@ method write*(
   let frames = (message.len + MaxPlainSize - 1) div MaxPlainSize
 
   var
-    cipherFrames = newSeqUninitialized[byte](message.len + frames * FramingSize)
+    cipherFrames = newSeqUninit[byte](message.len + frames * FramingSize)
     left = message.len
     offset = 0
     woffset = 0
