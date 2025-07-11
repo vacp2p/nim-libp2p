@@ -47,7 +47,6 @@ TODO(Ben): ...
     cannotConnect = 3 # Unused
 
   Peer* {.public.} = object
-    # TODO: use PeerId
     id*: seq[byte]
     addrs*: seq[MultiAddress]
     connection*: ConnectionType
