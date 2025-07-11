@@ -42,7 +42,7 @@ proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
 
 method start*(
     self: Transport, addrs: seq[MultiAddress]
-) {.base, async: (raises: [LPError, TransportError]).} =
+) {.base, async: (raises: [LPError, TransportError, CancelledError]).} =
   ## start the transport
   ##
 

@@ -52,7 +52,7 @@ proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
 
 method start*(
     self: MemoryTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   if self.running:
     return
 

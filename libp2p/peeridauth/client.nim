@@ -302,6 +302,8 @@ proc sendWithoutBearer(
   ):
     raise newException(PeerIDAuthError, "Failed to validate server's signature")
 
+  echo $authorizationResponse.response
+  echo $authorizationResponse.response.status
   return (authorizationResponse.bearer, authorizationResponse.response)
 
 proc sendWithBearer(
