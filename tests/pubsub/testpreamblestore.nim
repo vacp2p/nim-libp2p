@@ -34,10 +34,12 @@ suite "preamble store":
   teardown:
     checkTrackers()
 
-  const topic = "foobar"
+  var store {.threadvar.}: PreambleStore
+
+  asyncSetup:
+    store = PreambleStore.init()
 
   asyncTest "insert and retrieve":
-    var store = PreambleStore.init()
     let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
     let info = mockPreamble(m1, peer, 0.seconds, 5.seconds)
@@ -48,7 +50,6 @@ suite "preamble store":
       store[m1] == info
 
   asyncTest "heap order is preserved on inserts":
-    var store = PreambleStore.init()
     for i in 0 .. 9:
       let id = MessageId(@[i.byte])
       let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
@@ -64,8 +65,6 @@ suite "preamble store":
       last = popped.get().expiresAt
 
   asyncTest "deletion marks AND heap pop discards deleted":
-    var store = PreambleStore.init()
-
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
     let m2 = MessageId(@[2.byte, 2.byte, 2.byte])
 
@@ -82,8 +81,6 @@ suite "preamble store":
       res.get().messageId == m2 # p1 was skipped
 
   asyncTest "overwrite twice keeps latest, heap has garbage record":
-    var store = PreambleStore.init()
-
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
     let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
     let a1 = mockPreamble(m1, peer, 0.seconds, 1.seconds)
@@ -120,7 +117,6 @@ suite "preamble store":
       peersToQuery == peersInserted[4 ..< 10]
 
   asyncTest "re-adding same peer doesn't evict or reorder":
-    var store = PreambleStore.init()
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
     let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
 
@@ -135,7 +131,6 @@ suite "preamble store":
       peersToQuery[0] == peer.peerId
 
   asyncTest "withValue macro works sanely":
-    var store = PreambleStore.init()
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
     let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)
     store.insert(m1, mockPreamble(m1, peer))
@@ -147,7 +142,6 @@ suite "preamble store":
     check inside
 
   asyncTest "len matches insert/delete":
-    var store = PreambleStore.init()
     check store.len == 0
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
     let peer = PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 0)

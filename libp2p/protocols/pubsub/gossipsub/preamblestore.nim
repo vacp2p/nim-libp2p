@@ -28,7 +28,7 @@ proc init*(
     peerSet: PeerSet.init(),
   )
 
-proc init*(_: typedesc[PreambleStore]): PreambleStore =
+proc init*(T: typedesc[PreambleStore]): T =
   result.byId = initTable[MessageId, PreambleInfo]()
   result.heap = initHeapQueue[PreambleInfo]()
 
