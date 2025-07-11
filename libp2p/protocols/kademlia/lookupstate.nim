@@ -90,7 +90,7 @@ proc init*(T: type LookupState, targetId: Key, initialPeers: seq[PeerId]): T =
     targetId: targetId,
     shortlist: @[],
     activeQueries: 0,
-    alpha: alpha,
+    alpha: KAD_ALPHA,
     k: k,
     done: false,
   )
