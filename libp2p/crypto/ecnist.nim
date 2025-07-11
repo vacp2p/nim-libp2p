@@ -357,12 +357,8 @@ proc toRawBytes*(sig: EcSignature, data: var openArray[byte]): int =
     if len(sig.buffer) > 0:
       copyMem(addr data[0], unsafeAddr sig.buffer[0], len(sig.buffer))
 
-proc toBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
-  ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
-  ## to ``data``.
-  ##
-  ## Procedure returns number of bytes (octets) needed to store EC private key,
-  ## or `0` if private key is not in supported curve.
+proc toByteSeq*(seckey: EcPrivateKey): EcResult[seq[byte]] =
+  ## Serializes to ASN.1 DER and returns the sequence directly.
   if isNil(seckey):
     return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
@@ -396,20 +392,12 @@ proc toBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
     p.finish()
     b.write(p)
     b.finish()
-    var blen = len(b)
-    if len(data) >= blen:
-      copyMem(addr data[0], addr b.buffer[0], blen)
-    # ok anyway, since it might have been a query...
-    ok(blen)
+    ok(b.buffer[0 ..< b.len])
   else:
     err(EcKeyIncorrectError)
 
-proc toBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
-  ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and store it
-  ## to ``data``.
-  ##
-  ## Procedure returns number of bytes (octets) needed to store EC public key,
-  ## or `0` if public key is not in supported curve.
+proc toByteSeq*(pubkey: EcPublicKey): EcResult[seq[byte]] =
+  ## Internal use: serializes public key to ASN.1 DER format and returns the byte sequence.
   if isNil(pubkey):
     return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
@@ -433,10 +421,7 @@ proc toBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
     p.finish()
     b.write(p)
     b.finish()
-    var blen = len(b)
-    if len(data) >= blen:
-      copyMem(addr data[0], addr b.buffer[0], blen)
-    ok(blen)
+    ok(b.buffer[0 ..< b.len])
   else:
     err(EcKeyIncorrectError)
 
@@ -458,10 +443,9 @@ proc getBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
   if isNil(seckey):
     return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
-    var res = newSeqUninitialized[byte](0)
-    let length = ?seckey.toBytes(res)
-    res.setLen(length)
-    discard ?seckey.toBytes(res)
+    var temp = newSeq   
+    let length = ?seckey.toBytes(temp)
+    let res = temp[0..<length]    
     ok(res)
   else:
     err(EcKeyIncorrectError)
@@ -471,10 +455,9 @@ proc getBytes*(pubkey: EcPublicKey): EcResult[seq[byte]] =
   if isNil(pubkey):
     return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
-    var res = newSeqUninitialized[byte](0)
-    let length = ?pubkey.toBytes(res)
-    res.setLen(length)
-    discard ?pubkey.toBytes(res)
+    var temp = newSeq   
+    let length = ?pubkey.toBytes(temp)
+    let res = temp[0..<length]   
     ok(res)
   else:
     err(EcKeyIncorrectError)
@@ -483,10 +466,9 @@ proc getBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to ASN.1 DER binary form and return it.
   if isNil(sig):
     return err(EcSignatureError)
-  var res = newSeqUninitialized[byte](0)
-  let length = ?sig.toBytes(res)
-  res.setLen(length)
-  discard ?sig.toBytes(res)
+  var temp = newSeq  
+  let length = ?sig.toBytes(temp)
+  let res = temp[0..<length]
   ok(res)
 
 proc getRawBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
