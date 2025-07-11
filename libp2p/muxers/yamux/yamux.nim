@@ -12,7 +12,7 @@
 import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
-import ../../utils/zeroqueue
+import ../../utils/[zeroqueue, sequninit]
 
 export muxer
 
@@ -339,7 +339,7 @@ proc trySend(
       bytesAvailable = channel.lengthSendQueue()
       toSend = min(channel.sendWindow, bytesAvailable)
     var
-      sendBuffer = newSeqUninitialized[byte](toSend + 12)
+      sendBuffer = newSeqUninit[byte](toSend + 12)
       header = YamuxHeader.data(channel.id, toSend.uint32)
       inBuffer = 0
 
@@ -581,7 +581,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
                 raise
                   newException(YamuxError, "Peer exhausted the recvWindow after reset")
               if header.length > 0:
-                var buffer = newSeqUninitialized[byte](header.length)
+                var buffer = newSeqUninit[byte](header.length)
                 await m.connection.readExactly(addr buffer[0], int(header.length))
           do:
             raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
@@ -607,7 +607,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             raise newException(YamuxError, "Peer exhausted the recvWindow")
 
           if header.length > 0:
-            var buffer = newSeqUninitialized[byte](header.length)
+            var buffer = newSeqUninit[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
             trace "Msg Rcv", description = shortLog(buffer)
             await channel.gotDataFromRemote(buffer)

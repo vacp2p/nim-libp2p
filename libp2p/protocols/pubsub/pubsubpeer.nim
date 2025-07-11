@@ -20,7 +20,8 @@ import
   ../../stream/connection,
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
-  ../../utility
+  ../../utility,
+  ../../utils/sequninit
 
 export peerid, connection, deques
 
@@ -221,7 +222,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
           conn, peer = p, closed = conn.closed, data = data.shortLog
 
         await p.handler(p, data)
-        data = newSeqUninitialized[byte](0) # Release memory
+        data = newSeqUninit[byte](0) # Release memory
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
         conn, peer = p, description = exc.msg

@@ -11,6 +11,7 @@
 
 import bearssl/rand
 import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
+import ../utils/sequninit
 
 export sha2, results, rand
 
@@ -182,7 +183,7 @@ proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
-  result = newSeqUninitialized[byte](72)
+  result = newSeqUninit[byte](72)
   let length = toBytes(sig, result)
   result.setLen(length)
 

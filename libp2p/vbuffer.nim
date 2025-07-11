@@ -12,6 +12,7 @@
 {.push raises: [].}
 
 import varint, strutils
+import ./utils/sequninit
 
 type VBuffer* = object
   buffer*: seq[byte]
@@ -42,7 +43,7 @@ proc initVBuffer*(data: seq[byte], offset = 0): VBuffer =
 
 proc initVBuffer*(data: openArray[byte], offset = 0): VBuffer =
   ## Initialize VBuffer with copy of ``data``.
-  result.buffer = newSeqUninitialized[byte](len(data))
+  result.buffer = newSeqUninit[byte](len(data))
   if len(data) > 0:
     copyMem(addr result.buffer[0], unsafeAddr data[0], len(data))
   result.offset = offset
