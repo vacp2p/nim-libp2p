@@ -8,6 +8,7 @@
 # those terms.
 
 import std/deques
+import ./sequninit
 
 type Chunk = ref object
   data: seq[byte]
@@ -77,7 +78,7 @@ proc popChunkSeq*(q: var ZeroQueue, count: int): seq[byte] =
     return @[]
 
   let chunk = q.popChunk(count)
-  var dest = newSeqUninitialized[byte](chunk.len())
+  var dest = newSeqUninit[byte](chunk.len())
   let offsetPtr = cast[ptr byte](cast[int](unsafeAddr chunk.data[0]) + chunk.start)
   copyMem(dest[0].addr, offsetPtr, chunk.len())
 
