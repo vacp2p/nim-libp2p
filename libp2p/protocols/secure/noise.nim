@@ -132,7 +132,7 @@ proc hasKey(cs: CipherState): bool =
   cs.k != EmptyKey
 
 proc encrypt(
-    state: var CipherState, data: var openArray[byte], ad: openArray[byte]
+    state: var CipherState, data: openArray[byte], ad: openArray[byte]
 ): ChaChaPolyTag {.noinit, raises: [NoiseNonceMaxError].} =
   var nonce: ChaChaPolyNonce
   nonce[4 ..< 12] = toBytesLE(state.n)
@@ -146,15 +146,16 @@ proc encrypt(
 proc encryptWithAd(
     state: var CipherState, ad, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseNonceMaxError].} =
-  result = newSeqOfCap[byte](data.len + sizeof(ChaChaPolyTag))
-  result.add(data)
+  let tag = encrypt(state, data, ad)
 
-  let tag = encrypt(state, result, ad)
-
-  result.add(tag)
+  var res = newSeqUninit[byte](data.len + tag.len)
+  copyMem(addr res[0], unsafeAddr data[0], data.len)
+  copyMem(addr res[data.len], unsafeAddr tag[0], tag.len)
 
   trace "encryptWithAd",
-    tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
+    tag = byteutils.toHex(tag), data = res.shortLog, nonce = state.n - 1
+
+  return res
 
 proc decryptWithAd(
     state: var CipherState, ad, data: openArray[byte]

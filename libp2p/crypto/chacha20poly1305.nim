@@ -53,7 +53,7 @@ proc encrypt*(
     key: ChaChaPolyKey,
     nonce: ChaChaPolyNonce,
     tag: var ChaChaPolyTag,
-    data: var openArray[byte],
+    data: openArray[byte],
     aad: openArray[byte],
 ) =
   let ad =
