@@ -220,6 +220,11 @@ window.addEventListener("DOMContentLoaded", main2);
     title="decodeIHave(pb: ProtoBuffer): ProtoResult[ControlIHave]">decodeIHave(pb: ProtoBuffer): ProtoResult[ControlIHave]</a></li>
 
   </ul>
+  <ul class="simple nested-toc-section">decodeIMReceiving
+      <li><a class="reference" href="#decodeIMReceiving%2CProtoBuffer"
+    title="decodeIMReceiving(pb: ProtoBuffer): ProtoResult[ControlIMReceiving]">decodeIMReceiving(pb: ProtoBuffer): ProtoResult[ControlIMReceiving]</a></li>
+
+  </ul>
   <ul class="simple nested-toc-section">decodeIWant
       <li><a class="reference" href="#decodeIWant%2CProtoBuffer"
     title="decodeIWant(pb: ProtoBuffer): ProtoResult[ControlIWant]">decodeIWant(pb: ProtoBuffer): ProtoResult[ControlIWant]</a></li>
@@ -238,6 +243,11 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple nested-toc-section">decodePeerInfoMsg
       <li><a class="reference" href="#decodePeerInfoMsg%2CProtoBuffer"
     title="decodePeerInfoMsg(pb: ProtoBuffer): ProtoResult[PeerInfoMsg]">decodePeerInfoMsg(pb: ProtoBuffer): ProtoResult[PeerInfoMsg]</a></li>
+
+  </ul>
+  <ul class="simple nested-toc-section">decodePreamble
+      <li><a class="reference" href="#decodePreamble%2CProtoBuffer"
+    title="decodePreamble(pb: ProtoBuffer): ProtoResult[ControlPreamble]">decodePreamble(pb: ProtoBuffer): ProtoResult[ControlPreamble]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">decodePrune
@@ -277,12 +287,16 @@ window.addEventListener("DOMContentLoaded", main2);
     title="write(pb: var ProtoBuffer; field: int; graft: ControlGraft)">write(pb: var ProtoBuffer; field: int; graft: ControlGraft)</a></li>
   <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CControlIHave"
     title="write(pb: var ProtoBuffer; field: int; ihave: ControlIHave)">write(pb: var ProtoBuffer; field: int; ihave: ControlIHave)</a></li>
+  <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CControlIMReceiving"
+    title="write(pb: var ProtoBuffer; field: int; imreceiving: ControlIMReceiving)">write(pb: var ProtoBuffer; field: int; imreceiving: ControlIMReceiving)</a></li>
   <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CPeerInfoMsg"
     title="write(pb: var ProtoBuffer; field: int; infoMsg: PeerInfoMsg)">write(pb: var ProtoBuffer; field: int; infoMsg: PeerInfoMsg)</a></li>
   <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CControlIWant"
     title="write(pb: var ProtoBuffer; field: int; iwant: ControlIWant)">write(pb: var ProtoBuffer; field: int; iwant: ControlIWant)</a></li>
   <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CMessage%2Cbool"
     title="write(pb: var ProtoBuffer; field: int; msg: Message; anonymize: bool)">write(pb: var ProtoBuffer; field: int; msg: Message; anonymize: bool)</a></li>
+  <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CControlPreamble"
+    title="write(pb: var ProtoBuffer; field: int; preamble: ControlPreamble)">write(pb: var ProtoBuffer; field: int; preamble: ControlPreamble)</a></li>
   <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CControlPrune"
     title="write(pb: var ProtoBuffer; field: int; prune: ControlPrune)">write(pb: var ProtoBuffer; field: int; prune: ControlPrune)</a></li>
   <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CSubOpts"
@@ -320,9 +334,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L200"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L267"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L200" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L267" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -334,9 +348,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L128"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L158"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L158" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -348,9 +362,24 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L172"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L202"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L172" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L202" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="decodeIMReceiving,ProtoBuffer" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#decodeIMReceiving%2CProtoBuffer"><span class="Identifier">decodeIMReceiving</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="../../../protobuf/minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <a href="../../../protobuf/minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><a href="messages.html#ControlIMReceiving"><span class="Identifier">ControlIMReceiving</span></a><span class="Other">]</span> {.
+    <span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L250"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L250" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -362,9 +391,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L188"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L218"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L188" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L218" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -379,9 +408,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L266"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L346"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L266" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L346" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -393,9 +422,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L299"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L379"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L299" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L379" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -407,9 +436,24 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L140"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L170"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L140" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L170" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="decodePreamble,ProtoBuffer" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#decodePreamble%2CProtoBuffer"><span class="Identifier">decodePreamble</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="../../../protobuf/minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <a href="../../../protobuf/minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><a href="messages.html#ControlPreamble"><span class="Identifier">ControlPreamble</span></a><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L230"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L230" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -421,9 +465,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L154"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L184"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L184" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -434,9 +478,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L330"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L410"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L330" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L410" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -448,9 +492,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L235"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L315"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L235" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L315" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -462,9 +506,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L253"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L333"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L253" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L333" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -475,9 +519,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L106"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L136"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L106" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L136" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -488,9 +532,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L311"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L391"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L311" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L391" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -501,9 +545,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L80"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L105"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L105" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -530,6 +574,19 @@ class="link-seesrc" target="_blank">Source</a>
 href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L58"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L58" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="write,ProtoBuffer,int,ControlIMReceiving" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CControlIMReceiving"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="../../../protobuf/minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">imreceiving</span><span class="Other">:</span> <a href="messages.html#ControlIMReceiving"><span class="Identifier">ControlIMReceiving</span></a><span class="Other">)</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L93"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L93" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -566,9 +623,22 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L125"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L155"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L125" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L155" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="write,ProtoBuffer,int,ControlPreamble" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CControlPreamble"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="../../../protobuf/minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">preamble</span><span class="Other">:</span> <a href="messages.html#ControlPreamble"><span class="Identifier">ControlPreamble</span></a><span class="Other">)</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L80"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -592,9 +662,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L96"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/rpc/protobuf.nim#L126"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L96" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/rpc/protobuf.nim#L126" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -608,7 +678,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-11 20:51:34 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-12 16:15:00 UTC</small>
       </div>
     </div>
   </div>

@@ -247,6 +247,9 @@ window.addEventListener("DOMContentLoaded", main2);
   peerId*: PeerId
   handler*: RPCHandler
   observers*: ref seq[PubSubObserver]
+  when defined(libp2p_gossipsub_1_4):
+      bandwidthTracking*: BandwidthTracking
+
   score*: float64
   sentIHaves*: Deque[HashSet[MessageId]]
   iDontWants*: Deque[HashSet[SaltedId]] ## IDONTWANT contains unvalidated message id:s which may be long and/or
@@ -258,6 +261,11 @@ window.addEventListener("DOMContentLoaded", main2);
   appScore*: float64
   behaviourPenalty*: float64
   overheadRateLimitOpt*: Opt[TokenBucket]
+  when defined(libp2p_gossipsub_1_4):
+      preambleBudget*: int
+      heIsReceivings*: Table[MessageId, uint32]
+      heIsSendings*: Table[MessageId, Moment]
+
   rpcmessagequeue: RpcMessageQueue
   maxNumElementsInNonPriorityQueue*: int
   disconnected: bool
@@ -562,6 +570,9 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">peerId</span><span class="Operator">*</span><span class="Other">:</span> <a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">handler</span><span class="Operator">*</span><span class="Other">:</span> <a href="pubsubpeer.html#RPCHandler"><span class="Identifier">RPCHandler</span></a>
   <span class="Identifier">observers</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="pubsubpeer.html#PubSubObserver"><span class="Identifier">PubSubObserver</span></a><span class="Other">]</span>
+  <span class="Keyword">when</span> <span class="Identifier">defined</span><span class="Other">(</span><span class="Identifier">libp2p_gossipsub_1_4</span><span class="Other">)</span><span class="Other">:</span>
+      <span class="Identifier">bandwidthTracking</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">BandwidthTracking</span>
+
   <span class="Identifier">score</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">float64</span>
   <span class="Identifier">sentIHaves</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Deque</span><span class="Other">[</span><span class="Identifier">HashSet</span><span class="Other">[</span><a href="rpc/messages.html#MessageId"><span class="Identifier">MessageId</span></a><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">iDontWants</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Deque</span><span class="Other">[</span><span class="Identifier">HashSet</span><span class="Other">[</span><a href="rpc/messages.html#SaltedId"><span class="Identifier">SaltedId</span></a><span class="Other">]</span><span class="Other">]</span> <span class="Comment">## IDONTWANT contains unvalidated message id:s which may be long and/or</span>
@@ -573,6 +584,11 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">appScore</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">float64</span>
   <span class="Identifier">behaviourPenalty</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">float64</span>
   <span class="Identifier">overheadRateLimitOpt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">TokenBucket</span><span class="Other">]</span>
+  <span class="Keyword">when</span> <span class="Identifier">defined</span><span class="Other">(</span><span class="Identifier">libp2p_gossipsub_1_4</span><span class="Other">)</span><span class="Other">:</span>
+      <span class="Identifier">preambleBudget</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
+      <span class="Identifier">heIsReceivings</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><span class="Identifier">MessageId</span><span class="Other">,</span> <span class="Identifier">uint32</span><span class="Other">]</span>
+      <span class="Identifier">heIsSendings</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Table</span><span class="Other">[</span><span class="Identifier">MessageId</span><span class="Other">,</span> <span class="Identifier">Moment</span><span class="Other">]</span>
+
   <span class="Identifier">rpcmessagequeue</span><span class="Other">:</span> <a href="pubsubpeer.html#RpcMessageQueue"><span class="Identifier">RpcMessageQueue</span></a>
   <span class="Identifier">maxNumElementsInNonPriorityQueue</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">disconnected</span><span class="Other">:</span> <span class="Identifier">bool</span>
@@ -622,9 +638,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L144"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L152"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L144" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L152" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -672,9 +688,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L166"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L174"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L166" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L174" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -684,9 +700,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L541"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L549"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L541" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L549" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -696,9 +712,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L314"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L322"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L314" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L322" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -708,9 +724,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L177"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L185"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L177" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L185" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -720,9 +736,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L156"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L164"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L156" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L164" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -734,9 +750,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L213"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L221"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L213" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L221" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -746,9 +762,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L163"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L171"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L163" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L171" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -758,9 +774,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L180"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L188"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L180" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L188" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -770,9 +786,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L320"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L328"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L320" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L328" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -787,9 +803,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L589"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L597"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L589" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L597" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -799,9 +815,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L183"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L191"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L183" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L191" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -812,9 +828,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L190"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L198"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L190" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L198" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -834,9 +850,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L499"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L507"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L499" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L507" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -855,9 +871,9 @@ class="link-seesrc" target="_blank">Source</a>
 <p>High priority messages are sent immediately, while low priority messages are queued and sent only after all high priority messages have been sent.</p>
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L410"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L418"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L410" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L418" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -867,9 +883,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L169"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L177"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L169" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L177" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -880,9 +896,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L571"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L579"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L571" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L579" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -893,9 +909,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L198"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L206"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L198" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L206" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -910,9 +926,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L174"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/pubsub/pubsubpeer.nim#L182"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L174" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/pubsub/pubsubpeer.nim#L182" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -931,7 +947,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-11 20:51:34 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-12 16:15:01 UTC</small>
       </div>
     </div>
   </div>
