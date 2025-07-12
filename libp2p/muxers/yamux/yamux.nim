@@ -12,7 +12,7 @@
 import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
-import ../../utils/[zeroqueue, sequninit]
+import ../../utils/[zeroqueue, sequninit], ../../utility
 
 export muxer
 
@@ -91,10 +91,10 @@ proc `$`(header: YamuxHeader): string =
 proc encode(header: YamuxHeader): array[12, byte] =
   result[0] = header.version
   result[1] = uint8(header.msgType)
-  result[2 .. 3] = toBytesBE(uint16(cast[uint8](header.flags)))
+  toBytesBE(uint16(cast[uint8](header.flags)), result, 2)
     # workaround https://github.com/nim-lang/Nim/issues/21789
-  result[4 .. 7] = toBytesBE(header.streamId)
-  result[8 .. 11] = toBytesBE(header.length)
+  toBytesBE(header.streamId, result, 4)
+  toBytesBE(header.length, result, 8)
 
 proc write(
     conn: LPStream, header: YamuxHeader

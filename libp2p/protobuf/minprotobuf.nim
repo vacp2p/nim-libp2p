@@ -187,12 +187,12 @@ proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
   elif T is float32:
     doAssert(pb.isEnough(uint64(sizeof(T))))
     let u32 = cast[uint32](value)
-    pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u32.toBytesLE()
+    toBytesLE(u32, pb.buffer, pb.offset)
     pb.offset += sizeof(T)
   elif T is float64:
     doAssert(pb.isEnough(uint64(sizeof(T))))
     let u64 = cast[uint64](value)
-    pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u64.toBytesLE()
+    toBytesLE(u64, pb.buffer, pb.offset)
     pb.offset += sizeof(T)
 
 proc writePacked*[T: ProtoScalar](
@@ -235,12 +235,12 @@ proc writePacked*[T: ProtoScalar](
     elif T is float32:
       doAssert(pb.isEnough(uint64(sizeof(T))))
       let u32 = cast[uint32](item)
-      pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u32.toBytesLE()
+      toBytesLE(u32, pb.buffer, pb.offset)
       pb.offset += sizeof(T)
     elif T is float64:
       doAssert(pb.isEnough(uint64(sizeof(T))))
       let u64 = cast[uint64](item)
-      pb.buffer[pb.offset ..< pb.offset + sizeof(T)] = u64.toBytesLE()
+      toBytesLE(u64, pb.buffer, pb.offset)
       pb.offset += sizeof(T)
 
 proc write*[T: byte | char](pb: var ProtoBuffer, field: int, value: openArray[T]) =
@@ -281,12 +281,12 @@ proc finish*(pb: var ProtoBuffer) =
   elif WithUint32BeLength in pb.options:
     doAssert(len(pb.buffer) >= 4)
     let size = uint(len(pb.buffer) - 4)
-    pb.buffer[0 ..< 4] = toBytesBE(uint32(size))
+    toBytesBE(uint32(size), pb.buffer, 0)
     pb.offset = 4
   elif WithUint32LeLength in pb.options:
     doAssert(len(pb.buffer) >= 4)
     let size = uint(len(pb.buffer) - 4)
-    pb.buffer[0 ..< 4] = toBytesLE(uint32(size))
+    toBytesLE(uint32(size), pb.buffer, 0)
     pb.offset = 4
   else:
     doAssert(len(pb.buffer) > 0)

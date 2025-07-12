@@ -11,9 +11,10 @@
 
 import std/[sets, options, macros]
 import stew/byteutils
+import stew/endians2
 import results
 
-export results
+export results, endians2
 
 ## public pragma is marker of "public" api subject to stronger stability guarantees.
 template public*() {.pragma.}
@@ -143,3 +144,26 @@ template filterIt*[T](set: HashSet[T], condition: untyped): HashSet[T] =
       if condition:
         filtered.incl(it)
   filtered
+
+# In-place byte conversion utilities
+# These functions write directly to allocated buffers instead of returning new arrays
+
+func toBytesLE*(value: SomeEndianInt, dest: var openArray[byte], offset: int = 0) {.public.} =
+  ## Convert a native endian integer to little endian bytes and write to dest at offset.
+  ## The dest array must have at least sizeof(value) bytes available from offset.
+  when sizeof(value) == 1:
+    dest[offset] = cast[byte](value)
+  else:
+    let bytes = value.toBytesLE()
+    for i in 0 ..< sizeof(value):
+      dest[offset + i] = bytes[i]
+
+func toBytesBE*(value: SomeEndianInt, dest: var openArray[byte], offset: int = 0) {.public.} =
+  ## Convert a native endian integer to big endian bytes and write to dest at offset.
+  ## The dest array must have at least sizeof(value) bytes available from offset.
+  when sizeof(value) == 1:
+    dest[offset] = cast[byte](value)
+  else:
+    let bytes = value.toBytesBE()
+    for i in 0 ..< sizeof(value):
+      dest[offset + i] = bytes[i]

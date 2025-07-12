@@ -13,6 +13,7 @@
 import options
 import ./helpers
 import ../libp2p/utility
+import stew/endians2
 
 suite "Utility":
 
@@ -154,3 +155,143 @@ suite "withValue and valueOr templates":
       fail()
       return
     check obj.x == 3
+
+suite "In-place byte conversion utilities":
+  
+  test "toBytesLE writes correct little-endian bytes":
+    var dest = newSeq[byte](8)
+    
+    # Test uint16
+    toBytesLE(0x1234'u16, dest, 0)
+    check dest[0] == 0x34
+    check dest[1] == 0x12
+    
+    # Test uint32
+    toBytesLE(0x12345678'u32, dest, 0)
+    check dest[0] == 0x78
+    check dest[1] == 0x56
+    check dest[2] == 0x34
+    check dest[3] == 0x12
+    
+    # Test uint64
+    toBytesLE(0x123456789ABCDEF0'u64, dest, 0)
+    check dest[0] == 0xF0
+    check dest[1] == 0xDE
+    check dest[2] == 0xBC
+    check dest[3] == 0x9A
+    check dest[4] == 0x78
+    check dest[5] == 0x56
+    check dest[6] == 0x34
+    check dest[7] == 0x12
+    
+    # Test uint8
+    toBytesLE(0x42'u8, dest, 0)
+    check dest[0] == 0x42
+  
+  test "toBytesBE writes correct big-endian bytes":
+    var dest = newSeq[byte](8)
+    
+    # Test uint16
+    toBytesBE(0x1234'u16, dest, 0)
+    check dest[0] == 0x12
+    check dest[1] == 0x34
+    
+    # Test uint32
+    toBytesBE(0x12345678'u32, dest, 0)
+    check dest[0] == 0x12
+    check dest[1] == 0x34
+    check dest[2] == 0x56
+    check dest[3] == 0x78
+    
+    # Test uint64
+    toBytesBE(0x123456789ABCDEF0'u64, dest, 0)
+    check dest[0] == 0x12
+    check dest[1] == 0x34
+    check dest[2] == 0x56
+    check dest[3] == 0x78
+    check dest[4] == 0x9A
+    check dest[5] == 0xBC
+    check dest[6] == 0xDE
+    check dest[7] == 0xF0
+    
+    # Test uint8
+    toBytesBE(0x42'u8, dest, 0)
+    check dest[0] == 0x42
+  
+  test "toBytesLE with offset works correctly":
+    var dest = newSeq[byte](12)
+    
+    # Write at offset 4
+    toBytesLE(0x12345678'u32, dest, 4)
+    check dest[4] == 0x78
+    check dest[5] == 0x56
+    check dest[6] == 0x34
+    check dest[7] == 0x12
+    
+    # Check that bytes before and after offset are unchanged
+    for i in 0..3:
+      check dest[i] == 0
+    for i in 8..11:
+      check dest[i] == 0
+  
+  test "toBytesBE with offset works correctly":
+    var dest = newSeq[byte](12)
+    
+    # Write at offset 4
+    toBytesBE(0x12345678'u32, dest, 4)
+    check dest[4] == 0x12
+    check dest[5] == 0x34
+    check dest[6] == 0x56
+    check dest[7] == 0x78
+    
+    # Check that bytes before and after offset are unchanged
+    for i in 0..3:
+      check dest[i] == 0
+    for i in 8..11:
+      check dest[i] == 0
+  
+  test "toBytesLE produces same result as stew's toBytesLE":
+    # Test against existing implementation
+    let val16 = 0x1234'u16
+    let val32 = 0x12345678'u32
+    let val64 = 0x123456789ABCDEF0'u64
+    
+    var dest = newSeq[byte](8)
+    
+    # Compare uint16
+    toBytesLE(val16, dest, 0)
+    let expected16 = val16.toBytesLE()
+    check dest[0..1] == expected16[0..1]
+    
+    # Compare uint32
+    toBytesLE(val32, dest, 0)
+    let expected32 = val32.toBytesLE()
+    check dest[0..3] == expected32[0..3]
+    
+    # Compare uint64
+    toBytesLE(val64, dest, 0)
+    let expected64 = val64.toBytesLE()
+    check dest[0..7] == expected64[0..7]
+  
+  test "toBytesBE produces same result as stew's toBytesBE":
+    # Test against existing implementation
+    let val16 = 0x1234'u16
+    let val32 = 0x12345678'u32
+    let val64 = 0x123456789ABCDEF0'u64
+    
+    var dest = newSeq[byte](8)
+    
+    # Compare uint16
+    toBytesBE(val16, dest, 0)
+    let expected16 = val16.toBytesBE()
+    check dest[0..1] == expected16[0..1]
+    
+    # Compare uint32
+    toBytesBE(val32, dest, 0)
+    let expected32 = val32.toBytesBE()
+    check dest[0..3] == expected32[0..3]
+    
+    # Compare uint64
+    toBytesBE(val64, dest, 0)
+    let expected64 = val64.toBytesBE()
+    check dest[0..7] == expected64[0..7]
