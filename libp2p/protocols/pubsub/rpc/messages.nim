@@ -63,6 +63,9 @@ type
     graft*: seq[ControlGraft]
     prune*: seq[ControlPrune]
     idontwant*: seq[ControlIWant]
+    when defined(libp2p_gossipsub_1_4):
+      preamble*: seq[ControlPreamble]
+      imreceiving*: seq[ControlIMReceiving]
 
   ControlIHave* = object
     topicID*: string
@@ -81,6 +84,10 @@ type
 
   ControlPreamble* = object
     topicID*: string
+    messageID*: MessageId
+    messageLength*: uint32
+
+  ControlIMReceiving* = object
     messageID*: MessageId
     messageLength*: uint32
 
@@ -106,13 +113,29 @@ func shortLog*(s: ControlGraft): auto =
 func shortLog*(s: ControlPrune): auto =
   (topic: s.topicID.shortLog)
 
+func shortLog*(s: ControlPreamble): auto =
+  (topic: s.topicID.shortLog, messageID: s.messageID.shortLog)
+
+func shortLog*(s: ControlIMReceiving): auto =
+  (messageID: s.messageID.shortLog)
+
 func shortLog*(c: ControlMessage): auto =
-  (
-    ihave: mapIt(c.ihave, it.shortLog),
-    iwant: mapIt(c.iwant, it.shortLog),
-    graft: mapIt(c.graft, it.shortLog),
-    prune: mapIt(c.prune, it.shortLog),
-  )
+  when defined(libp2p_gossipsub_1_4):
+    (
+      ihave: mapIt(c.ihave, it.shortLog),
+      iwant: mapIt(c.iwant, it.shortLog),
+      graft: mapIt(c.graft, it.shortLog),
+      prune: mapIt(c.prune, it.shortLog),
+      preamble: mapIt(c.preamble, it.shortLog),
+      imreceiving: mapIt(c.imreceiving, it.shortLog),
+    )
+  else:
+    (
+      ihave: mapIt(c.ihave, it.shortLog),
+      iwant: mapIt(c.iwant, it.shortLog),
+      graft: mapIt(c.graft, it.shortLog),
+      prune: mapIt(c.prune, it.shortLog),
+    )
 
 func shortLog*(msg: Message): auto =
   (
@@ -178,11 +201,41 @@ proc byteSize(controlPrune: ControlPrune): int =
     # 8 bytes for uint64
 
 static:
-  expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
-proc byteSize(control: ControlMessage): int =
-  control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
-    control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-    control.idontwant.foldl(a + b.byteSize, 0)
+  expectedFields(ControlPreamble, @["topicID", "messageID", "messageLength"])
+proc byteSize(controlPreamble: ControlPreamble): int =
+  controlPreamble.topicID.len + controlPreamble.messageID.len + 4 # 4 bytes for uint32
+
+proc byteSize*(preambles: seq[ControlPreamble]): int =
+  preambles.foldl(a + b.byteSize, 0)
+
+static:
+  expectedFields(ControlIMReceiving, @["messageID", "messageLength"])
+proc byteSize(controlIMreceiving: ControlIMReceiving): int =
+  controlIMreceiving.messageID.len + 4 # 4 bytes for uint32
+
+proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
+  imreceivings.foldl(a + b.byteSize, 0)
+
+when defined(libp2p_gossipsub_1_4):
+  static:
+    expectedFields(
+      ControlMessage,
+      @["ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving"],
+    )
+  proc byteSize(control: ControlMessage): int =
+    control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
+      control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
+      control.idontwant.foldl(a + b.byteSize, 0) +
+      control.preamble.foldl(a + b.byteSize, 0) +
+      control.imreceiving.foldl(a + b.byteSize, 0)
+
+else:
+  static:
+    expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
+  proc byteSize(control: ControlMessage): int =
+    control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
+      control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
+      control.idontwant.foldl(a + b.byteSize, 0)
 
 static:
   expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
