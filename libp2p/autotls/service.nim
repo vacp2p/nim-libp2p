@@ -38,7 +38,7 @@ const
       initTAddress("[2606:4700:4700::1111]:53"),
     ]
   DefaultRenewCheckTime* = 1.hours
-  DefaultRenewBufferTime = 1.hours
+  DefaultRenewBufferTime* = 1.hours
 
   AutoTLSBroker* = "registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
@@ -61,6 +61,17 @@ type AutotlsConfig* = ref object
   ipAddress: Opt[IpAddress]
   renewCheckTime*: Duration
   renewBufferTime*: Duration
+  # Broker configuration
+  brokerURL*: string
+  dnsServerURL*: string
+  # DNS retry settings
+  dnsRetries*: int
+  dnsRetryTime*: Duration
+  # ACME retry settings
+  acmeRetries*: int
+  acmeRetryTime*: Duration
+  finalizeRetries*: int
+  finalizeRetryTime*: Duration
 
 type AutotlsService* = ref object of Service
   acmeClient: ACMEClient
@@ -68,7 +79,7 @@ type AutotlsService* = ref object of Service
   brokerClient: PeerIDAuthClient
   cert*: Opt[AutotlsCert]
   certReady*: AsyncEvent
-  config: AutotlsConfig
+  config*: AutotlsConfig
   managerFut: Future[void]
   peerInfo: PeerInfo
   rng: ref HmacDrbgContext
@@ -89,6 +100,14 @@ proc new*(
     acmeServerURL: Uri = parseUri(LetsEncryptURL),
     renewCheckTime: Duration = DefaultRenewCheckTime,
     renewBufferTime: Duration = DefaultRenewBufferTime,
+    brokerURL: string = AutoTLSBroker,
+    dnsServerURL: string = AutoTLSDNSServer,
+    dnsRetries: int = 10,
+    dnsRetryTime: Duration = 1.seconds,
+    acmeRetries: int = 10,
+    acmeRetryTime: Duration = 1.seconds,
+    finalizeRetries: int = 10,
+    finalizeRetryTime: Duration = 1.seconds,
 ): T =
   T(
     dnsResolver: DnsResolver.new(nameServers),
@@ -96,6 +115,14 @@ proc new*(
     ipAddress: ipAddress,
     renewCheckTime: renewCheckTime,
     renewBufferTime: renewBufferTime,
+    brokerURL: brokerURL,
+    dnsServerURL: dnsServerURL,
+    dnsRetries: dnsRetries,
+    dnsRetryTime: dnsRetryTime,
+    acmeRetries: acmeRetries,
+    acmeRetryTime: acmeRetryTime,
+    finalizeRetries: finalizeRetries,
+    finalizeRetryTime: finalizeRetryTime,
   )
 
 proc new*(
@@ -104,7 +131,7 @@ proc new*(
     config: AutotlsConfig = AutotlsConfig.new(),
 ): T =
   T(
-    acmeClient: ACMEClient.new(api = ACMEApi.new(acmeServerURL = config.acmeServerURL)),
+    acmeClient: ACMEClient.new(api = ACMEApi.new(acmeServerURL = config.acmeServerURL), rng = rng),
     brokerClient: PeerIDAuthClient.new(),
     bearer: Opt.none(BearerToken),
     cert: Opt.none(AutotlsCert),
@@ -138,9 +165,9 @@ method issueCertificate(
 
   assert not self.peerInfo.isNil(), "Cannot issue new certificate: peerInfo not set"
 
-  # generate autotls domain string: "*.{peerID}.libp2p.direct"
+  # generate autotls domain string: "*.{peerID}.dnsServerURL"
   let baseDomain =
-    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & AutoTLSDNSServer)
+    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
   let domain = api.Domain("*." & baseDomain)
 
   let acmeClient = self.acmeClient
@@ -150,7 +177,7 @@ method issueCertificate(
   let keyAuth = acmeClient.genKeyAuthorization(dns01Challenge.dns01.token)
   let strMultiaddresses: seq[string] = self.peerInfo.addrs.mapIt($it)
   let payload = %*{"value": keyAuth, "addresses": strMultiaddresses}
-  let registrationURL = parseUri("https://" & AutoTLSBroker & "/v1/_acme-challenge")
+  let registrationURL = parseUri("https://" & self.config.brokerURL & "/v1/_acme-challenge")
 
   trace "Sending challenge to AutoTLS broker"
   let (bearer, response) =
@@ -160,18 +187,18 @@ method issueCertificate(
     self.bearer = Opt.some(bearer)
   if response.status != HttpOk:
     raise newException(
-      AutoTLSError, "Failed to authenticate with AutoTLS Broker at " & AutoTLSBroker
+      AutoTLSError, "Failed to authenticate with AutoTLS Broker at " & self.config.brokerURL
     )
 
   debug "Waiting for DNS record to be set"
   let dnsSet = await checkDNSRecords(
-    self.config.dnsResolver, self.config.ipAddress.get(), baseDomain, keyAuth
+    self.config.dnsResolver, self.config.ipAddress.get(), baseDomain, keyAuth, self.config.dnsRetries, self.config.dnsRetryTime
   )
   if not dnsSet:
     raise newException(AutoTLSError, "DNS records not set")
 
   debug "Notifying challenge completion to ACME and downloading cert"
-  let certResponse = await acmeClient.getCertificate(domain, dns01Challenge)
+  let certResponse = await acmeClient.getCertificate(domain, dns01Challenge, self.config.acmeRetries, self.config.finalizeRetries)
 
   debug "Installing certificate"
   let newCert =
