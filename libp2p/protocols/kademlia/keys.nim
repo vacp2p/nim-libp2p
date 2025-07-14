@@ -29,6 +29,7 @@ proc toKey*(p: PeerId): Key =
 proc toPeerId*(k: Key): PeerId {.raises: [ValueError].} =
   if k.kind != KeyType.PeerId:
     raise newException(ValueError, "not a peerId")
+  k.peerId
 
 proc getBytes*(k: Key): seq[byte] =
   return
