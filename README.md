@@ -119,6 +119,11 @@ Enable quic transport support
 nim c -d:libp2p_quic_support some_file.nim
 ```
 
+Enable autotls support
+```bash
+nim c -d:libp2p_autotls_support some_file.nim
+```
+
 Enable expensive metrics (ie, metrics with per-peer cardinality):
 ```bash
 nim c -d:libp2p_expensive_metrics some_file.nim
