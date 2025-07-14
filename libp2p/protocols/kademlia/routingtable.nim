@@ -23,7 +23,7 @@ type
     selfId*: Key
     buckets*: seq[Bucket]
 
-proc `$`*(rt: RoutingTable): string = 
+proc `$`*(rt: RoutingTable): string =
   "selfId(" & $rt.selfId & ") buckets(" & $rt.buckets & ")"
 
 proc init*(T: typedesc[RoutingTable], selfId: Key): T =

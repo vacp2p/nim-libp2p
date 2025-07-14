@@ -36,7 +36,7 @@ suite "KadDHT - FindNode":
     # TODO: instead of awaiting sequentially, do it concurrently
     for i in 1 ..< swarmSize:
       await kads[i].bootstrap(@[switches[0].peerInfo])
-    
+
     await sleepAsync(2.seconds)
 
     for i in 0 ..< swarmSize:
@@ -46,4 +46,3 @@ suite "KadDHT - FindNode":
     for i in 1 ..< swarmSize:
       # todo: assert post-condition
       discard
-
