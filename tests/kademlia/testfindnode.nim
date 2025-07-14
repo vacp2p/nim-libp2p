@@ -16,24 +16,24 @@ proc createSwitch(): Switch =
 
 suite "KadDHT - FindNode":
   asyncTest "Simple find peer":
-    let
-      s1 = createSwitch()
-      s2 = createSwitch()
-      s3 = createSwitch()
-      kad1 = KadDHT.new(s1)
-      kad2 = KadDHT.new(s2)
-      kad3 = KadDHT.new(s3)
+    let swarmSize = 3
+    var switches: seq[Switch]
+    var kads: seq[KadDHT]
+    # every node needs a switch, and an assosciated kad mounted to it
+    for i in 0 ..< swarmSize:
+      switches.add(createSwitch())
+      kads.add(KadDHT.new(switches[i]))
+      switches[i].mount(kads[i])
 
-    s1.mount(kad1)
-    s2.mount(kad2)
-    s3.mount(kad3)
+    # Once the the creation/mounting of switches are done, we can start
+    # TODO: instead of awaiting sequentially, do it concurrently
+    for i in 0 ..< swarmSize:
+      await switches[i].start()
 
-    await s1.start()
-    await s2.start()
-    await s3.start()
-
-    await kad2.bootstrap(@[s1.peerInfo])
-    await kad3.bootstrap(@[s1.peerInfo])
+    # Now we can activate the network
+    # TODO: instead of awaiting sequentially, do it concurrently
+    for i in 1 ..< swarmSize:
+      await kads[i].bootstrap(@[switches[0].peerInfo])
 
     await sleepAsync(2.seconds)
 
