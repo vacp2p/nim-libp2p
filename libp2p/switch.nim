@@ -273,6 +273,9 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       conn =
         try:
           await transport.accept()
+        except CancelledError as exc:
+          slot.release()
+          raise exc
         except CatchableError as exc:
           slot.release()
           raise
