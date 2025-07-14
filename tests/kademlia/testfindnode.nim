@@ -1,6 +1,8 @@
 import chronos
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
+import ../../libp2p/protocols/kademlia/routingtable
+import ../../libp2p/protocols/kademlia/keys
 import unittest2
 import ../utils/async_tests
 
@@ -34,7 +36,14 @@ suite "KadDHT - FindNode":
     # TODO: instead of awaiting sequentially, do it concurrently
     for i in 1 ..< swarmSize:
       await kads[i].bootstrap(@[switches[0].peerInfo])
-
+    
     await sleepAsync(2.seconds)
 
-    # TODO: test
+    for i in 0 ..< swarmSize:
+      # todo: assert pre-condition
+      discard
+    discard await kads[1].findNode(kads[2].switch.peerInfo.peerId.toKey())
+    for i in 1 ..< swarmSize:
+      # todo: assert post-condition
+      discard
+
