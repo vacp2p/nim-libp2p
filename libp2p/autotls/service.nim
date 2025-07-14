@@ -10,70 +10,70 @@
 {.push raises: [].}
 {.push public.}
 
+import net, results, json, sequtils
+
+import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand
+
+import
+  ./acme/client,
+  ./utils,
+  ../crypto/crypto,
+  ../nameresolving/dnsresolver,
+  ../peeridauth/client,
+  ../peerinfo,
+  ../switch,
+  ../utils/heartbeat,
+  ../wire
+
+logScope:
+  topics = "libp2p autotls"
+
+export LetsEncryptURL, AutoTLSError
+
+const
+  DefaultDnsServers* =
+    @[
+      initTAddress("1.1.1.1:53"),
+      initTAddress("1.0.0.1:53"),
+      initTAddress("[2606:4700:4700::1111]:53"),
+    ]
+  DefaultRenewCheckTime* = 1.hours
+  DefaultRenewBufferTime = 1.hours
+
+  AutoTLSBroker* = "registration.libp2p.direct"
+  AutoTLSDNSServer* = "libp2p.direct"
+  HttpOk* = 200
+  HttpCreated* = 201
+  # NoneIp is needed because nim 1.6.16 can't do proper generic inference
+  NoneIp = Opt.none(IpAddress)
+
+type SigParam = object
+  k: string
+  v: seq[byte]
+
+type AutotlsCert* = ref object
+  cert*: TLSCertificate
+  expiry*: Moment
+
+type AutotlsConfig* = ref object
+  acmeServerURL*: Uri
+  dnsResolver*: DnsResolver
+  ipAddress: Opt[IpAddress]
+  renewCheckTime*: Duration
+  renewBufferTime*: Duration
+
+type AutotlsService* = ref object of Service
+  acmeClient: ACMEClient
+  bearer*: Opt[BearerToken]
+  brokerClient: PeerIDAuthClient
+  cert*: Opt[AutotlsCert]
+  certReady*: AsyncEvent
+  config: AutotlsConfig
+  managerFut: Future[void]
+  peerInfo: PeerInfo
+  rng: ref HmacDrbgContext
+
 when defined(libp2p_autotls_support):
-  import net, results, json, sequtils
-
-  import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand
-
-  import
-    ./acme/client,
-    ./utils,
-    ../crypto/crypto,
-    ../nameresolving/dnsresolver,
-    ../peeridauth/client,
-    ../peerinfo,
-    ../switch,
-    ../utils/heartbeat,
-    ../wire
-
-  logScope:
-    topics = "libp2p autotls"
-
-  export LetsEncryptURL, AutoTLSError
-
-  const
-    DefaultDnsServers* =
-      @[
-        initTAddress("1.1.1.1:53"),
-        initTAddress("1.0.0.1:53"),
-        initTAddress("[2606:4700:4700::1111]:53"),
-      ]
-    DefaultRenewCheckTime* = 1.hours
-    DefaultRenewBufferTime = 1.hours
-
-    AutoTLSBroker* = "registration.libp2p.direct"
-    AutoTLSDNSServer* = "libp2p.direct"
-    HttpOk* = 200
-    HttpCreated* = 201
-    # NoneIp is needed because nim 1.6.16 can't do proper generic inference
-    NoneIp = Opt.none(IpAddress)
-
-  type SigParam = object
-    k: string
-    v: seq[byte]
-
-  type AutotlsCert* = ref object
-    cert*: TLSCertificate
-    expiry*: Moment
-
-  type AutotlsConfig* = ref object
-    acmeServerURL*: Uri
-    dnsResolver*: DnsResolver
-    ipAddress: Opt[IpAddress]
-    renewCheckTime*: Duration
-    renewBufferTime*: Duration
-
-  type AutotlsService* = ref object of Service
-    acmeClient: ACMEClient
-    bearer*: Opt[BearerToken]
-    brokerClient: PeerIDAuthClient
-    cert*: Opt[AutotlsCert]
-    certReady*: AsyncEvent
-    config: AutotlsConfig
-    managerFut: Future[void]
-    peerInfo: PeerInfo
-    rng: ref HmacDrbgContext
-
   proc new*(T: typedesc[AutotlsCert], cert: TLSCertificate, expiry: Moment): T =
     T(cert: cert, expiry: expiry)
 
@@ -228,8 +228,3 @@ when defined(libp2p_autotls_support):
         await self.managerFut.cancelAndWait()
         self.managerFut = nil
     return hasBeenStopped
-
-else:
-  import ../switch
-  # Placeholder
-  type AutotlsService* = ref object of Service

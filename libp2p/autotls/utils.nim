@@ -6,29 +6,29 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
-when defined(libp2p_autotls_support):
-  {.push raises: [].}
-  {.push public.}
+{.push raises: [].}
+{.push public.}
 
+import chronos
+import ../errors
+
+const
+  DefaultDnsRetries = 10
+  DefaultDnsRetryTime = 1.seconds
+
+type AutoTLSError* = object of LPError
+
+when defined(libp2p_autotls_support):
   import net, strutils
   from times import DateTime, toTime, toUnix
-
-  import chronos, stew/base36, chronicles
-
+  import stew/base36, chronicles
   import
-    ../errors,
     ../peerid,
     ../multihash,
     ../cid,
     ../multicodec,
     ../nameresolving/dnsresolver,
     ./acme/client
-
-  const
-    DefaultDnsRetries = 10
-    DefaultDnsRetryTime = 1.seconds
-
-  type AutoTLSError* = object of LPError
 
   proc checkedGetPrimaryIPAddr*(): IpAddress {.raises: [AutoTLSError].} =
     # This is so that we don't need to catch Exceptions directly
@@ -77,34 +77,33 @@ when defined(libp2p_autotls_support):
 
     return Base36.encode(cidResult.get().data.buffer)
 
-  when defined(libp2p_autotls_support):
-    proc checkDNSRecords*(
-        dnsResolver: DnsResolver,
-        ipAddress: IpAddress,
-        baseDomain: api.Domain,
-        keyAuth: KeyAuthorization,
-        retries: int = DefaultDnsRetries,
-    ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
-      # if my ip address is 100.10.10.3 then the ip4Domain will be:
-      #     100-10-10-3.{peerIdBase36}.libp2p.direct
-      # and acme challenge TXT domain will be:
-      #     _acme-challenge.{peerIdBase36}.libp2p.direct
-      let dashedIpAddr = ($ipAddress).replace(".", "-")
-      let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
-      let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
+  proc checkDNSRecords*(
+      dnsResolver: DnsResolver,
+      ipAddress: IpAddress,
+      baseDomain: api.Domain,
+      keyAuth: KeyAuthorization,
+      retries: int = DefaultDnsRetries,
+  ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
+    # if my ip address is 100.10.10.3 then the ip4Domain will be:
+    #     100-10-10-3.{peerIdBase36}.libp2p.direct
+    # and acme challenge TXT domain will be:
+    #     _acme-challenge.{peerIdBase36}.libp2p.direct
+    let dashedIpAddr = ($ipAddress).replace(".", "-")
+    let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
+    let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
 
-      var txt: seq[string]
-      var ip4: seq[TransportAddress]
-      for _ in 0 .. retries:
-        txt = await dnsResolver.resolveTxt(acmeChalDomain)
-        try:
-          ip4 = await dnsResolver.resolveIp(ip4Domain, 0.Port)
-        except CancelledError as exc:
-          raise exc
-        except CatchableError as exc:
-          error "Failed to resolve IP", description = exc.msg # retry
-      if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
-        return true
-      await sleepAsync(DefaultDnsRetryTime)
+    var txt: seq[string]
+    var ip4: seq[TransportAddress]
+    for _ in 0 .. retries:
+      txt = await dnsResolver.resolveTxt(acmeChalDomain)
+      try:
+        ip4 = await dnsResolver.resolveIp(ip4Domain, 0.Port)
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        error "Failed to resolve IP", description = exc.msg # retry
+    if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
+      return true
+    await sleepAsync(DefaultDnsRetryTime)
 
-      return false
+    return false

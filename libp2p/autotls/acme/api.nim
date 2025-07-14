@@ -1,163 +1,165 @@
+import json, uri
+from times import DateTime, parse
+import chronos/apps/http/httpclient, results, chronicles
+
+import ./utils
+import ../../crypto/crypto
+import ../../crypto/rsa
+
+export ACMEError
+
+logScope:
+  topics = "libp2p acme api"
+
+const
+  LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
+  LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
+  Alg = "RS256"
+  DefaultChalCompletedRetries = 10
+  DefaultChalCompletedRetryTime = 1.seconds
+  DefaultFinalizeRetries = 10
+  DefaultFinalizeRetryTime = 1.seconds
+  DefaultRandStringSize = 256
+  ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
+
+type Authorization* = string
+type Domain* = string
+type Kid* = string
+type Nonce* = string
+
+type ACMEDirectory* = object
+  newNonce*: string
+  newOrder*: string
+  newAccount*: string
+
+type ACMEApi* = ref object of RootObj
+  directory: Opt[ACMEDirectory]
+  session: HttpSessionRef
+  acmeServerURL*: Uri
+
+type HTTPResponse* = object
+  body*: JsonNode
+  headers*: HttpTable
+
+type JWK = object
+  kty: string
+  n: string
+  e: string
+
+# whether the request uses Kid or not
+type ACMERequestType = enum
+  ACMEJwkRequest
+  ACMEKidRequest
+
+type ACMERequestHeader = object
+  alg: string
+  typ: string
+  nonce: Nonce
+  url: string
+  case kind: ACMERequestType
+  of ACMEJwkRequest:
+    jwk: JWK
+  of ACMEKidRequest:
+    kid: Kid
+
+type Email = string
+
+type ACMERegisterRequest* = object
+  termsOfServiceAgreed: bool
+  contact: seq[Email]
+
+type ACMEAccountStatus = enum
+  valid = "valid"
+  deactivated = "deactivated"
+  revoked = "revoked"
+
+type ACMERegisterResponseBody = object
+  status*: ACMEAccountStatus
+
+type ACMERegisterResponse* = object
+  kid*: Kid
+  status*: ACMEAccountStatus
+
+type ACMEChallengeStatus* {.pure.} = enum
+  PENDING = "pending"
+  PROCESSING = "processing"
+  VALID = "valid"
+  INVALID = "invalid"
+
+type ACMEOrderStatus* {.pure.} = enum
+  PENDING = "pending"
+  READY = "ready"
+  PROCESSING = "processing"
+  VALID = "valid"
+  INVALID = "invalid"
+
+type ACMEChallengeType* {.pure.} = enum
+  DNS01 = "dns-01"
+  HTTP01 = "http-01"
+  TLSALPN01 = "tls-alpn-01"
+
+type ACMEChallengeToken* = string
+
+type ACMEChallenge* = object
+  url*: string
+  `type`*: ACMEChallengeType
+  status*: ACMEChallengeStatus
+  token*: ACMEChallengeToken
+
+type ACMEChallengeIdentifier = object
+  `type`: string
+  value: string
+
+type ACMEChallengeRequest = object
+  identifiers: seq[ACMEChallengeIdentifier]
+
+type ACMEChallengeResponseBody = object
+  status: ACMEOrderStatus
+  authorizations: seq[Authorization]
+  finalize: string
+
+type ACMEChallengeResponse* = object
+  status*: ACMEOrderStatus
+  authorizations*: seq[Authorization]
+  finalize*: string
+  order*: string
+
+type ACMEChallengeResponseWrapper* = object
+  finalize*: string
+  order*: string
+  dns01*: ACMEChallenge
+
+type ACMEAuthorizationsResponse* = object
+  challenges*: seq[ACMEChallenge]
+
+type ACMECompletedResponse* = object
+  url: string
+
+type ACMECheckKind* = enum
+  ACMEOrderCheck
+  ACMEChallengeCheck
+
+type ACMECheckResponse* = object
+  case kind: ACMECheckKind
+  of ACMEOrderCheck:
+    orderStatus: ACMEOrderStatus
+  of ACMEChallengeCheck:
+    chalStatus: ACMEChallengeStatus
+  retryAfter: Duration
+
+type ACMEFinalizeResponse* = object
+  status: ACMEOrderStatus
+
+type ACMEOrderResponse* = object
+  certificate: string
+  expires: string
+
+type ACMECertificateResponse* = object
+  rawCertificate*: string
+  certificateExpiry*: DateTime
+
 when defined(libp2p_autotls_support):
-  import options, sequtils, strutils, json, uri
-  from times import DateTime, parse
-  import chronos/apps/http/httpclient, jwt, results, bearssl/pem, chronicles
-
-  import ./utils
-  import ../../crypto/crypto
-  import ../../crypto/rsa
-
-  export ACMEError
-
-  logScope:
-    topics = "libp2p acme api"
-
-  const
-    LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
-    LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
-    Alg = "RS256"
-    DefaultChalCompletedRetries = 10
-    DefaultChalCompletedRetryTime = 1.seconds
-    DefaultFinalizeRetries = 10
-    DefaultFinalizeRetryTime = 1.seconds
-    DefaultRandStringSize = 256
-    ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
-
-  type Authorization* = string
-  type Domain* = string
-  type Kid* = string
-  type Nonce* = string
-
-  type ACMEDirectory* = object
-    newNonce*: string
-    newOrder*: string
-    newAccount*: string
-
-  type ACMEApi* = ref object of RootObj
-    directory: Opt[ACMEDirectory]
-    session: HttpSessionRef
-    acmeServerURL*: Uri
-
-  type HTTPResponse* = object
-    body*: JsonNode
-    headers*: HttpTable
-
-  type JWK = object
-    kty: string
-    n: string
-    e: string
-
-  # whether the request uses Kid or not
-  type ACMERequestType = enum
-    ACMEJwkRequest
-    ACMEKidRequest
-
-  type ACMERequestHeader = object
-    alg: string
-    typ: string
-    nonce: Nonce
-    url: string
-    case kind: ACMERequestType
-    of ACMEJwkRequest:
-      jwk: JWK
-    of ACMEKidRequest:
-      kid: Kid
-
-  type Email = string
-
-  type ACMERegisterRequest* = object
-    termsOfServiceAgreed: bool
-    contact: seq[Email]
-
-  type ACMEAccountStatus = enum
-    valid = "valid"
-    deactivated = "deactivated"
-    revoked = "revoked"
-
-  type ACMERegisterResponseBody = object
-    status*: ACMEAccountStatus
-
-  type ACMERegisterResponse* = object
-    kid*: Kid
-    status*: ACMEAccountStatus
-
-  type ACMEChallengeStatus* {.pure.} = enum
-    PENDING = "pending"
-    PROCESSING = "processing"
-    VALID = "valid"
-    INVALID = "invalid"
-
-  type ACMEOrderStatus* {.pure.} = enum
-    PENDING = "pending"
-    READY = "ready"
-    PROCESSING = "processing"
-    VALID = "valid"
-    INVALID = "invalid"
-
-  type ACMEChallengeType* {.pure.} = enum
-    DNS01 = "dns-01"
-    HTTP01 = "http-01"
-    TLSALPN01 = "tls-alpn-01"
-
-  type ACMEChallengeToken* = string
-
-  type ACMEChallenge* = object
-    url*: string
-    `type`*: ACMEChallengeType
-    status*: ACMEChallengeStatus
-    token*: ACMEChallengeToken
-
-  type ACMEChallengeIdentifier = object
-    `type`: string
-    value: string
-
-  type ACMEChallengeRequest = object
-    identifiers: seq[ACMEChallengeIdentifier]
-
-  type ACMEChallengeResponseBody = object
-    status: ACMEOrderStatus
-    authorizations: seq[Authorization]
-    finalize: string
-
-  type ACMEChallengeResponse* = object
-    status*: ACMEOrderStatus
-    authorizations*: seq[Authorization]
-    finalize*: string
-    order*: string
-
-  type ACMEChallengeResponseWrapper* = object
-    finalize*: string
-    order*: string
-    dns01*: ACMEChallenge
-
-  type ACMEAuthorizationsResponse* = object
-    challenges*: seq[ACMEChallenge]
-
-  type ACMECompletedResponse* = object
-    url: string
-
-  type ACMECheckKind* = enum
-    ACMEOrderCheck
-    ACMEChallengeCheck
-
-  type ACMECheckResponse* = object
-    case kind: ACMECheckKind
-    of ACMEOrderCheck:
-      orderStatus: ACMEOrderStatus
-    of ACMEChallengeCheck:
-      chalStatus: ACMEChallengeStatus
-    retryAfter: Duration
-
-  type ACMEFinalizeResponse* = object
-    status: ACMEOrderStatus
-
-  type ACMEOrderResponse* = object
-    certificate: string
-    expires: string
-
-  type ACMECertificateResponse* = object
-    rawCertificate*: string
-    certificateExpiry*: DateTime
+  import options, sequtils, strutils, jwt, bearssl/pem
 
   template handleError*(msg: string, body: untyped): untyped =
     try:
