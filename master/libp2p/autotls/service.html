@@ -285,65 +285,6 @@ window.addEventListener("DOMContentLoaded", main2);
   </ul>
 </li>
 <li>
-  <a class="reference reference-toplevel" href="#12" id="62">Procs</a>
-  <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">getCertWhenReady
-      <li><a class="reference" href="#getCertWhenReady%2CAutotlsService"
-    title="getCertWhenReady(self: AutotlsService): InternalRaisesFuture[TLSCertificate,
-    (AutoTLSError, CancelledError)]">getCertWhenReady(self: AutotlsService): InternalRaisesFuture[TLSCertificate,
-    (AutoTLSError, CancelledError)]</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">new
-      <li><a class="reference" href="#new%2Ctypedesc%5BAutotlsCert%5D%2CTLSCertificate%2CMoment"
-    title="new(T: typedesc[AutotlsCert]; cert: TLSCertificate; expiry: Moment): T:type">new(T: typedesc[AutotlsCert]; cert: TLSCertificate; expiry: Moment): T:type</a></li>
-  <li><a class="reference" href="#new%2Ctypedesc%5BAutotlsConfig%5D%2COpt%5BIpAddress%5D%2Cseq%5BTransportAddress%5D%2CUri%2CDuration%2CDuration"
-    title="new(T: typedesc[AutotlsConfig]; ipAddress: Opt[IpAddress] = NoneIp;
-    nameServers: seq[TransportAddress] = DefaultDnsServers;
-    acmeServerURL: Uri = parseUri(LetsEncryptURL);
-    renewCheckTime: Duration = DefaultRenewCheckTime;
-    renewBufferTime: Duration = DefaultRenewBufferTime): T:type">new(T: typedesc[AutotlsConfig]; ipAddress: Opt[IpAddress] = NoneIp;
-    nameServers: seq[TransportAddress] = DefaultDnsServers;
-    acmeServerURL: Uri = parseUri(LetsEncryptURL);
-    renewCheckTime: Duration = DefaultRenewCheckTime;
-    renewBufferTime: Duration = DefaultRenewBufferTime): T:type</a></li>
-  <li><a class="reference" href="#new%2Ctypedesc%5BAutotlsService%5D%2Cref.HmacDrbgContext%2CAutotlsConfig"
-    title="new(T: typedesc[AutotlsService]; rng: ref HmacDrbgContext = newRng();
-    config: AutotlsConfig = AutotlsConfig.new()): T:type">new(T: typedesc[AutotlsService]; rng: ref HmacDrbgContext = newRng();
-    config: AutotlsConfig = AutotlsConfig.new()): T:type</a></li>
-
-  </ul>
-
-  </ul>
-</li>
-<li>
-  <a class="reference reference-toplevel" href="#14" id="64">Methods</a>
-  <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">run
-      <li><a class="reference" href="#run.e%2CAutotlsService%2CSwitch"
-    title="run(self: AutotlsService; switch: Switch): InternalRaisesFuture[void,
-    (CancelledError,)]">run(self: AutotlsService; switch: Switch): InternalRaisesFuture[void,
-    (CancelledError,)]</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">setup
-      <li><a class="reference" href="#setup.e%2CAutotlsService%2CSwitch"
-    title="setup(self: AutotlsService; switch: Switch): InternalRaisesFuture[bool,
-    (CancelledError,)]">setup(self: AutotlsService; switch: Switch): InternalRaisesFuture[bool,
-    (CancelledError,)]</a></li>
-
-  </ul>
-  <ul class="simple nested-toc-section">stop
-      <li><a class="reference" href="#stop.e%2CAutotlsService%2CSwitch"
-    title="stop(self: AutotlsService; switch: Switch): InternalRaisesFuture[bool,
-    (CancelledError,)]">stop(self: AutotlsService; switch: Switch): InternalRaisesFuture[bool,
-    (CancelledError,)]</a></li>
-
-  </ul>
-
-  </ul>
-</li>
-<li>
   <a class="reference reference-toplevel" href="#19" id="69">Exports</a>
   <ul class="simple simple-toc-section">
     
@@ -540,117 +481,6 @@ class="link-seesrc" target="_blank">Source</a>
 </div>
 
 </dl></div>
-<div class="section" id="12">
-<h1><a class="toc-backref" href="#12">Procs</a></h1>
-<dl class="item">
-<div id="getCertWhenReady,AutotlsService" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getCertWhenReady%2CAutotlsService"><span class="Identifier">getCertWhenReady</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <span class="Identifier">TLSCertificate</span><span class="Other">,</span> <span class="Other">(</span><a href="utils.html#AutoTLSError"><span class="Identifier">AutoTLSError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span>
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/service.nim#L81"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/service.nim#L81" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="new,typedesc[AutotlsCert],TLSCertificate,Moment" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BAutotlsCert%5D%2CTLSCertificate%2CMoment"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="service.html#AutotlsCert"><span class="Identifier">AutotlsCert</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">cert</span><span class="Other">:</span> <span class="Identifier">TLSCertificate</span><span class="Other">;</span> <span class="Identifier">expiry</span><span class="Other">:</span> <span class="Identifier">Moment</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/service.nim#L76"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/service.nim#L76" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="new,typedesc[AutotlsConfig],Opt[IpAddress],seq[TransportAddress],Uri,Duration,Duration" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BAutotlsConfig%5D%2COpt%5BIpAddress%5D%2Cseq%5BTransportAddress%5D%2CUri%2CDuration%2CDuration"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="service.html#AutotlsConfig"><span class="Identifier">AutotlsConfig</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">ipAddress</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">IpAddress</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">NoneIp</span><span class="Other">;</span>
-         <span class="Identifier">nameServers</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">TransportAddress</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">DefaultDnsServers</span><span class="Other">;</span>
-         <span class="Identifier">acmeServerURL</span><span class="Other">:</span> <span class="Identifier">Uri</span> <span class="Other">=</span> <span class="Identifier">parseUri</span><span class="Other">(</span><a href="acme/api.html#LetsEncryptURL"><span class="Identifier">LetsEncryptURL</span></a><span class="Other">)</span><span class="Other">;</span>
-         <span class="Identifier">renewCheckTime</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">DefaultRenewCheckTime</span><span class="Other">;</span>
-         <span class="Identifier">renewBufferTime</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">DefaultRenewBufferTime</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/service.nim#L85"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/service.nim#L85" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="new,typedesc[AutotlsService],ref.HmacDrbgContext,AutotlsConfig" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BAutotlsService%5D%2Cref.HmacDrbgContext%2CAutotlsConfig"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span> <span class="Other">=</span> <span class="Identifier">newRng</span><span class="Other">(</span><span class="Other">)</span><span class="Other">;</span>
-         <span class="Identifier">config</span><span class="Other">:</span> <a href="service.html#AutotlsConfig"><span class="Identifier">AutotlsConfig</span></a> <span class="Other">=</span> <a href="service.html#AutotlsConfig"><span class="Identifier">AutotlsConfig</span></a><span class="Other">.</span><span class="Identifier">new</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    </span><span class="Identifier">public</span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/service.nim#L101"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/service.nim#L101" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-
-</dl></div>
-<div class="section" id="14">
-<h1><a class="toc-backref" href="#14">Methods</a></h1>
-<dl class="item">
-<div id="run.e,AutotlsService,Switch" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#run.e%2CAutotlsService%2CSwitch"><span class="Identifier">run</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a><span class="Other">;</span> <span class="Identifier">switch</span><span class="Other">:</span> <a href="../transports/transport.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
-    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                         </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/service.nim#L191"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/service.nim#L191" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="setup.e,AutotlsService,Switch" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#setup.e%2CAutotlsService%2CSwitch"><span class="Identifier">setup</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a><span class="Other">;</span> <span class="Identifier">switch</span><span class="Other">:</span> <a href="../transports/transport.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">,</span>
-    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                         </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/service.nim#L120"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/service.nim#L120" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-<div id="stop.e,AutotlsService,Switch" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#stop.e%2CAutotlsService%2CSwitch"><span class="Identifier">stop</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a><span class="Other">;</span> <span class="Identifier">switch</span><span class="Other">:</span> <a href="../transports/transport.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">,</span>
-    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                         </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-
-&nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/service.nim#L216"
-class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/service.nim#L216" class="link-seesrc" target="_blank" >Edit</a>
-
-</dd>
-</div>
-
-</dl></div>
 <div class="section" id="19">
 <h1><a class="toc-backref" href="#19">Exports</a></h1>
 <dl class="item">
@@ -664,7 +494,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-12 16:15:00 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-14 21:22:21 UTC</small>
       </div>
     </div>
   </div>
