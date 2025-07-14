@@ -28,10 +28,13 @@ import
   transports/tls/testcertificate
 
 import
-  testautotls, testnameresolve, testmultistream, testbufferstream, testidentify,
+  testnameresolve, testmultistream, testbufferstream, testidentify,
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
   testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
   testhpservice, testutility, testhelpers, testwildcardresolverservice, testperf
 
 import kademlia/[testencoding, testroutingtable]
+
+when defined(libp2p_autotls_support):
+  import testautotls
