@@ -146,19 +146,18 @@ proc main {.async.} =
 
   let connectTo = parseInt(getEnv("CONNECTTO"))
   var connected = 0
-  let tAddress = "nimp2p-service:5000"
   var addrs: seq[MultiAddress]
 
-  echo "Trying to resolve ", tAddress
-  while true:
+  # Discover other pods by their Docker hostnames
+  for i in 0 ..< parseInt(getEnv("PEERS")):
+    if i == myId: continue # skip self
+    let podAddr = "pod-" & $i & ":" & $(5000 + i)
     try:
-      addrs = resolveTAddress(tAddress).mapIt(MultiAddress.init(it).tryGet())
-      echo tAddress, " resolved: ", addrs
-      break  # Break out of the loop on successful resolution
+      let resolved = resolveTAddress(podAddr).mapIt(MultiAddress.init(it).tryGet())
+      addrs.add(resolved)
+      echo podAddr, " resolved: ", resolved
     except CatchableError as exc:
-      echo "Failed to resolve address:", exc.msg
-      echo "Waiting 15 seconds..."
-      await sleepAsync(15.seconds)
+      echo "Failed to resolve address:", podAddr, " ", exc.msg
 
   rng.shuffle(addrs)
   var index = 0
