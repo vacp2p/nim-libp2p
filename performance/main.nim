@@ -49,7 +49,7 @@ proc main {.async.} =
     SwitchBuilder.new()
       .withAddress(MultiAddress.init(address).tryGet())
       .withRng(rng)
-      .withMplex()
+      .withYamux()
       .withMaxConnections(250)
       .withTcpTransport(flags = {ServerFlags.TcpNoDelay})
       .withNoise()
