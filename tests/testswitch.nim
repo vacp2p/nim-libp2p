@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import options, sequtils
+import results, sequtils
 import chronos
 import stew/byteutils
 import
@@ -510,9 +510,9 @@ suite "Switch":
     let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
-    let switch2 = newStandardSwitch(privKey = some(privKey), rng = rng)
+    let switch2 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
 
-    let switch3 = newStandardSwitch(privKey = some(privKey), rng = rng)
+    let switch3 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -596,7 +596,7 @@ suite "Switch":
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
-    switches.add(newStandardSwitch(privKey = some(privateKey), rng = rng))
+    switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
     onConnect =
       switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     await onConnect
@@ -642,7 +642,7 @@ suite "Switch":
     await switches[0].start()
 
     for i in 1 .. 5:
-      switches.add(newStandardSwitch(privKey = some(privateKey), rng = rng))
+      switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
       switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
       onConnect =
         switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
