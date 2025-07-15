@@ -95,6 +95,10 @@ proc main() {.async.} =
 
   # --- Message Handling ---
   var messagesChunks: CountTable[uint64]
+  var sentMessages: Table[uint64, int64]         # messageId -> send time (nanoseconds)
+  var receivedMessages: Table[uint64, seq[int64]] # messageId -> seq of receive times (nanoseconds)
+  var latencies: seq[int64]                      # ms latency per message
+  var deliveredCount: int
   proc messageHandler(topic: string, data: seq[byte]) {.async.} =
     let sentUint = uint64.fromBytesLE(data)
     if sentUint < 1000000:
@@ -105,8 +109,17 @@ proc main() {.async.} =
     let sentMoment = nanoseconds(int64(uint64.fromBytesLE(data)))
     let sentNanosecs = nanoseconds(sentMoment - seconds(sentMoment.seconds))
     let sentDate = initTime(sentMoment.seconds, sentNanosecs)
-    let diff = getTime() - sentDate
-    echo sentUint, " milliseconds: ", diff.inMilliseconds()
+    let now = getTime()
+    let nowNs = int64(now.toUnix()) * 1_000_000_000 + int64(now.nanosecond)
+    let sentNs = int64(sentDate.toUnix()) * 1_000_000_000 + int64(sentDate.nanosecond)
+    let latencyUs = (nowNs - sentNs) div 1_000
+    let latencyMs = float(latencyUs) / 1000.0
+    if not receivedMessages.hasKey(sentUint):
+      receivedMessages[sentUint] = @[]
+    receivedMessages[sentUint].add(nowNs)
+    latencies.add(latencyUs)
+    deliveredCount.inc()
+    echo "Message ", sentUint, " delivered. Latency: ", formatFloat(latencyMs, ffDecimal, 3), " ms"
 
   proc messageValidator(
       topic: string, msg: Message
@@ -121,8 +134,8 @@ proc main() {.async.} =
 
   echo "Listening on ", switch.peerInfo.addrs
   echo myId, ", ", isPublisher, ", ", switch.peerInfo.peerId
-  echo "Waiting 20 seconds for node building..."
-  await sleepAsync(20.seconds)
+  echo "Waiting 10 seconds for node building..."
+  await sleepAsync(10.seconds)
 
   # --- Peer Discovery & Connection ---
 
@@ -165,10 +178,33 @@ proc main() {.async.} =
   for msg in 0 ..< msgCount:
     await sleepAsync(msgInterval)
     if msg mod publisherCount == turnToPublish:
-      echo "Sending message at: ", times.getTime()
       let now = getTime()
       let nowInt = seconds(now.toUnix()) + nanoseconds(nanosecond(now))
       var nowBytes = @(toBytesLE(uint64(nowInt.nanoseconds))) & newSeq[byte](msgSize)
+      let nowNs = int64(now.toUnix()) * 1_000_000_000 + int64(now.nanosecond)
+      sentMessages[uint64(nowInt.nanoseconds)] = nowNs
+      echo "Sending message ", nowInt.nanoseconds, " at: ", $now
       doAssert((await gossipSub.publish("test", nowBytes)) > 0)
+
+  # Wait for all messages to be delivered
+  echo "Waiting 2 seconds for message delivery..."
+  await sleepAsync(2.seconds)
+
+  # Performance summary: only for received messages
+  let sentByThisNode = toSeq(sentMessages.keys).filterIt(it >= 1000000)
+  let receivedKeys = toSeq(receivedMessages.keys).filterIt(it >= 1000000)
+  echo "\n--- Performance Summary (per node) ---"
+  echo "Total messages sent by this node (excluding warm-up): ", sentByThisNode.len
+  echo "Messages received by this node: ", receivedKeys.len, "/", msgCount
+  if latencies.len > 0:
+    let minLatencyMs = float(latencies.min) / 1000.0
+    let maxLatencyMs = float(latencies.max) / 1000.0
+    var sumLatency: int64 = 0
+    for l in latencies:
+      sumLatency += l
+    let avgLatencyMs = float(sumLatency) / float(latencies.len) / 1000.0
+    echo "Latency (ms): min=", formatFloat(minLatencyMs, ffDecimal, 3), ", max=", formatFloat(maxLatencyMs, ffDecimal, 3), ", avg=", formatFloat(avgLatencyMs, ffDecimal, 3)
+  else:
+    echo "No latency data collected."
 
 waitFor(main())
