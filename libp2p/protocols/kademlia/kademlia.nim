@@ -62,7 +62,7 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
-proc findNode(
+proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   #debug "findNode", target = target
