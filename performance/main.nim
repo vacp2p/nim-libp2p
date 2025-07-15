@@ -7,16 +7,18 @@ import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/ping
-from times import getTime, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds, nanosecond
+from times import
+  getTime, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds, nanosecond
 from nativesockets import getHostname
 
-const
-  chunks = 1
+const chunks = 1
 
 proc msgIdProvider(m: Message): Result[MessageId, ValidationResult] =
   ok(($m.data.hash).toBytes())
 
-proc startMetricsServer(serverIp: IpAddress, serverPort: Port): Result[MetricsHttpServerRef, string] =
+proc startMetricsServer(
+    serverIp: IpAddress, serverPort: Port
+): Result[MetricsHttpServerRef, string] =
   info "Starting metrics HTTP server", serverIp = $serverIp, serverPort = $serverPort
   let metricsServerRes = MetricsHttpServerRef.new($serverIp, serverPort)
   if metricsServerRes.isErr():
@@ -29,24 +31,28 @@ proc startMetricsServer(serverIp: IpAddress, serverPort: Port): Result[MetricsHt
   info "Metrics HTTP server started", serverIp = $serverIp, serverPort = $serverPort
   ok(metricsServerRes.value)
 
-proc main {.async.} =
+proc main() {.async.} =
   # --- Configuration ---
-  let hostname = getHostname()
-  let myId = parseInt(getEnv("PEERNUMBER"))
-  let msgRate = parseInt(getEnv("MSGRATE"))
-  let msgSize = parseInt(getEnv("MSGSIZE"))
-  let publisherCount = parseInt(getEnv("PEERS"))
-  let isPublisher = myId <= publisherCount
-  let rng = libp2p.newRng()
+  let
+    hostname = getHostname()
+    myId = parseInt(getEnv("PEER_NUMBER"))
+    publisherCount = parseInt(getEnv("PEERS"))
+    connectTo = parseInt(getEnv("CONNECT_TO"))
+    msgCount = parseInt(getEnv("MSG_COUNT"))
+    msgInterval = parseInt(getEnv("MSG_INTERVAL"))
+    msgSize = parseInt(getEnv("MSG_SIZE"))
+    isPublisher = myId <= publisherCount
+    rng = libp2p.newRng()
 
   echo "Hostname: ", hostname
 
   # --- Node Setup ---
-  let myPort = 5000 + myId
-  let myAddress = "0.0.0.0:" & $myPort
-  let address = initTAddress(myAddress)
-  let switch =
-    SwitchBuilder.new()
+  let
+    myPort = 5000 + myId
+    myAddress = "0.0.0.0:" & $myPort
+    address = initTAddress(myAddress)
+    switch = SwitchBuilder
+      .new()
       .withAddress(MultiAddress.init(address).tryGet())
       .withRng(rng)
       .withYamux()
@@ -55,13 +61,14 @@ proc main {.async.} =
       .withNoise()
       .build()
 
-  let gossipSub = GossipSub.init(
-    switch = switch,
-    msgIdProvider = msgIdProvider,
-    verifySignature = false,
-    anonymize = true
-  )
-  let pingProtocol = Ping.new(rng = rng)
+  let
+    gossipSub = GossipSub.init(
+      switch = switch,
+      msgIdProvider = msgIdProvider,
+      verifySignature = false,
+      anonymize = true,
+    )
+    pingProtocol = Ping.new(rng = rng)
 
   # --- Metrics ---
   echo "Starting metrics HTTP server"
@@ -83,23 +90,27 @@ proc main {.async.} =
     topicWeight: 1,
     firstMessageDeliveriesWeight: 1,
     firstMessageDeliveriesCap: 30,
-    firstMessageDeliveriesDecay: 0.9
+    firstMessageDeliveriesDecay: 0.9,
   )
 
   # --- Message Handling ---
   var messagesChunks: CountTable[uint64]
   proc messageHandler(topic: string, data: seq[byte]) {.async.} =
     let sentUint = uint64.fromBytesLE(data)
-    if sentUint < 1000000: return # warm-up
+    if sentUint < 1000000:
+      return # warm-up
     messagesChunks.inc(sentUint)
-    if messagesChunks[sentUint] < chunks: return
+    if messagesChunks[sentUint] < chunks:
+      return
     let sentMoment = nanoseconds(int64(uint64.fromBytesLE(data)))
     let sentNanosecs = nanoseconds(sentMoment - seconds(sentMoment.seconds))
     let sentDate = initTime(sentMoment.seconds, sentNanosecs)
     let diff = getTime() - sentDate
     echo sentUint, " milliseconds: ", diff.inMilliseconds()
 
-  proc messageValidator(topic: string, msg: Message): Future[ValidationResult] {.async.} =
+  proc messageValidator(
+      topic: string, msg: Message
+  ): Future[ValidationResult] {.async.} =
     ValidationResult.Accept
 
   gossipSub.subscribe("test", messageHandler)
@@ -114,11 +125,13 @@ proc main {.async.} =
   await sleepAsync(20.seconds)
 
   # --- Peer Discovery & Connection ---
-  let connectTo = parseInt(getEnv("CONNECTTO"))
-  var connected = 0
-  var addrs: seq[MultiAddress]
+
+  var
+    connected = 0
+    addrs: seq[MultiAddress]
   for i in 0 ..< publisherCount:
-    if i == myId: continue # skip self
+    if i == myId:
+      continue # skip self
     let podAddr = "pod-" & $i & ":" & $(5000 + i)
     try:
       let resolved = resolveTAddress(podAddr).mapIt(MultiAddress.init(it).tryGet())
@@ -133,7 +146,8 @@ proc main {.async.} =
     while true:
       try:
         echo "Trying to connect to ", addrs[index]
-        let peerId = await switch.connect(addrs[index], allowUnknownPeerId = true).wait(5.seconds)
+        let peerId =
+          await switch.connect(addrs[index], allowUnknownPeerId = true).wait(5.seconds)
         connected.inc()
         index.inc()
         echo "Connected!"
@@ -146,10 +160,10 @@ proc main {.async.} =
   echo "Mesh size: ", gossipSub.mesh.getOrDefault("test").len
 
   # --- Message Publishing ---
-  let turnToPublish = parseInt(getHostname()[4..^1])
+  let turnToPublish = parseInt(getHostname()[4 ..^ 1])
   echo "Publishing turn is: ", turnToPublish
-  for msg in 0 ..< 10:
-    await sleepAsync(msgRate)
+  for msg in 0 ..< msgCount:
+    await sleepAsync(msgInterval)
     if msg mod publisherCount == turnToPublish:
       echo "Sending message at: ", times.getTime()
       let now = getTime()
