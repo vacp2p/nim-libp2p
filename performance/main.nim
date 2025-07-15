@@ -7,8 +7,6 @@ import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/ping
-from times import
-  getTime, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds, nanosecond
 from nativesockets import getHostname
 
 proc msgIdProvider(m: Message): Result[MessageId, ValidationResult] =
@@ -101,18 +99,17 @@ proc main() {.async.} =
     # Skip warm-up messages by checking their data
     if data == "warmup".toBytes():
       return # warm-up phase
-    let sentUint = uint64.fromBytesLE(data)
-    let sentMoment = nanoseconds(int64(uint64.fromBytesLE(data)))
-    let sentNanosecs = nanoseconds(sentMoment - seconds(sentMoment.seconds))
-    let sentDate = initTime(sentMoment.seconds, sentNanosecs)
+    let msgId = uint64.fromBytesLE(data)
+    let sentNs = int64(msgId)
     let nowNs = epochNanoSeconds(Moment.now())
-    let sentNs = nanoseconds(sentMoment) # sentMoment is a Duration, convert to int64 nanoseconds
-    let latencyMs = float(nowNs - sentNs) / 1_000_000.0
-    if not receivedMessages.hasKey(sentUint):
-      receivedMessages[sentUint] = @[]
-    receivedMessages[sentUint].add(nowNs)
-    latencies.add(int64((nowNs - sentNs) div 1_000)) # store microseconds for summary
-    echo "Message ", sentUint, " delivered. Latency: ", formatFloat(latencyMs, ffDecimal, 3), " ms"
+    let latencyDur = nanoseconds(nowNs - sentNs)
+    let latencyMicro = microseconds(latencyDur)
+    let latencyMs = float(latencyMicro) / 1000.0
+    if not receivedMessages.hasKey(msgId):
+      receivedMessages[msgId] = @[]
+    receivedMessages[msgId].add(nowNs)
+    latencies.add(latencyMicro)
+    echo "Message ", msgId, " delivered. Latency: ", formatFloat(latencyMs, ffDecimal, 3), " ms"
 
   proc messageValidator(
       topic: string, msg: Message
