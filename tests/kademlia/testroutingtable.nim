@@ -38,7 +38,7 @@ suite "routing table":
     let selfId = testKey(0)
     var rt = RoutingTable.init(selfId)
     let targetBucket = 6
-    for _ in 0 ..< k + 5:
+    for _ in 0 ..< ReplicParam + 5:
       var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
       kid.kind = KeyType.Unhashed
         # Overriding so we don't use sha for comparing xor distances
@@ -46,7 +46,7 @@ suite "routing table":
 
     check targetBucket < rt.buckets.len
     let bucket = rt.buckets[targetBucket]
-    check bucket.peers.len <= k
+    check bucket.peers.len <= ReplicParam
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)

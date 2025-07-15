@@ -68,7 +68,7 @@ proc findNode*(
   #debug "findNode", target = target
   # TODO: should it return a single peer instead? read spec
 
-  var initialPeers = kad.rtable.findClosestPeers(targetId, k)
+  var initialPeers = kad.rtable.findClosestPeers(targetId, ReplicParam)
   var state = LookupState.init(targetId, initialPeers)
 
   while not state.done:
@@ -164,7 +164,7 @@ proc new*(
         of MessageType.findNode:
           let targetIdBytes = msg.key.get()
           let targetId = PeerId.init(targetIdBytes).tryGet()
-          let closerPeers = kad.rtable.findClosest(targetId.toKey(), k)
+          let closerPeers = kad.rtable.findClosest(targetId.toKey(), ReplicParam)
           let responsePb = encodeFindNodeReply(closerPeers, switch)
           await conn.writeLp(responsePb.buffer)
 

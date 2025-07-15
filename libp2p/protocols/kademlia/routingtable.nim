@@ -56,12 +56,12 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   let keyx = peerIndexInBucket(bucket, nodeId)
   if keyx.isSome:
     bucket.peers[keyx.unsafeValue].lastSeen = Moment.now()
-  elif bucket.peers.len < k:
+  elif bucket.peers.len < ReplicParam:
     bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
   else:
     # TODO: eviction policy goes here, rn we drop the node
     trace "cannot insert node in bucket, dropping node",
-      nodeId, bucket = k, bucketIdx = idx
+      nodeId, bucket = ReplicParam, bucketIdx = idx
     return false
 
   rtable.buckets[idx] = bucket
