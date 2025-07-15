@@ -838,6 +838,6 @@ method stop*(rdv: RendezVous): Future[void] {.async: (raises: [], raw: true).} =
     warn "Stopping rendezvous without starting it"
     return fut
   rdv.started = false
-  rdv.registerDeletionLoop.cancel()
+  rdv.registerDeletionLoop.cancelSoon()
   rdv.registerDeletionLoop = nil
   fut

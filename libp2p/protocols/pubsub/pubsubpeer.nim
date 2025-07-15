@@ -23,6 +23,9 @@ import
   ../../utility,
   ../../utils/sequninit
 
+when defined(libp2p_gossipsub_1_4):
+  import ./bandwidth
+
 export peerid, connection, deques
 
 logScope:
