@@ -14,6 +14,8 @@
 import chronos, chronicles
 import stew/endians2
 import ./core, ../protocol, ../../stream/connection, ../../utility
+when defined(libp2p_quic_support):
+  import ../../transports/quictransport
 
 export chronicles, connection
 
@@ -36,9 +38,33 @@ proc new*(T: typedesc[Perf]): T {.public.} =
 
       var toReadBuffer: array[PerfSize, byte]
       try:
-        while true:
-          bytesRead += await conn.readOnce(addr toReadBuffer[0], PerfSize)
-      except CatchableError as exc:
+        # Different handling for QUIC vs TCP streams
+        when defined(libp2p_quic_support):
+          if conn of QuicStream:
+            # QUIC needs timeout-based approach to detect end of upload
+            while not conn.atEof:
+              let readFut = conn.readOnce(addr toReadBuffer[0], PerfSize)
+              if not await readFut.withTimeout(100.milliseconds):
+                break
+              let read = readFut.read()
+              if read == 0:
+                break
+              bytesRead += read
+          else:
+            # TCP streams handle EOF properly
+            while true:
+              let read = await conn.readOnce(addr toReadBuffer[0], PerfSize)
+              if read == 0:
+                break
+              bytesRead += read
+        else:
+          # TCP streams handle EOF properly
+          while true:
+            let read = await conn.readOnce(addr toReadBuffer[0], PerfSize)
+            if read == 0:
+              break
+            bytesRead += read
+      except CatchableError:
         discard
 
       var buf: array[PerfSize, byte]
