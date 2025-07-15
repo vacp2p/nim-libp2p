@@ -24,7 +24,7 @@ type KadDHT* = ref object of LPProtocol
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
 
-proc sendFindNode*(
+proc sendFindNode(
     kad: KadDHT, peerId: PeerId, targetId: Key
 ): Future[Message] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
