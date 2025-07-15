@@ -109,15 +109,13 @@ proc main() {.async.} =
     let sentMoment = nanoseconds(int64(uint64.fromBytesLE(data)))
     let sentNanosecs = nanoseconds(sentMoment - seconds(sentMoment.seconds))
     let sentDate = initTime(sentMoment.seconds, sentNanosecs)
-    let now = getTime()
-    let nowNs = int64(now.toUnix()) * 1_000_000_000 + int64(now.nanosecond)
-    let sentNs = int64(sentDate.toUnix()) * 1_000_000_000 + int64(sentDate.nanosecond)
-    let latencyUs = (nowNs - sentNs) div 1_000
-    let latencyMs = float(latencyUs) / 1000.0
+    let nowNs = epochNanoSeconds(Moment.now())
+    let sentNs = nanoseconds(sentMoment) # sentMoment is a Duration, convert to int64 nanoseconds
+    let latencyMs = float(nowNs - sentNs) / 1_000_000.0
     if not receivedMessages.hasKey(sentUint):
       receivedMessages[sentUint] = @[]
     receivedMessages[sentUint].add(nowNs)
-    latencies.add(latencyUs)
+    latencies.add(int64((nowNs - sentNs) div 1_000)) # store microseconds for summary
     deliveredCount.inc()
     echo "Message ", sentUint, " delivered. Latency: ", formatFloat(latencyMs, ffDecimal, 3), " ms"
 
@@ -178,12 +176,11 @@ proc main() {.async.} =
   for msg in 0 ..< msgCount:
     await sleepAsync(msgInterval)
     if msg mod publisherCount == turnToPublish:
-      let now = getTime()
-      let nowInt = seconds(now.toUnix()) + nanoseconds(nanosecond(now))
-      var nowBytes = @(toBytesLE(uint64(nowInt.nanoseconds))) & newSeq[byte](msgSize)
-      let nowNs = int64(now.toUnix()) * 1_000_000_000 + int64(now.nanosecond)
-      sentMessages[uint64(nowInt.nanoseconds)] = nowNs
-      echo "Sending message ", nowInt.nanoseconds, " at: ", $now
+      let nowMoment = Moment.now()
+      let nowNs = epochNanoSeconds(nowMoment)
+      var nowBytes = @(toBytesLE(uint64(nowNs))) & newSeq[byte](msgSize)
+      sentMessages[uint64(nowNs)] = nowNs
+      echo "Sending message ", nowNs, " at: ", $nowMoment
       doAssert((await gossipSub.publish("test", nowBytes)) > 0)
 
   # Wait for all messages to be delivered
