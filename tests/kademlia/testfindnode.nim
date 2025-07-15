@@ -1,5 +1,5 @@
 {.used.}
-import strformat
+import chronicles, strformat, sequtils
 import std/enumerate
 import chronos
 import ../../libp2p/[switch, builders]
@@ -39,12 +39,10 @@ suite "KadDHT - FindNode":
       switches[i].mount(kads[i])
 
     # Once the the creation/mounting of switches are done, we can start
-    # TODO: instead of awaiting sequentially, do it concurrently
-    for i in 0 ..< swarmSize:
-      await switches[i].start()
+    await switches.mapIt(it.start()).allFutures()
 
     # Now we can activate the network
-    # TODO: instead of awaiting sequentially, do it concurrently
+    # Needs to be done sequentially, hence the deterministic ordering of completion
     for i in 1 ..< swarmSize:
       await kads[i].bootstrap(@[switches[0].peerInfo])
 
@@ -56,23 +54,23 @@ suite "KadDHT - FindNode":
     for i, kad in enumerate(kads[1 ..^ 1]):
       for id in entries:
         let count = countBucketEntries(kad.rtable.buckets, id)
-        assert(
+        doAssert(
           count == 1,
           fmt"bootstrap state broken - count: {count}|entries: {entries}|i: {i}|key: {id}|buckets: {kad.rtable.buckets}",
         )
       entries.add(kad.rtable.selfId)
 
-    echo "finding"
-    discard await kads[1].findNode(kads[2].switch.peerInfo.peerId.toKey())
+    trace "Simple findNode precondition asserted"
 
-    echo "starting"
+    discard await kads[1].findNode(kads[2].rtable.selfId)
+
     # assert that every node has exactly one entry for the id of every other node
     for id in entries:
       for k in kads:
         if k.rtable.selfId == id:
           continue
         let count = countBucketEntries(k.rtable.buckets, id)
-        assert(
+        doAssert(
           count == 1,
           fmt"findNode post-check broken - entries: {entries}|id: {id}|buckets: {k.rtable.buckets}",
         )

@@ -19,7 +19,7 @@ logScope:
   topics = "kad-dht"
 
 type KadDHT* = ref object of LPProtocol
-  switch*: Switch
+  switch: Switch
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
