@@ -19,7 +19,7 @@ type
     shortlist: seq[LookupNode] # current known closest node
     activeQueries*: int # how many queries in flight
     alpha: int # parallelism level
-    replicParam: int ## aka `k` in the spec: number of closest nodes to find
+    repliCount: int ## aka `k` in the spec: number of closest nodes to find
     done*: bool # has lookup converged
 
 proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
@@ -87,7 +87,7 @@ proc init*(T: type LookupState, targetId: Key, initialPeers: seq[PeerId]): T =
     shortlist: @[],
     activeQueries: 0,
     alpha: alpha,
-    replicParam: ReplicParam,
+    repliCount: DefaultReplic,
     done: false,
   )
   for p in initialPeers:
@@ -116,5 +116,5 @@ proc selectClosestK*(state: LookupState): seq[PeerId] =
   for p in state.shortlist:
     if not p.failed:
       result.add(p.peerId)
-      if result.len >= state.replicParam:
+      if result.len >= state.repliCount:
         break

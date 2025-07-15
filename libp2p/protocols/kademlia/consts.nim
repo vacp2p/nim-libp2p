@@ -2,7 +2,7 @@ import chronos
 
 const
   IdLength* = 32 # 256-bit IDs
-  ReplicParam* = 20 ## replication parameter, aka `k` in the spec
+  DefaultReplic* = 20 ## replication parameter, aka `k` in the spec
   alpha* = 10 # concurrency parameter
   ttl* = 24.hours
   maxBuckets* = 256
