@@ -74,3 +74,46 @@ suite "KadDHT - FindNode":
           count == 1,
           fmt"findNode post-check broken - entries: {entries}|id: {id}|buckets: {k.rtable.buckets}",
         )
+
+  asyncTest "Relay find peer":
+    let parentSwitch = createSwitch()
+    let parentKad = KadDHT.new(parentSwitch)
+    parentSwitch.mount(parentKad)
+    await parentSwitch.start()
+
+    let broSwitch = createSwitch()
+    let broKad = KadDHT.new(broSwitch)
+    broSwitch.mount(broKad)
+    await broSwitch.start()
+
+    let sisSwitch = createSwitch()
+    let sisKad = KadDHT.new(sisSwitch)
+    sisSwitch.mount(sisKad)
+    await sisSwitch.start()
+
+    let neiceSwitch = createSwitch()
+    let neiceKad = KadDHT.new(neiceSwitch)
+    neiceSwitch.mount(neiceKad)
+    await neiceSwitch.start()
+
+    await broKad.bootstrap(@[parentSwitch.peerInfo])
+    # TODO: assert parent only has broKad and visa versa
+    await sisKad.bootstrap(@[parentSwitch.peerInfo])
+    # TODO: assert same again, but sisKad has parent and br, and sis has been added to parent
+    await neiceKad.bootstrap(@[sisSwitch.peerInfo])
+    # TODO: assert same again, but sisKad has neice added, and neice has the same content as sis
+
+    # Bro should only know parent
+    doAssert(countBucketEntries(broKad.rtable.buckets, parentKad.rtable.selfId) == 1)
+    doAssert(countBucketEntries(broKad.rtable.buckets, sisKad.rtable.selfId) == 0)
+    doAssert(countBucketEntries(broKad.rtable.buckets, neiceKad.rtable.selfId) == 0)
+
+    discard await broKad.findNode(neiceKad.rtable.selfId)
+
+    # Bro should now know of sis and neice as well
+    doAssert(countBucketEntries(broKad.rtable.buckets, parentKad.rtable.selfId) == 1)
+    doAssert(countBucketEntries(broKad.rtable.buckets, sisKad.rtable.selfId) == 1)
+    doAssert(
+      countBucketEntries(broKad.rtable.buckets, neiceKad.rtable.selfId) == 1,
+      fmt"brobuck: {broKad.rtable.buckets}|neice: {neiceKad.rtable.selfId}",
+    )
