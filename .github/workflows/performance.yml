@@ -30,7 +30,6 @@ jobs:
         with:
           submodules: true
 
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -40,6 +39,7 @@ jobs:
           context: .
           file: performance/Dockerfile
           tags: dst-test-node:latest
+          load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
