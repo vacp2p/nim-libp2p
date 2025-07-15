@@ -1,3 +1,6 @@
+{.used.}
+import strformat
+import std/enumerate
 import chronos
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
@@ -15,6 +18,14 @@ proc createSwitch(): Switch =
   .withMplex()
   .withNoise()
   .build()
+
+proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
+  var res: uint32 = 0
+  for b in buckets:
+    for ent in b.peers:
+      if ent.nodeId == key:
+        res += 1
+  return res
 
 suite "KadDHT - FindNode":
   asyncTest "Simple find peer":
@@ -37,12 +48,31 @@ suite "KadDHT - FindNode":
     for i in 1 ..< swarmSize:
       await kads[i].bootstrap(@[switches[0].peerInfo])
 
-    await sleepAsync(2.seconds)
+    # TODO: see how other impls do their tests.
+    # Similarly, refer to the mathematical properties according to the spec, and systematically cover all possible states.
+    var entries = @[kads[0].rtable.selfId]
 
-    for i in 0 ..< swarmSize:
-      # todo: assert pre-condition
-      discard
+    # assert all the nodes that bootstropped off kad[0] has exactly 1 of each previous nodes, + kads[0], in their buckets
+    for i, kad in enumerate(kads[1 ..^ 1]):
+      for id in entries:
+        let count = countBucketEntries(kad.rtable.buckets, id)
+        assert(
+          count == 1,
+          fmt"bootstrap state broken - count: {count}|entries: {entries}|i: {i}|key: {id}|buckets: {kad.rtable.buckets}",
+        )
+      entries.add(kad.rtable.selfId)
+
+    echo "finding"
     discard await kads[1].findNode(kads[2].switch.peerInfo.peerId.toKey())
-    for i in 1 ..< swarmSize:
-      # todo: assert post-condition
-      discard
+
+    echo "starting"
+    # assert that every node has exactly one entry for the id of every other node
+    for id in entries:
+      for k in kads:
+        if k.rtable.selfId == id:
+          continue
+        let count = countBucketEntries(k.rtable.buckets, id)
+        assert(
+          count == 1,
+          fmt"findNode post-check broken - entries: {entries}|id: {id}|buckets: {k.rtable.buckets}",
+        )
