@@ -11,8 +11,6 @@ from times import
   getTime, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds, nanosecond
 from nativesockets import getHostname
 
-const chunks = 1
-
 proc msgIdProvider(m: Message): Result[MessageId, ValidationResult] =
   ok(($m.data.hash).toBytes())
 
@@ -33,6 +31,7 @@ proc startMetricsServer(
 
 proc main() {.async.} =
   # --- Configuration ---
+  const topic = "test"
   let
     hostname = getHostname()
     myId = parseInt(getEnv("PEER_NUMBER"))
@@ -86,7 +85,7 @@ proc main() {.async.} =
   gossipSub.parameters.dScore = 6
   gossipSub.parameters.dOut = 3
   gossipSub.parameters.dLazy = 6
-  gossipSub.topicParams["test"] = TopicParams(
+  gossipSub.topicParams[topic] = TopicParams(
     topicWeight: 1,
     firstMessageDeliveriesWeight: 1,
     firstMessageDeliveriesCap: 30,
@@ -94,18 +93,15 @@ proc main() {.async.} =
   )
 
   # --- Message Handling ---
-  var messagesChunks: CountTable[uint64]
+  const warmupMessages = 5
   var sentMessages: Table[uint64, int64]         # messageId -> send time (nanoseconds)
   var receivedMessages: Table[uint64, seq[int64]] # messageId -> seq of receive times (nanoseconds)
   var latencies: seq[int64]                      # ms latency per message
-  var deliveredCount: int
   proc messageHandler(topic: string, data: seq[byte]) {.async.} =
+    # Skip warm-up messages by checking their data
+    if data == "warmup".toBytes():
+      return # warm-up phase
     let sentUint = uint64.fromBytesLE(data)
-    if sentUint < 1000000:
-      return # warm-up
-    messagesChunks.inc(sentUint)
-    if messagesChunks[sentUint] < chunks:
-      return
     let sentMoment = nanoseconds(int64(uint64.fromBytesLE(data)))
     let sentNanosecs = nanoseconds(sentMoment - seconds(sentMoment.seconds))
     let sentDate = initTime(sentMoment.seconds, sentNanosecs)
@@ -116,7 +112,6 @@ proc main() {.async.} =
       receivedMessages[sentUint] = @[]
     receivedMessages[sentUint].add(nowNs)
     latencies.add(int64((nowNs - sentNs) div 1_000)) # store microseconds for summary
-    deliveredCount.inc()
     echo "Message ", sentUint, " delivered. Latency: ", formatFloat(latencyMs, ffDecimal, 3), " ms"
 
   proc messageValidator(
@@ -124,16 +119,16 @@ proc main() {.async.} =
   ): Future[ValidationResult] {.async.} =
     ValidationResult.Accept
 
-  gossipSub.subscribe("test", messageHandler)
-  gossipSub.addValidator(["test"], messageValidator)
+  gossipSub.subscribe(topic, messageHandler)
+  gossipSub.addValidator([topic], messageValidator)
   switch.mount(gossipSub)
   switch.mount(pingProtocol)
   await switch.start()
 
   echo "Listening on ", switch.peerInfo.addrs
   echo myId, ", ", isPublisher, ", ", switch.peerInfo.peerId
-  echo "Waiting 10 seconds for node building..."
-  await sleepAsync(10.seconds)
+  echo "Waiting 5 seconds for node building..."
+  await sleepAsync(5.seconds)
 
   # --- Peer Discovery & Connection ---
 
@@ -168,11 +163,22 @@ proc main() {.async.} =
         echo "Waiting 15 seconds..."
         await sleepAsync(15.seconds)
 
-  echo "Mesh size: ", gossipSub.mesh.getOrDefault("test").len
+  echo "Waiting 5 seconds for connecting..."
+  await sleepAsync(5.seconds)
+
+  echo "Mesh size: ", gossipSub.mesh.getOrDefault(topic).len
 
   # --- Message Publishing ---
   let turnToPublish = parseInt(getHostname()[4 ..^ 1])
   echo "Publishing turn is: ", turnToPublish
+
+  # Warm-up phase
+  echo "[Warm-up] Sending messages"
+  for msg in 0 ..< warmupMessages:
+    await sleepAsync(msgInterval)
+    discard await gossipSub.publish(topic, "warmup".toBytes())
+
+  # Measured phase
   for msg in 0 ..< msgCount:
     await sleepAsync(msgInterval)
     if msg mod publisherCount == turnToPublish:
@@ -181,15 +187,15 @@ proc main() {.async.} =
       var nowBytes = @(toBytesLE(uint64(nowNs))) & newSeq[byte](msgSize)
       sentMessages[uint64(nowNs)] = nowNs
       echo "Sending message ", nowNs, " at: ", $nowMoment
-      doAssert((await gossipSub.publish("test", nowBytes)) > 0)
+      doAssert((await gossipSub.publish(topic, nowBytes)) > 0)
 
   # Wait for all messages to be delivered
   echo "Waiting 2 seconds for message delivery..."
   await sleepAsync(2.seconds)
 
   # Performance summary: only for received messages
-  let sentByThisNode = toSeq(sentMessages.keys).filterIt(it >= 1000000)
-  let receivedKeys = toSeq(receivedMessages.keys).filterIt(it >= 1000000)
+  let sentByThisNode = toSeq(sentMessages.keys)
+  let receivedKeys = toSeq(receivedMessages.keys)
   echo "\n--- Performance Summary (per node) ---"
   echo "Total messages sent by this node (excluding warm-up): ", sentByThisNode.len
   echo "Messages received by this node: ", receivedKeys.len, "/", msgCount
