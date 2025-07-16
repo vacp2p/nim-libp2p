@@ -66,10 +66,9 @@ proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   #debug "findNode", target = target
-  # TODO: check if already exist in rtable
   # TODO: should it return a single peer instead? read spec
 
-  var initialPeers = kad.rtable.findClosestPeers(targetId, k)
+  var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
   var state = LookupState.init(targetId, initialPeers)
 
   while not state.done:
@@ -84,7 +83,6 @@ proc findNode*(
       state.markPending(peer)
 
       pendingFutures[peer] = kad.sendFindNode(peer, targetId).wait(5.seconds)
-      # TODO: should this timeout be specified by the dev? maybe should be a config option
 
       state.activeQueries.inc
 
@@ -110,7 +108,6 @@ proc findNode*(
 proc bootstrap*(
     kad: KadDHT, bootstrapNodes: seq[PeerInfo]
 ) {.async: (raises: [CancelledError]).} =
-  # TODO: every 10 minutes configurable, run once on start
   for b in bootstrapNodes:
     try:
       await kad.switch.connect(b.peerId, b.addrs)
@@ -167,7 +164,7 @@ proc new*(
         of MessageType.findNode:
           let targetIdBytes = msg.key.get()
           let targetId = PeerId.init(targetIdBytes).tryGet()
-          let closerPeers = kad.rtable.findClosest(targetId.toKey(), k)
+          let closerPeers = kad.rtable.findClosest(targetId.toKey(), DefaultReplic)
           let responsePb = encodeFindNodeReply(closerPeers, switch)
           await conn.writeLp(responsePb.buffer)
 
@@ -175,7 +172,6 @@ proc new*(
           discard kad.rtable.insert(conn.peerId)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
-        # TODO: implement other types
     except CancelledError as exc:
       raise exc
     except CatchableError:
