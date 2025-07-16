@@ -10,7 +10,7 @@
 {.push raises: [].}
 {.push public.}
 
-import net, results, json, sequtils
+import net, results
 
 import chronos/apps/http/httpclient, chronos, chronicles, bearssl/rand
 
@@ -74,6 +74,8 @@ type AutotlsService* = ref object of Service
   rng: ref HmacDrbgContext
 
 when defined(libp2p_autotls_support):
+  import sequtils, json
+
   proc new*(T: typedesc[AutotlsCert], cert: TLSCertificate, expiry: Moment): T =
     T(cert: cert, expiry: expiry)
 
