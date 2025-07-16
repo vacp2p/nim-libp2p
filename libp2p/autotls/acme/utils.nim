@@ -1,13 +1,14 @@
-import base64, strutils, chronos/apps/http/httpclient, json
 import ../../errors
-import ../../transports/tls/certificate_ffi
-import ../../transports/tls/certificate
-import ../../crypto/crypto
-import ../../crypto/rsa
 
 type ACMEError* = object of LPError
 
 when defined(libp2p_autotls_support):
+  import base64, strutils, chronos/apps/http/httpclient, json
+  import ../../transports/tls/certificate_ffi
+  import ../../transports/tls/certificate
+  import ../../crypto/crypto
+  import ../../crypto/rsa
+
   proc keyOrError*(table: HttpTable, key: string): string {.raises: [ValueError].} =
     if not table.contains(key):
       raise newException(ValueError, "key " & key & " not present in headers")

@@ -9,12 +9,9 @@
 
 {.push raises: [].}
 
-import uri
-import chronos, results, chronicles, stew/byteutils
-
-import ./api, ./utils
+import chronicles
 import ../../crypto/crypto
-import ../../crypto/rsa
+import ./api
 
 export api
 
@@ -29,6 +26,11 @@ logScope:
   topics = "libp2p acme client"
 
 when defined(libp2p_autotls_support):
+  import uri
+  import chronos, results, stew/byteutils
+  import ../../crypto/rsa
+  import ./utils
+
   proc new*(
       T: typedesc[ACMEClient],
       rng: ref HmacDrbgContext = newRng(),
