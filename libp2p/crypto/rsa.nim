@@ -21,6 +21,7 @@ import results
 import stew/ctops
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
+import ../utils/sequninit
 
 export Asn1Error, results
 
@@ -124,7 +125,7 @@ proc random*[T: RsaKP](
     length = eko + ((bits + 7) shr 3)
 
   let res = new T
-  res.buffer = newSeqUninitialized[byte](length)
+  res.buffer = newSeqUninit[byte](length)
 
   var keygen = rsaKeygenGetDefault()
 
@@ -169,7 +170,7 @@ proc copy*[T: RsaPKI](key: T): T =
         key.seck.dqlen.uint + key.seck.iqlen.uint + key.pubk.nlen.uint +
         key.pubk.elen.uint + key.pexplen.uint
       result = new RsaPrivateKey
-      result.buffer = newSeqUninitialized[byte](length)
+      result.buffer = newSeqUninit[byte](length)
       let po: uint = 0
       let qo = po + key.seck.plen
       let dpo = qo + key.seck.qlen
@@ -207,7 +208,7 @@ proc copy*[T: RsaPKI](key: T): T =
     if len(key.buffer) > 0:
       let length = key.key.nlen + key.key.elen
       result = new RsaPublicKey
-      result.buffer = newSeqUninitialized[byte](length)
+      result.buffer = newSeqUninit[byte](length)
       let no = 0
       let eo = no + key.key.nlen
       copyMem(addr result.buffer[no], key.key.n, key.key.nlen)
@@ -226,7 +227,7 @@ proc getPublicKey*(key: RsaPrivateKey): RsaPublicKey =
   doAssert(not isNil(key))
   let length = key.pubk.nlen + key.pubk.elen
   result = new RsaPublicKey
-  result.buffer = newSeqUninitialized[byte](length)
+  result.buffer = newSeqUninit[byte](length)
   result.key.n = addr result.buffer[0]
   result.key.e = addr result.buffer[key.pubk.nlen]
   copyMem(addr result.buffer[0], cast[pointer](key.pubk.n), key.pubk.nlen)
@@ -357,7 +358,7 @@ proc getBytes*(key: RsaPrivateKey): RsaResult[seq[byte]] =
   ## return it.
   if isNil(key):
     return err(RsaKeyIncorrectError)
-  var res = newSeqUninitialized[byte](4096)
+  var res = newSeqUninit[byte](4096)
   let length = ?key.toBytes(res)
   if length > 0:
     res.setLen(length)
@@ -370,7 +371,7 @@ proc getBytes*(key: RsaPublicKey): RsaResult[seq[byte]] =
   ## return it.
   if isNil(key):
     return err(RsaKeyIncorrectError)
-  var res = newSeqUninitialized[byte](4096)
+  var res = newSeqUninit[byte](4096)
   let length = ?key.toBytes(res)
   if length > 0:
     res.setLen(length)
@@ -382,7 +383,7 @@ proc getBytes*(sig: RsaSignature): RsaResult[seq[byte]] =
   ## Serialize RSA signature ``sig`` to raw binary form and return it.
   if isNil(sig):
     return err(RsaSignatureError)
-  var res = newSeqUninitialized[byte](4096)
+  var res = newSeqUninit[byte](4096)
   let length = ?sig.toBytes(res)
   if length > 0:
     res.setLen(length)
@@ -753,7 +754,7 @@ proc sign*[T: byte | char](
   var hash: array[32, byte]
   let impl = rsaPkcs1SignGetDefault()
   var res = new RsaSignature
-  res.buffer = newSeqUninitialized[byte]((key.seck.nBitlen + 7) shr 3)
+  res.buffer = newSeqUninit[byte]((key.seck.nBitlen + 7) shr 3)
   var kv = addr sha256Vtable
   kv.init(addr hc.vtable)
   if len(message) > 0:

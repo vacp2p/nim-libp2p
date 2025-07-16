@@ -16,6 +16,7 @@ import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
 import ../varint, ../peerinfo, ../multiaddress, ../utility, ../errors
+import ../utils/sequninit
 
 export errors
 
@@ -232,7 +233,7 @@ method readLp*(
   if length == 0:
     return
 
-  var res = newSeqUninitialized[byte](length)
+  var res = newSeqUninit[byte](length)
   await s.readExactly(addr res[0], res.len)
   res
 
@@ -251,7 +252,7 @@ method writeLp*(
 .} =
   ## Write `msg` with a varint-encoded length prefix
   let vbytes = PB.toBytes(msg.len().uint64)
-  var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
+  var buf = newSeqUninit[byte](msg.len() + vbytes.len)
   buf[0 ..< vbytes.len] = vbytes.toOpenArray()
   buf[vbytes.len ..< buf.len] = msg
   s.write(buf)

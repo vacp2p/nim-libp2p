@@ -104,7 +104,7 @@ proc expandDnsAddr(
 ): Future[seq[(MultiAddress, Opt[PeerId])]] {.
     async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
 .} =
-  if not DNSADDR.matchPartial(address):
+  if not DNS.matchPartial(address):
     return @[(address, peerId)]
   if isNil(self.nameResolver):
     info "Can't resolve DNSADDR without NameResolver", ma = address

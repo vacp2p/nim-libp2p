@@ -20,7 +20,8 @@ import
   ../../stream/connection,
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
-  ../../utility
+  ../../utility,
+  ../../utils/sequninit
 
 export peerid, connection, deques
 
@@ -121,6 +122,9 @@ type
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
 
+    when defined(libp2p_gossipsub_1_4):
+      bandwidthTracking*: BandwidthTracking
+
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iDontWants*: Deque[HashSet[SaltedId]]
@@ -133,6 +137,11 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
+
+    when defined(libp2p_gossipsub_1_4):
+      preambleBudget*: int
+      heIsReceivings*: Table[MessageId, uint32]
+      heIsSendings*: Table[MessageId, Moment]
 
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
@@ -221,7 +230,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
           conn, peer = p, closed = conn.closed, data = data.shortLog
 
         await p.handler(p, data)
-        data = newSeqUninitialized[byte](0) # Release memory
+        data = newSeqUninit[byte](0) # Release memory
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
         conn, peer = p, description = exc.msg
@@ -609,6 +618,11 @@ proc new*(
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
   )
+
+  when defined(libp2p_gossipsub_1_4):
+    result.bandwidthTracking =
+      BandwidthTracking(download: ExponentialMovingAverage.init())
+
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()
