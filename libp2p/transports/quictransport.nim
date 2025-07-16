@@ -42,6 +42,9 @@ proc new(
   procCall P2PConnection(quicstream).initStream()
   quicstream
 
+method getWrapped*(self: QuicStream): P2PConnection =
+  nil
+
 template mapExceptions(body: untyped) =
   try:
     body
