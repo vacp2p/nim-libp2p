@@ -135,5 +135,6 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
 
 proc new*(T: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): T =
   result = T(client: cl, upgrader: upgrader)
+  result.initTransport()
   result.running = true
   result.queue = newAsyncQueue[Connection](0)

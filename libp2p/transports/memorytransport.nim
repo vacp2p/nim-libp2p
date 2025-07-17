@@ -37,7 +37,9 @@ proc new*(
     upgrade: Upgrade = Upgrade(),
     rng: ref HmacDrbgContext = newRng(),
 ): T =
-  T(upgrader: upgrade, rng: rng)
+  let transport = T(upgrader: upgrade, rng: rng)
+  transport.initTransport()
+  transport
 
 proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
   if $ma != MemoryAutoAddress:
@@ -60,6 +62,8 @@ method start*(
 
   self.addrs = addrs.mapIt(self.listenAddress(it))
   self.running = true
+  if not isNil(self.onRunning):
+    self.onRunning.fire()
 
 method stop*(self: MemoryTransport) {.async: (raises: []).} =
   if not self.running:
