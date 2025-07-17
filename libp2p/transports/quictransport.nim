@@ -294,7 +294,6 @@ method start*(
     raise (ref QuicTransportError)(
       msg: "transport error in quic start: " & exc.msg, parent: exc
     )
-  self.running = true
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let conns = transport.connections[0 .. ^1]
