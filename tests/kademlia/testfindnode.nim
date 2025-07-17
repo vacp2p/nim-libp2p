@@ -97,13 +97,30 @@ suite "KadDHT - FindNode":
     await neiceSwitch.start()
 
     await broKad.bootstrap(@[parentSwitch.peerInfo])
-    # TODO: assert parent only has broKad and visa versa
-    await sisKad.bootstrap(@[parentSwitch.peerInfo])
-    # TODO: assert same again, but sisKad has parent and br, and sis has been added to parent
-    await neiceKad.bootstrap(@[sisSwitch.peerInfo])
-    # TODO: assert same again, but sisKad has neice added, and neice has the same content as sis
+    # Bro and parent know each other
+    doAssert(countBucketEntries(broKad.rtable.buckets, parentKad.rtable.selfId) == 1)
+    doAssert(countBucketEntries(parentKad.rtable.buckets, broKad.rtable.selfId) == 1)
 
-    # Bro should only know parent
+    await sisKad.bootstrap(@[parentSwitch.peerInfo])
+
+    # Sis and parent know each other...
+    doAssert(countBucketEntries(sisKad.rtable.buckets, parentKad.rtable.selfId) == 1)
+    doAssert(countBucketEntries(parentKad.rtable.buckets, sisKad.rtable.selfId) == 1)
+
+    # But has been informed of bro by parent during bootstrap
+    doAssert(countBucketEntries(sisKad.rtable.buckets, broKad.rtable.selfId) == 1)
+
+    await neiceKad.bootstrap(@[sisSwitch.peerInfo])
+    # Neice and sis know each other:
+    doAssert(countBucketEntries(neiceKad.rtable.buckets, sisKad.rtable.selfId) == 1)
+    doAssert(countBucketEntries(sisKad.rtable.buckets, neiceKad.rtable.selfId) == 1)
+
+    # But Neice has also been informed of those that Sis knows of:
+    doAssert(countBucketEntries(neiceKad.rtable.buckets, parentKad.rtable.selfId) == 1)
+    doAssert(countBucketEntries(neiceKad.rtable.buckets, broKad.rtable.selfId) == 1)
+
+    # Now let's make sure that when Bro is trying to find neice, it's an "I know someone,
+    # who knows someone, who knows the one I'm looking for"
     doAssert(countBucketEntries(broKad.rtable.buckets, parentKad.rtable.selfId) == 1)
     doAssert(countBucketEntries(broKad.rtable.buckets, sisKad.rtable.selfId) == 0)
     doAssert(countBucketEntries(broKad.rtable.buckets, neiceKad.rtable.selfId) == 0)
