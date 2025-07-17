@@ -15,7 +15,7 @@ runnableExamples:
 
 {.push raises: [].}
 
-import options, tables, chronos, chronicles, sequtils, uri
+import options, tables, chronos, chronicles, sequtils
 import
   switch,
   peerid,
@@ -257,11 +257,12 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
-proc withAutotls*(
-    b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
-): SwitchBuilder {.public.} =
-  b.autotls = AutotlsService.new(config = config)
-  b
+when defined(libp2p_autotls_support):
+  proc withAutotls*(
+      b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
+  ): SwitchBuilder {.public.} =
+    b.autotls = AutotlsService.new(config = config)
+    b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = r

@@ -105,7 +105,7 @@ proc tryDial(
     autonat.sem.release()
     for f in futs:
       if not f.finished():
-        f.cancel()
+        f.cancelSoon()
 
 proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   let dial = msg.dial.valueOr:

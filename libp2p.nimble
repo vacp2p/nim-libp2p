@@ -30,7 +30,7 @@ proc runTest(filename: string, moreoptions: string = "") =
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
-  exec excstr & " -r -d:libp2p_quic_support tests/" & filename
+  exec excstr & " -r -d:libp2p_quic_support -d:libp2p_autotls_support tests/" & filename
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false, extraFlags = "") =
@@ -56,7 +56,7 @@ task testinterop, "Runs interop tests":
   runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
-  runTest("pubsub/testpubsub")
+  runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter")
