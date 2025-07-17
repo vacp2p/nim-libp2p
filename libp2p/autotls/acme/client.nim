@@ -10,8 +10,8 @@
 {.push raises: [].}
 
 import chronicles
-import ./api
 import ../../crypto/crypto
+import ./api
 
 export api
 
@@ -28,8 +28,8 @@ logScope:
 when defined(libp2p_autotls_support):
   import uri
   import chronos, results, stew/byteutils
-  import ./utils
   import ../../crypto/rsa
+  import ./utils
 
   proc new*(
       T: typedesc[ACMEClient],

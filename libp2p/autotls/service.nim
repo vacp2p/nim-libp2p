@@ -12,6 +12,7 @@
 
 import chronos, chronicles, net, results
 import chronos/apps/http/httpclient, bearssl/rand
+
 import
   ./acme/client,
   ./utils,
@@ -236,6 +237,9 @@ when defined(libp2p_autotls_support):
     trace "Certificate installed"
     true
 
+  proc hasTcpStarted(switch: Switch): bool =
+    switch.transports.filterIt(it of TcpTransport and it.running).len == 0
+
   proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError]).} =
     for _ in 0 ..< self.config.issueRetries:
       try:
@@ -255,15 +259,11 @@ when defined(libp2p_autotls_support):
     self.running.fire()
     self.peerInfo = switch.peerInfo
 
-    let tcpTransports = switch.transports
-      .filterIt(it of TcpTransport and it.running)
-      .mapIt(TcpTransport(it))
-
-    if tcpTransports.len == 0:
+    # ensure that there's at least one TcpTransport running
+    # for communicating with autotls broker
+    if switch.hasTcpStarted():
       error "Could not find a running TcpTransport in switch"
       return
-
-    let tcpTransport = tcpTransports[0]
 
     heartbeat "Certificate Management", self.config.renewCheckTime:
       if self.cert.isNone():

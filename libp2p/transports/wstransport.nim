@@ -223,7 +223,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     for fut in self.acceptFuts:
       if not fut.finished:
         toWait.add(fut.cancelAndWait())
-      elif fut.done:
+      elif fut.completed:
         toWait.add(fut.read().stream.closeWait())
 
     for server in self.httpservers:
@@ -372,7 +372,6 @@ method dial*(
 method handles*(t: WsTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):
     if address.protocols.isOk:
-      debug "WS matching", address = address, match = WebSockets.match(address)
       return WebSockets.match(address)
 
 proc new*(

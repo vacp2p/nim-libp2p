@@ -351,8 +351,6 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
 
     s.peerInfo.listenAddrs.keepItIf(it notin addrs)
 
-    debug "addresses", addrs = addrs
-
     if addrs.len > 0 or t.running:
       let fut = t.start(addrs)
       startFuts.add(fut)
@@ -360,6 +358,8 @@ proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
         await fut
         s.acceptFuts.add(s.accept(t))
         s.peerInfo.listenAddrs &= t.addrs
+  debug "switch addresses",
+    addrs = s.peerInfo.addrs, listenAddrs = s.peerInfo.listenAddrs
 
   # some transports require some services to be running
   # in order to finish their startup process
