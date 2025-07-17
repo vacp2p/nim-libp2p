@@ -12,7 +12,7 @@ import ../protocol
 import ../../switch
 import ./protobuf
 import ../../utils/heartbeat
-import std/options
+import std/[options, tables]
 import results
 
 logScope:
@@ -25,11 +25,16 @@ type KadDHT* = ref object of LPProtocol
   maintenanceLoop: Future[void]
 
 proc sendFindNode(
-    kad: KadDHT, peerId: PeerId, targetId: Key
+    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress], targetId: Key
 ): Future[Message] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  let conn = await kad.switch.dial(peerId, KadCodec)
+  var conn: Connection
+  if addrs.len == 0:
+    conn = await kad.switch.dial(peerId, KadCodec)
+  else:
+    conn = await kad.switch.dial(peerId, addrs, KadCodec)
+
   defer:
     await conn.close()
 
@@ -70,6 +75,8 @@ proc findNode*(
 
   var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
   var state = LookupState.init(targetId, initialPeers)
+  var addrTable: Table[PeerId, seq[MultiAddress]] =
+    initTable[PeerId, seq[MultiAddress]]()
 
   while not state.done:
     let toQuery = state.selectAlphaPeers()
@@ -82,13 +89,17 @@ proc findNode*(
 
       state.markPending(peer)
 
-      pendingFutures[peer] = kad.sendFindNode(peer, targetId).wait(5.seconds)
+      pendingFutures[peer] = kad
+        .sendFindNode(peer, addrTable.getOrDefault(peer, @[]), targetId)
+        .wait(5.seconds)
 
       state.activeQueries.inc
 
     let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
 
     for msg in successfulReplies:
+      for peer in msg.closerPeers:
+        addrTable[PeerId.init(peer.id).get()] = peer.addrs
       state.updateShortlist(
         msg,
         proc(p: PeerInfo) =
@@ -114,7 +125,8 @@ proc bootstrap*(
       debug "connected to bootstrap peer", peerId = b.peerId
 
       try:
-        let msg = await kad.sendFindNode(b.peerId, kad.rtable.selfId).wait(5.seconds)
+        let msg =
+          await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(5.seconds)
         for peer in msg.closerPeers:
           let p = PeerId.init(peer.id).tryGet()
           discard kad.rtable.insert(p)
