@@ -15,7 +15,7 @@ serialization;https://github.com/status-im/nim-serialization@#548d0adc9797a10b2d
 stew;https://github.com/status-im/nim-stew@#0db179256cf98eb9ce9ee7b9bc939f219e621f77
 testutils;https://github.com/status-im/nim-testutils@#9e842bd58420d23044bc55e16088e8abbe93ce51
 unittest2;https://github.com/status-im/nim-unittest2@#8b51e99b4a57fcfb31689230e75595f024543024
-websock;https://github.com/status-im/nim-websock@#d5cd89062cd2d168ef35193c7d29d2102921d97e
+websock;https://github.com/status-im/nim-websock@#b197f4a77bcd0fc083bccb564dbec89e9903b37f
 zlib;https://github.com/status-im/nim-zlib@#daa8723fd32299d4ca621c837430c29a5a11e19a
 jwt;https://github.com/vacp2p/nim-jwt@#18f8378de52b241f321c1f9ea905456e89b95c6f
 bearssl_pkey_decoder;https://github.com/vacp2p/bearssl_pkey_decoder@#21dd3710df9345ed2ad8bf8f882761e07863b8e0
