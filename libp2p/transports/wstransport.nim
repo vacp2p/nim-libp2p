@@ -204,7 +204,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     for fut in self.acceptFuts:
       if not fut.finished:
         toWait.add(fut.cancelAndWait())
-      elif fut.done:
+      elif fut.completed:
         toWait.add(fut.read().stream.closeWait())
 
     for server in self.httpservers:
