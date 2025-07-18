@@ -29,11 +29,11 @@ proc sendFindNode(
 ): Future[Message] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  var conn: Connection
-  if addrs.len == 0:
-    conn = await kad.switch.dial(peerId, KadCodec)
-  else:
-    conn = await kad.switch.dial(peerId, addrs, KadCodec)
+  let conn =
+    if addrs.len == 0:
+      await kad.switch.dial(peerId, KadCodec)
+    else:
+      await kad.switch.dial(peerId, addrs, KadCodec)
 
   defer:
     await conn.close()
