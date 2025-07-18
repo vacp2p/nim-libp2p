@@ -1,16 +1,14 @@
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
-import
-  ../libp2p/
-    [autotls/service, daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
+import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
 import ../libp2p/protocols/connectivity/relay/[relay, client, utils]
 
 type
   SwitchCreator = proc(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
     prov: TransportProvider = proc(
-        upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService
+        upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
     ): Transport =
       TcpTransport.new({}, upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true),
@@ -323,7 +321,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       let nativeNode = swCreator(
         ma = wsAddress,
         prov = proc(
-            upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService
+            upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
         ): Transport =
           WsTransport.new(upgr),
       )
