@@ -52,6 +52,14 @@ func shortLog*(p: PeerInfo): auto =
 chronicles.formatIt(PeerInfo):
   shortLog(it)
 
+proc expandAddrs*(
+    p: PeerInfo
+): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+  var addrs = p.listenAddrs
+  for mapper in p.addressMappers:
+    addrs = await mapper(addrs)
+  addrs
+
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   p.addrs = p.listenAddrs
   for mapper in p.addressMappers:

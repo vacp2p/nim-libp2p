@@ -167,3 +167,25 @@ suite "utilities test":
 
     dt = parseCertTime("Jan  1 00:00:00 1975 GMT")
     check 157766400 == dt.toUnix()
+
+  test "KeyPair to cert_key_t":
+    var certKey: cert_key_t
+    var certKeyBack: ptr cert_buffer = nil
+
+    let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+
+    let rawSeckey: seq[byte] = key.seckey.getRawBytes.valueOr:
+      raiseAssert "Failed to get seckey raw bytes (DER)"
+
+    let seckeyBuffer = rawSeckey.toCertBuffer()
+
+    # make seckey into certKey
+    check cert_new_key_t(seckeyBuffer.unsafeAddr, certKey.addr) == CERT_SUCCESS
+
+    # make certKey back into seq[byte]
+    check cert_serialize_privk(certKey, certKeyBack.addr, CERT_FORMAT_DER) ==
+      CERT_SUCCESS
+
+    # after and before should be the same
+    let rawSeckeyBack = certKeyBack.toSeq()
+    check rawSeckey == rawSeckeyBack

@@ -185,7 +185,7 @@ proc withWsTransport*(
 ): SwitchBuilder =
   b.withTransport(
     proc(upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService): Transport =
-      WsTransport.new(upgr, tlsPrivateKey, tlsCertificate, tlsFlags, flags)
+      WsTransport.new(upgr, tlsPrivateKey, tlsCertificate, autotls, tlsFlags, flags)
   )
 
 when defined(libp2p_quic_support):

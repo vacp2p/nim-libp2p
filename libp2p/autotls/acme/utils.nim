@@ -52,19 +52,21 @@ when defined(libp2p_autotls_support):
         ACMEError, "Unexpected error occurred while getting body bytes", exc
       )
 
-  proc createCSR*(domain: string): string {.raises: [ACMEError].} =
+  proc createCSR*(
+      domain: string, certKeyPair: KeyPair
+  ): string {.raises: [ACMEError].} =
     var certKey: cert_key_t
     var certCtx: cert_context_t
     var derCSR: ptr cert_buffer = nil
 
-    let personalizationStr = "libp2p_autotls"
-    if cert_init_drbg(
-      personalizationStr.cstring, personalizationStr.len.csize_t, certCtx.addr
-    ) != CERT_SUCCESS:
-      raise newException(ACMEError, "Failed to initialize certCtx")
-    if cert_generate_key(certCtx, certKey.addr) != CERT_SUCCESS:
-      raise newException(ACMEError, "Failed to generate cert key")
+    # convert KeyPair to cert_key_t
+    let rawSeckey: seq[byte] = certKeyPair.seckey.getRawBytes.valueOr:
+      raise newException(ACMEError, "Failed to get seckey raw bytes (DER)")
+    let seckeyBuffer = rawSeckey.toCertBuffer()
+    if cert_new_key_t(seckeyBuffer.unsafeAddr, certKey.addr) != CERT_SUCCESS:
+      raise newException(ACMEError, "Failed to convert key pair to cert_key_t")
 
+    # create CSR
     if cert_signing_req(domain.cstring, certKey, derCSR.addr) != CERT_SUCCESS:
       raise newException(ACMEError, "Failed to create CSR")
 

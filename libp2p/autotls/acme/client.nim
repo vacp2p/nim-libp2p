@@ -61,17 +61,20 @@ when defined(libp2p_autotls_support):
     await self.api.requestChallenge(domains, self.key, await self.getOrInitKid())
 
   proc getCertificate*(
-      self: ACMEClient, domain: api.Domain, challenge: ACMEChallengeResponseWrapper
+      self: ACMEClient,
+      domain: api.Domain,
+      certKeyPair: KeyPair,
+      challenge: ACMEChallengeResponseWrapper,
   ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
     let chalURL = parseUri(challenge.dns01.url)
     let orderURL = parseUri(challenge.order)
     let finalizeURL = parseUri(challenge.finalize)
-    trace "sending challenge completed notification"
+    trace "Sending challenge completed notification"
     discard await self.api.sendChallengeCompleted(
       chalURL, self.key, await self.getOrInitKid()
     )
 
-    trace "checking for completed challenge"
+    trace "Checking for completed challenge"
     let completed = await self.api.checkChallengeCompleted(
       chalURL, self.key, await self.getOrInitKid()
     )
@@ -80,15 +83,15 @@ when defined(libp2p_autotls_support):
         ACMEError, "Failed to signal ACME server about challenge completion"
       )
 
-    trace "waiting for certificate to be finalized"
+    trace "Waiting for certificate to be finalized"
     let finalized = await self.api.certificateFinalized(
-      domain, finalizeURL, orderURL, self.key, await self.getOrInitKid()
+      domain, finalizeURL, orderURL, certKeyPair, self.key, await self.getOrInitKid()
     )
     if not finalized:
       raise
         newException(ACMEError, "Failed to finalize certificate for domain " & domain)
 
-    trace "downloading certificate"
+    trace "Downloading certificate"
     await self.api.downloadCertificate(orderURL)
 
   proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =

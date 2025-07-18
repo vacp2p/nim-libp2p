@@ -158,6 +158,11 @@ type ACMECertificateResponse* = object
   rawCertificate*: string
   certificateExpiry*: DateTime
 
+type ACMECertificate* = object
+  rawCertificate*: string
+  certificateExpiry*: DateTime
+  certKeyPair*: KeyPair
+
 when defined(libp2p_autotls_support):
   import options, sequtils, strutils, jwt, bearssl/pem
 
@@ -448,11 +453,16 @@ when defined(libp2p_autotls_support):
     return await self.checkChallengeCompleted(chalURL, key, kid, retries = retries)
 
   proc requestFinalize*(
-      self: ACMEApi, domain: Domain, finalize: Uri, key: KeyPair, kid: Kid
+      self: ACMEApi,
+      domain: Domain,
+      finalize: Uri,
+      certKeyPair: KeyPair,
+      key: KeyPair,
+      kid: Kid,
   ): Future[ACMEFinalizeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
     handleError("requestFinalize"):
       let payload = await self.createSignedAcmeRequest(
-        finalize, %*{"csr": createCSR(domain)}, key, kid = Opt.some(kid)
+        finalize, %*{"csr": createCSR(domain, certKeyPair)}, key, kid = Opt.some(kid)
       )
       let acmeResponse = await self.post(finalize, payload)
       # server responds with updated order response
@@ -484,11 +494,13 @@ when defined(libp2p_autotls_support):
       domain: Domain,
       finalize: Uri,
       order: Uri,
+      certKeyPair: KeyPair,
       key: KeyPair,
       kid: Kid,
       retries: int = DefaultFinalizeRetries,
   ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
-    let finalizeResponse = await self.requestFinalize(domain, finalize, key, kid)
+    let finalizeResponse =
+      await self.requestFinalize(domain, finalize, certKeyPair, key, kid)
     # keep checking order until cert is valid (done)
     return await self.checkCertFinalized(order, key, kid, retries = retries)
 

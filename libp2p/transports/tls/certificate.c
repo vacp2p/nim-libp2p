@@ -801,6 +801,44 @@ cleanup:
   return ret_code;
 }
 
+cert_error_t cert_new_key_t(cert_buffer *seckey, cert_key_t *out) {
+  BIO *bio = NULL;
+  cert_error_t ret_code = CERT_SUCCESS;
+
+  if (out == NULL) {
+    return CERT_ERROR_NULL_PARAM;
+  }
+
+  struct cert_key_s *key = calloc(1, sizeof(struct cert_key_s));
+  if (key == NULL) {
+    return CERT_ERROR_MEMORY;
+  }
+
+  bio = BIO_new_mem_buf(seckey->data, seckey->len);
+  if (!bio) {
+    ret_code = CERT_ERROR_BIO_GEN;
+    goto cleanup;
+  }
+
+  EVP_PKEY *pkey = d2i_PrivateKey_bio(bio, NULL);
+
+  key->pkey = pkey;
+  *out = key;
+
+  cleanup:
+    if (bio)
+      BIO_free(bio);
+
+    if (ret_code != CERT_SUCCESS && *out) {
+      if (pkey)
+        EVP_PKEY_free(pkey);
+      free(key);
+      *out = NULL;
+    }
+
+  return ret_code;
+}
+
 cert_error_t cert_serialize_privk(cert_key_t key, cert_buffer **out,
                                   cert_format_t format) {
   BIO *bio = NULL;

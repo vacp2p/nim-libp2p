@@ -9,11 +9,14 @@
 {.push raises: [].}
 {.push public.}
 
-import chronos
+import chronos, chronicles
 import ../errors
 
+logScope:
+  topics = "libp2p utils"
+
 const
-  DefaultDnsRetries = 10
+  DefaultDnsRetries = 3
   DefaultDnsRetryTime = 1.seconds
 
 type AutoTLSError* = object of LPError
@@ -21,7 +24,7 @@ type AutoTLSError* = object of LPError
 when defined(libp2p_autotls_support):
   import net, strutils
   from times import DateTime, toTime, toUnix
-  import stew/base36, chronicles
+  import stew/base36
   import
     ../peerid,
     ../multihash,

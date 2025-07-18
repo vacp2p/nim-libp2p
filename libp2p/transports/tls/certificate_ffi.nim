@@ -42,6 +42,10 @@ proc cert_generate_key*(
   ctx: cert_context_t, out_arg: ptr cert_key_t
 ): cert_error_t {.cdecl, importc: "cert_generate_key".}
 
+proc cert_new_key_t*(
+  seckey: ptr cert_buffer, certKey: ptr cert_key_t
+): cert_error_t {.cdecl, importc: "cert_new_key_t".}
+
 proc cert_serialize_privk*(
   key: cert_key_t, out_arg: ptr ptr cert_buffer, format: cert_format_t
 ): cert_error_t {.cdecl, importc: "cert_serialize_privk".}
