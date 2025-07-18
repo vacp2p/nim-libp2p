@@ -80,11 +80,13 @@ proc new*(
 ): T {.public.} =
   ## Creates a Tor transport
 
-  T(
+  let transport = T(
     transportAddress: transportAddress,
     upgrader: upgrade,
     tcpTransport: TcpTransport.new(flags, upgrade),
   )
+  transport.initTransport()
+  transport
 
 proc handlesDial(address: MultiAddress): bool {.gcsafe.} =
   return Onion3.match(address) or TCP.match(address) or DNSANY.match(address)
