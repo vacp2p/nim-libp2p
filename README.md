@@ -71,6 +71,7 @@ git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
 nimble install -dy
 ```
+You can use `nix develop` to start a shell with Nim and Nimble.
 ### Testing
 Run unit tests:
 ```sh
