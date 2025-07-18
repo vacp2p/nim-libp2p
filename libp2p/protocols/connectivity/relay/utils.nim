@@ -36,21 +36,21 @@ proc sendStatus*(
 
 proc sendHopStatus*(
     conn: Connection, code: StatusV2
-) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "send hop relay/v2 status", status = $code & "(" & $ord(code) & ")"
   let
     msg = HopMessage(msgType: HopMessageType.Status, status: Opt.some(code))
     pb = encode(msg)
-  conn.writeLp(pb.buffer)
+  await conn.writeLp(pb.buffer)
 
 proc sendStopStatus*(
     conn: Connection, code: StatusV2
-) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "send stop relay/v2 status", status = $code & " (" & $ord(code) & ")"
   let
     msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
     pb = encode(msg)
-  conn.writeLp(pb.buffer)
+  await conn.writeLp(pb.buffer)
 
 proc bridge*(
     connSrc: Connection, connDst: Connection

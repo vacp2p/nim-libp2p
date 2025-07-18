@@ -246,23 +246,20 @@ method write*(
   raiseAssert("[LPStream.write] abstract method not implemented!")
 
 method writeLp*(
-    s: LPStream, msg: openArray[byte]
-): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
-.} =
+    s: LPStream, msg: seq[byte]
+) {.base, async: (raises: [LPStreamError, CancelledError]), public.} =
   ## Write `msg` with a varint-encoded length prefix
-  let vbytes = PB.toBytes(msg.len().uint64)
-  var buf = newSeqUninit[byte](msg.len() + vbytes.len)
-  buf[0 ..< vbytes.len] = vbytes.toOpenArray()
-  buf[vbytes.len ..< buf.len] = msg
-  s.write(buf)
+  let lenPrefix = PB.toBytes(msg.len.uint64)
+  let totalLen = lenPrefix.len + msg.len
+  var buf = newSeq[byte](totalLen)
+  buf[0 ..< lenPrefix.len] = lenPrefix.toOpenArray() # Copy varint length prefix
+  buf[lenPrefix.len ..< totalLen] = msg # Copy actual message
+  await s.write(buf)
 
 method writeLp*(
     s: LPStream, msg: string
-): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
-.} =
-  writeLp(s, msg.toOpenArrayByte(0, msg.high))
+) {.base, async: (raises: [CancelledError, LPStreamError]), public.} =
+  await writeLp(s, msg.toBytes())
 
 proc write*(
     s: LPStream, msg: string
