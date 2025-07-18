@@ -69,6 +69,8 @@ declareCounter(
   labels = ["topic"],
 )
 
+const MaxHeIsReceiving = 50
+
 proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
   g.withPeerStats(p.peerId) do(stats: var PeerStats):
     var info = stats.topicInfos.getOrDefault(topic)
@@ -336,6 +338,7 @@ proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWa
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
 ): tuple[messages: seq[Message], ids: seq[MessageId]] =
+  var response: tuple[messages: seq[Message], ids: seq[MessageId]]
   var invalidRequests = 0
   if peer.score < g.parameters.gossipThreshold:
     trace "iwant: ignoring low score peer", peer, score = peer.score
@@ -350,15 +353,15 @@ proc handleIWant*(
           invalidRequests.inc()
           if invalidRequests > 20:
             libp2p_gossipsub_received_iwants.inc(1, labelValues = ["skipped"])
-            return result
+            return response
           continue
         let msg = g.mcache.get(mid).valueOr:
           libp2p_gossipsub_received_iwants.inc(1, labelValues = ["unknown"])
           continue
         libp2p_gossipsub_received_iwants.inc(1, labelValues = ["correct"])
-        result.messages.add(msg)
-        result.ids.add(mid)
-  return result
+        response.messages.add(msg)
+        response.ids.add(mid)
+  return response
 
 when defined(libp2p_gossipsub_1_4):
   proc medianDownloadRate*(p: var HashSet[PubSubPeer]): float =
@@ -385,9 +388,9 @@ when defined(libp2p_gossipsub_1_4):
         return
       if g.hasSeen(g.salt(preamble.messageID)):
         continue
-      if peer.heIsSendings.hasKey(preamble.messageID):
+      elif peer.heIsSendings.hasKey(preamble.messageID):
         continue
-      if g.ongoingReceives.hasKey(preamble.messageID):
+      elif g.ongoingReceives.hasKey(preamble.messageID):
         #TODO: add to conflicts_watch if length is different
         continue
       else:
@@ -439,7 +442,7 @@ when defined(libp2p_gossipsub_1_4):
       g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]
   ) =
     for imreceiving in imreceivings:
-      if peer.heIsReceivings.len > 50:
+      if peer.heIsReceivings.len > MaxHeIsReceiving:
         break
       #Ignore if message length is different
       g.ongoingReceives.withValue(imreceiving.messageID, pInfo):
