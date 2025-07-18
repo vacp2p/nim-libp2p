@@ -44,8 +44,11 @@ const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
 type
   TransportProvider* {.public.} = proc(
-    upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService
+    upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
   ): Transport {.gcsafe, raises: [].}
+
+  TransportConfig* = ref object
+    autotls*: AutotlsService
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -160,7 +163,7 @@ proc withTransport*(
       .new()
       .withTransport(
         proc(
-            upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService
+            upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
         ): Transport =
           TcpTransport.new(flags, upgr)
       )
@@ -172,7 +175,7 @@ proc withTcpTransport*(
     b: SwitchBuilder, flags: set[ServerFlags] = {}
 ): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService): Transport =
+    proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
       TcpTransport.new(flags, upgr)
   )
 
@@ -184,7 +187,8 @@ proc withWsTransport*(
     flags: set[ServerFlags] = {},
 ): SwitchBuilder =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService): Transport =
+    proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
+      let autotls = if not config.isNil(): config.autotls else: nil
       WsTransport.new(upgr, tlsPrivateKey, tlsCertificate, autotls, tlsFlags, flags)
   )
 
@@ -193,13 +197,13 @@ when defined(libp2p_quic_support):
 
   proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
     b.withTransport(
-      proc(upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService): Transport =
+      proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
         QuicTransport.new(upgr, privateKey)
     )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService): Transport =
+    proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
       MemoryTransport.new(upgr)
   )
 
@@ -321,7 +325,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   let transports = block:
     var transports: seq[Transport]
     for tProvider in b.transports:
-      transports.add(tProvider(muxedUpgrade, seckey, b.autotls))
+      transports.add(
+        tProvider(muxedUpgrade, seckey, TransportConfig(autotls: b.autotls))
+      )
     transports
 
   if b.secureManagers.len == 0:

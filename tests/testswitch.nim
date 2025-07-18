@@ -14,7 +14,6 @@ import chronos
 import stew/byteutils
 import
   ../libp2p/[
-    autotls/service,
     errors,
     dial,
     switch,
@@ -996,7 +995,7 @@ suite "Switch":
         .withMplex()
         .withTransport(
           proc(
-              upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService
+              upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
           ): Transport =
             WsTransport.new(upgr)
         )
@@ -1011,7 +1010,7 @@ suite "Switch":
         .withMplex()
         .withTransport(
           proc(
-              upgr: Upgrade, privateKey: PrivateKey, autotls: AutotlsService
+              upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
           ): Transport =
             WsTransport.new(upgr)
         )
