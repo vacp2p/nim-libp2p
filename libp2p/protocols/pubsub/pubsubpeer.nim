@@ -21,7 +21,8 @@ import
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
   ../../utility,
-  ../../utils/sequninit
+  ../../utils/sequninit,
+  ./bandwidth
 
 when defined(libp2p_gossipsub_1_4):
   import ./bandwidth
