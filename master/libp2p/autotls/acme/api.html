@@ -213,6 +213,11 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#ACMEAuthorizationsResponse"
     title="ACMEAuthorizationsResponse = object
   challenges*: seq[ACMEChallenge]">ACMEAuthorizationsResponse</a></li>
+  <li><a class="reference" href="#ACMECertificate"
+    title="ACMECertificate = object
+  rawCertificate*: string
+  certificateExpiry*: DateTime
+  certKeyPair*: KeyPair">ACMECertificate</a></li>
   <li><a class="reference" href="#ACMECertificateResponse"
     title="ACMECertificateResponse = object
   rawCertificate*: string
@@ -362,6 +367,22 @@ class="link-seesrc" target="_blank">Source</a>
 href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/acme/api.nim#L132"
 class="link-seesrc" target="_blank">Source</a>
 &nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/acme/api.nim#L132" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="ACMECertificate" class="tohide">
+<dt><pre><a href="api.html#ACMECertificate"><span class="Identifier">ACMECertificate</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">rawCertificate</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+  <span class="Identifier">certificateExpiry</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">DateTime</span>
+  <span class="Identifier">certKeyPair</span><span class="Operator">*</span><span class="Other">:</span> <a href="../../crypto/crypto.html#KeyPair"><span class="Identifier">KeyPair</span></a>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/autotls/acme/api.nim#L161"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/autotls/acme/api.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -713,7 +734,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-17 12:03:22 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-20 18:49:35 UTC</small>
       </div>
     </div>
   </div>

@@ -211,8 +211,9 @@ window.addEventListener("DOMContentLoaded", main2);
   wsserver: WSServer
   connections: array[Direction, seq[WsStream]]
   acceptFuts: seq[Future[HttpRequest]]
-  tlsPrivateKey: TLSPrivateKey
-  tlsCertificate: TLSCertificate
+  tlsPrivateKey*: TLSPrivateKey
+  tlsCertificate*: TLSCertificate
+  autotls: AutotlsService
   tlsFlags: set[TLSFlags]
   flags: set[ServerFlags]
   handshakeTimeout: Duration
@@ -237,14 +238,16 @@ window.addEventListener("DOMContentLoaded", main2);
     handshakeTimeout = DefaultHeadersTimeout): T:type">new(T: typedesc[WsTransport]; upgrade: Upgrade; flags: set[ServerFlags] = {};
     factories: openArray[ExtFactory] = []; rng: ref HmacDrbgContext = nil;
     handshakeTimeout = DefaultHeadersTimeout): T:type</a></li>
-  <li><a class="reference" href="#new%2Ctypedesc%5BWsTransport%5D%2CUpgrade%2CTLSPrivateKey%2CTLSCertificate%2Cset%5BTLSFlags%5D%2Cset%5BServerFlags%5D%2CopenArray%5BExtFactory%5D%2Cref.HmacDrbgContext"
+  <li><a class="reference" href="#new%2Ctypedesc%5BWsTransport%5D%2CUpgrade%2CTLSPrivateKey%2CTLSCertificate%2CAutotlsService%2Cset%5BTLSFlags%5D%2Cset%5BServerFlags%5D%2CopenArray%5BExtFactory%5D%2Cref.HmacDrbgContext"
     title="new(T: typedesc[WsTransport]; upgrade: Upgrade; tlsPrivateKey: TLSPrivateKey;
-    tlsCertificate: TLSCertificate; tlsFlags: set[TLSFlags] = {};
-    flags: set[ServerFlags] = {}; factories: openArray[ExtFactory] = [];
-    rng: ref HmacDrbgContext = nil; handshakeTimeout = DefaultHeadersTimeout): T:type">new(T: typedesc[WsTransport]; upgrade: Upgrade; tlsPrivateKey: TLSPrivateKey;
-    tlsCertificate: TLSCertificate; tlsFlags: set[TLSFlags] = {};
-    flags: set[ServerFlags] = {}; factories: openArray[ExtFactory] = [];
-    rng: ref HmacDrbgContext = nil; handshakeTimeout = DefaultHeadersTimeout): T:type</a></li>
+    tlsCertificate: TLSCertificate; autotls: AutotlsService;
+    tlsFlags: set[TLSFlags] = {}; flags: set[ServerFlags] = {};
+    factories: openArray[ExtFactory] = []; rng: ref HmacDrbgContext = nil;
+    handshakeTimeout = DefaultHeadersTimeout): T:type">new(T: typedesc[WsTransport]; upgrade: Upgrade; tlsPrivateKey: TLSPrivateKey;
+    tlsCertificate: TLSCertificate; autotls: AutotlsService;
+    tlsFlags: set[TLSFlags] = {}; flags: set[ServerFlags] = {};
+    factories: openArray[ExtFactory] = []; rng: ref HmacDrbgContext = nil;
+    handshakeTimeout = DefaultHeadersTimeout): T:type</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">secure
@@ -304,8 +307,8 @@ window.addEventListener("DOMContentLoaded", main2);
   <ul class="simple nested-toc-section">start
       <li><a class="reference" href="#start.e%2CWsTransport%2Cseq%5BMultiAddress%5D"
     title="start(self: WsTransport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
-    (LPError, TransportError)]">start(self: WsTransport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
-    (LPError, TransportError)]</a></li>
+    (LPError, TransportError, CancelledError)]">start(self: WsTransport; addrs: seq[MultiAddress]): InternalRaisesFuture[void,
+    (LPError, TransportError, CancelledError)]</a></li>
 
   </ul>
   <ul class="simple nested-toc-section">stop
@@ -345,7 +348,7 @@ class="link-seesrc" target="_blank">Source</a>
   <div class="section" id="6">
 <h1><a class="toc-backref" href="#6">Imports</a></h1>
 <dl class="item">
-<a class="reference external" href="transport.html">transport</a>, <a class="reference external" href="../errors.html">../errors</a>, <a class="reference external" href="../wire.html">../wire</a>, <a class="reference external" href="../multicodec.html">../multicodec</a>, <a class="reference external" href="../multistream.html">../multistream</a>, <a class="reference external" href="../connmanager.html">../connmanager</a>, <a class="reference external" href="../multiaddress.html">../multiaddress</a>, <a class="reference external" href="../utility.html">../utility</a>, <a class="reference external" href="../stream/connection.html">../stream/connection</a>, <a class="reference external" href="../upgrademngrs/upgrade.html">../upgrademngrs/upgrade</a>
+<a class="reference external" href="transport.html">transport</a>, <a class="reference external" href="../autotls/service.html">../autotls/service</a>, <a class="reference external" href="../errors.html">../errors</a>, <a class="reference external" href="../wire.html">../wire</a>, <a class="reference external" href="../multicodec.html">../multicodec</a>, <a class="reference external" href="../multistream.html">../multistream</a>, <a class="reference external" href="../connmanager.html">../connmanager</a>, <a class="reference external" href="../multiaddress.html">../multiaddress</a>, <a class="reference external" href="../utility.html">../utility</a>, <a class="reference external" href="../stream/connection.html">../stream/connection</a>, <a class="reference external" href="../upgrademngrs/upgrade.html">../upgrademngrs/upgrade</a>
 </dl></div>
 <div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
@@ -356,8 +359,9 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">wsserver</span><span class="Other">:</span> <span class="Identifier">WSServer</span>
   <span class="Identifier">connections</span><span class="Other">:</span> <span class="Identifier">array</span><span class="Other">[</span><span class="Identifier">Direction</span><span class="Other">,</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">WsStream</span><span class="Other">]</span><span class="Other">]</span>
   <span class="Identifier">acceptFuts</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">HttpRequest</span><span class="Other">]</span><span class="Other">]</span>
-  <span class="Identifier">tlsPrivateKey</span><span class="Other">:</span> <span class="Identifier">TLSPrivateKey</span>
-  <span class="Identifier">tlsCertificate</span><span class="Other">:</span> <span class="Identifier">TLSCertificate</span>
+  <span class="Identifier">tlsPrivateKey</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">TLSPrivateKey</span>
+  <span class="Identifier">tlsCertificate</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">TLSCertificate</span>
+  <span class="Identifier">autotls</span><span class="Other">:</span> <a href="../autotls/service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a>
   <span class="Identifier">tlsFlags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">TLSFlags</span><span class="Other">]</span>
   <span class="Identifier">flags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">ServerFlags</span><span class="Other">]</span>
   <span class="Identifier">handshakeTimeout</span><span class="Other">:</span> <span class="Identifier">Duration</span>
@@ -368,9 +372,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L104"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L108"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L104" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L108" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -380,9 +384,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L41"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L45"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L41" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L45" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -399,9 +403,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L49"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L53"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L49" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -414,25 +418,26 @@ class="link-seesrc" target="_blank">Source</a>
 
 Creates a clear-text WebSocket transport
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L378"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L403"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L378" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L403" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="new,typedesc[WsTransport],Upgrade,TLSPrivateKey,TLSCertificate,set[TLSFlags],set[ServerFlags],openArray[ExtFactory],ref.HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BWsTransport%5D%2CUpgrade%2CTLSPrivateKey%2CTLSCertificate%2Cset%5BTLSFlags%5D%2Cset%5BServerFlags%5D%2CopenArray%5BExtFactory%5D%2Cref.HmacDrbgContext"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="wstransport.html#WsTransport"><span class="Identifier">WsTransport</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">upgrade</span><span class="Other">:</span> <a href="../connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a><span class="Other">;</span>
+<div id="new,typedesc[WsTransport],Upgrade,TLSPrivateKey,TLSCertificate,AutotlsService,set[TLSFlags],set[ServerFlags],openArray[ExtFactory],ref.HmacDrbgContext" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BWsTransport%5D%2CUpgrade%2CTLSPrivateKey%2CTLSCertificate%2CAutotlsService%2Cset%5BTLSFlags%5D%2Cset%5BServerFlags%5D%2CopenArray%5BExtFactory%5D%2Cref.HmacDrbgContext"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="wstransport.html#WsTransport"><span class="Identifier">WsTransport</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">upgrade</span><span class="Other">:</span> <a href="../connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a><span class="Other">;</span>
          <span class="Identifier">tlsPrivateKey</span><span class="Other">:</span> <span class="Identifier">TLSPrivateKey</span><span class="Other">;</span> <span class="Identifier">tlsCertificate</span><span class="Other">:</span> <span class="Identifier">TLSCertificate</span><span class="Other">;</span>
-         <span class="Identifier">tlsFlags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">TLSFlags</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">;</span> <span class="Identifier">flags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">ServerFlags</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">;</span>
-         <span class="Identifier">factories</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">ExtFactory</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">;</span>
+         <span class="Identifier">autotls</span><span class="Other">:</span> <a href="../autotls/service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a><span class="Other">;</span> <span class="Identifier">tlsFlags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">TLSFlags</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">;</span>
+         <span class="Identifier">flags</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><span class="Identifier">ServerFlags</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">;</span> <span class="Identifier">factories</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">ExtFactory</span><span class="Other">]</span> <span class="Other">=</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">;</span>
+         <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">;</span>
          <span class="Identifier">handshakeTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultHeadersTimeout</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Creates a secure WebSocket transport
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L354"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L377"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L354" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L377" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -442,9 +447,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L119"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L123"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L119" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L123" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -460,11 +465,11 @@ class="link-seesrc" target="_blank">Source</a>
                                         <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-accept a new WS connection 
+
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L257"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L276"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L257" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L276" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -476,9 +481,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L94"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L98"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L94" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L98" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -491,9 +496,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 dial a peer 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L323"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L347"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L323" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L347" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -503,9 +508,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L101"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L105"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L101" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L105" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -516,9 +521,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L349"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L372"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L349" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L372" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -528,9 +533,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L43"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L47"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L43" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L47" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -542,24 +547,23 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L80"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L84"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L80" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L84" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="start.e,WsTransport,seq[MultiAddress]" class="tohide">
 <dt><pre><span class="Keyword">method</span> <a href="#start.e%2CWsTransport%2Cseq%5BMultiAddress%5D"><span class="Identifier">start</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="wstransport.html#WsTransport"><span class="Identifier">WsTransport</span></a><span class="Other">;</span> <span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><a href="../errors.html#LPError"><span class="Identifier">LPError</span></a><span class="Other">,</span> <a href="../upgrademngrs/upgrade.html#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
-                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-                                       <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><a href="../errors.html#LPError"><span class="Identifier">LPError</span></a><span class="Other">,</span> <a href="../upgrademngrs/upgrade.html#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 listen on the transport 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L124"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L128"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L124" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -571,9 +575,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 stop the transport 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L186"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L205"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L186" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L205" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -586,9 +590,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L90"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/wstransport.nim#L94"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L90" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/wstransport.nim#L94" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -607,7 +611,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-17 12:03:19 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-20 18:49:36 UTC</small>
       </div>
     </div>
   </div>
