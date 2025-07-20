@@ -376,7 +376,6 @@ when defined(libp2p_gossipsub_1_4):
     else:
       vals[mid]
 
-when defined(libp2p_gossipsub_1_4):
   proc handlePreamble*(
       g: GossipSub, peer: PubSubPeer, preambles: seq[ControlPreamble]
   ) =
@@ -437,7 +436,6 @@ when defined(libp2p_gossipsub_1_4):
             isHighPriority = true,
           )
 
-when defined(libp2p_gossipsub_1_4):
   proc handleIMReceiving*(
       g: GossipSub, peer: PubSubPeer, imreceivings: seq[ControlIMReceiving]
   ) =

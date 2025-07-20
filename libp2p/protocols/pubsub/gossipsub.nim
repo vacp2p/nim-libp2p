@@ -458,10 +458,8 @@ when defined(libp2p_gossipsub_1_4):
     if msg.data.len < preambleMessageSizeThreshold:
       return
 
-    let preamblePeers = toSendPeers.filterIt(it.codec == GossipSubCodec_14)
-
     g.broadcast(
-      preamblePeers,
+      toSendPeers.filterIt(it.codec == GossipSubCodec_14),
       RPCMsg(
         control: some(
           ControlMessage(

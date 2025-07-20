@@ -390,6 +390,7 @@ suite "GossipSub Integration - Control Messages":
     # Then IDONTWANT is sent to B on publish
     checkUntilTimeout:
       nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants.anyIt(it.len == 1))
+
   when defined(libp2p_gossipsub_1_4):
     asyncTest "emit IMReceiving while handling preamble control msg":
       # Given GossipSub node with 1 peer
