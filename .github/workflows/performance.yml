@@ -46,3 +46,12 @@ jobs:
       - name: Run
         run: |
           ./performance/runner.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Aggregate and display summary
+        run: |
+          python3 ./performance/aggregate_stats.py
