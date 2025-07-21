@@ -994,10 +994,8 @@ suite "Switch":
         .withRng(crypto.newRng())
         .withMplex()
         .withTransport(
-          proc(
-              upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
-          ): Transport =
-            WsTransport.new(upgr)
+          proc(config: TransportConfig): Transport =
+            WsTransport.new(config.upgr)
         )
         .withNameResolver(resolver)
         .withNoise()
@@ -1009,10 +1007,8 @@ suite "Switch":
         .withRng(crypto.newRng())
         .withMplex()
         .withTransport(
-          proc(
-              upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
-          ): Transport =
-            WsTransport.new(upgr)
+          proc(config: TransportConfig): Transport =
+            WsTransport.new(config.upgr)
         )
         .withTcpTransport()
         .withNoise()

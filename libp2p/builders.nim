@@ -43,11 +43,15 @@ export
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
 type
-  TransportProvider* {.public.} = proc(
-    upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
-  ): Transport {.gcsafe, raises: [].}
+  TransportProvider* {.deprecated: "Use TransportBuilder instead".} =
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
+
+  TransportBuilder* {.public.} =
+    proc(config: TransportConfig): Transport {.gcsafe, raises: [].}
 
   TransportConfig* = ref object
+    upgr*: Upgrade
+    privateKey*: PrivateKey
     autotls*: AutotlsService
 
   SecureProtocol* {.pure.} = enum
@@ -58,7 +62,7 @@ type
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerProvider]
-    transports: seq[TransportProvider]
+    transports: seq[TransportBuilder]
     rng: ref HmacDrbgContext
     maxConnections: int
     maxIn: int
@@ -155,28 +159,42 @@ proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b
 
 proc withTransport*(
-    b: SwitchBuilder, prov: TransportProvider
+    b: SwitchBuilder, prov: TransportBuilder
 ): SwitchBuilder {.public.} =
   ## Use a custom transport
   runnableExamples:
     let switch = SwitchBuilder
       .new()
       .withTransport(
-        proc(
-            upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig
-        ): Transport =
-          TcpTransport.new(flags, upgr)
+        proc(config: TransportConfig): Transport =
+          TcpTransport.new(flags, config.upgr)
       )
       .build()
   b.transports.add(prov)
   b
 
+proc withTransport*(
+    b: SwitchBuilder, prov: TransportProvider
+): SwitchBuilder {.deprecated: "Use TransportBuilder instead".} =
+  ## Use a custom transport
+  runnableExamples:
+    let switch = SwitchBuilder
+      .new()
+      .withTransport(
+        proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+          TcpTransport.new(flags, upgr)
+      )
+      .build()
+  let tBuilder: TransportBuilder = proc(config: TransportConfig): Transport =
+    prov(config.upgr, config.privateKey)
+  b.withTransport(tBuilder)
+
 proc withTcpTransport*(
     b: SwitchBuilder, flags: set[ServerFlags] = {}
 ): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
-      TcpTransport.new(flags, upgr)
+    proc(config: TransportConfig): Transport =
+      TcpTransport.new(flags, config.upgr)
   )
 
 proc withWsTransport*(
@@ -187,9 +205,10 @@ proc withWsTransport*(
     flags: set[ServerFlags] = {},
 ): SwitchBuilder =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
-      let autotls = if not config.isNil(): config.autotls else: nil
-      WsTransport.new(upgr, tlsPrivateKey, tlsCertificate, autotls, tlsFlags, flags)
+    proc(config: TransportConfig): Transport =
+      WsTransport.new(
+        config.upgr, tlsPrivateKey, tlsCertificate, config.autotls, tlsFlags, flags
+      )
   )
 
 when defined(libp2p_quic_support):
@@ -197,14 +216,14 @@ when defined(libp2p_quic_support):
 
   proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
     b.withTransport(
-      proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
-        QuicTransport.new(upgr, privateKey)
+      proc(config: TransportConfig): Transport =
+        QuicTransport.new(config.upgr, config.privateKey)
     )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey, config: TransportConfig): Transport =
-      MemoryTransport.new(upgr)
+    proc(config: TransportConfig): Transport =
+      MemoryTransport.new(config.upgr)
   )
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
@@ -326,7 +345,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     var transports: seq[Transport]
     for tProvider in b.transports:
       transports.add(
-        tProvider(muxedUpgrade, seckey, TransportConfig(autotls: b.autotls))
+        tProvider(
+          TransportConfig(upgr: muxedUpgrade, privateKey: seckey, autotls: b.autotls)
+        )
       )
     transports
 

@@ -948,7 +948,7 @@ when defined(libp2p_gossipsub_1_4):
           let expires = starts + transmissionTimeMs.milliseconds
 
           # Setting new data before reinserting the preamble
-          expiredOngoingReceive.startAt = starts
+          expiredOngoingReceive.startsAt = starts
           expiredOngoingReceive.expiresAt = expires
           expiredOngoingReceive.sender = peer
           g.ongoingIWantReceives[expiredOngoingReceive.messageId] =
