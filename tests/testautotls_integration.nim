@@ -130,12 +130,12 @@ when defined(linux) and defined(amd64):
       check dnsTXTRecord.len > 0
 
       # certificate was downloaded and parsed
-      let cert = autotls.cert.valueOr:
+      let certBefore = autotls.cert.valueOr:
         raiseAssert "certificate not found"
-      let certBefore = cert
 
       # invalidate certificate
-      let invalidCert = AutotlsCert.new(cert.cert, Moment.now - 2.hours)
+      let invalidCert =
+        AutotlsCert.new(certBefore.cert, certBefore.privkey, Moment.now - 2.hours)
       autotls.cert = Opt.some(invalidCert)
 
       # wait for cert to be renewed
@@ -145,7 +145,7 @@ when defined(linux) and defined(amd64):
       let certAfter = autotls.cert.valueOr:
         raiseAssert "certificate not found"
 
-      check certBefore != certAfter
+      check certBefore.cert != certAfter.cert
 
       # cert is valid
       check certAfter.expiry > Moment.now
