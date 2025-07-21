@@ -890,7 +890,7 @@ method publish*(
 
   let pubParams = publishParams.get(PublishParams())
 
-  let peers =
+  var peers =
     if pubParams.useCustomConn:
       g.makePeersForPublishUsingCustomConn(topic)
     else:
