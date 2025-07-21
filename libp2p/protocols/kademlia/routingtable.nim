@@ -7,6 +7,7 @@ import ./keys
 import ./xordistance
 import ../../peerid
 import sequtils
+import ../../utils/sequninit
 
 logScope:
   topics = "kad-dht rtable"
@@ -112,7 +113,7 @@ proc randomKeyInBucketRange*(
   let totalBits = raw.len * 8
   let lsbStart = bucketIndex + 1
   let lsbBytes = (totalBits - lsbStart + 7) div 8
-  var randomBuf = newSeqUninitialized[byte](lsbBytes)
+  var randomBuf = newSeqUninit[byte](lsbBytes)
   hmacDrbgGenerate(rng[], randomBuf)
 
   for i in lsbStart ..< totalBits:

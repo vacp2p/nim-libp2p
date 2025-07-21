@@ -12,6 +12,7 @@
 {.push raises: [].}
 
 import ../varint, ../utility, stew/endians2, results
+import ../utils/sequninit
 export results, utility
 
 {.push public.}
@@ -147,12 +148,12 @@ proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
   if WithVarintLength in options:
     # Our buffer will start from position 10, so we can store length of buffer
     # in [0, 9].
-    result.buffer = newSeqUninitialized[byte](10)
+    result.buffer = newSeqUninit[byte](10)
     result.offset = 10
   elif {WithUint32LeLength, WithUint32BeLength} * options != {}:
     # Our buffer will start from position 4, so we can store length of buffer
     # in [0, 3].
-    result.buffer = newSeqUninitialized[byte](4)
+    result.buffer = newSeqUninit[byte](4)
     result.offset = 4
 
 proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =

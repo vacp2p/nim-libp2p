@@ -104,12 +104,13 @@ proc expandDnsAddr(
 ): Future[seq[(MultiAddress, Opt[PeerId])]] {.
     async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
 .} =
-  if not DNSADDR.matchPartial(address):
+  if not DNS.matchPartial(address):
     return @[(address, peerId)]
   if isNil(self.nameResolver):
     info "Can't resolve DNSADDR without NameResolver", ma = address
     return @[]
 
+  trace "Start trying to resolve addresses"
   let
     toResolve =
       if peerId.isSome:
@@ -120,6 +121,9 @@ proc expandDnsAddr(
       else:
         address
     resolved = await self.nameResolver.resolveDnsAddr(toResolve)
+
+  debug "resolved addresses",
+    originalAddresses = toResolve, resolvedAddresses = resolved
 
   for resolvedAddress in resolved:
     let lastPart = resolvedAddress[^1].tryGet()
@@ -145,7 +149,6 @@ proc dialAndUpgrade(
   for rawAddress in addrs:
     # resolve potential dnsaddr
     let addresses = await self.expandDnsAddr(peerId, rawAddress)
-
     for (expandedAddress, addrPeerId) in addresses:
       # DNS resolution
       let
@@ -155,6 +158,11 @@ proc dialAndUpgrade(
             @[expandedAddress]
           else:
             await self.nameResolver.resolveMAddress(expandedAddress)
+
+      debug "Expanded address and hostname",
+        expandedAddress = expandedAddress,
+        hostname = hostname,
+        resolvedAddresses = resolvedAddresses
 
       for resolvedAddress in resolvedAddresses:
         result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress, dir)

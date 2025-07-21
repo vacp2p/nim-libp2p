@@ -11,6 +11,7 @@
 {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
+import ../utils/sequninit
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -176,7 +177,7 @@ proc shuffle*[T](rng: ref HmacDrbgContext, x: var openArray[T]) =
   if x.len == 0:
     return
 
-  var randValues = newSeqUninitialized[byte](len(x) * 2)
+  var randValues = newSeqUninit[byte](len(x) * 2)
   hmacDrbgGenerate(rng[], randValues)
 
   for i in countdown(x.high, 1):
@@ -873,7 +874,7 @@ proc stretchKeys*(
   var seed = "key expansion"
   result.macsize = 20
   let length = result.ivsize + result.keysize + result.macsize
-  result.data = newSeqUninitialized[byte](2 * length)
+  result.data = newSeqUninit[byte](2 * length)
 
   if hashType == "SHA256":
     makeSecret(result.data, HMAC[sha256], sharedSecret, seed)
@@ -904,7 +905,7 @@ template macOpenArray*(secret: Secret, id: int): untyped =
 
 proc iv*(secret: Secret, id: int): seq[byte] {.inline.} =
   ## Get array of bytes with with initial vector.
-  result = newSeqUninitialized[byte](secret.ivsize)
+  result = newSeqUninit[byte](secret.ivsize)
   var offset =
     if id == 0:
       0
@@ -913,7 +914,7 @@ proc iv*(secret: Secret, id: int): seq[byte] {.inline.} =
   copyMem(addr result[0], unsafeAddr secret.data[offset], secret.ivsize)
 
 proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
-  result = newSeqUninitialized[byte](secret.keysize)
+  result = newSeqUninit[byte](secret.keysize)
   var offset =
     if id == 0:
       0
@@ -923,7 +924,7 @@ proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
   copyMem(addr result[0], unsafeAddr secret.data[offset], secret.keysize)
 
 proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
-  result = newSeqUninitialized[byte](secret.macsize)
+  result = newSeqUninit[byte](secret.macsize)
   var offset =
     if id == 0:
       0

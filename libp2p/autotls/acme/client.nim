@@ -9,12 +9,9 @@
 
 {.push raises: [].}
 
-import uri
-import chronos, results, chronicles, stew/byteutils
-
-import ./api, ./utils
+import chronicles
 import ../../crypto/crypto
-import ../../crypto/rsa
+import ./api
 
 export api
 
@@ -28,59 +25,74 @@ type ACMEClient* = ref object
 logScope:
   topics = "libp2p acme client"
 
-proc new*(
-    T: typedesc[ACMEClient],
-    rng: ref HmacDrbgContext = newRng(),
-    api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
-    key: Opt[KeyPair] = Opt.none(KeyPair),
-    kid: Kid = Kid(""),
-): T {.raises: [].} =
-  let key = key.valueOr:
-    KeyPair.random(PKScheme.RSA, rng[]).get()
-  T(api: api, key: key, kid: kid)
+when defined(libp2p_autotls_support):
+  import uri
+  import chronos, results, stew/byteutils
+  import ../../crypto/rsa
+  import ./utils
 
-proc getOrInitKid*(
-    self: ACMEClient
-): Future[Kid] {.async: (raises: [ACMEError, CancelledError]).} =
-  if self.kid.len == 0:
-    let registerResponse = await self.api.requestRegister(self.key)
-    self.kid = registerResponse.kid
-  return self.kid
+  proc new*(
+      T: typedesc[ACMEClient],
+      rng: ref HmacDrbgContext = newRng(),
+      api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
+      key: Opt[KeyPair] = Opt.none(KeyPair),
+      kid: Kid = Kid(""),
+  ): T {.raises: [].} =
+    let key = key.valueOr:
+      KeyPair.random(PKScheme.RSA, rng[]).get()
+    T(api: api, key: key, kid: kid)
 
-proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
-  base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toBytes).data))
+  proc getOrInitKid*(
+      self: ACMEClient
+  ): Future[Kid] {.async: (raises: [ACMEError, CancelledError]).} =
+    if self.kid.len == 0:
+      let registerResponse = await self.api.requestRegister(self.key)
+      self.kid = registerResponse.kid
+    return self.kid
 
-proc getChallenge*(
-    self: ACMEClient, domains: seq[api.Domain]
-): Future[ACMEChallengeResponseWrapper] {.async: (raises: [ACMEError, CancelledError]).} =
-  await self.api.requestChallenge(domains, self.key, await self.getOrInitKid())
+  proc genKeyAuthorization*(self: ACMEClient, token: string): KeyAuthorization =
+    base64UrlEncode(@(sha256.digest((token & "." & thumbprint(self.key)).toBytes).data))
 
-proc getCertificate*(
-    self: ACMEClient, domain: api.Domain, challenge: ACMEChallengeResponseWrapper
-): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let chalURL = parseUri(challenge.dns01.url)
-  let orderURL = parseUri(challenge.order)
-  let finalizeURL = parseUri(challenge.finalize)
-  trace "sending challenge completed notification"
-  discard
-    await self.api.sendChallengeCompleted(chalURL, self.key, await self.getOrInitKid())
+  proc getChallenge*(
+      self: ACMEClient, domains: seq[api.Domain]
+  ): Future[ACMEChallengeResponseWrapper] {.
+      async: (raises: [ACMEError, CancelledError])
+  .} =
+    await self.api.requestChallenge(domains, self.key, await self.getOrInitKid())
 
-  trace "checking for completed challenge"
-  let completed =
-    await self.api.checkChallengeCompleted(chalURL, self.key, await self.getOrInitKid())
-  if not completed:
-    raise
-      newException(ACMEError, "Failed to signal ACME server about challenge completion")
+  proc getCertificate*(
+      self: ACMEClient,
+      domain: api.Domain,
+      certKeyPair: KeyPair,
+      challenge: ACMEChallengeResponseWrapper,
+  ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
+    let chalURL = parseUri(challenge.dns01.url)
+    let orderURL = parseUri(challenge.order)
+    let finalizeURL = parseUri(challenge.finalize)
+    trace "Sending challenge completed notification"
+    discard await self.api.sendChallengeCompleted(
+      chalURL, self.key, await self.getOrInitKid()
+    )
 
-  trace "waiting for certificate to be finalized"
-  let finalized = await self.api.certificateFinalized(
-    domain, finalizeURL, orderURL, self.key, await self.getOrInitKid()
-  )
-  if not finalized:
-    raise newException(ACMEError, "Failed to finalize certificate for domain " & domain)
+    trace "Checking for completed challenge"
+    let completed = await self.api.checkChallengeCompleted(
+      chalURL, self.key, await self.getOrInitKid()
+    )
+    if not completed:
+      raise newException(
+        ACMEError, "Failed to signal ACME server about challenge completion"
+      )
 
-  trace "downloading certificate"
-  await self.api.downloadCertificate(orderURL)
+    trace "Waiting for certificate to be finalized"
+    let finalized = await self.api.certificateFinalized(
+      domain, finalizeURL, orderURL, certKeyPair, self.key, await self.getOrInitKid()
+    )
+    if not finalized:
+      raise
+        newException(ACMEError, "Failed to finalize certificate for domain " & domain)
 
-proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =
-  await self.api.close()
+    trace "Downloading certificate"
+    await self.api.downloadCertificate(orderURL)
+
+  proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =
+    await self.api.close()

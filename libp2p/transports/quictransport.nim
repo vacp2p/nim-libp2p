@@ -42,6 +42,9 @@ proc new(
   procCall P2PConnection(quicstream).initStream()
   quicstream
 
+method getWrapped*(self: QuicStream): P2PConnection =
+  nil
+
 template mapExceptions(body: untyped) =
   try:
     body
@@ -210,7 +213,7 @@ method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises:
 
 method start*(
     self: QuicTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listener.isNil, "start() already called"
   #TODO handle multiple addr
 

@@ -159,7 +159,7 @@ proc stop*(query: DiscoveryQuery) =
   query.finished = true
   for r in query.futs:
     if not r.finished():
-      r.cancel()
+      r.cancelSoon()
 
 proc stop*(dm: DiscoveryManager) =
   for q in dm.queries:
@@ -167,7 +167,7 @@ proc stop*(dm: DiscoveryManager) =
   for i in dm.interfaces:
     if isNil(i.advertiseLoop):
       continue
-    i.advertiseLoop.cancel()
+    i.advertiseLoop.cancelSoon()
 
 proc getPeer*(
     query: DiscoveryQuery
@@ -179,7 +179,7 @@ proc getPeer*(
   try:
     await getter or allFinished(query.futs)
   except CancelledError as exc:
-    getter.cancel()
+    getter.cancelSoon()
     raise exc
 
   if not finished(getter):

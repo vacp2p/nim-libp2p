@@ -107,6 +107,16 @@ cert_error_t cert_init_drbg(const char *seed, size_t seed_len,
 cert_error_t cert_generate_key(cert_context_t ctx, cert_key_t *out);
 
 /**
+ * Copy DER formated seckey to a cert_key_t
+ *
+ * @param seckey Private Key bytes in DER format
+ * @param out Pointer to store the key as cert_key_t
+ *
+ * @return CERT_SUCCESS on successful execution, an error code otherwise
+ */
+cert_error_t cert_new_key_t(cert_buffer *seckey, cert_key_t *out);
+
+/**
  * Serialize a key's private key to a format
  *
  * @param key The key to export

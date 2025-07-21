@@ -52,12 +52,16 @@ func shortLog*(p: PeerInfo): auto =
 chronicles.formatIt(PeerInfo):
   shortLog(it)
 
+proc expandAddrs*(
+    p: PeerInfo
+): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+  var addrs = p.listenAddrs
+  for mapper in p.addressMappers:
+    addrs = await mapper(addrs)
+  addrs
+
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
-  # p.addrs.len == 0 overrides addrs only if it is the first time update is being executed or if the field is empty.
-  # p.addressMappers.len == 0 is for when all addressMappers have been removed,
-  # and we wish to have addrs in its initial state, i.e., a copy of listenAddrs.
-  if p.addrs.len == 0 or p.addressMappers.len == 0:
-    p.addrs = p.listenAddrs
+  p.addrs = p.listenAddrs
   for mapper in p.addressMappers:
     p.addrs = await mapper(p.addrs)
 

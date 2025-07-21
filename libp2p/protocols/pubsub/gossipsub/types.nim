@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import chronos
-import std/[options, tables, sets]
+import std/[options, tables, sets, heapqueue]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
@@ -18,6 +18,7 @@ import "../../.."/[peerid, multiaddress, utility]
 export options, tables, sets
 
 const
+  GossipSubCodec_14* = "/meshsub/1.4.0"
   GossipSubCodec_12* = "/meshsub/1.2.0"
   GossipSubCodec_11* = "/meshsub/1.1.0"
   GossipSubCodec_10* = "/meshsub/1.0.0"
@@ -46,6 +47,8 @@ const
   BackoffSlackTime* = 2 # seconds
   PingsPeerBudget* = 100 # maximum of 6.4kb/heartbeat (6.4kb/s with default 1 second/hb)
   IHavePeerBudget* = 10
+  PreamblePeerBudget* = 10
+  PullOperation* = true
   # the max amount of IHave to expose, not by spec, but go as example
   # rust sigp: https://github.com/sigp/rust-libp2p/blob/f53d02bc873fef2bf52cd31e3d5ce366a41d8a8c/protocols/gossipsub/src/config.rs#L572
   # go: https://github.com/libp2p/go-libp2p-pubsub/blob/08c17398fb11b2ab06ca141dddc8ec97272eb772/gossipsub.go#L155
@@ -64,6 +67,24 @@ type
     meshMessageDeliveries*: float64
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
+
+  PeerSet* = object
+    order*: seq[PeerId]
+    peers*: HashSet[PeerId]
+
+  PreambleInfo* = ref object
+    messageId*: MessageId
+    messageLength*: uint32
+    topicId*: string
+    sender*: PubSubPeer
+    startsAt*: Moment
+    expiresAt*: Moment
+    deleted*: bool # tombstone marker
+    peerSet*: PeerSet
+
+  PreambleStore* = object
+    byId*: Table[MessageId, PreambleInfo]
+    heap*: HeapQueue[PreambleInfo]
 
   TopicParams* {.public.} = object
     topicWeight*: float64
@@ -162,6 +183,7 @@ type
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
+  OngoingReceivesStore* = PreambleStore
 
   RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
   RoutingRecordsHandler* = proc(
@@ -181,6 +203,9 @@ type
     mcache*: MCache # messages cache
     validationSeen*: ValidationSeenTable # peers who sent us message in validation
     heartbeatFut*: Future[void] # cancellation future for heartbeat interval
+    when defined(libp2p_gossipsub_1_4):
+      preambleExpirationFut*: Future[void]
+      # cancellation future for preamble expiration heartbeat interval
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
@@ -193,6 +218,11 @@ type
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
 
     heartbeatEvents*: seq[AsyncEvent]
+
+    when defined(libp2p_gossipsub_1_4):
+      ongoingReceives*: OngoingReceivesStore # list of messages we are receiving
+      ongoingIWantReceives*: OngoingReceivesStore
+        # list of iwant replies we are receiving
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64

@@ -289,7 +289,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id, id, id])
 
     # When a peer makes an IWANT request for the a message that `gossipSub` has
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then `gossipSub` should return the message
     check:
@@ -315,7 +315,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id])
 
     # When IWant is handled
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then IWant is ignored
     check:
@@ -339,7 +339,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id])
 
     # When IWANT is handled
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then IWant is ignored
     check:
@@ -363,7 +363,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: @[id])
 
     # When IWANT is handled
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then IWant is ignored
     check:
@@ -396,7 +396,7 @@ suite "GossipSub Behavior":
     let msg = ControlIWant(messageIDs: messageIds)
 
     # When IWANT is handled
-    let messages = gossipSub.handleIWant(peer, @[msg])
+    let (messages, _) = gossipSub.handleIWant(peer, @[msg])
 
     # Then processing stops after 21 invalid requests
     # so the last 4 valid messages are not processed

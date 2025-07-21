@@ -17,6 +17,7 @@ import ../../crypto/crypto
 import ../../errors
 import ./certificate_ffi
 import ../../../libp2p/peerid
+import ../../utils/sequninit
 
 logScope:
   topics = "libp2p tls certificate"
@@ -98,7 +99,7 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
   ##
   let P2P_SIGNING_PREFIX = "libp2p-tls-handshake:".toBytes()
   let prefixLen = P2P_SIGNING_PREFIX.len.int
-  let msg = newSeqUninitialized[byte](prefixLen + pubKey.len)
+  let msg = newSeqUninit[byte](prefixLen + pubKey.len)
   copyMem(msg[0].unsafeAddr, P2P_SIGNING_PREFIX[0].unsafeAddr, prefixLen)
   copyMem(msg[prefixLen].unsafeAddr, pubKey[0].unsafeAddr, pubKey.len.int)
 
