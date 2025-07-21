@@ -21,4 +21,7 @@ RUN chmod +x main
 
 EXPOSE 5000 8008
 
+# The shared volume will be mounted at /output by runner.sh
+VOLUME ["/output"]
+
 ENTRYPOINT ["./main"]

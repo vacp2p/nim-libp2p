@@ -15,6 +15,11 @@ fi
 
 # Start containers and collect their names
 container_names=()
+
+output_dir="$(pwd)/performance/output"
+mkdir -p "$output_dir"
+rm -f "$output_dir"/*.json
+
 for ((i = 0; i < $PEERS; i++)); do
     hostname="pod-$i"
     publish_port=""
@@ -29,6 +34,8 @@ for ((i = 0; i < $PEERS; i++)); do
       -e MSG_COUNT="$MSG_COUNT" \
       -e MSG_INTERVAL="$MSG_INTERVAL" \
       -e MSG_SIZE="$MSG_SIZE" \
+      -e CONTAINER_NAME="$container_name" \
+      -v "$output_dir:/output" \
       --hostname="$hostname" \
       --network="$custom_network_name" \
       $publish_port \
@@ -39,4 +46,9 @@ done
 # Wait for all containers to finish
 for cname in "${container_names[@]}"; do
     docker wait "$cname"
+done
+
+# Clean up all containers (force remove)
+for cname in "${container_names[@]}"; do
+    docker rm -f "$cname"
 done

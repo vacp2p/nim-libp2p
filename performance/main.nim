@@ -7,6 +7,7 @@ import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/ping
+import json
 from nativesockets import getHostname
 
 proc msgIdProvider(m: Message): Result[MessageId, ValidationResult] =
@@ -92,9 +93,10 @@ proc main() {.async.} =
 
   # --- Message Handling ---
   const warmupMessages = 5
-  var sentMessages: Table[uint64, int64]         # messageId -> send time (nanoseconds)
-  var receivedMessages: Table[uint64, seq[int64]] # messageId -> seq of receive times (nanoseconds)
-  var latencies: seq[int64]                      # ms latency per message
+  var sentMessages: Table[uint64, int64] # messageId -> send time (nanoseconds)
+  var receivedMessages: Table[uint64, seq[int64]]
+    # messageId -> seq of receive times (nanoseconds)
+  var latencies: seq[int64] # ms latency per message
   proc messageHandler(topic: string, data: seq[byte]) {.async.} =
     # Skip warm-up messages by checking their data
     if data == "warmup".toBytes():
@@ -109,7 +111,8 @@ proc main() {.async.} =
       receivedMessages[msgId] = @[]
     receivedMessages[msgId].add(nowNs)
     latencies.add(latencyMicro)
-    echo "Message ", msgId, " delivered. Latency: ", formatFloat(latencyMs, ffDecimal, 3), " ms"
+    echo "Message ",
+      msgId, " delivered. Latency: ", formatFloat(latencyMs, ffDecimal, 3), " ms"
 
   proc messageValidator(
       topic: string, msg: Message
@@ -196,15 +199,37 @@ proc main() {.async.} =
   echo "\n--- Performance Summary (per node) ---"
   echo "Total messages sent by this node (excluding warm-up): ", sentByThisNode.len
   echo "Messages received by this node: ", receivedKeys.len, "/", msgCount
+  var minLatencyMs, maxLatencyMs, avgLatencyMs: float
   if latencies.len > 0:
-    let minLatencyMs = float(latencies.min) / 1000.0
-    let maxLatencyMs = float(latencies.max) / 1000.0
+    minLatencyMs = float(latencies.min) / 1000.0
+    maxLatencyMs = float(latencies.max) / 1000.0
     var sumLatency: int64 = 0
     for l in latencies:
       sumLatency += l
-    let avgLatencyMs = float(sumLatency) / float(latencies.len) / 1000.0
-    echo "Latency (ms): min=", formatFloat(minLatencyMs, ffDecimal, 3), ", max=", formatFloat(maxLatencyMs, ffDecimal, 3), ", avg=", formatFloat(avgLatencyMs, ffDecimal, 3)
+    avgLatencyMs = float(sumLatency) / float(latencies.len) / 1000.0
+    echo "Latency (ms): min=",
+      formatFloat(minLatencyMs, ffDecimal, 3),
+      ", max=",
+      formatFloat(maxLatencyMs, ffDecimal, 3),
+      ", avg=",
+      formatFloat(avgLatencyMs, ffDecimal, 3)
   else:
     echo "No latency data collected."
+    minLatencyMs = 0.0
+    maxLatencyMs = 0.0
+    avgLatencyMs = 0.0
+
+  # Write stats to JSON file in shared volume
+  let containerName = getEnv("CONTAINER_NAME", "unknown")
+  let outputPath = "/output/" & containerName & ".json"
+  let stats =
+    %*{
+      "totalSent": sentByThisNode.len,
+      "totalReceived": receivedKeys.len,
+      "minLatency": formatFloat(minLatencyMs, ffDecimal, 3),
+      "maxLatency": formatFloat(maxLatencyMs, ffDecimal, 3),
+      "avgLatency": formatFloat(avgLatencyMs, ffDecimal, 3),
+    }
+  writeFile(outputPath, stats.pretty)
 
 waitFor(main())
