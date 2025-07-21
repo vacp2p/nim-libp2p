@@ -19,7 +19,7 @@ logScope:
   topics = "kad-dht"
 
 type KadDHT* = ref object of LPProtocol
-  switch: Switch
+  switch*: Switch
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
@@ -106,6 +106,8 @@ proc findNode*(
           discard kad.rtable.insert(p.peerId)
           kad.switch.peerStore[AddressBook][p.peerId] = p.addrs
           # TODO: add TTL to peerstore, otherwise we can spam it with junk
+          # TODO: for discovery interface, invoke the found-peer handler
+          # TODO: when peer-find limit is reached, interupt the hunt.
         ,
       )
 
