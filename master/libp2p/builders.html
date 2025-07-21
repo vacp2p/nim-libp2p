@@ -214,7 +214,7 @@ window.addEventListener("DOMContentLoaded", main2);
   addresses: seq[MultiAddress]
   secureManagers: seq[SecureProtocol]
   muxers: seq[MuxerProvider]
-  transports: seq[TransportProvider]
+  transports: seq[TransportBuilder]
   rng: ref HmacDrbgContext
   maxConnections: int
   maxIn: int
@@ -232,10 +232,17 @@ window.addEventListener("DOMContentLoaded", main2);
   services: seq[Service]
   observedAddrManager: ObservedAddrManager
   enableWildcardResolver: bool">SwitchBuilder</a></li>
+  <li><a class="reference" href="#TransportBuilder"
+    title="TransportBuilder {.public.} = proc (config: TransportConfig): Transport {.
+    gcsafe, raises: [].}">TransportBuilder</a></li>
+  <li><a class="reference" href="#TransportConfig"
+    title="TransportConfig = ref object
+  upgr*: Upgrade
+  privateKey*: PrivateKey
+  autotls*: AutotlsService">TransportConfig</a></li>
   <li><a class="reference" href="#TransportProvider"
-    title="TransportProvider {.public.} = proc (upgr: Upgrade; privateKey: PrivateKey;
-                                     autotls: AutotlsService): Transport {.
-    gcsafe, raises: [].}">TransportProvider</a></li>
+    title="TransportProvider {.deprecated: &quot;Use TransportBuilder instead&quot;.} = proc (
+    upgr: Upgrade; privateKey: PrivateKey): Transport {.gcsafe, raises: [].}">TransportProvider</a></li>
 
   </ul>
 </li>
@@ -390,7 +397,9 @@ window.addEventListener("DOMContentLoaded", main2);
 
   </ul>
   <ul class="simple nested-toc-section">withTransport
-      <li><a class="reference" href="#withTransport%2CSwitchBuilder%2CTransportProvider"
+      <li><a class="reference" href="#withTransport%2CSwitchBuilder%2CTransportBuilder"
+    title="withTransport(b: SwitchBuilder; prov: TransportBuilder): SwitchBuilder">withTransport(b: SwitchBuilder; prov: TransportBuilder): SwitchBuilder</a></li>
+  <li><a class="reference" href="#withTransport%2CSwitchBuilder%2CTransportProvider"
     title="withTransport(b: SwitchBuilder; prov: TransportProvider): SwitchBuilder">withTransport(b: SwitchBuilder; prov: TransportProvider): SwitchBuilder</a></li>
 
   </ul>
@@ -444,9 +453,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L50"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L57"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L50" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L57" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -456,7 +465,7 @@ class="link-seesrc" target="_blank">Source</a>
   <span class="Identifier">addresses</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
   <span class="Identifier">secureManagers</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="muxers/mplex/mplex.html#SecureProtocol"><span class="Identifier">SecureProtocol</span></a><span class="Other">]</span>
   <span class="Identifier">muxers</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="muxers/muxer.html#MuxerProvider"><span class="Identifier">MuxerProvider</span></a><span class="Other">]</span>
-  <span class="Identifier">transports</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="muxers/mplex/mplex.html#TransportProvider"><span class="Identifier">TransportProvider</span></a><span class="Other">]</span>
+  <span class="Identifier">transports</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="muxers/mplex/mplex.html#TransportBuilder"><span class="Identifier">TransportBuilder</span></a><span class="Other">]</span>
   <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span>
   <span class="Identifier">maxConnections</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">maxIn</span><span class="Other">:</span> <span class="Identifier">int</span>
@@ -479,17 +488,48 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L53"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L60"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L53" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L60" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="TransportBuilder" class="tohide">
+<dt><pre><a href="muxers/mplex/mplex.html#TransportBuilder"><span class="Identifier">TransportBuilder</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">config</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#TransportConfig"><span class="Identifier">TransportConfig</span></a><span class="Other">)</span><span class="Other">:</span> <a href="upgrademngrs/upgrade.html#Transport"><span class="Identifier">Transport</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L49"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L49" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="TransportConfig" class="tohide">
+<dt><pre><a href="muxers/mplex/mplex.html#TransportConfig"><span class="Identifier">TransportConfig</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+  <span class="Identifier">upgr</span><span class="Operator">*</span><span class="Other">:</span> <a href="connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a>
+  <span class="Identifier">privateKey</span><span class="Operator">*</span><span class="Other">:</span> <a href="crypto/crypto.html#PrivateKey"><span class="Identifier">PrivateKey</span></a>
+  <span class="Identifier">autotls</span><span class="Operator">*</span><span class="Other">:</span> <a href="autotls/service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a>
+</pre></dt>
+<dd>
+
+
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L52"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L52" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
 <div id="TransportProvider" class="tohide">
-<dt><pre><a href="muxers/mplex/mplex.html#TransportProvider"><span class="Identifier">TransportProvider</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">upgr</span><span class="Other">:</span> <a href="connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a><span class="Other">;</span> <span class="Identifier">privateKey</span><span class="Other">:</span> <a href="crypto/crypto.html#PrivateKey"><span class="Identifier">PrivateKey</span></a><span class="Other">;</span>
-                                     <span class="Identifier">autotls</span><span class="Other">:</span> <a href="autotls/service.html#AutotlsService"><span class="Identifier">AutotlsService</span></a><span class="Other">)</span><span class="Other">:</span> <a href="upgrademngrs/upgrade.html#Transport"><span class="Identifier">Transport</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><a href="muxers/mplex/mplex.html#TransportProvider"><span class="Identifier">TransportProvider</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">deprecated</span><span class="Other">:</span> <span class="StringLit">&quot;Use TransportBuilder instead&quot;</span></span>.} <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span>
+    <span class="Identifier">upgr</span><span class="Other">:</span> <a href="connmanager.html#Upgrade"><span class="Identifier">Upgrade</span></a><span class="Other">;</span> <span class="Identifier">privateKey</span><span class="Other">:</span> <a href="crypto/crypto.html#PrivateKey"><span class="Identifier">PrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="upgrademngrs/upgrade.html#Transport"><span class="Identifier">Transport</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
+  <div class="deprecation-message">
+    <b>Deprecated:</b> Use TransportBuilder instead
+  </div>
 
 
 &nbsp;&nbsp;<a
@@ -527,9 +567,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Creates a SwitchBuilder
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L77"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L84"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L77" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L84" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -549,9 +589,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Helper for common switch configurations.
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L371"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L398"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L371" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L398" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -563,9 +603,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 <p>Set the listening address of the switch<br/>Calling it multiple time will override the value<br/></p>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L114"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L121"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L114" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L121" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -577,9 +617,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 <p>Set the listening addresses of the switch<br/>Calling it multiple time will override the value<br/></p>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L105"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L112"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L105" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L112" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -590,9 +630,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L244"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L267"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L244" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L267" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -602,9 +642,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L256"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L279"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L256" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L279" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -615,9 +655,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L267"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L290"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L267" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L290" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -628,9 +668,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent connections of the switch. You should either use this, or <a class="reference external" href="#withMaxIn,SwitchBuilder,int">withMaxIn</a> &amp; <a class="reference external" href="#withMaxOut,SwitchBuilder,int">withMaxOut</a>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L210"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L233"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L210" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L233" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -641,9 +681,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L228"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L251"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L228" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L251" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -654,9 +694,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent incoming connections. Should be used with <a class="reference external" href="#withMaxOut,SwitchBuilder,int">withMaxOut</a>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L218"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L241"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L218" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L241" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -667,9 +707,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Maximum concurrent outgoing connections. Should be used with <a class="reference external" href="#withMaxIn,SwitchBuilder,int">withMaxIn</a>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L223"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L246"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L223" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L246" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -680,9 +720,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L200"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L223"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L200" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L223" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -693,9 +733,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L250"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L273"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L250" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L273" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -705,9 +745,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L150"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L157"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L150" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L157" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -719,9 +759,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L281"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L304"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L281" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L304" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -732,9 +772,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L234"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L257"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L234" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L257" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -745,9 +785,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 Set the private key of the switch. Will be used to generate a PeerId
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L96"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L103"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L96" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L103" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -758,9 +798,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L238"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L261"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L238" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L261" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -771,9 +811,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L271"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L294"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L271" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L294" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -784,9 +824,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L206"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L229"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L206" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L229" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -797,9 +837,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L277"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L300"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L277" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L300" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -810,9 +850,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L121"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L128"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L121" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L128" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -823,14 +863,14 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L171"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L192"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L171" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L192" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
-<div id="withTransport,SwitchBuilder,TransportProvider" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#withTransport%2CSwitchBuilder%2CTransportProvider"><span class="Identifier">withTransport</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">prov</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#TransportProvider"><span class="Identifier">TransportProvider</span></a><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
+<div id="withTransport,SwitchBuilder,TransportBuilder" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withTransport%2CSwitchBuilder%2CTransportBuilder"><span class="Identifier">withTransport</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">prov</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#TransportBuilder"><span class="Identifier">TransportBuilder</span></a><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
     <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -839,16 +879,38 @@ Use a custom transport
 <pre class="listing"><span class="Keyword">let</span> <span class="Identifier">switch</span> <span class="Operator">=</span> <span class="Identifier">SwitchBuilder</span>
   <span class="Operator">.</span><span class="Identifier">new</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
   <span class="Operator">.</span><span class="Identifier">withTransport</span><span class="Punctuation">(</span>
-    <span class="Keyword">proc</span><span class="Punctuation">(</span>
-        <span class="Identifier">upgr</span><span class="Punctuation">:</span> <span class="Identifier">Upgrade</span><span class="Punctuation">,</span> <span class="Identifier">privateKey</span><span class="Punctuation">:</span> <span class="Identifier">PrivateKey</span><span class="Punctuation">,</span> <span class="Identifier">autotls</span><span class="Punctuation">:</span> <span class="Identifier">AutotlsService</span>
-    <span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">Transport</span> <span class="Operator">=</span>
+    <span class="Keyword">proc</span><span class="Punctuation">(</span><span class="Identifier">config</span><span class="Punctuation">:</span> <span class="Identifier">TransportConfig</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">Transport</span> <span class="Operator">=</span>
+      <span class="Identifier">TcpTransport</span><span class="Operator">.</span><span class="Identifier">new</span><span class="Punctuation">(</span><span class="Identifier">flags</span><span class="Punctuation">,</span> <span class="Identifier">config</span><span class="Operator">.</span><span class="Identifier">upgr</span><span class="Punctuation">)</span>
+  <span class="Punctuation">)</span>
+  <span class="Operator">.</span><span class="Identifier">build</span><span class="Punctuation">(</span><span class="Punctuation">)</span></pre>
+&nbsp;&nbsp;<a
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L161"
+class="link-seesrc" target="_blank">Source</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L161" class="link-seesrc" target="_blank" >Edit</a>
+
+</dd>
+</div>
+<div id="withTransport,SwitchBuilder,TransportProvider" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#withTransport%2CSwitchBuilder%2CTransportProvider"><span class="Identifier">withTransport</span></a><span class="Other">(</span><span class="Identifier">b</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a><span class="Other">;</span> <span class="Identifier">prov</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#TransportProvider"><span class="Identifier">TransportProvider</span></a><span class="Other">)</span><span class="Other">:</span> <a href="muxers/mplex/mplex.html#SwitchBuilder"><span class="Identifier">SwitchBuilder</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">deprecated</span><span class="Other">:</span> <span class="StringLit">&quot;Use TransportBuilder instead&quot;</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+  <div class="deprecation-message">
+    <b>Deprecated:</b> Use TransportBuilder instead
+  </div>
+
+Use a custom transport
+<p><strong class="examples_text">Example:</strong></p>
+<pre class="listing"><span class="Keyword">let</span> <span class="Identifier">switch</span> <span class="Operator">=</span> <span class="Identifier">SwitchBuilder</span>
+  <span class="Operator">.</span><span class="Identifier">new</span><span class="Punctuation">(</span><span class="Punctuation">)</span>
+  <span class="Operator">.</span><span class="Identifier">withTransport</span><span class="Punctuation">(</span>
+    <span class="Keyword">proc</span><span class="Punctuation">(</span><span class="Identifier">upgr</span><span class="Punctuation">:</span> <span class="Identifier">Upgrade</span><span class="Punctuation">,</span> <span class="Identifier">privateKey</span><span class="Punctuation">:</span> <span class="Identifier">PrivateKey</span><span class="Punctuation">)</span><span class="Punctuation">:</span> <span class="Identifier">Transport</span> <span class="Operator">=</span>
       <span class="Identifier">TcpTransport</span><span class="Operator">.</span><span class="Identifier">new</span><span class="Punctuation">(</span><span class="Identifier">flags</span><span class="Punctuation">,</span> <span class="Identifier">upgr</span><span class="Punctuation">)</span>
   <span class="Punctuation">)</span>
   <span class="Operator">.</span><span class="Identifier">build</span><span class="Punctuation">(</span><span class="Punctuation">)</span></pre>
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L154"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L176"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L154" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L176" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -861,9 +923,9 @@ class="link-seesrc" target="_blank">Source</a>
 
 
 &nbsp;&nbsp;<a
-href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L179"
+href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/builders.nim#L200"
 class="link-seesrc" target="_blank">Source</a>
-&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L179" class="link-seesrc" target="_blank" >Edit</a>
+&nbsp;&nbsp;<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/builders.nim#L200" class="link-seesrc" target="_blank" >Edit</a>
 
 </dd>
 </div>
@@ -882,7 +944,7 @@ class="link-seesrc" target="_blank">Source</a>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-21 18:46:41 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-07-21 20:49:30 UTC</small>
       </div>
     </div>
   </div>
