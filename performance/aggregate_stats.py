@@ -10,7 +10,6 @@ def main():
     min_latency = float("inf")
     max_latency = 0.0
     sum_avg_latency = 0.0
-    node_count = 0
     valid_nodes = 0
 
     for file_path in glob(os.path.join(output_dir, "*.json")):
@@ -30,7 +29,6 @@ def main():
 
         total_sent += sent
         total_received += received
-        node_count += 1
         if min_l > 0.0 or max_l > 0.0 or avg_l > 0.0:
             if min_l < min_latency:
                 min_latency = min_l
@@ -40,18 +38,22 @@ def main():
             valid_nodes += 1
 
     output = []
-    output.append("--- Global Performance Summary ---")
-    output.append(f"Total messages sent: {total_sent}")
-    output.append(f"Total messages received: {total_received}")
+    output.append("# 🏁 **Performance Summary**\n")
+    output.append(f"**Nodes:** `{valid_nodes}`  ")
+    output.append(f"**Total messages sent:** `{total_sent}`  ")
+    output.append(f"**Total messages received:** `{total_received}`  \n")
+    output.append("| Latency (ms) | Min | Max | Avg |")
+    output.append("|:---:|:---:|:---:|:---:|")
     if valid_nodes > 0:
         global_avg_latency = sum_avg_latency / valid_nodes
-        output.append(f"Latency (ms): min={min_latency:.3f}, max={max_latency:.3f}, avg={global_avg_latency:.3f}")
+        output.append(f"| | {min_latency:.3f} | {max_latency:.3f} | {global_avg_latency:.3f} |")
     else:
-        output.append("Latency (ms): min=0.000, max=0.000, avg=0.000 (no valid latency data)")
-    print("\n".join(output))
+        output.append("| | 0.000 | 0.000 | 0.000 | (no valid latency data)")
+    markdown = "\n".join(output)
+    print(markdown)
     # For GitHub summary
     with open(os.environ.get("GITHUB_STEP_SUMMARY", "/tmp/summary.txt"), "w") as summary:
-        summary.write("\n".join(output) + "\n")
+        summary.write(markdown + "\n")
 
 
 if __name__ == "__main__":
