@@ -395,15 +395,23 @@ method write*(
   if channel.remoteReset:
     trace "stream is reset when write", channel = $channel
     resFut.fail(newLPStreamResetError())
+    return resFut
+
   if channel.closedLocally or channel.isReset:
     resFut.fail(newLPStreamClosedError())
+    return resFut
+
   if msg.len == 0:
     resFut.complete()
+    return resFut
+
   channel.sendQueue.add(ToSend(data: msg, sent: 0, fut: resFut))
+
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_send_queue.observe(channel.lengthSendQueue().int64)
 
   asyncSpawn channel.sendLoop()
+
   return resFut
 
 proc open(channel: YamuxChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
