@@ -56,13 +56,16 @@ suite "preamble store":
       let p = mockPreamble(id, peer, 0.seconds, i.seconds)
       store.insert(id, p)
 
-    var last = Moment.low()
+    var lastExpiresAt = Moment.low()
+    var lastStartsAt = Moment.low()
     while true:
       let popped = store.popExpired(Moment.now() + 20.seconds)
       if popped.isNone:
         break
-      check popped.get().expiresAt >= last
-      last = popped.get().expiresAt
+      check popped.get().expiresAt >= lastExpiresAt
+      lastExpiresAt = popped.get().expiresAt
+      check popped.get().startsAt >= lastStartsAt
+      lastStartsAt = popped.get().startsAt
 
   asyncTest "deletion marks AND heap pop discards deleted":
     let m1 = MessageId(@[1.byte, 1.byte, 1.byte])
