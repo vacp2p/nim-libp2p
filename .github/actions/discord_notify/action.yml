@@ -1,0 +1,49 @@
+name: Discord Failure Notification
+description: "Send Discord notification when CI jobs fail"
+inputs:
+  webhook_url:
+    description: "Discord webhook URL"
+    required: true
+  workflow_name:
+    description: "Name of the workflow that failed"
+    required: false
+    default: ${{ github.workflow }}
+  branch:
+    description: "Branch name"
+    required: false
+    default: ${{ github.ref_name }}
+  repository:
+    description: "Repository name"
+    required: false
+    default: ${{ github.repository }}
+  run_id:
+    description: "GitHub run ID"
+    required: false
+    default: ${{ github.run_id }}
+  server_url:
+    description: "GitHub server URL"
+    required: false
+    default: ${{ github.server_url }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Send Discord notification
+      shell: bash
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d "{
+               \"embeds\": [{
+                 \"title\": \"${{ inputs.workflow_name }} Job Failed\",
+                 \"url\": \"${{ inputs.server_url }}/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}\",
+                 \"description\": \"The workflow has failed on branch \`${{ inputs.branch }}\`\",
+                 \"color\": 15158332,
+                 \"fields\": [
+                   {\"name\": \"Repository\", \"value\": \"${{ inputs.repository }}\", \"inline\": true},
+                   {\"name\": \"Branch\", \"value\": \"${{ inputs.branch }}\", \"inline\": true}
+                 ],
+                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+               }]
+             }" \
+             "${{ inputs.webhook_url }}"
