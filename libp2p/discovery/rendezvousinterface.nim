@@ -27,6 +27,9 @@ method request*(
     self: RendezVousInterface, pa: PeerAttributes
 ) {.async: (raises: [DiscoveryError, CancelledError]).} =
   var namespace = Opt.none(string)
+  # TODO: ensure that PeerAttributes cannot hold invalid types
+  # TODO: if this check is still needed, move it to helper fn
+  # TODO: address the question of "why have multiple namespaces?"
   for attr in pa:
     if attr.ofType(RdvNamespace):
       namespace = Opt.some(string attr.to(RdvNamespace))
@@ -37,6 +40,7 @@ method request*(
     else:
       # unhandled type
       return
+
   while true:
     for pr in await self.rdv.request(namespace):
       var peer: PeerAttributes
