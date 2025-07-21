@@ -7,9 +7,9 @@ import
 
 import ./helpers
 
-type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
+type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
 
-template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string = "") =
+template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string = "") =
   block:
     let transpProvider = prov
 
