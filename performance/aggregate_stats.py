@@ -18,14 +18,9 @@ def main():
         sent = int(stats.get("totalSent", 0))
         received = int(stats.get("totalReceived", 0))
         # Handle both string and float values
-        try:
-            min_l = float(stats.get("minLatency", 0))
-            max_l = float(stats.get("maxLatency", 0))
-            avg_l = float(stats.get("avgLatency", 0))
-        except Exception:
-            min_l = float(str(stats.get("minLatency", "0")))
-            max_l = float(str(stats.get("maxLatency", "0")))
-            avg_l = float(str(stats.get("avgLatency", "0")))
+        min_l = float(str(stats.get("minLatency", "0")))
+        max_l = float(str(stats.get("maxLatency", "0")))
+        avg_l = float(str(stats.get("avgLatency", "0")))
 
         total_sent += sent
         total_received += received

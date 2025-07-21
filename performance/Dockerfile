@@ -1,5 +1,5 @@
 # Create the build image
-FROM nimlang/nim:1.6.18 as build
+FROM nimlang/nim:1.6.18 AS build
 
 WORKDIR /node
 
