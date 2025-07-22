@@ -1,3 +1,4 @@
+{.used.}
 ## # Circuit Relay example
 ##
 ## Circuit Relay can be used when a node cannot reach another node
