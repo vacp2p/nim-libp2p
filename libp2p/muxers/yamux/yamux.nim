@@ -271,7 +271,7 @@ method readOnce*(
     raise
       if channel.remoteReset:
         trace "stream is remote reset when readOnce", channel = $channel
-        newLPStreamResetError()
+        newLPStreamRemoteClosedError()
       elif channel.closedLocally:
         trace "stream is closed locally when readOnce", channel = $channel
         newLPStreamClosedError()
@@ -400,7 +400,7 @@ method write*(
 
   if channel.remoteReset:
     trace "stream is reset when write", channel = $channel
-    resFut.fail(newLPStreamResetError())
+    resFut.fail(newLPStreamRemoteClosedError())
     return resFut
 
   if channel.closedLocally or channel.isReset:
