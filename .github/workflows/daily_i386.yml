@@ -18,6 +18,19 @@ jobs:
         ]"
       cpu: "['i386']"
       exclude: "[
-          {'platform': {'os':'macos'}}, 
+          {'platform': {'os':'macos'}},
           {'platform': {'os':'windows'}},
         ]"
+  notify-on-failure:
+    name: Notify Discord on Failure
+    needs: [test_i386]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discord notification
+        uses: ./.github/actions/discord_notify
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
