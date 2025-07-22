@@ -50,4 +50,16 @@ jobs:
           git branch -D nim-libp2p-auto-bump-${{ matrix.target.ref }} || true
           git switch -c nim-libp2p-auto-bump-${{ matrix.target.ref }}
           git push -f origin nim-libp2p-auto-bump-${{ matrix.target.ref }}
+  notify-on-failure:
+    name: Notify Discord on Failure
+    needs: [bumper]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Discord notification
+        uses: ./.github/actions/discord_notify
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
