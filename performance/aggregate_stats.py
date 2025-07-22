@@ -33,6 +33,7 @@ def main():
             valid_nodes += 1
 
     output = []
+    output.append("<!-- perf-summary-marker -->\n")
     output.append("# 🏁 **Performance Summary**\n")
     output.append(f"**Nodes:** `{valid_nodes}`  ")
     output.append(f"**Total messages sent:** `{total_sent}`  ")
@@ -49,6 +50,9 @@ def main():
     # For GitHub summary
     with open(os.environ.get("GITHUB_STEP_SUMMARY", "/tmp/summary.txt"), "w") as summary:
         summary.write(markdown + "\n")
+    # For PR comment
+    with open("/tmp/perf-summary.md", "w") as f:
+        f.write(markdown + "\n")
 
 
 if __name__ == "__main__":
