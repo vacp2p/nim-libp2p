@@ -218,10 +218,8 @@ method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
     await channel.actuallyClose()
 
 proc clearQueues(channel: YamuxChannel) =
-  # Free memory
   for toSend in channel.sendQueue:
-    toSend.fut.fail(newLPStreamEOFError())
-
+    toSend.fut.complete()
   channel.sendQueue = @[]
   channel.recvQueue.clear()
 
