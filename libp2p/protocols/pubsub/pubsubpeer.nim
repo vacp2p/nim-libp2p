@@ -360,6 +360,7 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: [
 
   try:
     await msgFut
+    trace "sent pubsub message to remote", conn
   except CatchableError as exc:
     error "Unexpected exception", conn, description = exc.msg
 
