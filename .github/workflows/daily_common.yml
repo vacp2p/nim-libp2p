@@ -121,7 +121,7 @@ jobs:
           rm -rf vendor/nim-libp2p
 
           # symlink or copy our local nim-libp2p
-          ln -s $GITHUB_WORKSPACE vendor/nim-libp2p
+          mv $GITHUB_WORKSPACE vendor/nim-libp2p
 
           # build nimbus
           make && make nimbus_beacon_node
