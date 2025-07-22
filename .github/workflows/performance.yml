@@ -64,7 +64,6 @@ jobs:
             const fs = require('fs');
             const marker = '<!-- perf-summary-marker -->';
             const body = fs.readFileSync('/tmp/perf-summary.md', 'utf8');
-            // Find existing comment with marker
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
