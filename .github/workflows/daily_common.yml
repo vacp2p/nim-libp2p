@@ -107,7 +107,7 @@ jobs:
           nimble testintegration
 
       - name: Compile nimbus using nim-libp2p
-        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
+        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' && matrix.nim.ref == 'version-2-2'}}
         run: |
           nim --version
           nimble --version
