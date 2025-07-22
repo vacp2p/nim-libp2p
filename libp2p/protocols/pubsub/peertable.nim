@@ -16,7 +16,7 @@ export tables, sets
 
 type PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 
-proc `$`*(table: PeerTable): string = 
+proc `$`*(table: PeerTable): string =
   result.add("PeerTable ")
   result.add("topics (" & $table.len & ")")
 

@@ -172,7 +172,7 @@ proc getAgent*(peer: PubSubPeer): string =
     else:
       "unknown"
 
-proc `$`*(p: PubSubPeer): string = 
+proc `$`*(p: PubSubPeer): string =
   $p.peerId
 
 func hash*(p: PubSubPeer): Hash =
