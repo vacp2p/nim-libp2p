@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.5-labs
-FROM nimlang/nim:1.6.16 as builder
+FROM nimlang/nim:2.0.16 as builder
 
 WORKDIR /workspace
 
