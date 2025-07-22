@@ -521,7 +521,6 @@ method close*(m: Yamux) {.async: (raises: []).} =
   if m.isClosed == true:
     trace "Already closed"
     return
-  m.isClosed = true
 
   trace "Closing yamux"
   let channels = toSeq(m.channels.values())
