@@ -47,11 +47,44 @@ jobs:
         run: |
           ./performance/runner.sh
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v2
         with:
-          python-version: "3.11"
+          nim-version: "2.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Aggregate and display summary
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          python3 ./performance/aggregate_stats.py
+          nim c -r -d:release -o:/tmp/aggregate_stats ./performance/aggregate_stats.nim
+
+      - name: Post/Update PR Performance Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- perf-summary-marker -->';
+            const body = fs.readFileSync('/tmp/perf-summary.md', 'utf8');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
