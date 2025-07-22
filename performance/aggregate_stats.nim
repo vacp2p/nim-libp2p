@@ -53,7 +53,7 @@ proc main() =
   output.add fmt"**Commit:** `{commitSha}`  "
   output.add fmt"**Nodes:** `{validNodes}`  "
   output.add fmt"**Total messages sent:** `{totalSent}`  "
-  output.add fmt"**Total messages received:** `{totalReceived}`  \n"
+  output.add fmt"**Total messages received:** `{totalReceived}`"
   output.add "| Latency (ms) | Min | Max | Avg |"
   output.add "|:---:|:---:|:---:|:---:|"
   if validNodes > 0:
