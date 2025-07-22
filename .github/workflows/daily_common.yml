@@ -105,3 +105,24 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble testintegration
+
+      - name: Compile nimbus using nim-libp2p
+        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
+        run: |
+          nim --version
+          nimble --version
+
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+
+          git clone --branch unstable --single-branch https://github.com/status-im/nimbus-eth2.git
+          cd nimbus-eth2
+
+          # remove existing nim-libp2p if any
+          rm -rf vendor/nim-libp2p
+
+          # symlink or copy our local nim-libp2p
+          ln -s $GITHUB_WORKSPACE vendor/nim-libp2p
+
+          # build nimbus
+          make && make nimbus_beacon_node
+
