@@ -55,3 +55,13 @@ jobs:
       - name: Aggregate and display summary
         run: |
           python3 ./performance/aggregate_stats.py
+
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Comment'
+            })
