@@ -227,7 +227,7 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).}
   channel.isReset = true
   channel.remoteReset = not isLocal
   for toSend in channel.sendQueue:
-    toSend.fut.complete()
+    toSend.fut.fail(newLPStreamEOFError())
 
   channel.sendQueue = @[]
   channel.recvQueue.clear()
@@ -319,6 +319,12 @@ proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
 proc sendLoop(channel: YamuxChannel) {.async.} =
+  if channel.isSending:
+    return
+  channel.isSending = true
+  defer:
+    channel.isSending = false
+
   const NumBytesHeader = 12
 
   while channel.sendQueue.len > 0:
