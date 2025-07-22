@@ -217,6 +217,14 @@ method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
         discard
     await channel.actuallyClose()
 
+proc clearQueues(channel: YamuxChannel) =
+  # Free memory
+  for toSend in channel.sendQueue:
+    toSend.fut.fail(newLPStreamEOFError())
+
+  channel.sendQueue = @[]
+  channel.recvQueue.clear()
+
 proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).} =
   # If we reset locally, we want to flush up to a maximum of recvWindow
   # bytes. It's because the peer we're connected to can send us data before
@@ -226,11 +234,8 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).}
   trace "Reset channel"
   channel.isReset = true
   channel.remoteReset = not isLocal
-  for toSend in channel.sendQueue:
-    toSend.fut.fail(newLPStreamEOFError())
+  channel.clearQueues()
 
-  channel.sendQueue = @[]
-  channel.recvQueue.clear()
   channel.sendWindow = 0
   if not channel.closedLocally:
     if isLocal and not channel.isSending:
@@ -279,7 +284,7 @@ method readOnce*(
         trace "stream is down when readOnce", channel = $channel
         newLPStreamConnDownError()
   if channel.isEof:
-    await channel.reset()
+    channel.clearQueues()
     raise newLPStreamRemoteClosedError()
   if channel.recvQueue.isEmpty():
     channel.receivedData.clear()
@@ -294,7 +299,7 @@ method readOnce*(
     await closedRemotelyFut or receivedDataFut
     if channel.closedRemotely.isSet() and channel.recvQueue.isEmpty():
       channel.isEof = true
-      await channel.reset()
+      channel.clearQueues()
       return
         0 # we return 0 to indicate that the channel is closed for reading from now on
 
