@@ -53,6 +53,8 @@ jobs:
           python-version: "3.11"
 
       - name: Aggregate and display summary
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           python3 ./performance/aggregate_stats.py
 

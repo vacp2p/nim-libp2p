@@ -32,7 +32,7 @@ def main():
             sum_avg_latency += avg_l
             valid_nodes += 1
 
-    commit_sha = os.environ.get("GITHUB_SHA", "unknown")
+    commit_sha = os.environ.get("PR_HEAD_SHA") or os.environ.get("GITHUB_SHA", "unknown")
     output = []
     output.append("<!-- perf-summary-marker -->\n")
     output.append("# 🏁 **Performance Summary**\n")
