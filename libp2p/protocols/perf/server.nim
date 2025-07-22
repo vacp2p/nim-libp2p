@@ -44,8 +44,6 @@ proc new*(T: typedesc[Perf]): T {.public.} =
             # QUIC needs timeout-based approach to detect end of upload
             while not conn.atEof:
               let readFut = conn.readOnce(addr toReadBuffer[0], PerfSize)
-              if not await readFut.withTimeout(100.milliseconds):
-                break
               let read = readFut.read()
               if read == 0:
                 break
