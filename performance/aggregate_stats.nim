@@ -6,7 +6,7 @@ proc getEnvOrDefault(key, default: string): string =
     result = default
 
 proc main() =
-  let outputDir = os.joinPath(os.getAppDir(), "output")
+  let outputDir = "performance/output"
   var totalSent = 0
   var totalReceived = 0
   var minLatency = Inf
@@ -18,31 +18,23 @@ proc main() =
     if kind == pcFile and path.endsWith(".json"):
       let content = readFile(path)
       let stats = parseJson(content)
-      let sent =
-        if stats.hasKey("totalSent"):
-          stats["totalSent"].getInt
+      proc getIntOr(stats: JsonNode, key: string, default: int): int =
+        if stats.hasKey(key):
+          stats[key].getInt
         else:
-          0
-      let received =
-        if stats.hasKey("totalReceived"):
-          stats["totalReceived"].getInt
+          default
+
+      proc getFloatOr(stats: JsonNode, key: string, default: float): float =
+        if stats.hasKey(key):
+          stats[key].getStr.parseFloat
         else:
-          0
-      let minL =
-        if stats.hasKey("minLatency"):
-          stats["minLatency"].getStr.parseFloat
-        else:
-          0.0
-      let maxL =
-        if stats.hasKey("maxLatency"):
-          stats["maxLatency"].getStr.parseFloat
-        else:
-          0.0
-      let avgL =
-        if stats.hasKey("avgLatency"):
-          stats["avgLatency"].getStr.parseFloat
-        else:
-          0.0
+          default
+
+      let sent = getIntOr(stats, "totalSent", 0)
+      let received = getIntOr(stats, "totalReceived", 0)
+      let minL = getFloatOr(stats, "minLatency", 0.0)
+      let maxL = getFloatOr(stats, "maxLatency", 0.0)
+      let avgL = getFloatOr(stats, "avgLatency", 0.0)
       totalSent += sent
       totalReceived += received
       if minL > 0.0 or maxL > 0.0 or avgL > 0.0:
