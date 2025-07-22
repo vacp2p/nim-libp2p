@@ -47,20 +47,17 @@ jobs:
         run: |
           ./performance/runner.sh
 
-
       - name: Set up Nim
         uses: jiro4989/setup-nim-action@v2
         with:
-          nim-version: '2.x'
+          nim-version: "2.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Aggregate and display summary
         env:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          nimble --acceptDepLicense install json strformat
-          nim c -d:release -o:/tmp/aggregate_stats ./performance/aggregate_stats.nim
-          /tmp/aggregate_stats
+          nim c -r -d:release -o:/tmp/aggregate_stats ./performance/aggregate_stats.nim
 
       - name: Post/Update PR Performance Comment
         if: github.event_name == 'pull_request'

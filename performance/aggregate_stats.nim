@@ -18,11 +18,31 @@ proc main() =
     if kind == pcFile and path.endsWith(".json"):
       let content = readFile(path)
       let stats = parseJson(content)
-      let sent = if stats.hasKey("totalSent"): stats["totalSent"].getInt else: 0
-      let received = if stats.hasKey("totalReceived"): stats["totalReceived"].getInt else: 0
-      let minL = if stats.hasKey("minLatency"): stats["minLatency"].getStr.parseFloat else: 0.0
-      let maxL = if stats.hasKey("maxLatency"): stats["maxLatency"].getStr.parseFloat else: 0.0
-      let avgL = if stats.hasKey("avgLatency"): stats["avgLatency"].getStr.parseFloat else: 0.0
+      let sent =
+        if stats.hasKey("totalSent"):
+          stats["totalSent"].getInt
+        else:
+          0
+      let received =
+        if stats.hasKey("totalReceived"):
+          stats["totalReceived"].getInt
+        else:
+          0
+      let minL =
+        if stats.hasKey("minLatency"):
+          stats["minLatency"].getStr.parseFloat
+        else:
+          0.0
+      let maxL =
+        if stats.hasKey("maxLatency"):
+          stats["maxLatency"].getStr.parseFloat
+        else:
+          0.0
+      let avgL =
+        if stats.hasKey("avgLatency"):
+          stats["avgLatency"].getStr.parseFloat
+        else:
+          0.0
       totalSent += sent
       totalReceived += received
       if minL > 0.0 or maxL > 0.0 or avgL > 0.0:
@@ -33,7 +53,8 @@ proc main() =
         sumAvgLatency += avgL
         validNodes += 1
 
-  let commitSha = getEnvOrDefault("PR_HEAD_SHA", getEnvOrDefault("GITHUB_SHA", "unknown"))
+  let commitSha =
+    getEnvOrDefault("PR_HEAD_SHA", getEnvOrDefault("GITHUB_SHA", "unknown"))
   var output: seq[string]
   output.add "<!-- perf-summary-marker -->\n"
   output.add "# 🏁 **Performance Summary**\n"
