@@ -362,13 +362,13 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: [
     await msgFut
     trace "sent pubsub message to remote", conn
   except CatchableError as exc:
-    error "Unexpected exception", conn, description = exc.msg
+    trace "Unexpected exception", conn, description = exc.msg
 
   ## possible error should be handled in the following manner because we use raw future
   if msgFut.failed:
     # Because we detach the send call from the currently executing task using
     # asyncSpawn, no exceptions may leak out of it
-    error "Unable to send to remote", conn, description = msgFut.error().msg
+    trace "Unable to send to remote", conn, description = msgFut.error().msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
 
