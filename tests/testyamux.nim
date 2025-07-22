@@ -362,8 +362,7 @@ suite "Yamux":
       await streamA.writeLp(fromHex("1234"))
       expect LPStreamRemoteClosedError:
         discard await streamA.readLp(100)
-      expect LPStreamRemoteClosedError:
-        await streamA.writeLp(fromHex("5678"))
+      await streamA.writeLp(fromHex("5678"))
       await streamA.close()
 
     asyncTest "Local & Remote reset":
