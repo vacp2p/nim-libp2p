@@ -1,6 +1,37 @@
 import os
 import json
+import requests
 from glob import glob
+
+
+def post_or_update_pr_comment(repo, pr_number, token, new_table, marker):
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    # List comments on the PR
+    comments_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
+    resp = requests.get(comments_url, headers=headers)
+    resp.raise_for_status()
+    comments = resp.json()
+    comment_id = None
+    existing_body = None
+    for c in comments:
+        if c.get("body", "").startswith(marker):
+            comment_id = c["id"]
+            existing_body = c["body"]
+            break
+    if comment_id:
+        # Append new table to existing comment
+        updated_body = existing_body.strip() + "\n\n" + new_table.strip()
+        patch_url = f"https://api.github.com/repos/{repo}/issues/comments/{comment_id}"
+        patch_resp = requests.patch(patch_url, headers=headers, json={"body": updated_body})
+        patch_resp.raise_for_status()
+    else:
+        # Create new comment
+        post_body = marker + "\n\n" + new_table.strip()
+        post_resp = requests.post(comments_url, headers=headers, json={"body": post_body})
+        post_resp.raise_for_status()
 
 
 def main():
@@ -32,23 +63,33 @@ def main():
             sum_avg_latency += avg_l
             valid_nodes += 1
 
-    output = []
-    output.append("# 🏁 **Performance Summary**\n")
-    output.append(f"**Nodes:** `{valid_nodes}`  ")
-    output.append(f"**Total messages sent:** `{total_sent}`  ")
-    output.append(f"**Total messages received:** `{total_received}`  \n")
-    output.append("| Latency (ms) | Min | Max | Avg |")
-    output.append("|:---:|:---:|:---:|:---:|")
+    # Compose the summary table only (for appending)
+    table = []
+    table.append(f"**Nodes:** `{valid_nodes}`  ")
+    table.append(f"**Total messages sent:** `{total_sent}`  ")
+    table.append(f"**Total messages received:** `{total_received}`  \n")
+    table.append("| Latency (ms) | Min | Max | Avg |")
+    table.append("|:---:|:---:|:---:|:---:|")
     if valid_nodes > 0:
         global_avg_latency = sum_avg_latency / valid_nodes
-        output.append(f"| | {min_latency:.3f} | {max_latency:.3f} | {global_avg_latency:.3f} |")
+        table.append(f"| | {min_latency:.3f} | {max_latency:.3f} | {global_avg_latency:.3f} |")
     else:
-        output.append("| | 0.000 | 0.000 | 0.000 | (no valid latency data)")
-    markdown = "\n".join(output)
-    print(markdown)
+        table.append("| | 0.000 | 0.000 | 0.000 | (no valid latency data)")
+    table_md = "\n".join(table)
+
     # For GitHub summary
+    markdown = "# 🏁 **Performance Summary**\n" + table_md
+    print(markdown)
     with open(os.environ.get("GITHUB_STEP_SUMMARY", "/tmp/summary.txt"), "w") as summary:
         summary.write(markdown + "\n")
+
+    # Post or update PR comment if in PR context
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    pr_number = os.environ.get("GITHUB_PR_NUMBER")
+    token = os.environ.get("GITHUB_TOKEN")
+    marker = "<!-- perf-summary-marker -->"
+    if repo and pr_number and token:
+        post_or_update_pr_comment(repo, pr_number, token, table_md, marker)
 
 
 if __name__ == "__main__":

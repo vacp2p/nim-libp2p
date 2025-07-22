@@ -18,6 +18,9 @@ jobs:
     strategy:
       fail-fast: false
 
+    permissions:
+      issues: write
+
     defaults:
       run:
         shell: bash
@@ -52,6 +55,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install requests
+        run: pip install requests
+
       - name: Aggregate and display summary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           python3 ./performance/aggregate_stats.py
