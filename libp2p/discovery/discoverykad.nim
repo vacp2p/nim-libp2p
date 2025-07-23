@@ -9,6 +9,7 @@
 
 {.push raises: [].}
 
+# import options
 import chronicles
 import chronos
 import sequtils
@@ -16,7 +17,11 @@ import ../routing_record
 import ../peerstore
 import ../dial
 import ../stream/lpstream
-import ./discoverymngr, ../protocols/kademlia, ../protocols/kademlia/consts, ../peerid
+import
+  ./discoverymngr,
+  ../protocols/kademlia,
+  ../protocols/kademlia/[kademlia, keys, routingtable, lookupstate, consts, protobuf],
+  ../[peerid, peerinfo]
 
 # TODO: set up this const properly
 const DiscLimit = 420
@@ -40,38 +45,84 @@ type
 
 proc `==`*(a, b: KadNamespace): bool {.borrow.}
 
-#fwd declaration
-proc doRequest(
-  kad: KadDHT, namespace: Opt[string], limit: uint32, peers: seq[PeerId]
-): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).}
+proc discoverNode*(
+    self: KadDiscovery, targetId: Key, namespace: Opt[string]
+): Future[seq[PeerId]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+  #debug "findNode", target = target
+  # TODO: should it return a single peer instead? read spec
 
-method request*(
+  var initialPeers = self.kad.rtable.findClosestPeers(targetId, DefaultReplic)
+  var state = LookupState.init(targetId, initialPeers)
+  var addrTable: Table[PeerId, seq[MultiAddress]] =
+    initTable[PeerId, seq[MultiAddress]]()
+
+  while not state.done:
+    let toQuery = state.selectAlphaPeers()
+
+    var pendingFutures = initTable[PeerId, Future[Message]]()
+
+    for qPeer in toQuery:
+      if pendingFutures.hasKey(qPeer):
+        continue
+
+      state.markPending(qPeer)
+
+      pendingFutures[qPeer] = self.kad
+        .sendFindNode(qPeer, addrTable.getOrDefault(qPeer, @[]), targetId)
+        .wait(5.seconds)
+
+      state.activeQueries.inc
+
+    let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
+
+    for msg in successfulReplies:
+      for closerPeer in msg.closerPeers:
+        addrTable[PeerId.init(closerPeer.id).get()] = closerPeer.addrs
+        var attr: PeerAttributes
+        for address in closerPeer.addrs:
+          # TODO: Seems like the adding of address isn't liked
+          attr.add(address.address)
+        attr.add(DiscoveryService(namespace.get()))
+        attr.add(KadNamespace(namespace.get()))
+        self.onPeerFound(attr)
+      state.updateShortlist(
+        msg,
+        proc(p: PeerInfo) =
+          discard self.kad.rtable.insert(p.peerId)
+          self.kad.switch.peerStore[AddressBook][p.peerId] = p.addrs
+          # TODO: add TTL to peerstore, otherwise we can spam it with junk
+          # TODO: for discovery interface, invoke the found-peer handler
+          # TODO: when peer-find limit is reached, interupt the hunt.
+        ,
+      )
+
+    for timedOut in timedOutPeers:
+      state.markFailed(timedOut)
+
+    state.done = state.checkConvergence()
+
+  return state.selectClosestK()
+
+proc request*(
     self: KadDiscovery, pa: PeerAttributes
-) {.async: (raises: [DiscoveryError, CancelledError]).} =
-  for attr in pa:
-    if attr.ofType(KadNamespace):
-      namespace = Opt.some(string attr.to(KadNamespace))
-    elif attr.ofType(DiscoveryService):
-      namespace = Opt.some(string attr.to(DiscoveryService))
-    elif attr.ofType(PeerId):
-      namespace = Opt.some($attr.to(PeerId))
-    else:
-      # unhandled type
-      return
+) {.async: (raises: [DiscoveryError, CancelledError, LPError]).} =
+  # for attr in pa:
+  #   if attr.ofType(KadNamespace):
+  #     namespace = Opt.some(string attr.to(KadNamespace))
+  #   elif attr.ofType(DiscoveryService):
+  #     namespace = Opt.some(string attr.to(DiscoveryService))
+  #   elif attr.ofType(PeerId):
+  #     namespace = Opt.some($attr.to(PeerId))
+  #   else:
+  #     # unhandled type
+  #     return
   var namespace = Opt.some("hardcodedForNow")
   while true:
     # TODO: instead of request, do something like `findNode`, with the additional actions in addition to Routing table insertion
     #  - pass up the attributes to discovery manager
     #  - check if discovery limit is reached.
-    for pr in await self.kad.request(namespace):
-      var peer: PeerAttributes
-      peer.add(pr.peerId)
-      for address in pr.addresses:
-        peer.add(address.address)
-
-      peer.add(DiscoveryService(namespace.get()))
-      peer.add(KadNamespace(namespace.get()))
-      self.onPeerFound(peer)
+    let id = PeerId.random(self.kad.rng).tryGet().toKey()
+    discard await self.discoverNode(id, namespace)
 
     await sleepAsync(self.timeToRequest)
 
