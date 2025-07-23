@@ -20,11 +20,11 @@ logScope:
 
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
-  rng: ref HmacDrbgContext
+  rng*: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
 
-proc sendFindNode(
+proc sendFindNode*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress], targetId: Key
 ): Future[Message] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
@@ -49,7 +49,7 @@ proc sendFindNode(
 
   return reply
 
-proc waitRepliesOrTimeouts(
+proc waitRepliesOrTimeouts*(
     pendingFutures: Table[PeerId, Future[Message]]
 ): Future[(seq[Message], seq[PeerId])] {.async: (raises: [CancelledError]).} =
   await allFutures(toSeq(pendingFutures.values))
