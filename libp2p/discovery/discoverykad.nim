@@ -80,8 +80,7 @@ proc discoverNode*(
         addrTable[PeerId.init(closerPeer.id).get()] = closerPeer.addrs
         var attr: PeerAttributes
         for address in closerPeer.addrs:
-          # TODO: Seems like the adding of address isn't liked
-          attr.add(address.address)
+          attr.add(address)
         attr.add(DiscoveryService(namespace.get()))
         attr.add(KadNamespace(namespace.get()))
         self.onPeerFound(attr)
@@ -103,9 +102,9 @@ proc discoverNode*(
 
   return state.selectClosestK()
 
-proc request*(
+method request*(
     self: KadDiscovery, pa: PeerAttributes
-) {.async: (raises: [DiscoveryError, CancelledError, LPError]).} =
+) {.base, async: (raises: [DiscoveryError, CancelledError, LPError]).} =
   # for attr in pa:
   #   if attr.ofType(KadNamespace):
   #     namespace = Opt.some(string attr.to(KadNamespace))
@@ -150,7 +149,7 @@ proc doRequest(
     if KadCodec notin kad.switch.peerStore[ProtoBook][peer]:
       continue
     try:
-      trace "Send Request", peerId = peer, ns
+      trace "Send Request", peerId = peer, namespace
       await peer.requestPeer()
     except CancelledError as e:
       raise e
