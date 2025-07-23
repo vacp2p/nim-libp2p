@@ -528,8 +528,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
   for channel in channels:
     for toSend in channel.sendQueue:
       toSend.fut.fail(newLPStreamEOFError())
-      channel.sendQueue = @[]
-
+    channel.sendQueue = @[]
     channel.sendWindow = 0
     channel.closedLocally = true
     channel.isReset = true
