@@ -526,7 +526,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
   trace "Closing yamux"
   let channels = toSeq(m.channels.values())
   for channel in channels:
-    channel.clearQueues()
+    channel.clearQueues(newLPStreamEOFError())
     channel.sendWindow = 0
     channel.closedLocally = true
     channel.isReset = true
