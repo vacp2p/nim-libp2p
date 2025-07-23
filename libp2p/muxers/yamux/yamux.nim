@@ -377,9 +377,9 @@ proc sendLoop(channel: YamuxChannel) {.async.} =
       inBuffer.inc(bufferToSend)
 
     trace "try to send the buffer", h = $header
-    channel.sendWindow.dec(inBuffer)
     try:
       await channel.conn.write(sendBuffer)
+      channel.sendWindow.dec(inBuffer)
     except LPStreamError as exc:
       error "failed to send the buffer", description = exc.msg
       let connDown = newLPStreamConnDownError(exc)
