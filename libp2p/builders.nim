@@ -437,3 +437,45 @@ proc newStandardSwitch*(
     b = b.withPrivateKey(pkey)
 
   b.build()
+
+
+proc newStandardQuicSwitch*(
+    privKey = none(PrivateKey),
+    addrs: MultiAddress | seq[MultiAddress] =
+      MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").expect("valid address"),
+    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
+    rng = newRng(),
+    inTimeout: Duration = 5.minutes,
+    outTimeout: Duration = 5.minutes,
+    maxConnections = MaxConnections,
+    maxIn = -1,
+    maxOut = -1,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
+    nameResolver: NameResolver = nil,
+    sendSignedPeerRecord = false,
+    peerStoreCapacity = 1000,
+): Switch {.raises: [LPError], public.} =
+  ## Helper for common switch configurations.
+  let addrs =
+    when addrs is MultiAddress:
+      @[addrs]
+    else:
+      addrs
+  var b = SwitchBuilder
+    .new()
+    .withAddresses(addrs)
+    .withRng(rng)
+    .withSignedPeerRecord(sendSignedPeerRecord)
+    .withMaxConnections(maxConnections)
+    .withMaxIn(maxIn)
+    .withMaxOut(maxOut)
+    .withMaxConnsPerPeer(maxConnsPerPeer)
+    .withPeerStore(capacity = peerStoreCapacity)
+    .withQuicTransport()
+    .withNameResolver(nameResolver)
+    .withNoise()
+
+  privKey.withValue(pkey):
+    b = b.withPrivateKey(pkey)
+
+  b.build()
