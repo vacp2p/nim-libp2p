@@ -383,12 +383,10 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     try:
       await channel.conn.write(sendBuffer)
       channel.sendWindow.dec(inBuffer)
-    except CancelledError as exc:
-      trace "cancelled sending the buffer", description = exc.msg
-      for fut in futures.items():
-        fut.cancelSoon()
-      await channel.reset()
-      break
+    except CancelledError:
+      ## Just for compiler. This should never happen as sendLoop is started by asyncSpawn.
+      ## Therefore, no one owns that sendLoop's future and no one can cancel it.
+      discard
     except LPStreamError as exc:
       error "failed to send the buffer", description = exc.msg
       let connDown = newLPStreamConnDownError(exc)
