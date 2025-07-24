@@ -3,6 +3,7 @@ import chronicles
 import sequtils
 import ../../peerid
 import ./consts
+import dhttypes
 import ./xordistance
 import ./routingtable
 import ./lookupstate
@@ -23,6 +24,7 @@ type KadDHT* = ref object of LPProtocol
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
+  dataTable: LocalTable
 
 const MaxMsgSize = 4096
 
@@ -160,7 +162,7 @@ proc new*(
     T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
 ): T {.raises: [].} =
   var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey())
-  let kad = T(rng: rng, switch: switch, rtable: rtable)
+  let kad = T(rng: rng, switch: switch, rtable: rtable, table: LocalTable.init())
 
   kad.codec = KadCodec
   kad.handler = proc(
@@ -182,6 +184,14 @@ proc new*(
 
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
+        of MessageType.putNode:
+          let key = msg.key.get()
+          let data = msg.data.get()
+          let validator = BaseValidator()
+          let entry = validator.validate(key, data)
+          kad.table.insert(entry)
+
+          raise newException(LPError, "unhandled putNode message type")
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
