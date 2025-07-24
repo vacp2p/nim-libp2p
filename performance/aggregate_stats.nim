@@ -1,10 +1,14 @@
 import os
-from ./utils import Stats, initAggregateStats, processJsonResults, getMarkdownReport
+from ./utils import parseJsonFiles, getJsonResults, aggregateResults, getMarkdownReport
 
 proc main() =
   let outputDir = "performance/output"
-  let (results, validNodes) = processJsonResults(outputDir)
-  let markdown = getMarkdownReport(results, validNodes)
+  let parsedJsons = parseJsonFiles(outputDir)
+
+  let jsonResults = getJsonResults(parsedJsons)
+  let (aggregatedResults, validNodes) = aggregateResults(jsonResults)
+
+  let markdown = getMarkdownReport(aggregatedResults, validNodes)
 
   echo markdown
 
