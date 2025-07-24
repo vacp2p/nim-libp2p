@@ -17,8 +17,8 @@ runs:
       with:
         script: |
           const fs = require('fs');
-          const marker = ${{ inputs.marker }};
-          const body = fs.readFileSync(${{ inputs.markdown_path }}, 'utf8');
+          const marker = "${{ inputs.marker }}";
+          const body = fs.readFileSync("${{ inputs.markdown_path }}", 'utf8');
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
