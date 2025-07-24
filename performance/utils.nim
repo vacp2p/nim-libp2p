@@ -1,14 +1,15 @@
+import chronos
+import hashes
+import json
+import metrics
+import metrics/chronos_httpserver
+import os
+import sequtils
 import stew/byteutils
 import stew/endians2
 import strutils
 import strformat
-import sequtils
 import tables
-import hashes
-import metrics
-import metrics/chronos_httpserver
-import chronos
-import json
 import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
 import ../libp2p/muxers/mplex/lpchannel
@@ -192,16 +193,20 @@ proc getLatencyStats*(latencies: seq[float]): LatencyStats =
   )
 
 type Stats* = object
+  scenarioName*: string
   totalSent*: int
   totalReceived*: int
   latency*: LatencyStats
 
 proc getStats*(
-    receivedMessages: Table[uint64, float], sentMessages: seq[uint64]
+    scenarioName: string,
+    receivedMessages: Table[uint64, float],
+    sentMessages: seq[uint64],
 ): Stats =
   let latencyStats = getLatencyStats(receivedMessages.values().toSeq())
 
   let stats = Stats(
+    scenarioName: scenarioName,
     totalSent: sentMessages.len,
     totalReceived: receivedMessages.len,
     latency: latencyStats,
@@ -211,7 +216,7 @@ proc getStats*(
 
 proc `$`*(stats: Stats): string =
   return
-    fmt"Messages: sent={stats.totalSent}, received={stats.totalReceived}, " &
+    fmt"Scenario:`{stats.scenarioName}`, Messages: sent={stats.totalSent}, received={stats.totalReceived}, " &
     fmt"Latency (ms): min={formatLatencyMs(stats.latency.minLatencyMs)}, " &
     fmt"max={formatLatencyMs(stats.latency.maxLatencyMs)}, " &
     fmt"avg={formatLatencyMs(stats.latency.avgLatencyMs)}"
@@ -221,13 +226,80 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
     %*{
       "results": [
         {
-          "scenario": scenario,
+          "scenarioName": scenario,
           "totalSent": stats.totalSent,
           "totalReceived": stats.totalReceived,
-          "minLatency": formatLatencyMs(stats.latency.minLatencyMs),
-          "maxLatency": formatLatencyMs(stats.latency.maxLatencyMs),
-          "avgLatency": formatLatencyMs(stats.latency.avgLatencyMs),
+          "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
+          "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
+          "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
         }
       ]
     }
   writeFile(outputPath, json.pretty)
+
+proc initAggregateStats*(scenarioName: string): Stats =
+  return Stats(
+    scenarioName: scenarioName,
+    totalSent: 0,
+    totalReceived: 0,
+    latency: LatencyStats(minLatencyMs: Inf, maxLatencyMs: 0, avgLatencyMs: 0),
+  )
+
+proc processJsonResults*(
+    outputDir: string
+): (Table[string, Stats], Table[string, int]) =
+  var results: Table[string, Stats]
+  var validNodes: Table[string, int]
+  const unknownFloat = -1.0
+
+  for kind, path in walkDir(outputDir):
+    if kind == pcFile and path.endsWith(".json"):
+      let content = readFile(path)
+      let json = parseJson(content)
+      let scenarios = json["results"].getElems(@[])
+
+      for scenario in scenarios:
+        let scenarioName = scenario["scenarioName"].getStr("")
+
+        discard results.hasKeyOrPut(scenarioName, initAggregateStats(scenarioName))
+        discard validNodes.hasKeyOrPut(scenarioName, 0)
+
+        let sent = scenario["totalSent"].getInt(0)
+        let received = scenario["totalReceived"].getInt(0)
+        let minL = scenario["minLatencyMs"].getStr($unknownFloat).parseFloat()
+        let maxL = scenario["maxLatencyMs"].getStr($unknownFloat).parseFloat()
+        let avgL = scenario["avgLatencyMs"].getStr($unknownFloat).parseFloat()
+
+        results[scenarioName].totalSent += sent
+        results[scenarioName].totalReceived += received
+        if minL != unknownFloat and maxL != unknownFloat and avgL != unknownFloat:
+          if minL < results[scenarioName].latency.minLatencyMs:
+            results[scenarioName].latency.minLatencyMs = minL
+          if maxL > results[scenarioName].latency.maxLatencyMs:
+            results[scenarioName].latency.maxLatencyMs = maxL
+          results[scenarioName].latency.avgLatencyMs += avgL # used to store SUM
+          validNodes[scenarioName] += 1
+
+  return (results, validNodes)
+
+proc getMarkdownReport*(
+    results: Table[string, Stats], validNodes: Table[string, int]
+): string =
+  let commitSha = getEnv("PR_HEAD_SHA", getEnv("GITHUB_SHA", "unknown"))
+  var output: seq[string]
+  output.add "<!-- perf-summary-marker -->\n"
+  output.add "# 🏁 **Performance Summary**\n"
+  output.add fmt"**Commit:** `{commitSha}`  "
+
+  output.add "| Scenario | Nodes | Total messages sent | Total messages received | Latency min (ms) | Latency max (ms) | Latency avg (ms) |"
+  output.add "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
+
+  for scenarioName, stats in results.pairs:
+    let nodes = validNodes[scenarioName]
+    let stats = results[scenarioName]
+    let globalAvgLatency = stats.latency.avgLatencyMs / float(nodes)
+    output.add fmt"| {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {globalAvgLatency:.3f} |"
+
+  let markdown = output.join("\n")
+
+  return markdown
