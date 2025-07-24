@@ -36,9 +36,17 @@ type
     running*: bool
     upgrader*: Upgrade
     networkReachability*: NetworkReachability
+    onRunning*: AsyncEvent
+    onStop*: AsyncEvent
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
+
+method initTransport*(self: Transport) {.base, gcsafe, raises: [].} =
+  ## Initialize transport fields - called by derived transports
+  ##
+  self.onRunning = newAsyncEvent()
+  self.onStop = newAsyncEvent()
 
 method start*(
     self: Transport, addrs: seq[MultiAddress]
@@ -49,6 +57,7 @@ method start*(
   trace "starting transport on addrs", address = $addrs
   self.addrs = addrs
   self.running = true
+  self.onRunning.fire()
 
 method stop*(self: Transport) {.base, async: (raises: []).} =
   ## stop and cleanup the transport
@@ -57,6 +66,7 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
 
   trace "stopping transport", address = $self.addrs
   self.running = false
+  self.onStop.fire()
 
 method accept*(
     self: Transport
