@@ -8,7 +8,9 @@ proc main() =
   let jsonResults = getJsonResults(parsedJsons)
   let (aggregatedResults, validNodes) = aggregateResults(jsonResults)
 
-  let markdown = getMarkdownReport(aggregatedResults, validNodes)
+  let marker = getEnv("MARKER", "<!-- marker -->")
+  let commitSha = getEnv("PR_HEAD_SHA", getEnv("GITHUB_SHA", "unknown"))
+  let markdown = getMarkdownReport(aggregatedResults, validNodes, marker, commitSha)
 
   echo markdown
 
