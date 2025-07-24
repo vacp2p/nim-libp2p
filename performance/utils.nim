@@ -328,15 +328,17 @@ proc aggregateResults*(
   return (aggragated, validNodes)
 
 proc getMarkdownReport*(
-    results: Table[string, Stats], validNodes: Table[string, int]
+    results: Table[string, Stats],
+    validNodes: Table[string, int],
+    marker: string,
+    commitSha: string,
 ): string =
   var output: seq[string]
 
-  output.add "<!-- perf-summary-marker -->\n"
+  output.add marker & "\n"
   output.add "# 🏁 **Performance Summary**\n"
 
-  let commitSha = getEnv("PR_HEAD_SHA", getEnv("GITHUB_SHA", "unknown"))
-  output.add fmt"**Commit:** `{commitSha}`  "
+  output.add fmt"**Commit:** `{commitSha}`"
 
   output.add "| Scenario | Nodes | Total messages sent | Total messages received | Latency min (ms) | Latency max (ms) | Latency avg (ms) |"
   output.add "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
