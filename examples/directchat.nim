@@ -1,3 +1,4 @@
+{.used.}
 when not (compileOption("threads")):
   {.fatal: "Please, compile this program with the --threads:on option!".}
 

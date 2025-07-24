@@ -1,3 +1,4 @@
+{.used.}
 ## # GossipSub
 ##
 ## In this tutorial, we'll build a simple GossipSub network
