@@ -7,6 +7,7 @@ import sequtils
 import stew/byteutils
 import stew/endians2
 import strutils
+import strformat
 import tables
 import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
@@ -223,3 +224,10 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
       ]
     }
   writeFile(outputPath, json.pretty)
+
+proc `$`*(stats: Stats): string =
+  return
+    fmt"Messages: sent={stats.totalSent}, received={stats.totalReceived}, " &
+    fmt"Latency (ms): min={formatLatencyMs(stats.latency.minLatencyMs)}, " &
+    fmt"max={formatLatencyMs(stats.latency.maxLatencyMs)}, " &
+    fmt"avg={formatLatencyMs(stats.latency.avgLatencyMs)}"
