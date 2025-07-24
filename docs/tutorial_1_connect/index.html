@@ -620,6 +620,8 @@
 
 
 
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="sx">{.used.}</span>
+</code></pre></div>
 <h1 id="simple-ping-tutorial">Simple ping tutorial</h1>
 <p>Hi all, welcome to the first nim-libp2p tutorial!</p>
 <div class="admonition tips">
@@ -632,7 +634,7 @@
 <p>Install Nim via their <a href="https://nim-lang.org/install.html">official website</a>.
 Check Nim's installation via <code>nim --version</code> and its package manager Nimble via <code>nimble --version</code>.</p>
 <p>You can now install the latest version of <code>nim-libp2p</code>:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>nimble<span class="w"> </span>install<span class="w"> </span>libp2p@#master
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>nimble<span class="w"> </span>install<span class="w"> </span>libp2p@#master
 </code></pre></div></p>
 <h2 id="a-simple-ping-application">A simple ping application</h2>
 <p>We'll start by creating a simple application, which is starting two libp2p <a href="https://docs.libp2p.io/concepts/stream-multiplexing/#switch-swarm">switch</a>, and pinging each other using the <a href="https://docs.libp2p.io/concepts/protocols/#ping">Ping</a> protocol.</p>
@@ -640,71 +642,71 @@ Check Nim's installation via <code>nim --version</code> and its package manager 
 <p>You can find the source of this tutorial (and other tutorials) in the <a href="https://github.com/status-im/nim-libp2p/tree/master/examples">libp2p/examples</a> folder!</p>
 </div>
 <p>Let's create a <code>part1.nim</code>, and import our dependencies:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="n">chronos</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">import</span><span class="w"> </span><span class="n">libp2p</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kn">import</span><span class="w"> </span><span class="n">libp2p</span><span class="o">/</span><span class="n">protocols</span><span class="o">/</span><span class="n">ping</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="n">chronos</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">import</span><span class="w"> </span><span class="n">libp2p</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kn">import</span><span class="w"> </span><span class="n">libp2p</span><span class="o">/</span><span class="n">protocols</span><span class="o">/</span><span class="n">ping</span>
 </code></pre></div>
 <a href="https://github.com/status-im/nim-chronos">chronos</a> the asynchronous framework used by <code>nim-libp2p</code></p>
 <p>Next, we'll create a helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">createSwitch</span><span class="p">(</span><span class="n">ma</span><span class="p">:</span><span class="w"> </span><span class="n">MultiAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">:</span><span class="w"> </span><span class="k">ref</span><span class="w"> </span><span class="n">HmacDrbgContext</span><span class="p">):</span><span class="w"> </span><span class="n">Switch</span><span class="w"> </span><span class="o">=</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="kd">var</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SwitchBuilder</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p">.</span><span class="n">new</span><span class="p">()</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="p">.</span><span class="n">withRng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="c"># Give the application RNG</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">.</span><span class="n">withAddress</span><span class="p">(</span><span class="n">ma</span><span class="p">)</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="c"># Our local address(es)</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="p">.</span><span class="n">withTcpTransport</span><span class="p">()</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="c"># Use TCP as transport</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="p">.</span><span class="n">withMplex</span><span class="p">()</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="c"># Use Mplex as muxer</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">    </span><span class="p">.</span><span class="n">withNoise</span><span class="p">()</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="c"># Use Noise as secure manager</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">    </span><span class="p">.</span><span class="n">build</span><span class="p">()</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">switch</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">createSwitch</span><span class="p">(</span><span class="n">ma</span><span class="p">:</span><span class="w"> </span><span class="n">MultiAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">:</span><span class="w"> </span><span class="k">ref</span><span class="w"> </span><span class="n">HmacDrbgContext</span><span class="p">):</span><span class="w"> </span><span class="n">Switch</span><span class="w"> </span><span class="o">=</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="kd">var</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SwitchBuilder</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="p">.</span><span class="n">new</span><span class="p">()</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="p">.</span><span class="n">withRng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="c"># Give the application RNG</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">.</span><span class="n">withAddress</span><span class="p">(</span><span class="n">ma</span><span class="p">)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="c"># Our local address(es)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="p">.</span><span class="n">withTcpTransport</span><span class="p">()</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="c"># Use TCP as transport</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="p">.</span><span class="n">withMplex</span><span class="p">()</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="c"># Use Mplex as muxer</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="p">.</span><span class="n">withNoise</span><span class="p">()</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="c"># Use Noise as secure manager</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="p">.</span><span class="n">build</span><span class="p">()</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">switch</span>
 </code></pre></div>
 This will create a switch using <a href="https://docs.libp2p.io/concepts/stream-multiplexing/">Mplex</a> as a multiplexer, Noise to secure the communication, and TCP as an underlying transport.</p>
 <p>You can of course tweak this, to use a different or multiple transport, or tweak the configuration of Mplex and Noise, but this is some sane defaults that we'll use going forward.</p>
 <p>Let's now start to create our main procedure:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="sx">{.async.}</span><span class="w"> </span><span class="o">=</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="k">let</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">newRng</span><span class="p">()</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="n">localAddress</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MultiAddress</span><span class="p">.</span><span class="n">init</span><span class="p">(</span><span class="s">&quot;/ip4/0.0.0.0/tcp/0&quot;</span><span class="p">).</span><span class="n">tryGet</span><span class="p">()</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="n">pingProtocol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Ping</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="sx">{.async.}</span><span class="w"> </span><span class="o">=</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="k">let</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">newRng</span><span class="p">()</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="n">localAddress</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MultiAddress</span><span class="p">.</span><span class="n">init</span><span class="p">(</span><span class="s">&quot;/ip4/0.0.0.0/tcp/0&quot;</span><span class="p">).</span><span class="n">tryGet</span><span class="p">()</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="n">pingProtocol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Ping</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
 </code></pre></div>
 We created some variables that we'll need for the rest of the application: the global <code>rng</code> instance, our <code>localAddress</code>, and an instance of the <code>Ping</code> protocol.
 The address is in the <a href="https://github.com/multiformats/multiaddr">MultiAddress</a> format. The port <code>0</code> means "take any port available".</p>
 <p><code>tryGet</code> is procedure which is part of <a href="https://github.com/arnetheduck/nim-result/">nim-result</a>, that will throw an exception if the supplied MultiAddress is invalid.</p>
 <p>We can now create our two switches:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="w">  </span><span class="k">let</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="n">switch1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">localAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="n">switch2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">localAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="n">switch1</span><span class="p">.</span><span class="n">mount</span><span class="p">(</span><span class="n">pingProtocol</span><span class="p">)</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">switch1</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="w">  </span><span class="k">let</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="n">switch1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">localAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="n">switch2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">localAddress</span><span class="p">,</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="n">switch1</span><span class="p">.</span><span class="n">mount</span><span class="p">(</span><span class="n">pingProtocol</span><span class="p">)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">switch1</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
 </code></pre></div>
 We've <strong>mounted</strong> the <code>pingProtocol</code> on our first switch. This means that the first switch will actually listen for any ping requests coming in, and handle them accordingly.</p>
 <p>Now that we've started the nodes, they are listening for incoming peers.
 We can find out which port was attributed, and the resulting local addresses, by using <code>switch1.peerInfo.addrs</code>.</p>
 <p>We'll <strong>dial</strong> the first switch from the second one, by specifying its <strong>Peer ID</strong>, its <strong>MultiAddress</strong> and the <strong><code>Ping</code> protocol codec</strong>:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="w">  </span><span class="k">let</span><span class="w"> </span><span class="n">conn</span><span class="w"> </span><span class="o">=</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="n">await</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">dial</span><span class="p">(</span><span class="n">switch1</span><span class="p">.</span><span class="n">peerInfo</span><span class="p">.</span><span class="n">peerId</span><span class="p">,</span><span class="w"> </span><span class="n">switch1</span><span class="p">.</span><span class="n">peerInfo</span><span class="p">.</span><span class="n">addrs</span><span class="p">,</span><span class="w"> </span><span class="n">PingCodec</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="w">  </span><span class="k">let</span><span class="w"> </span><span class="n">conn</span><span class="w"> </span><span class="o">=</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="n">await</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">dial</span><span class="p">(</span><span class="n">switch1</span><span class="p">.</span><span class="n">peerInfo</span><span class="p">.</span><span class="n">peerId</span><span class="p">,</span><span class="w"> </span><span class="n">switch1</span><span class="p">.</span><span class="n">peerInfo</span><span class="p">.</span><span class="n">addrs</span><span class="p">,</span><span class="w"> </span><span class="n">PingCodec</span><span class="p">)</span>
 </code></pre></div>
 We now have a <code>Ping</code> connection setup between the second and the first switch, we can use it to actually ping the node:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="w">  </span><span class="c"># ping the other node and echo the ping duration</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="n">echo</span><span class="w"> </span><span class="s">&quot;ping: &quot;</span><span class="p">,</span><span class="w"> </span><span class="n">await</span><span class="w"> </span><span class="n">pingProtocol</span><span class="p">.</span><span class="n">ping</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="c"># We must close the connection ourselves when we&#39;re done with it</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">conn</span><span class="p">.</span><span class="n">close</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="w">  </span><span class="c"># ping the other node and echo the ping duration</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="n">echo</span><span class="w"> </span><span class="s">&quot;ping: &quot;</span><span class="p">,</span><span class="w"> </span><span class="n">await</span><span class="w"> </span><span class="n">pingProtocol</span><span class="p">.</span><span class="n">ping</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="c"># We must close the connection ourselves when we&#39;re done with it</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">conn</span><span class="p">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
 And that's it! Just a little bit of cleanup: shutting down the switches, waiting for them to stop, and we'll call our <code>main</code> procedure:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">allFutures</span><span class="p">(</span><span class="n">switch1</span><span class="p">.</span><span class="n">stop</span><span class="p">(),</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">stop</span><span class="p">())</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="c"># close connections and shutdown all transports</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">waitFor</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">allFutures</span><span class="p">(</span><span class="n">switch1</span><span class="p">.</span><span class="n">stop</span><span class="p">(),</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">stop</span><span class="p">())</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="c"># close connections and shutdown all transports</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">waitFor</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 You can now run this program using <code>nim c -r part1.nim</code>, and you should see the dialing sequence, ending with a ping output.</p>
 <p>In the <a href="../tutorial_2_customproto/">next tutorial</a>, we'll look at how to create our own custom protocol.</p>
