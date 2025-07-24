@@ -406,7 +406,7 @@ method write*(
 
   if channel.remoteReset:
     trace "stream is reset when write", channel = $channel
-    resFut.fail(newLPStreamRemoteClosedError())
+    resFut.fail(newLPStreamResetError())
     return resFut
 
   if channel.closedLocally or channel.isReset:
