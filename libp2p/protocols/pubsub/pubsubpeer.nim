@@ -360,21 +360,13 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
 
 proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
   # Continuation for a pending `sendMsg` future from below
-
   try:
     await msgFut
     trace "sent pubsub message to remote", conn
   except CatchableError as exc:
-    trace "Unexpected exception", conn, description = exc.msg
-
-  ## possible error should be handled in the following manner because we use raw future
-  if msgFut.failed:
-    # Because we detach the send call from the currently executing task using
-    # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, description = msgFut.error().msg
+    trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
-
     await conn.close() # This will clean up the send connection
 
 proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledError]).} =

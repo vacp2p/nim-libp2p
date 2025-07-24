@@ -324,7 +324,7 @@ proc gotDataFromRemote(
 proc setMaxRecvWindow*(channel: YamuxChannel, maxRecvWindow: int) =
   channel.maxRecvWindow = maxRecvWindow
 
-proc sendLoop(channel: YamuxChannel) {.async.} =
+proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
   if channel.isSending:
     return
   channel.isSending = true
@@ -383,12 +383,15 @@ proc sendLoop(channel: YamuxChannel) {.async.} =
     try:
       await channel.conn.write(sendBuffer)
       channel.sendWindow.dec(inBuffer)
+    except CancelledError:
+      ## Just for compiler. This should never happen as sendLoop is started by asyncSpawn.
+      ## Therefore, no one owns that sendLoop's future and no one can cancel it.
+      discard
     except LPStreamError as exc:
       error "failed to send the buffer", description = exc.msg
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures:
         fut.fail(connDown)
-
       await channel.reset()
       break
 
