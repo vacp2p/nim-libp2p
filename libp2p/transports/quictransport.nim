@@ -104,7 +104,7 @@ proc getStream*(
     of Direction.Out:
       stream = await session.connection.openStream()
       await stream.write(@[]) # QUIC streams do not exist until data is sent
-    
+
     let qs = QuicStream.new(stream, session.observedAddr, session.peerId)
     session.streams.add(qs)
     return qs
