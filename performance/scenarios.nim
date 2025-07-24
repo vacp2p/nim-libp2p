@@ -14,10 +14,10 @@ proc test1*() {.async.} =
     nodeCount = 10
     publisherCount = 10
     peerLimit = 5
-    msgCount = 50
-    msgInterval = 100
-    msgSize = 100
-    warmupCount = 5
+    msgCount = 200
+    msgInterval = 20 # ms
+    msgSize = 500 # bytes
+    warmupCount = 20
 
   # --- Node Setup ---
   let
@@ -50,7 +50,6 @@ proc test1*() {.async.} =
   await sleepAsync(5.seconds)
 
   # --- Peer Discovery & Connection ---
-
   var peersAddresses = resolvePeersAddresses(nodeCount, hostnamePrefix, nodeId)
   rng.shuffle(peersAddresses)
 
@@ -65,14 +64,12 @@ proc test1*() {.async.} =
     gossipSub, warmupCount, msgCount, msgInterval, msgSize, publisherCount, nodeId
   )
 
-  # Wait for all messages to be delivered
-  info "Waiting 2 seconds for message delivery..."
+  info "Waiting 2 seconds for message delivery"
   await sleepAsync(2.seconds)
 
-  # Performance summary
+  # --- Performance summary  ---
   let stats = getStats(receivedMessages[], sentMessages)
   info "Performance summary", nodeId, stats = $stats
 
-  # Write stats to JSON file in shared volume
   let outputPath = "/output/" & hostname & ".json"
   writeResultsToJson(outputPath, scenario, stats)
