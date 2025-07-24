@@ -24,6 +24,8 @@ type KadDHT* = ref object of LPProtocol
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
 
+const MaxMsgSize = 4096
+
 proc sendFindNode(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress], targetId: Key
 ): Future[Message] {.
@@ -42,7 +44,7 @@ proc sendFindNode(
 
   await conn.writeLp(msg.encode().buffer)
 
-  let reply = Message.decode(await conn.readLp(4096)).tryGet()
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
 
   if reply.msgType != MessageType.findNode:
     raise newException(ValueError, "unexpected message type in reply: " & $reply)
@@ -59,8 +61,7 @@ proc waitRepliesOrTimeouts(
 
   for (peerId, replyFut) in pendingFutures.pairs:
     try:
-      let reply = await replyFut
-      receivedReplies.add(reply)
+      receivedReplies.add(await replyFut)
     except CatchableError:
       failedPeers.add(peerId)
       error "could not send find_node to peer", peerId, err = getCurrentExceptionMsg()
@@ -80,7 +81,6 @@ proc findNode*(
 
   while not state.done:
     let toQuery = state.selectAlphaPeers()
-
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
     for peer in toQuery:
@@ -123,21 +123,21 @@ proc bootstrap*(
     try:
       await kad.switch.connect(b.peerId, b.addrs)
       debug "connected to bootstrap peer", peerId = b.peerId
-
-      try:
-        let msg =
-          await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(5.seconds)
-        for peer in msg.closerPeers:
-          let p = PeerId.init(peer.id).tryGet()
-          discard kad.rtable.insert(p)
-          kad.switch.peerStore[AddressBook][p] = peer.addrs
-
-        # bootstrap node replied succesfully. Adding to routing table
-        discard kad.rtable.insert(b.peerId)
-      except CatchableError as e:
-        error "bootstrap failed for peer", peerId = b.peerId, exc = e.msg
     except CatchableError as e:
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
+
+    try:
+      let msg =
+        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(5.seconds)
+      for peer in msg.closerPeers:
+        let p = PeerId.init(peer.id).tryGet()
+        discard kad.rtable.insert(p)
+        kad.switch.peerStore[AddressBook][p] = peer.addrs
+
+      # bootstrap node replied succesfully. Adding to routing table
+      discard kad.rtable.insert(b.peerId)
+    except CatchableError as e:
+      error "bootstrap failed for peer", peerId = b.peerId, exc = e.msg
 
   try:
     # Adding some random node to prepopulate the table
@@ -169,7 +169,7 @@ proc new*(
     try:
       while not conn.atEof:
         let
-          buf = await conn.readLp(4096)
+          buf = await conn.readLp(MaxMsgSize)
           msg = Message.decode(buf).tryGet()
 
         case msg.msgType
