@@ -21,21 +21,6 @@ const
 proc msgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ok(($m.data.hash).toBytes())
 
-proc startMetricsServer*(
-    serverIp: IpAddress, serverPort: Port
-): Result[MetricsHttpServerRef, string] =
-  info "Starting metrics HTTP server", serverIp = $serverIp, serverPort = $serverPort
-  let metricsServerRes = MetricsHttpServerRef.new($serverIp, serverPort)
-  if metricsServerRes.isErr():
-    return err("metrics HTTP server start failed: " & $metricsServerRes.error)
-  let server = metricsServerRes.value
-  try:
-    waitFor server.start()
-  except CatchableError:
-    return err("metrics HTTP server start failed: " & getCurrentExceptionMsg())
-  info "Metrics HTTP server started", serverIp = $serverIp, serverPort = $serverPort
-  ok(metricsServerRes.value)
-
 proc setupNode*(nodeId: int, rng: ref HmacDrbgContext): (Switch, GossipSub, Ping) =
   let
     myPort = 5000 + nodeId
