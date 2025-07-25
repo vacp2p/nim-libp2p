@@ -30,7 +30,7 @@ when defined(libp2p_autotls_support):
     ../multihash,
     ../cid,
     ../multicodec,
-    ../nameresolving/dnsresolver,
+    ../nameresolving/nameresolver,
     ./acme/client
 
   proc checkedGetPrimaryIPAddr*(): IpAddress {.raises: [AutoTLSError].} =
@@ -81,7 +81,7 @@ when defined(libp2p_autotls_support):
     return Base36.encode(cidResult.get().data.buffer)
 
   proc checkDNSRecords*(
-      dnsResolver: DnsResolver,
+      nameResolver: NameResolver,
       ipAddress: IpAddress,
       baseDomain: api.Domain,
       keyAuth: KeyAuthorization,
@@ -98,9 +98,9 @@ when defined(libp2p_autotls_support):
     var txt: seq[string]
     var ip4: seq[TransportAddress]
     for _ in 0 .. retries:
-      txt = await dnsResolver.resolveTxt(acmeChalDomain)
+      txt = await nameResolver.resolveTxt(acmeChalDomain)
       try:
-        ip4 = await dnsResolver.resolveIp(ip4Domain, 0.Port)
+        ip4 = await nameResolver.resolveIp(ip4Domain, 0.Port)
       except CancelledError as exc:
         raise exc
       except CatchableError as exc:

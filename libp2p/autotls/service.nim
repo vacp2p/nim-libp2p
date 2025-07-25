@@ -17,7 +17,7 @@ import
   ./acme/client,
   ./utils,
   ../crypto/crypto,
-  ../nameresolving/dnsresolver,
+  ../nameresolving/nameresolver,
   ../peeridauth/client,
   ../switch,
   ../peerinfo,
@@ -59,7 +59,7 @@ type AutotlsCert* = ref object
 
 type AutotlsConfig* = ref object
   acmeServerURL*: Uri
-  dnsResolver*: DnsResolver
+  nameResolver*: NameResolver
   ipAddress: Opt[IpAddress]
   renewCheckTime*: Duration
   renewBufferTime*: Duration
@@ -84,8 +84,9 @@ when defined(libp2p_autotls_support):
   import
     ../crypto/rsa,
     ../utils/heartbeat,
+    ../transports/transport,
     ../transports/tcptransport,
-    ../transports/transport
+    ../nameresolving/dnsresolver
 
   proc new*(
       T: typedesc[AutotlsCert],
@@ -112,7 +113,7 @@ when defined(libp2p_autotls_support):
       issueRetryTime: Duration = DefaultIssueRetryTime,
   ): T =
     T(
-      dnsResolver: DnsResolver.new(nameServers),
+      nameResolver: DnsResolver.new(nameServers),
       acmeServerURL: acmeServerURL,
       ipAddress: ipAddress,
       renewCheckTime: renewCheckTime,
@@ -204,7 +205,7 @@ when defined(libp2p_autotls_support):
     let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
     debug "Waiting for DNS record to be set", ip = ip4Domain, acme = acmeChalDomain
     let dnsSet = await checkDNSRecords(
-      self.config.dnsResolver, self.config.ipAddress.get(), baseDomain, keyAuth
+      self.config.nameResolver, self.config.ipAddress.get(), baseDomain, keyAuth
     )
     if not dnsSet:
       error "DNS records not set"
