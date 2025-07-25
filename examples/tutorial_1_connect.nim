@@ -1,3 +1,4 @@
+{.used.}
 ## # Simple ping tutorial
 ##
 ## Hi all, welcome to the first nim-libp2p tutorial!

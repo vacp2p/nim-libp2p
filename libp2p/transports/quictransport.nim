@@ -59,6 +59,9 @@ method readOnce*(
   try:
     if stream.cached.len == 0:
       stream.cached = await stream.stream.read()
+      if stream.cached.len == 0:
+        raise newLPStreamEOFError()
+
     result = min(nbytes, stream.cached.len)
     copyMem(pbytes, addr stream.cached[0], result)
     stream.cached = stream.cached[result ..^ 1]

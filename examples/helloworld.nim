@@ -1,3 +1,5 @@
+{.used.}
+
 import chronos # an efficient library for async
 import stew/byteutils # various utils
 import libp2p
