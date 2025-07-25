@@ -1,6 +1,7 @@
 import chronos
 import chronicles
 import sequtils
+import nimcrypto/sha2
 import ../../peerid
 import ./consts
 import dhttypes
@@ -10,8 +11,9 @@ import ./lookupstate
 import ./requests
 import ./keys
 import ../protocol
-import ../../switch
 import ./protobuf
+import ../../switch
+import ../../multihash
 import ../../utils/heartbeat
 import std/[options, tables]
 import results
@@ -69,6 +71,41 @@ proc waitRepliesOrTimeouts(
       error "could not send find_node to peer", peerId, err = getCurrentExceptionMsg()
 
   return (receivedReplies, failedPeers)
+
+proc doPutVal(
+    kad: KadDHT, peer: PeerId, key: Key, val: seq[byte]
+): Future[void] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
+.} =
+  let conn = await kad.switch.dial(peer, KadCodec)
+
+  defer:
+    await conn.close()
+
+  let msg = Message(
+    msgType: MessageType.putValue,
+    record: some(Record(key: some(key.getBytes()), value: some(val))),
+  )
+
+  await conn.writeLp(msg.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
+
+  if reply.msgType != MessageType.findNode:
+    raise newException(ValueError, "unexpected message type in reply: " & $reply)
+
+proc putVal*(
+    kad: KadDHT, val: seq[byte], replic: int
+): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
+  let keyDat: array[IdLength, byte] = sha256.digest(val).data
+  let key = Key(kind: KeyType.Hashed, data: keyDat)
+
+  let closests = kad.rtable.findClosestPeers(key, replic)
+  try:
+    for peer in closests:
+      await kad.doPutVal(peer, key, val)
+  except CatchableError:
+    error "todo: think about handling error properly"
 
 proc findNode*(
     kad: KadDHT, targetId: Key
