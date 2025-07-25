@@ -1,3 +1,4 @@
+import nimcrypto/sha2
 import ../../peerid
 import ./consts
 import chronicles
@@ -8,13 +9,24 @@ type
     Unhashed
     Raw
     PeerId
+    Hashed
 
   Key* = object
     case kind*: KeyType
     of KeyType.PeerId:
       peerId*: PeerId
-    of KeyType.Raw, KeyType.Unhashed:
+    of KeyType.Raw, KeyType.Unhashed, KeyType.Hashed:
       data*: array[IdLength, byte]
+
+proc sha256Hash*(k: Key): array[IdLength, byte] =
+  return
+    case k.kind
+    of KeyType.PeerId:
+      sha256.digest(k.peerId.getBytes()).data
+    of KeyType.Raw, KeyType.Unhashed:
+      sha256.digest(k.data).data
+    of Hashed:
+      k.data
 
 proc toKey*(s: seq[byte]): Key =
   doAssert s.len == IdLength
@@ -36,7 +48,7 @@ proc getBytes*(k: Key): seq[byte] =
     case k.kind
     of KeyType.PeerId:
       k.peerId.getBytes()
-    of KeyType.Raw, KeyType.Unhashed:
+    of KeyType.Raw, KeyType.Unhashed, KeyType.Hashed:
       @(k.data)
 
 template `==`*(a, b: Key): bool =
@@ -46,7 +58,7 @@ proc shortLog*(k: Key): string =
   case k.kind
   of KeyType.PeerId:
     "PeerId:" & $k.peerId
-  of KeyType.Raw, KeyType.Unhashed:
+  of KeyType.Raw, KeyType.Unhashed, KeyType.Hashed:
     $k.kind & ":" & toHex(k.data)
 
 chronicles.formatIt(Key):
