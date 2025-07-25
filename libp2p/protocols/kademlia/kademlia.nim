@@ -162,7 +162,7 @@ proc new*(
     T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
 ): T {.raises: [].} =
   var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey())
-  let kad = T(rng: rng, switch: switch, rtable: rtable, table: LocalTable.init())
+  let kad = T(rng: rng, switch: switch, rtable: rtable, dataTable: LocalTable.init())
 
   kad.codec = KadCodec
   kad.handler = proc(
@@ -184,12 +184,14 @@ proc new*(
 
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
-        of MessageType.putNode:
-          let key = msg.key.get()
-          let data = msg.data.get()
+        of MessageType.putValue:
+          let key = EntryKey(data: msg.key.get())
+          let data = EntryVal(data: msg.record.get().value.get())
           let validator = BaseValidator()
-          let entry = validator.validate(key, data)
-          kad.table.insert(entry)
+          let entry = validator.validate(
+            EntryCandidate(key: key, val: data, time: TimeStamp(ts: "foo"))
+          )
+          kad.dataTable.insert(entry)
 
           raise newException(LPError, "unhandled putNode message type")
         else:
