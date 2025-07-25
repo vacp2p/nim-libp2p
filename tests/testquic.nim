@@ -1,6 +1,6 @@
 {.used.}
 
-import chronos, stew/byteutils
+import chronos, stew/byteutils, random
 import
   ../libp2p/[
     stream/connection,
@@ -75,6 +75,8 @@ suite "Quic transport":
   asyncTest "transport e2e":
     let server = await createTransport()
     asyncSpawn createServerAcceptConn(server)()
+    defer:
+      await server.stop()
 
     proc runClient() {.async.} =
       let client = await createTransport()
@@ -88,11 +90,12 @@ suite "Quic transport":
       await client.stop()
 
     await runClient()
-    await server.stop()
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createTransport(true)
     asyncSpawn createServerAcceptConn(server)()
+    defer:
+      await server.stop()
 
     proc runClient() {.async.} =
       let client = await createTransport()
@@ -101,11 +104,12 @@ suite "Quic transport":
       await client.stop()
 
     await runClient()
-    await server.stop()
 
   asyncTest "transport e2e - invalid cert - client":
     let server = await createTransport()
     asyncSpawn createServerAcceptConn(server)()
+    defer:
+      await server.stop()
 
     proc runClient() {.async.} =
       let client = await createTransport(true)
@@ -114,4 +118,32 @@ suite "Quic transport":
       await client.stop()
 
     await runClient()
-    await server.stop()
+
+  asyncTest "closing session should close all streams":
+    let server = await createTransport()
+    asyncSpawn createServerAcceptConn(server)()
+    defer:
+      await server.stop()
+
+    proc runClient() {.async.} =
+      let client = await createTransport()
+      let conn = await client.dial("", server.addrs[0])
+      let session = QuicSession(conn)
+      for i in 1 .. 20:
+        let stream = await getStream(session, Direction.Out)
+
+        # at random send full message "client" or just part of it.
+        # if part of the message is sent server will be blocked until
+        # whole message is received. if full message is sent, server might have
+        # already written and closed it's stream. we want to cover both cases here.
+        if rand(1) == 0: # 50% probability
+          await stream.write("client")
+        else:
+          await stream.write("cl")
+
+        # intentionally do not close stream, it should be closed with session below
+      await session.close()
+      await client.stop()
+
+    # run multiple clients simultainiously
+    await allFutures(runClient(), runClient(), runClient())
