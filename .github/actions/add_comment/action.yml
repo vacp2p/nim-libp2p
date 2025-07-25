@@ -1,8 +1,8 @@
 name: Add Comment
-description: "Add or modify comment in the PR"
+description: "Add or update comment in the PR"
 inputs:
   marker:
-    description: "Text used to find the comment to modify"
+    description: "Text used to find the comment to update"
     required: true
   markdown_path:
     description: "Path to the file containing markdown"
@@ -11,8 +11,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Post/Update PR Performance Comment
-      if: github.event_name == 'pull_request'
+    - name: Add/Update Comment
       uses: actions/github-script@v7
       with:
         script: |
