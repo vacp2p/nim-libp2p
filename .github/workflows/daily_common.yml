@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
-  test:
+  compile_nim_libp2p:
     needs: delete_cache
     timeout-minutes: 40
     strategy:
@@ -50,7 +50,6 @@ jobs:
         nim: ${{ fromJSON(inputs.nim) }}
         cpu: ${{ fromJSON(inputs.cpu) }}
         exclude: ${{ fromJSON(inputs.exclude) }}
-
     defaults:
       run:
         shell: ${{ matrix.platform.shell }}
@@ -89,6 +88,34 @@ jobs:
         run: |
           nimble install -y --depsOnly
 
+  compile_nimbus:
+    needs: [delete_cache, compile_nim_libp2p]
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - os: macos
+            builder: macos-13
+            shell: bash
+          - os: windows
+            builder: windows-2022
+            shell: msys2 {0}
+        nim: ${{ fromJSON(inputs.nim) }}
+        cpu: ${{ fromJSON(inputs.cpu) }}
+        exclude: ${{ fromJSON(inputs.exclude) }}
+
+    defaults:
+      run:
+        shell: ${{ matrix.platform.shell }}
+
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
+    runs-on: ${{ matrix.platform.builder }}
+    steps:
+
       - name: Compile nimbus using nim-libp2p
         if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' && matrix.nim.ref == 'version-2-2'}}
         run: |
@@ -103,6 +130,34 @@ jobs:
 
           make -j"$(nproc)"
           make -j"$(nproc)" nimbus_beacon_node
+
+  test:
+    needs: [delete_cache, compile_nim_libp2p]
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - os: macos
+            builder: macos-13
+            shell: bash
+          - os: windows
+            builder: windows-2022
+            shell: msys2 {0}
+        nim: ${{ fromJSON(inputs.nim) }}
+        cpu: ${{ fromJSON(inputs.cpu) }}
+        exclude: ${{ fromJSON(inputs.exclude) }}
+
+    defaults:
+      run:
+        shell: ${{ matrix.platform.shell }}
+
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
+    runs-on: ${{ matrix.platform.builder }}
+    steps:
 
       - name: Run tests
         run: |
