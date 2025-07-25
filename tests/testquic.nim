@@ -77,7 +77,7 @@ suite "Quic transport":
     asyncSpawn createServerAcceptConn(server)()
     defer:
       await server.stop()
-      
+
     proc runClient() {.async.} =
       let client = await createTransport()
       let conn = await client.dial("", server.addrs[0])
@@ -88,6 +88,7 @@ suite "Quic transport":
       await stream.close()
       check string.fromBytes(resp) == "server"
       await client.stop()
+
     await runClient()
 
   asyncTest "transport e2e - invalid cert - server":
@@ -101,6 +102,7 @@ suite "Quic transport":
       expect QuicTransportDialError:
         discard await client.dial("", server.addrs[0])
       await client.stop()
+
     await runClient()
 
   asyncTest "transport e2e - invalid cert - client":
@@ -114,6 +116,7 @@ suite "Quic transport":
       expect QuicTransportDialError:
         discard await client.dial("", server.addrs[0])
       await client.stop()
+
     await runClient()
 
   asyncTest "closing session should close all streams":
@@ -126,7 +129,7 @@ suite "Quic transport":
       let client = await createTransport()
       let conn = await client.dial("", server.addrs[0])
       let session = QuicSession(conn)
-      for i in 1..20:
+      for i in 1 .. 20:
         let stream = await getStream(session, Direction.Out)
 
         # at random send full message "client" or just part of it.
@@ -134,7 +137,7 @@ suite "Quic transport":
         # whole message is received. if full message is sent, server might have
         # already written and closed it's stream. we want to cover both cases here.
         if rand(1) == 0: # 50% probability
-          await stream.write("client") 
+          await stream.write("client")
         else:
           await stream.write("cl")
 
@@ -144,6 +147,3 @@ suite "Quic transport":
 
     # run multiple clients simultainiously
     await allFutures(runClient(), runClient(), runClient())
-
-
-
