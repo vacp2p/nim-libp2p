@@ -209,6 +209,13 @@ proc getStats*(
 
   return stats
 
+proc `$`*(stats: Stats): string =
+  return
+    fmt"Messages: sent={stats.totalSent}, received={stats.totalReceived}, " &
+    fmt"Latency (ms): min={formatLatencyMs(stats.latency.minLatencyMs)}, " &
+    fmt"max={formatLatencyMs(stats.latency.maxLatencyMs)}, " &
+    fmt"avg={formatLatencyMs(stats.latency.avgLatencyMs)}"
+
 proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
   let json =
     %*{
@@ -224,10 +231,3 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
       ]
     }
   writeFile(outputPath, json.pretty)
-
-proc `$`*(stats: Stats): string =
-  return
-    fmt"Messages: sent={stats.totalSent}, received={stats.totalReceived}, " &
-    fmt"Latency (ms): min={formatLatencyMs(stats.latency.minLatencyMs)}, " &
-    fmt"max={formatLatencyMs(stats.latency.maxLatencyMs)}, " &
-    fmt"avg={formatLatencyMs(stats.latency.avgLatencyMs)}"
