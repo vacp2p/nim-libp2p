@@ -31,7 +31,7 @@ proc `<`*(a, b: XorDistance): bool =
 proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
-proc hashFor(k: Key): seq[byte] =
+proc hashFor*(k: Key): seq[byte] =
   return
     @(
       case k.kind
@@ -39,7 +39,7 @@ proc hashFor(k: Key): seq[byte] =
         sha256.digest(k.peerId.getBytes()).data
       of KeyType.Raw:
         sha256.digest(k.data).data
-      of KeyType.Unhashed:
+      of KeyType.Unhashed, KeyType.Hashed:
         k.data
     )
 
