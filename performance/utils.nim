@@ -1,18 +1,19 @@
+import chronos
+import hashes
+import json
+import metrics
+import metrics/chronos_httpserver
+import sequtils
 import stew/byteutils
 import stew/endians2
 import strutils
 import strformat
-import sequtils
 import tables
-import hashes
-import metrics
-import metrics/chronos_httpserver
-import chronos
-import json
 import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/ping
+import ./types
 
 const
   topic* = "test"
@@ -171,11 +172,6 @@ proc publishMessagesWithWarmup*(
 
   return sentMessages
 
-type LatencyStats* = object
-  minLatencyMs*: float
-  maxLatencyMs*: float
-  avgLatencyMs*: float
-
 proc getLatencyStats*(latencies: seq[float]): LatencyStats =
   var minLatencyMs, maxLatencyMs, avgLatencyMs: float
   if latencies.len > 0:
@@ -196,17 +192,15 @@ proc getLatencyStats*(latencies: seq[float]): LatencyStats =
 
   return latency
 
-type Stats* = object
-  totalSent*: int
-  totalReceived*: int
-  latency*: LatencyStats
-
 proc getStats*(
-    receivedMessages: Table[uint64, float], sentMessages: seq[uint64]
+    scenarioName: string,
+    receivedMessages: Table[uint64, float],
+    sentMessages: seq[uint64],
 ): Stats =
   let latencyStats = getLatencyStats(receivedMessages.values().toSeq())
 
   let stats = Stats(
+    scenarioName: scenarioName,
     totalSent: sentMessages.len,
     totalReceived: receivedMessages.len,
     latency: latencyStats,
@@ -226,12 +220,12 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
     %*{
       "results": [
         {
-          "scenario": scenario,
+          "scenarioName": scenario,
           "totalSent": stats.totalSent,
           "totalReceived": stats.totalReceived,
-          "minLatency": formatLatencyMs(stats.latency.minLatencyMs),
-          "maxLatency": formatLatencyMs(stats.latency.maxLatencyMs),
-          "avgLatency": formatLatencyMs(stats.latency.avgLatencyMs),
+          "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
+          "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
+          "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
         }
       ]
     }
