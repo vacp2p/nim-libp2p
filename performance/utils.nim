@@ -32,7 +32,6 @@ proc setupNode*(nodeId: int, rng: ref HmacDrbgContext): (Switch, GossipSub, Ping
       .withAddress(MultiAddress.init(address).tryGet())
       .withRng(rng)
       .withYamux()
-      .withMaxConnections(250)
       .withTcpTransport(flags = {ServerFlags.TcpNoDelay})
       .withNoise()
       .build()
@@ -177,24 +176,20 @@ type LatencyStats* = object
   avgLatencyMs*: float
 
 proc getLatencyStats*(latencies: seq[float]): LatencyStats =
-  var minLatencyMs, maxLatencyMs, avgLatencyMs: float
-  if latencies.len > 0:
-    minLatencyMs = latencies.min
-    maxLatencyMs = latencies.max
-    var sumLatency: float = 0.0
-    for l in latencies:
-      sumLatency += l
-    avgLatencyMs = sumLatency / float(latencies.len)
-  else:
+  var
     minLatencyMs = 0.0
     maxLatencyMs = 0.0
     avgLatencyMs = 0.0
 
-  let latency = LatencyStats(
+  if latencies.len > 0:
+    minLatencyMs = latencies.min
+    maxLatencyMs = latencies.max
+    let sumLatency = foldl(latencies, a + b, 0.0)
+    avgLatencyMs = sumLatency / float(latencies.len)
+
+  return LatencyStats(
     minLatencyMs: minLatencyMs, maxLatencyMs: maxLatencyMs, avgLatencyMs: avgLatencyMs
   )
-
-  return latency
 
 type Stats* = object
   totalSent*: int

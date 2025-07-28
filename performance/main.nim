@@ -1,4 +1,4 @@
 import chronos
 import ./scenarios
 
-waitFor(test1())
+waitFor(baseTest())

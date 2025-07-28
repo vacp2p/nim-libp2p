@@ -7,7 +7,7 @@ import ../libp2p/protocols/ping
 import ./utils
 from nativesockets import getHostname
 
-proc test1*() {.async.} =
+proc baseTest*() {.async.} =
   const
     # --- Scenario ---
     scenario = "Base test"
