@@ -7,10 +7,10 @@ import ../libp2p/protocols/ping
 import ./utils
 from nativesockets import getHostname
 
-proc baseTest*() {.async.} =
+proc baseTest*(scenarioName = "Base test") {.async.} =
+  # --- Scenario ---
+  let scenario = scenarioName
   const
-    # --- Scenario ---
-    scenario = "Base test"
     nodeCount = 10
     publisherCount = 10
     peerLimit = 5
@@ -73,3 +73,34 @@ proc baseTest*() {.async.} =
 
   let outputPath = "/output/" & hostname & ".json"
   writeResultsToJson(outputPath, scenario, stats)
+
+proc latencyTest*() {.async.} =
+  let enable = execShellCommand(
+    "tc qdisc add dev eth0 root netem delay 300ms 50ms distribution normal"
+  )
+  echo "[TC Enable Output] ", enable
+
+  await baseTest("Latency test")
+
+  let disable = execShellCommand("tc qdisc del dev eth0 root")
+  echo "[TC Disable Output] ", disable
+
+proc packetLossTest*() {.async.} =
+  let enable = execShellCommand("tc qdisc add dev eth0 root netem loss 2%")
+  echo "[TC Enable Output] ", enable
+
+  await baseTest("Packet Loss test")
+
+  let disable = execShellCommand("tc qdisc del dev eth0 root netem")
+  echo "[TC Disable Output] ", disable
+
+proc lowBandwithTest*() {.async.} =
+  let enable = execShellCommand(
+    "tc qdisc add dev eth0 root tbf rate 1mbit burst 32kbit limit 12500"
+  )
+  echo "[TC Enable Output] ", enable
+
+  await baseTest("Low Bandwith test")
+
+  let disable = execShellCommand("tc qdisc del dev eth0 root")
+  echo "[TC Disable Output] ", disable

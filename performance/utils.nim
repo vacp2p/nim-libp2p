@@ -3,6 +3,8 @@ import hashes
 import json
 import metrics
 import metrics/chronos_httpserver
+import os
+import osproc
 import sequtils
 import stew/byteutils
 import stew/endians2
@@ -217,17 +219,36 @@ proc `$`*(stats: Stats): string =
     fmt"avg={formatLatencyMs(stats.latency.avgLatencyMs)}"
 
 proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
-  let json =
+  var resultsArr: JsonNode
+  if fileExists(outputPath):
+    try:
+      let existing = parseFile(outputPath)
+      resultsArr = existing["results"]
+    except:
+      resultsArr = newJArray()
+  else:
+    resultsArr = newJArray()
+
+  let newResult =
     %*{
-      "results": [
-        {
-          "scenarioName": scenario,
-          "totalSent": stats.totalSent,
-          "totalReceived": stats.totalReceived,
-          "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
-          "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
-          "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
-        }
-      ]
+      "scenarioName": scenario,
+      "totalSent": stats.totalSent,
+      "totalReceived": stats.totalReceived,
+      "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
+      "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
+      "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
     }
+  resultsArr.add(newResult)
+
+  let json = %*{"results": resultsArr}
   writeFile(outputPath, json.pretty)
+
+proc execShellCommand*(cmd: string): string =
+  ## Executes a shell command on the host and returns its output as a string.
+  try:
+    return execProcess(
+        "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
+      )
+      .strip()
+  except OSError as e:
+    return "[ERROR] " & e.msg
