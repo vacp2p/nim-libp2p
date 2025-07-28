@@ -363,13 +363,10 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: [
   try:
     await msgFut
     trace "sent pubsub message to remote", conn
-  except CatchableError as exc: # never cancelled
-    # Because we detach the send call from the currently executing task using
-    # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, description = exc.msg
+  except CatchableError as exc:
+    trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
-
     await conn.close() # This will clean up the send connection
 
 proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledError]).} =

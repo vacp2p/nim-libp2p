@@ -59,6 +59,9 @@ method readOnce*(
   try:
     if stream.cached.len == 0:
       stream.cached = await stream.stream.read()
+      if stream.cached.len == 0:
+        raise newLPStreamEOFError()
+
     result = min(nbytes, stream.cached.len)
     copyMem(pbytes, addr stream.cached[0], result)
     stream.cached = stream.cached[result ..^ 1]
@@ -85,8 +88,11 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
 # Session
 type QuicSession* = ref object of P2PConnection
   connection: QuicConnection
+  streams: seq[QuicStream]
 
 method close*(session: QuicSession) {.async: (raises: []).} =
+  for s in session.streams:
+    await s.close()
   safeClose(session.connection)
   await procCall P2PConnection(session).close()
 
@@ -101,7 +107,10 @@ proc getStream*(
     of Direction.Out:
       stream = await session.connection.openStream()
       await stream.write(@[]) # QUIC streams do not exist until data is sent
-    return QuicStream.new(stream, session.observedAddr, session.peerId)
+
+    let qs = QuicStream.new(stream, session.observedAddr, session.peerId)
+    session.streams.add(qs)
+    return qs
   except CatchableError as exc:
     # TODO: incomingStream is using {.async.} with no raises
     raise (ref QuicTransportError)(msg: "error in getStream: " & exc.msg, parent: exc)
