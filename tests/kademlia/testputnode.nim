@@ -8,6 +8,7 @@ import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
 import ../../libp2p/protocols/kademlia/routingtable
 import ../../libp2p/protocols/kademlia/keys
+import ../../libp2p/protocols/kademlia/dhttypes
 import unittest2
 import ../utils/async_tests
 import std/tables
@@ -30,6 +31,11 @@ proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
         res += 1
   return res
 
+type PermissiveValidator = ref object of EntryValidator
+
+method validate(self: PermissiveValidator, key: EntryKey, val: EntryVal): bool =
+  true
+
 suite "KadDHT - PutNode":
   asyncTest "Simple put":
     let swarmSize = 3
@@ -38,7 +44,7 @@ suite "KadDHT - PutNode":
     # every node needs a switch, and an assosciated kad mounted to it
     for i in 0 ..< swarmSize:
       switches.add(createSwitch())
-      kads.add(KadDHT.new(switches[i]))
+      kads.add(KadDHT.new(switches[i], PermissiveValidator()))
       switches[i].mount(kads[i])
 
     # Once the the creation/mounting of switches are done, we can start

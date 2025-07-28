@@ -1,4 +1,5 @@
 import std/[tables, hashes]
+import results
 
 type EntryKey* = object
   data*: seq[byte]
@@ -16,14 +17,20 @@ type EntryCandidate* = object
   val*: EntryVal
   time*: TimeStamp
 
-type BaseValidator* = ref object of RootObj
-
 type ValidatedEntry* = object
   key*: EntryKey
   val*: EntryVal
   time*: TimeStamp
 
-type RecordVal = object
+type EntryValidator* = ref object of RootObj
+method validate*(
+    self: EntryValidator, key: EntryKey, val: EntryVal
+): bool {.base, raises: [], gcsafe.} =
+  discard
+
+# get a validated entry from a app defined validator and 
+
+type RecordVal* = object
   value: EntryVal
   time: TimeStamp
 
@@ -35,8 +42,3 @@ proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
 
 proc insert*(self: var LocalTable, val: sink ValidatedEntry) =
   self.entries[val.key] = (val.val, val.time)
-
-proc validate*(
-    self: BaseValidator, candidate: sink EntryCandidate
-): ValidatedEntry {.raises: [].} =
-  doAssert(false, "[BaseValidator.advertise] abstract method not implemented!")

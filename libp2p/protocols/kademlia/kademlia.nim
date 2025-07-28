@@ -28,6 +28,7 @@ type KadDHT* = ref object of LPProtocol
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
   dataTable*: LocalTable
+  entryValidator: EntryValidator
 
 const MaxMsgSize = 4096
 
@@ -202,18 +203,20 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", 10.minutes:
     await kad.refreshBuckets()
 
-type PlaceHolderValidator = ref object of BaseValidator
-
-proc validate(
-    self: PlaceHolderValidator, candidate: sink EntryCandidate
-): ValidatedEntry {.raises: [].} =
-  return ValidatedEntry(key: candidate.key, val: candidate.val)
-
 proc new*(
-    T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
+    T: typedesc[KadDHT],
+    switch: Switch,
+    validator: EntryValidator,
+    rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
   var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey())
-  let kad = T(rng: rng, switch: switch, rtable: rtable, dataTable: LocalTable.init())
+  let kad = T(
+    rng: rng,
+    switch: switch,
+    rtable: rtable,
+    dataTable: LocalTable.init(),
+    entryValidator: validator,
+  )
 
   kad.codec = KadCodec
   kad.handler = proc(
@@ -238,15 +241,12 @@ proc new*(
         of MessageType.putValue:
           var record = msg.record.get()
           let key = EntryKey(data: record.key.get())
-          let data = EntryVal(data: record.value.get())
+          let val = EntryVal(data: record.value.get())
           record.timeReceived = some("foo")
-          let validator = PlaceHolderValidator()
-          let entry = validator.validate(
-            EntryCandidate(
-              key: key, val: data, time: TimeStamp(ts: record.timeReceived.get())
-            )
-          )
-          kad.dataTable.insert(entry)
+          if kad.entryValidator.validate(key, val):
+            let validated = ValidatedEntry(key: key, val: val)
+
+            kad.dataTable.insert(validated)
           let resp = Message(record: some(record))
           await conn.writeLp(resp.encode().buffer)
 
