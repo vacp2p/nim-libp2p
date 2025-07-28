@@ -21,19 +21,14 @@ proc parseJsonFiles*(outputDir: string): seq[JsonNode] =
   return jsons
 
 proc extractStats(scenario: JsonNode): Stats =
-  let scenarioName = scenario["scenarioName"].getStr("")
-  let totalSent = scenario["totalSent"].getInt(0)
-  let totalReceived = scenario["totalReceived"].getInt(0)
-  let minLatencyMs = scenario["minLatencyMs"].getStr($unknownFloat).parseFloat()
-  let maxLatencyMs = scenario["maxLatencyMs"].getStr($unknownFloat).parseFloat()
-  let avgLatencyMs = scenario["avgLatencyMs"].getStr($unknownFloat).parseFloat()
-
-  return Stats(
-    scenarioName: scenarioName,
-    totalSent: totalSent,
-    totalReceived: totalReceived,
+  Stats(
+    scenarioName: scenario["scenarioName"].getStr(""),
+    totalSent: scenario["totalSent"].getInt(0),
+    totalReceived: scenario["totalReceived"].getInt(0),
     latency: LatencyStats(
-      minLatencyMs: minLatencyMs, maxLatencyMs: maxLatencyMs, avgLatencyMs: avgLatencyMs
+      minLatencyMs: scenario["minLatencyMs"].getStr($unknownFloat).parseFloat(),
+      maxLatencyMs: scenario["maxLatencyMs"].getStr($unknownFloat).parseFloat(),
+      avgLatencyMs: scenario["avgLatencyMs"].getStr($unknownFloat).parseFloat(),
     ),
   )
 
