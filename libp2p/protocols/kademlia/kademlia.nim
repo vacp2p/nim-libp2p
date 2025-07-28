@@ -1,10 +1,11 @@
 import chronos
+import options
 import chronicles
 import sequtils
 import nimcrypto/sha2
 import ../../peerid
 import ./consts
-import dhttypes
+import ./dhttypes
 import ./xordistance
 import ./routingtable
 import ./lookupstate
@@ -26,7 +27,7 @@ type KadDHT* = ref object of LPProtocol
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
-  dataTable: LocalTable
+  dataTable*: LocalTable
 
 const MaxMsgSize = 4096
 
@@ -72,11 +73,12 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
-proc doPutVal(
+proc dispatchPutVal(
     kad: KadDHT, peer: PeerId, key: Key, val: seq[byte]
 ): Future[void] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
+  info "dialing", me = kad.rtable.selfId, peer = peer, key = key, val = val[0 .. 3]
   let conn = await kad.switch.dial(peer, KadCodec)
 
   defer:
@@ -87,8 +89,10 @@ proc doPutVal(
     record: some(Record(key: some(key.getBytes()), value: some(val))),
   )
 
+  info "writing"
   await conn.writeLp(msg.encode().buffer)
 
+  info "waiting reply"
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
 
   if reply.msgType != MessageType.findNode:
@@ -99,13 +103,16 @@ proc putVal*(
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   let keyDat: array[IdLength, byte] = sha256.digest(val).data
   let key = Key(kind: KeyType.Hashed, data: keyDat)
+  info "key", key = key.data
 
   let closests = kad.rtable.findClosestPeers(key, replic)
+  info "closests", closests = closests
   try:
     for peer in closests:
-      await kad.doPutVal(peer, key, val)
-  except CatchableError:
-    error "todo: think about handling error properly"
+      info "dispatchingk", peer = peer, key = key, val = val
+      await kad.dispatchPutVal(peer, key, val)
+  except CatchableError as e:
+    error "todo: think about handling error properly", e = e.msg
 
 proc findNode*(
     kad: KadDHT, targetId: Key
@@ -195,6 +202,13 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", 10.minutes:
     await kad.refreshBuckets()
 
+type PlaceHolderValidator = ref object of BaseValidator
+
+proc validate(
+    self: PlaceHolderValidator, candidate: sink EntryCandidate
+): ValidatedEntry {.raises: [].} =
+  return ValidatedEntry(key: candidate.key, val: candidate.val)
+
 proc new*(
     T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
 ): T {.raises: [].} =
@@ -222,15 +236,21 @@ proc new*(
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
         of MessageType.putValue:
-          let key = EntryKey(data: msg.key.get())
-          let data = EntryVal(data: msg.record.get().value.get())
-          let validator = BaseValidator()
+          var record = msg.record.get()
+          let key = EntryKey(data: record.key.get())
+          let data = EntryVal(data: record.value.get())
+          record.timeReceived = some("foo")
+          let validator = PlaceHolderValidator()
           let entry = validator.validate(
-            EntryCandidate(key: key, val: data, time: TimeStamp(ts: "foo"))
+            EntryCandidate(
+              key: key, val: data, time: TimeStamp(ts: record.timeReceived.get())
+            )
           )
           kad.dataTable.insert(entry)
+          let resp = Message(record: some(record))
+          await conn.writeLp(resp.encode().buffer)
 
-          raise newException(LPError, "unhandled putNode message type")
+          # raise newException(LPError, "unhandled putNode message type")
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
