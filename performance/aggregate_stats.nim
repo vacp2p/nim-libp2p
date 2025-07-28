@@ -1,5 +1,6 @@
 import json
 import os
+import sequtils
 import strutils
 import strformat
 import tables
@@ -27,7 +28,7 @@ proc extractStats(scenario: JsonNode): Stats =
   let maxLatencyMs = scenario["maxLatencyMs"].getStr($unknownFloat).parseFloat()
   let avgLatencyMs = scenario["avgLatencyMs"].getStr($unknownFloat).parseFloat()
 
-  let stats = Stats(
+  return Stats(
     scenarioName: scenarioName,
     totalSent: totalSent,
     totalReceived: totalReceived,
@@ -36,23 +37,13 @@ proc extractStats(scenario: JsonNode): Stats =
     ),
   )
 
-  return stats
-
 proc getJsonResults*(jsons: seq[JsonNode]): seq[Table[string, Stats]] =
-  var jsonResults: seq[Table[string, Stats]]
-
-  for json in jsons:
-    var results: Table[string, Stats]
-
-    let scenarios = json["results"].getElems(@[])
-    for scenario in scenarios:
-      let stats = scenario.extractStats()
-
-      results[stats.scenarioName] = stats
-
-    jsonResults.add(results)
-
-  return jsonResults
+  jsons.mapIt(
+    it["results"]
+    .getElems(@[])
+    .mapIt(it.extractStats())
+    .mapIt((it.scenarioName, it)).toTable
+  )
 
 proc aggregateResults*(
     jsonResults: seq[Table[string, Stats]]
@@ -114,7 +105,6 @@ proc getMarkdownReport*(
 
   for scenarioName, stats in results.pairs:
     let nodes = validNodes[scenarioName]
-    let stats = results[scenarioName]
     output.add fmt"| {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {stats.latency.avgLatencyMs:.3f} |"
 
   let markdown = output.join("\n")
