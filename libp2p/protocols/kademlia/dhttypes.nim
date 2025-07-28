@@ -16,9 +16,9 @@ type EntryCandidate* = object
   val*: EntryVal
   time*: TimeStamp
 
-type BaseValidator* = object
+type BaseValidator* = ref object of RootObj
 
-type ValidatedEntry = object
+type ValidatedEntry* = object
   key*: EntryKey
   val*: EntryVal
   time*: TimeStamp
@@ -28,7 +28,7 @@ type RecordVal = object
   time: TimeStamp
 
 type LocalTable* = object
-  entries: Table[EntryKey, (EntryVal, TimeStamp)]
+  entries*: Table[EntryKey, (EntryVal, TimeStamp)]
 
 proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
   LocalTable(entries: initTable[EntryKey, (EntryVal, TimeStamp)]())
