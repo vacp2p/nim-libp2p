@@ -244,11 +244,14 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
 const
   enableTcCommand* = "tc qdisc add dev eth0 root"
   disableTcCommand* = "tc qdisc del dev eth0 root"
+
 proc execShellCommand*(cmd: string): string =
   try:
-    return execProcess(
+    let output = execProcess(
         "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
       )
       .strip()
+    debug "Shell command executed", cmd, output
+    return output
   except OSError as e:
-    return "ERROR " & e.msg
+    warn "Shell command failed", cmd, error = e.msg
