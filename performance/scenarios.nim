@@ -120,13 +120,17 @@ proc packetReorderTest*() {.async.} =
   const
     reorderPercent = 15
     reorderCorr = 40
+    delay = 2
 
+  # tc netem requires a delay to enable reordering
   let enable = execShellCommand(
-    fmt"{enableTcCommand} netem reorder {reorderPercent}% {reorderCorr}%"
+    fmt"{enableTcCommand} netem delay {delay}ms reorder {reorderPercent}% {reorderCorr}%"
   )
   echo "TC Enable ", enable
 
-  await baseTest(fmt"Packet Reorder {reorderPercent}% {reorderCorr}%")
+  await baseTest(
+    fmt"Packet Reorder {reorderPercent}% {reorderCorr}% with {delay}ms delay"
+  )
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable ", disable
@@ -187,7 +191,7 @@ proc combinedAdverseTest*() {.async.} =
   echo "TC TBF Enable ", enableTbf
 
   let enableNetem = execShellCommand(
-    "tc qdisc add dev eth0 parent 1:0 handle 1:1 netem delay 100ms 20ms distribution normal loss 5% 20% reorder 10% 30% duplicate 0.5% corrupt 0.05% limit 20"
+    "tc qdisc add dev eth0 parent 1:1 handle 10: netem delay 100ms 20ms distribution normal loss 5% 20% reorder 10% 30% duplicate 0.5% corrupt 0.05% limit 20"
   )
   echo "TC Netem Enable ", enableNetem
 
