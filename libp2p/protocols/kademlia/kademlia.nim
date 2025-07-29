@@ -173,8 +173,9 @@ proc bootstrap*(
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
 
     try:
-      let msg =
-        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(chronos.seconds(5))
+      let msg = await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
+        chronos.seconds(5)
+      )
       for peer in msg.closerPeers:
         let p = PeerId.init(peer.id).tryGet()
         discard kad.rtable.insert(p)
@@ -241,10 +242,11 @@ proc new*(
           var record = msg.record.get()
           let key = EntryKey(data: record.key.get())
           let val = EntryVal(data: record.value.get())
-          # TODO: importing std times breaks the `.wait` for some reason
-          record.timeReceived = some($times.now().utc)
+          let ts = TimeStamp(ts: $times.now().utc)
+          info "ts", ts = ts
+          record.timeReceived = some(ts.ts)
           if kad.entryValidator.validate(key, val):
-            let validated = ValidatedEntry(key: key, val: val)
+            let validated = ValidatedEntry(key: key, val: val, time: ts)
 
             kad.dataTable.insert(validated)
           let resp = Message(record: some(record))

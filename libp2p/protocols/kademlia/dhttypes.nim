@@ -42,5 +42,5 @@ proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
   LocalTable(entries: initTable[EntryKey, (EntryVal, TimeStamp)]())
 
 proc insert*(self: var LocalTable, val: sink ValidatedEntry) =
-  info "inserting", key = val.key.data, val=val.val.data
+  info "inserting", key = val.key.data, val = val.val.data
   self.entries[val.key] = (val.val, val.time)

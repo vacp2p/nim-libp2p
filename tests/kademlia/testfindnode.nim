@@ -25,6 +25,7 @@ type PermissiveValidator = ref object of EntryValidator
 
 method validate(self: PermissiveValidator, key: EntryKey, val: EntryVal): bool =
   true
+
 proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
   var res: uint32 = 0
   for b in buckets:
