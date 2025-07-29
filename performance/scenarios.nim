@@ -115,3 +115,66 @@ proc lowBandwithTest*() {.async.} =
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
+
+proc packetReorderTest*() {.async.} =
+  const
+    reorderPercent = 25
+    reorderCorr = 50
+
+  let enable = execShellCommand(
+    fmt"{enableTcCommand} netem reorder {reorderPercent}% {reorderCorr}%"
+  )
+  echo "TC Enable: ", enable
+
+  await baseTest(fmt"Packet Reorder {reorderPercent}% {reorderCorr}% test")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
+
+proc burstLossTest*() {.async.} =
+  const
+    lossPercent = 10
+    lossCorr = 25
+
+  let enable =
+    execShellCommand(fmt"{enableTcCommand} netem loss {lossPercent}% {lossCorr}%")
+  echo "TC Enable: ", enable
+
+  await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}% test")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
+
+proc duplicationTest*() {.async.} =
+  const duplicatePercent = 1
+
+  let enable =
+    execShellCommand(fmt"{enableTcCommand} netem duplicate {duplicatePercent}%")
+  echo "TC Enable: ", enable
+
+  await baseTest(fmt"Duplication {duplicatePercent}% test")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
+
+proc corruptionTest*() {.async.} =
+  const corruptPercent = 0.1
+
+  let enable = execShellCommand(fmt"{enableTcCommand} netem corrupt {corruptPercent}%")
+  echo "TC Enable: ", enable
+
+  await baseTest(fmt"Corruption {corruptPercent}% test")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
+
+proc queueLimitTest*() {.async.} =
+  const queueLimit = 10
+
+  let enable = execShellCommand(fmt"{enableTcCommand} netem limit {queueLimit}")
+  echo "TC Enable: ", enable
+
+  await baseTest(fmt"Queue Limit {queueLimit} test")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
