@@ -141,8 +141,8 @@ proc connectPeers*(
         debug "Connected peer", nodeId, address = address
         break
       except CatchableError as exc:
-        warn "Failed to dial, waiting 5s", nodeId, address = address, error = exc.msg
-        await sleepAsync(5.seconds)
+        warn "Failed to dial, waiting 1s", nodeId, address = address, error = exc.msg
+        await sleepAsync(1.seconds)
 
 proc publishMessagesWithWarmup*(
     gossipSub: GossipSub,
@@ -255,3 +255,40 @@ proc execShellCommand*(cmd: string): string =
     return output
   except OSError as e:
     warn "Shell command failed", cmd, error = e.msg
+
+const syncDir = "/output/sync"
+
+proc syncNodes*(stage: string, nodeId, nodeCount: int, maxRetries = 50) {.async.} =
+  # initial wait
+  await sleepAsync(2.seconds)
+
+  let prefix = "sync_"
+  let myFile = syncDir / (prefix & stage & "_" & $nodeId)
+  writeFile(myFile, "ok")
+  let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
+
+  var waited = 0
+  while true:
+    let present = expectedFiles.filterIt(fileExists(it)).len
+    if present == nodeCount:
+      break
+    if waited >= maxRetries:
+      warn "sync: timeout", barrier = stage, nodeId, waited
+      raise newException(IOError, "sync timeout at " & stage)
+    waited.inc()
+    await sleepAsync(100)
+
+  # final wait
+  await sleepAsync(500.milliseconds)
+
+proc clearSyncFiles*() =
+  if not dirExists(syncDir):
+    createDir(syncDir)
+  else:
+    for f in walkDir(syncDir):
+      let path = f.path
+      if fileExists(path):
+        try:
+          removeFile(path)
+        except:
+          warn "clearSyncFiles: failed to remove file", file = path

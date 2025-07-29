@@ -27,6 +27,9 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
     hostname = getHostname()
     rng = libp2p.newRng()
 
+  if nodeId == 0:
+    clearSyncFiles()
+
   let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng)
   gossipSub.setGossipSubParams()
 
@@ -42,13 +45,14 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
   defer:
     await switch.stop()
 
-  info "Node started, waiting 5s",
+  info "Node started, synchronizing",
     nodeId,
     address = switch.peerInfo.addrs,
     peerId = switch.peerInfo.peerId,
     isPublisher = nodeId <= publisherCount,
     hostname = hostname
-  await sleepAsync(5.seconds)
+
+  await syncNodes("started", nodeId, nodeCount)
 
   # --- Peer Discovery & Connection ---
   var peersAddresses = resolvePeersAddresses(nodeCount, hostnamePrefix, nodeId)
@@ -56,17 +60,19 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
 
   await connectPeers(switch, peersAddresses, peerLimit, nodeId)
 
-  info "Mesh populated, waiting 5s",
+  info "Mesh populated, synchronizing",
     nodeId, meshSize = gossipSub.mesh.getOrDefault(topic).len
-  await sleepAsync(5.seconds)
+
+  await syncNodes("mesh", nodeId, nodeCount)
 
   # --- Message Publishing ---
   let sentMessages = await publishMessagesWithWarmup(
     gossipSub, warmupCount, msgCount, msgInterval, msgSize, publisherCount, nodeId
   )
 
-  info "Waiting 5 seconds for message delivery"
-  await sleepAsync(5.seconds)
+  info "Waiting for message delivery, synchronizing"
+
+  await syncNodes("published", nodeId, nodeCount)
 
   # --- Performance summary  ---
   let stats = getStats(scenario, receivedMessages[], sentMessages)
@@ -74,6 +80,8 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
 
   let outputPath = "/output/" & hostname & ".json"
   writeResultsToJson(outputPath, scenario, stats)
+
+  await syncNodes("finished", nodeId, nodeCount)
 
 proc latencyTest*() {.async.} =
   const
