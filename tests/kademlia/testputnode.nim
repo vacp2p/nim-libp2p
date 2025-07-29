@@ -36,6 +36,7 @@ type PermissiveValidator = ref object of EntryValidator
 
 method validate(self: PermissiveValidator, key: EntryKey, val: EntryVal): bool =
   true
+
 type RestrictiveValidator = ref object of EntryValidator
 
 method validate(self: RestrictiveValidator, key: EntryKey, val: EntryVal): bool =
@@ -61,12 +62,18 @@ suite "KadDHT - PutNode":
       await kads[i].bootstrap(@[switches[0].peerInfo])
 
     discard await kads[1].findNode(kads[2].rtable.selfId)
-    info "peer found"
 
     doAssert(len(kads[1].dataTable.entries) == 0)
-    discard await kads[0].putVal(kads[1].rtable.selfId.getBytes(), 1)
-    info "val put"
+    let puttedData = kads[1].rtable.selfId.getBytes()
+    let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
+    discard await kads[0].putVal(puttedData, 1)
 
+    let entered: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)][0]
+
+    doAssert(
+      entered.data == puttedData,
+      fmt"table: {kads[1].dataTable.entries}, putted: {puttedData}, expected-hash: {hashedData}",
+    )
     doAssert(len(kads[1].dataTable.entries) == 1)
 
   asyncTest "Change Validator":
@@ -82,14 +89,15 @@ suite "KadDHT - PutNode":
     await kad2.bootstrap(@[switch1.peerInfo])
     doAssert(len(kad1.dataTable.entries) == 0)
     discard await kad2.putVal(kad1.rtable.selfId.getBytes(), 1)
-    error "status", stat=kad1.dataTable.entries
+    error "status", stat = kad1.dataTable.entries
     doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
     kad1.entryValidator = PermissiveValidator()
     discard await kad2.putVal(kad1.rtable.selfId.getBytes(), 1)
+
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 
     await allFutures(kad1.stop(), kad2.stop())
-  
+
   asyncTest "Good Time":
     let switch1 = createSwitch()
     let switch2 = createSwitch()
@@ -98,14 +106,31 @@ suite "KadDHT - PutNode":
     switch1.mount(kad1)
     switch2.mount(kad2)
     await allFutures(switch1.start(), switch2.start())
+    await kad2.bootstrap(@[switch1.peerInfo])
 
-    let keyval: seq[byte] = kad1.rtable.selfId.getBytes()
-    discard await kad2.putVal(keyval, 1)
-    let now = now().utc
+    let puttedData = kad1.rtable.selfId.getBytes()
+    let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
+    discard await kad2.putVal(puttedData, 1)
 
-    let keyDat: seq[byte] = @(sha256.digest(keyval).data)
-    let time: string = kad1.dataTable.entries[EntryKey(data: keyDat)][1].ts
+    info "putted", putted = puttedData
+    info "sha256'd", shad = hashedData
+    info "table", tab = kad1.dataTable.entries
 
-    doAssert((now - time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"))) < initDuration(seconds = 10))
+    # the value in the table. created with `times.now().utc` then stringified
+    let time: string = kad1.dataTable.entries[EntryKey(data: hashedData)][1].ts
+    info "time", time = time
+
+    # get "my now" the same way...
+    let now = times.now().utc
+    let nowstr = $now
+    info "time now", now = nowstr
+    # parse the stored time
+    let parsed = time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
+    let parsedstr = $parsed
+    info "parsed", parsed = parsedstr
+    # get the diff between the stringified-parsed and the direct "now"
+    let elapsed = (now - parsed)
+
+    doAssert(elapsed < times.initDuration(seconds = 2))
 
     await allFutures(kad1.stop(), kad2.stop())
