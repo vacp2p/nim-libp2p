@@ -33,10 +33,11 @@ proc createSwitch(
   var builder = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()], false)
-    .withQuicTransport()
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
+    .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMaxConnections(maxConns)
+    .withMplex()
     .withNoise()
 
   if withAutonat:
