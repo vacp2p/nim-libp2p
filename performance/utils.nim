@@ -219,15 +219,13 @@ proc `$`*(stats: Stats): string =
     fmt"avg={formatLatencyMs(stats.latency.avgLatencyMs)}"
 
 proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
-  var resultsArr: JsonNode
+  var resultsArr: JsonNode = newJArray()
   if fileExists(outputPath):
     try:
       let existing = parseFile(outputPath)
       resultsArr = existing["results"]
     except:
-      resultsArr = newJArray()
-  else:
-    resultsArr = newJArray()
+      discard
 
   let newResult =
     %*{
@@ -243,12 +241,14 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
   let json = %*{"results": resultsArr}
   writeFile(outputPath, json.pretty)
 
+const
+  enableTcCommand* = "tc qdisc add dev eth0 root"
+  disableTcCommand* = "tc qdisc del dev eth0 root"
 proc execShellCommand*(cmd: string): string =
-  ## Executes a shell command on the host and returns its output as a string.
   try:
     return execProcess(
         "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
       )
       .strip()
   except OSError as e:
-    return "[ERROR] " & e.msg
+    return "ERROR " & e.msg

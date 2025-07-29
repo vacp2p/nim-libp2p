@@ -1,6 +1,7 @@
 import metrics
 import metrics/chronos_httpserver
 import os
+import strformat
 import strutils
 import ../libp2p
 import ../libp2p/protocols/ping
@@ -64,8 +65,8 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
     gossipSub, warmupCount, msgCount, msgInterval, msgSize, publisherCount, nodeId
   )
 
-  info "Waiting 2 seconds for message delivery"
-  await sleepAsync(2.seconds)
+  info "Waiting 5 seconds for message delivery"
+  await sleepAsync(5.seconds)
 
   # --- Performance summary  ---
   let stats = getStats(scenario, receivedMessages[], sentMessages)
@@ -75,32 +76,42 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
   writeResultsToJson(outputPath, scenario, stats)
 
 proc latencyTest*() {.async.} =
+  const
+    latency = 300
+    jitter = 50
+
   let enable = execShellCommand(
-    "tc qdisc add dev eth0 root netem delay 300ms 50ms distribution normal"
+    fmt"{enableTcCommand} netem delay {latency}ms {jitter}ms distribution normal"
   )
-  echo "[TC Enable Output] ", enable
+  echo "TC Enable: ", enable
 
-  await baseTest("Latency test")
+  await baseTest(fmt"Latency {latency}ms {jitter}ms test")
 
-  let disable = execShellCommand("tc qdisc del dev eth0 root")
-  echo "[TC Disable Output] ", disable
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
 
 proc packetLossTest*() {.async.} =
-  let enable = execShellCommand("tc qdisc add dev eth0 root netem loss 2%")
-  echo "[TC Enable Output] ", enable
+  const packetLoss = 2
 
-  await baseTest("Packet Loss test")
+  let enable = execShellCommand(fmt"{enableTcCommand} netem loss {packetLoss}%")
+  echo "TC Enable: ", enable
 
-  let disable = execShellCommand("tc qdisc del dev eth0 root netem")
-  echo "[TC Disable Output] ", disable
+  await baseTest(fmt"Packet Loss {packetLoss}% test")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
 
 proc lowBandwithTest*() {.async.} =
-  let enable = execShellCommand(
-    "tc qdisc add dev eth0 root tbf rate 1mbit burst 32kbit limit 12500"
-  )
-  echo "[TC Enable Output] ", enable
+  const
+    rate = "1mbit"
+    burst = "32kbit"
+    limit = "12500"
 
-  await baseTest("Low Bandwith test")
+  let enable =
+    execShellCommand(fmt"{enableTcCommand} tbf rate {rate} burst {burst} limit {limit}")
+  echo "TC Enable: ", enable
 
-  let disable = execShellCommand("tc qdisc del dev eth0 root")
-  echo "[TC Disable Output] ", disable
+  await baseTest(fmt"Low Bandwith rate {rate} burst {burst} limit {limit} test")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
