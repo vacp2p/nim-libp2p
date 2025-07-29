@@ -13,12 +13,12 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
   let scenario = scenarioName
   const
     nodeCount = 10
-    publisherCount = 10
+    publisherCount = 5
     peerLimit = 5
-    msgCount = 200
-    msgInterval = 20 # ms
-    msgSize = 500 # bytes
-    warmupCount = 20
+    msgCount = 100
+    msgInterval = 100 # ms
+    msgSize = 200 # bytes
+    warmupCount = 10
 
   # --- Node Setup ---
   let
@@ -77,104 +77,121 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
 
 proc latencyTest*() {.async.} =
   const
-    latency = 300
-    jitter = 50
+    latency = 100
+    jitter = 20
 
   let enable = execShellCommand(
     fmt"{enableTcCommand} netem delay {latency}ms {jitter}ms distribution normal"
   )
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Latency {latency}ms {jitter}ms test")
+  await baseTest(fmt"Latency {latency}ms {jitter}ms")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
 
 proc packetLossTest*() {.async.} =
-  const packetLoss = 2
+  const packetLoss = 5
 
   let enable = execShellCommand(fmt"{enableTcCommand} netem loss {packetLoss}%")
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Packet Loss {packetLoss}% test")
+  await baseTest(fmt"Packet Loss {packetLoss}%")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
 
 proc lowBandwithTest*() {.async.} =
   const
-    rate = "1mbit"
-    burst = "32kbit"
-    limit = "12500"
+    rate = "512kbit"
+    burst = "16kbit"
+    limit = "6000"
 
   let enable =
     execShellCommand(fmt"{enableTcCommand} tbf rate {rate} burst {burst} limit {limit}")
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Low Bandwith rate {rate} burst {burst} limit {limit} test")
+  await baseTest(fmt"Low Bandwidth rate {rate} burst {burst} limit {limit}")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
 
 proc packetReorderTest*() {.async.} =
   const
-    reorderPercent = 25
-    reorderCorr = 50
+    reorderPercent = 15
+    reorderCorr = 40
 
   let enable = execShellCommand(
     fmt"{enableTcCommand} netem reorder {reorderPercent}% {reorderCorr}%"
   )
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Packet Reorder {reorderPercent}% {reorderCorr}% test")
+  await baseTest(fmt"Packet Reorder {reorderPercent}% {reorderCorr}%")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
 
 proc burstLossTest*() {.async.} =
   const
-    lossPercent = 10
-    lossCorr = 25
+    lossPercent = 8
+    lossCorr = 30
 
   let enable =
     execShellCommand(fmt"{enableTcCommand} netem loss {lossPercent}% {lossCorr}%")
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}% test")
+  await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}%")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
 
 proc duplicationTest*() {.async.} =
-  const duplicatePercent = 1
+  const duplicatePercent = 2
 
   let enable =
     execShellCommand(fmt"{enableTcCommand} netem duplicate {duplicatePercent}%")
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Duplication {duplicatePercent}% test")
+  await baseTest(fmt"Duplication {duplicatePercent}%")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
 
 proc corruptionTest*() {.async.} =
-  const corruptPercent = 0.1
+  const corruptPercent = 0.5
 
   let enable = execShellCommand(fmt"{enableTcCommand} netem corrupt {corruptPercent}%")
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Corruption {corruptPercent}% test")
+  await baseTest(fmt"Corruption {corruptPercent}%")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
 
 proc queueLimitTest*() {.async.} =
-  const queueLimit = 10
+  const queueLimit = 5
 
   let enable = execShellCommand(fmt"{enableTcCommand} netem limit {queueLimit}")
   echo "TC Enable: ", enable
 
-  await baseTest(fmt"Queue Limit {queueLimit} test")
+  await baseTest(fmt"Queue Limit {queueLimit}")
+
+  let disable = execShellCommand(disableTcCommand)
+  echo "TC Disable: ", disable
+
+proc combinedAdverseTest*() {.async.} =
+  # Add tbf as root (handle 1:0), then netem as child (parent 1:1)
+  let enableTbf = execShellCommand(
+    "tc qdisc add dev eth0 root handle 1:0 tbf rate 2mbit burst 32kbit limit 25000"
+  )
+  echo "TC TBF Enable: ", enableTbf
+
+  let enableNetem = execShellCommand(
+    "tc qdisc add dev eth0 parent 1:1 handle 10: netem delay 100ms 20ms distribution normal loss 5% 20% reorder 10% 30% duplicate 0.5% corrupt 0.05% limit 20"
+  )
+  echo "TC Netem Enable: ", enableNetem
+
+  await baseTest("Combined Adverse Network Conditions")
 
   let disable = execShellCommand(disableTcCommand)
   echo "TC Disable: ", disable
