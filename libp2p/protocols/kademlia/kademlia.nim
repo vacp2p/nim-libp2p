@@ -16,7 +16,7 @@ import ./protobuf
 import ../../switch
 import ../../multihash
 import ../../utils/heartbeat
-import std/[options, tables]
+import std/[times, options, tables]
 import results
 
 logScope:
@@ -28,7 +28,7 @@ type KadDHT* = ref object of LPProtocol
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
   dataTable*: LocalTable
-  entryValidator: EntryValidator
+  entryValidator*: EntryValidator
 
 const MaxMsgSize = 4096
 
@@ -104,7 +104,6 @@ proc putVal*(
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   let keyDat: array[IdLength, byte] = sha256.digest(val).data
   let key = Key(kind: KeyType.Hashed, data: keyDat)
-  info "key", key = key.data
 
   let closests = kad.rtable.findClosestPeers(key, replic)
   info "closests", closests = closests
@@ -138,7 +137,7 @@ proc findNode*(
 
       pendingFutures[peer] = kad
         .sendFindNode(peer, addrTable.getOrDefault(peer, @[]), targetId)
-        .wait(5.seconds)
+        .wait(chronos.seconds(5))
 
       state.activeQueries.inc
 
@@ -175,7 +174,7 @@ proc bootstrap*(
 
     try:
       let msg =
-        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(5.seconds)
+        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(chronos.seconds(5))
       for peer in msg.closerPeers:
         let p = PeerId.init(peer.id).tryGet()
         discard kad.rtable.insert(p)
@@ -200,7 +199,7 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       discard await kad.findNode(randomKey)
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh buckets", 10.minutes:
+  heartbeat "refresh buckets", chronos.minutes(10):
     await kad.refreshBuckets()
 
 proc new*(
@@ -242,7 +241,8 @@ proc new*(
           var record = msg.record.get()
           let key = EntryKey(data: record.key.get())
           let val = EntryVal(data: record.value.get())
-          record.timeReceived = some("foo")
+          # TODO: importing std times breaks the `.wait` for some reason
+          record.timeReceived = some($times.now().utc)
           if kad.entryValidator.validate(key, val):
             let validated = ValidatedEntry(key: key, val: val)
 
