@@ -1,9 +1,9 @@
 {.used.}
 
 import std/[sequtils]
-import ../utils
+import pubsub/utils
 import ../libp2p/protocols/pubsub/[gossipsub]
-import ../helpers
+import helpers
 
 suite "quic":
   teardown:
