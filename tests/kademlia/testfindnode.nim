@@ -6,6 +6,7 @@ import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
 import ../../libp2p/protocols/kademlia/routingtable
 import ../../libp2p/protocols/kademlia/keys
+import ../../libp2p/protocols/kademlia/dhttypes
 import unittest2
 import ../utils/async_tests
 import ../helpers
@@ -20,6 +21,10 @@ proc createSwitch(): Switch =
   .withNoise()
   .build()
 
+type PermissiveValidator = ref object of EntryValidator
+
+method validate(self: PermissiveValidator, key: EntryKey, val: EntryVal): bool =
+  true
 proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
   var res: uint32 = 0
   for b in buckets:
@@ -38,7 +43,7 @@ suite "KadDHT - FindNode":
     # every node needs a switch, and an assosciated kad mounted to it
     for i in 0 ..< swarmSize:
       switches.add(createSwitch())
-      kads.add(KadDHT.new(switches[i]))
+      kads.add(KadDHT.new(switches[i], PermissiveValidator()))
       switches[i].mount(kads[i])
 
     # Once the the creation/mounting of switches are done, we can start
@@ -81,22 +86,22 @@ suite "KadDHT - FindNode":
 
   asyncTest "Relay find peer":
     let parentSwitch = createSwitch()
-    let parentKad = KadDHT.new(parentSwitch)
+    let parentKad = KadDHT.new(parentSwitch, PermissiveValidator())
     parentSwitch.mount(parentKad)
     await parentSwitch.start()
 
     let broSwitch = createSwitch()
-    let broKad = KadDHT.new(broSwitch)
+    let broKad = KadDHT.new(broSwitch, PermissiveValidator())
     broSwitch.mount(broKad)
     await broSwitch.start()
 
     let sisSwitch = createSwitch()
-    let sisKad = KadDHT.new(sisSwitch)
+    let sisKad = KadDHT.new(sisSwitch, PermissiveValidator())
     sisSwitch.mount(sisKad)
     await sisSwitch.start()
 
     let neiceSwitch = createSwitch()
-    let neiceKad = KadDHT.new(neiceSwitch)
+    let neiceKad = KadDHT.new(neiceSwitch, PermissiveValidator())
     neiceSwitch.mount(neiceKad)
     await neiceSwitch.start()
 
