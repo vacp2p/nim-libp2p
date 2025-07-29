@@ -46,6 +46,7 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
     await switch.stop()
 
   info "Node started, synchronizing",
+    scenario,
     nodeId,
     address = switch.peerInfo.addrs,
     peerId = switch.peerInfo.peerId,
@@ -103,9 +104,9 @@ proc packetLossTest*() {.async.} =
 
 proc lowBandwithTest*() {.async.} =
   const
-    rate = "128kbit"
-    burst = "4kbit"
-    limit = "1000"
+    rate = "256kbit"
+    burst = "8kbit"
+    limit = "5000"
 
   discard
     execShellCommand(fmt"{enableTcCommand} tbf rate {rate} burst {burst} limit {limit}")

@@ -100,7 +100,7 @@ proc createMessageHandler*(
     let latency = getLatency(sentNs)
 
     receivedMessages[msgId] = latency
-    info "Message delivered", msgId = msgId, latency = formatLatencyMs(latency), nodeId
+    debug "Message delivered", msgId = msgId, latency = formatLatencyMs(latency), nodeId
 
   return (messageHandler, receivedMessages)
 
@@ -125,13 +125,23 @@ proc resolvePeersAddresses*(
   return addrs
 
 proc connectPeers*(
-    switch: Switch, peersAddresses: seq[MultiAddress], peerLimit: int, nodeId: int
+    switch: Switch,
+    peersAddresses: seq[MultiAddress],
+    peerLimit: int,
+    nodeId: int,
+    maxRetries = 10,
 ) {.async.} =
   var
     connected = 0
     index = 0
+    retries = 0
   while connected < peerLimit:
     while true:
+      if retries >= maxRetries:
+        warn "connectPeers: maxRetries reached", nodeId, retries
+        raise newException(CatchableError, "connectPeers: maxRetries reached")
+      retries.inc()
+
       let address = peersAddresses[index]
       try:
         let peerId =
@@ -153,8 +163,9 @@ proc publishMessagesWithWarmup*(
     publisherCount: int,
     nodeId: int,
 ): Future[seq[uint64]] {.async.} =
+  info "Publishing messages", nodeId
   # Warm-up phase
-  info "Sending warmup messages", nodeId
+  debug "Sending warmup messages", nodeId
   for msg in 0 ..< warmupCount:
     await sleepAsync(msgInterval)
     discard await gossipSub.publish(topic, warmupData)
@@ -167,7 +178,7 @@ proc publishMessagesWithWarmup*(
       let timestamp = Moment.now().epochNanoSeconds()
       var data = @(toBytesLE(uint64(timestamp))) & newSeq[byte](msgSize)
 
-      info "Sending message", msgId = timestamp, nodeId = nodeId
+      debug "Sending message", msgId = timestamp, nodeId = nodeId
       doAssert((await gossipSub.publish(topic, data)) > 0)
       sentMessages.add(uint64(timestamp))
 
@@ -254,7 +265,7 @@ proc execShellCommand*(cmd: string): string =
     debug "Shell command executed", cmd, output
     return output
   except OSError as e:
-    warn "Shell command failed", cmd, error = e.msg
+    raise newException(OSError, "Shell command failed")
 
 const syncDir = "/output/sync"
 
@@ -273,8 +284,7 @@ proc syncNodes*(stage: string, nodeId, nodeCount: int, maxRetries = 50) {.async.
     if present == nodeCount:
       break
     if waited >= maxRetries:
-      warn "sync: timeout", barrier = stage, nodeId, waited
-      raise newException(IOError, "sync timeout at " & stage)
+      raise newException(IOError, "sync maxRetries reached " & stage)
     waited.inc()
     await sleepAsync(100)
 
