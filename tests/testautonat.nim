@@ -27,8 +27,9 @@ proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()])
-    .withQuicTransport()
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    .withTcpTransport()
+    .withMplex()
     .withAutonat()
     .withNoise()
 
