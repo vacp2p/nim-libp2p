@@ -1,7 +1,8 @@
 {.used.}
 import chronicles
-# import strformat
+import strformat
 import sequtils
+import std/[times]
 # import std/enumerate
 import chronos
 import ../../libp2p/[switch, builders]
@@ -35,6 +36,10 @@ type PermissiveValidator = ref object of EntryValidator
 
 method validate(self: PermissiveValidator, key: EntryKey, val: EntryVal): bool =
   true
+type RestrictiveValidator = ref object of EntryValidator
+
+method validate(self: RestrictiveValidator, key: EntryKey, val: EntryVal): bool =
+  false
 
 suite "KadDHT - PutNode":
   asyncTest "Simple put":
@@ -63,3 +68,44 @@ suite "KadDHT - PutNode":
     info "val put"
 
     doAssert(len(kads[1].dataTable.entries) == 1)
+
+  asyncTest "Change Validator":
+    let switch1 = createSwitch()
+    let switch2 = createSwitch()
+    var kad1 = KadDHT.new(switch1, RestrictiveValidator())
+    let kad2 = KadDHT.new(switch2, RestrictiveValidator())
+    switch1.mount(kad1)
+    switch2.mount(kad2)
+
+    await allFutures(switch1.start(), switch2.start())
+
+    await kad2.bootstrap(@[switch1.peerInfo])
+    doAssert(len(kad1.dataTable.entries) == 0)
+    discard await kad2.putVal(kad1.rtable.selfId.getBytes(), 1)
+    error "status", stat=kad1.dataTable.entries
+    doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
+    kad1.entryValidator = PermissiveValidator()
+    discard await kad2.putVal(kad1.rtable.selfId.getBytes(), 1)
+    doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
+
+    await allFutures(kad1.stop(), kad2.stop())
+  
+  asyncTest "Good Time":
+    let switch1 = createSwitch()
+    let switch2 = createSwitch()
+    var kad1 = KadDHT.new(switch1, PermissiveValidator())
+    let kad2 = KadDHT.new(switch2, PermissiveValidator())
+    switch1.mount(kad1)
+    switch2.mount(kad2)
+    await allFutures(switch1.start(), switch2.start())
+
+    let keyval: seq[byte] = kad1.rtable.selfId.getBytes()
+    discard await kad2.putVal(keyval, 1)
+    let now = now().utc
+
+    let keyDat: seq[byte] = @(sha256.digest(keyval).data)
+    let time: string = kad1.dataTable.entries[EntryKey(data: keyDat)][1].ts
+
+    doAssert((now - time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"))) < initDuration(seconds = 10))
+
+    await allFutures(kad1.stop(), kad2.stop())
