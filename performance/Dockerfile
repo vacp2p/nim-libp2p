@@ -6,6 +6,7 @@ WORKDIR /node
 COPY libp2p.nimble config.nims ./
 RUN git config --global http.sslVerify false
 RUN nimble install -y
+RUN apk update && apk add --no-cache openssl
 
 COPY . .
 RUN nimble c -d:chronicles_colors=None --threads:on -d:metrics -d:libp2p_quic_support -d:libp2p_network_protocols_metrics -d:release  performance/main.nim
