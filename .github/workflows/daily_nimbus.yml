@@ -1,4 +1,4 @@
-name: Daily Common
+name: Daily Nimbus
 # Serves as base workflow for daily tasks, it's not run by itself.
 
 on:
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
-  test:
+  compile_nimbus:
     needs: delete_cache
     timeout-minutes: 40
     strategy:
@@ -41,12 +41,6 @@ jobs:
           - os: linux
             builder: ubuntu-22.04
             shell: bash
-          - os: macos
-            builder: macos-13
-            shell: bash
-          - os: windows
-            builder: windows-2022
-            shell: msys2 {0}
         nim: ${{ fromJSON(inputs.nim) }}
         cpu: ${{ fromJSON(inputs.cpu) }}
         exclude: ${{ fromJSON(inputs.exclude) }}
@@ -89,19 +83,17 @@ jobs:
         run: |
           nimble install -y --depsOnly
 
-      - name: Run tests
+      - name: Compile nimbus using nim-libp2p
         run: |
           nim --version
           nimble --version
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          nimble test
 
-      - name: Run integration tests
-        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
-        run: |
-          nim --version
-          nimble --version
+          git clone --branch unstable --single-branch https://github.com/status-im/nimbus-eth2.git
+          cd nimbus-eth2
+          git submodule set-branch --branch ${{ github.sha }} vendor/nim-libp2p
 
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          nimble testintegration
+          make -j"$(nproc)"
+          make -j"$(nproc)" nimbus_beacon_node
+

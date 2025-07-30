@@ -20,6 +20,20 @@ jobs:
           {'platform': {'os':'macos'}},
           {'platform': {'os':'windows'}},
         ]"
+  nimbus_i386:
+    name: Daily nimbus i386 (Linux)
+    uses: ./.github/workflows/daily_nimbus.yml
+    with:
+      nim: "[
+          {'ref': 'version-2-0', 'memory_management': 'refc'},
+          {'ref': 'version-2-2', 'memory_management': 'refc'},
+          {'ref': 'devel', 'memory_management': 'refc'},
+        ]"
+      cpu: "['i386']"
+      exclude: "[
+          {'platform': {'os':'macos'}},
+          {'platform': {'os':'windows'}},
+        ]"
   notify-on-failure:
     name: Notify Discord on Failure
     needs: [test_i386]
