@@ -2,6 +2,8 @@ import chronicles
 import std/[tables, hashes]
 import results
 
+# TODO: make data formater for log-friendly form.
+
 type EntryKey* = object
   data*: seq[byte]
 
@@ -23,11 +25,12 @@ type ValidatedEntry* = object
   val*: EntryVal
   time*: TimeStamp
 
+## Top tip: add chronicles logs to your implementation
 type EntryValidator* = ref object of RootObj
 method validate*(
     self: EntryValidator, key: EntryKey, val: EntryVal
 ): bool {.base, raises: [], gcsafe.} =
-  discard
+  doAssert(false, "unimplimented base method")
 
 # get a validated entry from a app defined validator and 
 
@@ -42,5 +45,5 @@ proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
   LocalTable(entries: initTable[EntryKey, (EntryVal, TimeStamp)]())
 
 proc insert*(self: var LocalTable, val: sink ValidatedEntry) =
-  info "inserting", key = val.key.data, val = val.val.data
+  debug "local table insertion", key = val.key.data, val = val.val.data
   self.entries[val.key] = (val.val, val.time)

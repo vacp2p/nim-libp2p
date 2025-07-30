@@ -18,6 +18,8 @@ import ../../multihash
 import ../../utils/heartbeat
 import std/[times, options, tables]
 import results
+# TODO: Lots of `.get()` that don't consider the `none` possibility, as reviewed here: 
+#       https://github.com/vacp2p/nim-libp2p/pull/1582#discussion_r2242521376
 
 logScope:
   topics = "kad-dht"
@@ -79,7 +81,8 @@ proc dispatchPutVal(
 ): Future[void] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  info "dialing", me = kad.rtable.selfId, peer = peer, key = key, val = val[0 .. 3]
+  trace "dialing",
+    me = kad.rtable.selfId, peer = peer, key = key, val = val[0 ..< min(val.len, 4)]
   let conn = await kad.switch.dial(peer, KadCodec)
 
   defer:
@@ -90,10 +93,8 @@ proc dispatchPutVal(
     record: some(Record(key: some(key.getBytes()), value: some(val))),
   )
 
-  info "writing"
   await conn.writeLp(msg.encode().buffer)
 
-  info "waiting reply"
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
 
   if reply.msgType != MessageType.putValue:
@@ -106,10 +107,13 @@ proc putVal*(
   let key = Key(kind: KeyType.Hashed, data: keyDat)
 
   let closests = kad.rtable.findClosestPeers(key, replic)
-  info "closests", closests = closests
+  trace "closest PUT_VAL peers", closests = closests
+  # todo: use allFutures to dispatch in-bulk
+  # todo: limit concurrancy to alpha
   try:
     for peer in closests:
-      info "dispatching", peer = peer, key = key, val = val
+      trace "dispatching PUT_VAL", peer = peer, key = key, val = val
+      # todo: use result
       await kad.dispatchPutVal(peer, key, val)
   except CatchableError as e:
     error "todo: think about handling error properly", e = e.msg
@@ -243,11 +247,9 @@ proc new*(
           let key = EntryKey(data: record.key.get())
           let val = EntryVal(data: record.value.get())
           let ts = TimeStamp(ts: $times.now().utc)
-          info "ts", ts = ts
           record.timeReceived = some(ts.ts)
           if kad.entryValidator.validate(key, val):
             let validated = ValidatedEntry(key: key, val: val, time: ts)
-
             kad.dataTable.insert(validated)
           let resp = Message(record: some(record))
           await conn.writeLp(resp.encode().buffer)
