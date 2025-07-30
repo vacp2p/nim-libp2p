@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
-  compile_nim_libp2p:
+  test:
     needs: delete_cache
     timeout-minutes: 40
     strategy:
@@ -50,6 +50,7 @@ jobs:
         nim: ${{ fromJSON(inputs.nim) }}
         cpu: ${{ fromJSON(inputs.cpu) }}
         exclude: ${{ fromJSON(inputs.exclude) }}
+
     defaults:
       run:
         shell: ${{ matrix.platform.shell }}
@@ -88,77 +89,6 @@ jobs:
         run: |
           nimble install -y --depsOnly
 
-  compile_nimbus:
-    needs: [delete_cache, compile_nim_libp2p]
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - os: linux
-            builder: ubuntu-22.04
-            shell: bash
-          - os: macos
-            builder: macos-13
-            shell: bash
-          - os: windows
-            builder: windows-2022
-            shell: msys2 {0}
-        nim: ${{ fromJSON(inputs.nim) }}
-        cpu: ${{ fromJSON(inputs.cpu) }}
-        exclude: ${{ fromJSON(inputs.exclude) }}
-
-    defaults:
-      run:
-        shell: ${{ matrix.platform.shell }}
-
-    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
-    runs-on: ${{ matrix.platform.builder }}
-    steps:
-
-      - name: Compile nimbus using nim-libp2p
-        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' && matrix.nim.ref == 'version-2-2'}}
-        run: |
-          nim --version
-          nimble --version
-
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-
-          git clone --branch unstable --single-branch https://github.com/status-im/nimbus-eth2.git
-          cd nimbus-eth2
-          git submodule set-branch --branch ${{ github.sha }} vendor/nim-libp2p
-
-          make -j"$(nproc)"
-          make -j"$(nproc)" nimbus_beacon_node
-
-  test:
-    needs: [delete_cache, compile_nim_libp2p]
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - os: linux
-            builder: ubuntu-22.04
-            shell: bash
-          - os: macos
-            builder: macos-13
-            shell: bash
-          - os: windows
-            builder: windows-2022
-            shell: msys2 {0}
-        nim: ${{ fromJSON(inputs.nim) }}
-        cpu: ${{ fromJSON(inputs.cpu) }}
-        exclude: ${{ fromJSON(inputs.exclude) }}
-
-    defaults:
-      run:
-        shell: ${{ matrix.platform.shell }}
-
-    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
-    runs-on: ${{ matrix.platform.builder }}
-    steps:
-
       - name: Run tests
         run: |
           nim --version
@@ -175,3 +105,77 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble testintegration
+
+  compile_nimbus:
+    needs: delete_cache
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - os: macos
+            builder: macos-13
+            shell: bash
+          - os: windows
+            builder: windows-2022
+            shell: msys2 {0}
+        nim: ${{ fromJSON(inputs.nim) }}
+        cpu: ${{ fromJSON(inputs.cpu) }}
+        exclude: ${{ fromJSON(inputs.exclude) }}
+
+    defaults:
+      run:
+        shell: ${{ matrix.platform.shell }}
+
+    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
+    runs-on: ${{ matrix.platform.builder }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ matrix.platform.os }}
+          shell: ${{ matrix.platform.shell }}
+          nim_ref: ${{ matrix.nim.ref }}
+          cpu: ${{ matrix.cpu }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '~1.16.0'
+          cache: false
+
+      - name: Install p2pd
+        run: |
+          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
+
+      - name: Install dependencies (pinned)
+        if: ${{ inputs.pinned_deps }}
+        run: |
+          nimble install_pinned
+
+      - name: Install dependencies (latest)
+        if: ${{ inputs.pinned_deps == false }}
+        run: |
+          nimble install -y --depsOnly
+
+      - name: Compile nimbus using nim-libp2p
+        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
+        run: |
+          nim --version
+          nimble --version
+
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+
+          git clone --branch unstable --single-branch https://github.com/status-im/nimbus-eth2.git
+          cd nimbus-eth2
+          git submodule set-branch --branch ${{ github.sha }} vendor/nim-libp2p
+
+          make -j"$(nproc)"
+          make -j"$(nproc)" nimbus_beacon_node
+
