@@ -27,15 +27,14 @@ proc msgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
 proc setupNode*(nodeId: int, rng: ref HmacDrbgContext): (Switch, GossipSub, Ping) =
   let
     myPort = 5000 + nodeId
-    myAddress = "0.0.0.0:" & $myPort
+    myAddress = "/ip4/0.0.0.0/udp/" & $myPort & "/quic-v1"
     address = initTAddress(myAddress)
 
     switch = SwitchBuilder
       .new()
       .withAddress(MultiAddress.init(address).tryGet())
       .withRng(rng)
-      .withYamux()
-      .withTcpTransport(flags = {ServerFlags.TcpNoDelay})
+      .withQuicTransport()
       .withNoise()
       .build()
 
