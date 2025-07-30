@@ -96,7 +96,7 @@ proc dispatchPutVal(
   info "waiting reply"
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
 
-  if reply.msgType != MessageType.findNode:
+  if reply.msgType != MessageType.putValue:
     raise newException(ValueError, "unexpected message type in reply: " & $reply)
 
 proc putVal*(
@@ -109,7 +109,7 @@ proc putVal*(
   info "closests", closests = closests
   try:
     for peer in closests:
-      info "dispatchingk", peer = peer, key = key, val = val
+      info "dispatching", peer = peer, key = key, val = val
       await kad.dispatchPutVal(peer, key, val)
   except CatchableError as e:
     error "todo: think about handling error properly", e = e.msg
