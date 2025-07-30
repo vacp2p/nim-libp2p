@@ -9,7 +9,7 @@ RUN nimble install -y
 RUN apk add --no-cache build-base openssl-dev
 
 COPY . .
-RUN nimble c -d:chronicles_colors=None --threads:on -d:metrics -d:libp2p_quic_support -d:libp2p_network_protocols_metrics -d:release  performance/main.nim
+RUN nimble c -d:chronicles_colors=None --threads:on -d:metrics -d:libp2p_quic_support -d:libp2p_network_protocols_metrics -d:release --mm:orc performance/main.nim
 
 
 
