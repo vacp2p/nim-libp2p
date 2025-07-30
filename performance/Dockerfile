@@ -11,15 +11,11 @@ COPY . .
 RUN nimble c -d:chronicles_colors=None --threads:on -d:metrics -d:libp2p_network_protocols_metrics -d:release performance/main.nim
 
 
-
 FROM nimlang/nim:2.2.4-alpine-slim
-
 
 WORKDIR /node
 
-
 COPY --from=build /node/performance/main /node/main
-
 
 RUN chmod +x main \
   && apk add --no-cache curl iproute2
