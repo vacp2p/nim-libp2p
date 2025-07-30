@@ -72,6 +72,9 @@ cd nim-libp2p
 nimble install -dy
 ```
 You can use `nix develop` to start a shell with Nim and Nimble.
+
+nimble 0.20.1 is required for running `testnative`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
+
 ### Testing
 Run unit tests:
 ```sh
