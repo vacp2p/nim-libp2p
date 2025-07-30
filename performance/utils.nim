@@ -126,11 +126,7 @@ proc resolvePeersAddresses*(
   return addrs
 
 proc connectPeers*(
-    switch: Switch,
-    peersAddresses: seq[MultiAddress],
-    peerLimit: int,
-    nodeId: int,
-    maxRetries = 5,
+    switch: Switch, peersAddresses: seq[MultiAddress], peerLimit: int, nodeId: int
 ) {.async.} =
   proc connectPeer(address: MultiAddress): Future[bool] {.async.} =
     try:
@@ -261,15 +257,15 @@ proc execShellCommand*(cmd: string): string =
 
 const syncDir = "/output/sync"
 
-proc syncNodes*(stage: string, nodeId, nodeCount: int, maxRetries = 50) {.async.} =
+proc syncNodes*(stage: string, nodeId, nodeCount: int) {.async.} =
   # initial wait
   await sleepAsync(2.seconds)
 
   let prefix = "sync_"
   let myFile = syncDir / (prefix & stage & "_" & $nodeId)
   writeFile(myFile, "ok")
-  let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
 
+  let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
   checkUntilTimeoutCustom(5.seconds, 100.milliseconds):
     expectedFiles.allIt(fileExists(it))
 
