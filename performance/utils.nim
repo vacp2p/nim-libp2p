@@ -131,7 +131,7 @@ proc connectPeers*(
   proc connectPeer(address: MultiAddress): Future[bool] {.async.} =
     try:
       let peerId =
-        await switch.connect(address, allowUnknownPeerId = true).wait(1.seconds)
+        await switch.connect(address, allowUnknownPeerId = true).wait(5.seconds)
       debug "Connected peer", nodeId, address, peerId
       return true
     except CatchableError as exc:
