@@ -15,6 +15,7 @@ import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/ping
+import ../tests/helpers
 import ./types
 
 const
@@ -131,27 +132,19 @@ proc connectPeers*(
     nodeId: int,
     maxRetries = 5,
 ) {.async.} =
-  var
-    connected = 0
-    index = 0
-    retries = 0
-  while connected < peerLimit:
-    while true:
-      if retries >= maxRetries:
-        raise newException(CatchableError, "connectPeers: maxRetries reached")
-      retries.inc()
+  proc connectPeer(address: MultiAddress): Future[bool] {.async.} =
+    try:
+      let peerId =
+        await switch.connect(address, allowUnknownPeerId = true).wait(1.seconds)
+      debug "Connected peer", nodeId, address, peerId
+      return true
+    except CatchableError as exc:
+      warn "Failed to dial, waiting 1s", nodeId, address = address, error = exc.msg
+      return false
 
-      let address = peersAddresses[index]
-      try:
-        let peerId =
-          await switch.connect(address, allowUnknownPeerId = true).wait(5.seconds)
-        connected.inc()
-        index.inc()
-        debug "Connected peer", nodeId, address = address
-        break
-      except CatchableError as exc:
-        warn "Failed to dial, waiting 1s", nodeId, address = address, error = exc.msg
-        await sleepAsync(1.seconds)
+  for index in 0 ..< peerLimit:
+    checkUntilTimeoutCustom(5.seconds, 500.milliseconds):
+      await connectPeer(peersAddresses[index])
 
 proc publishMessagesWithWarmup*(
     gossipSub: GossipSub,
@@ -277,14 +270,8 @@ proc syncNodes*(stage: string, nodeId, nodeCount: int, maxRetries = 50) {.async.
   writeFile(myFile, "ok")
   let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
 
-  var retries = 0
-  while true:
-    if expectedFiles.allIt(fileExists(it)):
-      break
-    if retries >= maxRetries:
-      raise newException(CatchableError, "sync maxRetries reached " & stage)
-    retries.inc()
-    await sleepAsync(100.milliseconds)
+  checkUntilTimeoutCustom(5.seconds, 100.milliseconds):
+    expectedFiles.allIt(fileExists(it))
 
   # final wait
   await sleepAsync(500.milliseconds)
