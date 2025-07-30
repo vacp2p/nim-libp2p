@@ -20,6 +20,7 @@ WORKDIR /node
 
 COPY --from=build /node/performance/main /node/main
 
+RUN apk update && apk add --no-cache openssl
 
 RUN chmod +x main \
   && apk add --no-cache curl iproute2
