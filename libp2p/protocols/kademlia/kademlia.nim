@@ -16,7 +16,7 @@ import ./protobuf
 import ../../switch
 import ../../multihash
 import ../../utils/heartbeat
-import std/[times, options, tables]
+import std/[sets, times, options, tables]
 import results
 # TODO: Lots of `.get()` that don't consider the `none` possibility, as reviewed here: 
 #       https://github.com/vacp2p/nim-libp2p/pull/1582#discussion_r2242521376
@@ -166,6 +166,52 @@ proc findNode*(
 
   return state.selectClosestK()
 
+proc dispatchGetValue(
+    self: KadDHT, peer: PeerId, key: Key
+): Future[(closests: seq[PeerId], val: EntryVal)] {.async: (raises: [CancelledError]).} =
+  discard
+
+proc getValue*(
+    self: KadDHT, key: Key, quarum: uint8
+): Future[EntryVal] {.async: (raises: [CancelledError]).} =
+  var fetched = 0
+  var bestVal: Option[EntryVal]
+  var queriedPeers: HashSet[PeerId]
+  var toQuery: (Key, seq[PeerId]) = (key, kad.rtable.findClosestPeers(key, quorum))
+  var outdatedHolders: HashSet[PeerId]
+  var activeQueries: seq[string] = @["todo: sort out tracking of active queries"]
+
+  while fetched < quorum:
+    if toQuery[1].len == 0 and activeQueries.len == 0:
+      break
+
+    # have up to `alpha` get-vals in-flight at a time.
+    for q in toQuery[1](0 ..< (alpha - activeQueries.len)).mapIt(
+      kad.dispatchGetValue(it, key)
+    ):
+      doAssert(false, "move `q` to active queries")
+
+    doAssert(false, "left-trim the `toQuery` collection")
+
+    let responses: seq[(seq[PeerId], PeerId, EntryVal)] =
+      @[] # pull them out from `activeQueries`
+    for (closests, p, e) in responses:
+      toQuery.add(closests).sort(
+        proc(a, b: Key): int =
+          cmp(xorDistance(a, targetId), xorDistance(b, targetId))
+      )
+      if bestVal.isNone():
+        bestVal = some(e)
+        continue
+      # bestVal.select(e)
+      # if new val wints, best is updated, but need to mark all formerly best peers as outdated
+      # if new val loses, add current peer to outdatad
+
+  # update peers. not sure if actually needs awaiting, though? Ideally these futures would
+  # be handed over to some sort of background task runner.
+  await outdatedHolders.mapIt(self.dispatchPutVal(it, key, bestVal.data)).allFutures()
+  return bestVal
+
 proc bootstrap*(
     kad: KadDHT, bootstrapNodes: seq[PeerInfo]
 ) {.async: (raises: [CancelledError]).} =
@@ -253,8 +299,8 @@ proc new*(
             kad.dataTable.insert(validated)
           let resp = Message(record: some(record))
           await conn.writeLp(resp.encode().buffer)
-
-          # raise newException(LPError, "unhandled putNode message type")
+        of MessageType.getValue:
+          raise newException(LPError, "unhandled getValue message type")
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
