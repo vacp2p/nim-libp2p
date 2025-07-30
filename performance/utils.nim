@@ -129,7 +129,7 @@ proc connectPeers*(
     peersAddresses: seq[MultiAddress],
     peerLimit: int,
     nodeId: int,
-    maxRetries = 10,
+    maxRetries = 5,
 ) {.async.} =
   var
     connected = 0
@@ -138,7 +138,6 @@ proc connectPeers*(
   while connected < peerLimit:
     while true:
       if retries >= maxRetries:
-        warn "connectPeers: maxRetries reached", nodeId, retries
         raise newException(CatchableError, "connectPeers: maxRetries reached")
       retries.inc()
 
@@ -278,15 +277,14 @@ proc syncNodes*(stage: string, nodeId, nodeCount: int, maxRetries = 50) {.async.
   writeFile(myFile, "ok")
   let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
 
-  var waited = 0
+  var retries = 0
   while true:
-    let present = expectedFiles.filterIt(fileExists(it)).len
-    if present == nodeCount:
+    if expectedFiles.allIt(fileExists(it)):
       break
-    if waited >= maxRetries:
-      raise newException(IOError, "sync maxRetries reached " & stage)
-    waited.inc()
-    await sleepAsync(100)
+    if retries >= maxRetries:
+      raise newException(CatchableError, "sync maxRetries reached " & stage)
+    retries.inc()
+    await sleepAsync(100.milliseconds)
 
   # final wait
   await sleepAsync(500.milliseconds)
@@ -296,9 +294,5 @@ proc clearSyncFiles*() =
     createDir(syncDir)
   else:
     for f in walkDir(syncDir):
-      let path = f.path
-      if fileExists(path):
-        try:
-          removeFile(path)
-        except:
-          warn "clearSyncFiles: failed to remove file", file = path
+      if fileExists(f.path):
+        removeFile(f.path)

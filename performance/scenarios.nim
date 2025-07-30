@@ -157,12 +157,12 @@ proc queueLimitTest*() {.async.} =
   await baseTest(fmt"Queue Limit {queueLimit}")
   discard execShellCommand(disableTcCommand)
 
-proc combinedAdverseTest*() {.async.} =
+proc combinedTest*() {.async.} =
   discard execShellCommand(
     "tc qdisc add dev eth0 root handle 1:0 tbf rate 2mbit burst 32kbit limit 25000"
   )
   discard execShellCommand(
     "tc qdisc add dev eth0 parent 1:1 handle 10: netem delay 100ms 20ms distribution normal loss 5% 20% reorder 10% 30% duplicate 0.5% corrupt 0.05% limit 20"
   )
-  await baseTest("Combined Adverse Network Conditions")
+  await baseTest("Combined Network Conditions")
   discard execShellCommand(disableTcCommand)
