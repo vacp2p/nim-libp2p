@@ -33,7 +33,7 @@ jobs:
 
   compile_nimbus:
     needs: delete_cache
-    timeout-minutes: 40
+    timeout-minutes: 80
     strategy:
       fail-fast: false
       matrix:
