@@ -1,3 +1,14 @@
+# Nim-LibP2P
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+{.used.}
+
 import metrics
 import metrics/chronos_httpserver
 import os
@@ -5,6 +16,7 @@ import strformat
 import strutils
 import ../libp2p
 import ../libp2p/protocols/ping
+import ../tests/helpers
 import ./utils
 from nativesockets import getHostname
 
@@ -84,7 +96,14 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
 
   await syncNodes("finished", nodeId, nodeCount)
 
-proc latencyTest*() {.async.} =
+suite "Network Performance Tests":
+  teardown:
+    checkTrackers()
+
+asyncTest "Base Test":
+  await baseTest()
+
+asyncTest "Latency Test":
   const
     latency = 100
     jitter = 20
@@ -95,14 +114,14 @@ proc latencyTest*() {.async.} =
   await baseTest(fmt"Latency {latency}ms {jitter}ms")
   discard execShellCommand(disableTcCommand)
 
-proc packetLossTest*() {.async.} =
+asyncTest "Packet Loss Test":
   const packetLoss = 5
 
   discard execShellCommand(fmt"{enableTcCommand} netem loss {packetLoss}%")
   await baseTest(fmt"Packet Loss {packetLoss}%")
   discard execShellCommand(disableTcCommand)
 
-proc lowBandwithTest*() {.async.} =
+asyncTest "Low Bandwidth Test":
   const
     rate = "256kbit"
     burst = "8kbit"
@@ -113,7 +132,7 @@ proc lowBandwithTest*() {.async.} =
   await baseTest(fmt"Low Bandwidth rate {rate} burst {burst} limit {limit}")
   discard execShellCommand(disableTcCommand)
 
-proc packetReorderTest*() {.async.} =
+asyncTest "Packet Reorder Test":
   const
     reorderPercent = 15
     reorderCorr = 40
@@ -127,7 +146,7 @@ proc packetReorderTest*() {.async.} =
   )
   discard execShellCommand(disableTcCommand)
 
-proc burstLossTest*() {.async.} =
+asyncTest "Burst Loss Test":
   const
     lossPercent = 8
     lossCorr = 30
@@ -136,28 +155,28 @@ proc burstLossTest*() {.async.} =
   await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}%")
   discard execShellCommand(disableTcCommand)
 
-proc duplicationTest*() {.async.} =
+asyncTest "Duplication Test":
   const duplicatePercent = 2
 
   discard execShellCommand(fmt"{enableTcCommand} netem duplicate {duplicatePercent}%")
   await baseTest(fmt"Duplication {duplicatePercent}%")
   discard execShellCommand(disableTcCommand)
 
-proc corruptionTest*() {.async.} =
+asyncTest "Corruption Test":
   const corruptPercent = 0.5
 
   discard execShellCommand(fmt"{enableTcCommand} netem corrupt {corruptPercent}%")
   await baseTest(fmt"Corruption {corruptPercent}%")
   discard execShellCommand(disableTcCommand)
 
-proc queueLimitTest*() {.async.} =
+asyncTest "Queue Limit Test":
   const queueLimit = 5
 
   discard execShellCommand(fmt"{enableTcCommand} netem limit {queueLimit}")
   await baseTest(fmt"Queue Limit {queueLimit}")
   discard execShellCommand(disableTcCommand)
 
-proc combinedTest*() {.async.} =
+asyncTest "Combined Network Conditions Test":
   discard execShellCommand(
     "tc qdisc add dev eth0 root handle 1:0 tbf rate 2mbit burst 32kbit limit 25000"
   )
