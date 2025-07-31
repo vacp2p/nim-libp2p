@@ -1,29 +1,17 @@
 name: Daily Nimbus
 
 on:
-  # TODO: for testing the pr, remove if passes
+  # TODO: for testing the pr, remove later
   pull_request:
     branches:
-      - main
-  schedule:
-    - cron: "30 6 * * *"
+      - master
+  # schedule:
+  #   - cron: "30 6 * * *"
   workflow_dispatch:
 
 jobs:
-  delete_cache:
-    name: Delete github action's branch cache
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: snnaplab/delete-branch-cache-action@v1
-
   compile_nimbus:
-    needs: delete_cache
     timeout-minutes: 80
-    defaults:
-      run:
-        shell: ${{ matrix.platform.shell }}
-
     name: 'Compile Nimbus (linux-amd64)'
     runs-on: ubuntu-latest
     steps:
