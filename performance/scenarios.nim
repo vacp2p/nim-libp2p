@@ -68,7 +68,7 @@ proc baseTest*() {.async.} =
   await sleepAsync(2.seconds)
 
   # --- Performance summary  ---
-  let stats = getStats(receivedMessages[], sentMessages)
+  let stats = getStats(scenario, receivedMessages[], sentMessages)
   info "Performance summary", nodeId, stats = $stats
 
   let outputPath = "/output/" & hostname & ".json"
