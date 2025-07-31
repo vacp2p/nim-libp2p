@@ -1,12 +1,8 @@
 name: Daily Nimbus
 
 on:
-  # TODO: for testing the pr, remove later
-  pull_request:
-    branches:
-      - master
-  # schedule:
-  #   - cron: "30 6 * * *"
+  schedule:
+    - cron: "30 6 * * *"
   workflow_dispatch:
 
 jobs:
