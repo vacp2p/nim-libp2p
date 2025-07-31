@@ -93,7 +93,7 @@ proc new*(
     upgrade: Upgrade,
     connectionsTimeout = 10.minutes,
 ): T {.public.} =
-  T(
+  let transport = T(
     flags: flags,
     clientFlags:
       if ServerFlags.TcpNoDelay in flags:
@@ -104,6 +104,8 @@ proc new*(
     networkReachability: NetworkReachability.Unknown,
     connectionsTimeout: connectionsTimeout,
   )
+  transport.initTransport()
+  transport
 
 method start*(
     self: TcpTransport, addrs: seq[MultiAddress]
