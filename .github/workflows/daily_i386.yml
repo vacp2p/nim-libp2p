@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test_i386:
-    name: Daily i386 (Linux)
+  test_i386_latest:
+    name: Daily i386 (latest dependencies)
     uses: ./.github/workflows/daily_common.yml
     with:
       nim: "[
@@ -20,9 +20,24 @@ jobs:
           {'platform': {'os':'macos'}},
           {'platform': {'os':'windows'}},
         ]"
+  test_i386_pinned:
+    name: Daily i386 (pinned dependencies)
+    uses: ./.github/workflows/daily_common.yml
+    with:
+      pinned_deps: true
+      nim: "[
+          {'ref': 'version-2-0', 'memory_management': 'refc'},
+          {'ref': 'version-2-2', 'memory_management': 'refc'},
+          {'ref': 'devel', 'memory_management': 'refc'},
+        ]"
+      cpu: "['i386']"
+      exclude: "[
+          {'platform': {'os':'macos'}},
+          {'platform': {'os':'windows'}},
+        ]"
   notify-on-failure:
     name: Notify Discord on Failure
-    needs: [test_i386]
+    needs: [test_i386_latest, test_i386_pinned]
     if: failure()
     runs-on: ubuntu-latest
     steps:

@@ -7,7 +7,7 @@ on:
 
 jobs:
   test_amd64_latest:
-    name: Daily amd64 (latest dependencies)
+    name: Daily test amd64 (latest dependencies)
     uses: ./.github/workflows/daily_common.yml
     with:
       nim: "[
@@ -17,7 +17,7 @@ jobs:
         ]"
       cpu: "['amd64']"
   test_amd64_pinned:
-    name: Daily amd64 (pinned dependencies)
+    name: Daily test amd64 (pinned dependencies)
     uses: ./.github/workflows/daily_common.yml
     with:
       pinned_deps: true
