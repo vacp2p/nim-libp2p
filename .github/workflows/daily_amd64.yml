@@ -27,30 +27,9 @@ jobs:
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       cpu: "['amd64']"
-  nimbus_amd64_latest:
-    name: Daily nimbus amd64 (latest dependencies)
-    uses: ./.github/workflows/daily_nimbus.yml
-    with:
-      nim: "[
-          {'ref': 'version-2-0', 'memory_management': 'refc'},
-          {'ref': 'version-2-2', 'memory_management': 'refc'},
-          {'ref': 'devel', 'memory_management': 'refc'},
-        ]"
-      cpu: "['amd64']"
-  nimbus_amd64_pinned:
-    name: Daily nimbus amd64 (pinned dependencies)
-    uses: ./.github/workflows/daily_nimbus.yml
-    with:
-      pinned_deps: true
-      nim: "[
-          {'ref': 'version-2-0', 'memory_management': 'refc'},
-          {'ref': 'version-2-2', 'memory_management': 'refc'},
-          {'ref': 'devel', 'memory_management': 'refc'},
-        ]"
-      cpu: "['amd64']"
   notify-on-failure:
     name: Notify Discord on Failure
-    needs: [test_amd64_latest, test_amd64_pinned, nimbus_amd64_latest, nimbus_amd64_pinned]
+    needs: [test_amd64_latest, test_amd64_pinned]
     if: failure()
     runs-on: ubuntu-latest
     steps:

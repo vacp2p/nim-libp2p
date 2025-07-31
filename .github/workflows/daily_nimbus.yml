@@ -1,27 +1,13 @@
 name: Daily Nimbus
-# Serves as base workflow for daily tasks, it's not run by itself.
 
 on:
-  workflow_call:
-    inputs:
-      pinned_deps:
-        description: 'Should dependencies be installed from pinned file or use latest versions'
-        required: false
-        type: boolean
-        default: false
-      nim:
-        description: 'Nim Configuration'
-        required: true
-        type: string # Following this format: [{"ref": ..., "memory_management": ...}, ...]
-      cpu:
-        description: 'CPU'
-        required: true
-        type: string
-      exclude:
-        description: 'Exclude matrix configurations'
-        required: false
-        type: string
-        default: "[]"
+  # TODO: for testing the pr, remove if passes
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
 
 jobs:
   delete_cache:
@@ -34,66 +20,36 @@ jobs:
   compile_nimbus:
     needs: delete_cache
     timeout-minutes: 80
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - os: linux
-            builder: ubuntu-22.04
-            shell: bash
-        nim: ${{ fromJSON(inputs.nim) }}
-        cpu: ${{ fromJSON(inputs.cpu) }}
-        exclude: ${{ fromJSON(inputs.exclude) }}
-
     defaults:
       run:
         shell: ${{ matrix.platform.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})'
-    runs-on: ${{ matrix.platform.builder }}
+    name: 'Compile Nimbus (linux-amd64)'
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Nim
-        uses: "./.github/actions/install_nim"
-        with:
-          os: ${{ matrix.platform.os }}
-          shell: ${{ matrix.platform.shell }}
-          nim_ref: ${{ matrix.nim.ref }}
-          cpu: ${{ matrix.cpu }}
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '~1.16.0'
-          cache: false
-
-      - name: Install p2pd
-        run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
-
-      - name: Install dependencies (pinned)
-        if: ${{ inputs.pinned_deps }}
-        run: |
-          nimble install_pinned
-
-      - name: Install dependencies (latest)
-        if: ${{ inputs.pinned_deps == false }}
-        run: |
-          nimble install -y --depsOnly
-
       - name: Compile nimbus using nim-libp2p
         run: |
-          nim --version
-          nimble --version
-
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-
           git clone --branch unstable --single-branch https://github.com/status-im/nimbus-eth2.git
           cd nimbus-eth2
           git submodule set-branch --branch ${{ github.sha }} vendor/nim-libp2p
 
           make -j"$(nproc)"
           make -j"$(nproc)" nimbus_beacon_node
+
+  notify-on-failure:
+    name: Notify Discord on Failure
+    needs: compile_nimbus
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discord notification
+        uses: ./.github/actions/discord_notify
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
