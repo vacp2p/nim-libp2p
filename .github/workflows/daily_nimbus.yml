@@ -1,0 +1,39 @@
+name: Daily Nimbus
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  compile_nimbus:
+    timeout-minutes: 80
+    name: 'Compile Nimbus (linux-amd64)'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile nimbus using nim-libp2p
+        run: |
+          git clone --branch unstable --single-branch https://github.com/status-im/nimbus-eth2.git
+          cd nimbus-eth2
+          git submodule set-branch --branch ${{ github.sha }} vendor/nim-libp2p
+
+          make -j"$(nproc)"
+          make -j"$(nproc)" nimbus_beacon_node
+
+  notify-on-failure:
+    name: Notify Discord on Failure
+    needs: compile_nimbus
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discord notification
+        uses: ./.github/actions/discord_notify
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
