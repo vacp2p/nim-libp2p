@@ -2,7 +2,6 @@ import chronos
 import options
 import chronicles
 import sequtils
-import nimcrypto/sha2
 import ../../peerid
 import ./consts
 import ./dhttypes
@@ -31,6 +30,7 @@ type KadDHT* = ref object of LPProtocol
   maintenanceLoop: Future[void]
   dataTable*: LocalTable
   entryValidator*: EntryValidator
+  entrySelector*: EntrySelector
 
 const MaxMsgSize = 4096
 
@@ -77,7 +77,7 @@ proc waitRepliesOrTimeouts(
   return (receivedReplies, failedPeers)
 
 proc dispatchPutVal(
-    kad: KadDHT, peer: PeerId, key: Key, val: seq[byte]
+    kad: KadDHT, peer: PeerId, entry: ValidatedEntry
 ): Future[void] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
@@ -90,7 +90,7 @@ proc dispatchPutVal(
 
   let msg = Message(
     msgType: MessageType.putValue,
-    record: some(Record(key: some(key.getBytes()), value: some(val))),
+    record: some(Record(key: some(entry.key.data), value: some(entry.val.data))),
   )
 
   await conn.writeLp(msg.encode().buffer)
@@ -101,22 +101,36 @@ proc dispatchPutVal(
     raise newException(ValueError, "unexpected message type in reply: " & $reply)
 
 proc putVal*(
-    kad: KadDHT, val: seq[byte], replic: int
-): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
-  let keyDat: array[IdLength, byte] = sha256.digest(val).data
-  let key = Key(kind: KeyType.Hashed, data: keyDat)
-
-  let closests = kad.rtable.findClosestPeers(key, replic)
-  trace "closest PUT_VAL peers", closests = closests
-  # todo: use allFutures to dispatch in-bulk
-  # todo: limit concurrancy to alpha
+    kad: var KadDHT, key: keys.Key, val: EntryVal, replic: int
+): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   try:
-    for peer in closests:
-      trace "dispatching PUT_VAL", peer = peer, key = key, val = val
-      # todo: use result
-      await kad.dispatchPutVal(peer, key, val)
-  except CatchableError as e:
-    error "todo: think about handling error properly", e = e.msg
+    let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), val: val)
+    if kad.entryValidator.validate(cand):
+      return err("invalid key/val pair")
+    let ts = TimeStamp(ts: $times.now().utc)
+    let others: seq[RecordVal] =
+      if cand.key in kad.dataTable.entries:
+        @[kad.dataTable.entries[cand.key]]
+      else:
+        @[]
+
+    let candAsRec = RecordVal(val: cand.val, time: ts)
+    let confirmedRec = kad.entrySelector.select(candAsRec, others)
+    # let confirmedCand = EntryCandidate(key: cand.key, val: confirmedRec.val)
+
+    let confirmedEnt = EntryCandidate(key: cand.key, val: confirmedRec.val)
+    if not kad.entryValidator.validate(confirmedEnt):
+      return err("invalid overruled entry")
+    let valEnt = ValidatedEntry.take(confirmedEnt)
+
+    let peers = kad.rtable.findClosestPeers(key, replic)
+    let putClip = peers.mapIt(kad.dispatchPutVal(it, valEnt))
+    kad.dataTable.insert(valEnt, ts)
+    await putClip.allFutures()
+
+    return results.ok()
+  except:
+    return err("todo: refine exceptions")
 
 proc findNode*(
     kad: KadDHT, targetId: Key
@@ -253,8 +267,6 @@ proc new*(
             kad.dataTable.insert(validated)
           let resp = Message(record: some(record))
           await conn.writeLp(resp.encode().buffer)
-
-          # raise newException(LPError, "unhandled putNode message type")
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:

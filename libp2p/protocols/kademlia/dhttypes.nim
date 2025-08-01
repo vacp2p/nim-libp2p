@@ -18,32 +18,43 @@ type TimeStamp* = object
 type EntryCandidate* = object
   key*: EntryKey
   val*: EntryVal
-  time*: TimeStamp
 
 type ValidatedEntry* = object
   key*: EntryKey
+  val*: EntryVal
+
+type RecordVal* = object
   val*: EntryVal
   time*: TimeStamp
 
 ## Top tip: add chronicles logs to your implementation
 type EntryValidator* = ref object of RootObj
 method validate*(
-    self: EntryValidator, key: EntryKey, val: EntryVal
+    self: EntryValidator, entry: EntryCandidate
 ): bool {.base, raises: [], gcsafe.} =
   doAssert(false, "unimplimented base method")
 
-# get a validated entry from a app defined validator and 
+type EntrySelector* = ref object of RootObj
+method select*(
+    self: EntrySelector, cand: RecordVal, others: seq[RecordVal]
+): RecordVal {.base, raises: [], gcsafe.} =
+  doAssert(false, "EntrySelection base not implemented")
 
-type RecordVal* = object
-  value: EntryVal
-  time: TimeStamp
+# TODO: make library public, but hidden to users of library
+proc take*(
+    self: typedesc[ValidatedEntry], entry: sink EntryCandidate
+): ValidatedEntry {.raises: [].} =
+  ValidatedEntry(key: entry.key, val: entry.val)
 
 type LocalTable* = object
-  entries*: Table[EntryKey, (EntryVal, TimeStamp)]
+  entries*: Table[EntryKey, RecordVal]
 
 proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
-  LocalTable(entries: initTable[EntryKey, (EntryVal, TimeStamp)]())
+  LocalTable(entries: initTable[EntryKey, RecordVal]())
 
-proc insert*(self: var LocalTable, val: sink ValidatedEntry) =
+# TODO: make library public, but hidden to users of library
+proc insert*(
+    self: var LocalTable, val: sink ValidatedEntry, time: TimeStamp
+) {.raises: [].} =
   debug "local table insertion", key = val.key.data, val = val.val.data
-  self.entries[val.key] = (val.val, val.time)
+  self.entries[val.key] = RecordVal(val: val.val, time: time)
