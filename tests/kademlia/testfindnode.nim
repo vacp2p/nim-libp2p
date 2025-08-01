@@ -23,7 +23,7 @@ proc createSwitch(): Switch =
 
 type PermissiveValidator = ref object of EntryValidator
 
-method validate(self: PermissiveValidator, key: EntryKey, val: EntryVal): bool =
+method validate(self: PermissiveValidator, entry: EntryCandidate): bool =
   true
 
 proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =

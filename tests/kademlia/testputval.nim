@@ -34,12 +34,12 @@ proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
 
 type PermissiveValidator = ref object of EntryValidator
 
-method validate(self: PermissiveValidator, key: EntryKey, val: EntryVal): bool =
+method validate(self: PermissiveValidator, cand: EntryCandidate): bool =
   true
 
 type RestrictiveValidator = ref object of EntryValidator
 
-method validate(self: RestrictiveValidator, key: EntryKey, val: EntryVal): bool =
+method validate(self: RestrictiveValidator, cand: EntryCandidate): bool =
   false
 
 suite "KadDHT - PutNode":
@@ -65,10 +65,11 @@ suite "KadDHT - PutNode":
 
     doAssert(len(kads[1].dataTable.entries) == 0)
     let puttedData = kads[1].rtable.selfId.getBytes()
+    let entryVal = EntryVal(data: puttedData)
     let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
-    discard await kads[0].putVal(puttedData, 1)
+    discard await kads[0].putVal(hashedData.toKey(), entryVal, 1)
 
-    let entered: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)][0]
+    let entered: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)].val
 
     doAssert(
       entered.data == puttedData,
@@ -80,7 +81,7 @@ suite "KadDHT - PutNode":
     let switch1 = createSwitch()
     let switch2 = createSwitch()
     var kad1 = KadDHT.new(switch1, RestrictiveValidator())
-    let kad2 = KadDHT.new(switch2, RestrictiveValidator())
+    var kad2 = KadDHT.new(switch2, RestrictiveValidator())
     switch1.mount(kad1)
     switch2.mount(kad2)
 
@@ -88,11 +89,14 @@ suite "KadDHT - PutNode":
 
     await kad2.bootstrap(@[switch1.peerInfo])
     doAssert(len(kad1.dataTable.entries) == 0)
-    discard await kad2.putVal(kad1.rtable.selfId.getBytes(), 1)
+    let puttedData = kad1.rtable.selfId.getBytes()
+    let entryVal = EntryVal(data: puttedData)
+    let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
+    discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
     error "status", stat = kad1.dataTable.entries
     doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
     kad1.entryValidator = PermissiveValidator()
-    discard await kad2.putVal(kad1.rtable.selfId.getBytes(), 1)
+    discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
 
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 
@@ -102,22 +106,22 @@ suite "KadDHT - PutNode":
     let switch1 = createSwitch()
     let switch2 = createSwitch()
     var kad1 = KadDHT.new(switch1, PermissiveValidator())
-    let kad2 = KadDHT.new(switch2, PermissiveValidator())
+    var kad2 = KadDHT.new(switch2, PermissiveValidator())
     switch1.mount(kad1)
     switch2.mount(kad2)
     await allFutures(switch1.start(), switch2.start())
     await kad2.bootstrap(@[switch1.peerInfo])
 
-    let puttedData = kad1.rtable.selfId.getBytes()
-    let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
-    discard await kad2.putVal(puttedData, 1)
+    let puttedData = EntryVal(data: kad1.rtable.selfId.getBytes())
+    let hashedData: seq[byte] = @(sha256.digest(puttedData.data).data)
+    discard await kad2.putVal(hashedData.toKey(), puttedData, 1)
 
     info "putted", putted = puttedData
     info "sha256'd", shad = hashedData
     info "table", tab = kad1.dataTable.entries
 
     # the value in the table. created with `times.now().utc` then stringified
-    let time: string = kad1.dataTable.entries[EntryKey(data: hashedData)][1].ts
+    let time: string = kad1.dataTable.entries[EntryKey(data: hashedData)].time.ts
     info "time", time = time
 
     # get "my now" the same way...
