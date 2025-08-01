@@ -1,4 +1,5 @@
 import chronos
+import streams
 import hashes
 import json
 import metrics
@@ -256,6 +257,89 @@ proc execShellCommand*(cmd: string): string =
     raise newException(OSError, "Shell command failed")
 
 const syncDir = "/output/sync"
+
+type DockerStats* = object
+  cpuPercent*: float
+  memUsage*: int
+  memLimit*: int
+  memPercent*: float
+  netRxBytes*: int
+  netTxBytes*: int
+
+proc collectDockerStatsPeriodically*(
+    containerId: string, intervalMs: int, outputPath: string
+) {.async.} =
+  let curlCmd =
+    fmt"curl --unix-socket /var/run/docker.sock http://localhost/containers/{containerId}/stats 2>/dev/null"
+  var p: Process
+  try:
+    p = startProcess(
+      "/bin/sh", args = ["-c", curlCmd], options = {poUsePath, poStdErrToStdOut}
+    )
+    var line = ""
+    var f: File
+    if fileExists(outputPath):
+      f = open(outputPath, fmAppend)
+    else:
+      f = open(outputPath, fmWrite)
+    defer:
+      f.close()
+    while readLine(p.outputStream, line):
+      if line.len == 0:
+        continue
+      f.write(line & "\n")
+      await sleepAsync(intervalMs.milliseconds)
+    p.close()
+  except:
+    warn "Failed to start or read Docker stats stream"
+
+proc processDockerStatsLog*(inputPath: string): string =
+  var result = ""
+  if not fileExists(inputPath):
+    return "No Docker stats log found."
+  for line in lines(inputPath):
+    if line.len == 0:
+      continue
+    try:
+      let statsJson = parseJson(line)
+      # CPU calculation
+      let cpuStats = statsJson["cpu_stats"]
+      let precpuStats = statsJson["precpu_stats"]
+      let cpuDelta =
+        cpuStats["cpu_usage"]["total_usage"].getInt -
+        precpuStats["cpu_usage"]["total_usage"].getInt
+      let systemDelta =
+        cpuStats["system_cpu_usage"].getInt - precpuStats["system_cpu_usage"].getInt
+      var cpuPercent = 0.0
+      if systemDelta > 0 and cpuDelta > 0:
+        let numCpus = cpuStats["online_cpus"].getInt
+        cpuPercent = (float(cpuDelta) / float(systemDelta)) * float(numCpus) * 100.0
+
+      # Memory
+      let memStats = statsJson["memory_stats"]
+      let memUsage = memStats["usage"].getInt
+      let memLimit = memStats["limit"].getInt
+      let memPercent =
+        if memLimit > 0:
+          (float(memUsage) / float(memLimit)) * 100.0
+        else:
+          0.0
+
+      # Network (sum all interfaces)
+      var netRxBytes = 0
+      var netTxBytes = 0
+      if "networks" in statsJson:
+        for k, v in statsJson["networks"]:
+          netRxBytes += v["rx_bytes"].getInt
+          netTxBytes += v["tx_bytes"].getInt
+
+      let timestamp = Moment.now().epochNanoSeconds()
+      let logLine =
+        fmt"{timestamp}: CPU={cpuPercent:.2f}%, MEM={memUsage}/{memLimit} ({memPercent:.2f}%), NET_RX={netRxBytes}, NET_TX={netTxBytes}"
+      result.add(logLine & "\n")
+    except:
+      result.add("Failed to parse Docker stats line\n")
+  return result
 
 proc syncNodes*(stage: string, nodeId, nodeCount: int) {.async.} =
   # initial wait
