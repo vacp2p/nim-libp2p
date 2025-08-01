@@ -81,8 +81,7 @@ proc dispatchPutVal(
 ): Future[void] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  trace "dialing",
-    me = kad.rtable.selfId, peer = peer, key = key, val = val[0 ..< min(val.len, 4)]
+  trace "dialing", me = kad.rtable.selfId, peer = peer, entry = entry
   let conn = await kad.switch.dial(peer, KadCodec)
 
   defer:
@@ -266,14 +265,25 @@ proc new*(
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
         of MessageType.putValue:
-          var record = msg.record.get()
-          let key = EntryKey(data: record.key.get())
-          let val = EntryVal(data: record.value.get())
+          var record =
+            if msg.record.isSome():
+              msg.record.unsafeGet()
+            else:
+              raise newException(CatchableError, "no record in message buffer")
+          let (skey, sval) =
+            if record.key.isSome() and record.value.isSome():
+              (record.key.unsafeGet(), record.value.unsafeGet())
+            else:
+              raise newException(CatchableError, "no key or no value in rpc buffer")
+          let key = EntryKey(data: skey)
+          let val = EntryVal(data: sval)
           let ts = TimeStamp(ts: $times.now().utc)
           record.timeReceived = some(ts.ts)
-          if kad.entryValidator.validate(key, val):
-            let validated = ValidatedEntry(key: key, val: val, time: ts)
-            kad.dataTable.insert(validated)
+
+          # TODO: thunderdome the entries
+          if kad.entryValidator.validate(EntryCandidate(key: key, val: val)):
+            let validated = ValidatedEntry(key: key, val: val)
+            kad.dataTable.insert(validated, ts)
           let resp = Message(record: some(record))
           await conn.writeLp(resp.encode().buffer)
         else:
