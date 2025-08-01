@@ -1,19 +1,24 @@
 import chronos
+import options
 import chronicles
 import sequtils
 import ../../peerid
 import ./consts
+import ./dhttypes
 import ./xordistance
 import ./routingtable
 import ./lookupstate
 import ./requests
 import ./keys
 import ../protocol
-import ../../switch
 import ./protobuf
+import ../../switch
+import ../../multihash
 import ../../utils/heartbeat
-import std/[options, tables]
+import std/[times, options, tables]
 import results
+# TODO: Lots of `.get()` that don't consider the `none` possibility, as reviewed here: 
+#       https://github.com/vacp2p/nim-libp2p/pull/1582#discussion_r2242521376
 
 logScope:
   topics = "kad-dht"
@@ -23,6 +28,9 @@ type KadDHT* = ref object of LPProtocol
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
+  dataTable*: LocalTable
+  entryValidator*: EntryValidator
+  entrySelector*: EntrySelector
 
 const MaxMsgSize = 4096
 
@@ -68,6 +76,61 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
+proc dispatchPutVal(
+    kad: KadDHT, peer: PeerId, entry: ValidatedEntry
+): Future[void] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
+.} =
+  trace "dialing", me = kad.rtable.selfId, peer = peer, entry = entry
+  let conn = await kad.switch.dial(peer, KadCodec)
+
+  defer:
+    await conn.close()
+
+  let msg = Message(
+    msgType: MessageType.putValue,
+    record: some(Record(key: some(entry.key.data), value: some(entry.val.data))),
+  )
+
+  await conn.writeLp(msg.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
+
+  if reply.msgType != MessageType.putValue:
+    raise newException(ValueError, "unexpected message type in reply: " & $reply)
+
+proc putVal*(
+    kad: var KadDHT, key: keys.Key, val: EntryVal, replic: int
+): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  try:
+    let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), val: val)
+    if kad.entryValidator.validate(cand):
+      return err("invalid key/val pair")
+    let ts = TimeStamp(ts: $times.now().utc)
+    let others: seq[RecordVal] =
+      if cand.key in kad.dataTable.entries:
+        @[kad.dataTable.entries[cand.key]]
+      else:
+        @[]
+
+    let candAsRec = RecordVal(val: cand.val, time: ts)
+    let confirmedRec = kad.entrySelector.select(candAsRec, others)
+    # let confirmedCand = EntryCandidate(key: cand.key, val: confirmedRec.val)
+
+    let confirmedEnt = EntryCandidate(key: cand.key, val: confirmedRec.val)
+    if not kad.entryValidator.validate(confirmedEnt):
+      return err("invalid overruled entry")
+    let valEnt = ValidatedEntry.take(confirmedEnt)
+
+    let peers = kad.rtable.findClosestPeers(key, replic)
+    let putClip = peers.mapIt(kad.dispatchPutVal(it, valEnt))
+    kad.dataTable.insert(valEnt, ts)
+    await putClip.allFutures()
+
+    return results.ok()
+  except:
+    return err("todo: refine exceptions")
+
 proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
@@ -91,7 +154,7 @@ proc findNode*(
 
       pendingFutures[peer] = kad
         .sendFindNode(peer, addrTable.getOrDefault(peer, @[]), targetId)
-        .wait(5.seconds)
+        .wait(chronos.seconds(5))
 
       state.activeQueries.inc
 
@@ -127,8 +190,9 @@ proc bootstrap*(
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
 
     try:
-      let msg =
-        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(5.seconds)
+      let msg = await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
+        chronos.seconds(5)
+      )
       for peer in msg.closerPeers:
         let p = PeerId.init(peer.id).tryGet()
         discard kad.rtable.insert(p)
@@ -153,14 +217,23 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       discard await kad.findNode(randomKey)
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh buckets", 10.minutes:
+  heartbeat "refresh buckets", chronos.minutes(10):
     await kad.refreshBuckets()
 
 proc new*(
-    T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
+    T: typedesc[KadDHT],
+    switch: Switch,
+    validator: EntryValidator,
+    rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
   var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey())
-  let kad = T(rng: rng, switch: switch, rtable: rtable)
+  let kad = T(
+    rng: rng,
+    switch: switch,
+    rtable: rtable,
+    dataTable: LocalTable.init(),
+    entryValidator: validator,
+  )
 
   kad.codec = KadCodec
   kad.handler = proc(
@@ -182,6 +255,28 @@ proc new*(
 
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
+        of MessageType.putValue:
+          var record =
+            if msg.record.isSome():
+              msg.record.unsafeGet()
+            else:
+              raise newException(CatchableError, "no record in message buffer")
+          let (skey, sval) =
+            if record.key.isSome() and record.value.isSome():
+              (record.key.unsafeGet(), record.value.unsafeGet())
+            else:
+              raise newException(CatchableError, "no key or no value in rpc buffer")
+          let key = EntryKey(data: skey)
+          let val = EntryVal(data: sval)
+          let ts = TimeStamp(ts: $times.now().utc)
+          record.timeReceived = some(ts.ts)
+
+          # TODO: thunderdome the entries
+          if kad.entryValidator.validate(EntryCandidate(key: key, val: val)):
+            let validated = ValidatedEntry(key: key, val: val)
+            kad.dataTable.insert(validated, ts)
+          let resp = Message(record: some(record))
+          await conn.writeLp(resp.encode().buffer)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
