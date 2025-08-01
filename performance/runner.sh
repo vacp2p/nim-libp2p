@@ -21,10 +21,12 @@ for ((i = 0; i < $PEERS; i++)); do
     hostname="$hostname_prefix$i"
 
     docker run -d \
+      --cap-add=NET_ADMIN \
       --name "$hostname" \
       -e NODE_ID="$i" \
       -e HOSTNAME_PREFIX="$hostname_prefix" \
       -v "$output_dir:/output" \
+      -v /var/run/docker.sock:/var/run/docker.sock \
       --hostname="$hostname" \
       --network="$network" \
       test-node > /dev/null

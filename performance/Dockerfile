@@ -17,7 +17,8 @@ WORKDIR /node
 
 COPY --from=build /node/performance/main /node/main
 
-RUN chmod +x main
+RUN chmod +x main \
+  && apk add --no-cache curl iproute2
 
 VOLUME ["/output"]
 

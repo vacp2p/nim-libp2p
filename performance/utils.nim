@@ -3,6 +3,8 @@ import hashes
 import json
 import metrics
 import metrics/chronos_httpserver
+import os
+import osproc
 import sequtils
 import stew/byteutils
 import stew/endians2
@@ -13,6 +15,7 @@ import ../libp2p
 import ../libp2p/protocols/pubsub/rpc/messages
 import ../libp2p/muxers/mplex/lpchannel
 import ../libp2p/protocols/ping
+import ../tests/helpers
 import ./types
 
 const
@@ -98,7 +101,7 @@ proc createMessageHandler*(
     let latency = getLatency(sentNs)
 
     receivedMessages[msgId] = latency
-    info "Message delivered", msgId = msgId, latency = formatLatencyMs(latency), nodeId
+    debug "Message delivered", msgId = msgId, latency = formatLatencyMs(latency), nodeId
 
   return (messageHandler, receivedMessages)
 
@@ -125,22 +128,19 @@ proc resolvePeersAddresses*(
 proc connectPeers*(
     switch: Switch, peersAddresses: seq[MultiAddress], peerLimit: int, nodeId: int
 ) {.async.} =
-  var
-    connected = 0
-    index = 0
-  while connected < peerLimit:
-    while true:
-      let address = peersAddresses[index]
-      try:
-        let peerId =
-          await switch.connect(address, allowUnknownPeerId = true).wait(5.seconds)
-        connected.inc()
-        index.inc()
-        debug "Connected peer", nodeId, address = address
-        break
-      except CatchableError as exc:
-        warn "Failed to dial, waiting 5s", nodeId, address = address, error = exc.msg
-        await sleepAsync(5.seconds)
+  proc connectPeer(address: MultiAddress): Future[bool] {.async.} =
+    try:
+      let peerId =
+        await switch.connect(address, allowUnknownPeerId = true).wait(5.seconds)
+      debug "Connected peer", nodeId, address, peerId
+      return true
+    except CatchableError as exc:
+      warn "Failed to dial, waiting 1s", nodeId, address = address, error = exc.msg
+      return false
+
+  for index in 0 ..< peerLimit:
+    checkUntilTimeoutCustom(5.seconds, 500.milliseconds):
+      await connectPeer(peersAddresses[index])
 
 proc publishMessagesWithWarmup*(
     gossipSub: GossipSub,
@@ -151,8 +151,9 @@ proc publishMessagesWithWarmup*(
     publisherCount: int,
     nodeId: int,
 ): Future[seq[uint64]] {.async.} =
+  info "Publishing messages", nodeId
   # Warm-up phase
-  info "Sending warmup messages", nodeId
+  debug "Sending warmup messages", nodeId
   for msg in 0 ..< warmupCount:
     await sleepAsync(msgInterval)
     discard await gossipSub.publish(topic, warmupData)
@@ -165,7 +166,7 @@ proc publishMessagesWithWarmup*(
       let timestamp = Moment.now().epochNanoSeconds()
       var data = @(toBytesLE(uint64(timestamp))) & newSeq[byte](msgSize)
 
-      info "Sending message", msgId = timestamp, nodeId = nodeId
+      debug "Sending message", msgId = timestamp, nodeId = nodeId
       doAssert((await gossipSub.publish(topic, data)) > 0)
       sentMessages.add(uint64(timestamp))
 
@@ -217,17 +218,64 @@ proc `$`*(stats: Stats): string =
     fmt"avg={formatLatencyMs(stats.latency.avgLatencyMs)}"
 
 proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
-  let json =
+  var resultsArr: JsonNode = newJArray()
+  if fileExists(outputPath):
+    try:
+      let existing = parseFile(outputPath)
+      resultsArr = existing["results"]
+    except:
+      discard
+
+  let newResult =
     %*{
-      "results": [
-        {
-          "scenarioName": scenario,
-          "totalSent": stats.totalSent,
-          "totalReceived": stats.totalReceived,
-          "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
-          "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
-          "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
-        }
-      ]
+      "scenarioName": scenario,
+      "totalSent": stats.totalSent,
+      "totalReceived": stats.totalReceived,
+      "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
+      "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
+      "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
     }
+  resultsArr.add(newResult)
+
+  let json = %*{"results": resultsArr}
   writeFile(outputPath, json.pretty)
+
+const
+  enableTcCommand* = "tc qdisc add dev eth0 root"
+  disableTcCommand* = "tc qdisc del dev eth0 root"
+
+proc execShellCommand*(cmd: string): string =
+  try:
+    let output = execProcess(
+        "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
+      )
+      .strip()
+    debug "Shell command executed", cmd, output
+    return output
+  except OSError as e:
+    raise newException(OSError, "Shell command failed")
+
+const syncDir = "/output/sync"
+
+proc syncNodes*(stage: string, nodeId, nodeCount: int) {.async.} =
+  # initial wait
+  await sleepAsync(2.seconds)
+
+  let prefix = "sync_"
+  let myFile = syncDir / (prefix & stage & "_" & $nodeId)
+  writeFile(myFile, "ok")
+
+  let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
+  checkUntilTimeoutCustom(5.seconds, 100.milliseconds):
+    expectedFiles.allIt(fileExists(it))
+
+  # final wait
+  await sleepAsync(500.milliseconds)
+
+proc clearSyncFiles*() =
+  if not dirExists(syncDir):
+    createDir(syncDir)
+  else:
+    for f in walkDir(syncDir):
+      if fileExists(f.path):
+        removeFile(f.path)
