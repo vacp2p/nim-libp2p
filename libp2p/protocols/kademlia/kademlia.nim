@@ -1,3 +1,4 @@
+import results
 import chronos
 import chronicles
 import sequtils
@@ -23,6 +24,8 @@ type KadDHT* = ref object of LPProtocol
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
+  findNodeTimeout: Opt[Duration]
+  bucketHeartbeat: Opt[Duration]
 
 const MaxMsgSize = 4096
 
@@ -91,7 +94,7 @@ proc findNode*(
 
       pendingFutures[peer] = kad
         .sendFindNode(peer, addrTable.getOrDefault(peer, @[]), targetId)
-        .wait(5.seconds)
+        .wait(kad.findNodeTimeout.get(5.seconds))
 
       state.activeQueries.inc
 
@@ -127,8 +130,9 @@ proc bootstrap*(
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
 
     try:
-      let msg =
-        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(5.seconds)
+      let msg = await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
+        kad.findNodeTimeout.get(5.seconds)
+      )
       for peer in msg.closerPeers:
         let p = PeerId.init(peer.id).tryGet()
         discard kad.rtable.insert(p)
@@ -153,8 +157,20 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       discard await kad.findNode(randomKey)
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh buckets", 10.minutes:
+  heartbeat "refresh buckets", kad.bucketHeartbeat.get(10.minutes):
     await kad.refreshBuckets()
+
+proc setFindNodeTimeout*(self: var KadDHT, duration: Duration) =
+  self.findNodeTimeout = Opt.some(duration)
+
+proc setBucketHeartbeat*(self: var KadDHT, duration: Duration) =
+  self.bucketHeartbeat = Opt.some(duration)
+
+proc unSetFindNodeTimeout*(self: var KadDHT) =
+  self.findNodeTimeout = Opt.none(Duration)
+
+proc unSetBucketHeartbeat*(self: var KadDHT) =
+  self.bucketHeartbeat = Opt.none(Duration)
 
 proc new*(
     T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
