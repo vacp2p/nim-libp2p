@@ -1,5 +1,4 @@
 import chronos
-import streams
 import hashes
 import json
 import metrics

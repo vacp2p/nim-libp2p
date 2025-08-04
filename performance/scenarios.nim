@@ -9,7 +9,6 @@
 
 {.used.}
 
-import json
 import metrics
 import metrics/chronos_httpserver
 import os
