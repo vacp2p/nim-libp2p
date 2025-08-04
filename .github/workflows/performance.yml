@@ -60,6 +60,34 @@ jobs:
           COMMENT_SUMMARY_PATH: "/tmp/perf-summary.md"
         run: |
           nim c -r -d:release -o:/tmp/aggregate_stats ./performance/aggregate_stats.nim
+          nimble install chronos
+          nim c -r -d:release -o:/tmp/process_docker_stats ./performance/process_docker_stats.nim
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install matplotlib
+
+      - name: Run plot_metrics.py
+        run: python performance/plot_metrics.py
+
+      - name: Upload PNG plots as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-plots
+          path: performance/output/*.png
+
+      - name: Add plots to GitHub Actions summary
+        run: |
+          echo "## Performance Plots" >> $GITHUB_STEP_SUMMARY
+          for img in performance/output/*.png; do
+            echo "![]($img)" >> $GITHUB_STEP_SUMMARY
+          done
 
       - name: Post/Update PR Performance Comment
         if: github.event_name == 'pull_request'
