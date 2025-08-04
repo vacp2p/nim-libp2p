@@ -79,14 +79,16 @@ proc findNode*(
   var addrTable: Table[PeerId, seq[MultiAddress]] =
     initTable[PeerId, seq[MultiAddress]]()
 
+  debug "self", self = kad.switch.peerInfo.peerId
   while not state.done:
     let toQuery = state.selectAlphaPeers()
+    debug "queries", list = toQuery.mapIt(it.shortLog()), addrTab = addrTable
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
-    for peer in toQuery:
-      if pendingFutures.hasKey(peer):
-        continue
-
+    # TODO: pending futures always empty here, no?
+    for peer in toQuery.filterIt(
+      kad.switch.peerInfo.peerId != it or pendingFutures.hasKey(it)
+    ):
       state.markPending(peer)
 
       pendingFutures[peer] = kad
@@ -112,7 +114,11 @@ proc findNode*(
     for timedOut in timedOutPeers:
       state.markFailed(timedOut)
 
-    state.done = state.checkConvergence()
+    # Check for covergence: no active queries, and no other peers to be selected
+    let ready = state.activeQueries == 0
+    let noNew =
+      selectAlphaPeers(state).filterIt(kad.switch.peerInfo.peerId != it).len == 0
+    state.done = ready and noNew
 
   return state.selectClosestK()
 
