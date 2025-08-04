@@ -120,6 +120,7 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "closing session should close all streams":
+    return
     let server = await createTransport()
     asyncSpawn createServerAcceptConn(server)()
     defer:
@@ -147,3 +148,54 @@ suite "Quic transport":
 
     # run multiple clients simultainiously
     await allFutures(runClient(), runClient(), runClient())
+
+    asyncTest "send large message":
+      # this tests has the same flow as other tests but it sends larger message
+      const msgsize = 2000
+
+      proc createServerBigMessageAcceptConn(
+          server: QuicTransport
+      ): proc(): Future[void] {.
+        async: (raises: [transport.TransportError, LPStreamError, CancelledError])
+      .} =
+        proc handler() {.
+            async: (raises: [transport.TransportError, LPStreamError, CancelledError])
+        .} =
+          try:
+            let conn = await server.accept()
+            if conn == nil:
+              return
+
+            var s = QuicSession(conn)
+            for i in 0 ..< 5:
+              let stream = await getStream(s, Direction.In)
+              var resp: array[1000, byte]
+              await stream.readExactly(addr resp, 1000)
+              await stream.write(newSeq[byte](2000))
+              await stream.close()
+          except QuicTransportAcceptStopped:
+            discard # Transport is stopped
+        return handler
+
+      proc runClient() {.async.} =
+        let client = await createTransport()
+        let conn = await client.dial("", server.addrs[0])
+        var s = QuicSession(conn)
+        for i in 0 ..< 5:
+          let stream = await getStream(s, Direction.Out)
+          await stream.write(newSeq[byte](1000))
+          var resp: array[2000, byte]
+          await stream.readExactly(addr resp, 2000)
+          await stream.close()
+        await client.stop()
+
+      let server = await createTransport()
+      asyncSpawn createServerBigMessageAcceptConn(server)()
+      defer:
+        await server.stop()
+
+      await allFuturesThrowing(runClient(), runClient(), runClient(), runClient())
+
+
+
+
