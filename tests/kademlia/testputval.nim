@@ -35,14 +35,22 @@ proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
 type PermissiveValidator = ref object of EntryValidator
 
 method validate(self: PermissiveValidator, cand: EntryCandidate): bool =
+  info "validating true"
   true
 
 type RestrictiveValidator = ref object of EntryValidator
 
+type ApatheticSelector = ref object of EntrySelector
+method select(
+    self: ApatheticSelector, cand: RecordVal, others: seq[RecordVal]
+): RecordVal =
+  return cand
+
 method validate(self: RestrictiveValidator, cand: EntryCandidate): bool =
+  info "validating false"
   false
 
-suite "KadDHT - PutNode":
+suite "KadDHT - PutVal":
   asyncTest "Simple put":
     let swarmSize = 3
     var switches: seq[Switch]
@@ -50,7 +58,7 @@ suite "KadDHT - PutNode":
     # every node needs a switch, and an assosciated kad mounted to it
     for i in 0 ..< swarmSize:
       switches.add(createSwitch())
-      kads.add(KadDHT.new(switches[i], PermissiveValidator()))
+      kads.add(KadDHT.new(switches[i], PermissiveValidator(), ApatheticSelector()))
       switches[i].mount(kads[i])
 
     # Once the the creation/mounting of switches are done, we can start
@@ -71,17 +79,18 @@ suite "KadDHT - PutNode":
 
     let entered: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)].val
 
+    let ents = kads[1].dataTable.entries
     doAssert(
       entered.data == puttedData,
-      fmt"table: {kads[1].dataTable.entries}, putted: {puttedData}, expected-hash: {hashedData}",
+      fmt"table: {ents}, putted: {puttedData}, expected-hash: {hashedData}",
     )
     doAssert(len(kads[1].dataTable.entries) == 1)
 
   asyncTest "Change Validator":
     let switch1 = createSwitch()
     let switch2 = createSwitch()
-    var kad1 = KadDHT.new(switch1, RestrictiveValidator())
-    var kad2 = KadDHT.new(switch2, RestrictiveValidator())
+    var kad1 = KadDHT.new(switch1, RestrictiveValidator(), ApatheticSelector())
+    var kad2 = KadDHT.new(switch2, RestrictiveValidator(), ApatheticSelector())
     switch1.mount(kad1)
     switch2.mount(kad2)
 
@@ -93,11 +102,13 @@ suite "KadDHT - PutNode":
     let entryVal = EntryVal(data: puttedData)
     let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
     discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
-    error "status", stat = kad1.dataTable.entries
     doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
     kad1.entryValidator = PermissiveValidator()
     discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
 
+    doAssert(len(kad1.dataTable.entries) == 0, fmt"{kad1.dataTable.entries}")
+    kad2.entryValidator = PermissiveValidator()
+    discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 
     await allFutures(kad1.stop(), kad2.stop())
@@ -105,8 +116,8 @@ suite "KadDHT - PutNode":
   asyncTest "Good Time":
     let switch1 = createSwitch()
     let switch2 = createSwitch()
-    var kad1 = KadDHT.new(switch1, PermissiveValidator())
-    var kad2 = KadDHT.new(switch2, PermissiveValidator())
+    var kad1 = KadDHT.new(switch1, PermissiveValidator(), ApatheticSelector())
+    var kad2 = KadDHT.new(switch2, PermissiveValidator(), ApatheticSelector())
     switch1.mount(kad1)
     switch2.mount(kad2)
     await allFutures(switch1.start(), switch2.start())
@@ -116,25 +127,13 @@ suite "KadDHT - PutNode":
     let hashedData: seq[byte] = @(sha256.digest(puttedData.data).data)
     discard await kad2.putVal(hashedData.toKey(), puttedData, 1)
 
-    info "putted", putted = puttedData
-    info "sha256'd", shad = hashedData
-    info "table", tab = kad1.dataTable.entries
-
-    # the value in the table. created with `times.now().utc` then stringified
     let time: string = kad1.dataTable.entries[EntryKey(data: hashedData)].time.ts
-    info "time", time = time
 
-    # get "my now" the same way...
     let now = times.now().utc
-    let nowstr = $now
-    info "time now", now = nowstr
-    # parse the stored time
     let parsed = time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
-    let parsedstr = $parsed
-    info "parsed", parsed = parsedstr
+
     # get the diff between the stringified-parsed and the direct "now"
     let elapsed = (now - parsed)
-
     doAssert(elapsed < times.initDuration(seconds = 2))
 
     await allFutures(kad1.stop(), kad2.stop())

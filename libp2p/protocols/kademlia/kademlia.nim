@@ -81,7 +81,6 @@ proc dispatchPutVal(
 ): Future[void] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  trace "dialing", me = kad.rtable.selfId, peer = peer, entry = entry
   let conn = await kad.switch.dial(peer, KadCodec)
 
   defer:
@@ -100,13 +99,13 @@ proc dispatchPutVal(
     raise newException(ValueError, "unexpected message type in reply: " & $reply)
 
 proc putVal*(
-    kad: var KadDHT, key: keys.Key, val: EntryVal, replic: int
+    kad: KadDHT, key: keys.Key, val: EntryVal, replic: int
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), val: val)
+  if not kad.entryValidator.validate(cand):
+    return err("invalid key/val pair")
+  let ts = TimeStamp(ts: $times.now().utc)
   try:
-    let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), val: val)
-    if kad.entryValidator.validate(cand):
-      return err("invalid key/val pair")
-    let ts = TimeStamp(ts: $times.now().utc)
     let others: seq[RecordVal] =
       if cand.key in kad.dataTable.entries:
         @[kad.dataTable.entries[cand.key]]
@@ -122,6 +121,7 @@ proc putVal*(
       return err("invalid overruled entry")
     let valEnt = ValidatedEntry.take(confirmedEnt)
 
+    info "true valid", tv = valEnt
     let peers = kad.rtable.findClosestPeers(key, replic)
     let putClip = peers.mapIt(kad.dispatchPutVal(it, valEnt))
     kad.dataTable.insert(valEnt, ts)
@@ -233,6 +233,7 @@ proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
     validator: EntryValidator,
+    entrySelector: EntrySelector,
     rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
   var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey())
@@ -242,6 +243,7 @@ proc new*(
     rtable: rtable,
     dataTable: LocalTable.init(),
     entryValidator: validator,
+    entrySelector: entrySelector,
   )
 
   kad.codec = KadCodec
