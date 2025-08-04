@@ -22,20 +22,21 @@ proc createServerAcceptConn(
   proc handler() {.
       async: (raises: [transport.TransportError, LPStreamError, CancelledError])
   .} =
-    try:
-      let conn = await server.accept()
-      if conn == nil:
-        return
+    while true:
+      try:
+        let conn = await server.accept()
+        if conn == nil:
+          return
 
-      let stream = await getStream(QuicSession(conn), Direction.In)
-      var resp: array[6, byte]
-      await stream.readExactly(addr resp, 6)
-      check string.fromBytes(resp) == "client"
+        let stream = await getStream(QuicSession(conn), Direction.In)
+        var resp: array[6, byte]
+        await stream.readExactly(addr resp, 6)
+        check string.fromBytes(resp) == "client"
 
-      await stream.write("server")
-      await stream.close()
-    except QuicTransportAcceptStopped:
-      discard # Transport is stopped
+        await stream.write("server")
+        await stream.close()
+      except QuicTransportAcceptStopped:
+        return # Transport is stopped
 
   return handler
 
@@ -115,6 +116,23 @@ suite "Quic transport":
       let client = await createTransport(true)
       expect QuicTransportDialError:
         discard await client.dial("", server.addrs[0])
+      await client.stop()
+
+    await runClient()
+
+  asyncTest "server not accepting":
+    return # should throw
+    let server = await createTransport()
+    # itentionally not calling createServerAcceptConn as server should not accept
+    defer:
+      await server.stop()
+
+    proc runClient() {.async.} =
+      let client = await createTransport()
+      expect LPStreamEOFError:
+        let conn = await client.dial("", server.addrs[0])
+        let stream = await getStream(QuicSession(conn), Direction.Out)
+        await stream.write("client")
       await client.stop()
 
     await runClient()
