@@ -121,18 +121,17 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "server not accepting":
-    return # should throw
     let server = await createTransport()
     # itentionally not calling createServerAcceptConn as server should not accept
     defer:
       await server.stop()
 
     proc runClient() {.async.} =
+      # client should be able to write even when server has not accepted
       let client = await createTransport()
-      expect LPStreamEOFError:
-        let conn = await client.dial("", server.addrs[0])
-        let stream = await getStream(QuicSession(conn), Direction.Out)
-        await stream.write("client")
+      let conn = await client.dial("", server.addrs[0])
+      let stream = await getStream(QuicSession(conn), Direction.Out)
+      await stream.write("client")
       await client.stop()
 
     await runClient()
