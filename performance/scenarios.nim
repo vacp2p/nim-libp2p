@@ -52,6 +52,7 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
     rng = libp2p.newRng()
 
   if nodeId == 0:
+    clearDockerStats(dockerStatsLogPath)
     clearSyncFiles()
 
   discard collectDockerStatsPeriodically(containerId, 500, dockerStatsLogPath)
@@ -109,10 +110,6 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
   writeResultsToJson(outputPath, scenario, stats)
 
   await syncNodes("finished", nodeId, nodeCount)
-
-  # --- Echo processed Docker stats results at the end ---
-  let processedStats = processDockerStatsLog(dockerStatsLogPath)
-  echo "Docker stats log:\n", processedStats
 
 suite "Network Performance Tests":
   teardown:
