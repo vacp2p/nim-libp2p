@@ -267,7 +267,7 @@ proc syncNodes*(stage: string, nodeId, nodeCount: int) {.async.} =
   writeFile(myFile, "ok")
 
   let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
-  checkUntilTimeoutCustom(5.seconds, 100.milliseconds):
+  checkUntilTimeoutCustom(15.seconds, 100.milliseconds):
     expectedFiles.allIt(fileExists(it))
 
   # final wait
@@ -281,32 +281,20 @@ proc clearSyncFiles*() =
       if fileExists(f.path):
         removeFile(f.path)
 
-proc collectDockerStatsPeriodically*(
-    containerId: string, intervalMs: int, outputPath: string
-) {.async.} =
-  let curlCmd =
-    fmt"curl --unix-socket /var/run/docker.sock http://localhost/containers/{containerId}/stats 2>/dev/null"
-  var p: Process
-  try:
-    p = startProcess(
-      "/bin/sh", args = ["-c", curlCmd], options = {poUsePath, poStdErrToStdOut}
-    )
-    var line = ""
-    var f: File
-    if fileExists(outputPath):
-      f = open(outputPath, fmAppend)
-    else:
-      f = open(outputPath, fmWrite)
-    defer:
-      f.close()
-    while readLine(p.outputStream, line):
-      if line.len == 0:
-        continue
-      f.write(line & "\n")
-      await sleepAsync(intervalMs.milliseconds)
-    p.close()
-  except:
-    warn "Failed to start or read Docker stats stream"
+proc getContainerId*(): string =
+  let response = execShellCommand(
+    "curl -s --unix-socket /var/run/docker.sock http://localhost/containers/json"
+  )
+  let containers = parseJson(response)
+
+  return containers[0]["Id"].getStr("")
+
+proc startDockerStatsProcess*(containerId: string, outputPath: string) =
+  let shellCmd =
+    fmt"curl --unix-socket /var/run/docker.sock http://localhost/containers/{containerId}/stats > {outputPath} 2>/dev/null"
+  discard startProcess(
+    "/bin/sh", args = ["-c", shellCmd], options = {poUsePath, poStdErrToStdOut}
+  )
 
 proc clearDockerStats*(outputPath: string) =
   if fileExists(outputPath):

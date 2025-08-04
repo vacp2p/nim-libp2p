@@ -13,7 +13,7 @@ import json
 import metrics
 import metrics/chronos_httpserver
 import os
-# import strformat
+import strformat
 import strutils
 import ../libp2p
 import ../libp2p/protocols/ping
@@ -22,17 +22,6 @@ import ./utils
 from nativesockets import getHostname
 
 proc baseTest*(scenarioName = "Base test") {.async.} =
-  let response = execShellCommand(
-    "curl -s --unix-socket /var/run/docker.sock http://localhost/containers/json"
-  )
-  let containers = parseJson(response)
-  let containerId = containers[0]["Id"].getStr
-
-  echo containerId
-
-  # --- Start periodic Docker stats collection at the very beginning ---
-  let dockerStatsLogPath = "/output/docker_stats.log"
-
   # --- Scenario ---
   let scenario = scenarioName
   const
@@ -51,11 +40,17 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
     hostname = getHostname()
     rng = libp2p.newRng()
 
+  let strippedScenario = scenario.replace(" ", "")
+  let dockerStatsLogPath = &"/output/docker_stats_{strippedScenario}_{nodeId}.log"
+
   if nodeId == 0:
     clearDockerStats(dockerStatsLogPath)
     clearSyncFiles()
 
-  discard collectDockerStatsPeriodically(containerId, 500, dockerStatsLogPath)
+  # --- Collect docker stats for one publishing and one non-publishing node ---
+  if nodeId == 0 or nodeId == publisherCount + 1:
+    let containerId = getContainerId()
+    startDockerStatsProcess(containerId, dockerStatsLogPath)
 
   let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng)
   gossipSub.setGossipSubParams()
