@@ -31,7 +31,7 @@ proc `<`*(a, b: XorDistance): bool =
 proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
-proc hashFor*(k: Key): seq[byte] =
+proc hashFor(k: Key): seq[byte] =
   return
     @(
       case k.kind

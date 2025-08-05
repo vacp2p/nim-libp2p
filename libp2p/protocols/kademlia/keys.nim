@@ -17,14 +17,6 @@ type
     of KeyType.Raw, KeyType.Unhashed:
       data*: array[IdLength, byte]
 
-proc sha256Hash*(k: Key): array[IdLength, byte] =
-  return
-    case k.kind
-    of KeyType.PeerId:
-      sha256.digest(k.peerId.getBytes()).data
-    of KeyType.Raw, KeyType.Unhashed:
-      sha256.digest(k.data).data
-
 proc toKey*(s: seq[byte]): Key =
   doAssert s.len == IdLength
   var data: array[IdLength, byte]
