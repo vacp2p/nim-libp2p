@@ -334,7 +334,6 @@ suite "GossipSub Integration - Mesh Management":
     # When DValues of Node0 are updated back to the initial dValues
     node0.parameters.applyDValues(dValues)
 
-
     # Then on the next heartbeat mesh is rebalanced and peers are regrafted to the initial d value
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
