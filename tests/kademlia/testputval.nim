@@ -106,7 +106,7 @@ suite "KadDHT - PutVal":
     discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 
-    await allFutures(kad1.stop(), kad2.stop())
+    await allFutures(switch1.stop(), switch2.stop())
 
   asyncTest "Good Time":
     let switch1 = createSwitch()
@@ -131,4 +131,4 @@ suite "KadDHT - PutVal":
     let elapsed = (now - parsed)
     doAssert(elapsed < times.initDuration(seconds = 2))
 
-    await allFutures(kad1.stop(), kad2.stop())
+    await allFutures(switch1.stop(), switch2.stop())
