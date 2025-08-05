@@ -23,20 +23,21 @@ proc createServerAcceptConn(
   proc handler() {.
       async: (raises: [transport.TransportError, LPStreamError, CancelledError])
   .} =
-    try:
-      let conn = await server.accept()
-      if conn == nil:
-        return
+    while true:
+      try:
+        let conn = await server.accept()
+        if conn == nil:
+          return
 
-      var s = QuicSession(conn)
-      for i in 0 ..< 5:
-        let stream = await getStream(s, Direction.In)
-        var resp: array[1000, byte]
-        await stream.readExactly(addr resp, 1000)
-        await stream.write(newSeq[byte](2000))
-        await stream.close()
-    except QuicTransportAcceptStopped:
-      discard # Transport is stopped
+        var s = QuicSession(conn)
+        for i in 0 ..< 25:
+          let stream = await getStream(s, Direction.In)
+          var resp: array[1000, byte]
+          await stream.readExactly(addr resp, 1000)
+          await stream.write(newSeq[byte](2000))
+          await stream.close()
+      except QuicTransportAcceptStopped:
+        discard # Transport is stopped
 
   return handler
 
@@ -66,14 +67,16 @@ proc createTransport(withInvalidCert: bool = false): Future[QuicTransport] {.asy
 
 suite "quic transport":
   asyncTest "nil2":
-    let server = await createTransport()
-    asyncSpawn createServerAcceptConn(server)()
+    proc createServer(): Future[QuicTransport] {.async.} =
+      let server = await createTransport()
+      asyncSpawn createServerAcceptConn(server)()
+      return server
 
-    proc runClient() {.async.} =
+    proc runClient(server: QuicTransport) {.async.} =
       let client = await createTransport()
       let conn = await client.dial("", server.addrs[0])
       var s = QuicSession(conn)
-      for i in 0 ..< 5:
+      for i in 0 ..< 25:
         let stream = await getStream(s, Direction.Out)
         await stream.write(newSeq[byte](1000))
         var resp: array[2000, byte]
@@ -81,7 +84,10 @@ suite "quic transport":
         await stream.close()
       await client.stop()
 
-    await allFuturesThrowing(runClient(),runClient())
-    await server.stop()
+    var servers: seq[QuicTransport]
+    for i in 0 ..< 20:
+      servers.add(await createServer())
 
- 
+    for i in 0 ..< 20:
+      let server = servers[i]
+      await allFuturesThrowing(runClient(server), runClient(server))

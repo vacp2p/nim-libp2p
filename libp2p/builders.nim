@@ -438,7 +438,6 @@ proc newStandardSwitch*(
 
   b.build()
 
-
 proc newStandardQuicSwitch*(
     privKey = none(PrivateKey),
     addrs: MultiAddress | seq[MultiAddress] =
