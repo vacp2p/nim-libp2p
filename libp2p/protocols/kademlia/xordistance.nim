@@ -39,7 +39,7 @@ proc hashFor*(k: Key): seq[byte] =
         sha256.digest(k.peerId.getBytes()).data
       of KeyType.Raw:
         sha256.digest(k.data).data
-      of KeyType.Unhashed, KeyType.Hashed:
+      of KeyType.Unhashed:
         k.data
     )
 

@@ -9,6 +9,7 @@ import ../../libp2p/protocols/kademlia/keys
 import ../../libp2p/protocols/kademlia/dhttypes
 import unittest2
 import ../utils/async_tests
+import ./utils.nim
 import ../helpers
 
 proc createSwitch(): Switch =
@@ -20,11 +21,6 @@ proc createSwitch(): Switch =
   .withMplex()
   .withNoise()
   .build()
-
-type PermissiveValidator = ref object of EntryValidator
-
-method validate(self: PermissiveValidator, entry: EntryCandidate): bool =
-  true
 
 proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
   var res: uint32 = 0
@@ -44,7 +40,7 @@ suite "KadDHT - FindNode":
     # every node needs a switch, and an assosciated kad mounted to it
     for i in 0 ..< swarmSize:
       switches.add(createSwitch())
-      kads.add(KadDHT.new(switches[i], PermissiveValidator()))
+      kads.add(KadDHT.new(switches[i], PermissiveValidator(), ApatheticSelector()))
       switches[i].mount(kads[i])
 
     # Once the the creation/mounting of switches are done, we can start
@@ -87,22 +83,22 @@ suite "KadDHT - FindNode":
 
   asyncTest "Relay find peer":
     let parentSwitch = createSwitch()
-    let parentKad = KadDHT.new(parentSwitch, PermissiveValidator())
+    let parentKad = KadDHT.new(parentSwitch, PermissiveValidator(), ApatheticSelector())
     parentSwitch.mount(parentKad)
     await parentSwitch.start()
 
     let broSwitch = createSwitch()
-    let broKad = KadDHT.new(broSwitch, PermissiveValidator())
+    let broKad = KadDHT.new(broSwitch, PermissiveValidator(), ApatheticSelector())
     broSwitch.mount(broKad)
     await broSwitch.start()
 
     let sisSwitch = createSwitch()
-    let sisKad = KadDHT.new(sisSwitch, PermissiveValidator())
+    let sisKad = KadDHT.new(sisSwitch, PermissiveValidator(), ApatheticSelector())
     sisSwitch.mount(sisKad)
     await sisSwitch.start()
 
     let neiceSwitch = createSwitch()
-    let neiceKad = KadDHT.new(neiceSwitch, PermissiveValidator())
+    let neiceKad = KadDHT.new(neiceSwitch, PermissiveValidator(), ApatheticSelector())
     neiceSwitch.mount(neiceKad)
     await neiceSwitch.start()
 

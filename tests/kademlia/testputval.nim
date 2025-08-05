@@ -12,7 +12,9 @@ import ../../libp2p/protocols/kademlia/keys
 import ../../libp2p/protocols/kademlia/dhttypes
 import unittest2
 import ../utils/async_tests
+import ./utils.nim
 import std/tables
+import ../helpers
 
 proc createSwitch(): Switch =
   SwitchBuilder
@@ -32,25 +34,9 @@ proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
         res += 1
   return res
 
-type PermissiveValidator = ref object of EntryValidator
-
-method validate(self: PermissiveValidator, cand: EntryCandidate): bool =
-  info "validating true"
-  true
-
-type RestrictiveValidator = ref object of EntryValidator
-
-type ApatheticSelector = ref object of EntrySelector
-method select(
-    self: ApatheticSelector, cand: RecordVal, others: seq[RecordVal]
-): RecordVal =
-  return cand
-
-method validate(self: RestrictiveValidator, cand: EntryCandidate): bool =
-  info "validating false"
-  false
-
 suite "KadDHT - PutVal":
+  teardown:
+    checkTrackers()
   asyncTest "Simple put":
     let swarmSize = 3
     var switches: seq[Switch]
@@ -93,6 +79,7 @@ suite "KadDHT - PutVal":
       fmt"table: {ents}, putted: {puttedData}, expected-hash: {hashedData}",
     )
     doAssert(len(kads[1].dataTable.entries) == 1)
+    await switches.mapIt(it.stop()).allFutures()
 
   asyncTest "Change Validator":
     let switch1 = createSwitch()
@@ -111,11 +98,11 @@ suite "KadDHT - PutVal":
     let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
     discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
     doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
-    kad1.entryValidator = PermissiveValidator()
+    kad1.setValidator(PermissiveValidator())
     discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
 
     doAssert(len(kad1.dataTable.entries) == 0, fmt"{kad1.dataTable.entries}")
-    kad2.entryValidator = PermissiveValidator()
+    kad2.setValidator(PermissiveValidator())
     discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 

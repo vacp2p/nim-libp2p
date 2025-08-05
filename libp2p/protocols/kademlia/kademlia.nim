@@ -1,5 +1,4 @@
 import chronos
-import options
 import chronicles
 import sequtils
 import ../../peerid
@@ -17,8 +16,6 @@ import ../../multihash
 import ../../utils/heartbeat
 import std/[times, options, tables]
 import results
-# TODO: Lots of `.get()` that don't consider the `none` possibility, as reviewed here: 
-#       https://github.com/vacp2p/nim-libp2p/pull/1582#discussion_r2242521376
 
 logScope:
   topics = "kad-dht"
@@ -29,8 +26,8 @@ type KadDHT* = ref object of LPProtocol
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
   dataTable*: LocalTable
-  entryValidator*: EntryValidator
-  entrySelector*: EntrySelector
+  entryValidator: EntryValidator
+  entrySelector: EntrySelector
 
 const MaxMsgSize = 4096
 
@@ -78,9 +75,7 @@ proc waitRepliesOrTimeouts(
 
 proc dispatchPutVal(
     kad: KadDHT, peer: PeerId, entry: ValidatedEntry
-): Future[void] {.
-    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
-.} =
+): Future[void] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
   let conn = await kad.switch.dial(peer, KadCodec)
 
   defer:
@@ -93,10 +88,13 @@ proc dispatchPutVal(
 
   await conn.writeLp(msg.encode().buffer)
 
-  let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+    # todo log this more meaningfully
+    error "putval reply decode fail", error = error
+    return
 
   if reply.msgType != MessageType.putValue:
-    raise newException(ValueError, "unexpected message type in reply: " & $reply)
+    error "unexpected message type in reply: ", msg = msg, reply = reply
 
 proc putVal*(
     kad: KadDHT, key: keys.Key, val: EntryVal, replic: int
@@ -114,14 +112,12 @@ proc putVal*(
 
     let candAsRec = RecordVal(val: cand.val, time: ts)
     let confirmedRec = kad.entrySelector.select(candAsRec, others)
-    # let confirmedCand = EntryCandidate(key: cand.key, val: confirmedRec.val)
 
     let confirmedEnt = EntryCandidate(key: cand.key, val: confirmedRec.val)
     if not kad.entryValidator.validate(confirmedEnt):
       return err("invalid overruled entry")
     let valEnt = ValidatedEntry.take(confirmedEnt)
 
-    info "true valid", tv = valEnt
     let peers = kad.rtable.findClosestPeers(key, replic)
     let putClip = peers.mapIt(kad.dispatchPutVal(it, valEnt))
     kad.dataTable.insert(valEnt, ts)
@@ -165,7 +161,10 @@ proc findNode*(
 
     for msg in successfulReplies:
       for peer in msg.closerPeers:
-        addrTable[PeerId.init(peer.id).get()] = peer.addrs
+        let pid = PeerId.init(peer.id)
+        if not pid.isOk:
+          continue
+        addrTable[pid.get()] = peer.addrs
       state.updateShortlist(
         msg,
         proc(p: PeerInfo) =
@@ -258,8 +257,12 @@ proc new*(
 
         case msg.msgType
         of MessageType.findNode:
-          let targetIdBytes = msg.key.get()
-          let targetId = PeerId.init(targetIdBytes).tryGet()
+          let targetIdBytes = msg.key.valueOr:
+            error "findNode message without key data present"
+            return
+          let targetId = PeerId.init(targetIdBytes).valueOr:
+            error "findNode message without valid key data"
+            return
           let closerPeers = kad.rtable.findClosest(targetId.toKey(), DefaultReplic)
           let responsePb = encodeFindNodeReply(closerPeers, switch)
           await conn.writeLp(responsePb.buffer)
@@ -301,6 +304,12 @@ proc new*(
       await conn.close()
 
   return kad
+
+proc setSelector*(kad: KadDHT, selector: EntrySelector) =
+  kad.entrySelector = selector
+
+proc setValidator*(kad: KadDHT, validator: EntryValidator) =
+  kad.entryValidator = validator
 
 method start*(
     kad: KadDHT
