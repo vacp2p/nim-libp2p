@@ -103,11 +103,6 @@ proc init*(T: type LookupState, targetId: Key, initialPeers: seq[PeerId]): T =
   )
   return res
 
-proc checkConvergence*(state: LookupState): bool =
-  let ready = state.activeQueries == 0
-  let noNew = selectAlphaPeers(state).len == 0
-  return ready and noNew
-
 proc selectClosestK*(state: LookupState): seq[PeerId] =
   var res: seq[PeerId] = @[]
   for p in state.shortlist.filterIt(not it.failed):
