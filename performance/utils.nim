@@ -266,7 +266,7 @@ proc syncNodes*(stage: string, nodeId, nodeCount: int) {.async.} =
   writeFile(myFile, "ok")
 
   let expectedFiles = (0 ..< nodeCount).mapIt(syncDir / (prefix & stage & "_" & $it))
-  checkUntilTimeoutCustom(5.seconds, 100.milliseconds):
+  checkUntilTimeoutCustom(15.seconds, 100.milliseconds):
     expectedFiles.allIt(fileExists(it))
 
   # final wait
@@ -279,3 +279,26 @@ proc clearSyncFiles*() =
     for f in walkDir(syncDir):
       if fileExists(f.path):
         removeFile(f.path)
+
+proc getContainerId*(nodeId: int): string =
+  let response = execShellCommand(
+    "curl -s --unix-socket /var/run/docker.sock http://localhost/containers/json"
+  )
+  let containers = parseJson(response)
+  let expectedName = "/node-" & $nodeId
+  let filtered =
+    containers.filterIt(it["Names"].getElems(@[]).anyIt(it.getStr("") == expectedName))
+  if filtered.len == 0:
+    return ""
+  return filtered[0]["Id"].getStr("")
+
+proc startDockerStatsProcess*(containerId: string, outputPath: string): Process =
+  let shellCmd =
+    fmt"curl --unix-socket /var/run/docker.sock http://localhost/containers/{containerId}/stats > {outputPath} 2>/dev/null"
+  return startProcess(
+    "/bin/sh", args = ["-c", shellCmd], options = {poUsePath, poStdErrToStdOut}
+  )
+
+proc clearDockerStats*(outputPath: string) =
+  if fileExists(outputPath):
+    removeFile(outputPath)
