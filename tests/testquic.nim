@@ -23,10 +23,13 @@ proc createServerAcceptConn(
       async: (raises: [transport.TransportError, LPStreamError, CancelledError])
   .} =
     while true:
-      try:
-        let conn = await server.accept()
+        let conn = 
+          try:
+            await server.accept()
+          except QuicTransportAcceptStopped:
+            return # Transport is stopped
         if conn == nil:
-          return
+          continue
 
         let stream = await getStream(QuicSession(conn), Direction.In)
         var resp: array[6, byte]
@@ -35,8 +38,6 @@ proc createServerAcceptConn(
 
         await stream.write("server")
         await stream.close()
-      except QuicTransportAcceptStopped:
-        return # Transport is stopped
 
   return handler
 
