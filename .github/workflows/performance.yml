@@ -65,6 +65,53 @@ jobs:
           nimble install chronos
           nim c -r -d:release -o:/tmp/process_docker_stats ./performance/scripts/process_docker_stats.nim
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install matplotlib
+
+      - name: Run plot_metrics.py
+        run: python performance/plot_metrics.py
+
+      - name: Clone the performance_plots branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: performance_plots
+          path: subplots
+          fetch-depth: 0
+
+      - name: Commit & push plots
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          cd subplots
+          # Remove any branch folder older than two weeks
+          find plots/ -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} +
+          rm -rf plots/$BRANCH_NAME
+          mkdir -p plots/$BRANCH_NAME
+          cp ../performance/output/*.png plots/$BRANCH_NAME/
+          git add plots/$BRANCH_NAME
+          if git diff-index --quiet HEAD --; then
+            echo "No changes to commit"
+          else
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git config --global user.name "github-actions[bot]"
+            git commit -m "Update performance plots for $BRANCH_NAME"
+            git push origin performance_plots
+          fi
+
+      - name: Add public plot URLs to GitHub Actions summary
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          nim c -r -d:release -o:/tmp/gen_plot_summary ./performance/gen_plot_summary.nim
+
       - name: Post/Update PR Performance Comment
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/add_comment
