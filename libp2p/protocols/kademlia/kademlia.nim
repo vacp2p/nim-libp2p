@@ -250,6 +250,8 @@ proc new*(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
+      defer:
+        await conn.close()
       while not conn.atEof:
         let
           buf = await conn.readLp(MaxMsgSize)
@@ -301,9 +303,6 @@ proc new*(
       # TODO: figure out why this fails:
       # error "could not handle request",
       #   peerId = conn.PeerId, err = getCurrentExceptionMsg()
-    finally:
-      await conn.close()
-
   return kad
 
 proc setSelector*(kad: KadDHT, selector: EntrySelector) =
