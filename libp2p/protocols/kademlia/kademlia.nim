@@ -289,8 +289,9 @@ proc new*(
           if kad.entryValidator.validate(EntryCandidate(key: key, val: val)):
             let validated = ValidatedEntry(key: key, val: val)
             kad.dataTable.insert(validated, ts)
-          let resp = Message(record: some(record))
-          await conn.writeLp(resp.encode().buffer)
+            record.value = some(val.data)
+            let resp = Message(record: some(record))
+            await conn.writeLp(resp.encode().buffer)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
