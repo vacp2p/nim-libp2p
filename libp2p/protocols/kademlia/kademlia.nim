@@ -68,6 +68,8 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
+# Helper function forward declaration
+proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.}
 proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
@@ -79,7 +81,6 @@ proc findNode*(
   var addrTable: Table[PeerId, seq[MultiAddress]] =
     initTable[PeerId, seq[MultiAddress]]()
 
-  debug "self", self = kad.switch.peerInfo.peerId
   while not state.done:
     let toQuery = state.selectAlphaPeers()
     debug "queries", list = toQuery.mapIt(it.shortLog()), addrTab = addrTable
@@ -115,12 +116,14 @@ proc findNode*(
       state.markFailed(timedOut)
 
     # Check for covergence: no active queries, and no other peers to be selected
-    let ready = state.activeQueries == 0
-    let noNew =
-      selectAlphaPeers(state).filterIt(kad.switch.peerInfo.peerId != it).len == 0
-    state.done = ready and noNew
+    state.done = checkConvergence(state, kad.switch.peerInfo.peerId)
 
   return state.selectClosestK()
+
+proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
+  let ready = state.activeQueries == 0
+  let noNew = selectAlphaPeers(state).filterIt(me != it).len == 0
+  return ready and noNew
 
 proc bootstrap*(
     kad: KadDHT, bootstrapNodes: seq[PeerInfo]
