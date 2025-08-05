@@ -75,13 +75,21 @@ suite "KadDHT - PutVal":
     let puttedData = kads[1].rtable.selfId.getBytes()
     let entryVal = EntryVal(data: puttedData)
     let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
-    discard await kads[0].putVal(hashedData.toKey(), entryVal, 1)
+    discard await kads[0].putVal(hashedData.toKey(), entryVal, 2)
 
-    let entered: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)].val
+    let entered1: EntryVal = kads[0].dataTable.entries[EntryKey(data: hashedData)].val
+    let entered2: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)].val
 
-    let ents = kads[1].dataTable.entries
+    var ents = kads[0].dataTable.entries
     doAssert(
-      entered.data == puttedData,
+      entered1.data == puttedData,
+      fmt"table: {ents}, putted: {puttedData}, expected-hash: {hashedData}",
+    )
+    doAssert(len(kads[0].dataTable.entries) == 1)
+
+    ents = kads[1].dataTable.entries
+    doAssert(
+      entered2.data == puttedData,
       fmt"table: {ents}, putted: {puttedData}, expected-hash: {hashedData}",
     )
     doAssert(len(kads[1].dataTable.entries) == 1)
