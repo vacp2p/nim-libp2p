@@ -31,10 +31,10 @@ proc createServerAcceptConn(
       if conn == nil:
         continue
 
-        let stream = await getStream(QuicSession(conn), Direction.In)
-        var resp: array[6, byte]
-        await stream.readExactly(addr resp, 6)
-        check string.fromBytes(resp) == "client"
+      let stream = await getStream(QuicSession(conn), Direction.In)
+      var resp: array[6, byte]
+      await stream.readExactly(addr resp, 6)
+      check string.fromBytes(resp) == "client"
 
       await stream.write("server")
       await stream.close()
