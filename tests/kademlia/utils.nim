@@ -2,11 +2,11 @@
 import ../../libp2p/protocols/kademlia/dhttypes
 
 type PermissiveValidator* = ref object of EntryValidator
-method validate*(self: PermissiveValidator, cand: EntryCandidate): bool =
+method isValid*(self: PermissiveValidator, cand: EntryCandidate): bool =
   true
 
 type RestrictiveValidator* = ref object of EntryValidator
-method validate(self: RestrictiveValidator, cand: EntryCandidate): bool =
+method isValid(self: RestrictiveValidator, cand: EntryCandidate): bool =
   false
 
 type CandSelector* = ref object of EntrySelector

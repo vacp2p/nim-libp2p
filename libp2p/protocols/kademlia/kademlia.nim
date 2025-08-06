@@ -104,7 +104,7 @@ proc putValue*(
     kad: KadDHT, key: keys.Key, value: EntryVal, replic: int
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), value: value)
-  if not kad.entryValidator.validate(cand):
+  if not kad.entryValidator.isValid(cand):
     return err("invalid key/value pair")
   let ts = TimeStamp(ts: $times.now().utc)
   try:
@@ -118,7 +118,7 @@ proc putValue*(
     let confirmedRec = kad.entrySelector.select(candAsRec, others)
 
     let confirmedEnt = EntryCandidate(key: cand.key, value: confirmedRec.value)
-    if not kad.entryValidator.validate(confirmedEnt):
+    if not kad.entryValidator.isValid(confirmedEnt):
       return err("invalid overruled entry")
     let validEnt = ValidatedEntry.take(confirmedEnt)
 
@@ -278,11 +278,9 @@ proc new*(
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
         of MessageType.putValue:
-          var record =
-            if msg.record.isSome():
-              msg.record.unsafeGet()
-            else:
-              raise newException(CatchableError, "no record in message buffer")
+          var record = msg.record.valueOr:
+            error "no record in message buffer", msg = msg
+            return
           let (skey, svalue) =
             if record.key.isSome() and record.value.isSome():
               (record.key.unsafeGet(), record.value.unsafeGet())
@@ -293,7 +291,7 @@ proc new*(
           let ts = TimeStamp(ts: $times.now().utc)
 
           let cand = EntryCandidate(key: key, value: value)
-          if not kad.entryValidator.validate(cand):
+          if not kad.entryValidator.isValid(cand):
             return
           let others =
             if kad.dataTable.entries.contains(key):

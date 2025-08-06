@@ -29,7 +29,7 @@ type RecordVal* = object
 
 ## Top tip: add chronicles logs to your implementation
 type EntryValidator* = ref object of RootObj
-method validate*(
+method isValid*(
     self: EntryValidator, entry: EntryCandidate
 ): bool {.base, raises: [], gcsafe.} =
   doAssert(false, "unimplimented base method")
