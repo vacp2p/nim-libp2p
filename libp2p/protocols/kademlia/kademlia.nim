@@ -30,6 +30,10 @@ type KadDHT* = ref object of LPProtocol
   entrySelector: EntrySelector
 
 const MaxMsgSize = 4096
+# Forward declaration
+proc findNode*(
+  kad: KadDHT, targetId: Key
+): Future[seq[PeerId]] {.async: (raises: [CancelledError]).}
 
 proc sendFindNode(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress], targetId: Key
@@ -83,25 +87,25 @@ proc dispatchPutVal(
 
   let msg = Message(
     msgType: MessageType.putValue,
-    record: some(Record(key: some(entry.key.data), value: some(entry.val.data))),
+    record: some(Record(key: some(entry.key.data), value: some(entry.value.data))),
   )
 
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
     # todo log this more meaningfully
-    error "putval reply decode fail", error = error
+    error "putValue reply decode fail", error = error
     return
 
   if reply.msgType != MessageType.putValue:
     error "unexpected message type in reply: ", msg = msg, reply = reply
 
-proc putVal*(
-    kad: KadDHT, key: keys.Key, val: EntryVal, replic: int
+proc putValue*(
+    kad: KadDHT, key: keys.Key, value: EntryVal, replic: int
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), val: val)
+  let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), value: value)
   if not kad.entryValidator.validate(cand):
-    return err("invalid key/val pair")
+    return err("invalid key/value pair")
   let ts = TimeStamp(ts: $times.now().utc)
   try:
     let others: seq[RecordVal] =
@@ -110,17 +114,18 @@ proc putVal*(
       else:
         @[]
 
-    let candAsRec = RecordVal(val: cand.val, time: ts)
+    let candAsRec = RecordVal(value: cand.value, time: ts)
     let confirmedRec = kad.entrySelector.select(candAsRec, others)
 
-    let confirmedEnt = EntryCandidate(key: cand.key, val: confirmedRec.val)
+    let confirmedEnt = EntryCandidate(key: cand.key, value: confirmedRec.value)
     if not kad.entryValidator.validate(confirmedEnt):
       return err("invalid overruled entry")
-    let valEnt = ValidatedEntry.take(confirmedEnt)
+    let validEnt = ValidatedEntry.take(confirmedEnt)
 
+    discard await kad.findNode(key)
     let peers = kad.rtable.findClosestPeers(key, replic)
-    let putClip = peers.mapIt(kad.dispatchPutVal(it, valEnt))
-    kad.dataTable.insert(valEnt, ts)
+    let putClip = peers.mapIt(kad.dispatchPutVal(it, validEnt))
+    kad.dataTable.insert(validEnt, ts)
     await putClip.allFutures()
 
     return results.ok()
@@ -163,6 +168,7 @@ proc findNode*(
       for peer in msg.closerPeers:
         let pid = PeerId.init(peer.id)
         if not pid.isOk:
+          error "PeerId init went bad. this is unusual", data = peer.id
           continue
         addrTable[pid.get()] = peer.addrs
       state.updateShortlist(
@@ -277,23 +283,31 @@ proc new*(
               msg.record.unsafeGet()
             else:
               raise newException(CatchableError, "no record in message buffer")
-          let (skey, sval) =
+          let (skey, svalue) =
             if record.key.isSome() and record.value.isSome():
               (record.key.unsafeGet(), record.value.unsafeGet())
             else:
               raise newException(CatchableError, "no key or no value in rpc buffer")
           let key = EntryKey(data: skey)
-          let val = EntryVal(data: sval)
+          let value = EntryVal(data: svalue)
           let ts = TimeStamp(ts: $times.now().utc)
-          record.timeReceived = some(ts.ts)
 
-          # TODO: thunderdome the entries
-          if kad.entryValidator.validate(EntryCandidate(key: key, val: val)):
-            let validated = ValidatedEntry(key: key, val: val)
-            kad.dataTable.insert(validated, ts)
-            record.value = some(val.data)
-            let resp = Message(record: some(record))
-            await conn.writeLp(resp.encode().buffer)
+          let cand = EntryCandidate(key: key, value: value)
+          if not kad.entryValidator.validate(cand):
+            return
+          let others =
+            if kad.dataTable.entries.contains(key):
+              @[kad.dataTable.entries[key]]
+            else:
+              @[]
+          let selectedRec =
+            kad.entrySelector.select(RecordVal(value: value, time: ts), others)
+
+          let validated = ValidatedEntry(key: key, value: selectedRec.value)
+          record.value = some(validated.value.data)
+          kad.dataTable.insert(validated, ts)
+          let resp = Message(record: some(record))
+          await conn.writeLp(resp.encode().buffer)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:

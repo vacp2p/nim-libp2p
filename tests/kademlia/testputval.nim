@@ -61,10 +61,10 @@ suite "KadDHT - PutVal":
     let puttedData = kads[1].rtable.selfId.getBytes()
     let entryVal = EntryVal(data: puttedData)
     let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
-    discard await kads[0].putVal(hashedData.toKey(), entryVal, 2)
+    discard await kads[0].putValue(hashedData.toKey(), entryVal, 2)
 
-    let entered1: EntryVal = kads[0].dataTable.entries[EntryKey(data: hashedData)].val
-    let entered2: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)].val
+    let entered1: EntryVal = kads[0].dataTable.entries[EntryKey(data: hashedData)].value
+    let entered2: EntryVal = kads[1].dataTable.entries[EntryKey(data: hashedData)].value
 
     var ents = kads[0].dataTable.entries
     doAssert(
@@ -96,14 +96,14 @@ suite "KadDHT - PutVal":
     let puttedData = kad1.rtable.selfId.getBytes()
     let entryVal = EntryVal(data: puttedData)
     let hashedData: seq[byte] = @(sha256.digest(puttedData).data)
-    discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
+    discard await kad2.putValue(hashedData.toKey(), entryVal, 1)
     doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
     kad1.setValidator(PermissiveValidator())
-    discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
+    discard await kad2.putValue(hashedData.toKey(), entryVal, 1)
 
     doAssert(len(kad1.dataTable.entries) == 0, fmt"{kad1.dataTable.entries}")
     kad2.setValidator(PermissiveValidator())
-    discard await kad2.putVal(hashedData.toKey(), entryVal, 1)
+    discard await kad2.putValue(hashedData.toKey(), entryVal, 1)
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 
     await allFutures(switch1.stop(), switch2.stop())
@@ -120,7 +120,7 @@ suite "KadDHT - PutVal":
 
     let puttedData = EntryVal(data: kad1.rtable.selfId.getBytes())
     let hashedData: seq[byte] = @(sha256.digest(puttedData.data).data)
-    discard await kad2.putVal(hashedData.toKey(), puttedData, 1)
+    discard await kad2.putValue(hashedData.toKey(), puttedData, 1)
 
     let time: string = kad1.dataTable.entries[EntryKey(data: hashedData)].time.ts
 

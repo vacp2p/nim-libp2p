@@ -17,14 +17,14 @@ type TimeStamp* = object
 
 type EntryCandidate* = object
   key*: EntryKey
-  val*: EntryVal
+  value*: EntryVal
 
 type ValidatedEntry* = object
   key*: EntryKey
-  val*: EntryVal
+  value*: EntryVal
 
 type RecordVal* = object
-  val*: EntryVal
+  value*: EntryVal
   time*: TimeStamp
 
 ## Top tip: add chronicles logs to your implementation
@@ -44,7 +44,7 @@ method select*(
 proc take*(
     self: typedesc[ValidatedEntry], entry: sink EntryCandidate
 ): ValidatedEntry {.raises: [].} =
-  ValidatedEntry(key: entry.key, val: entry.val)
+  ValidatedEntry(key: entry.key, value: entry.value)
 
 type LocalTable* = object
   entries*: Table[EntryKey, RecordVal]
@@ -54,7 +54,7 @@ proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
 
 # TODO: make library public, but hidden to users of library
 proc insert*(
-    self: var LocalTable, val: sink ValidatedEntry, time: TimeStamp
+    self: var LocalTable, value: sink ValidatedEntry, time: TimeStamp
 ) {.raises: [].} =
-  debug "local table insertion", key = val.key.data, val = val.val.data
-  self.entries[val.key] = RecordVal(val: val.val, time: time)
+  debug "local table insertion", key = value.key.data, value = value.value.data
+  self.entries[value.key] = RecordVal(value: value.value, time: time)
