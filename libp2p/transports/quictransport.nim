@@ -78,6 +78,13 @@ method write*(
 
 {.pop.}
 
+method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
+  ## Close the write side of the QUIC stream
+  try:
+    await stream.stream.closeWrite()
+  except CatchableError as exc:
+    discard
+
 method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
   try:
     await stream.stream.close()
