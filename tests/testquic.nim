@@ -197,4 +197,4 @@ suite "Quic transport":
       defer:
         await server.stop()
 
-      await runClient()
+      await runClient(server)
