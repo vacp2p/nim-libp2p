@@ -40,6 +40,12 @@ type
 
 proc timeoutMonitor(s: Connection) {.async: (raises: []).}
 
+method closeWrite*(s: Connection): Future[void] {.base, async: (raises: []).} =
+  ## Close the write side of the connection
+  ## Subclasses should implement this for their specific transport
+  ## Default implementation just closes the entire connection
+  await s.close()
+
 func shortLog*(conn: Connection): string =
   try:
     if conn == nil:

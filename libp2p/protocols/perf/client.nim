@@ -12,8 +12,6 @@
 import chronos, chronicles, sequtils
 import stew/endians2
 import ./core, ../../stream/connection
-when defined(libp2p_quic_support):
-  import ../../transports/quictransport
 
 logScope:
   topics = "libp2p perf"
@@ -48,6 +46,7 @@ proc perf*(
     let start = Moment.now()
 
     await conn.write(toSeq(toBytesBE(sizeToRead)))
+    await conn.write(toSeq(toBytesBE(sizeToWrite)))
     while size > 0:
       let toWrite = min(size, PerfSize)
       await conn.write(buf[0 ..< toWrite])
@@ -59,13 +58,8 @@ proc perf*(
       statsCopy.uploadBytes += toWrite.uint
       p.stats = statsCopy
 
-    # Close connection after writing for TCP, but not for QUIC
-    when defined(libp2p_quic_support):
-      if not (conn of QuicStream):
-        await conn.close()
-      # For QUIC streams, don't close yet - let server manage lifecycle
-    else:
-      await conn.close()
+    # Close write side of the stream (half-close) to signal EOF to server
+    await conn.closeWrite()
 
     size = sizeToRead
 
@@ -80,10 +74,8 @@ proc perf*(
       statsCopy.downloadBytes += toRead.uint
       p.stats = statsCopy
 
-    # Close QUIC connections after read phase
-    when defined(libp2p_quic_support):
-      if conn of QuicStream:
-        await conn.close()
+    # Close the connection after reading
+    await conn.close()
   except CancelledError as e:
     raise e
   except LPStreamError as e:
