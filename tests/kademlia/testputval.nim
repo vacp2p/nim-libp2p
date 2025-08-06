@@ -44,7 +44,7 @@ suite "KadDHT - PutVal":
     # every node needs a switch, and an assosciated kad mounted to it
     for i in 0 ..< swarmSize:
       switches.add(createSwitch())
-      kads.add(KadDHT.new(switches[i], PermissiveValidator(), ApatheticSelector()))
+      kads.add(KadDHT.new(switches[i], PermissiveValidator(), CandSelector()))
       switches[i].mount(kads[i])
 
     # Once the the creation/mounting of switches are done, we can start
@@ -84,8 +84,8 @@ suite "KadDHT - PutVal":
   asyncTest "Change Validator":
     let switch1 = createSwitch()
     let switch2 = createSwitch()
-    var kad1 = KadDHT.new(switch1, RestrictiveValidator(), ApatheticSelector())
-    var kad2 = KadDHT.new(switch2, RestrictiveValidator(), ApatheticSelector())
+    var kad1 = KadDHT.new(switch1, RestrictiveValidator(), CandSelector())
+    var kad2 = KadDHT.new(switch2, RestrictiveValidator(), CandSelector())
     switch1.mount(kad1)
     switch2.mount(kad2)
 
@@ -111,8 +111,8 @@ suite "KadDHT - PutVal":
   asyncTest "Good Time":
     let switch1 = createSwitch()
     let switch2 = createSwitch()
-    var kad1 = KadDHT.new(switch1, PermissiveValidator(), ApatheticSelector())
-    var kad2 = KadDHT.new(switch2, PermissiveValidator(), ApatheticSelector())
+    var kad1 = KadDHT.new(switch1, PermissiveValidator(), CandSelector())
+    var kad2 = KadDHT.new(switch2, PermissiveValidator(), CandSelector())
     switch1.mount(kad1)
     switch2.mount(kad2)
     await allFutures(switch1.start(), switch2.start())
@@ -130,5 +130,33 @@ suite "KadDHT - PutVal":
     # get the diff between the stringified-parsed and the direct "now"
     let elapsed = (now - parsed)
     doAssert(elapsed < times.initDuration(seconds = 2))
+
+    await allFutures(switch1.stop(), switch2.stop())
+
+  asyncTest "Reselect":
+    let switch1 = createSwitch()
+    let switch2 = createSwitch()
+    var kad1 = KadDHT.new(switch1, PermissiveValidator(), OthersSelector())
+    var kad2 = KadDHT.new(switch2, PermissiveValidator(), OthersSelector())
+    switch1.mount(kad1)
+    switch2.mount(kad2)
+    await allFutures(switch1.start(), switch2.start())
+    await kad2.bootstrap(@[switch1.peerInfo])
+
+    let puttedData = EntryVal(data: kad1.rtable.selfId.getBytes())
+    let hashedData: seq[byte] = @(sha256.digest(puttedData.data).data)
+    let entryKey = EntryKey(data: hashedData)
+    discard await kad1.putValue(hashedData.toKey(), puttedData, 2)
+    doAssert(len(kad2.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
+    doAssert(kad2.dataTable.entries[entryKey].value == puttedData)
+    discard await kad1.putValue(hashedData.toKey(), EntryVal(data: @[]), 2)
+    doAssert(kad2.dataTable.entries[entryKey].value == puttedData)
+    kad2.setSelector(CandSelector())
+    kad1.setSelector(CandSelector())
+    discard await kad1.putValue(hashedData.toKey(), EntryVal(data: @[]), 2)
+    doAssert(
+      kad2.dataTable.entries[entryKey].value == EntryVal(data: @[]),
+      fmt"{kad2.dataTable.entries}",
+    )
 
     await allFutures(switch1.stop(), switch2.stop())

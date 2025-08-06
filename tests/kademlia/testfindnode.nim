@@ -40,7 +40,7 @@ suite "KadDHT - FindNode":
     # every node needs a switch, and an assosciated kad mounted to it
     for i in 0 ..< swarmSize:
       switches.add(createSwitch())
-      kads.add(KadDHT.new(switches[i], PermissiveValidator(), ApatheticSelector()))
+      kads.add(KadDHT.new(switches[i], PermissiveValidator(), CandSelector()))
       switches[i].mount(kads[i])
 
     # Once the the creation/mounting of switches are done, we can start
@@ -83,22 +83,22 @@ suite "KadDHT - FindNode":
 
   asyncTest "Relay find peer":
     let parentSwitch = createSwitch()
-    let parentKad = KadDHT.new(parentSwitch, PermissiveValidator(), ApatheticSelector())
+    let parentKad = KadDHT.new(parentSwitch, PermissiveValidator(), CandSelector())
     parentSwitch.mount(parentKad)
     await parentSwitch.start()
 
     let broSwitch = createSwitch()
-    let broKad = KadDHT.new(broSwitch, PermissiveValidator(), ApatheticSelector())
+    let broKad = KadDHT.new(broSwitch, PermissiveValidator(), CandSelector())
     broSwitch.mount(broKad)
     await broSwitch.start()
 
     let sisSwitch = createSwitch()
-    let sisKad = KadDHT.new(sisSwitch, PermissiveValidator(), ApatheticSelector())
+    let sisKad = KadDHT.new(sisSwitch, PermissiveValidator(), CandSelector())
     sisSwitch.mount(sisKad)
     await sisSwitch.start()
 
     let neiceSwitch = createSwitch()
-    let neiceKad = KadDHT.new(neiceSwitch, PermissiveValidator(), ApatheticSelector())
+    let neiceKad = KadDHT.new(neiceSwitch, PermissiveValidator(), CandSelector())
     neiceSwitch.mount(neiceKad)
     await neiceSwitch.start()
 
