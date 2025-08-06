@@ -233,8 +233,8 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
         var data = await conn.readLp(p.maxMessageSize)
-        # if data.len <= 1:
-        #   continue
+        if data.len <= 1:
+          continue
         
         echo "read " & $data.len
         trace "read data from peer",
