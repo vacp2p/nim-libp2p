@@ -4,7 +4,7 @@ import sequtils
 import strutils
 import strformat
 import tables
-import ./types
+import ../types
 
 const unknownFloat = -1.0
 

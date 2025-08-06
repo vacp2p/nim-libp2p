@@ -53,13 +53,16 @@ jobs:
           nim-version: "2.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Aggregate and display summary
+      - name: Process stats and display summary
         env:
           MARKER: "<!-- perf-summary-marker -->"
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           COMMENT_SUMMARY_PATH: "/tmp/perf-summary.md"
+          DOCKER_STATS_DIR: "performance/output"
+          DOCKER_STATS_PREFIX: "docker_stats_"
         run: |
-          nim c -r -d:release -o:/tmp/aggregate_stats ./performance/aggregate_stats.nim
+          nim c -r -d:release -o:/tmp/process_latency_stats ./performance/scripts/process_latency_stats.nim
+          nim c -r -d:release -o:/tmp/process_docker_stats ./performance/scripts/process_docker_stats.nim
 
       - name: Post/Update PR Performance Comment
         if: github.event_name == 'pull_request'

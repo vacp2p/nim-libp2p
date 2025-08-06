@@ -11,7 +11,8 @@ fi
 # Clean up output
 output_dir="$(pwd)/performance/output"
 mkdir -p "$output_dir"
-rm -f "$output_dir"/*.json
+rm -rf "$output_dir"
+mkdir -p "$output_dir/sync"
 
 # Run Test Nodes
 container_names=()

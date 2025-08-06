@@ -12,6 +12,7 @@
 import metrics
 import metrics/chronos_httpserver
 import os
+import osproc
 import strformat
 import strutils
 import ../libp2p
@@ -41,6 +42,14 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
 
   if nodeId == 0:
     clearSyncFiles()
+
+  # --- Collect docker stats for one publishing and one non-publishing node ---
+  var dockerStatsProc: Process = nil
+  if nodeId == 0 or nodeId == publisherCount + 1:
+    let dockerStatsLogPath = getDockerStatsLogPath(scenario, nodeId)
+    dockerStatsProc = startDockerStatsProcess(nodeId, dockerStatsLogPath)
+  defer:
+    dockerStatsProc.stopDockerStatsProcess()
 
   let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng)
   gossipSub.setGossipSubParams()
