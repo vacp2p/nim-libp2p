@@ -233,11 +233,14 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
         var data = await conn.readLp(p.maxMessageSize)
+        # if data.len <= 1:
+        #   continue
+        
+        echo "read " & $data.len
         trace "read data from peer",
           conn, peer = p, closed = conn.closed, data = data.shortLog
 
         await p.handler(p, data)
-        data = newSeqUninit[byte](0) # Release memory
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
         conn, peer = p, description = exc.msg
@@ -383,6 +386,8 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+
+  echo "send " & $msg.len
   await sendMsgContinue(conn, conn.writeLp(msg))
 
 proc sendMsg(
@@ -411,6 +416,7 @@ proc sendMsg(
     trace "sending encoded msg to peer",
       conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
+    echo "send " & $msg.len
     if not f.completed():
       sendMsgContinue(conn, f)
     else:
