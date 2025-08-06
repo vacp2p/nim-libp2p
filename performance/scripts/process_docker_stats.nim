@@ -1,4 +1,3 @@
-import chronos
 from times import parse, toTime, toUnix
 import strformat
 import strutils

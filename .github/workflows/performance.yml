@@ -62,7 +62,6 @@ jobs:
           DOCKER_STATS_PREFIX: "docker_stats_"
         run: |
           nim c -r -d:release -o:/tmp/process_latency_stats ./performance/scripts/process_latency_stats.nim
-          nimble install chronos
           nim c -r -d:release -o:/tmp/process_docker_stats ./performance/scripts/process_docker_stats.nim
 
       - name: Post/Update PR Performance Comment
