@@ -385,6 +385,7 @@ method getOrCreatePeer*(
   # create new pubsub peer
   let pubSubPeer = PubSubPeer.new(
     peerId,
+    p.switch.peerInfo.peerId,
     getConn,
     onEvent,
     protoNegotiated,

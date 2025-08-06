@@ -807,6 +807,7 @@ proc makePeersForPublishUsingCustomConn(
   trace "Selecting peers via custom connection callback"
 
   return g.customConnCallbacks.get().customPeerSelectionCB(
+      g.switch.peerInfo.peerId,
       g.gossipsub.getOrDefault(topic),
       g.subscribedDirectPeers.getOrDefault(topic),
       g.mesh.getOrDefault(topic),

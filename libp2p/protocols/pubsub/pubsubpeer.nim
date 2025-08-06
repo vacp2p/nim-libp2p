@@ -101,10 +101,11 @@ type
     sendNonPriorityTask: Future[void]
 
   CustomConnCreationProc* = proc(
-    destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+    whoAmI: PeerId, destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
   ): Connection {.gcsafe, raises: [].}
 
   CustomPeerSelectionProc* = proc(
+    whoAmI: PeerId, 
     allPeers: HashSet[PubSubPeer],
     directPeers: HashSet[PubSubPeer],
     meshPeers: HashSet[PubSubPeer],
@@ -117,6 +118,7 @@ type
 
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn # callback to establish a new send connection
+    whoAmI*: PeerId
     onEvent*: OnEvent # Connectivity updates for peer
     codec*: string # the protocol that this peer joined from
     sendConn*: Connection # cached send connection
@@ -398,7 +400,7 @@ proc sendMsg(
     if useCustomConn and p.customConnCallbacks.isSome:
       let address = p.address
       (
-        p.customConnCallbacks.get().customConnCreationCB(address, p.peerId, p.codec),
+        p.customConnCallbacks.get().customConnCreationCB(p.whoAmI, address, p.peerId, p.codec),
         ctCustom,
       )
     elif p.sendConn != nil and not p.sendConn.closed():
@@ -601,6 +603,7 @@ proc new(T: typedesc[RpcMessageQueue]): T =
 proc new*(
     T: typedesc[PubSubPeer],
     peerId: PeerId,
+    whoAmI: PeerId,
     getConn: GetConn,
     onEvent: OnEvent,
     codec: string,
@@ -613,6 +616,7 @@ proc new*(
   result = T(
     getConn: getConn,
     onEvent: onEvent,
+    whoAmI: whoAmI,
     codec: codec,
     peerId: peerId,
     connectedFut: newFuture[void](),
