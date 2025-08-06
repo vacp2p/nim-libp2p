@@ -40,22 +40,16 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
     hostname = getHostname()
     rng = libp2p.newRng()
 
-  let strippedScenario = scenario.replace(" ", "")
-  let dockerStatsLogPath = &"/output/docker_stats_{strippedScenario}_{nodeId}.log"
-
   if nodeId == 0:
-    clearDockerStats(dockerStatsLogPath)
     clearSyncFiles()
 
   # --- Collect docker stats for one publishing and one non-publishing node ---
   var dockerStatsProc: Process = nil
   if nodeId == 0 or nodeId == publisherCount + 1:
-    let containerId = getContainerId(nodeId)
-    dockerStatsProc = startDockerStatsProcess(containerId, dockerStatsLogPath)
+    let dockerStatsLogPath = getDockerStatsLogPath(scenario, nodeId)
+    dockerStatsProc = startDockerStatsProcess(nodeId, dockerStatsLogPath)
   defer:
-    if dockerStatsProc != nil:
-      dockerStatsProc.kill()
-      dockerStatsProc.close()
+    dockerStatsProc.stopDockerStatsProcess()
 
   let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng)
   gossipSub.setGossipSubParams()

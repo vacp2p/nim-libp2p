@@ -1,4 +1,3 @@
-import chronos
 from times import parse, toTime, toUnix
 import strformat
 import strutils
@@ -10,8 +9,8 @@ type DockerStatsSample = object
   timestamp: float
   cpuPercent: float
   memUsageMB: float
-  netRxBytes: int
-  netTxBytes: int
+  netRxMB: float
+  netTxMB: float
 
 proc parseTimestamp(statsJson: JsonNode): float =
   let isoStr = statsJson["read"].getStr("")
@@ -29,31 +28,27 @@ proc parseTimestamp(statsJson: JsonNode): float =
   # Return timestamp in seconds since Unix epoch
   return float(epochNano) / 1_000_000_000.0
 
-proc extractCpuPercent(statsJson: JsonNode): float =
+proc extractCpuRaw(statsJson: JsonNode): (int, int, int) =
   let cpuStats = statsJson["cpu_stats"]
   let precpuStats = statsJson["precpu_stats"]
+  let totalUsage = cpuStats["cpu_usage"]["total_usage"].getInt(0)
+  let prevTotalUsage = precpuStats["cpu_usage"]["total_usage"].getInt(0)
+  let systemUsage = cpuStats["system_cpu_usage"].getInt(0)
+  let prevSystemUsage = precpuStats["system_cpu_usage"].getInt(0)
+  let numCpus = cpuStats["online_cpus"].getInt(0)
+  return (totalUsage - prevTotalUsage, systemUsage - prevSystemUsage, numCpus)
 
-  let cpuDelta =
-    cpuStats["cpu_usage"]["total_usage"].getInt(0) -
-    precpuStats["cpu_usage"]["total_usage"].getInt(0)
+proc calcCpuPercent(cpuDelta: int, systemDelta: int, numCpus: int): float =
+  if systemDelta > 0 and cpuDelta > 0 and numCpus > 0:
+    return (float(cpuDelta) / float(systemDelta)) * float(numCpus) * 100.0
+  else:
+    return 0.0
 
-  let systemDelta =
-    cpuStats["system_cpu_usage"].getInt(0) - precpuStats["system_cpu_usage"].getInt(0)
-
-  var cpuPercent = 0.0
-  if systemDelta > 0 and cpuDelta > 0:
-    let numCpus = cpuStats["online_cpus"].getInt(0)
-    cpuPercent = (float(cpuDelta) / float(systemDelta)) * float(numCpus) * 100.0
-
-  return cpuPercent
-
-proc extractMemUsageMB(statsJson: JsonNode): float =
+proc extractMemUsageRaw(statsJson: JsonNode): int =
   let memStats = statsJson["memory_stats"]
-  let memUsage = memStats["usage"].getInt(0)
+  return memStats["usage"].getInt(0)
 
-  return float(memUsage) / 1024.0 / 1024.0
-
-proc extractNetwork(statsJson: JsonNode): (int, int) =
+proc extractNetworkRaw(statsJson: JsonNode): (int, int) =
   var netRxBytes = 0
   var netTxBytes = 0
   if "networks" in statsJson:
@@ -62,6 +57,9 @@ proc extractNetwork(statsJson: JsonNode): (int, int) =
       netTxBytes += v["tx_bytes"].getInt(0)
   return (netRxBytes, netTxBytes)
 
+proc convertMB(bytes: int): float =
+  return float(bytes) / 1024.0 / 1024.0
+
 proc parseDockerStatsLine(line: string): Option[DockerStatsSample] =
   var samples = none(DockerStatsSample)
   if line.len == 0:
@@ -69,16 +67,19 @@ proc parseDockerStatsLine(line: string): Option[DockerStatsSample] =
   try:
     let statsJson = parseJson(line)
     let timestamp = parseTimestamp(statsJson)
-    let cpuPercent = extractCpuPercent(statsJson)
-    let memUsageMB = extractMemUsageMB(statsJson)
-    let (netRxBytes, netTxBytes) = extractNetwork(statsJson)
+    let (cpuDelta, systemDelta, numCpus) = extractCpuRaw(statsJson)
+    let cpuPercent = calcCpuPercent(cpuDelta, systemDelta, numCpus)
+    let memUsageMB = extractMemUsageRaw(statsJson).convertMB()
+    let (netRxRaw, netTxRaw) = extractNetworkRaw(statsJson)
+    let netRxMB = netRxRaw.convertMB()
+    let netTxMB = netTxRaw.convertMB()
     return some(
       DockerStatsSample(
         timestamp: timestamp,
         cpuPercent: cpuPercent,
         memUsageMB: memUsageMB,
-        netRxBytes: netRxBytes,
-        netTxBytes: netTxBytes,
+        netRxMB: netRxMB,
+        netTxMB: netTxMB,
       )
     )
   except:
@@ -92,16 +93,10 @@ proc processDockerStatsLog*(inputPath: string): seq[DockerStatsSample] =
       samples.add(sampleOpt.get)
   return samples
 
-proc calcRateMBps(curr: int, prev: int, dt: float): float =
+proc calcRateMBps(curr: float, prev: float, dt: float): float =
   if dt == 0:
     return 0.0
-  return (float(curr - prev) / 1024.0 / 1024.0) / dt
-
-proc calcAccumMB(curr: int, offset: int): float =
-  return float(curr - offset) / 1024.0 / 1024.0
-
-proc calcMemUsageMB(curr: float, offset: float): float =
-  return curr - offset
+  return ((curr - prev)) / dt
 
 proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
   var f = open(outPath, fmWrite)
@@ -113,24 +108,24 @@ proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
     return
   let timeOffset = samples[0].timestamp
   let memOffset = samples[0].memUsageMB
-  let rxOffset = samples[0].netRxBytes
-  let txOffset = samples[0].netTxBytes
-  var prevRx = samples[0].netRxBytes
-  var prevTx = samples[0].netTxBytes
+  let rxOffset = samples[0].netRxMB
+  let txOffset = samples[0].netTxMB
+  var prevRx = samples[0].netRxMB
+  var prevTx = samples[0].netTxMB
   var prevTimestamp = samples[0].timestamp - timeOffset
   for s in samples:
     let relTimestamp = s.timestamp - timeOffset
     let dt = relTimestamp - prevTimestamp
-    let dlMBps = calcRateMBps(s.netRxBytes, prevRx, dt)
-    let ulMBps = calcRateMBps(s.netTxBytes, prevTx, dt)
-    let dlAcc = calcAccumMB(s.netRxBytes, rxOffset)
-    let ulAcc = calcAccumMB(s.netTxBytes, txOffset)
-    let memUsage = calcMemUsageMB(s.memUsageMB, memOffset)
+    let dlMBps = calcRateMBps(s.netRxMB, prevRx, dt)
+    let ulMBps = calcRateMBps(s.netTxMB, prevTx, dt)
+    let dlAcc = s.netRxMB - rxOffset
+    let ulAcc = s.netTxMB - txOffset
+    let memUsage = s.memUsageMB - memOffset
     f.writeLine(
       fmt"{relTimestamp:.2f},{s.cpuPercent:.2f},{memUsage:.2f},{dlMBps:.4f},{ulMBps:.4f},{dlAcc:.4f},{ulAcc:.4f}"
     )
-    prevRx = s.netRxBytes
-    prevTx = s.netTxBytes
+    prevRx = s.netRxMB
+    prevTx = s.netTxMB
     prevTimestamp = relTimestamp
   f.close()
 

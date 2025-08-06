@@ -280,7 +280,15 @@ proc clearSyncFiles*() =
       if fileExists(f.path):
         removeFile(f.path)
 
-proc getContainerId*(nodeId: int): string =
+proc getDockerStatsLogPath*(scenarioName: string, nodeId: int): string =
+  let sanitizedScenario = scenarioName.replace(" ", "").replace("%", "percent")
+  return &"/output/docker_stats_{sanitizedScenario}_{nodeId}.log"
+
+proc clearDockerStats*(outputPath: string) =
+  if fileExists(outputPath):
+    removeFile(outputPath)
+
+proc getContainerId(nodeId: int): string =
   let response = execShellCommand(
     "curl -s --unix-socket /var/run/docker.sock http://localhost/containers/json"
   )
@@ -292,13 +300,17 @@ proc getContainerId*(nodeId: int): string =
     return ""
   return filtered[0]["Id"].getStr("")
 
-proc startDockerStatsProcess*(containerId: string, outputPath: string): Process =
+proc startDockerStatsProcess*(nodeId: int, outputPath: string): Process =
+  let containerId = getContainerId(nodeId)
+
   let shellCmd =
     fmt"curl --unix-socket /var/run/docker.sock http://localhost/containers/{containerId}/stats > {outputPath} 2>/dev/null"
+
   return startProcess(
     "/bin/sh", args = ["-c", shellCmd], options = {poUsePath, poStdErrToStdOut}
   )
 
-proc clearDockerStats*(outputPath: string) =
-  if fileExists(outputPath):
-    removeFile(outputPath)
+proc stopDockerStatsProcess*(p: Process) =
+  if p != nil:
+    p.kill()
+    p.close()
