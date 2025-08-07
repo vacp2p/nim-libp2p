@@ -59,7 +59,7 @@ suite "KadDHT - PutVal":
     doAssert(len(kad2.dataTable.entries) == 0)
     let puttedData = kad1.rtable.selfId.getBytes()
     let entryVal = EntryVal(data: puttedData)
-    discard await kad2.putValue(kad1.rtable.selfId, entryVal, 1, some(1))
+    discard await kad2.putValue(kad1.rtable.selfId, entryVal, some(1))
 
     let entered1: EntryVal =
       kad1.dataTable.entries[EntryKey(data: kad1.rtable.selfId.getBytes())].value
@@ -90,14 +90,14 @@ suite "KadDHT - PutVal":
     doAssert(len(kad1.dataTable.entries) == 0)
     let puttedData = kad1.rtable.selfId.getBytes()
     let entryVal = EntryVal(data: puttedData)
-    discard await kad2.putValue(kad1.rtable.selfId, entryVal, 1, some(1))
+    discard await kad2.putValue(kad1.rtable.selfId, entryVal, some(1))
     doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
     kad1.setValidator(PermissiveValidator())
-    discard await kad2.putValue(kad1.rtable.selfId, entryVal, 1, some(1))
+    discard await kad2.putValue(kad1.rtable.selfId, entryVal, some(1))
 
     doAssert(len(kad1.dataTable.entries) == 0, fmt"{kad1.dataTable.entries}")
     kad2.setValidator(PermissiveValidator())
-    discard await kad2.putValue(kad1.rtable.selfId, entryVal, 1, some(1))
+    discard await kad2.putValue(kad1.rtable.selfId, entryVal, some(1))
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 
   asyncTest "Good Time":
@@ -113,7 +113,7 @@ suite "KadDHT - PutVal":
     await kad2.bootstrap(@[switch1.peerInfo])
 
     let puttedData = EntryVal(data: kad1.rtable.selfId.getBytes())
-    discard await kad2.putValue(kad1.rtable.selfId, puttedData, 1, some(1))
+    discard await kad2.putValue(kad1.rtable.selfId, puttedData, some(1))
 
     let time: string =
       kad1.dataTable.entries[EntryKey(data: kad1.rtable.selfId.getBytes())].time.ts
@@ -139,14 +139,14 @@ suite "KadDHT - PutVal":
 
     let puttedData = EntryVal(data: kad1.rtable.selfId.getBytes())
     let entryKey = EntryKey(data: kad1.rtable.selfId.getBytes())
-    discard await kad1.putValue(kad1.rtable.selfId, puttedData, 2, some(1))
+    discard await kad1.putValue(kad1.rtable.selfId, puttedData, some(1))
     doAssert(len(kad2.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
     doAssert(kad2.dataTable.entries[entryKey].value == puttedData)
-    discard await kad1.putValue(kad1.rtable.selfId, EntryVal(data: @[]), 2, some(1))
+    discard await kad1.putValue(kad1.rtable.selfId, EntryVal(data: @[]), some(1))
     doAssert(kad2.dataTable.entries[entryKey].value == puttedData)
     kad2.setSelector(CandSelector())
     kad1.setSelector(CandSelector())
-    discard await kad1.putValue(kad1.rtable.selfId, EntryVal(data: @[]), 2, some(1))
+    discard await kad1.putValue(kad1.rtable.selfId, EntryVal(data: @[]), some(1))
     doAssert(
       kad2.dataTable.entries[entryKey].value == EntryVal(data: @[]),
       fmt"{kad2.dataTable.entries}",

@@ -1,3 +1,7 @@
+#TODO: This file was mostly put together with the intent of using the typestate pattern
+# unfortunately, due to various design decisions, my assumption that the accessibility
+# controls needed for this to be a sane direction is not upheld. This file should be
+# considered a monument to my naivity, and to be dismantled
 import chronicles
 import std/[tables, hashes]
 import results
@@ -40,7 +44,6 @@ method select*(
 ): RecordVal {.base, raises: [], gcsafe.} =
   doAssert(false, "EntrySelection base not implemented")
 
-# TODO: make library public, but hidden to users of library
 proc take*(
     self: typedesc[ValidatedEntry], entry: sink EntryCandidate
 ): ValidatedEntry {.raises: [].} =
@@ -52,7 +55,6 @@ type LocalTable* = object
 proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
   LocalTable()
 
-# TODO: make library public, but hidden to users of library
 proc insert*(
     self: var LocalTable, value: sink ValidatedEntry, time: TimeStamp
 ) {.raises: [].} =

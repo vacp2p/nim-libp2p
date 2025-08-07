@@ -95,11 +95,11 @@ proc dispatchPutVal(
     error "putValue reply decode fail", error = error
     return
 
-  if reply.msgType != MessageType.putValue:
-    error "unexpected message type in reply: ", msg = msg, reply = reply
+  if reply != msg:
+    error "unexpected change between msg and reply: ", msg = msg, reply = reply
 
 proc putValue*(
-    kad: KadDHT, key: keys.Key, value: EntryVal, replic: int, timeout: Option[int]
+    kad: KadDHT, key: keys.Key, value: EntryVal, timeout: Option[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), value: value)
   if not kad.entryValidator.isValid(cand):
@@ -121,9 +121,12 @@ proc putValue*(
     let validEnt = ValidatedEntry.take(confirmedEnt)
 
     let peers = await kad.findNode(key)
-    let putClip = peers.filterIt(it.data != kad.rtable.selfId.getBytes()).mapIt(
-        kad.dispatchPutVal(it, validEnt)
-      )
+    var ammo: seq[PeerId]
+    for p in peers.filterIt(it.data != kad.rtable.selfId.getBytes()):
+      ammo.add(p)
+      if ammo.len >= DefaultReplic:
+        break
+    let putClip = ammo.mapIt(kad.dispatchPutVal(it, validEnt))
     kad.dataTable.insert(validEnt, ts)
     try:
       await putClip.allFutures().wait(chronos.seconds(timeout.get(5)))
