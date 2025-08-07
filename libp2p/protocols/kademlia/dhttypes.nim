@@ -50,7 +50,7 @@ type LocalTable* = object
   entries*: Table[EntryKey, RecordVal]
 
 proc init*(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
-  LocalTable(entries: initTable[EntryKey, RecordVal]())
+  LocalTable()
 
 # TODO: make library public, but hidden to users of library
 proc insert*(
