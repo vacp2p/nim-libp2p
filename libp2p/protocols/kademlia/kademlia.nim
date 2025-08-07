@@ -81,7 +81,6 @@ proc dispatchPutVal(
     kad: KadDHT, peer: PeerId, entry: ValidatedEntry
 ): Future[void] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
   let conn = await kad.switch.dial(peer, KadCodec)
-
   defer:
     await conn.close()
 
@@ -89,7 +88,6 @@ proc dispatchPutVal(
     msgType: MessageType.putValue,
     record: some(Record(key: some(entry.key.data), value: some(entry.value.data))),
   )
-
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
@@ -101,7 +99,7 @@ proc dispatchPutVal(
     error "unexpected message type in reply: ", msg = msg, reply = reply
 
 proc putValue*(
-    kad: KadDHT, key: keys.Key, value: EntryVal, replic: int
+    kad: KadDHT, key: keys.Key, value: EntryVal, replic: int, timeout: Option[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), value: value)
   if not kad.entryValidator.isValid(cand):
@@ -122,11 +120,15 @@ proc putValue*(
       return err("invalid overruled entry")
     let validEnt = ValidatedEntry.take(confirmedEnt)
 
-    discard await kad.findNode(key)
-    let peers = kad.rtable.findClosestPeers(key, replic)
-    let putClip = peers.mapIt(kad.dispatchPutVal(it, validEnt))
+    let peers = await kad.findNode(key)
+    let putClip = peers.filterIt(it.data != kad.rtable.selfId.getBytes()).mapIt(
+        kad.dispatchPutVal(it, validEnt)
+      )
     kad.dataTable.insert(validEnt, ts)
-    await putClip.allFutures()
+    try:
+      await putClip.allFutures().wait(chronos.seconds(timeout.get(5)))
+    except AsyncTimeoutError:
+      discard
 
     return results.ok()
   except:
@@ -285,7 +287,8 @@ proc new*(
             if record.key.isSome() and record.value.isSome():
               (record.key.unsafeGet(), record.value.unsafeGet())
             else:
-              raise newException(CatchableError, "no key or no value in rpc buffer")
+              error "no key or no value in rpc buffer"
+              return
           let key = EntryKey(data: skey)
           let value = EntryVal(data: svalue)
           let ts = TimeStamp(ts: $times.now().utc)
@@ -300,12 +303,16 @@ proc new*(
               @[]
           let selectedRec =
             kad.entrySelector.select(RecordVal(value: value, time: ts), others)
-
           let validated = ValidatedEntry(key: key, value: selectedRec.value)
-          record.value = some(validated.value.data)
+
+          let doRep =
+            kad.dataTable.entries.contains(key) and
+            kad.dataTable.entries[key].value != selectedRec.value
           kad.dataTable.insert(validated, ts)
-          let resp = Message(record: some(record))
-          await conn.writeLp(resp.encode().buffer)
+          if doRep:
+            record.value = some(validated.value.data)
+            let resp = Message(record: some(record))
+            await conn.writeLp(resp.encode().buffer)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
@@ -318,9 +325,11 @@ proc new*(
   return kad
 
 proc setSelector*(kad: KadDHT, selector: EntrySelector) =
+  doAssert(selector != nil)
   kad.entrySelector = selector
 
 proc setValidator*(kad: KadDHT, validator: EntryValidator) =
+  doAssert(validator != nil)
   kad.entryValidator = validator
 
 method start*(
