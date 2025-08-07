@@ -56,18 +56,22 @@ template mapExceptions(body: untyped) =
 method readOnce*(
     stream: QuicStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
-  try:
-    if stream.cached.len == 0:
+  if stream.cached.len == 0:
+    try:
       stream.cached = await stream.stream.read()
       if stream.cached.len == 0:
         raise newLPStreamEOFError()
+    except CancelledError as exc:
+      raise exc
+    except LPStreamEOFError as exc:
+      raise exc
+    except CatchableError as exc:
+      raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
 
-    result = min(nbytes, stream.cached.len)
-    copyMem(pbytes, addr stream.cached[0], result)
-    stream.cached = stream.cached[result ..^ 1]
-    libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
-  except CatchableError as exc:
-    raise newLPStreamEOFError()
+  result = min(nbytes, stream.cached.len)
+  copyMem(pbytes, addr stream.cached[0], result)
+  stream.cached = stream.cached[result ..^ 1]
+  libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
 
 {.push warning[LockLevel]: off.}
 method write*(
