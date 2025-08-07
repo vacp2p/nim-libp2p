@@ -305,14 +305,12 @@ proc new*(
             kad.entrySelector.select(RecordVal(value: value, time: ts), others)
           let validated = ValidatedEntry(key: key, value: selectedRec.value)
 
-          let doRep =
-            kad.dataTable.entries.contains(key) and
-            kad.dataTable.entries[key].value != selectedRec.value
+          # Untill the spec/convention is confirmed otherwise: always return unmodified message
+          # if an insertion is done
           kad.dataTable.insert(validated, ts)
-          if doRep:
-            record.value = some(validated.value.data)
-            let resp = Message(record: some(record))
-            await conn.writeLp(resp.encode().buffer)
+          record.value = some(validated.value.data)
+          let resp = Message(record: some(record))
+          await conn.writeLp(resp.encode().buffer)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
