@@ -87,7 +87,7 @@ proc setupGossipSubWithPeers*(
     populateMesh: bool = false,
     populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
-  let gossipSub = TestGossipSub.init(newStandardSwitch())
+  let gossipSub = TestGossipSub.init(newStandardQuicSwitch())
 
   for topic in topics:
     gossipSub.subscribe(topic, voidTopicHandler)
@@ -194,7 +194,7 @@ proc generateNodes*(
     disconnectBadPeers: bool = false,
 ): seq[PubSub] =
   for i in 0 ..< num:
-    let switch = newStandardSwitch(
+    let switch = newStandardQuicSwitch(
       secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord
     )
     let pubsub =
