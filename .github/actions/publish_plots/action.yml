@@ -24,7 +24,8 @@ runs:
         mkdir -p $PUBLISH_DIR_PLOTS/$BRANCH_NAME
 
         cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/
-        git add $PUBLISH_DIR_PLOTS/$BRANCH_NAME
+        cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/
+        git add $PUBLISH_DIR_PLOTS/*
 
         if git diff-index --quiet HEAD --; then
           echo "No changes to commit"

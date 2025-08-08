@@ -1,0 +1,34 @@
+name: Publish Latency History
+description: "Publish latency history CSVs in a configurable branch and folder"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Clone the branch
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.repository }}
+        ref: ${{ env.PUBLISH_BRANCH_NAME }}
+        path: ${{ env.CHECKOUT_SUBFOLDER_HISTORY }}
+        fetch-depth: 0
+
+    - name: Commit & push latency history CSVs
+      shell: bash
+      run: |
+        cd "$CHECKOUT_SUBFOLDER_HISTORY"
+
+        mkdir -p "$PUBLISH_DIR_LATENCY_HISTORY"
+
+        cp ../$SHARED_VOLUME_PATH/$LATENCY_HISTORY_PREFIX*.csv "$PUBLISH_DIR_LATENCY_HISTORY/"
+        git add "$PUBLISH_DIR_LATENCY_HISTORY"
+
+        if git diff-index --quiet HEAD --; then
+          echo "No changes to commit"
+        else
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git commit -m "Update latency history CSVs"
+          git push origin "$PUBLISH_BRANCH_NAME"
+        fi
+
+        cd ..

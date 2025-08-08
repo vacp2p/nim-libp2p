@@ -15,6 +15,10 @@ runs:
         python -m pip install --upgrade pip
         pip install matplotlib
 
-    - name: Run plot_metrics.py
+    - name: Plot Docker Stats
       shell: bash
       run: python performance/scripts/plot_docker_stats.py
+
+    - name: Plot Latency History
+      shell: bash
+      run: python performance/scripts/plot_latency_history.py
