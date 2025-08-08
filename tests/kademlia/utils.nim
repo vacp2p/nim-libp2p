@@ -1,6 +1,6 @@
 {.used.}
 import results
-import ../../libp2p/protocols/kademlia/dhttypes
+import ../../libp2p/protocols/kademlia/kademlia
 
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, cand: EntryCandidate): bool =
@@ -12,14 +12,14 @@ method isValid(self: RestrictiveValidator, cand: EntryCandidate): bool =
 
 type CandSelector* = ref object of EntrySelector
 method select*(
-    self: CandSelector, cand: RecordVal, others: seq[RecordVal]
-): Result[RecordVal, string] =
+    self: CandSelector, cand: EntryRecord, others: seq[EntryRecord]
+): Result[EntryRecord, string] =
   return ok(cand)
 
 type OthersSelector* = ref object of EntrySelector
 method select*(
-    self: OthersSelector, cand: RecordVal, others: seq[RecordVal]
-): Result[RecordVal, string] =
+    self: OthersSelector, cand: EntryRecord, others: seq[EntryRecord]
+): Result[EntryRecord, string] =
   return
     if others.len == 0:
       ok(cand)
