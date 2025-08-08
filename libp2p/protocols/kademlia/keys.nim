@@ -1,3 +1,4 @@
+import nimcrypto/sha2
 import ../../peerid
 import ./consts
 import chronicles
