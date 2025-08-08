@@ -43,7 +43,7 @@ proc new(
   quicstream
 
 method getWrapped*(self: QuicStream): P2PConnection =
-  nil
+  self
 
 template mapExceptions(body: untyped) =
   try:
@@ -114,6 +114,9 @@ proc getStream*(
       await stream.write(@[]) # QUIC streams do not exist until data is sent
 
     let qs = QuicStream.new(stream, session.observedAddr, session.peerId)
+    when defined(libp2p_agents_metrics):
+      qs.shortAgent = session.shortAgent
+
     session.streams.add(qs)
     return qs
   except CatchableError as exc:
@@ -121,12 +124,19 @@ proc getStream*(
     raise (ref QuicTransportError)(msg: "error in getStream: " & exc.msg, parent: exc)
 
 method getWrapped*(self: QuicSession): P2PConnection =
-  nil
+  self
 
 # Muxer
 type QuicMuxer = ref object of Muxer
   quicSession: QuicSession
   handleFut: Future[void]
+
+when defined(libp2p_agents_metrics):
+  method setShortAgent*(m: QuicMuxer, shortAgent: string) =
+    m.quicSession.shortAgent = shortAgent
+    for s in m.quicSession.streams:
+      s.shortAgent = shortAgent
+    m.connection.shortAgent = shortAgent
 
 method newStream*(
     m: QuicMuxer, name: string = "", lazy: bool = false
