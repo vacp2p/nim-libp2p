@@ -5,70 +5,67 @@ import strformat
 import strutils
 import tables
 
-proc getImgUrlBase(repo: string, plotsBranchName: string, plotsPath: string): string =
-  &"https://raw.githubusercontent.com/{repo}/refs/heads/{plotsBranchName}/{plotsPath}"
+proc getImgUrlBase(repo: string, publishBranchName: string, plotsPath: string): string =
+  &"https://raw.githubusercontent.com/{repo}/refs/heads/{publishBranchName}/{plotsPath}"
 
 proc extractTestName(base: string): string =
   let parts = base.split("_")
-  return parts[^2]
+  if parts.len >= 2:
+    parts[^2]
+  else:
+    base
 
 proc makeImgTag(imgUrl: string, width: int): string =
   &"<img src=\"{imgUrl}\" width=\"{width}\" style=\"margin-right:10px;\" />"
 
 proc prepareLatencyHistoryImage(
-    repo: string,
-    plotsBranchName: string,
-    plotsPath: string,
-    latencyHistoryFilePath: string,
+    imgUrlBase: string, latencyHistoryFilePath: string, width: int = 600
 ): string =
-  let latencyImgUrlBase = getImgUrlBase(repo, plotsBranchName, plotsPath)
-  let latencyImgUrl = &"{latencyImgUrlBase}/{latencyHistoryFilePath}"
-  return makeImgTag(latencyImgUrl, 600)
+  let latencyImgUrl = &"{imgUrlBase}/{latencyHistoryFilePath}"
+  makeImgTag(latencyImgUrl, width)
 
 proc prepareDockerStatsImages(
-    plotDir: string,
-    repo: string,
-    branchName: string,
-    plotsBranchName: string,
-    plotsPath: string,
+    plotDir: string, imgUrlBase: string, branchName: string, width: int = 450
 ): Table[string, seq[string]] =
+  ## Groups docker stats plot images by test name and returns HTML <img> tags.
   var grouped: Table[string, seq[string]]
-  for path in walkFiles(fmt"{plotDir}/*.png"):
+
+  for path in walkFiles(&"{plotDir}/*.png"):
     let plotFile = path.splitPath.tail
     let testName = extractTestName(plotFile)
-    let imgUrlBase = getImgUrlBase(repo, plotsBranchName, plotsPath)
     let imgUrl = &"{imgUrlBase}/{branchName}/{plotFile}"
-    let imgTag = makeImgTag(imgUrl, 450)
+    let imgTag = makeImgTag(imgUrl, width)
     discard grouped.hasKeyOrPut(testName, @[])
     grouped[testName].add(imgTag)
-  return grouped
+
+  grouped
 
 proc buildSummary(
     plotDir: string,
     repo: string,
     branchName: string,
-    plotsBranchName: string,
+    publishBranchName: string,
     plotsPath: string,
     latencyHistoryFilePath: string,
 ): string =
-  var summary = ""
+  let imgUrlBase = getImgUrlBase(repo, publishBranchName, plotsPath)
 
-  # Add Latency History section first
-  summary &= "## Latency History\n"
-  let latencyImgTag =
-    prepareLatencyHistoryImage(repo, plotsBranchName, plotsPath, latencyHistoryFilePath)
-  summary &= latencyImgTag & "<br>\n\n"
+  var buf: seq[string]
 
-  # Then add Performance Plots section
-  let grouped =
-    prepareDockerStatsImages(plotDir, repo, branchName, plotsBranchName, plotsPath)
-  summary &= &"## Performance Plots for {branchName}\n"
+  # Latency History section
+  buf.add("## Latency History")
+  buf.add(prepareLatencyHistoryImage(imgUrlBase, latencyHistoryFilePath) & "<br>")
+  buf.add("")
+
+  # Performance Plots section
+  let grouped = prepareDockerStatsImages(plotDir, imgUrlBase, branchName)
+  buf.add(&"## Performance Plots for {branchName}")
   for test in grouped.keys.toSeq().sorted():
     let imgs = grouped[test]
-    summary &= &"### {test}\n"
-    summary &= imgs.join(" ") & "<br>\n"
+    buf.add(&"### {test}")
+    buf.add(imgs.join(" ") & "<br>")
 
-  return summary
+  buf.join("\n")
 
 proc main() =
   let summaryPath = getEnv("GITHUB_STEP_SUMMARY", "/tmp/step_summary.md")

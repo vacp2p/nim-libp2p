@@ -62,7 +62,7 @@ def plot_latency_history(pr_numbers, scenario_data, output_path):
             for pr, avg, minv, maxv in zip(pr_numbers, avg_vals, min_vals, max_vals):
                 if avg is not None:
                     ax.scatter(pr, avg, color=color)
-                    ax.text(pr, avg, f"{avg:.1f}", fontsize=14, ha="center", va="bottom")
+                    ax.text(pr, avg, f"{avg:.3f}", fontsize=14, ha="center", va="bottom")
                 if minv is not None and maxv is not None:
                     ax.vlines(pr, minv, maxv, color=color, alpha=0.5)
 
