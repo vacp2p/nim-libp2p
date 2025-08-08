@@ -141,7 +141,7 @@ proc handleStream(m: QuicMuxer, chann: QuicStream) {.async: (raises: []).} =
     trace "finished handling stream"
     doAssert(chann.closed, "connection not closed by handler!")
   except CatchableError as exc:
-    trace "Exception in mplex stream handler", msg = exc.msg
+    trace "Exception in quic stream handler", msg = exc.msg
     await chann.close()
 
 method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
@@ -150,7 +150,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
       let incomingStream = await m.quicSession.getStream(Direction.In)
       asyncSpawn m.handleStream(incomingStream)
   except CatchableError as exc:
-    trace "Exception in mplex handler", msg = exc.msg
+    trace "Exception in quic handler", msg = exc.msg
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
