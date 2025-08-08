@@ -1,0 +1,21 @@
+name: Process Stats
+description: "Set up Nim and run scripts to aggregate latency and process raw docker stats"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Nim
+      uses: jiro4989/setup-nim-action@v2
+      with:
+        nim-version: "2.x"
+        repo-token: ${{ env.GITHUB_TOKEN }}
+
+    - name: Aggregate latency stats and prepare markdown for comment and summary 
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/process_latency_stats ./performance/scripts/process_latency_stats.nim
+
+    - name: Process raw docker stats to csv files
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/process_docker_stats ./performance/scripts/process_docker_stats.nim

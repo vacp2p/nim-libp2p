@@ -1,0 +1,41 @@
+name: Publish Plots
+description: "Publish plots in performance_plots branch and add to the workflow summary"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Clone the performance_plots branch
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.repository }}
+        ref: ${{ env.PUBLISH_BRANCH_NAME }}
+        path: ${{ env.CHECKOUT_SUBFOLDER_SUBPLOTS }}
+        fetch-depth: 0
+
+    - name: Commit & push plots
+      shell: bash
+      run: |
+        cd $CHECKOUT_SUBFOLDER_SUBPLOTS
+
+        # Remove any branch folder older than two weeks
+        find $PUBLISH_DIR_PLOTS/ -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} +
+
+        rm -rf $PUBLISH_DIR_PLOTS/$BRANCH_NAME
+        mkdir -p $PUBLISH_DIR_PLOTS/$BRANCH_NAME
+
+        cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/
+        git add $PUBLISH_DIR_PLOTS/$BRANCH_NAME
+
+        if git diff-index --quiet HEAD --; then
+          echo "No changes to commit"
+        else
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git commit -m "Update performance plots for $BRANCH_NAME"
+          git push origin $PUBLISH_BRANCH_NAME
+        fi
+
+    - name: Add plots to GitHub Actions summary
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/add_plots_to_summary ./performance/scripts/add_plots_to_summary.nim
