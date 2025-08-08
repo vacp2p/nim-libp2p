@@ -151,6 +151,19 @@ method closed*(s: ChronosStream): bool =
 method atEof*(s: ChronosStream): bool =
   s.client.atEof()
 
+method closeWrite*(s: ChronosStream) {.async: (raises: []).} =
+  ## Close the write side of the TCP connection using half-close
+  if not s.client.closed():
+    try:
+      await s.client.shutdownWait()
+      trace "Write side closed", address = $s.client.remoteAddress(), s
+    except TransportError:
+      # Ignore transport errors during shutdown
+      discard
+    except CatchableError:
+      # Ignore other errors during shutdown
+      discard
+
 method closeImpl*(s: ChronosStream) {.async: (raises: []).} =
   trace "Shutting down chronos stream", address = $s.client.remoteAddress(), s
 

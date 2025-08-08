@@ -14,8 +14,6 @@
 import chronos, chronicles
 import stew/endians2
 import ./core, ../protocol, ../../stream/connection, ../../utility
-when defined(libp2p_quic_support):
-  import ../../transports/quictransport
 
 export chronicles, connection
 
@@ -37,33 +35,19 @@ proc new*(T: typedesc[Perf]): T {.public.} =
       size = uint64.fromBytesBE(sizeBuffer)
 
       var toReadBuffer: array[PerfSize, byte]
-      try:
-        # Different handling for QUIC vs TCP streams
-        when defined(libp2p_quic_support):
-          if conn of QuicStream:
-            # QUIC needs timeout-based approach to detect end of upload
-            while not conn.atEof:
-              let readFut = conn.readOnce(addr toReadBuffer[0], PerfSize)
-              let read = readFut.read()
-              if read == 0:
-                break
-              bytesRead += read
-          else:
-            # TCP streams handle EOF properly
-            while true:
-              let read = await conn.readOnce(addr toReadBuffer[0], PerfSize)
-              if read == 0:
-                break
-              bytesRead += read
-        else:
-          # TCP streams handle EOF properly
-          while true:
-            let read = await conn.readOnce(addr toReadBuffer[0], PerfSize)
-            if read == 0:
-              break
-            bytesRead += read
-      except CatchableError:
-        discard
+      # Read client data until EOF (when client closes write side)
+      trace "Server: Starting to read client data"
+      while true:
+        try:
+          let read = await conn.readOnce(addr toReadBuffer[0], PerfSize)
+          if read == 0:
+            trace "Server: EOF reached, bytesRead", bytesRead
+            break  # EOF reached
+          bytesRead += read
+          trace "Server: Read bytes", read, totalBytesRead = bytesRead
+        except CatchableError as exc:
+          trace "Server: Exception while reading", exc = exc.msg
+          break  # Connection error or EOF
 
       var buf: array[PerfSize, byte]
       while size > 0:
