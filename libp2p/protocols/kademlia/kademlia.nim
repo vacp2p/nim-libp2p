@@ -3,7 +3,6 @@ import chronicles
 import sequtils
 import ../../peerid
 import ./consts
-import ./dhttypes
 import ./xordistance
 import ./routingtable
 import ./lookupstate
@@ -20,6 +19,65 @@ import results
 logScope:
   topics = "kad-dht"
 
+type EntryKey* = object
+  data: seq[byte]
+
+proc init*(T: typedesc[EntryKey], inner: seq[byte]): EntryKey {.gcsafe, raises: [].} =
+  EntryKey(data: inner)
+
+type EntryValue* = object
+  data*: seq[byte] # public because needed for tests
+
+proc init*(
+    T: typedesc[EntryValue], inner: seq[byte]
+): EntryValue {.gcsafe, raises: [].} =
+  EntryValue(data: inner)
+
+type TimeStamp* = object
+  # Currently a string, because for some reason, that's what is chosen at the protobuf level
+  # TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
+  ts*: string # only public because needed for tests
+
+type EntryRecord* = object
+  value*: EntryValue # only public because needed for tests
+  time*: TimeStamp # only public because needed for tests
+
+proc init*(
+    T: typedesc[EntryRecord], value: EntryValue, time: Option[TimeStamp]
+): EntryValue {.gcsafe, raises: [].} =
+  EntryRecord(value: value, time: time.get($times.now().utc))
+
+type LocalTable* = object
+  entries*: Table[EntryKey, EntryRecord] # public because needed for tests
+
+proc init(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
+  LocalTable()
+
+type EntryCandidate* = object
+  key*: EntryKey
+  value*: EntryValue
+
+type ValidatedEntry* = object
+  key: EntryKey
+  value: EntryValue
+
+proc take(
+    self: typedesc[ValidatedEntry], entry: sink EntryCandidate
+): ValidatedEntry {.raises: [].} =
+  ValidatedEntry(key: entry.key, value: entry.value)
+
+type EntryValidator* = ref object of RootObj
+method isValid*(
+    self: EntryValidator, entry: EntryCandidate
+): bool {.base, raises: [], gcsafe.} =
+  doAssert(false, "unimplimented base method")
+
+type EntrySelector* = ref object of RootObj
+method select*(
+    self: EntrySelector, cand: EntryRecord, others: seq[EntryRecord]
+): Result[EntryRecord, string] {.base, raises: [], gcsafe.} =
+  doAssert(false, "EntrySelection base not implemented")
+
 type KadDHT* = ref object of LPProtocol
   switch: Switch
   rng: ref HmacDrbgContext
@@ -28,6 +86,12 @@ type KadDHT* = ref object of LPProtocol
   dataTable*: LocalTable
   entryValidator: EntryValidator
   entrySelector: EntrySelector
+
+proc insert*(
+    self: var LocalTable, value: sink ValidatedEntry, time: TimeStamp
+) {.raises: [].} =
+  debug "local table insertion", key = value.key.data, value = value.value.data
+  self.entries[value.key] = EntryRecord(value: value.value, time: time)
 
 const MaxMsgSize = 4096
 # Forward declaration
@@ -100,7 +164,7 @@ proc dispatchPutVal(
       msg = msg, reply = reply, conn = conn
 
 proc putValue*(
-    kad: KadDHT, key: keys.Key, value: EntryVal, timeout: Option[int]
+    kad: KadDHT, key: keys.Key, value: EntryValue, timeout: Option[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), value: value)
   if not kad.entryValidator.isValid(cand):
@@ -108,13 +172,13 @@ proc putValue*(
   let ts = TimeStamp(ts: $times.now().utc)
 
   try:
-    let others: seq[RecordVal] =
+    let others: seq[EntryRecord] =
       if cand.key in kad.dataTable.entries:
         @[kad.dataTable.entries[cand.key]]
       else:
         @[]
 
-    let candAsRec = RecordVal(value: cand.value, time: ts)
+    let candAsRec = EntryRecord(value: cand.value, time: ts)
     let confirmedRec = kad.entrySelector.select(candAsRec, others).valueOr:
       error "application provided selector error (local)", msg = error
       return err(error)
@@ -300,7 +364,7 @@ proc new*(
               error "no key or no value in rpc buffer", msg = msg, conn = conn
               return
           let key = EntryKey(data: skey)
-          let value = EntryVal(data: svalue)
+          let value = EntryValue.init(svalue)
           let ts = TimeStamp(ts: $times.now().utc)
 
           # Value sanatisation done. Start insertion process
@@ -313,7 +377,7 @@ proc new*(
               @[kad.dataTable.entries[key]]
             else:
               @[]
-          let candRec = RecordVal(value: value, time: ts)
+          let candRec = EntryRecord(value: value, time: ts)
           let selectedRec = kad.entrySelector.select(candRec, others).valueOr:
             error "application provided selector error", msg = error, conn = conn
             return
