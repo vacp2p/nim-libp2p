@@ -68,10 +68,11 @@ method readOnce*(
     except CatchableError as exc:
       raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
 
-  result = min(nbytes, stream.cached.len)
-  copyMem(pbytes, addr stream.cached[0], result)
-  stream.cached = stream.cached[result ..^ 1]
-  libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
+  let toRead = min(nbytes, stream.cached.len)
+  copyMem(pbytes, addr stream.cached[0], toRead)
+  stream.cached = stream.cached[toRead ..^ 1]
+  libp2p_network_bytes.inc(toRead.int64, labelValues = ["in"])
+  return toRead
 
 {.push warning[LockLevel]: off.}
 method write*(
