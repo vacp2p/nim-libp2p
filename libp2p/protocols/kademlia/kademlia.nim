@@ -92,11 +92,12 @@ proc dispatchPutVal(
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
     # todo log this more meaningfully
-    error "putValue reply decode fail", error = error
+    error "putValue reply decode fail", error = error, conn = conn
     return
 
   if reply != msg:
-    error "unexpected change between msg and reply: ", msg = msg, reply = reply
+    error "unexpected change between msg and reply: ",
+      msg = msg, reply = reply, conn = conn
 
 proc putValue*(
     kad: KadDHT, key: keys.Key, value: EntryVal, timeout: Option[int]
@@ -105,6 +106,7 @@ proc putValue*(
   if not kad.entryValidator.isValid(cand):
     return err("invalid key/value pair")
   let ts = TimeStamp(ts: $times.now().utc)
+
   try:
     let others: seq[RecordVal] =
       if cand.key in kad.dataTable.entries:
@@ -113,29 +115,33 @@ proc putValue*(
         @[]
 
     let candAsRec = RecordVal(value: cand.value, time: ts)
-    let confirmedRec = kad.entrySelector.select(candAsRec, others)
-
+    let confirmedRec = kad.entrySelector.select(candAsRec, others).valueOr:
+      error "application provided selector error (local)", msg = error
+      return err(error)
+    trace "local putval",
+      candidate = candAsRec, others = others, selected = confirmedRec
     let confirmedEnt = EntryCandidate(key: cand.key, value: confirmedRec.value)
-    if not kad.entryValidator.isValid(confirmedEnt):
-      return err("invalid overruled entry")
     let validEnt = ValidatedEntry.take(confirmedEnt)
 
     let peers = await kad.findNode(key)
-    var ammo: seq[PeerId]
-    for p in peers.filterIt(it.data != kad.rtable.selfId.getBytes()):
-      ammo.add(p)
-      if ammo.len >= DefaultReplic:
-        break
-    let putClip = ammo.mapIt(kad.dispatchPutVal(it, validEnt))
+    # We first prime the sends so the data is ready to go
+    let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, validEnt))
+    # then we do the `move`, as insert takes the data as `sink`
     kad.dataTable.insert(validEnt, ts)
     try:
-      await putClip.allFutures().wait(chronos.seconds(timeout.get(5)))
+      # now that the all the data is where it needs to be in memory, we can dispatch the
+      # RPCs
+      await rpcBatch.allFutures().wait(chronos.seconds(timeout.get(5)))
+
+    # It's quite normal for the dispatch to timeout, as it would require all calls to get
+    # their response. Downstream users may desire some sort of functionality in the 
+    # future to get rpc telemetry, but in the meantime, we just move on...
     except AsyncTimeoutError:
       discard
 
     return results.ok()
-  except:
-    return err("todo: refine exceptions")
+  except CatchableError as e:
+    return err("todo: refine exceptions - " & e.msg)
 
 # Helper function forward declaration
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.}
@@ -271,10 +277,10 @@ proc new*(
         case msg.msgType
         of MessageType.findNode:
           let targetIdBytes = msg.key.valueOr:
-            error "findNode message without key data present"
+            error "findNode message without key data present", msg = msg, conn = conn
             return
           let targetId = PeerId.init(targetIdBytes).valueOr:
-            error "findNode message without valid key data"
+            error "findNode message without valid key data", msg = msg, conn = conn
             return
           let closerPeers = kad.rtable.findClosest(targetId.toKey(), DefaultReplic)
           let responsePb = encodeFindNodeReply(closerPeers, switch)
@@ -283,37 +289,43 @@ proc new*(
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
         of MessageType.putValue:
-          var record = msg.record.valueOr:
-            error "no record in message buffer", msg = msg
+          let record = msg.record.valueOr:
+            error "no record in message buffer", msg = msg, conn = conn
             return
           let (skey, svalue) =
             if record.key.isSome() and record.value.isSome():
               (record.key.unsafeGet(), record.value.unsafeGet())
             else:
-              error "no key or no value in rpc buffer"
+              error "no key or no value in rpc buffer", msg = msg, conn = conn
               return
           let key = EntryKey(data: skey)
           let value = EntryVal(data: svalue)
           let ts = TimeStamp(ts: $times.now().utc)
 
+          # Value sanatisation done. Start insertion process
           let cand = EntryCandidate(key: key, value: value)
           if not kad.entryValidator.isValid(cand):
             return
+
           let others =
             if kad.dataTable.entries.contains(key):
               @[kad.dataTable.entries[key]]
             else:
               @[]
-          let selectedRec =
-            kad.entrySelector.select(RecordVal(value: value, time: ts), others)
+          let candRec = RecordVal(value: value, time: ts)
+          let selectedRec = kad.entrySelector.select(candRec, others).valueOr:
+            error "application provided selector error", msg = error, conn = conn
+            return
+          trace "putval handler selection",
+            cand = candRec, others = others, selected = selectedRec
+
+          # Assume that if selection goes with another value, that it is valid
           let validated = ValidatedEntry(key: key, value: selectedRec.value)
 
-          # Untill the spec/convention is confirmed otherwise: always return unmodified message
-          # if an insertion is done
           kad.dataTable.insert(validated, ts)
-          record.value = some(validated.value.data)
-          let resp = Message(record: some(record))
-          await conn.writeLp(resp.encode().buffer)
+          # consistent with following link, echo message without change
+          # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
+          await conn.writeLp(buf)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:

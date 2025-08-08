@@ -1,7 +1,7 @@
 #TODO: This file was mostly put together with the intent of using the typestate pattern
-# unfortunately, due to various design decisions, my assumption that the accessibility
-# controls needed for this to be a sane direction is not upheld. This file should be
-# considered a monument to my naivity, and to be dismantled
+# before I learned the limitations of the nim module system. 
+# The typestate pattern is not consistent with idiomatic nim, and thus, this file
+# and it's assosciated code is to be refactorod away.
 import chronicles
 import std/[tables, hashes]
 import results
@@ -41,7 +41,7 @@ method isValid*(
 type EntrySelector* = ref object of RootObj
 method select*(
     self: EntrySelector, cand: RecordVal, others: seq[RecordVal]
-): RecordVal {.base, raises: [], gcsafe.} =
+): Result[RecordVal, string] {.base, raises: [], gcsafe.} =
   doAssert(false, "EntrySelection base not implemented")
 
 proc take*(
