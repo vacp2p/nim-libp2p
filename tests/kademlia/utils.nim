@@ -3,11 +3,11 @@ import results
 import ../../libp2p/protocols/kademlia/kademlia
 
 type PermissiveValidator* = ref object of EntryValidator
-method isValid*(self: PermissiveValidator, cand: EntryCandidate): bool =
+method isValid*(self: PermissiveValidator, key: EntryKey, val: EntryValue): bool =
   true
 
 type RestrictiveValidator* = ref object of EntryValidator
-method isValid(self: RestrictiveValidator, cand: EntryCandidate): bool =
+method isValid(self: RestrictiveValidator, key: EntryKey, val: EntryValue): bool =
   false
 
 type CandSelector* = ref object of EntrySelector

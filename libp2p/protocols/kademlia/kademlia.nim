@@ -109,16 +109,13 @@ proc sendFindNode(
       await kad.switch.dial(peerId, KadCodec)
     else:
       await kad.switch.dial(peerId, addrs, KadCodec)
-
   defer:
     await conn.close()
 
   let msg = Message(msgType: MessageType.findNode, key: some(targetId.getBytes()))
-
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
-
   if reply.msgType != MessageType.findNode:
     raise newException(ValueError, "unexpected message type in reply: " & $reply)
 
@@ -147,7 +144,6 @@ proc dispatchPutVal(
   let conn = await kad.switch.dial(peer, KadCodec)
   defer:
     await conn.close()
-
   let msg = Message(
     msgType: MessageType.putValue,
     record: some(Record(key: some(entry.key.data), value: some(entry.value.data))),
@@ -158,7 +154,6 @@ proc dispatchPutVal(
     # todo log this more meaningfully
     error "putValue reply decode fail", error = error, conn = conn
     return
-
   if reply != msg:
     error "unexpected change between msg and reply: ",
       msg = msg, reply = reply, conn = conn
@@ -383,7 +378,7 @@ proc new*(
           # Assume that if selection goes with another value, that it is valid
           let validated = ValidatedEntry(key: key, value: selectedRec.value)
 
-          kad.dataTable.insert(validated, selectedRec.ts)
+          kad.dataTable.insert(validated, selectedRec.time)
           # consistent with following link, echo message without change
           # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
           await conn.writeLp(buf)
