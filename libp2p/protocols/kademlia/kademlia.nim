@@ -44,8 +44,8 @@ type EntryRecord* = object
 
 proc init*(
     T: typedesc[EntryRecord], value: EntryValue, time: Option[TimeStamp]
-): EntryValue {.gcsafe, raises: [].} =
-  EntryRecord(value: value, time: time.get($times.now().utc))
+): EntryRecord {.gcsafe, raises: [].} =
+  EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
 
 type LocalTable* = object
   entries*: Table[EntryKey, EntryRecord] # public because needed for tests
@@ -61,14 +61,14 @@ type ValidatedEntry* = object
   key: EntryKey
   value: EntryValue
 
-proc take(
-    self: typedesc[ValidatedEntry], entry: sink EntryCandidate
-): ValidatedEntry {.raises: [].} =
-  ValidatedEntry(key: entry.key, value: entry.value)
+proc init*(
+    T: typedesc[ValidatedEntry], key: EntryKey, value: EntryValue
+): ValidatedEntry {.gcsafe, raises: [].} =
+  ValidatedEntry(key: key, value: value)
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
-    self: EntryValidator, entry: EntryCandidate
+    self: EntryValidator, key: EntryKey, val: EntryValue
 ): bool {.base, raises: [], gcsafe.} =
   doAssert(false, "unimplimented base method")
 
@@ -164,34 +164,32 @@ proc dispatchPutVal(
       msg = msg, reply = reply, conn = conn
 
 proc putValue*(
-    kad: KadDHT, key: keys.Key, value: EntryValue, timeout: Option[int]
+    kad: KadDHT, key: EntryKey, value: EntryValue, timeout: Option[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), value: value)
-  if not kad.entryValidator.isValid(cand):
+  if not kad.entryValidator.isValid(key, value):
     return err("invalid key/value pair")
-  let ts = TimeStamp(ts: $times.now().utc)
 
   try:
     let others: seq[EntryRecord] =
-      if cand.key in kad.dataTable.entries:
-        @[kad.dataTable.entries[cand.key]]
+      if key in kad.dataTable.entries:
+        @[kad.dataTable.entries[key]]
       else:
         @[]
 
-    let candAsRec = EntryRecord(value: cand.value, time: ts)
+    let candAsRec = EntryRecord.init(value, none(TimeStamp))
     let confirmedRec = kad.entrySelector.select(candAsRec, others).valueOr:
       error "application provided selector error (local)", msg = error
       return err(error)
     trace "local putval",
       candidate = candAsRec, others = others, selected = confirmedRec
-    let confirmedEnt = EntryCandidate(key: cand.key, value: confirmedRec.value)
-    let validEnt = ValidatedEntry.take(confirmedEnt)
+    # let confirmedEnt = EntryCandidate(key: key, value: confirmedRec.value)
+    let validEnt = ValidatedEntry.init(key, confirmedRec.value)
 
-    let peers = await kad.findNode(key)
+    let peers = await kad.findNode(key.data.toKey())
     # We first prime the sends so the data is ready to go
     let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, validEnt))
     # then we do the `move`, as insert takes the data as `sink`
-    kad.dataTable.insert(validEnt, ts)
+    kad.dataTable.insert(validEnt, confirmedRec.time)
     try:
       # now that the all the data is where it needs to be in memory, we can dispatch the
       # RPCs
@@ -363,13 +361,11 @@ proc new*(
             else:
               error "no key or no value in rpc buffer", msg = msg, conn = conn
               return
-          let key = EntryKey(data: skey)
+          let key = EntryKey.init(skey)
           let value = EntryValue.init(svalue)
-          let ts = TimeStamp(ts: $times.now().utc)
 
           # Value sanatisation done. Start insertion process
-          let cand = EntryCandidate(key: key, value: value)
-          if not kad.entryValidator.isValid(cand):
+          if not kad.entryValidator.isValid(key, value):
             return
 
           let others =
@@ -377,7 +373,7 @@ proc new*(
               @[kad.dataTable.entries[key]]
             else:
               @[]
-          let candRec = EntryRecord(value: value, time: ts)
+          let candRec = EntryRecord.init(value, none(TimeStamp))
           let selectedRec = kad.entrySelector.select(candRec, others).valueOr:
             error "application provided selector error", msg = error, conn = conn
             return
@@ -387,7 +383,7 @@ proc new*(
           # Assume that if selection goes with another value, that it is valid
           let validated = ValidatedEntry(key: key, value: selectedRec.value)
 
-          kad.dataTable.insert(validated, ts)
+          kad.dataTable.insert(validated, selectedRec.ts)
           # consistent with following link, echo message without change
           # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
           await conn.writeLp(buf)
