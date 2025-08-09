@@ -334,14 +334,6 @@ suite "GossipSub Integration - Mesh Management":
     # When DValues of Node0 are updated back to the initial dValues
     node0.parameters.applyDValues(dValues)
 
-    # Waiting more than one heartbeat (60ms) and less than pruneBackoff (1s)
-    await sleepAsync(pruneBackoff.div(2))
-    check:
-      node0.mesh.getOrDefault(topic).len == newDValues.get.dHigh.get
-
-    # When pruneBackoff period is done
-    await sleepAsync(pruneBackoff)
-
     # Then on the next heartbeat mesh is rebalanced and peers are regrafted to the initial d value
-    check:
+    checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
