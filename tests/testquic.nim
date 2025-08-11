@@ -189,8 +189,8 @@ suite "Quic transport":
             continue
 
           let stream = await getStream(QuicSession(conn), Direction.In)
-          check (await conn.readLp(100)) == fromHex("1234")
-          await conn.writeLp(fromHex("5678"))
+          check (await stream.readLp(100)) == fromHex("1234")
+          await stream.writeLp(fromHex("5678"))
           await stream.close()
 
       proc runClient(server: QuicTransport) {.async.} =
