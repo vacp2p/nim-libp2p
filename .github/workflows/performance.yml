@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  examples:
+  performance:
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -34,6 +34,11 @@ jobs:
       PUBLISH_BRANCH_NAME: "performance_plots"
       CHECKOUT_SUBFOLDER_SUBPLOTS: "subplots"
       PUBLISH_DIR_PLOTS: "plots"
+      CHECKOUT_SUBFOLDER_HISTORY: "history"
+      PUBLISH_DIR_LATENCY_HISTORY: "latency_history"
+      LATENCY_HISTORY_PATH: "history/latency_history"
+      LATENCY_HISTORY_PREFIX: "pr"
+      LATENCY_HISTORY_PLOT_FILENAME: "latency_history_all_scenarios.png"
 
     name: "Performance"
     runs-on: ubuntu-22.04
@@ -62,6 +67,9 @@ jobs:
 
       - name: Process latency and docker stats
         uses: ./.github/actions/process_stats
+
+      - name: Publish history
+        uses: ./.github/actions/publish_history
 
       - name: Generate plots
         uses: ./.github/actions/generate_plots

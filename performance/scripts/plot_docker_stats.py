@@ -116,11 +116,11 @@ def plot_metrics(data, title, output_path):
 
 
 if __name__ == "__main__":
-    docker_stats_dir = os.environ.get("SHARED_VOLUME_PATH", "performance/output")
+    shared_volume_path = os.environ.get("SHARED_VOLUME_PATH", "performance/output")
     docker_stats_prefix = os.environ.get("DOCKER_STATS_PREFIX", "docker_stats_")
-    glob_pattern = os.path.join(docker_stats_dir, f"{docker_stats_prefix}*.csv")
+    glob_pattern = os.path.join(shared_volume_path, f"{docker_stats_prefix}*.csv")
     csv_files = glob.glob(glob_pattern)
     for csv_file in csv_files:
         file_name = os.path.splitext(os.path.basename(csv_file))[0]
         data = parse_csv(csv_file)
-        plot_metrics(data, title=file_name, output_path=os.path.join(docker_stats_dir, f"{file_name}.png"))
+        plot_metrics(data, title=file_name, output_path=os.path.join(shared_volume_path, f"{file_name}.png"))
