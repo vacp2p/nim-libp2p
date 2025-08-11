@@ -138,7 +138,7 @@ proc findInputFiles(dir: string, prefix: string): seq[string] =
   return files
 
 proc main() =
-  let dir = getEnv("DOCKER_STATS_DIR", "performance/output")
+  let dir = getEnv("SHARED_VOLUME_PATH", "performance/output")
   let prefix = getEnv("DOCKER_STATS_PREFIX", "docker_stats_")
 
   let inputFiles = findInputFiles(dir, prefix)

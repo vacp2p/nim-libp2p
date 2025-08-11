@@ -13,14 +13,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  examples:
-    timeout-minutes: 10
+  performance:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
 
     defaults:
       run:
         shell: bash
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.number }}
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      MARKER: "<!-- perf-summary-marker -->"
+      COMMENT_SUMMARY_PATH: "/tmp/perf-summary.md"
+      SHARED_VOLUME_PATH: "performance/output"
+      DOCKER_STATS_PREFIX: "docker_stats_"
+      PUBLISH_BRANCH_NAME: "performance_plots"
+      CHECKOUT_SUBFOLDER_SUBPLOTS: "subplots"
+      PUBLISH_DIR_PLOTS: "plots"
+      CHECKOUT_SUBFOLDER_HISTORY: "history"
+      PUBLISH_DIR_LATENCY_HISTORY: "latency_history"
+      LATENCY_HISTORY_PATH: "history/latency_history"
+      LATENCY_HISTORY_PREFIX: "pr"
+      LATENCY_HISTORY_PLOT_FILENAME: "latency_history_all_scenarios.png"
 
     name: "Performance"
     runs-on: ubuntu-22.04
@@ -47,26 +65,18 @@ jobs:
         run: |
           ./performance/runner.sh
 
-      - name: Set up Nim for aggragate script
-        uses: jiro4989/setup-nim-action@v2
-        with:
-          nim-version: "2.x"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Process latency and docker stats
+        uses: ./.github/actions/process_stats
 
-      - name: Process stats and display summary
-        env:
-          MARKER: "<!-- perf-summary-marker -->"
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          COMMENT_SUMMARY_PATH: "/tmp/perf-summary.md"
-          DOCKER_STATS_DIR: "performance/output"
-          DOCKER_STATS_PREFIX: "docker_stats_"
-        run: |
-          nim c -r -d:release -o:/tmp/process_latency_stats ./performance/scripts/process_latency_stats.nim
-          nim c -r -d:release -o:/tmp/process_docker_stats ./performance/scripts/process_docker_stats.nim
+      - name: Publish history
+        uses: ./.github/actions/publish_history
 
-      - name: Post/Update PR Performance Comment
+      - name: Generate plots
+        uses: ./.github/actions/generate_plots
+
+      - name: Publish plots and add to summary
+        uses: ./.github/actions/publish_plots
+
+      - name: Post/Update PR comment
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/add_comment
-        with:
-          marker: "<!-- perf-summary-marker -->"
-          markdown_path: "/tmp/perf-summary.md"

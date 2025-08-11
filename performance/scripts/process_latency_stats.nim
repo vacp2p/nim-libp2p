@@ -93,7 +93,8 @@ proc getMarkdownReport*(
   output.add marker & "\n"
   output.add "# 🏁 **Performance Summary**\n"
 
-  output.add fmt"**Commit:** `{commitSha}`"
+  let commitUrl = fmt"https://github.com/vacp2p/nim-libp2p/commit/{commitSha}"
+  output.add fmt"**Commit:** [`{commitSha}`]({commitUrl})"
 
   output.add "| Scenario | Nodes | Total messages sent | Total messages received | Latency min (ms) | Latency max (ms) | Latency avg (ms) |"
   output.add "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
@@ -102,9 +103,28 @@ proc getMarkdownReport*(
     let nodes = validNodes[scenarioName]
     output.add fmt"| {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {stats.latency.avgLatencyMs:.3f} |"
 
-  let markdown = output.join("\n")
+  let runId = getEnv("GITHUB_RUN_ID", "")
+  let summaryUrl = fmt"https://github.com/vacp2p/nim-libp2p/actions/runs/{runId}"
+  output.add(
+    fmt"### 📊 View Latency History and full Container Resources in the [Workflow Summary]({summaryUrl})"
+  )
 
+  let markdown = output.join("\n")
   return markdown
+
+proc getCsvFilename*(outputDir: string): string =
+  let prNum = getEnv("PR_NUMBER", "unknown")
+  result = fmt"{outputDir}/pr{prNum}_latency.csv"
+
+proc getCsvReport*(
+    results: Table[string, Stats], validNodes: Table[string, int]
+): string =
+  var output: seq[string]
+  output.add "Scenario,Nodes,TotalSent,TotalReceived,MinLatencyMs,MaxLatencyMs,AvgLatencyMs"
+  for scenarioName, stats in results.pairs:
+    let nodes = validNodes[scenarioName]
+    output.add fmt"{stats.scenarioName},{nodes},{stats.totalSent},{stats.totalReceived},{stats.latency.minLatencyMs:.3f},{stats.latency.maxLatencyMs:.3f},{stats.latency.avgLatencyMs:.3f}"
+  result = output.join("\n")
 
 proc main() =
   let outputDir = "performance/output"
@@ -112,6 +132,11 @@ proc main() =
 
   let jsonResults = getJsonResults(parsedJsons)
   let (aggregatedResults, validNodes) = aggregateResults(jsonResults)
+
+  # For History
+  let csvFilename = getCsvFilename(outputDir)
+  let csvContent = getCsvReport(aggregatedResults, validNodes)
+  writeFile(csvFilename, csvContent)
 
   let marker = getEnv("MARKER", "<!-- marker -->")
   let commitSha = getEnv("PR_HEAD_SHA", getEnv("GITHUB_SHA", "unknown"))
