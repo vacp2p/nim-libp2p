@@ -133,7 +133,10 @@ when defined(libp2p_agents_metrics):
     var conn = s
     while conn != nil:
       conn.shortAgent = shortAgent
-      conn = conn.getWrapped()
+      let wrapped = conn.getWrapped()
+      if wrapped == conn:
+        break
+      conn = wrapped
 
 proc new*(
     C: type Connection,
