@@ -1,12 +1,5 @@
 name: Add Comment
 description: "Add or update comment in the PR"
-inputs:
-  marker:
-    description: "Text used to find the comment to update"
-    required: true
-  markdown_path:
-    description: "Path to the file containing markdown"
-    required: true
 
 runs:
   using: "composite"
@@ -16,8 +9,8 @@ runs:
       with:
         script: |
           const fs = require('fs');
-          const marker = "${{ inputs.marker }}";
-          const body = fs.readFileSync("${{ inputs.markdown_path }}", 'utf8');
+          const marker = "${{ env.MARKER }}";
+          const body = fs.readFileSync("${{ env.COMMENT_SUMMARY_PATH }}", 'utf8');
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
