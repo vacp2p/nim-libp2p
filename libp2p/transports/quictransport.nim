@@ -277,7 +277,7 @@ method start*(
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
   if transport.running:
-    let conns = transport.connections[0 .. ^1] 
+    let conns = transport.connections[0 .. ^1]
     for c in conns:
       await c.close()
     await procCall Transport(transport).stop()
@@ -320,7 +320,7 @@ method accept*(
   if not self.running:
     # stop accept only when transport is stopped (not when error occurs)
     raise newException(QuicTransportAcceptStopped, "Quic transport stopped")
-  
+
   doAssert not self.listener.isNil, "call start() before calling accept()"
 
   try:
