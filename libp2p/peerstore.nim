@@ -214,7 +214,7 @@ proc identify*(
             info.agentVersion.get("").split("/")[0].safeToLowerAscii().get("")
         if KnownLibP2PAgentsSeq.contains(shortAgent):
           knownAgent = shortAgent
-        muxer.connection.setShortAgent(knownAgent)
+        muxer.setShortAgent(knownAgent)
 
       peerStore.updatePeerInfo(info, stream.observedAddr)
   finally:

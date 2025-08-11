@@ -43,7 +43,7 @@ proc new(
   quicstream
 
 method getWrapped*(self: QuicStream): P2PConnection =
-  nil
+  self
 
 template mapExceptions(body: untyped) =
   try:
@@ -56,18 +56,23 @@ template mapExceptions(body: untyped) =
 method readOnce*(
     stream: QuicStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
-  try:
-    if stream.cached.len == 0:
+  if stream.cached.len == 0:
+    try:
       stream.cached = await stream.stream.read()
       if stream.cached.len == 0:
         raise newLPStreamEOFError()
+    except CancelledError as exc:
+      raise exc
+    except LPStreamEOFError as exc:
+      raise exc
+    except CatchableError as exc:
+      raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
 
-    result = min(nbytes, stream.cached.len)
-    copyMem(pbytes, addr stream.cached[0], result)
-    stream.cached = stream.cached[result ..^ 1]
-    libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
-  except CatchableError as exc:
-    raise newLPStreamEOFError()
+  let toRead = min(nbytes, stream.cached.len)
+  copyMem(pbytes, addr stream.cached[0], toRead)
+  stream.cached = stream.cached[toRead ..^ 1]
+  libp2p_network_bytes.inc(toRead.int64, labelValues = ["in"])
+  return toRead
 
 {.push warning[LockLevel]: off.}
 method write*(
@@ -109,6 +114,9 @@ proc getStream*(
       await stream.write(@[]) # QUIC streams do not exist until data is sent
 
     let qs = QuicStream.new(stream, session.observedAddr, session.peerId)
+    when defined(libp2p_agents_metrics):
+      qs.shortAgent = session.shortAgent
+
     session.streams.add(qs)
     return qs
   except CatchableError as exc:
@@ -116,12 +124,19 @@ proc getStream*(
     raise (ref QuicTransportError)(msg: "error in getStream: " & exc.msg, parent: exc)
 
 method getWrapped*(self: QuicSession): P2PConnection =
-  nil
+  self
 
 # Muxer
 type QuicMuxer = ref object of Muxer
   quicSession: QuicSession
   handleFut: Future[void]
+
+when defined(libp2p_agents_metrics):
+  method setShortAgent*(m: QuicMuxer, shortAgent: string) =
+    m.quicSession.shortAgent = shortAgent
+    for s in m.quicSession.streams:
+      s.shortAgent = shortAgent
+    m.connection.shortAgent = shortAgent
 
 method newStream*(
     m: QuicMuxer, name: string = "", lazy: bool = false
@@ -141,7 +156,7 @@ proc handleStream(m: QuicMuxer, chann: QuicStream) {.async: (raises: []).} =
     trace "finished handling stream"
     doAssert(chann.closed, "connection not closed by handler!")
   except CatchableError as exc:
-    trace "Exception in mplex stream handler", msg = exc.msg
+    trace "Exception in quic stream handler", msg = exc.msg
     await chann.close()
 
 method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
@@ -150,7 +165,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
       let incomingStream = await m.quicSession.getStream(Direction.In)
       asyncSpawn m.handleStream(incomingStream)
   except CatchableError as exc:
-    trace "Exception in mplex handler", msg = exc.msg
+    trace "Exception in quic handler", msg = exc.msg
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
