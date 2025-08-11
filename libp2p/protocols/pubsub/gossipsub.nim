@@ -635,7 +635,8 @@ method rpcHandler*(
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = decodeRpcMsg(data).valueOr:
-    debug "failed to decode msg from peer", peer, err = error
+    #
+    error "failed to decode msg from peer", peer, err = error
     await rateLimit(g, peer, msgSize)
     # Raising in the handler closes the gossipsub connection (but doesn't
     # disconnect the peer!)
