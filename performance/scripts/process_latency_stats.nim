@@ -93,7 +93,8 @@ proc getMarkdownReport*(
   output.add marker & "\n"
   output.add "# 🏁 **Performance Summary**\n"
 
-  output.add fmt"**Commit:** `{commitSha}`"
+  let commitUrl = fmt"https://github.com/vacp2p/nim-libp2p/commit/{commitSha}"
+  output.add fmt"**Commit:** [`{commitSha}`]({commitUrl})"
 
   output.add "| Scenario | Nodes | Total messages sent | Total messages received | Latency min (ms) | Latency max (ms) | Latency avg (ms) |"
   output.add "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
@@ -102,8 +103,13 @@ proc getMarkdownReport*(
     let nodes = validNodes[scenarioName]
     output.add fmt"| {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {stats.latency.avgLatencyMs:.3f} |"
 
-  let markdown = output.join("\n")
+  let runId = getEnv("GITHUB_RUN_ID", "")
+  let summaryUrl = fmt"https://github.com/vacp2p/nim-libp2p/actions/runs/{runId}"
+  output.add(
+    fmt"### 📊 View full Container Resources stats in the [Workflow Summary]({summaryUrl})"
+  )
 
+  let markdown = output.join("\n")
   return markdown
 
 proc main() =
