@@ -44,6 +44,7 @@ def plot_latency_history(pr_numbers, scenario_data, output_path):
     if not pr_numbers or not scenario_data:
         print("No PR latency data found; skipping plot generation.")
         return
+    
     num_scenarios = len(scenario_data)
     fig, axes = plt.subplots(num_scenarios, 1, figsize=(14, 4 * num_scenarios), sharex=True)
     if num_scenarios == 1:
@@ -51,8 +52,6 @@ def plot_latency_history(pr_numbers, scenario_data, output_path):
 
     color_map = plt.colormaps.get_cmap("tab10")
 
-    # We'll plot using categorical (evenly spaced) x positions rather than the
-    # numeric PR numbers so gaps between PR values don't create larger visual gaps.
     x_positions = list(range(len(pr_numbers)))
 
     for i, (scenario, pr_stats) in enumerate(scenario_data.items()):
@@ -66,7 +65,7 @@ def plot_latency_history(pr_numbers, scenario_data, output_path):
         if any(v is not None for v in avg_vals):
             ax.plot(x_positions, avg_vals, marker="o", label="Avg Latency (ms)", color=color)
             ax.fill_between(x_positions, min_vals, max_vals, color=color, alpha=0.2, label="Min-Max Latency (ms)")
-            for x, pr, avg, minv, maxv in zip(x_positions, pr_numbers, avg_vals, min_vals, max_vals):
+            for x, avg, minv, maxv in zip(x_positions, avg_vals, min_vals, max_vals):
                 if avg is not None:
                     ax.scatter(x, avg, color=color)
                     ax.text(x, avg, f"{avg:.3f}", fontsize=14, ha="center", va="bottom")
