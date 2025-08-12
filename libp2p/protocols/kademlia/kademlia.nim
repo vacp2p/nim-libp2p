@@ -3,16 +3,18 @@ import chronicles
 import sequtils
 import ../../peerid
 import ./consts
+import ./dhttypes
 import ./xordistance
 import ./routingtable
 import ./lookupstate
 import ./requests
 import ./keys
 import ../protocol
-import ../../switch
 import ./protobuf
+import ../../switch
+import ../../multihash
 import ../../utils/heartbeat
-import std/[options, tables]
+import std/[times, options, tables]
 import results
 
 logScope:
@@ -23,8 +25,15 @@ type KadDHT* = ref object of LPProtocol
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
+  dataTable*: LocalTable
+  entryValidator: EntryValidator
+  entrySelector: EntrySelector
 
 const MaxMsgSize = 4096
+# Forward declaration
+proc findNode*(
+  kad: KadDHT, targetId: Key
+): Future[seq[PeerId]] {.async: (raises: [CancelledError]).}
 
 proc sendFindNode(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress], targetId: Key
@@ -68,6 +77,72 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
+proc dispatchPutVal(
+    kad: KadDHT, peer: PeerId, entry: ValidatedEntry
+): Future[void] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+  let conn = await kad.switch.dial(peer, KadCodec)
+  defer:
+    await conn.close()
+
+  let msg = Message(
+    msgType: MessageType.putValue,
+    record: some(Record(key: some(entry.key.data), value: some(entry.value.data))),
+  )
+  await conn.writeLp(msg.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+    # todo log this more meaningfully
+    error "putValue reply decode fail", error = error, conn = conn
+    return
+
+  if reply != msg:
+    error "unexpected change between msg and reply: ",
+      msg = msg, reply = reply, conn = conn
+
+proc putValue*(
+    kad: KadDHT, key: keys.Key, value: EntryVal, timeout: Option[int]
+): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  let cand = EntryCandidate(key: EntryKey(data: key.getBytes()), value: value)
+  if not kad.entryValidator.isValid(cand):
+    return err("invalid key/value pair")
+  let ts = TimeStamp(ts: $times.now().utc)
+
+  try:
+    let others: seq[RecordVal] =
+      if cand.key in kad.dataTable.entries:
+        @[kad.dataTable.entries[cand.key]]
+      else:
+        @[]
+
+    let candAsRec = RecordVal(value: cand.value, time: ts)
+    let confirmedRec = kad.entrySelector.select(candAsRec, others).valueOr:
+      error "application provided selector error (local)", msg = error
+      return err(error)
+    trace "local putval",
+      candidate = candAsRec, others = others, selected = confirmedRec
+    let confirmedEnt = EntryCandidate(key: cand.key, value: confirmedRec.value)
+    let validEnt = ValidatedEntry.take(confirmedEnt)
+
+    let peers = await kad.findNode(key)
+    # We first prime the sends so the data is ready to go
+    let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, validEnt))
+    # then we do the `move`, as insert takes the data as `sink`
+    kad.dataTable.insert(validEnt, ts)
+    try:
+      # now that the all the data is where it needs to be in memory, we can dispatch the
+      # RPCs
+      await rpcBatch.allFutures().wait(chronos.seconds(timeout.get(5)))
+
+    # It's quite normal for the dispatch to timeout, as it would require all calls to get
+    # their response. Downstream users may desire some sort of functionality in the 
+    # future to get rpc telemetry, but in the meantime, we just move on...
+    except AsyncTimeoutError:
+      discard
+
+    return results.ok()
+  except CatchableError as e:
+    return err("todo: refine exceptions - " & e.msg)
+
 # Helper function forward declaration
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.}
 proc findNode*(
@@ -94,7 +169,7 @@ proc findNode*(
 
       pendingFutures[peer] = kad
         .sendFindNode(peer, addrTable.getOrDefault(peer, @[]), targetId)
-        .wait(5.seconds)
+        .wait(chronos.seconds(5))
 
       state.activeQueries.inc
 
@@ -102,7 +177,11 @@ proc findNode*(
 
     for msg in successfulReplies:
       for peer in msg.closerPeers:
-        addrTable[PeerId.init(peer.id).get()] = peer.addrs
+        let pid = PeerId.init(peer.id)
+        if not pid.isOk:
+          error "PeerId init went bad. this is unusual", data = peer.id
+          continue
+        addrTable[pid.get()] = peer.addrs
       state.updateShortlist(
         msg,
         proc(p: PeerInfo) =
@@ -136,8 +215,9 @@ proc bootstrap*(
       error "failed to connect to bootstrap peer", peerId = b.peerId, error = e.msg
 
     try:
-      let msg =
-        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(5.seconds)
+      let msg = await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
+        chronos.seconds(5)
+      )
       for peer in msg.closerPeers:
         let p = PeerId.init(peer.id).tryGet()
         discard kad.rtable.insert(p)
@@ -162,20 +242,33 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       discard await kad.findNode(randomKey)
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh buckets", 10.minutes:
+  heartbeat "refresh buckets", chronos.minutes(10):
     await kad.refreshBuckets()
 
 proc new*(
-    T: typedesc[KadDHT], switch: Switch, rng: ref HmacDrbgContext = newRng()
+    T: typedesc[KadDHT],
+    switch: Switch,
+    validator: EntryValidator,
+    entrySelector: EntrySelector,
+    rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
   var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey())
-  let kad = T(rng: rng, switch: switch, rtable: rtable)
+  let kad = T(
+    rng: rng,
+    switch: switch,
+    rtable: rtable,
+    dataTable: LocalTable.init(),
+    entryValidator: validator,
+    entrySelector: entrySelector,
+  )
 
   kad.codec = KadCodec
   kad.handler = proc(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
+      defer:
+        await conn.close()
       while not conn.atEof:
         let
           buf = await conn.readLp(MaxMsgSize)
@@ -183,14 +276,56 @@ proc new*(
 
         case msg.msgType
         of MessageType.findNode:
-          let targetIdBytes = msg.key.get()
-          let targetId = PeerId.init(targetIdBytes).tryGet()
+          let targetIdBytes = msg.key.valueOr:
+            error "findNode message without key data present", msg = msg, conn = conn
+            return
+          let targetId = PeerId.init(targetIdBytes).valueOr:
+            error "findNode message without valid key data", msg = msg, conn = conn
+            return
           let closerPeers = kad.rtable.findClosest(targetId.toKey(), DefaultReplic)
           let responsePb = encodeFindNodeReply(closerPeers, switch)
           await conn.writeLp(responsePb.buffer)
 
           # Peer is useful. adding to rtable
           discard kad.rtable.insert(conn.peerId)
+        of MessageType.putValue:
+          let record = msg.record.valueOr:
+            error "no record in message buffer", msg = msg, conn = conn
+            return
+          let (skey, svalue) =
+            if record.key.isSome() and record.value.isSome():
+              (record.key.unsafeGet(), record.value.unsafeGet())
+            else:
+              error "no key or no value in rpc buffer", msg = msg, conn = conn
+              return
+          let key = EntryKey(data: skey)
+          let value = EntryVal(data: svalue)
+          let ts = TimeStamp(ts: $times.now().utc)
+
+          # Value sanatisation done. Start insertion process
+          let cand = EntryCandidate(key: key, value: value)
+          if not kad.entryValidator.isValid(cand):
+            return
+
+          let others =
+            if kad.dataTable.entries.contains(key):
+              @[kad.dataTable.entries[key]]
+            else:
+              @[]
+          let candRec = RecordVal(value: value, time: ts)
+          let selectedRec = kad.entrySelector.select(candRec, others).valueOr:
+            error "application provided selector error", msg = error, conn = conn
+            return
+          trace "putval handler selection",
+            cand = candRec, others = others, selected = selectedRec
+
+          # Assume that if selection goes with another value, that it is valid
+          let validated = ValidatedEntry(key: key, value: selectedRec.value)
+
+          kad.dataTable.insert(validated, ts)
+          # consistent with following link, echo message without change
+          # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
+          await conn.writeLp(buf)
         else:
           raise newException(LPError, "unhandled kad-dht message type")
     except CancelledError as exc:
@@ -200,10 +335,15 @@ proc new*(
       # TODO: figure out why this fails:
       # error "could not handle request",
       #   peerId = conn.PeerId, err = getCurrentExceptionMsg()
-    finally:
-      await conn.close()
-
   return kad
+
+proc setSelector*(kad: KadDHT, selector: EntrySelector) =
+  doAssert(selector != nil)
+  kad.entrySelector = selector
+
+proc setValidator*(kad: KadDHT, validator: EntryValidator) =
+  doAssert(validator != nil)
+  kad.entryValidator = validator
 
 method start*(
     kad: KadDHT
