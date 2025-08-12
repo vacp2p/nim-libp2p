@@ -16,7 +16,8 @@ runs:
       shell: bash
       run: |
         cd "$CHECKOUT_SUBFOLDER_HISTORY"
-        git pull origin $PUBLISH_BRANCH_NAME
+        git fetch origin "$PUBLISH_BRANCH_NAME"
+        git reset --hard "origin/$PUBLISH_BRANCH_NAME"
 
         mkdir -p "$PUBLISH_DIR_LATENCY_HISTORY"
 

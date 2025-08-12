@@ -16,7 +16,8 @@ runs:
       shell: bash
       run: |
         cd $CHECKOUT_SUBFOLDER_SUBPLOTS
-        git pull origin $PUBLISH_BRANCH_NAME
+        git fetch origin "$PUBLISH_BRANCH_NAME"
+        git reset --hard "origin/$PUBLISH_BRANCH_NAME"
 
         # Remove any branch folder older than two weeks
         find $PUBLISH_DIR_PLOTS/ -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} +
