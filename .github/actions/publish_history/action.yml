@@ -16,6 +16,7 @@ runs:
       shell: bash
       run: |
         cd "$CHECKOUT_SUBFOLDER_HISTORY"
+        git pull origin $PUBLISH_BRANCH_NAME
 
         mkdir -p "$PUBLISH_DIR_LATENCY_HISTORY"
 
@@ -25,8 +26,8 @@ runs:
         if git diff-index --quiet HEAD --; then
           echo "No changes to commit"
         else
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
           git commit -m "Update latency history CSVs"
           git push origin "$PUBLISH_BRANCH_NAME"
         fi
