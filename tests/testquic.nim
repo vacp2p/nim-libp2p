@@ -15,27 +15,36 @@ import
 import ./helpers
 
 proc createServerAcceptConn(
-    server: QuicTransport
+    server: QuicTransport, isEofExpected: bool = false
 ): proc(): Future[void] {.
   async: (raises: [transport.TransportError, LPStreamError, CancelledError])
 .} =
   proc handler() {.
       async: (raises: [transport.TransportError, LPStreamError, CancelledError])
   .} =
-    try:
-      let conn = await server.accept()
+    while true:
+      let conn =
+        try:
+          await server.accept()
+        except QuicTransportAcceptStopped:
+          return # Transport is stopped
       if conn == nil:
-        return
+        continue
 
       let stream = await getStream(QuicSession(conn), Direction.In)
-      var resp: array[6, byte]
-      await stream.readExactly(addr resp, 6)
-      check string.fromBytes(resp) == "client"
+      defer:
+        await stream.close()
 
-      await stream.write("server")
-      await stream.close()
-    except QuicTransportAcceptStopped:
-      discard # Transport is stopped
+      try:
+        var resp: array[6, byte]
+        await stream.readExactly(addr resp, 6)
+        check string.fromBytes(resp) == "client"
+        await stream.write("server")
+      except LPStreamEOFError as exc:
+        if isEofExpected:
+          discard
+        else:
+          raise exc
 
   return handler
 
@@ -119,9 +128,27 @@ suite "Quic transport":
 
     await runClient()
 
+  asyncTest "server not accepting":
+    let server = await createTransport()
+    # itentionally not calling createServerAcceptConn as server should not accept
+    defer:
+      await server.stop()
+
+    proc runClient() {.async.} =
+      # client should be able to write even when server has not accepted
+      let client = await createTransport()
+      let conn = await client.dial("", server.addrs[0])
+      let stream = await getStream(QuicSession(conn), Direction.Out)
+      await stream.write("client")
+      await client.stop()
+
+    await runClient()
+
   asyncTest "closing session should close all streams":
     let server = await createTransport()
-    asyncSpawn createServerAcceptConn(server)()
+    # because some clients will not write full message, 
+    # it is expected for server to receive eof
+    asyncSpawn createServerAcceptConn(server, true)()
     defer:
       await server.stop()
 
