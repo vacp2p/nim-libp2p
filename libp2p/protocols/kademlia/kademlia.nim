@@ -68,7 +68,7 @@ proc init*(
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
-    self: EntryValidator, key: EntryKey, val: EntryValue
+    self: EntryValidator, key: keys.Key, val: EntryValue
 ): bool {.base, raises: [], gcsafe.} =
   doAssert(false, "unimplimented base method")
 
@@ -159,8 +159,9 @@ proc dispatchPutVal(
       msg = msg, reply = reply, conn = conn
 
 proc putValue*(
-    kad: KadDHT, key: EntryKey, value: EntryValue, timeout: Option[int]
+    kad: KadDHT, key: keys.Key, value: EntryValue, timeout: Option[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  let entKey = EntryKey.init(key.getByte())
   if not kad.entryValidator.isValid(key, value):
     return err("invalid key/value pair")
 
