@@ -60,7 +60,7 @@ suite "KadDHT - PutVal":
     let puttedData = kad1.rtable.selfId.getBytes()
     let entryKey = EntryKey.init(puttedData)
     let entryVal = EntryValue.init(puttedData)
-    discard await kad2.putValue(entryKey, entryVal, some(1))
+    discard await kad2.putValue(puttedData.toKey(), entryVal, some(1))
 
     let entered1: EntryValue = kad1.dataTable.entries[entryKey].value
     let entered2: EntryValue = kad2.dataTable.entries[entryKey].value
@@ -90,14 +90,14 @@ suite "KadDHT - PutVal":
     let puttedData = kad1.rtable.selfId.getBytes()
     let entryVal = EntryValue.init(puttedData)
     let entryKey = EntryKey.init(puttedData)
-    discard await kad2.putValue(entryKey, entryVal, some(1))
+    discard await kad2.putValue(puttedData.toKey(), entryVal, some(1))
     doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
     kad1.setValidator(PermissiveValidator())
-    discard await kad2.putValue(entryKey, entryVal, some(1))
+    discard await kad2.putValue(puttedData.toKey(), entryVal, some(1))
 
     doAssert(len(kad1.dataTable.entries) == 0, fmt"{kad1.dataTable.entries}")
     kad2.setValidator(PermissiveValidator())
-    discard await kad2.putValue(entryKey, entryVal, some(1))
+    discard await kad2.putValue(puttedData.toKey(), entryVal, some(1))
     doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
 
   asyncTest "Good Time":
@@ -115,7 +115,7 @@ suite "KadDHT - PutVal":
     let puttedData = kad1.rtable.selfId.getBytes()
     let entryVal = EntryValue.init(puttedData)
     let entryKey = EntryKey.init(puttedData)
-    discard await kad2.putValue(entryKey, entryVal, some(1))
+    discard await kad2.putValue(puttedData.toKey(), entryVal, some(1))
 
     let time: string = kad1.dataTable.entries[entryKey].time.ts
 
@@ -141,14 +141,14 @@ suite "KadDHT - PutVal":
     let puttedData = kad1.rtable.selfId.getBytes()
     let entryVal = EntryValue.init(puttedData)
     let entryKey = EntryKey.init(puttedData)
-    discard await kad1.putValue(entryKey, entryVal, some(1))
+    discard await kad1.putValue(puttedData.toKey(), entryVal, some(1))
     doAssert(len(kad2.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
     doAssert(kad2.dataTable.entries[entryKey].value.data == entryVal.data)
-    discard await kad1.putValue(entryKey, EntryValue.init(@[]), some(1))
+    discard await kad1.putValue(puttedData.toKey(), EntryValue.init(@[]), some(1))
     doAssert(kad2.dataTable.entries[entryKey].value.data == entryVal.data)
     kad2.setSelector(CandSelector())
     kad1.setSelector(CandSelector())
-    discard await kad1.putValue(entryKey, EntryValue.init(@[]), some(1))
+    discard await kad1.putValue(puttedData.toKey(), EntryValue.init(@[]), some(1))
     doAssert(
       kad2.dataTable.entries[entryKey].value == EntryValue.init(@[]),
       fmt"{kad2.dataTable.entries}",

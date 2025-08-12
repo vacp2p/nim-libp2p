@@ -68,7 +68,7 @@ proc init*(
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
-    self: EntryValidator, key: keys.Key, val: EntryValue
+    self: EntryValidator, key: EntryKey, val: EntryValue
 ): bool {.base, raises: [], gcsafe.} =
   doAssert(false, "unimplimented base method")
 
@@ -161,14 +161,14 @@ proc dispatchPutVal(
 proc putValue*(
     kad: KadDHT, key: keys.Key, value: EntryValue, timeout: Option[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let entKey = EntryKey.init(key.getByte())
-  if not kad.entryValidator.isValid(key, value):
+  let entKey = EntryKey.init(key.getBytes())
+  if not kad.entryValidator.isValid(entKey, value):
     return err("invalid key/value pair")
 
   try:
     let others: seq[EntryRecord] =
-      if key in kad.dataTable.entries:
-        @[kad.dataTable.entries[key]]
+      if entKey in kad.dataTable.entries:
+        @[kad.dataTable.entries[entKey]]
       else:
         @[]
 
@@ -179,9 +179,9 @@ proc putValue*(
     trace "local putval",
       candidate = candAsRec, others = others, selected = confirmedRec
     # let confirmedEnt = EntryCandidate(key: key, value: confirmedRec.value)
-    let validEnt = ValidatedEntry.init(key, confirmedRec.value)
+    let validEnt = ValidatedEntry.init(entKey, confirmedRec.value)
 
-    let peers = await kad.findNode(key.data.toKey())
+    let peers = await kad.findNode(key)
     # We first prime the sends so the data is ready to go
     let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, validEnt))
     # then we do the `move`, as insert takes the data as `sink`
