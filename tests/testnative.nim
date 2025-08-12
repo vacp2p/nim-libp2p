@@ -34,7 +34,7 @@ import
   testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
   testhpservice, testutility, testhelpers, testwildcardresolverservice, testperf
 
-import kademlia/[testencoding, testroutingtable, testfindnode]
+import kademlia/[testencoding, testroutingtable, testfindnode, testputval]
 
 when defined(libp2p_autotls_support):
   import testautotls

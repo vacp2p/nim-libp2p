@@ -1,0 +1,24 @@
+name: Generate Plots
+description: "Set up Python and run script to generate plots with Docker Stats"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install matplotlib
+
+    - name: Plot Docker Stats
+      shell: bash
+      run: python performance/scripts/plot_docker_stats.py
+
+    - name: Plot Latency History
+      shell: bash
+      run: python performance/scripts/plot_latency_history.py
