@@ -28,7 +28,7 @@ proc new*(T: typedesc[Perf]): T {.public.} =
   proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "Received benchmark performance check", conn
-      
+
       var uploadSizeBuffer: array[8, byte]
       await conn.readExactly(addr uploadSizeBuffer[0], 8)
       var uploadSize = uint64.fromBytesBE(uploadSizeBuffer)
@@ -41,7 +41,7 @@ proc new*(T: typedesc[Perf]): T {.public.} =
             break
         except LPStreamEOFError:
           break
-    
+
       var writeBuffer: array[PerfSize, byte]
       while uploadSize > 0:
         let toWrite = min(uploadSize, PerfSize)
