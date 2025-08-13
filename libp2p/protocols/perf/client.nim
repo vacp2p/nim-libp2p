@@ -46,7 +46,6 @@ proc perf*(
     let start = Moment.now()
 
     await conn.write(toSeq(toBytesBE(sizeToRead)))
-    await conn.write(toSeq(toBytesBE(sizeToWrite)))
     while size > 0:
       let toWrite = min(size, PerfSize)
       await conn.write(buf[0 ..< toWrite])

@@ -34,26 +34,12 @@ proc new*(T: typedesc[Perf]): T {.public.} =
       await conn.readExactly(addr sizeBuffer[0], 8)
       size = uint64.fromBytesBE(sizeBuffer)
 
-      var uploadSizeBuffer: array[8, byte]
-      await conn.readExactly(addr uploadSizeBuffer[0], 8)
-
-      # Read exact amount with fallback to EOF for half-close compatibility
-      # Doesn't quite match perf, but without this the quic test is flaky.
-      # Sometimes a deadlock occurs
-      # TODO: Remove it
-      let uploadSize = uint64.fromBytesBE(uploadSizeBuffer)
       var toReadBuffer: array[PerfSize, byte]
-      var remainingToRead = uploadSize
-
-      while remainingToRead > 0:
-        let toRead = min(remainingToRead, PerfSize.uint64)
-        let actualRead = await conn.readOnce(addr toReadBuffer[0], toRead.int)
-
+      while true:
+        let actualRead = await conn.readOnce(addr toReadBuffer[0], PerfSize)
         if actualRead == 0:
           break
-
         bytesRead += actualRead
-        remainingToRead -= actualRead.uint64
 
       var buf: array[PerfSize, byte]
       while size > 0:
