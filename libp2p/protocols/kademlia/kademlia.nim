@@ -152,7 +152,7 @@ proc findNode*(
   # TODO: should it return a single peer instead? read spec
 
   var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
-  var state = LookupState.init(targetId, initialPeers)
+  var state = LookupState.init(targetId, initialPeers, kad.rtable.hasher)
   var addrTable: Table[PeerId, seq[MultiAddress]] =
     initTable[PeerId, seq[MultiAddress]]()
 
@@ -189,6 +189,7 @@ proc findNode*(
           kad.switch.peerStore[AddressBook][p.peerId] = p.addrs
           # TODO: add TTL to peerstore, otherwise we can spam it with junk
         ,
+        kad.rtable.hasher,
       )
 
     for timedOut in timedOutPeers:
@@ -252,7 +253,7 @@ proc new*(
     entrySelector: EntrySelector,
     rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
-  var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey())
+  var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
   let kad = T(
     rng: rng,
     switch: switch,

@@ -2,8 +2,27 @@ import ./consts
 import ./keys
 import nimcrypto/sha2
 import ../../peerid
+import results
 
 type XorDistance* = array[IdLength, byte]
+type XorDHasher* = proc(input: seq[byte]): array[IdLength, byte] {.
+  raises: [], nimcall, noSideEffect, gcsafe
+.}
+
+proc defaultHasher(
+    input: seq[byte]
+): array[IdLength, byte] {.raises: [], nimcall, noSideEffect, gcsafe.} =
+  return sha256.digest(input).data
+
+# useful for testing purposes
+proc noOpHasher*(
+    input: seq[byte]
+): array[IdLength, byte] {.raises: [], nimcall, noSideEffect, gcsafe.} =
+  var data: array[IdLength, byte]
+  for i in 0 ..< min(IdLength, input.len):
+    # memcopy instead?
+    data[i] = input[i]
+  return data
 
 proc countLeadingZeroBits*(b: byte): int =
   for i in 0 .. 7:
@@ -31,25 +50,23 @@ proc `<`*(a, b: XorDistance): bool =
 proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
-proc hashFor(k: Key): seq[byte] =
+proc hashFor(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
   return
     @(
       case k.kind
       of KeyType.PeerId:
-        sha256.digest(k.peerId.getBytes()).data
+        hasher.get(defaultHasher)(k.peerId.getBytes())
       of KeyType.Raw:
-        sha256.digest(k.data).data
-      of KeyType.Unhashed:
-        k.data
+        hasher.get(defaultHasher)(k.data)
     )
 
-proc xorDistance*(a, b: Key): XorDistance =
-  let hashA = a.hashFor()
-  let hashB = b.hashFor()
+proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
+  let hashA = a.hashFor(hasher)
+  let hashB = b.hashFor(hasher)
   var response: XorDistance
   for i in 0 ..< hashA.len:
     response[i] = hashA[i] xor hashB[i]
   return response
 
-proc xorDistance*(a: PeerId, b: Key): XorDistance =
-  xorDistance(a.toKey(), b)
+proc xorDistance*(a: PeerId, b: Key, hasher: Opt[XorDHasher]): XorDistance =
+  xorDistance(a.toKey(), b, hasher)
