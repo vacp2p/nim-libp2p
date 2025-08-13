@@ -1,6 +1,7 @@
 import chronos
 import chronicles
 import sequtils
+import sets
 import ../../peerid
 import ./consts
 import ./dhttypes
@@ -149,7 +150,6 @@ proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   #debug "findNode", target = target
-  # TODO: should it return a single peer instead? read spec
 
   var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
   var state = LookupState.init(targetId, initialPeers)
@@ -186,7 +186,12 @@ proc findNode*(
         msg,
         proc(p: PeerInfo) =
           discard kad.rtable.insert(p.peerId)
-          kad.switch.peerStore[AddressBook][p.peerId] = p.addrs
+          # Nodes might return different addresses for a peer, so we append instead of replacing
+          var existingAddresses =
+            kad.switch.peerStore[AddressBook][p.peerId].toHashSet()
+          for a in p.addrs:
+            existingAddresses.incl(a)
+          kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
           # TODO: add TTL to peerstore, otherwise we can spam it with junk
         ,
       )
@@ -198,6 +203,24 @@ proc findNode*(
     state.done = checkConvergence(state, kad.switch.peerInfo.peerId)
 
   return state.selectClosestK()
+
+proc findPeer*(
+    kad: KadDHT, peer: PeerId
+): Future[Result[PeerInfo, string]] {.async: (raises: [CancelledError]).} =
+  if kad.switch.peerInfo.peerId == peer:
+    return err("can't look for node itself")
+
+  let peerKey = peer.toKey()
+
+  if kad.switch.isConnected(peer):
+    # Return known info about already connected peer
+    return ok(PeerInfo(peerId: peer, addrs: kad.switch.peerStore[AddressBook][peer]))
+
+  let foundNodes = await kad.findNode(peerKey)
+  if foundNodes.len == 0 or not foundNodes.contains(peer):
+    return err("peer not found")
+
+  return ok(PeerInfo(peerId: peer, addrs: kad.switch.peerStore[AddressBook][peer]))
 
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
   let ready = state.activeQueries == 0
@@ -282,7 +305,11 @@ proc new*(
           let targetId = PeerId.init(targetIdBytes).valueOr:
             error "findNode message without valid key data", msg = msg, conn = conn
             return
-          let closerPeers = kad.rtable.findClosest(targetId.toKey(), DefaultReplic)
+          let closerPeers = kad.rtable
+            .findClosest(targetId.toKey(), DefaultReplic)
+            # exclude the node requester because telling a peer about itself does not reduce the distance,
+            .filterIt(it != conn.peerId.toKey())
+
           let responsePb = encodeFindNodeReply(closerPeers, switch)
           await conn.writeLp(responsePb.buffer)
 

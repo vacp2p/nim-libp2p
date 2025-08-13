@@ -144,3 +144,34 @@ suite "KadDHT - FindNode":
     await broSwitch.stop()
     await sisSwitch.stop()
     await neiceSwitch.stop()
+
+
+  asyncTest "Find peer":
+    let aliceSwitch = createSwitch()
+    let aliceKad = KadDHT.new(aliceSwitch, PermissiveValidator(), CandSelector())
+    aliceSwitch.mount(aliceKad)
+    await aliceSwitch.start()
+
+    let bobSwitch = createSwitch()
+    let bobKad = KadDHT.new(bobSwitch, PermissiveValidator(), CandSelector())
+    bobSwitch.mount(bobKad)
+    await bobSwitch.start()
+
+    let charlieSwitch = createSwitch()
+    let charlieKad = KadDHT.new(charlieSwitch, PermissiveValidator(), CandSelector())
+    charlieSwitch.mount(charlieKad)
+    await charlieSwitch.start()
+
+    await bobKad.bootstrap(@[aliceSwitch.peerInfo])
+    await charlieKad.bootstrap(@[aliceSwitch.peerInfo])
+
+    let peerInfoRes = await bobKad.findPeer(charlieSwitch.peerInfo.peerId)
+    doAssert peerInfoRes.isOk
+    doAssert peerInfoRes.get().peerId == charlieSwitch.peerInfo.peerId
+
+    let peerInfoRes2 = await bobKad.findPeer(PeerId.random(newRng()).get())
+    doAssert peerInfoRes2.isErr
+
+    await aliceSwitch.stop()
+    await bobSwitch.stop()
+    await charlieSwitch.stop()
