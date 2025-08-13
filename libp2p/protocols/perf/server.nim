@@ -35,10 +35,13 @@ proc new*(T: typedesc[Perf]): T {.public.} =
 
       var readBuffer: array[PerfSize, byte]
       while not conn.atEof:
-        let readBytes = await conn.readOnce(addr readBuffer[0], PerfSize)
-        if readBytes == 0:
+        try:
+          let readBytes = await conn.readOnce(addr readBuffer[0], PerfSize)
+          if readBytes == 0:
+            break
+        except LPStreamEOFError:
           break
-
+    
       var writeBuffer: array[PerfSize, byte]
       while uploadSize > 0:
         let toWrite = min(uploadSize, PerfSize)
