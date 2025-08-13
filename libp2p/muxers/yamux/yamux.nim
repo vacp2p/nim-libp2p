@@ -217,7 +217,7 @@ method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
         discard
     await channel.actuallyClose()
 
-proc clearQueues(channel: YamuxChannel, error: ref CatchableError = nil) =
+proc clearQueues(channel: YamuxChannel, error: ref LPStreamEOFError = nil) =
   for toSend in channel.sendQueue:
     if error.isNil():
       toSend.fut.complete()

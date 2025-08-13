@@ -212,11 +212,9 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     trace "Stopping WS transport"
     await procCall Transport(self).stop() # call base
 
-    checkFutures(
-      await allFinished(
-        self.connections[Direction.In].mapIt(it.close()) &
-          self.connections[Direction.Out].mapIt(it.close())
-      )
+    discard await allFinished(
+      self.connections[Direction.In].mapIt(it.close()) &
+        self.connections[Direction.Out].mapIt(it.close())
     )
 
     var toWait: seq[Future[void]]
