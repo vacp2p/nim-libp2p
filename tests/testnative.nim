@@ -31,8 +31,9 @@ import
   testnameresolve, testmultistream, testbufferstream, testidentify,
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
-  testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
-  testhpservice, testutility, testhelpers, testwildcardresolverservice, testperf
+  testdiscovery, testyamux, testyamuxheader, testautonat, testautonatservice,
+  testautorelay, testdcutr, testhpservice, testutility, testhelpers,
+  testwildcardresolverservice, testperf
 
 import kademlia/[testencoding, testroutingtable, testfindnode]
 
