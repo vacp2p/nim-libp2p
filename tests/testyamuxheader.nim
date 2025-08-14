@@ -131,6 +131,7 @@ suite "Yamux Header Tests":
       length = 100
     let cases: seq[(set[MsgFlags], uint8)] =
       @[
+        ({}, 0'u8),
         ({Syn}, 1'u8),
         ({Ack}, 2'u8),
         ({Syn, Ack}, 3'u8),
