@@ -11,7 +11,6 @@ import ../../libp2p/protocols/kademlia
 import ../../libp2p/protocols/kademlia/kademlia
 import ../../libp2p/protocols/kademlia/routingtable
 import ../../libp2p/protocols/kademlia/keys
-import ../../libp2p/protocols/kademlia/xordistance
 import unittest2
 import ../utils/async_tests
 import ./utils.nim
