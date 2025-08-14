@@ -159,9 +159,8 @@ proc dispatchPutVal(
       msg = msg, reply = reply, conn = conn
 
 proc putValue*(
-    kad: KadDHT, key: keys.Key, value: EntryValue, timeout: Option[int]
+    kad: KadDHT, entKey: EntryKey, value: EntryValue, timeout: Option[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let entKey = EntryKey.init(key.getBytes())
   if not kad.entryValidator.isValid(entKey, value):
     return err("invalid key/value pair")
 
@@ -181,7 +180,7 @@ proc putValue*(
     # let confirmedEnt = EntryCandidate(key: key, value: confirmedRec.value)
     let validEnt = ValidatedEntry.init(entKey, confirmedRec.value)
 
-    let peers = await kad.findNode(key)
+    let peers = await kad.findNode(entKey.data.toKey())
     # We first prime the sends so the data is ready to go
     let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, validEnt))
     # then we do the `move`, as insert takes the data as `sink`
