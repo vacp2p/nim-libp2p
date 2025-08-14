@@ -177,7 +177,7 @@ proc putValue*(
       return err(error)
     trace "local putval",
       candidate = candAsRec, others = others, selected = confirmedRec
-    # let confirmedEnt = EntryCandidate(key: key, value: confirmedRec.value)
+
     let validEnt = ValidatedEntry.init(entKey, confirmedRec.value)
 
     let peers = await kad.findNode(entKey.data.toKey())
