@@ -16,9 +16,10 @@ include ../libp2p/muxers/yamux/yamux
 
 proc readBytes(bytes: array[12, byte]): Future[YamuxHeader] {.async.} =
   let bs = BufferStream.new()
-  await bs.pushData(@bytes)
   defer:
     await bs.close()
+
+  await bs.pushData(@bytes)
 
   return await readHeader(bs)
 
@@ -57,8 +58,8 @@ suite "Yamux Header Tests":
     let windowEncoded = windowUpdateHeader.encode()
 
     # [version == 0, msgType, flags_high, flags_low, 4x streamId_bytes, 4x delta_bytes]
-    # delta == 1000 == 0x03E8, 0xE8 == 232
-    const expected = [byte 0, 1, 0, 1, 0, 0, 0, streamId.byte, 0, 0, 3, 232]
+    # delta == 1000 == 0x03E8
+    const expected = [byte 0, 1, 0, 1, 0, 0, 0, streamId.byte, 0, 0, 0x03, 0xE8]
     check:
       windowEncoded == expected
 
