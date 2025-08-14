@@ -217,7 +217,11 @@ method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
         discard
     await channel.actuallyClose()
 
-proc clearQueues(channel: YamuxChannel, error: ref CatchableError = nil) =
+method closeWrite*(channel: YamuxChannel) {.async: (raises: []).} =
+  ## For yamux, closeWrite is the same as close - it implements half-close
+  await channel.close()
+
+proc clearQueues(channel: YamuxChannel, error: ref LPStreamEOFError = nil) =
   for toSend in channel.sendQueue:
     if error.isNil():
       toSend.fut.complete()

@@ -8,6 +8,7 @@ import ./xordistance
 import ../../peerid
 import sequtils
 import ../../utils/sequninit
+import results
 
 logScope:
   topics = "kad-dht rtable"
@@ -23,15 +24,16 @@ type
   RoutingTable* = ref object
     selfId*: Key
     buckets*: seq[Bucket]
+    hasher*: Opt[XorDHasher]
 
 proc `$`*(rt: RoutingTable): string =
   "selfId(" & $rt.selfId & ") buckets(" & $rt.buckets & ")"
 
-proc init*(T: typedesc[RoutingTable], selfId: Key): T =
-  return RoutingTable(selfId: selfId, buckets: @[])
+proc init*(T: typedesc[RoutingTable], selfId: Key, hasher: Opt[XorDHasher]): T =
+  return RoutingTable(selfId: selfId, buckets: @[], hasher: hasher)
 
-proc bucketIndex*(selfId, key: Key): int =
-  return xorDistance(selfId, key).leadingZeros
+proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
+  return xorDistance(selfId, key, hasher).leadingZeros
 
 proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -43,7 +45,7 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
     return false # No self insertion
 
-  let idx = bucketIndex(rtable.selfId, nodeId)
+  let idx = bucketIndex(rtable.selfId, nodeId, rtable.hasher)
   if idx >= maxBuckets:
     trace "cannot insert node. max buckets have been reached",
       nodeId, bucketIdx = idx, maxBuckets
@@ -80,7 +82,9 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 
   allNodes.sort(
     proc(a, b: Key): int =
-      cmp(xorDistance(a, targetId), xorDistance(b, targetId))
+      cmp(
+        xorDistance(a, targetId, rtable.hasher), xorDistance(b, targetId, rtable.hasher)
+      )
   )
 
   return allNodes[0 ..< min(count, allNodes.len)]
