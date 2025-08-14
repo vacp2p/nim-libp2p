@@ -48,9 +48,12 @@ suite "Yamux Header Tests":
       headerDecoded.length == length
 
   asyncTest "Window update":
-    const streamId = 5
+    const
+      streamId = 5
+      delta = 1000
+      flags = {Syn}
     let windowUpdateHeader =
-      YamuxHeader.windowUpdate(streamId = streamId, delta = 1000, {Syn})
+      YamuxHeader.windowUpdate(streamId = streamId, delta = delta, flags)
     let windowEncoded = windowUpdateHeader.encode()
 
     # [version == 0, msgType, flags_high, flags_low, 4x streamId_bytes, 4x delta_bytes]
@@ -63,9 +66,9 @@ suite "Yamux Header Tests":
     check:
       windowDecoded.version == 0
       windowDecoded.msgType == MsgType.WindowUpdate
-      windowDecoded.flags == {Syn}
+      windowDecoded.flags == flags
       windowDecoded.streamId == streamId
-      windowDecoded.length == 1000
+      windowDecoded.length == delta
 
   asyncTest "Ping":
     let pingHeader = YamuxHeader.ping(MsgFlags.Syn, 0x12345678'u32)
@@ -154,9 +157,9 @@ suite "Yamux Header Tests":
 
   asyncTest "Boundary conditions":
     # Test maximum values
-    let maxHeader = YamuxHeader.data(
-      streamId = uint32.high, length = uint32.high, {Syn, Ack, Fin, Rst}
-    )
+    const maxFlags = {Syn, Ack, Fin, Rst}
+    let maxHeader =
+      YamuxHeader.data(streamId = uint32.high, length = uint32.high, maxFlags)
     let maxEncoded = maxHeader.encode()
 
     const maxExpected = [byte 0, 0, 0, 15, 255, 255, 255, 255, 255, 255, 255, 255]
@@ -167,7 +170,7 @@ suite "Yamux Header Tests":
     check:
       maxDecoded.version == 0
       maxDecoded.msgType == MsgType.Data
-      maxDecoded.flags == {Syn, Ack, Fin, Rst}
+      maxDecoded.flags == maxFlags
       maxDecoded.streamId == uint32.high
       maxDecoded.length == uint32.high
 
@@ -304,7 +307,7 @@ suite "Yamux Header Tests":
     let dec = await readBytes(enc)
     check dec.streamId == streamId
 
-  asyncTest "GoAway: unknown status code is preserved":
+  asyncTest "GoAway unknown status code is preserved":
     let valid = YamuxHeader.goAway(GoAwayStatus.NormalTermination).encode()
     var mutated = valid
     # Set the GoAway code (last byte) to 255, which is not a known GoAwayStatus
