@@ -33,7 +33,8 @@ proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
 suite "KadDHT - FindNode":
   teardown:
     checkTrackers()
-  asyncTest "Simple find peer":
+
+  asyncTest "Simple find node":
     let swarmSize = 3
     var switches: seq[Switch]
     var kads: seq[KadDHT]
@@ -81,7 +82,7 @@ suite "KadDHT - FindNode":
         )
     await switches.mapIt(it.stop()).allFutures()
 
-  asyncTest "Relay find peer":
+  asyncTest "Relay find node":
     let parentSwitch = createSwitch()
     let parentKad = KadDHT.new(parentSwitch, PermissiveValidator(), CandSelector())
     parentSwitch.mount(parentKad)
@@ -144,7 +145,6 @@ suite "KadDHT - FindNode":
     await broSwitch.stop()
     await sisSwitch.stop()
     await neiceSwitch.stop()
-
 
   asyncTest "Find peer":
     let aliceSwitch = createSwitch()

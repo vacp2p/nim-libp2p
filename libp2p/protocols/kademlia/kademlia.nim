@@ -146,9 +146,13 @@ proc putValue*(
 
 # Helper function forward declaration
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.}
+
 proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
+  ## Node lookup. Iteratively search for the k closest peers to a target ID.
+  ## Not necessarily will return the target itself
+
   #debug "findNode", target = target
 
   var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
@@ -207,17 +211,18 @@ proc findNode*(
 proc findPeer*(
     kad: KadDHT, peer: PeerId
 ): Future[Result[PeerInfo, string]] {.async: (raises: [CancelledError]).} =
-  if kad.switch.peerInfo.peerId == peer:
-    return err("can't look for node itself")
+  ## Walks the key space until it finds candidate addresses for a peer Id
 
-  let peerKey = peer.toKey()
+  if kad.switch.peerInfo.peerId == peer:
+    # Looking for yourself.
+    return ok(kad.switch.peerInfo)
 
   if kad.switch.isConnected(peer):
     # Return known info about already connected peer
     return ok(PeerInfo(peerId: peer, addrs: kad.switch.peerStore[AddressBook][peer]))
 
-  let foundNodes = await kad.findNode(peerKey)
-  if foundNodes.len == 0 or not foundNodes.contains(peer):
+  let foundNodes = await kad.findNode(peer.toKey())
+  if not foundNodes.contains(peer):
     return err("peer not found")
 
   return ok(PeerInfo(peerId: peer, addrs: kad.switch.peerStore[AddressBook][peer]))
