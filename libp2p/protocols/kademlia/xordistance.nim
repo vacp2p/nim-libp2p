@@ -1,4 +1,5 @@
 import ./consts
+import stew/arrayOps
 import ./keys
 import nimcrypto/sha2
 import ../../peerid
@@ -19,9 +20,7 @@ proc noOpHasher*(
     input: seq[byte]
 ): array[IdLength, byte] {.raises: [], nimcall, noSideEffect, gcsafe.} =
   var data: array[IdLength, byte]
-  for i in 0 ..< min(IdLength, input.len):
-    # memcopy instead?
-    data[i] = input[i]
+  discard data.copyFrom(input)
   return data
 
 proc countLeadingZeroBits*(b: byte): int =
