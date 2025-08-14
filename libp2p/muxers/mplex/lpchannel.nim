@@ -150,6 +150,10 @@ method close*(s: LPChannel) {.async: (raises: []).} =
 
   trace "Closed channel", s, len = s.len
 
+method closeWrite*(s: LPChannel) {.async: (raises: []).} =
+  ## For mplex, closeWrite is the same as close - it implements half-close
+  await s.close()
+
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:
     s.objName = LPChannelTrackerName

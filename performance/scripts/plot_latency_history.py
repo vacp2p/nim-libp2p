@@ -41,12 +41,18 @@ def parse_latency_csv(csv_files):
 
 
 def plot_latency_history(pr_numbers, scenario_data, output_path):
+    if not pr_numbers or not scenario_data:
+        print("No PR latency data found; skipping plot generation.")
+        return
+    
     num_scenarios = len(scenario_data)
     fig, axes = plt.subplots(num_scenarios, 1, figsize=(14, 4 * num_scenarios), sharex=True)
     if num_scenarios == 1:
         axes = [axes]
 
     color_map = plt.colormaps.get_cmap("tab10")
+
+    x_positions = list(range(len(pr_numbers)))
 
     for i, (scenario, pr_stats) in enumerate(scenario_data.items()):
         ax = axes[i]
@@ -57,14 +63,14 @@ def plot_latency_history(pr_numbers, scenario_data, output_path):
         color = color_map(i % color_map.N)
 
         if any(v is not None for v in avg_vals):
-            ax.plot(pr_numbers, avg_vals, marker="o", label="Avg Latency (ms)", color=color)
-            ax.fill_between(pr_numbers, min_vals, max_vals, color=color, alpha=0.2, label="Min-Max Latency (ms)")
-            for pr, avg, minv, maxv in zip(pr_numbers, avg_vals, min_vals, max_vals):
+            ax.plot(x_positions, avg_vals, marker="o", label="Avg Latency (ms)", color=color)
+            ax.fill_between(x_positions, min_vals, max_vals, color=color, alpha=0.2, label="Min-Max Latency (ms)")
+            for x, avg, minv, maxv in zip(x_positions, avg_vals, min_vals, max_vals):
                 if avg is not None:
-                    ax.scatter(pr, avg, color=color)
-                    ax.text(pr, avg, f"{avg:.3f}", fontsize=14, ha="center", va="bottom")
+                    ax.scatter(x, avg, color=color)
+                    ax.text(x, avg, f"{avg:.3f}", fontsize=14, ha="center", va="bottom")
                 if minv is not None and maxv is not None:
-                    ax.vlines(pr, minv, maxv, color=color, alpha=0.5)
+                    ax.vlines(x, minv, maxv, color=color, alpha=0.5)
 
             ax.set_ylabel("Latency (ms)")
             ax.set_title(f"Scenario: {scenario}")
@@ -73,7 +79,7 @@ def plot_latency_history(pr_numbers, scenario_data, output_path):
 
     # Set X axis ticks and labels to show all PR numbers as 'PR <number>'
     axes[-1].set_xlabel("PR Number")
-    axes[-1].set_xticks(pr_numbers)
+    axes[-1].set_xticks(x_positions)
     axes[-1].set_xticklabels([f"PR {pr}" for pr in pr_numbers], rotation=45, ha="right", fontsize=14)
 
     plt.tight_layout()
@@ -86,7 +92,7 @@ if __name__ == "__main__":
     LATENCY_HISTORY_PATH = os.environ.get("LATENCY_HISTORY_PATH", "performance/output")
     LATENCY_HISTORY_PREFIX = os.environ.get("LATENCY_HISTORY_PREFIX", "pr")
     LATENCY_HISTORY_PLOT_FILENAME = os.environ.get("LATENCY_HISTORY_PLOT_FILENAME", "pr")
-    glob_pattern = os.path.join(LATENCY_HISTORY_PATH, f"{LATENCY_HISTORY_PREFIX}*_latency.csv")
+    glob_pattern = os.path.join(LATENCY_HISTORY_PATH, f"{LATENCY_HISTORY_PREFIX}[0-9]*_latency.csv")
     csv_files = sorted(glob.glob(glob_pattern))
     pr_numbers, scenario_data = parse_latency_csv(csv_files)
     output_path = os.path.join(LATENCY_HISTORY_PATH, LATENCY_HISTORY_PLOT_FILENAME)
