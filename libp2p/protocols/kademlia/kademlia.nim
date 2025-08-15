@@ -273,8 +273,9 @@ proc bootstrap*(
           chronos.seconds(5)
         )
       except CatchableError as e:
-        error "In the future, this will be a Result instead of exception", err = e.msg
-        return
+        debug "send find node exception during bootstrap",
+          target = b.peerId, addrs = b.addrs, err = e.msg
+        continue
     for peer in msg.closerPeers:
       let p = PeerId.init(peer.id).valueOr:
         debug "invalid peer id received", error = error
