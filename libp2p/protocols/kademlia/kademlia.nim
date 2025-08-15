@@ -265,7 +265,7 @@ proc bootstrap*(
     except DialFailedError as e:
       # at some point will want to bubble up a Result[void, SomeErrorEnum]
       error "failed to dial to bootstrap peer", peerId = b.peerId, error = e.msg
-      return
+      continue
 
     let msg =
       try:
@@ -277,9 +277,8 @@ proc bootstrap*(
         return
     for peer in msg.closerPeers:
       let p = PeerId.init(peer.id).valueOr:
-        debug "error", error = error
-        doAssert(false, "this should never happen")
-        return
+        debug "invalid peer id received", error = error
+        continue
       discard kad.rtable.insert(p)
       try:
         kad.switch.peerStore[AddressBook][p] = peer.addrs
@@ -288,8 +287,6 @@ proc bootstrap*(
 
     # bootstrap node replied succesfully. Adding to routing table
     discard kad.rtable.insert(b.peerId)
-    # except CatchableError as e:
-    #   error "bootstrap failed for peer", peerId = b.peerId, exc = e.msg
 
   let key = PeerId.random(kad.rng).valueOr:
     doAssert(false, "this should never happen")
@@ -373,7 +370,7 @@ proc new*(
         let key = EntryKey.init(skey)
         let value = EntryValue.init(svalue)
 
-        # Value sanatisation done. Start insertion process
+        # Value sanitisation done. Start insertion process
         if not kad.entryValidator.isValid(key, value):
           return
 
