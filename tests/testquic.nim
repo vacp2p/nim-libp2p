@@ -174,3 +174,36 @@ suite "Quic transport":
 
     # run multiple clients simultainiously
     await allFutures(runClient(), runClient(), runClient())
+
+    asyncTest "read/write Lp":
+      proc serverHandler(
+          server: QuicTransport
+      ) {.async: (raises: [transport.TransportError, LPStreamError, CancelledError]).} =
+        while true:
+          let conn =
+            try:
+              await server.accept()
+            except QuicTransportAcceptStopped:
+              return # Transport is stopped
+          if conn == nil:
+            continue
+
+          let stream = await getStream(QuicSession(conn), Direction.In)
+          check (await stream.readLp(100)) == fromHex("1234")
+          await stream.writeLp(fromHex("5678"))
+          await stream.close()
+
+      proc runClient(server: QuicTransport) {.async.} =
+        let client = await createTransport()
+        let conn = await client.dial("", server.addrs[0])
+        let stream = await getStream(QuicSession(conn), Direction.Out)
+        await stream.writeLp(fromHex("1234"))
+        check (await stream.readLp(100)) == fromHex("5678")
+        await client.stop()
+
+      let server = await createTransport()
+      asyncSpawn serverHandler(server)
+      defer:
+        await server.stop()
+
+      await runClient(server)
