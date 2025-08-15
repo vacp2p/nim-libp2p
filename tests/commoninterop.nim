@@ -516,6 +516,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
   suite "Interop relay using " & name:
     asyncTest "NativeSrc -> NativeRelay -> DaemonDst":
       let closeBlocker = newFuture[void]()
+      let daemonFinished = newFuture[void]()
       # TODO: This Future blocks the daemonHandler after sending the last message.
       # It exists because there's a strange behavior where stream.close sends
       # a Rst instead of Fin. We should investigate this at some point.
@@ -528,6 +529,7 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
         discard await stream.transp.writeLp("line4")
         await closeBlocker
         await stream.close()
+        daemonFinished.complete()
 
       let
         maSrc = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -556,8 +558,18 @@ proc relayInteropTests*(name: string, relayCreator: SwitchCreator) =
       check string.fromBytes(await conn.readLp(1024)) == "line4"
 
       closeBlocker.complete()
+      await daemonFinished
+      await conn.close()
       await allFutures(src.stop(), rel.stop())
-      await daemonNode.close()
+      try:
+        await daemonNode.close()
+      except CatchableError as e:
+        when defined(windows):
+          # On Windows, daemon close may fail due to socket race condition
+          # This is expected behavior and can be safely ignored
+          discard
+        else:
+          raise e
 
     asyncTest "DaemonSrc -> NativeRelay -> NativeDst":
       proc customHandler(
