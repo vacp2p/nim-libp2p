@@ -243,10 +243,14 @@ suite "GossipSub Integration - Control Messages":
     # When an IHAVE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
-    await waitForHeartbeat()
 
-    # Then the peer has the message ID
+    # Wait until IHAVE response is received
+    checkUntilTimeout:
+      receivedIHaves[].len == 1
+
+    # Then the peer has exactly one IHAVE message with the correct message ID
     check:
+      receivedIHaves[].len == 1
       receivedIHaves[0] == ControlIHave(topicID: topic, messageIDs: @[messageID])
 
   asyncTest "IWANT messages correctly request messages by their IDs":
@@ -281,10 +285,14 @@ suite "GossipSub Integration - Control Messages":
     # When an IWANT message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
-    await waitForHeartbeat()
 
-    # Then the peer has the message ID 
+    # Wait until IWANT response is received
+    checkUntilTimeout:
+      receivedIWants[].len == 1
+
+    # Then the peer has exactly one IWANT message with the correct message ID
     check:
+      receivedIWants[].len == 1
       receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
@@ -316,10 +324,14 @@ suite "GossipSub Integration - Control Messages":
     # When an IHAVE message is sent from node0
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
-    await waitForHeartbeat()
 
-    # Then node0 should receive an IWANT message from node1 (as node1 doesn't have the message)
+    # Wait until IWANT response is received
+    checkUntilTimeout:
+      receivedIWants[].len == 1
+
+    # Then node0 should receive exactly one IWANT message from node1
     check:
+      receivedIWants[].len == 1
       receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IDONTWANT":
