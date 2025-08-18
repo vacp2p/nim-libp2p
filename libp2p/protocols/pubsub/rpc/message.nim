@@ -41,15 +41,36 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
   ok((?privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())
 
+proc extractPublicKey(m: Message): Opt[PublicKey] =
+  var pubkey: PublicKey
+  if m.fromPeer.hasPublicKey() and m.fromPeer.extractPublicKey(pubkey):
+    Opt.some(pubkey)
+  elif m.key.len > 0 and pubkey.init(m.key):
+    # check if peerId extracted from m.key is the same as m.fromPeer
+    let derivedPeerId = PeerId.init(pubkey).valueOr:
+      warn "could not derive peerId from key field"
+      return Opt.none(PublicKey)
+
+    if derivedPeerId != m.fromPeer:
+      warn "peerId derived from msg.key is not the same as msg.fromPeer",
+        derivedPeerId = derivedPeerId, fromPeer = m.fromPeer
+      return Opt.none(PublicKey)
+    Opt.some(pubkey)
+  else:
+    Opt.none(PublicKey)
+
 proc verify*(m: Message): bool =
-  if m.signature.len > 0 and m.key.len > 0:
+  if m.signature.len > 0:
     var msg = m
     msg.signature = @[]
     msg.key = @[]
 
     var remote: Signature
-    var key: PublicKey
-    if remote.init(m.signature) and key.init(m.key):
+    let key = m.extractPublicKey().valueOr:
+      warn "could not extract public key", msg = m
+      return false
+
+    if remote.init(m.signature):
       trace "verifying signature", remoteSignature = remote
       result = remote.verify(PubSubPrefix & encodeMessage(msg, false), key)
 
