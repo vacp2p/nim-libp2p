@@ -216,8 +216,8 @@ method readVarint*(
       return varint
     if res.error() != VarintError.Incomplete:
       break
-  if true: # can't end with a raise apparently
-    raise (ref InvalidVarintError)(msg: "Cannot parse varint")
+    
+  raise (ref InvalidVarintError)(msg: "Cannot parse varint")
 
 method readLp*(
     s: LPStream, maxSize: int
