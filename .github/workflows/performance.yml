@@ -70,15 +70,15 @@ jobs:
         uses: ./.github/actions/process_stats
 
       - name: Publish history
-        if: github.repository_owner != env.VACP2P
+        if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/publish_history
 
       - name: Generate plots
-        if: github.repository_owner != env.VACP2P
+        if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/generate_plots
 
       - name: Publish plots and add to summary
-        if: github.repository_owner != env.VACP2P
+        if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/publish_plots
 
       - name: Post/Update PR comment
