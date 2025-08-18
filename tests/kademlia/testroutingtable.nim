@@ -12,23 +12,24 @@
 import unittest
 import chronos
 import ../../libp2p/crypto/crypto
-import ../../libp2p/protocols/kademlia/[routingtable, consts, keys]
+import ../../libp2p/protocols/kademlia/[xordistance, routingtable, consts, keys]
+import results
 
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
-  return Key(kind: KeyType.Unhashed, data: buf)
+  return Key(kind: KeyType.Raw, data: @buf)
 
 let rng = crypto.newRng()
 
 suite "routing table":
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId)
+    var rt = RoutingTable.init(selfId, Opt.none(XorDHasher))
     let other = testKey(0b10000000)
     discard rt.insert(other)
 
-    let idx = bucketIndex(selfId, other)
+    let idx = bucketIndex(selfId, other, Opt.none(XorDHasher))
     check:
       rt.buckets.len > idx
       rt.buckets[idx].peers.len == 1
@@ -36,12 +37,11 @@ suite "routing table":
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId)
+    var rt = RoutingTable.init(selfId, Opt.some(noOpHasher))
     let targetBucket = 6
     for _ in 0 ..< DefaultReplic + 5:
       var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
-      kid.kind = KeyType.Unhashed
-        # Overriding so we don't use sha for comparing xor distances
+      kid.kind = KeyType.Raw # Overriding so we don't use sha for comparing xor distances
       discard rt.insert(kid)
 
     check targetBucket < rt.buckets.len
@@ -50,7 +50,7 @@ suite "routing table":
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId)
+    var rt = RoutingTable.init(selfId, Opt.some(noOpHasher))
     let ids = @[testKey(1), testKey(2), testKey(3), testKey(4), testKey(5)]
     for id in ids:
       discard rt.insert(id)
@@ -75,9 +75,8 @@ suite "routing table":
     let selfId = testKey(0)
     let targetBucket = 3
     var rid = randomKeyInBucketRange(selfId, targetBucket, rng)
-    rid.kind = KeyType.Unhashed
-      # Overriding so we don't use sha for comparing xor distances
-    let idx = bucketIndex(selfId, rid)
+    rid.kind = KeyType.Raw # Overriding so we don't use sha for comparing xor distances
+    let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
     check:
       idx == targetBucket
       rid != selfId
