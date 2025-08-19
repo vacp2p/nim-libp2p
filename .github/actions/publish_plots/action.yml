@@ -54,9 +54,11 @@ runs:
         rm -rf $PUBLISH_DIR_PLOTS/$BRANCH_NAME
         mkdir -p $PUBLISH_DIR_PLOTS/$BRANCH_NAME
 
-        cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/
-        cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/
+        # cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/
+        # cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/
         git add $PUBLISH_DIR_PLOTS/*
+
+        git status
 
         if git diff-index --quiet HEAD --; then
           echo "No changes to commit"
