@@ -19,15 +19,27 @@ runs:
         git fetch origin "$PUBLISH_BRANCH_NAME"
         git reset --hard "origin/$PUBLISH_BRANCH_NAME"
 
-        # Remove any branch folder older than two weeks
-        find $PUBLISH_DIR_PLOTS/ -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} +
+        # Remove any branch folder older than 7 days
+        DAYS=7
+        cutoff=$(( $(date +%s) - DAYS*24*3600 ))
+        scan_dir="${PUBLISH_DIR_PLOTS%/}"
+        find "$scan_dir" -mindepth 1 -maxdepth 1 -type d -print0 \
+          | while IFS= read -r -d $'\0' d; do \
+              ts=$(git log -1 --format=%ct -- "$d" 2>/dev/null || true); \
+              if [ -n "$ts" ] && [ "$ts" -le "$cutoff" ]; then \
+                echo "[cleanup] Deleting: $d"; \
+                rm -rf -- "$d"; \
+              fi; \
+            done
 
         rm -rf $PUBLISH_DIR_PLOTS/$BRANCH_NAME
         mkdir -p $PUBLISH_DIR_PLOTS/$BRANCH_NAME
 
-        cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/
-        cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/
-        git add $PUBLISH_DIR_PLOTS/*
+        cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/ 2>/dev/null || true
+        cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/ 2>/dev/null || true
+        git add -A "$PUBLISH_DIR_PLOTS/"
+
+        git status
 
         if git diff-index --quiet HEAD --; then
           echo "No changes to commit"
