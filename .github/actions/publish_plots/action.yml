@@ -26,7 +26,7 @@ runs:
         mkdir -p $PUBLISH_DIR_PLOTS/$BRANCH_NAME
 
         cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/
-        cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/
+        cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/ >/dev/null 2>&1 || true
         git add $PUBLISH_DIR_PLOTS/*
 
         if git diff-index --quiet HEAD --; then

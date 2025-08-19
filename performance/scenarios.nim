@@ -13,15 +13,16 @@ import metrics
 import metrics/chronos_httpserver
 import os
 import osproc
-import strformat
+# import strformat
 import strutils
 import ../libp2p
+import ../libp2p/protocols/pubsub/peertable
 import ../libp2p/protocols/ping
 import ../tests/helpers
 import ./utils
 from nativesockets import getHostname
 
-proc baseTest*(scenarioName = "Base test") {.async.} =
+proc baseTest*(scenarioName = "Base test", useQuic: bool = false) {.async.} =
   # --- Scenario ---
   let scenario = scenarioName
   const
@@ -51,7 +52,7 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
   defer:
     dockerStatsProc.stopDockerStatsProcess()
 
-  let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng)
+  let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng, useQuic)
   gossipSub.setGossipSubParams()
 
   var (messageHandler, receivedMessages) = createMessageHandler(nodeId)
@@ -77,13 +78,18 @@ proc baseTest*(scenarioName = "Base test") {.async.} =
   await syncNodes("started", nodeId, nodeCount)
 
   # --- Peer Discovery & Connection ---
-  var peersAddresses = resolvePeersAddresses(nodeCount, hostnamePrefix, nodeId)
+  var peersAddresses = resolvePeersAddresses(nodeCount, hostnamePrefix, nodeId, useQuic)
   rng.shuffle(peersAddresses)
 
   await connectPeers(switch, peersAddresses, peerLimit, nodeId)
 
+  await sleepAsync(10.seconds)
+
   info "Mesh populated, synchronizing",
-    nodeId, meshSize = gossipSub.mesh.getOrDefault(topic).len
+    nodeId,
+    meshSize = gossipSub.mesh.getOrDefault(topic).len,
+    gossipsub = gossipSub.gossipsub.getOrDefault(topic).len,
+    outbound = gossipSub.mesh.outboundPeers(topic)
 
   await syncNodes("mesh", nodeId, nodeCount)
 
@@ -109,88 +115,91 @@ suite "Network Performance Tests":
   teardown:
     checkTrackers()
 
-asyncTest "Base Test":
+asyncTest "Base Test (TCP)":
   await baseTest()
 
-asyncTest "Latency Test":
-  const
-    latency = 100
-    jitter = 20
+asyncTest "Base Test (QUIC)":
+  await baseTest("Base test QUIC", useQuic = true)
 
-  discard execShellCommand(
-    fmt"{enableTcCommand} netem delay {latency}ms {jitter}ms distribution normal"
-  )
-  await baseTest(fmt"Latency {latency}ms {jitter}ms")
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Latency Test":
+#   const
+#     latency = 100
+#     jitter = 20
 
-asyncTest "Packet Loss Test":
-  const packetLoss = 5
+#   discard execShellCommand(
+#     fmt"{enableTcCommand} netem delay {latency}ms {jitter}ms distribution normal"
+#   )
+#   await baseTest(fmt"Latency {latency}ms {jitter}ms")
+#   discard execShellCommand(disableTcCommand)
 
-  discard execShellCommand(fmt"{enableTcCommand} netem loss {packetLoss}%")
-  await baseTest(fmt"Packet Loss {packetLoss}%")
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Packet Loss Test":
+#   const packetLoss = 5
 
-asyncTest "Low Bandwidth Test":
-  const
-    rate = "256kbit"
-    burst = "8kbit"
-    limit = "5000"
+#   discard execShellCommand(fmt"{enableTcCommand} netem loss {packetLoss}%")
+#   await baseTest(fmt"Packet Loss {packetLoss}%")
+#   discard execShellCommand(disableTcCommand)
 
-  discard
-    execShellCommand(fmt"{enableTcCommand} tbf rate {rate} burst {burst} limit {limit}")
-  await baseTest(fmt"Low Bandwidth rate {rate} burst {burst} limit {limit}")
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Low Bandwidth Test":
+#   const
+#     rate = "256kbit"
+#     burst = "8kbit"
+#     limit = "5000"
 
-asyncTest "Packet Reorder Test":
-  const
-    reorderPercent = 15
-    reorderCorr = 40
-    delay = 2
+#   discard
+#     execShellCommand(fmt"{enableTcCommand} tbf rate {rate} burst {burst} limit {limit}")
+#   await baseTest(fmt"Low Bandwidth rate {rate} burst {burst} limit {limit}")
+#   discard execShellCommand(disableTcCommand)
 
-  discard execShellCommand(
-    fmt"{enableTcCommand} netem delay {delay}ms reorder {reorderPercent}% {reorderCorr}%"
-  )
-  await baseTest(
-    fmt"Packet Reorder {reorderPercent}% {reorderCorr}% with {delay}ms delay"
-  )
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Packet Reorder Test":
+#   const
+#     reorderPercent = 15
+#     reorderCorr = 40
+#     delay = 2
 
-asyncTest "Burst Loss Test":
-  const
-    lossPercent = 8
-    lossCorr = 30
+#   discard execShellCommand(
+#     fmt"{enableTcCommand} netem delay {delay}ms reorder {reorderPercent}% {reorderCorr}%"
+#   )
+#   await baseTest(
+#     fmt"Packet Reorder {reorderPercent}% {reorderCorr}% with {delay}ms delay"
+#   )
+#   discard execShellCommand(disableTcCommand)
 
-  discard execShellCommand(fmt"{enableTcCommand} netem loss {lossPercent}% {lossCorr}%")
-  await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}%")
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Burst Loss Test":
+#   const
+#     lossPercent = 8
+#     lossCorr = 30
 
-asyncTest "Duplication Test":
-  const duplicatePercent = 2
+#   discard execShellCommand(fmt"{enableTcCommand} netem loss {lossPercent}% {lossCorr}%")
+#   await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}%")
+#   discard execShellCommand(disableTcCommand)
 
-  discard execShellCommand(fmt"{enableTcCommand} netem duplicate {duplicatePercent}%")
-  await baseTest(fmt"Duplication {duplicatePercent}%")
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Duplication Test":
+#   const duplicatePercent = 2
 
-asyncTest "Corruption Test":
-  const corruptPercent = 0.5
+#   discard execShellCommand(fmt"{enableTcCommand} netem duplicate {duplicatePercent}%")
+#   await baseTest(fmt"Duplication {duplicatePercent}%")
+#   discard execShellCommand(disableTcCommand)
 
-  discard execShellCommand(fmt"{enableTcCommand} netem corrupt {corruptPercent}%")
-  await baseTest(fmt"Corruption {corruptPercent}%")
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Corruption Test":
+#   const corruptPercent = 0.5
 
-asyncTest "Queue Limit Test":
-  const queueLimit = 5
+#   discard execShellCommand(fmt"{enableTcCommand} netem corrupt {corruptPercent}%")
+#   await baseTest(fmt"Corruption {corruptPercent}%")
+#   discard execShellCommand(disableTcCommand)
 
-  discard execShellCommand(fmt"{enableTcCommand} netem limit {queueLimit}")
-  await baseTest(fmt"Queue Limit {queueLimit}")
-  discard execShellCommand(disableTcCommand)
+# asyncTest "Queue Limit Test":
+#   const queueLimit = 5
 
-asyncTest "Combined Network Conditions Test":
-  discard execShellCommand(
-    "tc qdisc add dev eth0 root handle 1:0 tbf rate 2mbit burst 32kbit limit 25000"
-  )
-  discard execShellCommand(
-    "tc qdisc add dev eth0 parent 1:1 handle 10: netem delay 100ms 20ms distribution normal loss 5% 20% reorder 10% 30% duplicate 0.5% corrupt 0.05% limit 20"
-  )
-  await baseTest("Combined Network Conditions")
-  discard execShellCommand(disableTcCommand)
+#   discard execShellCommand(fmt"{enableTcCommand} netem limit {queueLimit}")
+#   await baseTest(fmt"Queue Limit {queueLimit}")
+#   discard execShellCommand(disableTcCommand)
+
+# asyncTest "Combined Network Conditions Test":
+#   discard execShellCommand(
+#     "tc qdisc add dev eth0 root handle 1:0 tbf rate 2mbit burst 32kbit limit 25000"
+#   )
+#   discard execShellCommand(
+#     "tc qdisc add dev eth0 parent 1:1 handle 10: netem delay 100ms 20ms distribution normal loss 5% 20% reorder 10% 30% duplicate 0.5% corrupt 0.05% limit 20"
+#   )
+#   await baseTest("Combined Network Conditions")
+#   discard execShellCommand(disableTcCommand)

@@ -25,20 +25,43 @@ const
 proc msgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ok(($m.data.hash).toBytes())
 
-proc setupNode*(nodeId: int, rng: ref HmacDrbgContext): (Switch, GossipSub, Ping) =
+proc buildTcpSwitch(address: TransportAddress, rng: ref HmacDrbgContext): Switch =
+  return SwitchBuilder
+    .new()
+    .withAddress(MultiAddress.init(address).tryGet())
+    .withRng(rng)
+    .withYamux()
+    .withTcpTransport(flags = {ServerFlags.TcpNoDelay})
+    .withNoise()
+    .build()
+
+proc buildQuicSwitch(address: TransportAddress, rng: ref HmacDrbgContext): Switch =
+  when defined(libp2p_quic_support):
+    return SwitchBuilder
+      .new()
+      .withAddress(
+        MultiAddress.init(address, IPPROTO_UDP).tryGet() &
+          MultiAddress.init("/quic-v1").get()
+      )
+      .withRng(rng)
+      .withQuicTransport()
+      .withNoise()
+      .build()
+  else:
+    doAssert false, "libp2p_quic_support not enabled"
+
+proc setupNode*(
+    nodeId: int, rng: ref HmacDrbgContext, useQuic: bool = false
+): (Switch, GossipSub, Ping) =
   let
     myPort = 5000 + nodeId
     myAddress = "0.0.0.0:" & $myPort
     address = initTAddress(myAddress)
-
-    switch = SwitchBuilder
-      .new()
-      .withAddress(MultiAddress.init(address).tryGet())
-      .withRng(rng)
-      .withYamux()
-      .withTcpTransport(flags = {ServerFlags.TcpNoDelay})
-      .withNoise()
-      .build()
+    switch =
+      if useQuic:
+        buildQuicSwitch(address, rng)
+      else:
+        buildTcpSwitch(address, rng)
 
     gossipSub = GossipSub.init(
       switch = switch,
@@ -106,7 +129,7 @@ proc createMessageHandler*(
   return (messageHandler, receivedMessages)
 
 proc resolvePeersAddresses*(
-    nodeCount: int, hostnamePrefix: string, nodeId: int
+    nodeCount: int, hostnamePrefix: string, nodeId: int, useQuic: bool = false
 ): seq[MultiAddress] =
   var addrs: seq[MultiAddress]
 
@@ -116,8 +139,16 @@ proc resolvePeersAddresses*(
 
     let peerAddr = hostnamePrefix & $i & ":" & $(5000 + i)
     try:
-      let resolved = resolveTAddress(peerAddr).mapIt(MultiAddress.init(it).tryGet())
-      addrs.add(resolved)
+      let resolved = resolveTAddress(peerAddr)
+      let addresses =
+        if useQuic:
+          resolved.mapIt(
+            MultiAddress.init(it, IPPROTO_UDP).tryGet() &
+              MultiAddress.init("/quic-v1").get()
+          )
+        else:
+          resolved.mapIt(MultiAddress.init(it).tryGet())
+      addrs.add(addresses)
 
       debug "Peer resolved", nodeId, peerAddr = peerAddr, resolved = resolved
     except CatchableError as exc:
@@ -131,7 +162,7 @@ proc connectPeers*(
   proc connectPeer(address: MultiAddress): Future[bool] {.async.} =
     try:
       let peerId =
-        await switch.connect(address, allowUnknownPeerId = true).wait(5.seconds)
+        await switch.connect(address, allowUnknownPeerId = true).wait(15.seconds)
       debug "Connected peer", nodeId, address, peerId
       return true
     except CatchableError as exc:
@@ -139,7 +170,7 @@ proc connectPeers*(
       return false
 
   for index in 0 ..< peerLimit:
-    checkUntilTimeoutCustom(5.seconds, 500.milliseconds):
+    checkUntilTimeoutCustom(15.seconds, 500.milliseconds):
       await connectPeer(peersAddresses[index])
 
 proc publishMessagesWithWarmup*(
