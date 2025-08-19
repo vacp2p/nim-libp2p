@@ -183,12 +183,12 @@ suite "Yamux":
 
       # Need to exhaust initial window first
       await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
-      await streamA.write(newSeq[byte](142))
+      await streamA.write(newSeq[byte](160))
       await streamA.close()
 
       await writerBlocker
 
-      # 1 for initial exhaustion + (142 / 20) = 9
+      # 1 for initial exhaustion + (160 / 20) = 9
       check numberOfRead == 9
 
     asyncTest "Saturate until reset":
