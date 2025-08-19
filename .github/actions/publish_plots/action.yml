@@ -21,12 +21,12 @@ runs:
 
         # Remove any branch folder older than 7 days
         DAYS=7; cutoff=$(( $(date +%s) - DAYS*24*3600 )); \
-        find ./$PUBLISH_DIR_PLOTS/ -mindepth 1 -maxdepth 1 -type d -print0 \
+        find "$PUBLISH_DIR_PLOTS"/ -mindepth 1 -maxdepth 1 -type d -print0 \
           | while IFS= read -r -d $'\0' d; do \
-              ts=$(git log -1 --format=%ct -- "$d"); \
+              ts=$(git log -1 --format=%ct -- "$d" 2>/dev/null || true); \
               [ -n "$ts" ] && [ "$ts" -le "$cutoff" ] && printf '%s\0' "$d"; \
             done \
-          | xargs -0 -r -I{} rm -rf -- "{}"
+          | xargs -0 -r rm -rf --
 
         rm -rf $PUBLISH_DIR_PLOTS/$BRANCH_NAME
         mkdir -p $PUBLISH_DIR_PLOTS/$BRANCH_NAME
