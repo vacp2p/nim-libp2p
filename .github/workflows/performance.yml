@@ -49,33 +49,33 @@ jobs:
         with:
           submodules: true
 
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # - name: Build Docker Image with cache
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: .
-      #     file: performance/Dockerfile
-      #     tags: test-node:latest
-      #     load: true
-      #     cache-from: type=gha
-      #     cache-to: type=gha,mode=max
+      - name: Build Docker Image with cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: performance/Dockerfile
+          tags: test-node:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # - name: Run
-      #   run: |
-      #     ./performance/runner.sh
+      - name: Run
+        run: |
+          ./performance/runner.sh
 
-      # - name: Process latency and docker stats
-      #   uses: ./.github/actions/process_stats
+      - name: Process latency and docker stats
+        uses: ./.github/actions/process_stats
 
-      # - name: Publish history
-      #   if: github.repository_owner == env.VACP2P
-      #   uses: ./.github/actions/publish_history
+      - name: Publish history
+        if: github.repository_owner == env.VACP2P
+        uses: ./.github/actions/publish_history
 
-      # - name: Generate plots
-      #   if: github.repository_owner == env.VACP2P
-      #   uses: ./.github/actions/generate_plots
+      - name: Generate plots
+        if: github.repository_owner == env.VACP2P
+        uses: ./.github/actions/generate_plots
 
       - name: Publish plots and add to summary
         if: github.repository_owner == env.VACP2P
