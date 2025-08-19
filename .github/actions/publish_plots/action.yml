@@ -21,7 +21,7 @@ runs:
 
         # Remove any branch folder older than 7 days
         DAYS=7; cutoff=$(( $(date +%s) - DAYS*24*3600 )); \
-        find ./plots/ -mindepth 1 -maxdepth 1 -type d -print0 \
+        find ./$PUBLISH_DIR_PLOTS/ -mindepth 1 -maxdepth 1 -type d -print0 \
           | while IFS= read -r -d $'\0' d; do \
               ts=$(git log -1 --format=%ct -- "$d"); \
               [ -n "$ts" ] && [ "$ts" -le "$cutoff" ] && printf '%s\0' "$d"; \
