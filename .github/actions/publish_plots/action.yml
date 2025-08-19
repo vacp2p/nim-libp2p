@@ -56,7 +56,7 @@ runs:
 
         # cp ../$SHARED_VOLUME_PATH/*.png $PUBLISH_DIR_PLOTS/$BRANCH_NAME/
         # cp ../$LATENCY_HISTORY_PATH/*.png $PUBLISH_DIR_PLOTS/
-        git add $PUBLISH_DIR_PLOTS/*
+        git add -A "$PUBLISH_DIR_PLOTS/"
 
         git status
 
