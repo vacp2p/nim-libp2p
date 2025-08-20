@@ -13,8 +13,15 @@ import sugar
 import chronos
 import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux], ./helpers
 
+include ../libp2p/muxers/yamux/yamux
+
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()
+
+proc completedFuture(): Future[void] =
+  let f = newFuture[void]()
+  f.complete()
+  f
 
 suite "Yamux":
   teardown:
@@ -24,6 +31,8 @@ suite "Yamux":
       ws: int = YamuxDefaultWindowSize,
       inTo: Duration = 5.minutes,
       outTo: Duration = 5.minutes,
+      startHandlerA = true,
+      startHandlerB = true,
   ) {.inject.} =
     #TODO in a template to avoid threadvar
     let
@@ -34,11 +43,18 @@ suite "Yamux":
         Yamux.new(conna, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
       yamuxb {.inject.} =
         Yamux.new(connb, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
-      (handlera, handlerb) = (yamuxa.handle(), yamuxb.handle())
+    var
+      handlera = completedFuture()
+      handlerb = completedFuture()
+
+    if startHandlerA:
+      handlera = yamuxa.handle()
+    if startHandlerB:
+      handlerb = yamuxb.handle()
 
     defer:
       await allFutures(
-        conna.close(), connb.close(), yamuxa.close(), yamuxb.close(), handlera, handlerb
+        conna.close(), connb.close(), yamuxa.close(), yamuxb.close(), handlerb, handlera
       )
 
   suite "Simple Reading/Writing yamux messages":
@@ -412,3 +428,29 @@ suite "Yamux":
       await streamA.writeLp(fromHex("1234"))
       await streamA.close()
       check (await streamA.readLp(100)) == fromHex("5678")
+
+  suite "Control frame handling":
+    asyncTest "Ping Syn produces Ping Ack":
+      mSetup(startHandlerA = false)
+
+      let payload: uint32 = 0x12345678'u32
+      await conna.write(YamuxHeader.ping(MsgFlags.Syn, payload))
+
+      let header = await conna.readHeader()
+      check:
+        header.msgType == Ping
+        header.flags == {Ack}
+        header.length == payload
+
+      echo yamuxa.channels
+
+    asyncTest "Go Away Status responds with Go Away":
+      mSetup(startHandlerA = false)
+
+      await conna.write(YamuxHeader.goAway(GoAwayStatus.ProtocolError))
+
+      let header = await conna.readHeader()
+      check:
+        header.msgType == GoAway
+        header.flags == {}
+        header.length == GoAwayStatus.NormalTermination.uint32
