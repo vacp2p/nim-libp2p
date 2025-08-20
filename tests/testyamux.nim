@@ -430,7 +430,7 @@ suite "Yamux":
       check (await streamA.readLp(100)) == fromHex("5678")
 
   suite "Frame handling and stream initiation":
-    asyncTest "Ping Syn produces Ping Ack":
+    asyncTest "Ping Syn responds Ping Ack":
       mSetup(startHandlerA = false)
 
       let payload: uint32 = 0x12345678'u32
