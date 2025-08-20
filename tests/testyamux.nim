@@ -429,7 +429,7 @@ suite "Yamux":
       await streamA.close()
       check (await streamA.readLp(100)) == fromHex("5678")
 
-  suite "Control frame handling":
+  suite "Frame handling and stream initiation":
     asyncTest "Ping Syn produces Ping Ack":
       mSetup(startHandlerA = false)
 
@@ -442,8 +442,6 @@ suite "Yamux":
         header.flags == {Ack}
         header.length == payload
 
-      echo yamuxa.channels
-
     asyncTest "Go Away Status responds with Go Away":
       mSetup(startHandlerA = false)
 
@@ -454,3 +452,81 @@ suite "Yamux":
         header.msgType == GoAway
         header.flags == {}
         header.length == GoAwayStatus.NormalTermination.uint32
+
+    for testCase in [
+      YamuxHeader.data(streamId = 1'u32, length = 0, {Syn}),
+      YamuxHeader.windowUpdate(streamId = 5'u32, delta = 0, {Syn}),
+    ]:
+      asyncTest "Syn opens stream and sends Ack - " & $testCase:
+        mSetup(startHandlerA = false)
+
+        yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+          try:
+            await conn.close()
+          except CancelledError, LPStreamError:
+            return
+
+        await conna.write(testCase)
+
+        let ackHeader = await conna.readHeader()
+        check:
+          ackHeader.msgType == WindowUpdate
+          ackHeader.streamId == testCase.streamId
+          ackHeader.flags == {Ack}
+
+        check:
+          yamuxb.channels.hasKey(testCase.streamId)
+          yamuxb.channels[testCase.streamId].opened
+
+        let finHeader = await conna.readHeader()
+        check:
+          finHeader.msgType == Data
+          finHeader.streamId == testCase.streamId
+          finHeader.flags == {Fin}
+
+    for badHeader in [
+      # Reserved parity on Data+Syn (even id against responder)
+      YamuxHeader.data(streamId = 2'u32, length = 0, {Syn}),
+      # Reserved stream id 0
+      YamuxHeader.data(streamId = 0'u32, length = 0, {Syn}),
+      # First frame missing Syn on unopened stream
+      YamuxHeader.data(streamId = 7'u32, length = 0),
+      # Reserved parity on WindowUpdate+Syn (even id against responder)
+      YamuxHeader.windowUpdate(streamId = 4'u32, delta = 0, {Syn}),
+      # Unknown stream WindowUpdate without Syn
+      YamuxHeader.windowUpdate(streamId = 13'u32, delta = 0),
+    ]:
+      asyncTest "Reject invalid/unknown header - " & $badHeader:
+        mSetup(startHandlerA = false)
+
+        await conna.write(badHeader)
+
+        let header = await conna.readHeader()
+        check:
+          header.msgType == GoAway
+          header.flags == {}
+          header.length == GoAwayStatus.ProtocolError.uint32
+          not yamuxb.channels.hasKey(badHeader.streamId)
+
+    asyncTest "Flush unknown-stream Data up to budget then ProtocolError when exceeded":
+      # Cover the flush path: streamId not in channels, no Syn, with a pre-seeded
+      # flush budget in yamuxb.flushed. First frame should be flushed (no GoAway),
+      # second frame exceeding the remaining budget should trigger ProtocolError.
+      mSetup(startHandlerA = false)
+
+      let streamId = 11'u32
+      yamuxb.flushed[streamId] = 4 # allow up to 4 bytes to be flushed
+
+      # 1) Send a Data frame (no Syn) with length=3 and a 3-byte payload -> should be flushed.
+      await conna.write(YamuxHeader.data(streamId = streamId, length = 3))
+      await conna.write(fromHex("010203"))
+
+      # 2) Send another Data frame with length=2 (remaining budget is 1) -> exceeds, expect GoAway.
+      await conna.write(YamuxHeader.data(streamId = streamId, length = 2))
+      await conna.write(fromHex("0405"))
+
+      let header = await conna.readHeader()
+      check:
+        header.msgType == GoAway
+        header.flags == {}
+        header.length == GoAwayStatus.ProtocolError.uint32
