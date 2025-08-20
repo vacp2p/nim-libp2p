@@ -54,7 +54,7 @@ suite "Yamux":
 
     defer:
       await allFutures(
-        conna.close(), connb.close(), yamuxa.close(), yamuxb.close(), handlerb, handlera
+        conna.close(), connb.close(), yamuxa.close(), yamuxb.close(), handlera, handlerb
       )
 
   suite "Simple Reading/Writing yamux messages":
