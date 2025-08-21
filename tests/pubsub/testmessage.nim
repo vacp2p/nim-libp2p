@@ -27,6 +27,28 @@ suite "Message":
 
     check verify(msg)
 
+  test "signature with missing key":
+    let
+      seqno = 11'u64
+      seckey = PrivateKey.random(Ed25519, rng[]).get()
+      pubkey = seckey.getPublicKey().get()
+      peer = PeerInfo.new(seckey)
+    check peer.peerId.hasPublicKey() == true
+    var msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
+    msg.key = @[]
+    # get the key from fromPeer field (inlined)
+    check verify(msg)
+
+  test "signature without inlined pubkey in peerId":
+    let
+      seqno = 11'u64
+      peer = PeerInfo.new(PrivateKey.random(RSA, rng[]).get())
+    var msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
+    msg.key = @[]
+    # shouldn't work since there's no key field
+    # and the key is not inlined in peerid (too large)
+    check verify(msg) == false
+
   test "defaultMsgIdProvider success":
     let
       seqno = 11'u64

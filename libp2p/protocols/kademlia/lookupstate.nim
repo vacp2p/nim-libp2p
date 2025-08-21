@@ -27,7 +27,10 @@ proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
   return state.shortlist.anyIt(it.peerId.getBytes() == peer.id)
 
 proc updateShortlist*(
-    state: var LookupState, msg: Message, onInsert: proc(p: PeerInfo) {.gcsafe.}
+    state: var LookupState,
+    msg: Message,
+    onInsert: proc(p: PeerInfo) {.gcsafe.},
+    hasher: Opt[XorDHasher],
 ) =
   for newPeer in msg.closerPeers.filterIt(not alreadyInShortlist(state, it)):
     let peerInfo = PeerInfo(peerId: PeerId.init(newPeer.id).get(), addrs: newPeer.addrs)
@@ -36,7 +39,7 @@ proc updateShortlist*(
       state.shortlist.add(
         LookupNode(
           peerId: peerInfo.peerId,
-          distance: xorDistance(peerInfo.peerId, state.targetId),
+          distance: xorDistance(peerInfo.peerId, state.targetId, hasher),
           queried: false,
           pending: false,
           failed: false,
@@ -77,7 +80,12 @@ proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
         break
   return selected
 
-proc init*(T: type LookupState, targetId: Key, initialPeers: seq[PeerId]): T =
+proc init*(
+    T: type LookupState,
+    targetId: Key,
+    initialPeers: seq[PeerId],
+    hasher: Opt[XorDHasher],
+): T =
   var res = LookupState(
     targetId: targetId,
     shortlist: @[],
@@ -90,7 +98,7 @@ proc init*(T: type LookupState, targetId: Key, initialPeers: seq[PeerId]): T =
     res.shortlist.add(
       LookupNode(
         peerId: p,
-        distance: xorDistance(p, targetId),
+        distance: xorDistance(p, targetId, hasher),
         queried: false,
         pending: false,
         failed: false,
