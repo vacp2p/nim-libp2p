@@ -11,7 +11,8 @@
 
 import sugar
 import chronos
-import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux], ./helpers
+import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux]
+import ./helpers
 
 include ../libp2p/muxers/yamux/yamux
 
@@ -31,8 +32,8 @@ suite "Yamux":
       ws: int = YamuxDefaultWindowSize,
       inTo: Duration = 5.minutes,
       outTo: Duration = 5.minutes,
-      startHandlerA = true,
-      startHandlerB = true,
+      startHandlera = true,
+      startHandlerb = true,
   ) {.inject.} =
     #TODO in a template to avoid threadvar
     let
@@ -47,9 +48,9 @@ suite "Yamux":
       handlera = completedFuture()
       handlerb = completedFuture()
 
-    if startHandlerA:
+    if startHandlera:
       handlera = yamuxa.handle()
-    if startHandlerB:
+    if startHandlerb:
       handlerb = yamuxb.handle()
 
     defer:
@@ -182,8 +183,9 @@ suite "Yamux":
 
       let writerBlocker = newBlockerFut()
       var numberOfRead = 0
+      const newWindow = 20
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
-        YamuxChannel(conn).setMaxRecvWindow(20)
+        YamuxChannel(conn).setMaxRecvWindow(newWindow)
         try:
           var buffer: array[256000, byte]
           while (await conn.readOnce(addr buffer[0], 256000)) > 0:
@@ -199,13 +201,14 @@ suite "Yamux":
 
       # Need to exhaust initial window first
       await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
-      await streamA.write(newSeq[byte](160))
+      const extraBytes = 160
+      await streamA.write(newSeq[byte](extraBytes))
       await streamA.close()
 
       await writerBlocker
 
       # 1 for initial exhaustion + (160 / 20) = 9
-      check numberOfRead == 9
+      check numberOfRead == 1 + (extraBytes / newWindow).int
 
     asyncTest "Saturate until reset":
       mSetup()
