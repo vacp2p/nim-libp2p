@@ -13,16 +13,12 @@ import sugar
 import chronos
 import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux]
 import ./helpers
+import ./utils/futures
 
 include ../libp2p/muxers/yamux/yamux
 
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()
-
-proc completedFuture(): Future[void] =
-  let f = newFuture[void]()
-  f.complete()
-  f
 
 suite "Yamux":
   teardown:
