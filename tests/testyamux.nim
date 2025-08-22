@@ -430,7 +430,7 @@ suite "Yamux":
 
   suite "Frame handling and stream initiation":
     asyncTest "Ping Syn responds Ping Ack":
-      mSetup(startHandlerA = false)
+      mSetup(startHandlera = false)
 
       let payload: uint32 = 0x12345678'u32
       await conna.write(YamuxHeader.ping(MsgFlags.Syn, payload))
@@ -442,7 +442,7 @@ suite "Yamux":
         header.length == payload
 
     asyncTest "Go Away Status responds with Go Away":
-      mSetup(startHandlerA = false)
+      mSetup(startHandlera = false)
 
       await conna.write(YamuxHeader.goAway(GoAwayStatus.ProtocolError))
 
@@ -457,7 +457,7 @@ suite "Yamux":
       YamuxHeader.windowUpdate(streamId = 5'u32, delta = 0, {Syn}),
     ]:
       asyncTest "Syn opens stream and sends Ack - " & $testCase:
-        mSetup(startHandlerA = false)
+        mSetup(startHandlera = false)
 
         yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
           try:
@@ -496,7 +496,7 @@ suite "Yamux":
       YamuxHeader.windowUpdate(streamId = 13'u32, delta = 0),
     ]:
       asyncTest "Reject invalid/unknown header - " & $badHeader:
-        mSetup(startHandlerA = false)
+        mSetup(startHandlera = false)
 
         await conna.write(badHeader)
 
@@ -511,7 +511,7 @@ suite "Yamux":
       # Cover the flush path: streamId not in channels, no Syn, with a pre-seeded
       # flush budget in yamuxb.flushed. First frame should be flushed (no GoAway),
       # second frame exceeding the remaining budget should trigger ProtocolError.
-      mSetup(startHandlerA = false)
+      mSetup(startHandlera = false)
 
       let streamId = 11'u32
       yamuxb.flushed[streamId] = 4 # allow up to 4 bytes to be flushed
