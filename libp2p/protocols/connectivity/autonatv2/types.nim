@@ -102,7 +102,7 @@ proc decode*(T: typedesc[DialRequest], pb: ProtoBuffer): Opt[T] =
 # DialResponse
 proc encode*(dialResp: DialResponse): ProtoBuffer =
   var encoded = initProtoBuffer()
-  encoded.write(1, cast[float64](dialResp.status))
+  encoded.write(1, dialResp.status.uint)
     # minprotobuf casts uses float64 for fixed64 fields
   dialResp.addrIdx.withValue(addrIdx):
     encoded.write(2, addrIdx)
@@ -113,9 +113,10 @@ proc encode*(dialResp: DialResponse): ProtoBuffer =
 
 proc decode*(T: typedesc[DialResponse], pb: ProtoBuffer): Opt[T] =
   var
-    status: float64
+    status: uint
     addrIdx: uint32
     dialStatus: uint
+
   if not ?pb.getField(1, status).toOpt():
     return Opt.none(T)
 
