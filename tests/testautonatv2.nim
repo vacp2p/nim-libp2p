@@ -16,11 +16,16 @@ import
     transports/tcptransport,
     upgrademngrs/upgrade,
     builders,
-    protocols/connectivity/autonatv2/core,
+    protocols/connectivity/autonatv2/types,
       # nameresolving/nameresolver,
       # nameresolving/mockresolver,
   ],
   ./helpers
+
+proc checkEncodeDecode[T](msg: T) =
+  # this would be equivalent of doing the following (e.g. for DialBack)
+  # check msg == DialBack.decode(msg.encode()).get()
+  check msg == T.decode(msg.encode()).get()
 
 suite "AutonatV2":
   teardown:
@@ -36,85 +41,43 @@ suite "AutonatV2":
         ],
       nonce: 42,
     )
-    let encodedReq = dialReq.encode()
-    let decodedReq = DialRequest.decode(encodedReq).get()
-    check:
-      decodedReq.addrs == dialReq.addrs
-      decodedReq.nonce == dialReq.nonce
+    checkEncodeDecode(dialReq)
 
     # DialResponse
     let dialResp =
       DialResponse(status: ResponseStatus.Ok, addrIdx: 1, dialStatus: DialStatus.Ok)
-    let encodedResp = dialResp.encode()
-    let decodedResp = DialResponse.decode(encodedResp).get()
-    check:
-      decodedResp.status == dialResp.status
-      decodedResp.addrIdx == dialResp.addrIdx
-      decodedResp.dialStatus == dialResp.dialStatus
+    checkEncodeDecode(dialResp)
 
     # DialDataRequest
     let dataReq = DialDataRequest(addrIdx: 0, numBytes: 128)
-    let encodedDataReq = dataReq.encode()
-    let decodedDataReq = DialDataRequest.decode(encodedDataReq).get()
-    check:
-      decodedDataReq.addrIdx == dataReq.addrIdx
-      decodedDataReq.numBytes == dataReq.numBytes
+    checkEncodeDecode(dataReq)
 
     # DialDataResponse
     let dataResp = DialDataResponse(data: @[1'u8, 2, 3, 4, 5])
-    let encodedDataResp = dataResp.encode()
-    let decodedDataResp = DialDataResponse.decode(encodedDataResp).get()
-    check:
-      decodedDataResp.data == dataResp.data
+    checkEncodeDecode(dataResp)
 
     # AutonatV2Msg - DialRequest
     let msgReq = AutonatV2Msg(msgType: MsgType.DialRequest, dialReq: dialReq)
-    let encodedMsgReq = msgReq.encode()
-    let decodedMsgReq = AutonatV2Msg.decode(encodedMsgReq).get()
-    check:
-      decodedMsgReq.msgType == MsgType.DialRequest
-      decodedMsgReq.dialReq.addrs == dialReq.addrs
-      decodedMsgReq.dialReq.nonce == dialReq.nonce
+    checkEncodeDecode(msgReq)
 
     # AutonatV2Msg - DialResponse
     let msgResp = AutonatV2Msg(msgType: MsgType.DialResponse, dialResp: dialResp)
-    let encodedMsgResp = msgResp.encode()
-    let decodedMsgResp = AutonatV2Msg.decode(encodedMsgResp).get()
-    check:
-      decodedMsgResp.msgType == MsgType.DialResponse
-      decodedMsgResp.dialResp.status == dialResp.status
-      decodedMsgResp.dialResp.addrIdx == dialResp.addrIdx
-      decodedMsgResp.dialResp.dialStatus == dialResp.dialStatus
+    checkEncodeDecode(msgResp)
 
     # AutonatV2Msg - DialDataRequest
     let msgDataReq =
       AutonatV2Msg(msgType: MsgType.DialDataRequest, dialDataReq: dataReq)
-    let encodedMsgDataReq = msgDataReq.encode()
-    let decodedMsgDataReq = AutonatV2Msg.decode(encodedMsgDataReq).get()
-    check:
-      decodedMsgDataReq.msgType == MsgType.DialDataRequest
-      decodedMsgDataReq.dialDataReq.addrIdx == dataReq.addrIdx
-      decodedMsgDataReq.dialDataReq.numBytes == dataReq.numBytes
+    checkEncodeDecode(msgDataReq)
 
     # AutonatV2Msg - DialDataResponse
     let msgDataResp =
       AutonatV2Msg(msgType: MsgType.DialDataResponse, dialDataResp: dataResp)
-    let encodedMsgDataResp = msgDataResp.encode()
-    let decodedMsgDataResp = AutonatV2Msg.decode(encodedMsgDataResp).get()
-    check:
-      decodedMsgDataResp.msgType == MsgType.DialDataResponse
-      decodedMsgDataResp.dialDataResp.data == dataResp.data
+    checkEncodeDecode(msgDataResp)
 
     # DialBack
     let dialBack = DialBack(nonce: 123456)
-    let encodedBack = dialBack.encode()
-    let decodedBack = DialBack.decode(encodedBack).get()
-    check:
-      decodedBack.nonce == dialBack.nonce
+    checkEncodeDecode(dialBack)
 
     # DialBackResponse
     let dialBackResp = DialBackResponse(status: DialBackStatus.Ok)
-    let encodedBackResp = dialBackResp.encode()
-    let decodedBackResp = DialBackResponse.decode(encodedBackResp).get()
-    check:
-      decodedBackResp.status == dialBackResp.status
+    checkEncodeDecode(dialBackResp)

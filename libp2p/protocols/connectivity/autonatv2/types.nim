@@ -67,7 +67,7 @@ type
   DialDataResponse* = object
     data*: seq[byte]
 
-  AutonatV2Msg* = object # TODO: case...
+  AutonatV2Msg* = object
     case msgType*: MsgType
     of MsgType.Unused:
       discard
@@ -184,8 +184,7 @@ proc encode*(msg: AutonatV2Msg): ProtoBuffer =
   result = initProtoBuffer()
   case msg.msgType
   of MsgType.Unused:
-    # TODO: error log
-    discard
+    doAssert false
   of MsgType.DialRequest:
     result.write(MsgType.DialRequest.int, msg.dialReq.encode())
   of MsgType.DialResponse:
@@ -221,3 +220,7 @@ proc decode*(T: typedesc[AutonatV2Msg], pb: ProtoBuffer): Opt[T] =
     )
   else:
     Opt.none(AutonatV2Msg)
+
+# Custom `==` is needed to compare since AutonatV2Msg is a case object
+proc `==`*(a, b: AutonatV2Msg): bool =
+  a.msgType == b.msgType and a.encode() == b.encode()
