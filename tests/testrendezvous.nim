@@ -26,28 +26,59 @@ proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
   .withRendezVous(rdv)
   .build()
 
+template setupNodes(count: int) {.inject.} =
+  doAssert(count > 0, "Count must be greater than 0")
+
+  var
+    rdvSeq {.inject.}: seq[RendezVous] = @[]
+    nodes {.inject.}: seq[Switch] = @[]
+
+  for x in 0 ..< count:
+    let rdv = RendezVous.new()
+    let node = createSwitch(rdv)
+    rdvSeq.add(rdv)
+    nodes.add(node)
+
+  await allFutures(nodes.mapIt(it.start()))
+  defer:
+    await allFutures(nodes.mapIt(it.stop()))
+
 suite "RendezVous":
   teardown:
     checkTrackers()
-  asyncTest "Simple local test":
-    let
-      rdv = RendezVous.new()
-      s = createSwitch(rdv)
 
-    await s.start()
-    let res0 = rdv.requestLocally("empty")
-    check res0.len == 0
-    await rdv.advertise("foo")
-    let res1 = rdv.requestLocally("foo")
+  asyncTest "Request locally returns 0 for empty namespace":
+    setupNodes(1)
+    let rdv: RendezVous = rdvSeq[0]
+
+    const namespaceEmpty = ""
+    let peerRecords = rdv.requestLocally(namespaceEmpty)
+    check peerRecords.len == 0
+
+  asyncTest "Request locally returns registered peers":
+    setupNodes(1)
+    let rdv: RendezVous = rdvSeq[0]
+    let node = nodes[0]
+
+    const namespace = "foo"
+    await rdv.advertise(namespace)
+    let peerRecords = rdv.requestLocally(namespace)
+
     check:
-      res1.len == 1
-      res1[0] == s.peerInfo.signedPeerRecord.data
-    let res2 = rdv.requestLocally("bar")
-    check res2.len == 0
-    rdv.unsubscribeLocally("foo")
-    let res3 = rdv.requestLocally("foo")
-    check res3.len == 0
-    await s.stop()
+      peerRecords.len == 1
+      peerRecords[0] == node.peerInfo.signedPeerRecord.data
+
+  asyncTest "Unsubscribe Locally removes registered peer":
+    setupNodes(1)
+    let rdv: RendezVous = rdvSeq[0]
+
+    const namespace = "foo"
+    await rdv.advertise(namespace)
+    check rdv.requestLocally(namespace).len == 1
+
+    rdv.unsubscribeLocally(namespace)
+    let peerRecords = rdv.requestLocally(namespace)
+    check peerRecords.len == 0
 
   asyncTest "Simple remote test":
     let
