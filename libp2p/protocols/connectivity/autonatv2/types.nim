@@ -51,8 +51,8 @@ type
 
   DialResponse* = object
     status*: ResponseStatus
-    addrIdx*: uint32
-    dialStatus*: DialStatus
+    addrIdx*: Opt[uint32]
+    dialStatus*: Opt[DialStatus]
 
   DialBack* = object
     nonce*: uint64
@@ -82,11 +82,12 @@ type
 
 # DialRequest
 proc encode*(dialReq: DialRequest): ProtoBuffer =
-  result = initProtoBuffer()
+  var encoded = initProtoBuffer()
   for ma in dialReq.addrs:
-    result.write(1, ma.data.buffer)
-  result.write(2, dialReq.nonce)
-  result.finish()
+    encoded.write(1, ma.data.buffer)
+  encoded.write(2, dialReq.nonce)
+  encoded.finish()
+  encoded
 
 proc decode*(T: typedesc[DialRequest], pb: ProtoBuffer): Opt[T] =
   var
@@ -100,12 +101,15 @@ proc decode*(T: typedesc[DialRequest], pb: ProtoBuffer): Opt[T] =
 
 # DialResponse
 proc encode*(dialResp: DialResponse): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, cast[float64](dialResp.status))
+  var encoded = initProtoBuffer()
+  encoded.write(1, cast[float64](dialResp.status))
     # minprotobuf casts uses float64 for fixed64 fields
-  result.write(2, dialResp.addrIdx)
-  result.write(3, dialResp.dialStatus.uint)
-  result.finish()
+  dialResp.addrIdx.withValue(addrIdx):
+    encoded.write(2, addrIdx)
+  dialResp.dialStatus.withValue(dialStatus):
+    encoded.write(3, dialStatus.uint)
+  encoded.finish()
+  encoded
 
 proc decode*(T: typedesc[DialResponse], pb: ProtoBuffer): Opt[T] =
   var
@@ -114,23 +118,29 @@ proc decode*(T: typedesc[DialResponse], pb: ProtoBuffer): Opt[T] =
     dialStatus: uint
   if not ?pb.getField(1, status).toOpt():
     return Opt.none(T)
-  if not ?pb.getField(2, addrIdx).toOpt():
-    return Opt.none(T)
-  if not ?pb.getField(3, dialStatus).toOpt():
-    return Opt.none(T)
+
+  var optAddrIdx = Opt.none(uint32)
+  if ?pb.getField(2, addrIdx).toOpt():
+    optAddrIdx = Opt.some(addrIdx)
+
+  var optDialStatus = Opt.none(DialStatus)
+  if ?pb.getField(3, dialStatus).toOpt():
+    optDialStatus = Opt.some(cast[DialStatus](dialStatus))
+
   Opt.some(
     T(
       status: cast[ResponseStatus](status),
-      addrIdx: addrIdx,
-      dialStatus: cast[DialStatus](dialStatus),
+      addrIdx: optAddrIdx,
+      dialStatus: optDialStatus,
     )
   )
 
 # DialBack
 proc encode*(dialBack: DialBack): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, dialBack.nonce)
-  result.finish()
+  var encoded = initProtoBuffer()
+  encoded.write(1, dialBack.nonce)
+  encoded.finish()
+  encoded
 
 proc decode*(T: typedesc[DialBack], pb: ProtoBuffer): Opt[T] =
   var nonce: uint64
@@ -140,9 +150,10 @@ proc decode*(T: typedesc[DialBack], pb: ProtoBuffer): Opt[T] =
 
 # DialBackResponse
 proc encode*(dialBackResp: DialBackResponse): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, dialBackResp.status.uint)
-  result.finish()
+  var encoded = initProtoBuffer()
+  encoded.write(1, dialBackResp.status.uint)
+  encoded.finish()
+  encoded
 
 proc decode*(T: typedesc[DialBackResponse], pb: ProtoBuffer): Opt[T] =
   var status: uint
@@ -152,10 +163,11 @@ proc decode*(T: typedesc[DialBackResponse], pb: ProtoBuffer): Opt[T] =
 
 # DialDataRequest
 proc encode*(dialDataReq: DialDataRequest): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, dialDataReq.addrIdx)
-  result.write(2, dialDataReq.numBytes)
-  result.finish()
+  var encoded = initProtoBuffer()
+  encoded.write(1, dialDataReq.addrIdx)
+  encoded.write(2, dialDataReq.numBytes)
+  encoded.finish()
+  encoded
 
 proc decode*(T: typedesc[DialDataRequest], pb: ProtoBuffer): Opt[T] =
   var
@@ -169,9 +181,10 @@ proc decode*(T: typedesc[DialDataRequest], pb: ProtoBuffer): Opt[T] =
 
 # DialDataResponse
 proc encode*(dialDataResp: DialDataResponse): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, dialDataResp.data)
-  result.finish()
+  var encoded = initProtoBuffer()
+  encoded.write(1, dialDataResp.data)
+  encoded.finish()
+  encoded
 
 proc decode*(T: typedesc[DialDataResponse], pb: ProtoBuffer): Opt[T] =
   var data: seq[byte]
@@ -181,19 +194,20 @@ proc decode*(T: typedesc[DialDataResponse], pb: ProtoBuffer): Opt[T] =
 
 # AutonatV2Msg
 proc encode*(msg: AutonatV2Msg): ProtoBuffer =
-  result = initProtoBuffer()
+  var encoded = initProtoBuffer()
   case msg.msgType
   of MsgType.Unused:
     doAssert false
   of MsgType.DialRequest:
-    result.write(MsgType.DialRequest.int, msg.dialReq.encode())
+    encoded.write(MsgType.DialRequest.int, msg.dialReq.encode())
   of MsgType.DialResponse:
-    result.write(MsgType.DialResponse.int, msg.dialResp.encode())
+    encoded.write(MsgType.DialResponse.int, msg.dialResp.encode())
   of MsgType.DialDataRequest:
-    result.write(MsgType.DialDataRequest.int, msg.dialDataReq.encode())
+    encoded.write(MsgType.DialDataRequest.int, msg.dialDataReq.encode())
   of MsgType.DialDataResponse:
-    result.write(MsgType.DialDataResponse.int, msg.dialDataResp.encode())
-  result.finish()
+    encoded.write(MsgType.DialDataResponse.int, msg.dialDataResp.encode())
+  encoded.finish()
+  encoded
 
 proc decode*(T: typedesc[AutonatV2Msg], pb: ProtoBuffer): Opt[T] =
   var

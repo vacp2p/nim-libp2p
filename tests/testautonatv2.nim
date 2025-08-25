@@ -44,8 +44,11 @@ suite "AutonatV2":
     checkEncodeDecode(dialReq)
 
     # DialResponse
-    let dialResp =
-      DialResponse(status: ResponseStatus.Ok, addrIdx: 1, dialStatus: DialStatus.Ok)
+    let dialResp = DialResponse(
+      status: ResponseStatus.Ok,
+      addrIdx: Opt.some(1.uint32),
+      dialStatus: Opt.some(DialStatus.Ok),
+    )
     checkEncodeDecode(dialResp)
 
     # DialDataRequest
