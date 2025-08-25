@@ -26,7 +26,14 @@ import
   transports/[transport, tcptransport, wstransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
-  protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
+  protocols/connectivity/[
+    autonat/server,
+    autonatv2/server,
+    autonatv2/client,
+    relay/relay,
+    relay/client,
+    relay/rtransport,
+  ],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -74,6 +81,8 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
+    autonatV2: bool
+    autonatV2Client: bool
     autotls: AutotlsService
     circuitRelay: Relay
     rdv: RendezVous
@@ -280,6 +289,14 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
+proc withAutonatV2*(b: SwitchBuilder): SwitchBuilder =
+  b.autonatV2 = true
+  b
+
+proc withAutonatV2Client*(b: SwitchBuilder): SwitchBuilder =
+  b.autonatV2Client = true
+  b
+
 when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
@@ -379,7 +396,14 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   switch.mount(identify)
 
-  if b.autonat:
+  if b.autonatV2Client:
+    let autonatV2Client = AutonatV2Client.new(switch, b.rng)
+    switch.mount(autonatV2Client)
+
+  if b.autonatV2:
+    let autonatV2 = AutonatV2.new(switch)
+    switch.mount(autonatV2)
+  elif b.autonat:
     let autonat = Autonat.new(switch)
     switch.mount(autonat)
 
@@ -395,7 +419,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   return switch
 
-proc newStandardSwitch*(
+proc newStandardSwitchBuilder*(
     privKey = none(PrivateKey),
     addrs: MultiAddress | seq[MultiAddress] =
       MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
@@ -411,7 +435,7 @@ proc newStandardSwitch*(
     nameResolver: NameResolver = nil,
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,
-): Switch {.raises: [LPError], public.} =
+): SwitchBuilder {.raises: [LPError], public.} =
   ## Helper for common switch configurations.
   let addrs =
     when addrs is MultiAddress:
@@ -436,4 +460,39 @@ proc newStandardSwitch*(
   privKey.withValue(pkey):
     b = b.withPrivateKey(pkey)
 
-  b.build()
+  b
+
+proc newStandardSwitch*(
+    privKey = none(PrivateKey),
+    addrs: MultiAddress | seq[MultiAddress] =
+      MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
+    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
+    transportFlags: set[ServerFlags] = {},
+    rng = newRng(),
+    inTimeout: Duration = 5.minutes,
+    outTimeout: Duration = 5.minutes,
+    maxConnections = MaxConnections,
+    maxIn = -1,
+    maxOut = -1,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
+    nameResolver: NameResolver = nil,
+    sendSignedPeerRecord = false,
+    peerStoreCapacity = 1000,
+): Switch {.raises: [LPError], public.} =
+  newStandardSwitchBuilder(
+    privKey = none(PrivateKey),
+    addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
+    secureManagers = [SecureProtocol.Noise],
+    transportFlags = {},
+    rng = newRng(),
+    inTimeout = 5.minutes,
+    outTimeout = 5.minutes,
+    maxConnections = MaxConnections,
+    maxIn = -1,
+    maxOut = -1,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
+    nameResolver = nil,
+    sendSignedPeerRecord = false,
+    peerStoreCapacity = 1000,
+  )
+  .build()

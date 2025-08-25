@@ -17,10 +17,13 @@ import
     upgrademngrs/upgrade,
     builders,
     protocols/connectivity/autonatv2/types,
-      # nameresolving/nameresolver,
-      # nameresolving/mockresolver,
+    protocols/connectivity/autonatv2/client,
   ],
   ./helpers
+
+proc newAutonatV2ServerSwitch(): Switch =
+  var builder = newStandardSwitchBuilder().withAutonatV2()
+  return builder.build()
 
 proc checkEncodeDecode[T](msg: T) =
   # this would be equivalent of doing the following (e.g. for DialBack)
@@ -107,3 +110,33 @@ suite "AutonatV2":
 
     # DialBackResponse
     checkEncodeDecode(DialBackResponse(status: DialBackStatus.Ok))
+
+  asyncTest "Successful DialRequest":
+    let
+      src = newStandardSwitchBuilder().build()
+      dst = newAutonatV2ServerSwitch()
+
+    let client = AutonatV2Client.new(src, newRng())
+    src.mount(client)
+    await src.start()
+    await dst.start()
+
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let autonatV2Resp = await client.sendDialRequest(
+      dst.peerInfo.peerId, dst.peerInfo.addrs, src.peerInfo.addrs
+    )
+
+    check autonatV2Resp.dialResp.status == ResponseStatus.Ok
+    # TODO: check entire dialResp (including addrIdx)
+
+  asyncTest "Successful DialRequest with amplification attack":
+    check false
+
+  asyncTest "Failed DialRequest":
+    check false
+
+  asyncTest "Failed DialRequest with amplification attack":
+    check false
