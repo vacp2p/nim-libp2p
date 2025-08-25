@@ -198,7 +198,7 @@ proc encode*(msg: AutonatV2Msg): ProtoBuffer =
   var encoded = initProtoBuffer()
   case msg.msgType
   of MsgType.Unused:
-    doAssert false
+    doAssert false, "invalid enum variant: Unused"
   of MsgType.DialRequest:
     encoded.write(MsgType.DialRequest.int, msg.dialReq.encode())
   of MsgType.DialResponse:

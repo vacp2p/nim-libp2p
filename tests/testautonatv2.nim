@@ -33,54 +33,77 @@ suite "AutonatV2":
 
   asyncTest "encode/decode messages":
     # DialRequest
-    let dialReq = DialRequest(
-      addrs:
-        @[
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
-        ],
-      nonce: 42,
+    checkEncodeDecode(
+      DialRequest(
+        addrs:
+          @[
+            MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+            MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
+          ],
+        nonce: 42,
+      )
     )
-    checkEncodeDecode(dialReq)
 
     # DialResponse
-    let dialResp = DialResponse(
-      status: ResponseStatus.Ok,
-      addrIdx: Opt.some(1.uint32),
-      dialStatus: Opt.some(DialStatus.Ok),
+    checkEncodeDecode(
+      DialResponse(
+        status: ResponseStatus.Ok,
+        addrIdx: Opt.some(1.uint32),
+        dialStatus: Opt.some(DialStatus.Ok),
+      )
     )
-    checkEncodeDecode(dialResp)
 
     # DialDataRequest
-    let dataReq = DialDataRequest(addrIdx: 0, numBytes: 128)
-    checkEncodeDecode(dataReq)
+    checkEncodeDecode(DialDataRequest(addrIdx: 42, numBytes: 128))
 
     # DialDataResponse
-    let dataResp = DialDataResponse(data: @[1'u8, 2, 3, 4, 5])
-    checkEncodeDecode(dataResp)
+    checkEncodeDecode(DialDataResponse(data: @[1'u8, 2, 3, 4, 5]))
 
     # AutonatV2Msg - DialRequest
-    let msgReq = AutonatV2Msg(msgType: MsgType.DialRequest, dialReq: dialReq)
-    checkEncodeDecode(msgReq)
+    checkEncodeDecode(
+      AutonatV2Msg(
+        msgType: MsgType.DialRequest,
+        dialReq: DialRequest(
+          addrs:
+            @[
+              MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+              MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
+            ],
+          nonce: 42,
+        ),
+      )
+    )
 
     # AutonatV2Msg - DialResponse
-    let msgResp = AutonatV2Msg(msgType: MsgType.DialResponse, dialResp: dialResp)
-    checkEncodeDecode(msgResp)
+    checkEncodeDecode(
+      AutonatV2Msg(
+        msgType: MsgType.DialResponse,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          addrIdx: Opt.some(1.uint32),
+          dialStatus: Opt.some(DialStatus.Ok),
+        ),
+      )
+    )
 
     # AutonatV2Msg - DialDataRequest
-    let msgDataReq =
-      AutonatV2Msg(msgType: MsgType.DialDataRequest, dialDataReq: dataReq)
-    checkEncodeDecode(msgDataReq)
+    checkEncodeDecode(
+      AutonatV2Msg(
+        msgType: MsgType.DialDataRequest,
+        dialDataReq: DialDataRequest(addrIdx: 42, numBytes: 128),
+      )
+    )
 
     # AutonatV2Msg - DialDataResponse
-    let msgDataResp =
-      AutonatV2Msg(msgType: MsgType.DialDataResponse, dialDataResp: dataResp)
-    checkEncodeDecode(msgDataResp)
+    checkEncodeDecode(
+      AutonatV2Msg(
+        msgType: MsgType.DialDataResponse,
+        dialDataResp: DialDataResponse(data: @[1'u8, 2, 3, 4, 5]),
+      )
+    )
 
     # DialBack
-    let dialBack = DialBack(nonce: 123456)
-    checkEncodeDecode(dialBack)
+    checkEncodeDecode(DialBack(nonce: 123456))
 
     # DialBackResponse
-    let dialBackResp = DialBackResponse(status: DialBackStatus.Ok)
-    checkEncodeDecode(dialBackResp)
+    checkEncodeDecode(DialBackResponse(status: DialBackStatus.Ok))
