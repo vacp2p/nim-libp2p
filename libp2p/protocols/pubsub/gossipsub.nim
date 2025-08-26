@@ -725,9 +725,8 @@ method rpcHandler*(
       continue
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
-      # always validate if signature is present or required
-      debug "Dropping message due to failed signature verification",
-        msgId = shortLog(msgId), peer
+      debug "Dropping message due to failed signature verification", msg = msg
+
       await g.punishInvalidMessage(peer, msg)
       continue
 

@@ -4,9 +4,9 @@ import std/enumerate
 import chronos
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
+import ../../libp2p/protocols/kademlia/kademlia
 import ../../libp2p/protocols/kademlia/routingtable
 import ../../libp2p/protocols/kademlia/keys
-import ../../libp2p/protocols/kademlia/dhttypes
 import unittest2
 import ../utils/async_tests
 import ./utils.nim
@@ -33,7 +33,8 @@ proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
 suite "KadDHT - FindNode":
   teardown:
     checkTrackers()
-  asyncTest "Simple find peer":
+
+  asyncTest "Simple find node":
     let swarmSize = 3
     var switches: seq[Switch]
     var kads: seq[KadDHT]
@@ -81,7 +82,7 @@ suite "KadDHT - FindNode":
         )
     await switches.mapIt(it.stop()).allFutures()
 
-  asyncTest "Relay find peer":
+  asyncTest "Relay find node":
     let parentSwitch = createSwitch()
     let parentKad = KadDHT.new(parentSwitch, PermissiveValidator(), CandSelector())
     parentSwitch.mount(parentKad)
@@ -144,3 +145,33 @@ suite "KadDHT - FindNode":
     await broSwitch.stop()
     await sisSwitch.stop()
     await neiceSwitch.stop()
+
+  asyncTest "Find peer":
+    let aliceSwitch = createSwitch()
+    let aliceKad = KadDHT.new(aliceSwitch, PermissiveValidator(), CandSelector())
+    aliceSwitch.mount(aliceKad)
+    await aliceSwitch.start()
+
+    let bobSwitch = createSwitch()
+    let bobKad = KadDHT.new(bobSwitch, PermissiveValidator(), CandSelector())
+    bobSwitch.mount(bobKad)
+    await bobSwitch.start()
+
+    let charlieSwitch = createSwitch()
+    let charlieKad = KadDHT.new(charlieSwitch, PermissiveValidator(), CandSelector())
+    charlieSwitch.mount(charlieKad)
+    await charlieSwitch.start()
+
+    await bobKad.bootstrap(@[aliceSwitch.peerInfo])
+    await charlieKad.bootstrap(@[aliceSwitch.peerInfo])
+
+    let peerInfoRes = await bobKad.findPeer(charlieSwitch.peerInfo.peerId)
+    doAssert peerInfoRes.isOk
+    doAssert peerInfoRes.get().peerId == charlieSwitch.peerInfo.peerId
+
+    let peerInfoRes2 = await bobKad.findPeer(PeerId.random(newRng()).get())
+    doAssert peerInfoRes2.isErr
+
+    await aliceSwitch.stop()
+    await bobSwitch.stop()
+    await charlieSwitch.stop()
