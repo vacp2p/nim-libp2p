@@ -32,7 +32,7 @@ import
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
   testdiscovery, testyamux, testyamuxheader, testautonat, testautonatservice,
-  testautorelay, testdcutr, testhpservice, testutility, testhelpers,
+  testautonatv2, testautorelay, testdcutr, testhpservice, testutility, testhelpers,
   testwildcardresolverservice, testperf
 
 import kademlia/[testencoding, testroutingtable, testfindnode, testputval]
