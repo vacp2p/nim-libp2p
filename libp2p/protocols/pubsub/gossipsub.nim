@@ -355,6 +355,44 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
+proc sendIWantMessages(g: GossipSub, peer: PubSubPeer, messages: seq[Message]) =
+  ## Send IWANT reply messages to a peer, splitting them into batches
+  ## to avoid exceeding maxMessageSize limits
+
+  if messages.len == 0:
+    return
+
+  trace "sending iwant reply messages", peer, count = messages.len
+
+  # Split messages into batches to avoid exceeding maxMessageSize
+  # Use 90% of maxMessageSize to account for protobuf overhead
+  let maxSafeSize = (g.maxMessageSize * 90) div 100
+  var currentBatch: seq[Message] = @[]
+  var currentSize = 0
+
+  for msg in messages:
+    let msgSize = byteSize(msg)
+
+    # Skip messages that are individually too large
+    if msgSize > maxSafeSize:
+      warn "skipping oversized message", msgSize = msgSize, maxSafeSize = maxSafeSize
+      continue
+
+    # If adding this message would exceed the limit,
+    # send the current batch and start a new one
+    if currentSize + msgSize > maxSafeSize:
+      if currentBatch.len > 0:
+        g.send(peer, RPCMsg(messages: currentBatch), isHighPriority = false)
+      currentBatch = @[]
+      currentSize = 0
+
+    currentBatch.add(msg)
+    currentSize += msgSize
+
+  # Send the remaining batch if it's not empty
+  if currentBatch.len > 0:
+    g.send(peer, RPCMsg(messages: currentBatch), isHighPriority = false)
+
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
 
@@ -417,8 +455,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       )
 
     # iwant replies have lower priority
-    trace "sending iwant reply messages", peer
-    g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
+    g.sendIWantMessages(peer, messages)
 
 proc sendIDontWant(
     g: GossipSub,
