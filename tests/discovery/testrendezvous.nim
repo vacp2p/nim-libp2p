@@ -24,9 +24,8 @@ suite "RendezVous":
     let (nodes, rdvs) = setupNodes(1)
     nodes.startAndDeferStop()
 
-    const namespaceEmpty = ""
-    let peerRecords = rdvs[0].requestLocally(namespaceEmpty)
-    check peerRecords.len == 0
+    const namespace = ""
+    check rdvs[0].requestLocally(namespace).len == 0
 
   asyncTest "Request locally returns registered peers":
     let (nodes, rdvs) = setupNodes(1)
@@ -49,8 +48,7 @@ suite "RendezVous":
     check rdvs[0].requestLocally(namespace).len == 1
 
     rdvs[0].unsubscribeLocally(namespace)
-    let peerRecords = rdvs[0].requestLocally(namespace)
-    check peerRecords.len == 0
+    check rdvs[0].requestLocally(namespace).len == 0
 
   asyncTest "Request returns 0 for empty namespace from remote":
     let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(1)
@@ -59,8 +57,7 @@ suite "RendezVous":
     await connectNodes(peerNodes[0], rendezvousNode)
 
     const namespace = "empty"
-    let peerRecords = await peerRdvs[0].request(Opt.some(namespace))
-    check peerRecords.len == 0
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
 
   asyncTest "Request returns registered peers from remote":
     let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(1)
@@ -83,12 +80,11 @@ suite "RendezVous":
 
     const namespace = "foo"
     await peerRdvs[0].advertise(namespace)
-    var peerRecords = await peerRdvs[0].request(Opt.some(namespace))
-    check peerRecords.len == 1
+
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 1
 
     await peerRdvs[0].unsubscribe(namespace)
-    peerRecords = await peerRdvs[0].request(Opt.some(namespace))
-    check peerRecords.len == 0
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
 
   asyncTest "Consecutive requests with namespace returns peers with pagination":
     let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(11)
@@ -111,8 +107,7 @@ suite "RendezVous":
       peerRecords.len == 5
       peerRecords.allIt(it in data)
 
-    peerRecords = await peerRdvs[0].request(Opt.some(namespace))
-    check peerRecords.len == 0
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
 
   asyncTest "Request without namespace returns all registered peers":
     let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(10)
@@ -125,11 +120,9 @@ suite "RendezVous":
     await allFutures(peerRdvs[0 ..< 5].mapIt(it.advertise(namespaceFoo)))
     await allFutures(peerRdvs[5 ..< 10].mapIt(it.advertise(namespaceBar)))
 
-    let peerRecords1 = await peerRdvs[0].request()
-    check peerRecords1.len == 10
+    check (await peerRdvs[0].request()).len == 10
 
-    let peerRecords2 = await peerRdvs[0].request(Opt.none(string))
-    check peerRecords2.len == 10
+    check (await peerRdvs[0].request(Opt.none(string))).len == 10
 
   asyncTest "Consecutive requests with namespace keep cookie and retun only new peers":
     let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(2)
