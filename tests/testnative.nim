@@ -31,8 +31,9 @@ import
   testnameresolve, testmultistream, testbufferstream, testidentify,
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
-  testyamuxheader, testautonat, testautonatservice, testautorelay, testdcutr,
-  testhpservice, testutility, testhelpers, testwildcardresolverservice, testperf
+  testyamuxheader, testautonat, testautonatservice, testautonatv2, testautorelay,
+  testdcutr, testhpservice, testutility, testhelpers, testwildcardresolverservice,
+  testperf
 
 import discovery/testdiscovery
 
