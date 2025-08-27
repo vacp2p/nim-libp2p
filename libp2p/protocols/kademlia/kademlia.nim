@@ -80,8 +80,8 @@ method select*(
   doAssert(false, "EntrySelection base not implemented")
 
 type KadDHT* = ref object of LPProtocol
-  switch: Switch
-  rng: ref HmacDrbgContext
+  switch*: Switch
+  rng*: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
   dataTable*: LocalTable
@@ -122,7 +122,7 @@ proc sendFindNode(
 
   return reply
 
-proc waitRepliesOrTimeouts(
+proc waitRepliesOrTimeouts*(
     pendingFutures: Table[PeerId, Future[Message]]
 ): Future[(seq[Message], seq[PeerId])] {.async: (raises: [CancelledError]).} =
   await allFutures(toSeq(pendingFutures.values))
@@ -248,6 +248,8 @@ proc findNode*(
             existingAddresses.incl(a)
           kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
           # TODO: add TTL to peerstore, otherwise we can spam it with junk
+          # TODO: for discovery interface, invoke the found-peer handler
+          # TODO: when peer-find limit is reached, interupt the hunt.
         ,
         kad.rtable.hasher,
       )
