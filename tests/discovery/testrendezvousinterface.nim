@@ -13,17 +13,7 @@ import chronos
 import ../../libp2p/[protocols/rendezvous, switch, builders]
 import ../../libp2p/discovery/[rendezvousinterface, discoverymngr]
 import ../helpers
-
-proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .withRendezVous(rdv)
-  .build()
+import ./utils
 
 type
   MockRendezVous = ref object of RendezVous

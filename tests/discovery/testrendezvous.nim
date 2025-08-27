@@ -11,20 +11,10 @@
 
 import sequtils, strutils
 import chronos
-import ../../libp2p/[protocols/rendezvous, switch, builders]
+import ../../libp2p/[protocols/rendezvous, switch]
 import ../../libp2p/discovery/discoverymngr
 import ../helpers
-
-proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .withRendezVous(rdv)
-  .build()
+import ./utils
 
 template setupNodes(count: int) {.inject.} =
   doAssert(count > 0, "Count must be greater than 0")
@@ -155,7 +145,7 @@ suite "RendezVous":
     await clientA.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
     await clientB.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
     await rdvA.advertise("foo")
-    let res1 = await rdvA.request(Opt.some("foo"))
+    discard await rdvA.request(Opt.some("foo"))
     await rdvB.advertise("foo")
     let res2 = await rdvA.request(Opt.some("foo"))
     check:
@@ -164,9 +154,7 @@ suite "RendezVous":
     await allFutures(clientA.stop(), clientB.stop(), remoteSwitch.stop())
 
   asyncTest "Various local error":
-    let
-      rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
-      switch = createSwitch(rdv)
+    let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
     expect AdvertiseError:
       discard await rdv.request(Opt.some("A".repeat(300)))
     expect AdvertiseError:
