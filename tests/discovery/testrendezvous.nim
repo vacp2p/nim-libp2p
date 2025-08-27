@@ -16,142 +16,141 @@ import ../../libp2p/discovery/discoverymngr
 import ../helpers
 import ./utils
 
-template setupNodes(count: int) {.inject.} =
-  doAssert(count > 0, "Count must be greater than 0")
-
-  var
-    rdvSeq {.inject.}: seq[RendezVous] = @[]
-    nodes {.inject.}: seq[Switch] = @[]
-
-  for x in 0 ..< count:
-    let rdv = RendezVous.new()
-    let node = createSwitch(rdv)
-    rdvSeq.add(rdv)
-    nodes.add(node)
-
-  await allFutures(nodes.mapIt(it.start()))
-  defer:
-    await allFutures(nodes.mapIt(it.stop()))
-
 suite "RendezVous":
   teardown:
     checkTrackers()
 
   asyncTest "Request locally returns 0 for empty namespace":
-    setupNodes(1)
-    let rdv: RendezVous = rdvSeq[0]
+    let (nodes, rdvs) = setupNodes(1)
+    nodes.startAndDeferStop()
 
     const namespaceEmpty = ""
-    let peerRecords = rdv.requestLocally(namespaceEmpty)
+    let peerRecords = rdvs[0].requestLocally(namespaceEmpty)
     check peerRecords.len == 0
 
   asyncTest "Request locally returns registered peers":
-    setupNodes(1)
-    let rdv: RendezVous = rdvSeq[0]
-    let node = nodes[0]
+    let (nodes, rdvs) = setupNodes(1)
+    nodes.startAndDeferStop()
 
     const namespace = "foo"
-    await rdv.advertise(namespace)
-    let peerRecords = rdv.requestLocally(namespace)
+    await rdvs[0].advertise(namespace)
+    let peerRecords = rdvs[0].requestLocally(namespace)
 
     check:
       peerRecords.len == 1
-      peerRecords[0] == node.peerInfo.signedPeerRecord.data
+      peerRecords[0] == nodes[0].peerInfo.signedPeerRecord.data
 
   asyncTest "Unsubscribe Locally removes registered peer":
-    setupNodes(1)
-    let rdv: RendezVous = rdvSeq[0]
+    let (nodes, rdvs) = setupNodes(1)
+    nodes.startAndDeferStop()
 
     const namespace = "foo"
-    await rdv.advertise(namespace)
-    check rdv.requestLocally(namespace).len == 1
+    await rdvs[0].advertise(namespace)
+    check rdvs[0].requestLocally(namespace).len == 1
 
-    rdv.unsubscribeLocally(namespace)
-    let peerRecords = rdv.requestLocally(namespace)
+    rdvs[0].unsubscribeLocally(namespace)
+    let peerRecords = rdvs[0].requestLocally(namespace)
     check peerRecords.len == 0
 
-  asyncTest "Simple remote test":
-    let
-      rdv = RendezVous.new()
-      client = createSwitch(rdv)
-      remoteSwitch = createSwitch()
+  asyncTest "Request returns 0 for empty namespace from remote":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
 
-    await client.start()
-    await remoteSwitch.start()
-    await client.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
-    let res0 = await rdv.request(Opt.some("empty"))
-    check res0.len == 0
+    await connectNodes(peerNodes[0], rendezvousNode)
 
-    await rdv.advertise("foo")
-    let res1 = await rdv.request(Opt.some("foo"))
+    const namespace = "empty"
+    let peerRecords = await peerRdvs[0].request(Opt.some(namespace))
+    check peerRecords.len == 0
+
+  asyncTest "Request returns registered peers from remote":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    const namespace = "foo"
+    await peerRdvs[0].advertise(namespace)
+    let peerRecords = await peerRdvs[0].request(Opt.some(namespace))
     check:
-      res1.len == 1
-      res1[0] == client.peerInfo.signedPeerRecord.data
+      peerRecords.len == 1
+      peerRecords[0] == peerNodes[0].peerInfo.signedPeerRecord.data
 
-    let res2 = await rdv.request(Opt.some("bar"))
-    check res2.len == 0
+  asyncTest "Unsubscribe removes registered peer from remote":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
 
-    await rdv.unsubscribe("foo")
-    let res3 = await rdv.request(Opt.some("foo"))
-    check res3.len == 0
+    await connectNodes(peerNodes[0], rendezvousNode)
 
-    await allFutures(client.stop(), remoteSwitch.stop())
+    const namespace = "foo"
+    await peerRdvs[0].advertise(namespace)
+    var peerRecords = await peerRdvs[0].request(Opt.some(namespace))
+    check peerRecords.len == 1
 
-  asyncTest "Harder remote test":
-    var
-      rdvSeq: seq[RendezVous] = @[]
-      clientSeq: seq[Switch] = @[]
-      remoteSwitch = createSwitch()
+    await peerRdvs[0].unsubscribe(namespace)
+    peerRecords = await peerRdvs[0].request(Opt.some(namespace))
+    check peerRecords.len == 0
 
-    for x in 0 .. 10:
-      rdvSeq.add(RendezVous.new())
-      clientSeq.add(createSwitch(rdvSeq[^1]))
-    await remoteSwitch.start()
-    await allFutures(clientSeq.mapIt(it.start()))
-    await allFutures(
-      clientSeq.mapIt(remoteSwitch.connect(it.peerInfo.peerId, it.peerInfo.addrs))
-    )
-    await allFutures(rdvSeq.mapIt(it.advertise("foo")))
-    var data = clientSeq.mapIt(it.peerInfo.signedPeerRecord.data)
-    let res1 = await rdvSeq[0].request(Opt.some("foo"), 5)
-    check res1.len == 5
-    for d in res1:
-      check d in data
-    data.keepItIf(it notin res1)
-    let res2 = await rdvSeq[0].request(Opt.some("foo"))
-    check res2.len == 5
-    for d in res2:
-      check d in data
-    let res3 = await rdvSeq[0].request(Opt.some("foo"))
-    check res3.len == 0
-    let res4 = await rdvSeq[0].request()
-    check res4.len == 11
-    let res5 = await rdvSeq[0].request(Opt.none(string))
-    check res5.len == 11
-    await remoteSwitch.stop()
-    await allFutures(clientSeq.mapIt(it.stop()))
+  asyncTest "Consecutive requests with namespace returns peers with pagination":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(11)
+    (rendezvousNode & peerNodes).startAndDeferStop()
 
-  asyncTest "Simple cookie test":
-    let
-      rdvA = RendezVous.new()
-      rdvB = RendezVous.new()
-      clientA = createSwitch(rdvA)
-      clientB = createSwitch(rdvB)
-      remoteSwitch = createSwitch()
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
 
-    await clientA.start()
-    await clientB.start()
-    await remoteSwitch.start()
-    await clientA.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
-    await clientB.connect(remoteSwitch.peerInfo.peerId, remoteSwitch.peerInfo.addrs)
-    await rdvA.advertise("foo")
-    discard await rdvA.request(Opt.some("foo"))
-    await rdvB.advertise("foo")
-    let res2 = await rdvA.request(Opt.some("foo"))
+    const namespace = "foo"
+    await allFutures(peerRdvs.mapIt(it.advertise(namespace)))
+
+    var data = peerNodes.mapIt(it.peerInfo.signedPeerRecord.data)
+    var peerRecords = await peerRdvs[0].request(Opt.some(namespace), 5)
     check:
-      res2.len == 1
-      res2[0] == clientB.peerInfo.signedPeerRecord.data
-    await allFutures(clientA.stop(), clientB.stop(), remoteSwitch.stop())
+      peerRecords.len == 5
+      peerRecords.allIt(it in data)
+    data.keepItIf(it notin peerRecords)
+
+    peerRecords = await peerRdvs[0].request(Opt.some(namespace))
+    check:
+      peerRecords.len == 5
+      peerRecords.allIt(it in data)
+
+    peerRecords = await peerRdvs[0].request(Opt.some(namespace))
+    check peerRecords.len == 0
+
+  asyncTest "Request without namespace returns all registered peers":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(10)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    const namespaceFoo = "foo"
+    const namespaceBar = "Bar"
+    await allFutures(peerRdvs[0 ..< 5].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[5 ..< 10].mapIt(it.advertise(namespaceBar)))
+
+    let peerRecords1 = await peerRdvs[0].request()
+    check peerRecords1.len == 10
+
+    let peerRecords2 = await peerRdvs[0].request(Opt.none(string))
+    check peerRecords2.len == 10
+
+  asyncTest "Consecutive requests with namespace keep cookie and retun only new peers":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(2)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    let
+      rdv0 = peerRdvs[0]
+      rdv1 = peerRdvs[1]
+    const namespace = "foo"
+
+    await rdv0.advertise(namespace)
+    discard await rdv0.request(Opt.some(namespace))
+
+    await rdv1.advertise(namespace)
+    let peerRecords = await rdv0.request(Opt.some(namespace))
+
+    check:
+      peerRecords.len == 1
+      peerRecords[0] == peerNodes[1].peerInfo.signedPeerRecord.data
 
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
