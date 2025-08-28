@@ -1,11 +1,6 @@
 name: Performance
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-  merge_group:
   workflow_dispatch:
 
 concurrency:
