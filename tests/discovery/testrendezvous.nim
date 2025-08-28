@@ -247,17 +247,17 @@ suite "RendezVous":
       (await peerRdvs[0].request(Opt.some(namespaceBar))).len == 5
 
     # Overwrite register timeout loop interval
-    discard testRdv(rdv).deletesRegister(1.seconds)
+    discard rdv.deletesRegister(1.seconds)
 
     # Overwrite expiration times
     let now = Moment.now()
-    for i in testRdv(rdv).registered.low .. testRdv(rdv).registered.high:
-      testRdv(rdv).setExpiration(i, now)
+    for reg in rdv.registered.s.mitems:
+      reg.expiration = now
 
     # Wait for the deletion
     checkUntilTimeout:
-      testRdv(rdv).registered.offset == 10
-      testRdv(rdv).registered.s.len == 0
+      rdv.registered.offset == 10
+      rdv.registered.s.len == 0
       (await peerRdvs[0].request(Opt.some(namespaceFoo))).len == 0
       (await peerRdvs[0].request(Opt.some(namespaceBar))).len == 0
 
@@ -266,8 +266,8 @@ suite "RendezVous":
     await allFutures(peerRdvs[15 ..< 20].mapIt(it.advertise(namespaceBar)))
 
     check:
-      testRdv(rdv).registered.offset == 10
-      testRdv(rdv).registered.s.len == 10
+      rdv.registered.offset == 10
+      rdv.registered.s.len == 10
       (await peerRdvs[0].request(Opt.some(namespaceFoo))).len == 5
       (await peerRdvs[0].request(Opt.some(namespaceBar))).len == 5
 
@@ -282,7 +282,7 @@ suite "RendezVous":
     await allFutures(peerRdvs[0 ..< 2].mapIt(it.advertise(namespace)))
 
     # Build and inject overflow cookie: offset past current high()+1
-    let offset = (testRdv(rdv).registered.high + 1000).uint64
+    let offset = (rdv.registered.high + 1000).uint64
     let cookie = buildProtobufCookie(offset, namespace)
     peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
 
@@ -307,13 +307,14 @@ suite "RendezVous":
     await allFutures(peerRdvs[0 ..< 4].mapIt(it.advertise(namespace)))
 
     # Expire all and flush to advance registered.offset
-    discard testRdv(rdv).deletesRegister(1.seconds)
+    discard rdv.deletesRegister(1.seconds)
     let now = Moment.now()
-    for i in testRdv(rdv).registered.low .. testRdv(rdv).registered.high:
-      testRdv(rdv).setExpiration(i, now)
+    for reg in rdv.registered.s.mitems:
+      reg.expiration = now
+
     checkUntilTimeout:
-      testRdv(rdv).registered.s.len == 0
-      testRdv(rdv).registered.offset == 4
+      rdv.registered.s.len == 0
+      rdv.registered.offset == 4
 
     # Advertise 4 new peers
     await allFutures(peerRdvs[4 ..< 8].mapIt(it.advertise(namespace)))

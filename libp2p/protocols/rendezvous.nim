@@ -310,18 +310,18 @@ proc decode(_: typedesc[Message], buf: seq[byte]): Opt[Message] =
 type
   RendezVousError* = object of DiscoveryError
   RegisteredData = object
-    expiration: Moment
-    peerId: PeerId
+    expiration*: Moment
+    peerId*: PeerId
     data: Register
 
   RendezVous* = ref object of LPProtocol
     # Registered needs to be an offsetted sequence
     # because we need stable index for the cookies.
-    registered: OffsettedSeq[RegisteredData]
+    registered*: OffsettedSeq[RegisteredData]
     # Namespaces is a table whose key is a salted namespace and
     # the value is the index sequence corresponding to this
     # namespace in the offsettedqueue.
-    namespaces: Table[string, seq[int]]
+    namespaces*: Table[string, seq[int]]
     rng: ref HmacDrbgContext
     salt: string
     defaultDT: Moment
@@ -330,7 +330,7 @@ type
     # + make the heartbeat sleep duration "smarter"
     sema: AsyncSemaphore
     peers: seq[PeerId]
-    cookiesSaved: Table[PeerId, Table[string, seq[byte]]]
+    cookiesSaved*: Table[PeerId, Table[string, seq[byte]]]
     switch: Switch
     minDuration: Duration
     maxDuration: Duration
@@ -812,7 +812,7 @@ proc new*(
   rdv.setup(switch)
   return rdv
 
-proc deletesRegister(
+proc deletesRegister*(
     rdv: RendezVous, interval = 1.minutes
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "Register timeout", interval:
@@ -847,29 +847,3 @@ method stop*(rdv: RendezVous): Future[void] {.async: (raises: [], raw: true).} =
   rdv.registerDeletionLoop.cancelSoon()
   rdv.registerDeletionLoop = nil
   fut
-
-# Test-only accessors to internal fields
-# Enable with: -d:libp2p_tests_private
-when defined(libp2p_tests_private):
-  type TestRendezVous* = ref object
-    rdv*: RendezVous
-
-  proc testRdv*(rdv: RendezVous): TestRendezVous =
-    TestRendezVous(rdv: rdv)
-
-  proc registered*(t: TestRendezVous): var OffsettedSeq[RegisteredData] =
-    t.rdv.registered
-
-  proc namespaces*(t: TestRendezVous): var Table[string, seq[int]] =
-    t.rdv.namespaces
-
-  proc cookiesSaved*(t: TestRendezVous): var Table[PeerId, Table[string, seq[byte]]] =
-    t.rdv.cookiesSaved
-
-  proc deletesRegister*(
-      t: TestRendezVous, interval: Duration = 1.minutes
-  ): Future[void] =
-    t.rdv.deletesRegister(interval)
-
-  proc setExpiration*(t: TestRendezVous, i: int, exp: Moment) =
-    t.rdv.registered[i].expiration = exp

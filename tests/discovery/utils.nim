@@ -64,4 +64,4 @@ proc buildProtobufCookie*(offset: uint64, namespace: string): seq[byte] =
 proc injectCookieForPeer*(
     rdv: RendezVous, peerId: PeerId, namespace: string, cookie: seq[byte]
 ) =
-  discard testRdv(rdv).cookiesSaved.hasKeyOrPut(peerId, {namespace: cookie}.toTable())
+  discard rdv.cookiesSaved.hasKeyOrPut(peerId, {namespace: cookie}.toTable())
