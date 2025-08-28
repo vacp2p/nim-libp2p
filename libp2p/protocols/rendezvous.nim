@@ -863,6 +863,9 @@ when defined(libp2p_tests_private):
   proc namespaces*(t: TestRendezVous): var Table[string, seq[int]] =
     t.rdv.namespaces
 
+  proc cookiesSaved*(t: TestRendezVous): var Table[PeerId, Table[string, seq[byte]]] =
+    t.rdv.cookiesSaved
+
   proc deletesRegister*(
       t: TestRendezVous, interval: Duration = 1.minutes
   ): Future[void] =
