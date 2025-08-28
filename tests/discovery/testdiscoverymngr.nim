@@ -11,25 +11,16 @@
 
 import options, chronos, sets
 import
-  ../libp2p/[
+  ../../libp2p/[
     protocols/rendezvous,
     switch,
     builders,
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ./helpers, ./utils/async_tests
-
-proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
-  .withMemoryTransport()
-  .withMplex()
-  .withNoise()
-  .withRendezVous(rdv)
-  .build()
+import ../helpers
+import ../utils/async_tests
+import ./utils
 
 suite "Discovery":
   teardown:
