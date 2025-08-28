@@ -468,11 +468,17 @@ proc discover(
         await conn.sendDiscoverResponseError(InvalidCookie)
         return
     else:
-      Cookie(offset: rdv.registered.low().uint64 - 1)
-  if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get() or
-      cookie.offset < rdv.registered.low().uint64 or
-      cookie.offset > rdv.registered.high().uint64:
-    cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
+      # Start from the current lowest index (inclusive)
+      Cookie(offset: rdv.registered.low().uint64)
+  if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get():
+    # Namespace changed: start from the beginning of that namespace
+    cookie = Cookie(offset: rdv.registered.low().uint64)
+  elif cookie.offset < rdv.registered.low().uint64:
+    # Cookie behind available range: clamp to current low
+    cookie.offset = rdv.registered.low().uint64
+  elif cookie.offset > (rdv.registered.high() + 1).uint64:
+    # Cookie ahead of available range: clamp to one past current high (empty page)
+    cookie.offset = (rdv.registered.high() + 1).uint64
   let namespaces =
     if d.ns.isSome():
       try:
@@ -485,21 +491,21 @@ proc discover(
   if namespaces.len() == 0:
     await conn.sendDiscoverResponse(@[], Cookie())
     return
-  var offset = namespaces[^1]
+  var nextOffset = cookie.offset
   let n = Moment.now()
   var s = collect(newSeq()):
     for index in namespaces:
       var reg = rdv.registered[index]
       if limit == 0:
-        offset = index
         break
-      if reg.expiration < n or index.uint64 <= cookie.offset:
+      if reg.expiration < n or index.uint64 < cookie.offset:
         continue
       limit.dec()
+      nextOffset = index.uint64 + 1
       reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
       reg.data
   rdv.rng.shuffle(s)
-  await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
+  await conn.sendDiscoverResponse(s, Cookie(offset: nextOffset, ns: d.ns))
 
 proc advertisePeer(
     rdv: RendezVous, peer: PeerId, msg: seq[byte]
@@ -754,7 +760,7 @@ proc new*(
   let rdv = T(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
-    registered: initOffsettedSeq[RegisteredData](1),
+    registered: initOffsettedSeq[RegisteredData](),
     defaultDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
@@ -841,3 +847,26 @@ method stop*(rdv: RendezVous): Future[void] {.async: (raises: [], raw: true).} =
   rdv.registerDeletionLoop.cancelSoon()
   rdv.registerDeletionLoop = nil
   fut
+
+# Test-only accessors to internal fields
+# Enable with: -d:libp2p_tests_private
+when defined(libp2p_tests_private):
+  type TestRendezVous* = ref object
+    rdv*: RendezVous
+
+  proc testRdv*(rdv: RendezVous): TestRendezVous =
+    TestRendezVous(rdv: rdv)
+
+  proc registered*(t: TestRendezVous): var OffsettedSeq[RegisteredData] =
+    t.rdv.registered
+
+  proc namespaces*(t: TestRendezVous): var Table[string, seq[int]] =
+    t.rdv.namespaces
+
+  proc deletesRegister*(
+      t: TestRendezVous, interval: Duration = 1.minutes
+  ): Future[void] =
+    t.rdv.deletesRegister(interval)
+
+  proc setExpiration*(t: TestRendezVous, i: int, exp: Moment) =
+    t.rdv.registered[i].expiration = exp

@@ -13,6 +13,7 @@ import sequtils, strutils
 import chronos
 import ../../libp2p/[protocols/rendezvous, switch]
 import ../../libp2p/discovery/discoverymngr
+import ../../libp2p/utils/offsettedseq
 import ../helpers
 import ./utils
 
@@ -104,7 +105,7 @@ suite "RendezVous":
 
     peerRecords = await peerRdvs[0].request(Opt.some(namespace))
     check:
-      peerRecords.len == 5
+      peerRecords.len == 6
       peerRecords.allIt(it in data)
 
     check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
@@ -144,6 +145,131 @@ suite "RendezVous":
     check:
       peerRecords.len == 1
       peerRecords[0] == peerNodes[1].peerInfo.signedPeerRecord.data
+
+  asyncTest "Request with namespace pagination with multiple namespaces":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(30)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    let rdv = peerRdvs[0]
+
+    # Register peers in different namespaces in mixed order
+    const
+      namespaceFoo = "foo"
+      namespaceBar = "bar"
+    await allFutures(peerRdvs[0 ..< 5].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[5 ..< 10].mapIt(it.advertise(namespaceBar)))
+    await allFutures(peerRdvs[10 ..< 15].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[15 ..< 20].mapIt(it.advertise(namespaceBar)))
+
+    var fooRecords = peerNodes[0 ..< 5].concat(peerNodes[10 ..< 15]).mapIt(
+        it.peerInfo.signedPeerRecord.data
+      )
+    var barRecords = peerNodes[5 ..< 10].concat(peerNodes[15 ..< 20]).mapIt(
+        it.peerInfo.signedPeerRecord.data
+      )
+
+    # Foo Page 1 with limit
+    var peerRecords = await rdv.request(Opt.some(namespaceFoo), 2)
+    check:
+      peerRecords.len == 2
+      peerRecords.allIt(it in fooRecords)
+    fooRecords.keepItIf(it notin peerRecords)
+
+    # Foo Page 2 with limit
+    peerRecords = await rdv.request(Opt.some(namespaceFoo), 5)
+    check:
+      peerRecords.len == 5
+      peerRecords.allIt(it in fooRecords)
+    fooRecords.keepItIf(it notin peerRecords)
+
+    # Foo Page 3 with the rest
+    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    check:
+      peerRecords.len == 3
+      peerRecords.allIt(it in fooRecords)
+    fooRecords.keepItIf(it notin peerRecords)
+    check fooRecords.len == 0
+
+    # Foo Page 4 empty
+    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    check peerRecords.len == 0
+
+    # Bar Page 1 with all
+    peerRecords = await rdv.request(Opt.some(namespaceBar), 30)
+    check:
+      peerRecords.len == 10
+      peerRecords.allIt(it in barRecords)
+    barRecords.keepItIf(it notin peerRecords)
+    check barRecords.len == 0
+
+    # Register new peers
+    await allFutures(peerRdvs[20 ..< 25].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[25 ..< 30].mapIt(it.advertise(namespaceBar)))
+
+    # Foo Page 5 only new peers
+    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    check:
+      peerRecords.len == 5
+      peerRecords.allIt(
+        it in peerNodes[20 ..< 25].mapIt(it.peerInfo.signedPeerRecord.data)
+      )
+
+    # Bar Page 2 only new peers
+    peerRecords = await rdv.request(Opt.some(namespaceBar))
+    check:
+      peerRecords.len == 5
+      peerRecords.allIt(
+        it in peerNodes[25 ..< 30].mapIt(it.peerInfo.signedPeerRecord.data)
+      )
+
+    # All records
+    peerRecords = await rdv.request(Opt.none(string))
+    check peerRecords.len == 30
+
+  asyncTest "Request with namespace with expired peers":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) =
+      setupRendezvousNodeWithPeerNodes(20)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    # Advertise peers
+    const
+      fooNs = "foo"
+      barNs = "bar"
+    await allFutures(peerRdvs[0 ..< 5].mapIt(it.advertise(fooNs)))
+    await allFutures(peerRdvs[5 ..< 10].mapIt(it.advertise(barNs)))
+
+    check:
+      (await peerRdvs[0].request(Opt.some(fooNs))).len == 5
+      (await peerRdvs[0].request(Opt.some(barNs))).len == 5
+
+    # Overwrite register timeout loop interval
+    discard testRdv(rdv).deletesRegister(1.seconds)
+
+    # Overwrite expiration times
+    let now = Moment.now()
+    for i in testRdv(rdv).registered.low .. testRdv(rdv).registered.high:
+      testRdv(rdv).setExpiration(i, now)
+
+    # Wait for the deletion
+    checkUntilTimeout:
+      testRdv(rdv).registered.offset == 10
+      testRdv(rdv).registered.s.len == 0
+      (await peerRdvs[0].request(Opt.some(fooNs))).len == 0
+      (await peerRdvs[0].request(Opt.some(barNs))).len == 0
+
+    # Advertise new peers
+    await allFutures(peerRdvs[10 ..< 15].mapIt(it.advertise(fooNs)))
+    await allFutures(peerRdvs[15 ..< 20].mapIt(it.advertise(barNs)))
+
+    check:
+      testRdv(rdv).registered.offset == 10
+      testRdv(rdv).registered.s.len == 10
+      (await peerRdvs[0].request(Opt.some(fooNs))).len == 5
+      (await peerRdvs[0].request(Opt.some(barNs))).len == 5
 
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
