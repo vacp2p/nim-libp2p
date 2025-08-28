@@ -474,10 +474,10 @@ proc discover(
     # Namespace changed: start from the beginning of that namespace
     cookie = Cookie(offset: rdv.registered.low().uint64)
   elif cookie.offset < rdv.registered.low().uint64:
-    # Cookie behind available range: clamp to current low
+    # Cookie behind available range: reset to current low
     cookie.offset = rdv.registered.low().uint64
   elif cookie.offset > (rdv.registered.high() + 1).uint64:
-    # Cookie ahead of available range: clamp to one past current high (empty page)
+    # Cookie ahead of available range: reset to one past current high (empty page)
     cookie.offset = (rdv.registered.high() + 1).uint64
   let namespaces =
     if d.ns.isSome():

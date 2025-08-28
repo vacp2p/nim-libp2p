@@ -146,76 +146,6 @@ suite "RendezVous":
       peerRecords.len == 1
       peerRecords[0] == peerNodes[1].peerInfo.signedPeerRecord.data
 
-  asyncTest "Cookie offset is clamped to end (returns empty) then new peers are discoverable":
-    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(3)
-    (rendezvousNode & peerNodes).startAndDeferStop()
-
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
-
-    const namespace = "foo"
-    # Advertise two peers initially
-    await allFutures(peerRdvs[0 ..< 2].mapIt(it.advertise(namespace)))
-
-    # Build and inject overflow cookie: offset past current high()+1
-    let offset = (testRdv(rdv).registered.high + 1000).uint64
-    let cookie = buildProtobufCookie(offset, namespace)
-    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
-
-    # First request should return empty due to clamping to high()+1
-    check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
-
-    # Advertise a new peer, next request should return only the new one
-    await peerRdvs[2].advertise(namespace)
-    let peerRecords = await peerRdvs[0].request(Opt.some(namespace))
-    check:
-      peerRecords.len == 1
-      peerRecords[0] == peerNodes[2].peerInfo.signedPeerRecord.data
-
-  asyncTest "Cookie offset is clamped to low after flush (returns current entries)":
-    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(8)
-    (rendezvousNode & peerNodes).startAndDeferStop()
-
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
-
-    const namespace = "foo"
-    # Advertise 4 peers in namespace
-    await allFutures(peerRdvs[0 ..< 4].mapIt(it.advertise(namespace)))
-
-    # Expire all and flush to advance registered.offset
-    discard testRdv(rdv).deletesRegister(1.seconds)
-    let now = Moment.now()
-    for i in testRdv(rdv).registered.low .. testRdv(rdv).registered.high:
-      testRdv(rdv).setExpiration(i, now)
-    checkUntilTimeout:
-      testRdv(rdv).registered.s.len == 0
-      testRdv(rdv).registered.offset == 4
-
-    # Advertise 4 new peers
-    await allFutures(peerRdvs[4 ..< 8].mapIt(it.advertise(namespace)))
-
-    # Build and inject underflow cookie: offset behind current low
-    let offset = 0'u64
-    let cookie = buildProtobufCookie(offset, namespace)
-    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
-
-    check (await peerRdvs[0].request(Opt.some(namespace))).len == 4
-
-  asyncTest "Cookie namespace mismatch resets to low (returns peers despite offset)":
-    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(3)
-    (rendezvousNode & peerNodes).startAndDeferStop()
-
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
-
-    const namespace = "foo"
-    await allFutures(peerRdvs.mapIt(it.advertise(namespace)))
-
-    # Build and inject cookie with wrong namespace
-    let offset = 10.uint64
-    let cookie = buildProtobufCookie(offset, "other")
-    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
-
-    check (await peerRdvs[0].request(Opt.some(namespace))).len == 3
-
   asyncTest "Request with namespace pagination with multiple namespaces":
     let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(30)
     (rendezvousNode & peerNodes).startAndDeferStop()
@@ -340,6 +270,76 @@ suite "RendezVous":
       testRdv(rdv).registered.s.len == 10
       (await peerRdvs[0].request(Opt.some(namespaceFoo))).len == 5
       (await peerRdvs[0].request(Opt.some(namespaceBar))).len == 5
+
+  asyncTest "Cookie offset is reset to end (returns empty) then new peers are discoverable":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(3)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    const namespace = "foo"
+    # Advertise two peers initially
+    await allFutures(peerRdvs[0 ..< 2].mapIt(it.advertise(namespace)))
+
+    # Build and inject overflow cookie: offset past current high()+1
+    let offset = (testRdv(rdv).registered.high + 1000).uint64
+    let cookie = buildProtobufCookie(offset, namespace)
+    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
+
+    # First request should return empty due to clamping to high()+1
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
+
+    # Advertise a new peer, next request should return only the new one
+    await peerRdvs[2].advertise(namespace)
+    let peerRecords = await peerRdvs[0].request(Opt.some(namespace))
+    check:
+      peerRecords.len == 1
+      peerRecords[0] == peerNodes[2].peerInfo.signedPeerRecord.data
+
+  asyncTest "Cookie offset is reset to low after flush (returns current entries)":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(8)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    const namespace = "foo"
+    # Advertise 4 peers in namespace
+    await allFutures(peerRdvs[0 ..< 4].mapIt(it.advertise(namespace)))
+
+    # Expire all and flush to advance registered.offset
+    discard testRdv(rdv).deletesRegister(1.seconds)
+    let now = Moment.now()
+    for i in testRdv(rdv).registered.low .. testRdv(rdv).registered.high:
+      testRdv(rdv).setExpiration(i, now)
+    checkUntilTimeout:
+      testRdv(rdv).registered.s.len == 0
+      testRdv(rdv).registered.offset == 4
+
+    # Advertise 4 new peers
+    await allFutures(peerRdvs[4 ..< 8].mapIt(it.advertise(namespace)))
+
+    # Build and inject underflow cookie: offset behind current low
+    let offset = 0'u64
+    let cookie = buildProtobufCookie(offset, namespace)
+    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
+
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 4
+
+  asyncTest "Cookie namespace mismatch resets to low (returns peers despite offset)":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(3)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    const namespace = "foo"
+    await allFutures(peerRdvs.mapIt(it.advertise(namespace)))
+
+    # Build and inject cookie with wrong namespace
+    let offset = 10.uint64
+    let cookie = buildProtobufCookie(offset, "other")
+    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
+
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 3
 
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
