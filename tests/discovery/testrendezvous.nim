@@ -13,6 +13,7 @@ import sequtils, strutils
 import chronos
 import ../../libp2p/[protocols/rendezvous, switch]
 import ../../libp2p/discovery/discoverymngr
+import ../../libp2p/utils/offsettedseq
 import ../helpers
 import ./utils
 
@@ -104,7 +105,7 @@ suite "RendezVous":
 
     peerRecords = await peerRdvs[0].request(Opt.some(namespace))
     check:
-      peerRecords.len == 5
+      peerRecords.len == 6
       peerRecords.allIt(it in data)
 
     check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
@@ -144,6 +145,202 @@ suite "RendezVous":
     check:
       peerRecords.len == 1
       peerRecords[0] == peerNodes[1].peerInfo.signedPeerRecord.data
+
+  asyncTest "Request with namespace pagination with multiple namespaces":
+    let (rendezvousNode, peerNodes, peerRdvs, _) = setupRendezvousNodeWithPeerNodes(30)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    let rdv = peerRdvs[0]
+
+    # Register peers in different namespaces in mixed order
+    const
+      namespaceFoo = "foo"
+      namespaceBar = "bar"
+    await allFutures(peerRdvs[0 ..< 5].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[5 ..< 10].mapIt(it.advertise(namespaceBar)))
+    await allFutures(peerRdvs[10 ..< 15].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[15 ..< 20].mapIt(it.advertise(namespaceBar)))
+
+    var fooRecords = peerNodes[0 ..< 5].concat(peerNodes[10 ..< 15]).mapIt(
+        it.peerInfo.signedPeerRecord.data
+      )
+    var barRecords = peerNodes[5 ..< 10].concat(peerNodes[15 ..< 20]).mapIt(
+        it.peerInfo.signedPeerRecord.data
+      )
+
+    # Foo Page 1 with limit
+    var peerRecords = await rdv.request(Opt.some(namespaceFoo), 2)
+    check:
+      peerRecords.len == 2
+      peerRecords.allIt(it in fooRecords)
+    fooRecords.keepItIf(it notin peerRecords)
+
+    # Foo Page 2 with limit
+    peerRecords = await rdv.request(Opt.some(namespaceFoo), 5)
+    check:
+      peerRecords.len == 5
+      peerRecords.allIt(it in fooRecords)
+    fooRecords.keepItIf(it notin peerRecords)
+
+    # Foo Page 3 with the rest
+    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    check:
+      peerRecords.len == 3
+      peerRecords.allIt(it in fooRecords)
+    fooRecords.keepItIf(it notin peerRecords)
+    check fooRecords.len == 0
+
+    # Foo Page 4 empty
+    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    check peerRecords.len == 0
+
+    # Bar Page 1 with all
+    peerRecords = await rdv.request(Opt.some(namespaceBar), 30)
+    check:
+      peerRecords.len == 10
+      peerRecords.allIt(it in barRecords)
+    barRecords.keepItIf(it notin peerRecords)
+    check barRecords.len == 0
+
+    # Register new peers
+    await allFutures(peerRdvs[20 ..< 25].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[25 ..< 30].mapIt(it.advertise(namespaceBar)))
+
+    # Foo Page 5 only new peers
+    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    check:
+      peerRecords.len == 5
+      peerRecords.allIt(
+        it in peerNodes[20 ..< 25].mapIt(it.peerInfo.signedPeerRecord.data)
+      )
+
+    # Bar Page 2 only new peers
+    peerRecords = await rdv.request(Opt.some(namespaceBar))
+    check:
+      peerRecords.len == 5
+      peerRecords.allIt(
+        it in peerNodes[25 ..< 30].mapIt(it.peerInfo.signedPeerRecord.data)
+      )
+
+    # All records
+    peerRecords = await rdv.request(Opt.none(string))
+    check peerRecords.len == 30
+
+  asyncTest "Request with namespace with expired peers":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) =
+      setupRendezvousNodeWithPeerNodes(20)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    # Advertise peers
+    const
+      namespaceFoo = "foo"
+      namespaceBar = "bar"
+    await allFutures(peerRdvs[0 ..< 5].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[5 ..< 10].mapIt(it.advertise(namespaceBar)))
+
+    check:
+      (await peerRdvs[0].request(Opt.some(namespaceFoo))).len == 5
+      (await peerRdvs[0].request(Opt.some(namespaceBar))).len == 5
+
+    # Overwrite register timeout loop interval
+    discard rdv.deletesRegister(1.seconds)
+
+    # Overwrite expiration times
+    let now = Moment.now()
+    for reg in rdv.registered.s.mitems:
+      reg.expiration = now
+
+    # Wait for the deletion
+    checkUntilTimeout:
+      rdv.registered.offset == 10
+      rdv.registered.s.len == 0
+      (await peerRdvs[0].request(Opt.some(namespaceFoo))).len == 0
+      (await peerRdvs[0].request(Opt.some(namespaceBar))).len == 0
+
+    # Advertise new peers
+    await allFutures(peerRdvs[10 ..< 15].mapIt(it.advertise(namespaceFoo)))
+    await allFutures(peerRdvs[15 ..< 20].mapIt(it.advertise(namespaceBar)))
+
+    check:
+      rdv.registered.offset == 10
+      rdv.registered.s.len == 10
+      (await peerRdvs[0].request(Opt.some(namespaceFoo))).len == 5
+      (await peerRdvs[0].request(Opt.some(namespaceBar))).len == 5
+
+  asyncTest "Cookie offset is reset to end (returns empty) then new peers are discoverable":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(3)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    const namespace = "foo"
+    # Advertise two peers initially
+    await allFutures(peerRdvs[0 ..< 2].mapIt(it.advertise(namespace)))
+
+    # Build and inject overflow cookie: offset past current high()+1
+    let offset = (rdv.registered.high + 1000).uint64
+    let cookie = buildProtobufCookie(offset, namespace)
+    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
+
+    # First request should return empty due to clamping to high()+1
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 0
+
+    # Advertise a new peer, next request should return only the new one
+    await peerRdvs[2].advertise(namespace)
+    let peerRecords = await peerRdvs[0].request(Opt.some(namespace))
+    check:
+      peerRecords.len == 1
+      peerRecords[0] == peerNodes[2].peerInfo.signedPeerRecord.data
+
+  asyncTest "Cookie offset is reset to low after flush (returns current entries)":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(8)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    const namespace = "foo"
+    # Advertise 4 peers in namespace
+    await allFutures(peerRdvs[0 ..< 4].mapIt(it.advertise(namespace)))
+
+    # Expire all and flush to advance registered.offset
+    discard rdv.deletesRegister(1.seconds)
+    let now = Moment.now()
+    for reg in rdv.registered.s.mitems:
+      reg.expiration = now
+
+    checkUntilTimeout:
+      rdv.registered.s.len == 0
+      rdv.registered.offset == 4
+
+    # Advertise 4 new peers
+    await allFutures(peerRdvs[4 ..< 8].mapIt(it.advertise(namespace)))
+
+    # Build and inject underflow cookie: offset behind current low
+    let offset = 0'u64
+    let cookie = buildProtobufCookie(offset, namespace)
+    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
+
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 4
+
+  asyncTest "Cookie namespace mismatch resets to low (returns peers despite offset)":
+    let (rendezvousNode, peerNodes, peerRdvs, rdv) = setupRendezvousNodeWithPeerNodes(3)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    const namespace = "foo"
+    await allFutures(peerRdvs.mapIt(it.advertise(namespace)))
+
+    # Build and inject cookie with wrong namespace
+    let offset = 10.uint64
+    let cookie = buildProtobufCookie(offset, "other")
+    peerRdvs[0].injectCookieForPeer(rendezvousNode.peerInfo.peerId, namespace, cookie)
+
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 3
 
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
