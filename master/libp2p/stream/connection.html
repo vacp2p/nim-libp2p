@@ -162,6 +162,7 @@ window.addEventListener("DOMContentLoaded", main2);
   timeoutHandler*: TimeoutHandler
   peerId*: PeerId
   observedAddr*: Opt[MultiAddress]
+  localAddr*: Opt[MultiAddress]
   protocol*: string
   transportDir*: Direction
   when defined(libp2p_agents_metrics):
@@ -191,11 +192,13 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">new
-  <li><a class="reference" href="#new%2CtypeConnection%2CPeerId%2CDirection%2COpt%5BMultiAddress%5D%2CDuration%2CTimeoutHandler" title="new(C: type Connection; peerId: PeerId; dir: Direction;
-    observedAddr: Opt[MultiAddress];
+  <li><a class="reference" href="#new%2CtypeConnection%2CPeerId%2CDirection%2COpt%5BMultiAddress%5D%2COpt%5BMultiAddress%5D%2CDuration%2CTimeoutHandler" title="new(C: type Connection; peerId: PeerId; dir: Direction;
+    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress);
+    localAddr: Opt[MultiAddress] = Opt.none(MultiAddress);
     timeout: Duration = DefaultConnectionTimeout;
     timeoutHandler: TimeoutHandler = nil): Connection">new(C: type Connection; peerId: PeerId; dir: Direction;
-    observedAddr: Opt[MultiAddress];
+    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress);
+    localAddr: Opt[MultiAddress] = Opt.none(MultiAddress);
     timeout: Duration = DefaultConnectionTimeout;
     timeoutHandler: TimeoutHandler = nil): Connection</a></li>
 
@@ -274,6 +277,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <span class="Identifier">timeoutHandler</span><span class="Operator">*</span><span class="Other">:</span> <a href="connection.html#TimeoutHandler"><span class="Identifier">TimeoutHandler</span></a>
   <span class="Identifier">peerId</span><span class="Operator">*</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">observedAddr</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
+  <span class="Identifier">localAddr</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
   <span class="Identifier">protocol</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
   <span class="Identifier">transportDir</span><span class="Operator">*</span><span class="Other">:</span> <a href="lpstream.html#Direction"><span class="Identifier">Direction</span></a>
   <span class="Keyword">when</span> <span class="Identifier">defined</span><span class="Other">(</span><span class="Identifier">libp2p_agents_metrics</span><span class="Other">)</span><span class="Other">:</span>
@@ -344,24 +348,25 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L96" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L96" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L97" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L97" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 
 </div>
 <div id="new-procs-all">
-  <div id="new,typeConnection,PeerId,Direction,Opt[MultiAddress],Duration,TimeoutHandler" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2CtypeConnection%2CPeerId%2CDirection%2COpt%5BMultiAddress%5D%2CDuration%2CTimeoutHandler"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">C</span><span class="Other">:</span> <span class="Keyword">type</span> <span class="Identifier">Connection</span><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">dir</span><span class="Other">:</span> <a href="lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">;</span>
-         <span class="Identifier">observedAddr</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span>
+  <div id="new,typeConnection,PeerId,Direction,Opt[MultiAddress],Opt[MultiAddress],Duration,TimeoutHandler" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#new%2CtypeConnection%2CPeerId%2CDirection%2COpt%5BMultiAddress%5D%2COpt%5BMultiAddress%5D%2CDuration%2CTimeoutHandler"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">C</span><span class="Other">:</span> <span class="Keyword">type</span> <span class="Identifier">Connection</span><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">dir</span><span class="Other">:</span> <a href="lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">;</span>
+         <span class="Identifier">observedAddr</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">MultiAddress</span><span class="Other">)</span><span class="Other">;</span>
+         <span class="Identifier">localAddr</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">MultiAddress</span><span class="Other">)</span><span class="Other">;</span>
          <span class="Identifier">timeout</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">DefaultConnectionTimeout</span><span class="Other">;</span>
          <span class="Identifier">timeoutHandler</span><span class="Other">:</span> <a href="connection.html#TimeoutHandler"><span class="Identifier">TimeoutHandler</span></a> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <a href="connection.html#Connection"><span class="Identifier">Connection</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L147" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L147" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L148" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L148" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -373,8 +378,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L49" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L49" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L50" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L50" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -394,8 +399,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L80" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L80" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L81" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L81" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -409,8 +414,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 Close the write side of the connection Subclasses should implement this for their specific transport Default implementation just closes the entire connection
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L43" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L43" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L44" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L44" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -423,8 +428,8 @@ Close the write side of the connection Subclasses should implement this for thei
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L134" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L134" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L135" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L135" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -437,8 +442,8 @@ Close the write side of the connection Subclasses should implement this for thei
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L63" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L63" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L64" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L64" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -456,8 +461,8 @@ Close the write side of the connection Subclasses should implement this for thei
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L58" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L58" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/stream/connection.nim#L59" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/stream/connection.nim#L59" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -479,7 +484,7 @@ Close the write side of the connection Subclasses should implement this for thei
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-01 16:15:57 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-01 18:43:05 UTC</small>
       </div>
     </div>
   </div>
