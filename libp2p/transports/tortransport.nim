@@ -237,7 +237,9 @@ method dial*(
   try:
     transp = await connectToTorServer(self.transportAddress)
     await dialPeer(transp, address)
-    return self.tcpTransport.connHandler(transp, Opt.none(MultiAddress), Direction.Out)
+    return self.tcpTransport.connHandler(
+      transp, Opt.none(MultiAddress), Opt.none(MultiAddress), Direction.Out
+    )
   except CancelledError as e:
     safeCloseWait(transp)
     raise e

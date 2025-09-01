@@ -55,10 +55,16 @@ proc new*(
     session: WSSession,
     dir: Direction,
     observedAddr: Opt[MultiAddress],
+    localAddr: Opt[MultiAddress],
     timeout = 10.minutes,
 ): T =
-  let stream =
-    T(session: session, timeout: timeout, dir: dir, observedAddr: observedAddr)
+  let stream = T(
+    session: session,
+    timeout: timeout,
+    dir: dir,
+    observedAddr: observedAddr,
+    localAddr: localAddr,
+  )
 
   stream.initStream()
   return stream
@@ -239,9 +245,8 @@ proc connHandler(
     self: WsTransport, stream: WSSession, secure: bool, dir: Direction
 ): Future[Connection] {.async: (raises: [CatchableError]).} =
   ## Returning CatchableError is fine because we later handle different exceptions.
-  ## 
 
-  let observedAddr =
+  let (observedAddr, localAddr) =
     try:
       let
         codec =
@@ -250,15 +255,19 @@ proc connHandler(
           else:
             MultiAddress.init("/ws")
         remoteAddr = stream.stream.reader.tsource.remoteAddress
+        localAddr = stream.stream.reader.tsource.localAddress
 
-      MultiAddress.init(remoteAddr).tryGet() & codec.tryGet()
+      (
+        MultiAddress.init(remoteAddr).tryGet() & codec.tryGet(),
+        MultiAddress.init(localAddr).tryGet() & codec.tryGet(),
+      )
     except CatchableError as exc:
-      trace "Failed to create observedAddr", description = exc.msg
+      trace "Failed to create observedAddr or listenAddr", description = exc.msg
       if not (isNil(stream) and stream.stream.reader.closed):
         safeClose(stream)
       raise exc
 
-  let conn = WsStream.new(stream, dir, Opt.some(observedAddr))
+  let conn = WsStream.new(stream, dir, Opt.some(observedAddr), Opt.some(localAddr))
 
   self.connections[dir].add(conn)
   proc onClose() {.async: (raises: []).} =
