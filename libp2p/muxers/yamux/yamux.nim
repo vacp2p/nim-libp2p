@@ -515,6 +515,7 @@ proc createStream(
   stream.initStream()
   stream.peerId = m.connection.peerId
   stream.observedAddr = m.connection.observedAddr
+  stream.localAddr = m.connection.localAddr
   stream.transportDir = m.connection.transportDir
   when defined(libp2p_agents_metrics):
     stream.shortAgent = m.connection.shortAgent
