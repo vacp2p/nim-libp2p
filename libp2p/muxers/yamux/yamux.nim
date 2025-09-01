@@ -533,13 +533,13 @@ method close*(m: Yamux) {.async: (raises: []).} =
   trace "Closing yamux"
   let channels = toSeq(m.channels.values())
   for channel in channels:
-    for toSend in channel.sendQueue:
-      toSend.fut.fail(newLPStreamEOFError())
-    channel.sendQueue = @[]
+    channel.clearQueues(newLPStreamEOFError())
+    channel.recvWindow = 0
     channel.sendWindow = 0
     channel.closedLocally = true
     channel.isReset = true
     channel.opened = false
+    channel.isClosed = true
     await channel.remoteClosed()
     channel.receivedData.fire()
   try:
@@ -611,8 +611,10 @@ method handle*(m: Yamux) {.async: (raises: []).} =
               if header.length > 0:
                 var buffer = newSeqUninit[byte](header.length)
                 await m.connection.readExactly(addr buffer[0], int(header.length))
-          do:
-            raise newException(YamuxError, "Unknown stream ID: " & $header.streamId)
+
+          # If we do not have a stream, likely we sent a RST and/or closed the stream
+          trace "unknown stream id", id = header.streamId
+
           continue
 
         let channel =

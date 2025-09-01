@@ -1,6 +1,6 @@
 import sequtils
 import chronos
-import ../../libp2p/[protocols/rendezvous, switch, builders]
+import ../../libp2p/[protobuf/minprotobuf, protocols/rendezvous, switch, builders]
 
 proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
@@ -53,3 +53,15 @@ proc connectNodesToRendezvousNode*[T: Switch](
 ) {.async.} =
   for node in nodes:
     await connectNodes(node, rendezvousNode)
+
+proc buildProtobufCookie*(offset: uint64, namespace: string): seq[byte] =
+  var pb = initProtoBuffer()
+  pb.write(1, offset)
+  pb.write(2, namespace)
+  pb.finish()
+  pb.buffer
+
+proc injectCookieForPeer*(
+    rdv: RendezVous, peerId: PeerId, namespace: string, cookie: seq[byte]
+) =
+  discard rdv.cookiesSaved.hasKeyOrPut(peerId, {namespace: cookie}.toTable())

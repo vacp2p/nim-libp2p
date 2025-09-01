@@ -488,12 +488,8 @@ suite "Yamux":
       YamuxHeader.data(streamId = 2'u32, length = 0, {Syn}),
       # Reserved stream id 0
       YamuxHeader.data(streamId = 0'u32, length = 0, {Syn}),
-      # First frame missing Syn on unopened stream
-      YamuxHeader.data(streamId = 7'u32, length = 0),
       # Reserved parity on WindowUpdate+Syn (even id against responder)
       YamuxHeader.windowUpdate(streamId = 4'u32, delta = 0, {Syn}),
-      # Unknown stream WindowUpdate without Syn
-      YamuxHeader.windowUpdate(streamId = 13'u32, delta = 0),
     ]:
       asyncTest "Reject invalid/unknown header - " & $badHeader:
         mSetup(startHandlera = false)
