@@ -306,11 +306,17 @@ proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection
 ): QuicSession {.raises: [TransportOsError, MaError].} =
   let
-    remoteAddr = connection.remoteAddress()
     observedAddr =
-      MultiAddress.init(remoteAddr, IPPROTO_UDP).get() &
+      MultiAddress.init(connection.remoteAddress(), IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
-    session = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
+    localAddr =
+      MultiAddress.init(connection.localAddress(), IPPROTO_UDP).get() &
+      MultiAddress.init("/quic-v1").get()
+    session = QuicSession(
+      connection: connection,
+      observedAddr: Opt.some(observedAddr),
+      localAddr: Opt.some(localAddr),
+    )
 
   session.initStream()
 
