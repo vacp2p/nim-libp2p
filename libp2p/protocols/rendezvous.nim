@@ -35,7 +35,10 @@ declareGauge(libp2p_rendezvous_namespaces, "number of registered namespaces")
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
+  # Default minimum TTL per libp2p spec
   MinimumDuration* = 2.hours
+  # Lower validation limit to accommodate Waku requirements
+  MinimumAcceptedDuration = 1.minutes
   MaximumDuration = 72.hours
   MaximumMessageLen = 1 shl 22 # 4MB
   MinimumNamespaceLen = 1
@@ -744,10 +747,10 @@ proc new*(
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
 ): T {.raises: [RendezVousError].} =
-  if minDuration < 1.minutes:
+  if minDuration < MinimumAcceptedDuration:
     raise newException(RendezVousError, "TTL too short: 1 minute minimum")
 
-  if maxDuration > 72.hours:
+  if maxDuration > MaximumDuration:
     raise newException(RendezVousError, "TTL too long: 72 hours maximum")
 
   if minDuration >= maxDuration:
