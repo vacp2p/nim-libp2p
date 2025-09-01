@@ -194,7 +194,7 @@ proc generateNodes*(
     disconnectBadPeers: bool = false,
 ): seq[PubSub] =
   for i in 0 ..< num:
-    let switch = newStandardSwitch(
+    let switch = newStandardQuicSwitch(
       secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord
     )
     let pubsub =
