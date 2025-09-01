@@ -583,7 +583,8 @@ method handshake*(
           )
       conn.peerId = pid
 
-      var tmp = NoiseConnection.new(conn, conn.peerId, conn.observedAddr)
+      var tmp =
+        NoiseConnection.new(conn, conn.peerId, conn.observedAddr, conn.localAddr)
       if initiator:
         tmp.readCs = handshakeRes.cs2
         tmp.writeCs = handshakeRes.cs1

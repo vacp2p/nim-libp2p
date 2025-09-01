@@ -51,12 +51,14 @@ proc new*(
     conn: Connection,
     peerId: PeerId,
     observedAddr: Opt[MultiAddress],
+    localAddr: Opt[MultiAddress],
     timeout: Duration = DefaultConnectionTimeout,
 ): T =
   result = T(
     stream: conn,
     peerId: peerId,
     observedAddr: observedAddr,
+    localAddr: localAddr,
     closeEvent: conn.closeEvent,
     timeout: timeout,
     dir: conn.dir,
