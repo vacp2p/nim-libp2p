@@ -12,7 +12,7 @@ import
     errors,
     wire,
   ]
-import ./helpers
+import ./helpers, ./commontransport
 
 proc createServerAcceptConn(
     server: QuicTransport, isEofExpected: bool = false
@@ -207,3 +207,12 @@ suite "Quic transport":
         await server.stop()
 
       await runClient(server)
+
+  proc transportProvider(): Transport =
+    try:
+      let privateKey = PrivateKey.random(ECDSA, (newRng())[]).get()
+      return QuicTransport.new(Upgrade(), privateKey)
+    except CatchableError:
+      check false
+
+  commonTransportTest(transportProvider, "/ip4/0.0.0.0/udp/0/quic-v1")
