@@ -72,7 +72,7 @@ type
   Register = object
     ns: string
     signedPeerRecord: seq[byte]
-    ttl: Opt[uint64] # in seconds
+    ttl*: Opt[uint64] # in seconds
 
   RegisterResponse = object
     status: ResponseStatus
@@ -315,7 +315,7 @@ type
   RegisteredData = object
     expiration*: Moment
     peerId*: PeerId
-    data: Register
+    data*: Register
 
   RendezVous* = ref object of LPProtocol
     # Registered needs to be an offsetted sequence

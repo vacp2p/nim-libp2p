@@ -342,6 +342,54 @@ suite "RendezVous":
 
     check (await peerRdvs[0].request(Opt.some(namespace))).len == 3
 
+  asyncTest "Peer default TTL is saved when advertised":
+    let (rendezvousNode, peerNodes, peerRdvs, rendezvousRdv) =
+      setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    const namespace = "foo"
+    let timeBefore = Moment.now()
+    await peerRdvs[0].advertise(namespace)
+    let timeAfter = Moment.now()
+
+    # expiration within [timeBefore + 2hours, timeAfter + 2hours]
+    check:
+      # Peer Node side
+      peerRdvs[0].registered.s[0].data.ttl.get == MinimumDuration.seconds.uint64
+      peerRdvs[0].registered.s[0].expiration >= timeBefore + MinimumDuration
+      peerRdvs[0].registered.s[0].expiration <= timeAfter + MinimumDuration
+      # Rendezvous Node side
+      rendezvousRdv.registered.s[0].data.ttl.get == MinimumDuration.seconds.uint64
+      rendezvousRdv.registered.s[0].expiration >= timeBefore + MinimumDuration
+      rendezvousRdv.registered.s[0].expiration <= timeAfter + MinimumDuration
+
+  asyncTest "Peer TTL is saved when advertised with TTL":
+    let (rendezvousNode, peerNodes, peerRdvs, rendezvousRdv) =
+      setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    const
+      namespace = "foo"
+      ttl = 3.hours
+    let timeBefore = Moment.now()
+    await peerRdvs[0].advertise(namespace, ttl)
+    let timeAfter = Moment.now()
+
+    # expiration within [timeBefore + ttl, timeAfter + ttl]
+    check:
+      # Peer Node side
+      peerRdvs[0].registered.s[0].data.ttl.get == ttl.seconds.uint64
+      peerRdvs[0].registered.s[0].expiration >= timeBefore + ttl
+      peerRdvs[0].registered.s[0].expiration <= timeAfter + ttl
+      # Rendezvous Node side
+      rendezvousRdv.registered.s[0].data.ttl.get == ttl.seconds.uint64
+      rendezvousRdv.registered.s[0].expiration >= timeBefore + ttl
+      rendezvousRdv.registered.s[0].expiration <= timeAfter + ttl
+
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
     expect AdvertiseError:
