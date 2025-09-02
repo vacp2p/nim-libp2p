@@ -390,6 +390,40 @@ suite "RendezVous":
       rendezvousRdv.registered.s[0].expiration >= timeBefore + ttl
       rendezvousRdv.registered.s[0].expiration <= timeAfter + ttl
 
+  asyncTest "Peer can reregister to update its TTL before previous TTL expires":
+    let (rendezvousNode, peerNodes, peerRdvs, rendezvousRdv) =
+      setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    const namespace = "foo"
+    let now = Moment.now()
+
+    await peerRdvs[0].advertise(namespace)
+    check:
+      # Peer Node side
+      peerRdvs[0].registered.s.len == 1
+      peerRdvs[0].registered.s[0].expiration > now
+      # Rendezvous Node side
+      rendezvousRdv.registered.s.len == 1
+      rendezvousRdv.registered.s[0].expiration > now
+
+    await peerRdvs[0].advertise(namespace, 5.hours)
+    check:
+      # Added 2nd registration
+      # Updated expiration of the 1st one to the past
+      # Will be deleted on deletion heartbeat
+      # Peer Node side
+      peerRdvs[0].registered.s.len == 2
+      peerRdvs[0].registered.s[0].expiration < now
+      # Rendezvous Node side
+      rendezvousRdv.registered.s.len == 2
+      rendezvousRdv.registered.s[0].expiration < now
+
+    # Returns only one record
+    check (await peerRdvs[0].request(Opt.some(namespace))).len == 1
+
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
     expect AdvertiseError:

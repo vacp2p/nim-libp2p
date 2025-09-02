@@ -327,7 +327,7 @@ type
     namespaces*: Table[string, seq[int]]
     rng: ref HmacDrbgContext
     salt: string
-    defaultDT: Moment
+    expiredDT: Moment
     registerDeletionLoop: Future[void]
     #registerEvent: AsyncEvent # TODO: to raise during the heartbeat
     # + make the heartbeat sleep duration "smarter"
@@ -412,7 +412,7 @@ proc save(
       if rdv.registered[index].peerId == peerId:
         if update == false:
           return
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
@@ -449,7 +449,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == conn.peerId:
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
         libp2p_rendezvous_registered.dec()
   except KeyError:
     return
@@ -692,7 +692,7 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == rdv.switch.peerInfo.peerId:
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
   except KeyError:
     return
 
@@ -764,7 +764,7 @@ proc new*(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
-    defaultDT: Moment.now() - 1.days,
+    expiredDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
     minDuration: minDuration,
