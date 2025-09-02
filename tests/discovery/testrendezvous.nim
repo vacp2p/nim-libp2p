@@ -424,6 +424,32 @@ suite "RendezVous":
     # Returns only one record
     check (await peerRdvs[0].request(Opt.some(namespace))).len == 1
 
+  asyncTest "Peer registration is ignored if limit of 1000 registrations is reached":
+    let (rendezvousNode, peerNodes, peerRdvs, rendezvousRdv) =
+      setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    const namespace = "foo"
+    let peerRdv = peerRdvs[0]
+
+    # 1st registration
+    await peerRdv.advertise(namespace)
+
+    # Simulate large number of registrations for the same Peer
+    let record = rendezvousRdv.registered.s[0]
+    for i in 0 ..< RegistrationLimitPerPeer - 2:
+      rendezvousRdv.registered.s.add(record)
+
+    # 1000th registration allowed
+    await peerRdv.advertise(namespace)
+    check rendezvousRdv.registered.s.len == RegistrationLimitPerPeer
+
+    # 1001st registration ignored, limit reached
+    await peerRdv.advertise(namespace)
+    check rendezvousRdv.registered.s.len == RegistrationLimitPerPeer
+
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
     expect AdvertiseError:
