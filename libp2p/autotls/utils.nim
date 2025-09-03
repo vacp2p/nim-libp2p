@@ -22,46 +22,16 @@ const
 type AutoTLSError* = object of LPError
 
 when defined(libp2p_autotls_support):
-  import net, strutils
   from times import DateTime, toTime, toUnix
   import stew/base36
   import
     ../peerid,
+    ../utils/ipaddr,
     ../multihash,
     ../cid,
     ../multicodec,
     ../nameresolving/nameresolver,
     ./acme/client
-
-  proc checkedGetPrimaryIPAddr*(): IpAddress {.raises: [AutoTLSError].} =
-    # This is so that we don't need to catch Exceptions directly
-    # since we support 1.6.16 and getPrimaryIPAddr before nim 2 didn't have explicit .raises. pragmas
-    try:
-      return getPrimaryIPAddr()
-    except Exception as exc:
-      raise newException(AutoTLSError, "Error while getting primary IP address", exc)
-
-  proc isIPv4*(ip: IpAddress): bool =
-    ip.family == IpAddressFamily.IPv4
-
-  proc isPublic*(ip: IpAddress): bool {.raises: [AutoTLSError].} =
-    let ip = $ip
-    try:
-      not (
-        ip.startsWith("10.") or
-        (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
-        ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
-      )
-    except ValueError as exc:
-      raise newException(AutoTLSError, "Failed to parse IP address", exc)
-
-  proc getPublicIPAddress*(): IpAddress {.raises: [AutoTLSError].} =
-    let ip = checkedGetPrimaryIPAddr()
-    if not ip.isIPv4():
-      raise newException(AutoTLSError, "Host does not have an IPv4 address")
-    if not ip.isPublic():
-      raise newException(AutoTLSError, "Host does not have a public IPv4 address")
-    return ip
 
   proc asMoment*(dt: DateTime): Moment =
     let unixTime: int64 = dt.toTime.toUnix

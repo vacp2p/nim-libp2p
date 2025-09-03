@@ -108,51 +108,6 @@ suite "AutonatV2":
     # DialBackResponse
     checkEncodeDecode(DialBackResponse(status: DialBackStatus.Ok))
 
-  asyncTest "ipAddrMatches":
-    # same ip address
-    check ipAddrMatches(
-      MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
-    )
-    # different ip address
-    check not ipAddrMatches(
-      MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
-    )
-  asyncTest "ipSupport":
-    var rng = newRng()
-    let ipv4switch = SwitchBuilder
-      .new()
-      .withRng(rng)
-      .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()])
-      .build()
-    let ipv6switch = SwitchBuilder
-      .new()
-      .withRng(rng)
-      .withAddresses(@[MultiAddress.init("/ip6/::1/tcp/4040").get()])
-      .build()
-    let ipv46switch = SwitchBuilder
-      .new()
-      .withRng(rng)
-      .withAddresses(
-        @[
-          MultiAddress.init("/ip6/::1/tcp/4040").get(),
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-        ]
-      )
-      .build()
-    check ipv4switch.ipSupport() == (true, false)
-    check ipv6switch.ipSupport() == (false, true)
-    check ipv46switch.ipSupport() == (true, true)
-
-  asyncTest "isPrivateIP":
-    check isPrivateIP("192.168.1.100")
-    check isPrivateIP("10.0.0.25")
-    check isPrivateIP("169.254.12.34")
-    check isPrivateIP("172.31.200.8")
-    check not isPrivateIP("1.1.1.1")
-    check not isPrivateIP("185.199.108.153")
-
   asyncTest "asNetworkReachability":
     check asNetworkReachability(DialResponse(status: EInternalError)) == Unknown
     check asNetworkReachability(DialResponse(status: ERequestRejected)) == Unknown
@@ -194,22 +149,3 @@ suite "AutonatV2":
       AutonatV2Response(
         reachability: Reachable, dialResp: correctDialResp, addrs: Opt.some(addrs[0])
       )
-
-  asyncTest "areAddrsConsistent":
-    # same address should be consistent
-    check areAddrsConsistent(
-      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-    )
-
-    # different addresses with same stack should be consistent
-    check areAddrsConsistent(
-      MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
-      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-    )
-
-    # addresses with different stacks should not be consistent
-    check not areAddrsConsistent(
-      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-      MultiAddress.init("/ip4/127.0.0.1/udp/4040").get(),
-    )

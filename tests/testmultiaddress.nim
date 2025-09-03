@@ -435,3 +435,22 @@ suite "MultiAddress test suite":
     for item in CrashesVectors:
       let res = MultiAddress.init(hexToSeqByte(item))
       check res.isErr()
+
+  test "areAddrsConsistent":
+    # same address should be consistent
+    check areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+    )
+
+    # different addresses with same stack should be consistent
+    check areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+    )
+
+    # addresses with different stacks should not be consistent
+    check not areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      MultiAddress.init("/ip4/127.0.0.1/udp/4040").get(),
+    )
