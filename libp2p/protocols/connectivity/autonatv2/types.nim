@@ -10,25 +10,35 @@
 {.push raises: [].}
 
 import results, chronos, chronicles
-import ../../../multiaddress, ../../../peerid #, ../../../errors
-import ../../../protobuf/minprotobuf
-
-logScope:
-  topics = "libp2p autonat v2"
-
-const
-  AutonatV2DialRequestCodec* = "/libp2p/autonat/2/dial-request"
-  AutonatV2DialBackCodec* = "/libp2p/autonat/2/dial-back"
+import
+  ../../../multiaddress, ../../../peerid, ../../../protobuf/minprotobuf, ../../../switch
+from ../autonat/types import NetworkReachability
 
 type
-  # DialBack and DialBackResponse are not defined as AutonatV2Msg as per the spec
-  # likely because they are expected in response to some other message
+  AutonatV2Codec* {.pure.} = enum
+    DialRequest = "/libp2p/autonat/2/dial-request"
+    DialBack = "/libp2p/autonat/2/dial-back"
+
+  AutonatV2Response* = object
+    reachability*: NetworkReachability
+    dialResp*: DialResponse
+    addrs*: Opt[MultiAddress]
+
+  AutonatV2Error* = object of LPError
+
+  Nonce* = uint64
+
+  AddrIdx* = uint32
+
+  NumBytes* = uint64
+
   MsgType* {.pure.} = enum
-    Unused = 0 # nim requires the first variant to be zero
-    DialRequest = 1
-    DialResponse = 2
-    DialDataRequest = 3
-    DialDataResponse = 4
+    # DialBack and DialBackResponse are not defined as AutonatV2Msg as per the spec
+    # likely because they are expected in response to some other message
+    DialRequest
+    DialResponse
+    DialDataRequest
+    DialDataResponse
 
   ResponseStatus* {.pure.} = enum
     EInternalError = 0
@@ -47,30 +57,28 @@ type
 
   DialRequest* = object
     addrs*: seq[MultiAddress]
-    nonce*: uint64
+    nonce*: Nonce
 
   DialResponse* = object
     status*: ResponseStatus
-    addrIdx*: Opt[uint32]
+    addrIdx*: Opt[AddrIdx]
     dialStatus*: Opt[DialStatus]
 
   DialBack* = object
-    nonce*: uint64
+    nonce*: Nonce
 
   DialBackResponse* = object
     status*: DialBackStatus
 
   DialDataRequest* = object
-    addrIdx*: uint32
-    numBytes*: uint64
+    addrIdx*: AddrIdx
+    numBytes*: NumBytes
 
   DialDataResponse* = object
     data*: seq[byte]
 
   AutonatV2Msg* = object
     case msgType*: MsgType
-    of MsgType.Unused:
-      discard
     of MsgType.DialRequest:
       dialReq*: DialRequest
     of MsgType.DialResponse:
@@ -92,7 +100,7 @@ proc encode*(dialReq: DialRequest): ProtoBuffer =
 proc decode*(T: typedesc[DialRequest], pb: ProtoBuffer): Opt[T] =
   var
     addrs: seq[MultiAddress]
-    nonce: uint64
+    nonce: Nonce
   if not ?pb.getRepeatedField(1, addrs).toOpt():
     return Opt.none(T)
   if not ?pb.getField(2, nonce).toOpt():
@@ -114,13 +122,13 @@ proc encode*(dialResp: DialResponse): ProtoBuffer =
 proc decode*(T: typedesc[DialResponse], pb: ProtoBuffer): Opt[T] =
   var
     status: uint
-    addrIdx: uint32
+    addrIdx: AddrIdx
     dialStatus: uint
 
   if not ?pb.getField(1, status).toOpt():
     return Opt.none(T)
 
-  var optAddrIdx = Opt.none(uint32)
+  var optAddrIdx = Opt.none(AddrIdx)
   if ?pb.getField(2, addrIdx).toOpt():
     optAddrIdx = Opt.some(addrIdx)
 
@@ -144,7 +152,7 @@ proc encode*(dialBack: DialBack): ProtoBuffer =
   encoded
 
 proc decode*(T: typedesc[DialBack], pb: ProtoBuffer): Opt[T] =
-  var nonce: uint64
+  var nonce: Nonce
   if not ?pb.getField(1, nonce).toOpt():
     return Opt.none(T)
   Opt.some(T(nonce: nonce))
@@ -172,8 +180,8 @@ proc encode*(dialDataReq: DialDataRequest): ProtoBuffer =
 
 proc decode*(T: typedesc[DialDataRequest], pb: ProtoBuffer): Opt[T] =
   var
-    addrIdx: uint32
-    numBytes: uint64
+    addrIdx: AddrIdx
+    numBytes: NumBytes
   if not ?pb.getField(1, addrIdx).toOpt():
     return Opt.none(T)
   if not ?pb.getField(2, numBytes).toOpt():
@@ -193,20 +201,25 @@ proc decode*(T: typedesc[DialDataResponse], pb: ProtoBuffer): Opt[T] =
     return Opt.none(T)
   Opt.some(T(data: data))
 
+proc protoField(msgType: MsgType): int =
+  case msgType
+  of MsgType.DialRequest: 1.int
+  of MsgType.DialResponse: 2.int
+  of MsgType.DialDataRequest: 3.int
+  of MsgType.DialDataResponse: 4.int
+
 # AutonatV2Msg
 proc encode*(msg: AutonatV2Msg): ProtoBuffer =
   var encoded = initProtoBuffer()
   case msg.msgType
-  of MsgType.Unused:
-    doAssert false, "invalid enum variant: Unused"
   of MsgType.DialRequest:
-    encoded.write(MsgType.DialRequest.int, msg.dialReq.encode())
+    encoded.write(MsgType.DialRequest.protoField, msg.dialReq.encode())
   of MsgType.DialResponse:
-    encoded.write(MsgType.DialResponse.int, msg.dialResp.encode())
+    encoded.write(MsgType.DialResponse.protoField, msg.dialResp.encode())
   of MsgType.DialDataRequest:
-    encoded.write(MsgType.DialDataRequest.int, msg.dialDataReq.encode())
+    encoded.write(MsgType.DialDataRequest.protoField, msg.dialDataReq.encode())
   of MsgType.DialDataResponse:
-    encoded.write(MsgType.DialDataResponse.int, msg.dialDataResp.encode())
+    encoded.write(MsgType.DialDataResponse.protoField, msg.dialDataResp.encode())
   encoded.finish()
   encoded
 
@@ -215,19 +228,19 @@ proc decode*(T: typedesc[AutonatV2Msg], pb: ProtoBuffer): Opt[T] =
     msgTypeOrd: uint32
     msg: ProtoBuffer
 
-  if ?pb.getField(MsgType.DialRequest.int, msg).toOpt():
+  if ?pb.getField(MsgType.DialRequest.protoField, msg).toOpt():
     let dialReq = DialRequest.decode(msg).valueOr:
       return Opt.none(AutonatV2Msg)
     Opt.some(AutonatV2Msg(msgType: MsgType.DialRequest, dialReq: dialReq))
-  elif ?pb.getField(MsgType.DialResponse.int, msg).toOpt():
+  elif ?pb.getField(MsgType.DialResponse.protoField, msg).toOpt():
     let dialResp = DialResponse.decode(msg).valueOr:
       return Opt.none(AutonatV2Msg)
     Opt.some(AutonatV2Msg(msgType: MsgType.DialResponse, dialResp: dialResp))
-  elif ?pb.getField(MsgType.DialDataRequest.int, msg).toOpt():
+  elif ?pb.getField(MsgType.DialDataRequest.protoField, msg).toOpt():
     let dialDataReq = DialDataRequest.decode(msg).valueOr:
       return Opt.none(AutonatV2Msg)
     Opt.some(AutonatV2Msg(msgType: MsgType.DialDataRequest, dialDataReq: dialDataReq))
-  elif ?pb.getField(MsgType.DialDataResponse.int, msg).toOpt():
+  elif ?pb.getField(MsgType.DialDataResponse.protoField, msg).toOpt():
     let dialDataResp = DialDataResponse.decode(msg).valueOr:
       return Opt.none(AutonatV2Msg)
     Opt.some(
