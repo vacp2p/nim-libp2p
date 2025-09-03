@@ -11,11 +11,8 @@
 
 import results, chronos, chronicles
 import
-  ../../../multiaddress,
-  ../../../peerid,
-  ../../../protobuf/minprotobuf,
-  ../../../switch,
-  ../autonat/service
+  ../../../multiaddress, ../../../peerid, ../../../protobuf/minprotobuf, ../../../switch
+from ../autonat/types import NetworkReachability
 
 type
   AutonatV2Codec* {.pure.} = enum
@@ -90,12 +87,6 @@ type
       dialDataReq*: DialDataRequest
     of MsgType.DialDataResponse:
       dialDataResp*: DialDataResponse
-
-# codec to string
-proc `$`*(self: AutonatV2Codec): string =
-  case self
-  of AutonatV2Codec.DialRequest: "/libp2p/autonat/2/dial-request"
-  of AutonatV2Codec.DialBack: "/libp2p/autonat/2/dial-back"
 
 # DialRequest
 proc encode*(dialReq: DialRequest): ProtoBuffer =

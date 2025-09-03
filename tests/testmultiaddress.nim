@@ -341,6 +341,20 @@ suite "MultiAddress test suite":
       MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
       MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
 
+  test "MultiAddress getPart":
+    let ma = MultiAddress
+      .init(
+        "/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/"
+      )
+      .get()
+    check:
+      $ma.getPart(multiCodec("ip4")).get() == "/ip4/0.0.0.0"
+      $ma.getPart(multiCodec("tcp")).get() == "/tcp/0"
+      # returns first codec match
+      $ma.getPart(multiCodec("p2p")).get() ==
+        "/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+      ma.getPart(multiCodec("udp")).isErr()
+
   test "MultiAddress getParts":
     let ma = MultiAddress
       .init(

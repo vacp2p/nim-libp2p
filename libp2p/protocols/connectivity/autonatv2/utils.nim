@@ -12,11 +12,19 @@ import
   ../autonat/service,
   ./types
 
-proc ipAddrMatches*(observedIPAddr: MultiAddress, reqAddrs: seq[MultiAddress]): bool =
+proc ipAddrMatches*(
+    observedIPAddr: MultiAddress, reqAddrs: seq[MultiAddress], ip4: bool = true
+): bool =
   ## Checks if at least one of the requests' addresses
   ## has the same IP address of observedIPAddr
 
-  let observedIPAddr = observedIPAddr[0].valueOr:
+  let ipType =
+    if ip4:
+      multiCodec("ip4")
+    else:
+      multiCodec("ip6")
+
+  let observedIPAddr = observedIPAddr.getPart(ipType).valueOr:
     return false
 
   for addr in reqAddrs:

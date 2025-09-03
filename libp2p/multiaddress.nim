@@ -843,6 +843,14 @@ proc init*(
       res.data.finish()
       ok(res)
 
+proc getPart*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] =
+  ## Returns the first multiaddress in ``value`` with codec ``codec``
+  for part in ma:
+    let part = ?part
+    if codec == ?part.protoCode:
+      return ok(part)
+  err("no such codec in multiaddress")
+
 proc getProtocol(name: string): MAProtocol {.inline.} =
   let mc = MultiCodec.codec(name)
   if mc != InvalidMultiCodec:
