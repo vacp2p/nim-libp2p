@@ -638,6 +638,10 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#append%2CMultiAddress%2CMultiAddress" title="append(m1: var MultiAddress; m2: MultiAddress): MaResult[void]">append(m1: var MultiAddress; m2: MultiAddress): MaResult[void]</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">areAddrsConsistent
+  <li><a class="reference" href="#areAddrsConsistent%2CMultiAddress%2CMultiAddress" title="areAddrsConsistent(a, b: MultiAddress): bool">areAddrsConsistent(a, b: MultiAddress): bool</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">bytes
   <li><a class="reference" href="#bytes%2CMultiAddress" title="bytes(value: MultiAddress): seq[byte]">bytes(value: MultiAddress): seq[byte]</a></li>
 
@@ -660,6 +664,10 @@ window.addEventListener("DOMContentLoaded", main2);
 </ul>
 <ul class="simple nested-toc-section">getField
   <li><a class="reference" href="#getField%2CProtoBuffer%2Cint%2CMultiAddress" title="getField(pb: ProtoBuffer; field: int; value: var MultiAddress): ProtoResult[bool]">getField(pb: ProtoBuffer; field: int; value: var MultiAddress): ProtoResult[bool]</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">getPart
+  <li><a class="reference" href="#getPart%2CMultiAddress%2CMultiCodec" title="getPart(ma: MultiAddress; codec: MultiCodec): MaResult[MultiAddress]">getPart(ma: MultiAddress; codec: MultiCodec): MaResult[MultiAddress]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">getRepeatedField
@@ -1837,8 +1845,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 Return pattern <tt class="docutils literal"><span class="pre">pat</span></tt> as string.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1066" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1066" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1074" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1074" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1864,8 +1872,8 @@ Return string representation of MultiAddress <tt class="docutils literal"><span 
 <p>Concatenates two addresses <tt class="docutils literal"><span class="pre">m1</span></tt> and <tt class="docutils literal"><span class="pre">m2</span></tt>, and returns result.</p>
 <p>This procedure performs validation of concatenated result and can raise exception on error.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1003" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1003" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1011" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1011" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1880,8 +1888,8 @@ Return string representation of MultiAddress <tt class="docutils literal"><span 
 <p>Concatenates two addresses <tt class="docutils literal"><span class="pre">m1</span></tt> and <tt class="docutils literal"><span class="pre">m2</span></tt>.</p>
 <p>This procedure performs validation of concatenated result and can raise exception on error.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1011" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1011" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1019" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1019" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1894,8 +1902,8 @@ Return string representation of MultiAddress <tt class="docutils literal"><span 
 <dd>
 
 Check of two MultiAddress are equal
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1019" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1019" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1027" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1027" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1944,8 +1952,22 @@ Returns parts with slice <tt class="docutils literal"><span class="pre">slice</s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L996" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L996" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1004" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1004" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="areAddrsConsistent-procs-all">
+  <div id="areAddrsConsistent,MultiAddress,MultiAddress" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#areAddrsConsistent%2CMultiAddress%2CMultiAddress"><span class="Identifier">areAddrsConsistent</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Checks if two multiaddresses have the same protocol stack.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1131" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1131" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1957,8 +1979,8 @@ Returns parts with slice <tt class="docutils literal"><span class="pre">slice</s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1078" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1078" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1086" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1086" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1971,8 +1993,8 @@ Returns parts with slice <tt class="docutils literal"><span class="pre">slice</s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L987" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L987" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L995" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L995" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2026,8 +2048,22 @@ Get MultiBase encoded representation of <tt class="docutils literal"><span class
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1084" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1084" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1092" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1092" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="getPart-procs-all">
+  <div id="getPart,MultiAddress,MultiCodec" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#getPart%2CMultiAddress%2CMultiCodec"><span class="Identifier">getPart</span></a><span class="Other">(</span><span class="Identifier">ma</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span> <span class="Identifier">codec</span><span class="Other">:</span> <a href="multicodec.html#MultiCodec"><span class="Identifier">MultiCodec</span></a><span class="Other">)</span><span class="Other">:</span> <a href="multiaddress.html#MaResult"><span class="Identifier">MaResult</span></a><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Returns the first multiaddress in <tt class="docutils literal"><span class="pre">value</span></tt> with codec <tt class="docutils literal"><span class="pre">codec</span></tt>
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L846" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L846" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2040,8 +2076,8 @@ Get MultiBase encoded representation of <tt class="docutils literal"><span class
 <dd>
 
 Read repeated field from protobuf message. <tt class="docutils literal"><span class="pre">field</span></tt> is field number. If the message is malformed, an error is returned. If field is not present in message, then <tt class="docutils literal"><span class="pre">ok(false)</span></tt> is returned and value is empty. If field is present, but no items could be parsed, then <tt class="docutils literal"><span class="pre">err(ProtoError.IncorrectBlob)</span></tt> is returned and value is empty. If field is present and some item could be parsed, then <tt class="docutils literal"><span class="pre">true</span></tt> is returned and value contains the parsed values.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1096" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1096" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1104" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1104" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2079,8 +2115,8 @@ Return hexadecimal string representation of MultiAddress <tt class="docutils lit
 <dd>
 
 Initialize empty MultiAddress.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L912" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L912" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L920" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L920" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2090,8 +2126,8 @@ Initialize empty MultiAddress.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L916" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L916" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L924" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L924" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2101,8 +2137,8 @@ Initialize empty MultiAddress.
 <dd>
 
 Initialize MultiAddress using chronos.TransportAddress (IPv4/IPv6/Unix) and protocol information (UDP/TCP).
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L950" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L950" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L958" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L958" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2112,8 +2148,8 @@ Initialize MultiAddress using chronos.TransportAddress (IPv4/IPv6/Unix) and prot
 <dd>
 
 Initialize MultiAddress with array of bytes <tt class="docutils literal"><span class="pre">data</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L896" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L896" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L904" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L904" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2156,8 +2192,8 @@ Initialize MultiAddress object from protocol id <tt class="docutils literal"><sp
 <dd>
 
 Initialize MultiAddress object from string representation <tt class="docutils literal"><span class="pre">value</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L851" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L851" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L859" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L859" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2169,8 +2205,8 @@ Initialize MultiAddress object from string representation <tt class="docutils li
 <dd>
 
 Returns <tt class="docutils literal"><span class="pre">true</span></tt>, if MultiAddress <tt class="docutils literal"><span class="pre">ma</span></tt> is empty or non initialized.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L983" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L983" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L991" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L991" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2250,8 +2286,8 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt>, if Mult
 <dd>
 
 Match full <tt class="docutils literal"><span class="pre">address</span></tt> using pattern <tt class="docutils literal"><span class="pre">pat</span></tt> and return <tt class="docutils literal"><span class="pre">true</span></tt> if <tt class="docutils literal"><span class="pre">address</span></tt> satisfies pattern.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1050" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1050" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1058" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1058" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2264,8 +2300,8 @@ Match full <tt class="docutils literal"><span class="pre">address</span></tt> us
 <dd>
 
 Match prefix part of <tt class="docutils literal"><span class="pre">address</span></tt> using pattern <tt class="docutils literal"><span class="pre">pat</span></tt> and return <tt class="docutils literal"><span class="pre">true</span></tt> if <tt class="docutils literal"><span class="pre">address</span></tt> starts with pattern.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1058" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1058" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1066" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1066" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2393,8 +2429,8 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt> if Multi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1081" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1081" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1089" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1089" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -2447,7 +2483,7 @@ Iterates over all addresses inside of MultiAddress <tt class="docutils literal">
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-03 17:04:22 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-03 19:07:44 UTC</small>
       </div>
     </div>
   </div>
