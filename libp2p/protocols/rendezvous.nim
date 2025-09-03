@@ -43,7 +43,7 @@ const
   MaximumMessageLen = 1 shl 22 # 4MB
   MinimumNamespaceLen = 1
   MaximumNamespaceLen = 255
-  RegistrationLimitPerPeer = 1000
+  RegistrationLimitPerPeer* = 1000
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize = 5
 
@@ -397,9 +397,8 @@ proc sendDiscoverResponseError(
   await conn.writeLp(msg.buffer)
 
 proc countRegister(rdv: RendezVous, peerId: PeerId): int =
-  let n = Moment.now()
   for data in rdv.registered:
-    if data.peerId == peerId and data.expiration > n:
+    if data.peerId == peerId:
       result.inc()
 
 proc save(

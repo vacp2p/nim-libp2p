@@ -14,7 +14,7 @@
 import chronos
 import
   ../../libp2p/[protocols/connectivity/autonat/client, peerid, multiaddress, switch]
-from ../../libp2p/protocols/connectivity/autonat/core import
+from ../../libp2p/protocols/connectivity/autonat/types import
   NetworkReachability, AutonatUnreachableError, AutonatError
 
 type
