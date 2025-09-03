@@ -1,6 +1,11 @@
 name: Performance
 
 on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -72,10 +77,18 @@ jobs:
         if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/generate_plots
 
-      - name: Publish plots and add to summary
-        if: github.repository_owner == env.VACP2P
-        uses: ./.github/actions/publish_plots
-
       - name: Post/Update PR comment
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/add_comment
+
+      - name: Upload performance artifacts
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-artifacts
+          path: |
+            performance/output/pr*_latency.csv
+            performance/output/*.png
+            history/latency_history/*.png
+          if-no-files-found: ignore
+          retention-days: 7

@@ -33,6 +33,7 @@ type
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
     observedAddr*: Opt[MultiAddress]
+    localAddr*: Opt[MultiAddress]
     protocol*: string # protocol used by the connection, used as metrics tag
     transportDir*: Direction # underlying transport (usually socket) direction
     when defined(libp2p_agents_metrics):
@@ -148,7 +149,8 @@ proc new*(
     C: type Connection,
     peerId: PeerId,
     dir: Direction,
-    observedAddr: Opt[MultiAddress],
+    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress),
+    localAddr: Opt[MultiAddress] = Opt.none(MultiAddress),
     timeout: Duration = DefaultConnectionTimeout,
     timeoutHandler: TimeoutHandler = nil,
 ): Connection =
@@ -158,6 +160,7 @@ proc new*(
     timeout: timeout,
     timeoutHandler: timeoutHandler,
     observedAddr: observedAddr,
+    localAddr: localAddr,
   )
 
   result.initStream()

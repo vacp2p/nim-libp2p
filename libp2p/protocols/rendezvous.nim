@@ -35,7 +35,10 @@ declareGauge(libp2p_rendezvous_namespaces, "number of registered namespaces")
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
+  # Default minimum TTL per libp2p spec
   MinimumDuration* = 2.hours
+  # Lower validation limit to accommodate Waku requirements
+  MinimumAcceptedDuration = 1.minutes
   MaximumDuration = 72.hours
   MaximumMessageLen = 1 shl 22 # 4MB
   MinimumNamespaceLen = 1
@@ -69,7 +72,7 @@ type
   Register = object
     ns: string
     signedPeerRecord: seq[byte]
-    ttl: Opt[uint64] # in seconds
+    ttl*: Opt[uint64] # in seconds
 
   RegisterResponse = object
     status: ResponseStatus
@@ -312,7 +315,7 @@ type
   RegisteredData = object
     expiration*: Moment
     peerId*: PeerId
-    data: Register
+    data*: Register
 
   RendezVous* = ref object of LPProtocol
     # Registered needs to be an offsetted sequence
@@ -324,7 +327,7 @@ type
     namespaces*: Table[string, seq[int]]
     rng: ref HmacDrbgContext
     salt: string
-    defaultDT: Moment
+    expiredDT: Moment
     registerDeletionLoop: Future[void]
     #registerEvent: AsyncEvent # TODO: to raise during the heartbeat
     # + make the heartbeat sleep duration "smarter"
@@ -409,7 +412,7 @@ proc save(
       if rdv.registered[index].peerId == peerId:
         if update == false:
           return
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
@@ -446,7 +449,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == conn.peerId:
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
         libp2p_rendezvous_registered.dec()
   except KeyError:
     return
@@ -689,7 +692,7 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == rdv.switch.peerInfo.peerId:
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
   except KeyError:
     return
 
@@ -744,10 +747,10 @@ proc new*(
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
 ): T {.raises: [RendezVousError].} =
-  if minDuration < 1.minutes:
+  if minDuration < MinimumAcceptedDuration:
     raise newException(RendezVousError, "TTL too short: 1 minute minimum")
 
-  if maxDuration > 72.hours:
+  if maxDuration > MaximumDuration:
     raise newException(RendezVousError, "TTL too long: 72 hours maximum")
 
   if minDuration >= maxDuration:
@@ -761,7 +764,7 @@ proc new*(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
-    defaultDT: Moment.now() - 1.days,
+    expiredDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
     minDuration: minDuration,

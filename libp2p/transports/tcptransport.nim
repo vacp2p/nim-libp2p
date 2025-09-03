@@ -47,6 +47,7 @@ proc connHandler*(
     self: TcpTransport,
     client: StreamTransport,
     observedAddr: Opt[MultiAddress],
+    localAddr: Opt[MultiAddress],
     dir: Direction,
 ): Connection =
   trace "Handling tcp connection",
@@ -59,6 +60,7 @@ proc connHandler*(
       client = client,
       dir = dir,
       observedAddr = observedAddr,
+      localAddr = localAddr,
       timeout = self.connectionsTimeout,
     )
   )
@@ -267,18 +269,22 @@ method accept*(
     safeCloseWait(transp)
     raise newTransportClosedError()
 
-  let remote =
+  let (localAddr, observedAddr) =
     try:
-      transp.remoteAddress
+      (
+        MultiAddress.init(transp.localAddress).expect(
+          "Can initialize from local address"
+        ),
+        MultiAddress.init(transp.remoteAddress).expect(
+          "Can initialize from remote address"
+        ),
+      )
     except TransportOsError as exc:
       # The connection had errors / was closed before `await` returned control
       safeCloseWait(transp)
-      debug "Cannot read remote address", description = exc.msg
+      debug "Cannot read address", description = exc.msg
       return nil
-
-  let observedAddr =
-    MultiAddress.init(remote).expect("Can initialize from remote address")
-  self.connHandler(transp, Opt.some(observedAddr), Direction.In)
+  self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.In)
 
 method dial*(
     self: TcpTransport,
@@ -320,14 +326,17 @@ method dial*(
     safeCloseWait(transp)
     raise newTransportClosedError()
 
-  let observedAddr =
+  let (observedAddr, localAddr) =
     try:
-      MultiAddress.init(transp.remoteAddress).expect("remote address is valid")
+      (
+        MultiAddress.init(transp.remoteAddress).expect("remote address is valid"),
+        MultiAddress.init(transp.localAddress).expect("local address is valid"),
+      )
     except TransportOsError as exc:
       safeCloseWait(transp)
       raise (ref TcpTransportError)(msg: "MultiAddress.init error in dial: " & exc.msg)
 
-  self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
+  self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.raises: [].} =
   if procCall Transport(t).handles(address):
