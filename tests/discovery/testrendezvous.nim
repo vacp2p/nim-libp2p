@@ -434,13 +434,10 @@ suite "RendezVous":
     const namespace = "foo"
     let peerRdv = peerRdvs[0]
 
-    # 1st registration
-    await peerRdv.advertise(namespace)
-
-    # Simulate large number of registrations for the same Peer
-    let record = rendezvousRdv.registered.s[0]
-    for i in 0 ..< RegistrationLimitPerPeer - 2:
-      rendezvousRdv.registered.s.add(record)
+    # Create 999 registrations
+    await populatePeerRegistrations(
+      peerRdv, rendezvousRdv, namespace, RegistrationLimitPerPeer - 1
+    )
 
     # 1000th registration allowed
     await peerRdv.advertise(namespace)
