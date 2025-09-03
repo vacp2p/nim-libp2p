@@ -12,15 +12,17 @@
 import results
 import chronos, chronicles
 import
+  ../../../../libp2p/[
+    switch,
+    multiaddress,
+    transports/transport,
+    multicodec,
+    peerid,
+    protobuf/minprotobuf,
+    utils/ipaddr,
+  ],
   ../../protocol,
-  ../../../switch,
-  ../../../multiaddress,
-  ../../../transports/transport,
-  ../../../multicodec,
-  ../../../peerid,
-  ../../../protobuf/minprotobuf,
-  ./types,
-  ./utils
+  ./types
 
 logScope:
   topics = "libp2p autonat v2 server"
@@ -29,6 +31,9 @@ const
   DefaultDialTimeout: Duration = 15.seconds
   DefaultAmplificationAttackDialTimeout: Duration = 3.seconds
   DefaultDialDataSize: uint64 = 50 * 1024 # 50 KiB > 50 KB
+  AutonatV2MsgLpSize: int = 1024
+  # readLp needs to receive more than 4096 bytes (since it's a DialDataResponse) + overhead
+  AutonatV2DialDataResponseLpSize: int = 5000
 
 type AutonatV2* = ref object of LPProtocol
   switch*: Switch
@@ -83,7 +88,9 @@ proc dialBack(
     await conn.writeLp(DialBack(nonce: nonce).encode().buffer)
 
     # receive DialBackResponse
-    let dialBackResp = DialBackResponse.decode(initProtoBuffer(await conn.readLp(1024))).valueOr:
+    let dialBackResp = DialBackResponse.decode(
+      initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
+    ).valueOr:
       error "DialBack failed, could not decode DialBackResponse"
       return DialStatus.EDialBackError
   except LPStreamRemoteClosedError as exc:
@@ -102,8 +109,9 @@ proc handleDialDataResponses(
   var dataReceived: uint64 = 0
 
   while dataReceived < self.dialDataSize:
-    # readLp needs to receive more than 4096 bytes (since it's a DialDataResponse) + overhead
-    let msg = AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(5000))).valueOr:
+    let msg = AutonatV2Msg.decode(
+      initProtoBuffer(await conn.readLp(AutonatV2DialDataResponseLpSize))
+    ).valueOr:
       raise newException(AutonatV2Error, "Received malformed message")
     debug "Received message", msgType = $msg.msgType
     if msg.msgType != MsgType.DialDataResponse:
@@ -138,14 +146,14 @@ proc amplificationAttackPrevention(
   return true
 
 proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
-  let (ipv4Support, ipv6Support) = self.switch.ipSupport()
+  let (ipv4Support, ipv6Support) = self.switch.peerInfo.listenAddrs.ipSupport()
   addrs[0].withValue(addrIp):
     if IP4.match(addrIp) and not ipv4Support:
       return false
     if IP6.match(addrIp) and not ipv6Support:
       return false
     try:
-      if isPrivateIP($addrIp):
+      if isPrivate($addrIp):
         return false
     except ValueError:
       warn "Unable to parse IP address, skipping", addrs = $addrIp
@@ -153,13 +161,11 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
   for t in self.switch.transports:
     if t.handles(addrs):
       return true
-  false
+  return false
 
 proc chooseDialAddr(
     self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
-): Future[Opt[(Connection, AddrIdx)]] {.
-    async: (raises: [CancelledError, LPStreamError])
-.} =
+): Future[Opt[(Connection, AddrIdx)]] {.async: (raises: [CancelledError]).} =
   for i, ma in addrs:
     if self.canDial(ma):
       try:
@@ -168,6 +174,8 @@ proc chooseDialAddr(
           (await self.switch.dial(pid, @[ma], $AutonatV2Codec.DialBack), i.AddrIdx)
         )
       except DialFailedError:
+        return Opt.none((Connection, AddrIdx))
+      except LPStreamError:
         return Opt.none((Connection, AddrIdx))
   return Opt.none((Connection, AddrIdx))
 
@@ -182,6 +190,8 @@ proc handleDialRequest(
     error "No dialable addresses found"
     await conn.sendDialResponse(ResponseStatus.EDialRefused)
     return
+  defer:
+    await dialBackConn.close()
 
   # if observed address for peer is not in address list to try
   # then we perform Amplification Attack Prevention
@@ -218,22 +228,19 @@ proc new*(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      let msg = AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(1024))).valueOr:
+      let msg = AutonatV2Msg.decode(
+        initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
+      ).valueOr:
         raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
       debug "Received message", msgType = $msg.msgType
-      if msg.msgType == MsgType.DialRequest:
-        await autonatV2.handleDialRequest(conn, msg.dialReq)
-      else:
+      if msg.msgType != MsgType.DialRequest:
         raise newException(AutonatV2Error, "Expecting DialRequest, got " & $msg.msgType)
-    except CancelledError as exc:
-      trace "handler cancelled"
-      raise exc
-    except CatchableError as exc:
-      debug "exception in handler", description = exc.msg, conn
+      await autonatV2.handleDialRequest(conn, msg.dialReq)
     except LPStreamRemoteClosedError as exc:
       error "connection closed by peer", description = exc.msg, peer = conn.peerId
+    except CatchableError as exc:
+      debug "exception in handler", description = exc.msg, conn
     finally:
-      trace "closing connection", conn
       await conn.close()
 
   autonatV2.handler = handleStream

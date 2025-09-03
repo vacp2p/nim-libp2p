@@ -27,6 +27,10 @@ proc checkEncodeDecode[T](msg: T) =
   # check msg == DialBack.decode(msg.encode()).get()
   check msg == T.decode(msg.encode()).get()
 
+proc newAutonatV2ServerSwitch(): Switch =
+  var builder = newStandardSwitchBuilder().withAutonatV2()
+  return builder.build()
+
 suite "AutonatV2":
   teardown:
     checkTrackers()
@@ -149,3 +153,8 @@ suite "AutonatV2":
       AutonatV2Response(
         reachability: Reachable, dialResp: correctDialResp, addrs: Opt.some(addrs[0])
       )
+
+  asyncTest "Instanciate server":
+    let serverSwitch = newAutonatV2ServerSwitch()
+    await serverSwitch.start()
+    await serverSwitch.stop()
