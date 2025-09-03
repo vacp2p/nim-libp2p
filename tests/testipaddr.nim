@@ -13,11 +13,6 @@ import std/options
 import chronos
 import ../libp2p/[utils/ipaddr], ./helpers
 
-proc checkEncodeDecode[T](msg: T) =
-  # this would be equivalent of doing the following (e.g. for DialBack)
-  # check msg == DialBack.decode(msg.encode()).get()
-  check msg == T.decode(msg.encode()).get()
-
 suite "IpAddr Utils":
   teardown:
     checkTrackers()
@@ -34,31 +29,16 @@ suite "IpAddr Utils":
       @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
     )
 
-  asyncTest "ipSupport":
-    var rng = newRng()
-    let ipv4switch = SwitchBuilder
-      .new()
-      .withRng(rng)
-      .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()])
-      .build()
-    let ipv6switch = SwitchBuilder
-      .new()
-      .withRng(rng)
-      .withAddresses(@[MultiAddress.init("/ip6/::1/tcp/4040").get()])
-      .build()
-    let ipv46switch = SwitchBuilder
-      .new()
-      .withRng(rng)
-      .withAddresses(
-        @[
-          MultiAddress.init("/ip6/::1/tcp/4040").get(),
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-        ]
-      )
-      .build()
-    check ipv4switch.ipSupport() == (true, false)
-    check ipv6switch.ipSupport() == (false, true)
-    check ipv46switch.ipSupport() == (true, true)
+  test "ipSupport":
+    check ipSupport(@[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]) ==
+      (true, false)
+    check ipSupport(@[MultiAddress.init("/ip6/::1/tcp/4040").get()]) == (false, true)
+    check ipSupport(
+      @[
+        MultiAddress.init("/ip6/::1/tcp/4040").get(),
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      ]
+    ) == (true, true)
 
   test "isPrivate, isPublic":
     check isPrivate("192.168.1.100")

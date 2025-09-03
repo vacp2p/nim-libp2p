@@ -22,11 +22,11 @@ const
 type AutoTLSError* = object of LPError
 
 when defined(libp2p_autotls_support):
+  import strutils
   from times import DateTime, toTime, toUnix
   import stew/base36
   import
     ../peerid,
-    ../utils/ipaddr,
     ../multihash,
     ../cid,
     ../multicodec,

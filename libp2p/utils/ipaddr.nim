@@ -23,7 +23,15 @@ proc isPublic*(ip: IpAddress): bool {.raises: [ValueError].} =
   isPublic($ip)
 
 proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
-  let ip = getPrimaryIPAddr()
+  let ip =
+    try:
+      getPrimaryIPAddr()
+    except OSError as exc:
+      raise exc
+    except ValueError as exc:
+      raise exc
+    except Exception as exc:
+      raise newException(OSError, "Could not get primary IP address")
   if not ip.isIPv4():
     raise newException(ValueError, "Host does not have an IPv4 address")
   if not ip.isPublic():
@@ -50,14 +58,14 @@ proc ipAddrMatches*(
         return true
   false
 
-proc ipSupport*(s: Switch): (bool, bool) =
-  ## Returns ipv4 and ipv6 support status of a switch
+proc ipSupport*(addrs: seq[MultiAddress]): (bool, bool) =
+  ## Returns ipv4 and ipv6 support status of a list of MultiAddresses
 
   var ipv4 = false
   var ipv6 = false
 
-  for addrs in s.peerInfo.listenAddrs:
-    addrs[0].withValue(addrIp):
+  for ma in addrs:
+    ma[0].withValue(addrIp):
       if IP4.match(addrIp):
         ipv4 = true
       elif IP6.match(addrIp):
