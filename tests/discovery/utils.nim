@@ -65,3 +65,19 @@ proc injectCookieForPeer*(
     rdv: RendezVous, peerId: PeerId, namespace: string, cookie: seq[byte]
 ) =
   discard rdv.cookiesSaved.hasKeyOrPut(peerId, {namespace: cookie}.toTable())
+
+proc populatePeerRegistrations*(
+    peerRdv: RendezVous, targetRdv: RendezVous, namespace: string, count: int
+) {.async.} =
+  # Test helper: quickly populate many registrations for a peer.
+  # We first create a single real registration, then clone that record
+  # directly into the rendezvous registry to reach the desired count fast.
+  #
+  # Notes:
+  # - Calling advertise() concurrently results in bufferstream defect.
+  # - Calling advertise() sequentially is too slow for large counts.
+  await peerRdv.advertise(namespace)
+
+  let record = targetRdv.registered.s[0]
+  for i in 0 ..< count - 1:
+    targetRdv.registered.s.add(record)
