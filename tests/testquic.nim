@@ -60,15 +60,19 @@ proc invalidCertGenerator(
   except ResultError[crypto.CryptoError]:
     raiseAssert "private key should be set"
 
-proc createTransport(withInvalidCert: bool = false): Future[QuicTransport] {.async.} =
-  let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
+proc createTransport(
+    isServer: bool = false, withInvalidCert: bool = false
+): Future[QuicTransport] {.async.} =
   let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
   let trans =
     if withInvalidCert:
       QuicTransport.new(Upgrade(), privateKey, invalidCertGenerator)
     else:
       QuicTransport.new(Upgrade(), privateKey)
-  await trans.start(ma)
+
+  if isServer: # servers are started because they need to listen
+    let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
+    await trans.start(ma)
 
   return trans
 
@@ -77,12 +81,46 @@ suite "Quic transport":
     checkTrackers()
 
   asyncTest "can handle local address":
-    let trans = await createTransport()
-    check trans.handles(trans.addrs[0])
-    await trans.stop()
+    let server = await createTransport(isServer = true)
+    check server.handles(server.addrs[0])
+    await server.stop()
+
+  asyncTest "handle accept cancellation":
+    let server = await createTransport(isServer = true)
+
+    let acceptFut = server.accept()
+    await acceptFut.cancelAndWait()
+    check acceptFut.cancelled
+
+    await server.stop()
+
+  asyncTest "handle dial cancellation":
+    let server = await createTransport(isServer = true)
+    let client = await createTransport(isServer = false)
+
+    let connFut = client.dial(server.addrs[0])
+    await connFut.cancelAndWait()
+    check connFut.cancelled
+
+    await client.stop()
+    await server.stop()
+
+  asyncTest "stopping transport kills connections":
+    let server = await createTransport(isServer = true)
+    let client = await createTransport(isServer = false)
+
+    let acceptFut = server.accept()
+    let conn = await client.dial(server.addrs[0])
+    let serverConn = await acceptFut
+
+    await client.stop()
+    await server.stop()
+
+    check serverConn.closed()
+    check conn.closed()
 
   asyncTest "transport e2e":
-    let server = await createTransport()
+    let server = await createTransport(isServer = true)
     asyncSpawn createServerAcceptConn(server)()
     defer:
       await server.stop()
@@ -101,7 +139,7 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "transport e2e - invalid cert - server":
-    let server = await createTransport(true)
+    let server = await createTransport(isServer = true, withInvalidCert = true)
     asyncSpawn createServerAcceptConn(server)()
     defer:
       await server.stop()
@@ -115,22 +153,27 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "transport e2e - invalid cert - client":
-    let server = await createTransport()
+    let server = await createTransport(isServer = true)
     asyncSpawn createServerAcceptConn(server)()
     defer:
       await server.stop()
 
     proc runClient() {.async.} =
-      let client = await createTransport(true)
+      let client = await createTransport(withInvalidCert = true)
       expect QuicTransportDialError:
         discard await client.dial("", server.addrs[0])
       await client.stop()
 
     await runClient()
 
+  asyncTest "should allow multiple local addresses":
+    # TODO(#1663): handle multiple addr
+    # See test example in commonTransportTest
+    return
+
   asyncTest "server not accepting":
-    let server = await createTransport()
-    # itentionally not calling createServerAcceptConn as server should not accept
+    let server = await createTransport(isServer = true)
+    # intentionally not calling createServerAcceptConn as server should not accept
     defer:
       await server.stop()
 
@@ -145,7 +188,7 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "closing session should close all streams":
-    let server = await createTransport()
+    let server = await createTransport(isServer = true)
     # because some clients will not write full message, 
     # it is expected for server to receive eof
     asyncSpawn createServerAcceptConn(server, true)()
@@ -201,7 +244,7 @@ suite "Quic transport":
         check (await stream.readLp(100)) == fromHex("5678")
         await client.stop()
 
-      let server = await createTransport()
+      let server = await createTransport(isServer = true)
       asyncSpawn serverHandler(server)
       defer:
         await server.stop()
