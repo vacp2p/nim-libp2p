@@ -36,9 +36,14 @@ type QuicStream* = ref object of P2PConnection
   cached: seq[byte]
 
 proc new(
-    _: type QuicStream, stream: Stream, oaddr: Opt[MultiAddress], peerId: PeerId
+    _: type QuicStream,
+    stream: Stream,
+    oaddr: Opt[MultiAddress],
+    laddr: Opt[MultiAddress],
+    peerId: PeerId,
 ): QuicStream =
-  let quicstream = QuicStream(stream: stream, observedAddr: oaddr, peerId: peerId)
+  let quicstream =
+    QuicStream(stream: stream, observedAddr: oaddr, localAddr: laddr, peerId: peerId)
   procCall P2PConnection(quicstream).initStream()
   quicstream
 
@@ -120,7 +125,8 @@ proc getStream*(
       stream = await session.connection.openStream()
       await stream.write(@[]) # QUIC streams do not exist until data is sent
 
-    let qs = QuicStream.new(stream, session.observedAddr, session.peerId)
+    let qs =
+      QuicStream.new(stream, session.observedAddr, session.localAddr, session.peerId)
     when defined(libp2p_agents_metrics):
       qs.shortAgent = session.shortAgent
 
@@ -300,11 +306,17 @@ proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection
 ): QuicSession {.raises: [TransportOsError, MaError].} =
   let
-    remoteAddr = connection.remoteAddress()
     observedAddr =
-      MultiAddress.init(remoteAddr, IPPROTO_UDP).get() &
+      MultiAddress.init(connection.remoteAddress(), IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
-    session = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
+    localAddr =
+      MultiAddress.init(connection.localAddress(), IPPROTO_UDP).get() &
+      MultiAddress.init("/quic-v1").get()
+    session = QuicSession(
+      connection: connection,
+      observedAddr: Opt.some(observedAddr),
+      localAddr: Opt.some(localAddr),
+    )
 
   session.initStream()
 

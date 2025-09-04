@@ -35,12 +35,15 @@ declareGauge(libp2p_rendezvous_namespaces, "number of registered namespaces")
 
 const
   RendezVousCodec* = "/rendezvous/1.0.0"
+  # Default minimum TTL per libp2p spec
   MinimumDuration* = 2.hours
+  # Lower validation limit to accommodate Waku requirements
+  MinimumAcceptedDuration = 1.minutes
   MaximumDuration = 72.hours
   MaximumMessageLen = 1 shl 22 # 4MB
   MinimumNamespaceLen = 1
   MaximumNamespaceLen = 255
-  RegistrationLimitPerPeer = 1000
+  RegistrationLimitPerPeer* = 1000
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize = 5
 
@@ -69,7 +72,7 @@ type
   Register = object
     ns: string
     signedPeerRecord: seq[byte]
-    ttl: Opt[uint64] # in seconds
+    ttl*: Opt[uint64] # in seconds
 
   RegisterResponse = object
     status: ResponseStatus
@@ -310,27 +313,27 @@ proc decode(_: typedesc[Message], buf: seq[byte]): Opt[Message] =
 type
   RendezVousError* = object of DiscoveryError
   RegisteredData = object
-    expiration: Moment
-    peerId: PeerId
-    data: Register
+    expiration*: Moment
+    peerId*: PeerId
+    data*: Register
 
   RendezVous* = ref object of LPProtocol
     # Registered needs to be an offsetted sequence
     # because we need stable index for the cookies.
-    registered: OffsettedSeq[RegisteredData]
+    registered*: OffsettedSeq[RegisteredData]
     # Namespaces is a table whose key is a salted namespace and
     # the value is the index sequence corresponding to this
     # namespace in the offsettedqueue.
-    namespaces: Table[string, seq[int]]
+    namespaces*: Table[string, seq[int]]
     rng: ref HmacDrbgContext
     salt: string
-    defaultDT: Moment
+    expiredDT: Moment
     registerDeletionLoop: Future[void]
     #registerEvent: AsyncEvent # TODO: to raise during the heartbeat
     # + make the heartbeat sleep duration "smarter"
     sema: AsyncSemaphore
     peers: seq[PeerId]
-    cookiesSaved: Table[PeerId, Table[string, seq[byte]]]
+    cookiesSaved*: Table[PeerId, Table[string, seq[byte]]]
     switch: Switch
     minDuration: Duration
     maxDuration: Duration
@@ -394,9 +397,8 @@ proc sendDiscoverResponseError(
   await conn.writeLp(msg.buffer)
 
 proc countRegister(rdv: RendezVous, peerId: PeerId): int =
-  let n = Moment.now()
   for data in rdv.registered:
-    if data.peerId == peerId and data.expiration > n:
+    if data.peerId == peerId:
       result.inc()
 
 proc save(
@@ -409,7 +411,7 @@ proc save(
       if rdv.registered[index].peerId == peerId:
         if update == false:
           return
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
@@ -446,7 +448,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == conn.peerId:
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
         libp2p_rendezvous_registered.dec()
   except KeyError:
     return
@@ -468,11 +470,17 @@ proc discover(
         await conn.sendDiscoverResponseError(InvalidCookie)
         return
     else:
-      Cookie(offset: rdv.registered.low().uint64 - 1)
-  if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get() or
-      cookie.offset < rdv.registered.low().uint64 or
-      cookie.offset > rdv.registered.high().uint64:
-    cookie = Cookie(offset: rdv.registered.low().uint64 - 1)
+      # Start from the current lowest index (inclusive)
+      Cookie(offset: rdv.registered.low().uint64)
+  if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get():
+    # Namespace changed: start from the beginning of that namespace
+    cookie = Cookie(offset: rdv.registered.low().uint64)
+  elif cookie.offset < rdv.registered.low().uint64:
+    # Cookie behind available range: reset to current low
+    cookie.offset = rdv.registered.low().uint64
+  elif cookie.offset > (rdv.registered.high() + 1).uint64:
+    # Cookie ahead of available range: reset to one past current high (empty page)
+    cookie.offset = (rdv.registered.high() + 1).uint64
   let namespaces =
     if d.ns.isSome():
       try:
@@ -485,21 +493,21 @@ proc discover(
   if namespaces.len() == 0:
     await conn.sendDiscoverResponse(@[], Cookie())
     return
-  var offset = namespaces[^1]
+  var nextOffset = cookie.offset
   let n = Moment.now()
   var s = collect(newSeq()):
     for index in namespaces:
       var reg = rdv.registered[index]
       if limit == 0:
-        offset = index
         break
-      if reg.expiration < n or index.uint64 <= cookie.offset:
+      if reg.expiration < n or index.uint64 < cookie.offset:
         continue
       limit.dec()
+      nextOffset = index.uint64 + 1
       reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
       reg.data
   rdv.rng.shuffle(s)
-  await conn.sendDiscoverResponse(s, Cookie(offset: offset.uint64, ns: d.ns))
+  await conn.sendDiscoverResponse(s, Cookie(offset: nextOffset, ns: d.ns))
 
 proc advertisePeer(
     rdv: RendezVous, peer: PeerId, msg: seq[byte]
@@ -683,7 +691,7 @@ proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == rdv.switch.peerInfo.peerId:
-        rdv.registered[index].expiration = rdv.defaultDT
+        rdv.registered[index].expiration = rdv.expiredDT
   except KeyError:
     return
 
@@ -738,10 +746,10 @@ proc new*(
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
 ): T {.raises: [RendezVousError].} =
-  if minDuration < 1.minutes:
+  if minDuration < MinimumAcceptedDuration:
     raise newException(RendezVousError, "TTL too short: 1 minute minimum")
 
-  if maxDuration > 72.hours:
+  if maxDuration > MaximumDuration:
     raise newException(RendezVousError, "TTL too long: 72 hours maximum")
 
   if minDuration >= maxDuration:
@@ -754,8 +762,8 @@ proc new*(
   let rdv = T(
     rng: rng,
     salt: string.fromBytes(generateBytes(rng[], 8)),
-    registered: initOffsettedSeq[RegisteredData](1),
-    defaultDT: Moment.now() - 1.days,
+    registered: initOffsettedSeq[RegisteredData](),
+    expiredDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
     minDuration: minDuration,
@@ -806,7 +814,7 @@ proc new*(
   rdv.setup(switch)
   return rdv
 
-proc deletesRegister(
+proc deletesRegister*(
     rdv: RendezVous, interval = 1.minutes
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "Register timeout", interval:

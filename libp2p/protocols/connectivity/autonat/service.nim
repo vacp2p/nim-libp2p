@@ -14,11 +14,11 @@ import chronos, metrics
 import ../../../switch
 import ../../../wire
 import client
-from core import NetworkReachability, AutonatUnreachableError
+from types import NetworkReachability, AutonatUnreachableError
 import ../../../utils/heartbeat
 import ../../../crypto/crypto
 
-export core.NetworkReachability
+export NetworkReachability
 
 logScope:
   topics = "libp2p autonatservice"

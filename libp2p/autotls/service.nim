@@ -85,6 +85,7 @@ when defined(libp2p_autotls_support):
     ../crypto/rsa,
     ../utils/heartbeat,
     ../transports/transport,
+    ../utils/ipaddr,
     ../transports/tcptransport,
     ../nameresolving/dnsresolver
 
@@ -150,7 +151,10 @@ when defined(libp2p_autotls_support):
       if self.config.ipAddress.isNone():
         try:
           self.config.ipAddress = Opt.some(getPublicIPAddress())
-        except AutoTLSError as exc:
+        except ValueError as exc:
+          error "Failed to get public IP address", err = exc.msg
+          return false
+        except OSError as exc:
           error "Failed to get public IP address", err = exc.msg
           return false
       self.managerFut = self.run(switch)

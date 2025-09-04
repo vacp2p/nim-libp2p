@@ -13,12 +13,12 @@ import std/options
 import chronos
 import
   ../libp2p/[
+    switch,
     transports/tcptransport,
     upgrademngrs/upgrade,
     builders,
     protocols/connectivity/autonatv2/types,
-      # nameresolving/nameresolver,
-      # nameresolving/mockresolver,
+    protocols/connectivity/autonatv2/utils,
   ],
   ./helpers
 
@@ -26,6 +26,10 @@ proc checkEncodeDecode[T](msg: T) =
   # this would be equivalent of doing the following (e.g. for DialBack)
   # check msg == DialBack.decode(msg.encode()).get()
   check msg == T.decode(msg.encode()).get()
+
+proc newAutonatV2ServerSwitch(): Switch =
+  var builder = newStandardSwitchBuilder().withAutonatV2()
+  return builder.build()
 
 suite "AutonatV2":
   teardown:
@@ -107,3 +111,50 @@ suite "AutonatV2":
 
     # DialBackResponse
     checkEncodeDecode(DialBackResponse(status: DialBackStatus.Ok))
+
+  asyncTest "asNetworkReachability":
+    check asNetworkReachability(DialResponse(status: EInternalError)) == Unknown
+    check asNetworkReachability(DialResponse(status: ERequestRejected)) == Unknown
+    check asNetworkReachability(DialResponse(status: EDialRefused)) == Unknown
+    check asNetworkReachability(
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.none(DialStatus))
+    ) == Unknown
+    check asNetworkReachability(
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(Unused))
+    ) == Unknown
+    check asNetworkReachability(
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(EDialError))
+    ) == NotReachable
+    check asNetworkReachability(
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(EDialBackError))
+    ) == NotReachable
+    check asNetworkReachability(
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(DialStatus.Ok))
+    ) == Reachable
+
+  asyncTest "asAutonatV2Response":
+    let addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4000").get()]
+    let errorDialResp = DialResponse(
+      status: ResponseStatus.Ok,
+      addrIdx: Opt.none(AddrIdx),
+      dialStatus: Opt.none(DialStatus),
+    )
+    check asAutonatV2Response(errorDialResp, addrs) ==
+      AutonatV2Response(
+        reachability: Unknown, dialResp: errorDialResp, addrs: Opt.none(MultiAddress)
+      )
+
+    let correctDialResp = DialResponse(
+      status: ResponseStatus.Ok,
+      addrIdx: Opt.some(0.AddrIdx),
+      dialStatus: Opt.some(DialStatus.Ok),
+    )
+    check asAutonatV2Response(correctDialResp, addrs) ==
+      AutonatV2Response(
+        reachability: Reachable, dialResp: correctDialResp, addrs: Opt.some(addrs[0])
+      )
+
+  asyncTest "Instanciate server":
+    let serverSwitch = newAutonatV2ServerSwitch()
+    await serverSwitch.start()
+    await serverSwitch.stop()

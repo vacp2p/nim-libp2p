@@ -843,6 +843,14 @@ proc init*(
       res.data.finish()
       ok(res)
 
+proc getPart*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] =
+  ## Returns the first multiaddress in ``value`` with codec ``codec``
+  for part in ma:
+    let part = ?part
+    if codec == ?part.protoCode:
+      return ok(part)
+  err("no such codec in multiaddress")
+
 proc getProtocol(name: string): MAProtocol {.inline.} =
   let mc = MultiCodec.codec(name)
   if mc != InvalidMultiCodec:
@@ -1119,3 +1127,32 @@ proc getRepeatedField*(
       err(ProtoError.IncorrectBlob)
     else:
       ok(true)
+
+proc areAddrsConsistent*(a, b: MultiAddress): bool =
+  ## Checks if two multiaddresses have the same protocol stack.
+  let protosA = a.protocols().get()
+  let protosB = b.protocols().get()
+  if protosA.len != protosB.len:
+    return false
+
+  for idx in 0 ..< protosA.len:
+    let protoA = protosA[idx]
+    let protoB = protosB[idx]
+
+    if protoA != protoB:
+      if idx == 0:
+        # allow DNS ↔ IP at the first component
+        if protoB == multiCodec("dns") or protoB == multiCodec("dnsaddr"):
+          if not (protoA == multiCodec("ip4") or protoA == multiCodec("ip6")):
+            return false
+        elif protoB == multiCodec("dns4"):
+          if protoA != multiCodec("ip4"):
+            return false
+        elif protoB == multiCodec("dns6"):
+          if protoA != multiCodec("ip6"):
+            return false
+        else:
+          return false
+      else:
+        return false
+  true
