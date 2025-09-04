@@ -243,21 +243,33 @@ proc new*(
   proc handleStream(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
-    try:
-      let msg = AutonatV2Msg.decode(
-        initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
-      ).valueOr:
-        raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
-      debug "Received message", msgType = $msg.msgType
-      if msg.msgType != MsgType.DialRequest:
-        raise newException(AutonatV2Error, "Expecting DialRequest, got " & $msg.msgType)
-      await autonatV2.handleDialRequest(conn, msg.dialReq)
-    except LPStreamRemoteClosedError as exc:
-      error "connection closed by peer", description = exc.msg, peer = conn.peerId
-    except CatchableError as exc:
-      debug "exception in handler", description = exc.msg, conn
-    finally:
+    defer:
       await conn.close()
+
+    let msg =
+      try:
+        AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))).valueOr:
+          trace "Unable to decode AutonatV2Msg"
+          return
+      except LPStreamError as exc:
+        debug "Could not receive AutonatV2Msg", description = exc.msg
+        return
+
+    debug "Received message", msgType = $msg.msgType
+    if msg.msgType != MsgType.DialRequest:
+      debug "Expecting DialRequest", receivedMsgType = msg.msgType
+      return
+
+    try:
+      await autonatV2.handleDialRequest(conn, msg.dialReq)
+    except CancelledError as exc:
+      raise exc
+    except LPStreamRemoteClosedError as exc:
+      debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
+    except LPStreamError as exc:
+      debug "Stream Error", description = exc.msg
+    except DialFailedError as exc:
+      debug "Could not dial peer", description = exc.msg, peer = conn.peerId
 
   autonatV2.handler = handleStream
   autonatV2.codec = $AutonatV2Codec.DialRequest
