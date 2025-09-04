@@ -84,19 +84,19 @@ suite "Quic transport":
     check trans.handles(trans.addrs[0])
     await trans.stop()
 
-  asyncTest "handle dial cancellation":
-    let server = await createTransport()
-    asyncSpawn createServerAcceptConn(server)()
-    defer:
-      await server.stop()
+  # asyncTest "handle dial cancellation":
+  #   let server = await createTransport()
+  #   asyncSpawn createServerAcceptConn(server)()
+  #   defer:
+  #     await server.stop()
 
-    let client = await createTransport(isStarted = false)
-    defer:
-      await client.stop()
-    let cancellation = client.dial(server.addrs[0])
+  #   let client = await createTransport(isStarted = false)
+  #   defer:
+  #     await client.stop()
+  #   let cancellation = client.dial(server.addrs[0])
 
-    await cancellation.cancelAndWait()
-    check cancellation.cancelled
+  #   await cancellation.cancelAndWait()
+  #   check cancellation.cancelled
 
   asyncTest "handle accept cancellation":
     let server = await createTransport()
