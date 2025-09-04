@@ -26,8 +26,14 @@ import
   transports/[transport, tcptransport, wstransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
-  protocols/connectivity/
-    [autonat/server, autonatv2/server, relay/relay, relay/client, relay/rtransport],
+  protocols/connectivity/[
+    autonat/server,
+    autonatv2/server,
+    autonatv2/client,
+    relay/relay,
+    relay/client,
+    relay/rtransport,
+  ],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -77,6 +83,7 @@ type
     autonat: bool
     autonatV2: bool
     autonatV2Config: AutonatV2Config
+    autonatV2Client: bool
     autotls: AutotlsService
     circuitRelay: Relay
     rdv: RendezVous
@@ -290,6 +297,10 @@ proc withAutonatV2*(
   b.autonatV2Config = config
   b
 
+proc withAutonatV2Client*(b: SwitchBuilder): SwitchBuilder =
+  b.autonatV2Client = true
+  b
+
 when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
@@ -388,6 +399,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   )
 
   switch.mount(identify)
+
+  if b.autonatV2Client:
+    let autonatV2Client = AutonatV2Client.new(switch, b.rng)
+    switch.mount(autonatV2Client)
 
   if b.autonatV2:
     let autonatV2 = AutonatV2.new(switch, config = b.autonatV2Config)

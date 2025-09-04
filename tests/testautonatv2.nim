@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
+import std/options, net
 import chronos
 import
   ../libp2p/[
@@ -20,6 +20,7 @@ import
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/server,
     protocols/connectivity/autonatv2/utils,
+    protocols/connectivity/autonatv2/client,
   ],
   ./helpers
 
@@ -166,3 +167,68 @@ suite "AutonatV2":
     )
     await serverSwitch.start()
     await serverSwitch.stop()
+
+  asyncTest "Successful DialRequest":
+    let
+      src = newStandardSwitchBuilder().build()
+      dst = newAutonatV2ServerSwitch()
+
+    let client = AutonatV2Client.new(src, newRng())
+    src.mount(client)
+    await src.start()
+    await dst.start()
+
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let autonatV2Resp = await client.sendDialRequest(
+      dst.peerInfo.peerId, dst.peerInfo.addrs, src.peerInfo.addrs
+    )
+
+    check autonatV2Resp ==
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(src.peerInfo.addrs[0]),
+      )
+
+  asyncTest "Successful DialRequest with amplification attack prevention":
+    # use ip address other than 127.0.0.1 for client
+    let addrs = MultiAddress.init("/ip4/" & $getPrimaryIPAddr() & "/tcp/0").get()
+    let
+      src = newStandardSwitchBuilder(addrs = addrs).build()
+      dst = newAutonatV2ServerSwitch()
+
+    let client = AutonatV2Client.new(src, newRng())
+    src.mount(client)
+    await src.start()
+    await dst.start()
+
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let autonatV2Resp =
+      await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, @[addrs])
+
+    check autonatV2Resp ==
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(src.peerInfo.addrs[0]),
+      )
+
+  asyncTest "Failed DialRequest":
+    check false
+
+  asyncTest "Failed DialRequest with amplification attack prevention":
+    check false

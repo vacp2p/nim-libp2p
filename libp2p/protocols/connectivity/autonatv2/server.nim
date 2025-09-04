@@ -185,7 +185,7 @@ proc forceNewConnection(
     if mux.isNil():
       return Opt.none(Connection)
     return Opt.some(
-      await self.switch.negotiateStream(
+      await self.switch.dialer.negotiateStream(
         await mux.newStream(), @[$AutonatV2Codec.DialBack]
       )
     )
