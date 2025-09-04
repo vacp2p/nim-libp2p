@@ -60,7 +60,9 @@ proc invalidCertGenerator(
   except ResultError[crypto.CryptoError]:
     raiseAssert "private key should be set"
 
-proc createTransport(withInvalidCert: bool = false): Future[QuicTransport] {.async.} =
+proc createTransport(
+    withInvalidCert: bool = false, isStarted: bool = true
+): Future[QuicTransport] {.async.} =
   let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
   let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
   let trans =
@@ -68,7 +70,8 @@ proc createTransport(withInvalidCert: bool = false): Future[QuicTransport] {.asy
       QuicTransport.new(Upgrade(), privateKey, invalidCertGenerator)
     else:
       QuicTransport.new(Upgrade(), privateKey)
-  await trans.start(ma)
+  if isStarted:
+    await trans.start(ma)
 
   return trans
 
@@ -80,6 +83,30 @@ suite "Quic transport":
     let trans = await createTransport()
     check trans.handles(trans.addrs[0])
     await trans.stop()
+
+  asyncTest "handle dial cancellation":
+    let server = await createTransport()
+    asyncSpawn createServerAcceptConn(server)()
+    defer:
+      await server.stop()
+
+    let client = await createTransport(isStarted = false)
+    defer:
+      await client.stop()
+    let cancellation = client.dial(server.addrs[0])
+
+    await cancellation.cancelAndWait()
+    check cancellation.cancelled
+
+  asyncTest "handle accept cancellation":
+    let server = await createTransport()
+    asyncSpawn createServerAcceptConn(server)()
+    defer:
+      await server.stop()
+
+    let acceptHandler = server.accept()
+    await acceptHandler.cancelAndWait()
+    check acceptHandler.cancelled
 
   asyncTest "transport e2e":
     let server = await createTransport()
