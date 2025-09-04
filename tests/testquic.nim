@@ -76,6 +76,15 @@ suite "Quic transport":
   teardown:
     checkTrackers()
 
+  proc quicTransportBuilder(): Transport = 
+    try:
+      let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+      QuicTransport.new(Upgrade(), privateKey)
+    except CatchableError:
+      raiseAssert "could not create quic transport"
+
+  commonTransportTest(quicTransportBuilder, "/ip4/127.0.0.1/udp/0/quic-v1")
+
   asyncTest "can handle local address":
     let trans = await createTransport()
     check trans.handles(trans.addrs[0])
@@ -207,12 +216,3 @@ suite "Quic transport":
         await server.stop()
 
       await runClient(server)
-
-  proc transportProvider(): Transport =
-    try:
-      let privateKey = PrivateKey.random(ECDSA, (newRng())[]).get()
-      return QuicTransport.new(Upgrade(), privateKey)
-    except CatchableError:
-      check false
-
-  commonTransportTest(transportProvider, "/ip4/0.0.0.0/udp/0/quic-v1")
