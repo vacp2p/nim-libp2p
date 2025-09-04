@@ -165,9 +165,10 @@ suite "Quic transport":
 
     await runClient()
 
-
   asyncTest "should allow multiple local addresses":
-    return # not supported jet
+    # TODO(#1663): handle multiple addr
+    # See test example in commonTransportTest
+    return
 
   asyncTest "server not accepting":
     let server = await createTransport(isServer = true)

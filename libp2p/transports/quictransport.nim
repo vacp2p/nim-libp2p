@@ -269,7 +269,7 @@ method start*(
     self: QuicTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listener.isNil, "start() already called"
-  #TODO handle multiple addr
+  # TODO(#1663): handle multiple addr
 
   try:
     self.listener = QuicServer.init(self.makeConfig(), rng = self.getRng()).listen(
