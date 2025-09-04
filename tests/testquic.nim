@@ -80,9 +80,9 @@ suite "Quic transport":
     checkTrackers()
 
   asyncTest "can handle local address":
-    let trans = await createTransport(isServer = true)
-    check trans.handles(trans.addrs[0])
-    await trans.stop()
+    let server = await createTransport(isServer = true)
+    check server.handles(server.addrs[0])
+    await server.stop()
 
   asyncTest "handle accept cancellation":
     let server = await createTransport(isServer = true)
@@ -93,19 +93,17 @@ suite "Quic transport":
 
     await server.stop()
 
-  # asyncTest "handle dial cancellation":
-  #   let server = await createTransport(isServer = true)
-  #   asyncSpawn createServerAcceptConn(server)()
-  #   defer:
-  #     await server.stop()
+  asyncTest "handle dial cancellation":
+    return # something does not get closed
+    let server = await createTransport(isServer = true)
+    let client = await createTransport(isServer = false)
 
-  #   let client = await createTransport(isServer = false)
-  #   defer:
-  #     await client.stop()
+    let connFut = client.dial(server.addrs[0])
+    await connFut.cancelAndWait()
+    check connFut.cancelled
 
-  #   let connFut = client.dial(server.addrs[0])
-  #   await connFut.cancelAndWait()
-  #   check connFut.cancelled
+    await client.stop()
+    await server.stop()
 
   asyncTest "transport e2e":
     let server = await createTransport(isServer = true)
