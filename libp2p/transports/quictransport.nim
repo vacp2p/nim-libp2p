@@ -307,9 +307,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
     transport.listener.destroy()
     transport.listener = nil
 
-  if transport.client.isSome:
-    transport.client = Opt.none(QuicClient)
-
+  transport.client = Opt.none(QuicClient)
   await procCall Transport(transport).stop()
 
 proc wrapConnection(
