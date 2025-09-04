@@ -94,7 +94,6 @@ suite "Quic transport":
     await server.stop()
 
   asyncTest "handle dial cancellation":
-    return # something does not get closed
     let server = await createTransport(isServer = true)
     let client = await createTransport(isServer = false)
 
