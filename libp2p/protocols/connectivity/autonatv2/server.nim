@@ -14,6 +14,8 @@ import chronos, chronicles
 import
   ../../../../libp2p/[
     switch,
+    muxers/muxer,
+    dialer,
     multiaddress,
     transports/transport,
     multicodec,
@@ -163,20 +165,34 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
       return true
   return false
 
+proc forceNewConnection(
+    self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
+): Future[Opt[Connection]] {.async: (raises: [CancelledError]).} =
+  ## Bypasses connManager to force a new connection to ``pid``
+  ## instead of reusing a preexistent one
+  try:
+    let mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
+    if mux.isNil():
+      return Opt.none(Connection)
+    return Opt.some(
+      await self.switch.negotiateStream(
+        await mux.newStream(), @[$AutonatV2Codec.DialBack]
+      )
+    )
+  except CancelledError as exc:
+    raise exc
+  except CatchableError:
+    return Opt.none(Connection)
+
 proc chooseDialAddr(
     self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
 ): Future[Opt[(Connection, AddrIdx)]] {.async: (raises: [CancelledError]).} =
   for i, ma in addrs:
     if self.canDial(ma):
-      try:
-        debug "Trying to dial", chosenAddrs = ma, addrIdx = i
-        return Opt.some(
-          (await self.switch.dial(pid, @[ma], $AutonatV2Codec.DialBack), i.AddrIdx)
-        )
-      except DialFailedError:
+      debug "Trying to dial", chosenAddrs = ma, addrIdx = i
+      let conn = (await self.forceNewConnection(pid, @[ma])).valueOr:
         return Opt.none((Connection, AddrIdx))
-      except LPStreamError:
-        return Opt.none((Connection, AddrIdx))
+      return Opt.some((conn, i.AddrIdx))
   return Opt.none((Connection, AddrIdx))
 
 proc handleDialRequest(

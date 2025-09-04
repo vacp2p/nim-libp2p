@@ -43,7 +43,7 @@ type Dialer* = ref object of Dial
   peerStore: PeerStore
   nameResolver: NameResolver
 
-proc dialAndUpgrade(
+proc dialAndUpgrade*(
     self: Dialer,
     peerId: Opt[PeerId],
     hostname: string,
@@ -139,7 +139,7 @@ proc expandDnsAddr(
     else:
       result.add((resolvedAddress, peerId))
 
-proc dialAndUpgrade(
+proc dialAndUpgrade*(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
 ): Future[Muxer] {.
     async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
@@ -284,7 +284,7 @@ method connect*(
   return
     (await self.internalConnect(Opt.none(PeerId), @[address], false)).connection.peerId
 
-proc negotiateStream(
+proc negotiateStream*(
     self: Dialer, conn: Connection, protos: seq[string]
 ): Future[Connection] {.async: (raises: [CatchableError]).} =
   trace "Negotiating stream", conn, protos
