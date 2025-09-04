@@ -298,7 +298,6 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let conns = transport.connections[0 .. ^1]
   for c in conns:
     await c.close()
-  await procCall Transport(transport).stop()
 
   if not transport.listener.isNil:
     try:
@@ -306,13 +305,12 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
     transport.listener.destroy()
-    transport.running = false
     transport.listener = nil
 
   if transport.client.isSome:
     transport.client = Opt.none(QuicClient)
 
-  transport.running = false
+  await procCall Transport(transport).stop()
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection
@@ -379,7 +377,7 @@ method dial*(
   try:
     if not self.client.isSome:
       self.client = Opt.some(QuicClient.init(self.makeConfig(), rng = self.getRng()))
-    
+
     let client = self.client.get()
     let quicConnection = await client.dial(initTAddress(address).tryGet)
     return self.wrapConnection(quicConnection)
