@@ -105,6 +105,20 @@ suite "Quic transport":
     await client.stop()
     await server.stop()
 
+  asyncTest "stopping transport kills connections":
+    let server = await createTransport(isServer = true)
+    let client = await createTransport(isServer = false)
+
+    let acceptFut = server.accept()
+    let conn = await client.dial(server.addrs[0])
+    let serverConn = await acceptFut
+
+    await client.stop()
+    await server.stop()
+
+    check serverConn.closed()
+    check conn.closed()
+
   asyncTest "transport e2e":
     let server = await createTransport(isServer = true)
     asyncSpawn createServerAcceptConn(server)()
@@ -152,9 +166,13 @@ suite "Quic transport":
 
     await runClient()
 
+
+  asyncTest "should allow multiple local addresses":
+    return # not supported jet
+
   asyncTest "server not accepting":
     let server = await createTransport(isServer = true)
-    # itentionally not calling createServerAcceptConn as server should not accept
+    # intentionally not calling createServerAcceptConn as server should not accept
     defer:
       await server.stop()
 
