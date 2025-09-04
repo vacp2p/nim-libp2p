@@ -70,7 +70,7 @@ proc createTransport(
       QuicTransport.new(Upgrade(), privateKey, invalidCertGenerator)
     else:
       QuicTransport.new(Upgrade(), privateKey)
-  if isServer: # server are started aka they are listening
+  if isServer: # server is started because they need to listen
     await trans.start(ma)
 
   return trans
