@@ -63,14 +63,15 @@ proc invalidCertGenerator(
 proc createTransport(
     isServer: bool = false, withInvalidCert: bool = false
 ): Future[QuicTransport] {.async.} =
-  let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
   let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
   let trans =
     if withInvalidCert:
       QuicTransport.new(Upgrade(), privateKey, invalidCertGenerator)
     else:
       QuicTransport.new(Upgrade(), privateKey)
-  if isServer: # server is started because they need to listen
+
+  if isServer: # servers are started because they need to listen
+    let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
     await trans.start(ma)
 
   return trans
