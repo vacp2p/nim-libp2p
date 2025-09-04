@@ -43,20 +43,20 @@ type Dialer* = ref object of Dial
   peerStore: PeerStore
   nameResolver: NameResolver
 
-proc dialAndUpgrade*(
+method dialAndUpgrade*(
     self: Dialer,
     peerId: Opt[PeerId],
     hostname: string,
-    address: MultiAddress,
+    addrs: MultiAddress,
     dir = Direction.Out,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   for transport in self.transports: # for each transport
-    if transport.handles(address): # check if it can dial it
-      trace "Dialing address", address, peerId = peerId.get(default(PeerId)), hostname
+    if transport.handles(addrs): # check if it can dial it
+      trace "Dialing address", addrs, peerId = peerId.get(default(PeerId)), hostname
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
-          await transport.dial(hostname, address, peerId)
+          await transport.dial(hostname, addrs, peerId)
         except CancelledError as exc:
           trace "Dialing canceled",
             description = exc.msg, peerId = peerId.get(default(PeerId))
@@ -139,7 +139,7 @@ proc expandDnsAddr(
     else:
       result.add((resolvedAddress, peerId))
 
-proc dialAndUpgrade*(
+method dialAndUpgrade*(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
 ): Future[Muxer] {.
     async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
@@ -284,7 +284,7 @@ method connect*(
   return
     (await self.internalConnect(Opt.none(PeerId), @[address], false)).connection.peerId
 
-proc negotiateStream*(
+method negotiateStream*(
     self: Dialer, conn: Connection, protos: seq[string]
 ): Future[Connection] {.async: (raises: [CatchableError]).} =
   trace "Negotiating stream", conn, protos
@@ -292,7 +292,6 @@ proc negotiateStream*(
   if not protos.contains(selected):
     await conn.closeWithEOF()
     raise newException(DialFailedError, "Unable to select sub-protocol: " & $protos)
-
   return conn
 
 method tryDial*(
