@@ -478,19 +478,17 @@ iterator splitRPCMsg(
   ## exceeds the `maxSize` when trying to fit into an empty `RPCMsg`, the latter is skipped as too large to send.
   ## Every constructed `RPCMsg` is then encoded, optionally anonymized, and yielded as a sequence of bytes.
 
-  var currentRPCMsg = rpcMsg
-  currentRPCMsg.messages = newSeq[Message]()
-
-  var currentSize = byteSize(currentRPCMsg)
+  var currentRPCMsg = RPCMsg()
+  var currentSize = 0
+  const messageOverhead = 1.1 # Guessing 10% protobuf overhead
 
   for msg in rpcMsg.messages:
     let msgSize = byteSize(msg)
 
     # Check if adding the next message will exceed maxSize
-    if float(currentSize + msgSize) * 1.1 > float(maxSize):
-      # Guessing 10% protobuf overhead
-      if currentRPCMsg.messages.len == 0:
-        trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
+    if float(currentSize + msgSize) * messageOverhead > float(maxSize):
+      if msgSize > maxSize:
+        warn "message too big to sent", peer, rpcMsg = shortLog(msg)
         continue # Skip this message
 
       trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
@@ -502,11 +500,9 @@ iterator splitRPCMsg(
     currentSize += msgSize
 
   # Check if there is a non-empty currentRPCMsg left to be added
-  if currentSize > 0 and currentRPCMsg.messages.len > 0:
+  if currentRPCMsg.messages.len > 0:
     trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
     yield encodeRpcMsg(currentRPCMsg, anonymize)
-  else:
-    trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
 proc send*(
     p: PubSubPeer,
