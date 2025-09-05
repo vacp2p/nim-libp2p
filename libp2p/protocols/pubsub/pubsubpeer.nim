@@ -480,15 +480,13 @@ iterator splitRPCMsg(
 
   var currentRPCMsg = RPCMsg()
   var currentSize = 0
-  let maxSizeOverheadExcluded = (maxSize * 90) div 100
-    # Guessing 10% protobuf overhead; that is messages should not exceed 90% of maxSize
 
   for msg in rpcMsg.messages:
     let msgSize = byteSize(msg)
 
     # Check if adding the next message will exceed maxSize
-    if currentSize + msgSize > maxSizeOverheadExcluded:
-      if msgSize > maxSizeOverheadExcluded:
+    if currentSize + msgSize > maxSize:
+      if msgSize > maxSize:
         warn "message too big to sent", peer, rpcMsg = shortLog(msg)
         continue # Skip this message
 
@@ -539,8 +537,11 @@ proc send*(
       sendMetrics(msg)
       encodeRpcMsg(msg, anonymize)
 
-  if encoded.len > p.maxMessageSize and msg.messages.len > 1:
-    for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
+  # Guessing 10% protobuf overhead; that is messages should not exceed 90% of maxMessageSize
+  let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100 
+
+  if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
+    for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
       asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority, useCustomConn)
   else:
     # If the message size is within limits, send it as is
