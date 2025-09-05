@@ -480,14 +480,15 @@ iterator splitRPCMsg(
 
   var currentRPCMsg = RPCMsg()
   var currentSize = 0
-  const messageOverhead = 1.1 # Guessing 10% protobuf overhead
+  let maxSizeOverheadExcluded = (maxSize * 90) div 100
+    # Guessing 10% protobuf overhead; that is messages should not exceed 90% of maxSize
 
   for msg in rpcMsg.messages:
     let msgSize = byteSize(msg)
 
     # Check if adding the next message will exceed maxSize
-    if float(currentSize + msgSize) * messageOverhead > float(maxSize):
-      if msgSize > maxSize:
+    if currentSize + msgSize > maxSizeOverheadExcluded:
+      if msgSize > maxSizeOverheadExcluded:
         warn "message too big to sent", peer, rpcMsg = shortLog(msg)
         continue # Skip this message
 
