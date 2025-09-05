@@ -537,7 +537,7 @@ proc send*(
       sendMetrics(msg)
       encodeRpcMsg(msg, anonymize)
 
-  # Guessing 10% protobuf overhead; that is messages should not exceed 90% of maxMessageSize
+  # Messages should not exceed 90% of maxMessageSize. Guessing 10% protobuf overhead.
   let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100 
 
   if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
