@@ -29,19 +29,29 @@ import
 logScope:
   topics = "libp2p autonat v2 server"
 
-const
-  DefaultDialTimeout: Duration = 15.seconds
-  DefaultAmplificationAttackDialTimeout: Duration = 3.seconds
-  DefaultDialDataSize: uint64 = 50 * 1024 # 50 KiB > 50 KB
-  AutonatV2MsgLpSize: int = 1024
-  # readLp needs to receive more than 4096 bytes (since it's a DialDataResponse) + overhead
-  AutonatV2DialDataResponseLpSize: int = 5000
-
-type AutonatV2* = ref object of LPProtocol
-  switch*: Switch
+type AutonatV2Config* = object
   dialTimeout: Duration
   dialDataSize: uint64
   amplificationAttackTimeout: Duration
+  allowPrivateAddresses: bool
+
+type AutonatV2* = ref object of LPProtocol
+  switch*: Switch
+  config: AutonatV2Config
+
+proc new*(
+    T: typedesc[AutonatV2Config],
+    dialTimeout: Duration = DefaultDialTimeout,
+    dialDataSize: uint64 = DefaultDialDataSize,
+    amplificationAttackTimeout: Duration = DefaultAmplificationAttackDialTimeout,
+    allowPrivateAddresses: bool = false,
+): T =
+  T(
+    dialTimeout: dialTimeout,
+    dialDataSize: dialDataSize,
+    amplificationAttackTimeout: amplificationAttackTimeout,
+    allowPrivateAddresses: allowPrivateAddresses,
+  )
 
 proc sendDialResponse(
     conn: Connection,
@@ -110,7 +120,7 @@ proc handleDialDataResponses(
 ) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
   var dataReceived: uint64 = 0
 
-  while dataReceived < self.dialDataSize:
+  while dataReceived < self.config.dialDataSize:
     let msg = AutonatV2Msg.decode(
       initProtoBuffer(await conn.readLp(AutonatV2DialDataResponseLpSize))
     ).valueOr:
@@ -131,15 +141,15 @@ proc amplificationAttackPrevention(
   await conn.writeLp(
     AutonatV2Msg(
       msgType: MsgType.DialDataRequest,
-      dialDataReq: DialDataRequest(addrIdx: addrIdx, numBytes: self.dialDataSize),
+      dialDataReq: DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize),
     ).encode().buffer
   )
 
   # recieve DialDataResponses until we're satisfied
   try:
-    if not await self.handleDialDataResponses(conn).withTimeout(self.dialTimeout):
+    if not await self.handleDialDataResponses(conn).withTimeout(self.config.dialTimeout):
       error "Amplification attack prevention timeout",
-        timeout = self.amplificationAttackTimeout, peer = conn.peerId
+        timeout = self.config.amplificationAttackTimeout, peer = conn.peerId
       return false
   except AutonatV2Error as exc:
     error "Amplification attack prevention failed", description = exc.msg
@@ -155,7 +165,7 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
     if IP6.match(addrIp) and not ipv6Support:
       return false
     try:
-      if isPrivate($addrIp):
+      if not self.config.allowPrivateAddresses and isPrivate($addrIp):
         return false
     except ValueError:
       warn "Unable to parse IP address, skipping", addrs = $addrIp
@@ -230,16 +240,9 @@ proc handleDialRequest(
 proc new*(
     T: typedesc[AutonatV2],
     switch: Switch,
-    dialTimeout: Duration = DefaultDialTimeout,
-    dialDataSize: uint64 = DefaultDialDataSize,
-    amplificationAttackTimeout: Duration = DefaultAmplificationAttackDialTimeout,
+    config: AutonatV2Config = AutonatV2Config.new(),
 ): T =
-  let autonatV2 = T(
-    switch: switch,
-    dialTimeout: dialTimeout,
-    dialDataSize: dialDataSize,
-    amplificationAttackTimeout: amplificationAttackTimeout,
-  )
+  let autonatV2 = T(switch: switch, config: config)
   proc handleStream(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
