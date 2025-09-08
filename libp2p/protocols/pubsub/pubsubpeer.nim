@@ -537,16 +537,8 @@ proc send*(
       sendMetrics(msg)
       encodeRpcMsg(msg, anonymize)
 
-  # Messages should not exceed 90% of maxMessageSize. Guessing 10% protobuf overhead.
-  let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100 
-
-  if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
-    for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
-      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority, useCustomConn)
-  else:
-    # If the message size is within limits, send it as is
-    trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    asyncSpawn p.sendEncoded(encoded, isHighPriority, useCustomConn)
+  trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+  asyncSpawn p.sendEncoded(encoded, isHighPriority, useCustomConn)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():

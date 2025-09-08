@@ -76,33 +76,6 @@ suite "GossipSub Integration - Message Handling":
   teardown:
     checkTrackers()
 
-  asyncTest "Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":
-    # This test checks if two messages, each below the maxSize, are correctly split when their combined size exceeds maxSize.
-    # Expected: Both messages should be received.
-    let (gossip0, gossip1, receivedMessages) = await setupTest()
-
-    let messageSize = gossip1.maxMessageSize div 2 + 1
-    let (iwantMessageIds, sentMessages) =
-      createMessages(gossip0, gossip1, messageSize, messageSize)
-
-    gossip1.broadcast(
-      gossip1.mesh["foobar"],
-      RPCMsg(
-        control: some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: "foobar", messageIDs: iwantMessageIds)]
-          )
-        )
-      ),
-      isHighPriority = false,
-    )
-
-    checkUntilTimeout:
-      receivedMessages[] == sentMessages
-    check receivedMessages[].len == 2
-
-    await teardownTest(gossip0, gossip1)
-
   asyncTest "Discard IWANT replies when both messages individually exceed maxSize":
     # This test checks if two messages, each exceeding the maxSize, are discarded and not sent.
     # Expected: No messages should be received.
@@ -154,41 +127,6 @@ suite "GossipSub Integration - Message Handling":
     checkUntilTimeout:
       receivedMessages[] == sentMessages
     check receivedMessages[].len == 2
-
-    await teardownTest(gossip0, gossip1)
-
-  asyncTest "Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
-    # This test checks if, when given two messages where one is below maxSize and the other exceeds it, only the smaller message is processed and sent.
-    # Expected: Only the smaller message should be received.
-    let (gossip0, gossip1, receivedMessages) = await setupTest()
-    let maxSize = gossip1.maxMessageSize
-    let size1 = maxSize div 2
-    let size2 = maxSize + 10
-    let (bigIWantMessageIds, sentMessages) =
-      createMessages(gossip0, gossip1, size1, size2)
-
-    gossip1.broadcast(
-      gossip1.mesh["foobar"],
-      RPCMsg(
-        control: some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
-          )
-        )
-      ),
-      isHighPriority = false,
-    )
-
-    var smallestSet: HashSet[seq[byte]]
-    let seqs = toSeq(sentMessages)
-    if seqs[0] < seqs[1]:
-      smallestSet.incl(seqs[0])
-    else:
-      smallestSet.incl(seqs[1])
-
-    checkUntilTimeout:
-      receivedMessages[] == smallestSet
-    check receivedMessages[].len == 1
 
     await teardownTest(gossip0, gossip1)
 
