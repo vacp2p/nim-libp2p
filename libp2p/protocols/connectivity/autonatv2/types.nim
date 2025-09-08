@@ -14,6 +14,14 @@ import
   ../../../multiaddress, ../../../peerid, ../../../protobuf/minprotobuf, ../../../switch
 from ../autonat/types import NetworkReachability
 
+const
+  DefaultDialTimeout*: Duration = 15.seconds
+  DefaultAmplificationAttackDialTimeout*: Duration = 3.seconds
+  DefaultDialDataSize*: uint64 = 50 * 1024 # 50 KiB > 50 KB
+  AutonatV2MsgLpSize*: int = 1024
+  # readLp needs to receive more than 4096 bytes (since it's a DialDataResponse) + overhead
+  AutonatV2DialDataResponseLpSize*: int = 5000
+
 type
   AutonatV2Codec* {.pure.} = enum
     DialRequest = "/libp2p/autonat/2/dial-request"
