@@ -1,6 +1,15 @@
-import sequtils
 import chronos
-import ../../libp2p/[protobuf/minprotobuf, protocols/rendezvous, switch, builders]
+import sequtils
+import
+  ../../libp2p/[
+    builders,
+    crypto/crypto,
+    peerid,
+    protobuf/minprotobuf,
+    protocols/rendezvous,
+    routing_record,
+    switch,
+  ]
 
 proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
@@ -76,3 +85,9 @@ proc populatePeerRegistrations*(
   let record = targetRdv.registered.s[0]
   for i in 0 ..< count - 1:
     targetRdv.registered.s.add(record)
+
+proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
+  let rng = newRng()
+  let wrongPrivKey = PrivateKey.random(rng[]).tryGet()
+  let record = PeerRecord.init(peerId, @[])
+  SignedPeerRecord.init(wrongPrivKey, record).tryGet()
