@@ -87,7 +87,7 @@ proc setupGossipSubWithPeers*(
     populateMesh: bool = false,
     populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
-  let gossipSub = TestGossipSub.init(newStandardQuicSwitch())
+  let gossipSub = TestGossipSub.init(newStandardSwitch(transport = TransportType.Quic))
 
   for topic in topics:
     gossipSub.subscribe(topic, voidTopicHandler)

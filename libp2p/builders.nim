@@ -404,10 +404,15 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   return switch
 
+type TransportType* {.pure.} = enum
+  Quic
+  TCP
+  Memory
+
 proc newStandardSwitchBuilder*(
     privKey = none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] =
-      MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
+    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
+    transport: TransportType = TransportType.TCP,
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     transportFlags: set[ServerFlags] = {},
     rng = newRng(),
@@ -422,14 +427,8 @@ proc newStandardSwitchBuilder*(
     peerStoreCapacity = 1000,
 ): SwitchBuilder {.raises: [LPError], public.} =
   ## Helper for common switch configurations.
-  let addrs =
-    when addrs is MultiAddress:
-      @[addrs]
-    else:
-      addrs
   var b = SwitchBuilder
     .new()
-    .withAddresses(addrs)
     .withRng(rng)
     .withSignedPeerRecord(sendSignedPeerRecord)
     .withMaxConnections(maxConnections)
@@ -437,10 +436,30 @@ proc newStandardSwitchBuilder*(
     .withMaxOut(maxOut)
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withPeerStore(capacity = peerStoreCapacity)
-    .withMplex(inTimeout, outTimeout)
-    .withTcpTransport(transportFlags)
     .withNameResolver(nameResolver)
     .withNoise()
+
+  var addrs =
+    when addrs is MultiAddress:
+      @[addrs]
+    else:
+      addrs
+
+  case transport
+  of TransportType.Quic:
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
+    b = b.withQuicTransport().withAddresses(addrs)
+  of TransportType.TCP:
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
+    b = b.withTcpTransport(transportFlags).withAddresses(addrs).withMplex(
+        inTimeout, outTimeout
+      )
+  of TransportType.Memory:
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init(MemoryAutoAddress).tryGet()]
+    b = b.withMemoryTransport().withAddresses(addrs).withMplex(inTimeout, outTimeout)
 
   privKey.withValue(pkey):
     b = b.withPrivateKey(pkey)
@@ -449,8 +468,8 @@ proc newStandardSwitchBuilder*(
 
 proc newStandardSwitch*(
     privKey = none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] =
-      MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
+    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
+    transport: TransportType = TransportType.TCP,
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     transportFlags: set[ServerFlags] = {},
     rng = newRng(),
@@ -481,42 +500,3 @@ proc newStandardSwitch*(
     peerStoreCapacity = peerStoreCapacity,
   )
   .build()
-
-proc newStandardQuicSwitch*(
-    privKey = none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] =
-      MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").expect("valid address"),
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
-    rng = newRng(),
-    maxConnections = MaxConnections,
-    maxIn = -1,
-    maxOut = -1,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
-    nameResolver: NameResolver = nil,
-    sendSignedPeerRecord = false,
-    peerStoreCapacity = 1000,
-): Switch {.raises: [LPError], public.} =
-  ## Helper for common switch configurations.
-  let addrs =
-    when addrs is MultiAddress:
-      @[addrs]
-    else:
-      addrs
-  var b = SwitchBuilder
-    .new()
-    .withAddresses(addrs)
-    .withRng(rng)
-    .withSignedPeerRecord(sendSignedPeerRecord)
-    .withMaxConnections(maxConnections)
-    .withMaxIn(maxIn)
-    .withMaxOut(maxOut)
-    .withMaxConnsPerPeer(maxConnsPerPeer)
-    .withPeerStore(capacity = peerStoreCapacity)
-    .withQuicTransport()
-    .withNameResolver(nameResolver)
-    .withNoise()
-
-  privKey.withValue(pkey):
-    b = b.withPrivateKey(pkey)
-
-  b.build()
