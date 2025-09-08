@@ -404,16 +404,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   return switch
 
-when defined(libp2p_quic_support):
-  type TransportType* {.pure.} = enum
-    Quic
-    TCP
-    Memory
-
-else:
-  type TransportType* {.pure.} = enum
-    TCP
-    Memory
+type TransportType* {.pure.} = enum
+  Quic
+  TCP
+  Memory
 
 proc newStandardSwitchBuilder*(
     privKey = none(PrivateKey),
@@ -457,6 +451,8 @@ proc newStandardSwitchBuilder*(
       if addrs.len == 0:
         addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
       b = b.withQuicTransport().withAddresses(addrs)
+    else:
+      raiseAssert "QUIC not supported in this build"
   of TransportType.TCP:
     if addrs.len == 0:
       addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
