@@ -538,7 +538,7 @@ proc send*(
       encodeRpcMsg(msg, anonymize)
 
   # Messages should not exceed 90% of maxMessageSize. Guessing 10% protobuf overhead.
-  let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100 
+  let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100
 
   if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
