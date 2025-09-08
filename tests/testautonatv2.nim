@@ -18,6 +18,7 @@ import
     upgrademngrs/upgrade,
     builders,
     protocols/connectivity/autonatv2/types,
+    protocols/connectivity/autonatv2/server,
     protocols/connectivity/autonatv2/utils,
   ],
   ./helpers
@@ -27,8 +28,8 @@ proc checkEncodeDecode[T](msg: T) =
   # check msg == DialBack.decode(msg.encode()).get()
   check msg == T.decode(msg.encode()).get()
 
-proc newAutonatV2ServerSwitch(): Switch =
-  var builder = newStandardSwitchBuilder().withAutonatV2()
+proc newAutonatV2ServerSwitch(config: AutonatV2Config = AutonatV2Config.new()): Switch =
+  var builder = newStandardSwitchBuilder().withAutonatV2(config = config)
   return builder.build()
 
 suite "AutonatV2":
@@ -154,7 +155,14 @@ suite "AutonatV2":
         reachability: Reachable, dialResp: correctDialResp, addrs: Opt.some(addrs[0])
       )
 
-  asyncTest "Instanciate server":
+  asyncTest "Instantiate server":
     let serverSwitch = newAutonatV2ServerSwitch()
+    await serverSwitch.start()
+    await serverSwitch.stop()
+
+  asyncTest "Instantiate server with config":
+    let serverSwitch = newAutonatV2ServerSwitch(
+      config = AutonatV2Config.new(allowPrivateAddresses = true)
+    )
     await serverSwitch.start()
     await serverSwitch.stop()
