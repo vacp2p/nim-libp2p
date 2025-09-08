@@ -103,11 +103,11 @@ proc dialBack(
     let dialBackResp = DialBackResponse.decode(
       initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
     ).valueOr:
-      error "DialBack failed, could not decode DialBackResponse"
+      trace "DialBack failed, could not decode DialBackResponse"
       return DialStatus.EDialBackError
   except LPStreamRemoteClosedError as exc:
     # failed because of nonce error (remote reset the stream): EDialBackError
-    error "DialBack failed, remote closed the connection", description = exc.msg
+    debug "DialBack failed, remote closed the connection", description = exc.msg
     return DialStatus.EDialBackError
 
   # TODO: failed because of client or server resources: EDialError
@@ -147,10 +147,7 @@ proc amplificationAttackPrevention(
 
   # recieve DialDataResponses until we're satisfied
   try:
-    if not await self.handleDialDataResponses(conn).withTimeout(self.config.dialTimeout):
-      error "Amplification attack prevention timeout",
-        timeout = self.config.amplificationAttackTimeout, peer = conn.peerId
-      return false
+    await self.handleDialDataResponses(conn)
   except AutonatV2Error as exc:
     error "Amplification attack prevention failed", description = exc.msg
     return false
@@ -196,25 +193,40 @@ proc forceNewConnection(
 
 proc chooseDialAddr(
     self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
-): Future[Opt[(Connection, AddrIdx)]] {.async: (raises: [CancelledError]).} =
+): Future[(Opt[Connection], Opt[AddrIdx])] {.async: (raises: [CancelledError]).} =
   for i, ma in addrs:
     if self.canDial(ma):
       debug "Trying to dial", chosenAddrs = ma, addrIdx = i
-      let conn = (await self.forceNewConnection(pid, @[ma])).valueOr:
-        return Opt.none((Connection, AddrIdx))
-      return Opt.some((conn, i.AddrIdx))
-  return Opt.none((Connection, AddrIdx))
+      let conn =
+        try:
+          (await (self.forceNewConnection(pid, @[ma]).wait(self.config.dialTimeout))).valueOr:
+            return (Opt.none(Connection), Opt.none(AddrIdx))
+        except AsyncTimeoutError:
+          trace "Dial timed out"
+          return (Opt.none(Connection), Opt.some(i.AddrIdx))
+      return (Opt.some(conn), Opt.some(i.AddrIdx))
+  return (Opt.none(Connection), Opt.none(AddrIdx))
 
 proc handleDialRequest(
     self: AutonatV2, conn: Connection, req: DialRequest
-) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   let observedIPAddr = (await conn.findObservedIPAddr(req)).valueOr:
-    error "Could not find observed IP address"
+    trace "Could not find observed IP address"
+    await conn.sendDialResponse(ResponseStatus.ERequestRejected)
     return
 
-  let (dialBackConn, addrIdx) = (await self.chooseDialAddr(conn.peerId, req.addrs)).valueOr:
-    error "No dialable addresses found"
+  let (dialBackConnOpt, addrIdxOpt) = await self.chooseDialAddr(conn.peerId, req.addrs)
+  let addrIdx = addrIdxOpt.valueOr:
+    trace "No dialable addresses found"
     await conn.sendDialResponse(ResponseStatus.EDialRefused)
+    return
+  let dialBackConn = dialBackConnOpt.valueOr:
+    trace "Dial failed"
+    await conn.sendDialResponse(
+      ResponseStatus.Ok,
+      addrIdx = Opt.some(addrIdx),
+      dialStatus = Opt.some(DialStatus.EDialError),
+    )
     return
   defer:
     await dialBackConn.close()
@@ -225,17 +237,37 @@ proc handleDialRequest(
     debug "Starting amplification attack prevention",
       observedIPAddr = observedIPAddr, testAddr = req.addrs[addrIdx]
     # send DialDataRequest and wait until dataReceived is enough
-    if not await self.amplificationAttackPrevention(conn, addrIdx):
+    if not await self.amplificationAttackPrevention(conn, addrIdx).withTimeout(
+      self.config.amplificationAttackTimeout
+    ):
+      debug "Amplification attack prevention timeout",
+        timeout = self.config.amplificationAttackTimeout, peer = conn.peerId
+      await conn.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
   debug "Sending DialBack",
     nonce = req.nonce, addrIdx = addrIdx, addr = req.addrs[addrIdx]
 
-  let dialStatus = await dialBackConn.dialBack(req.nonce)
-
-  await conn.sendDialResponse(
-    ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
-  )
+  try:
+    let dialStatus =
+      await dialBackConn.dialBack(req.nonce).wait(self.config.dialTimeout)
+    await conn.sendDialResponse(
+      ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
+    )
+  except DialFailedError as exc:
+    debug "DialBack failed", description = exc.msg
+    await conn.sendDialResponse(
+      ResponseStatus.Ok,
+      addrIdx = Opt.some(addrIdx),
+      dialStatus = Opt.some(DialStatus.EDialBackError),
+    )
+  except AsyncTimeoutError:
+    debug "DialBack timeout", timeout = self.config.dialTimeout
+    await conn.sendDialResponse(
+      ResponseStatus.Ok,
+      addrIdx = Opt.some(addrIdx),
+      dialStatus = Opt.some(DialStatus.EDialBackError),
+    )
 
 proc new*(
     T: typedesc[AutonatV2],
@@ -271,8 +303,6 @@ proc new*(
       debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
     except LPStreamError as exc:
       debug "Stream Error", description = exc.msg
-    except DialFailedError as exc:
-      debug "Could not dial peer", description = exc.msg, peer = conn.peerId
 
   autonatV2.handler = handleStream
   autonatV2.codec = $AutonatV2Codec.DialRequest

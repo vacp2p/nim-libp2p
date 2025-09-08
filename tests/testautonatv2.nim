@@ -29,10 +29,6 @@ proc checkEncodeDecode[T](msg: T) =
   # check msg == DialBack.decode(msg.encode()).get()
   check msg == T.decode(msg.encode()).get()
 
-proc newAutonatV2ServerSwitch(config: AutonatV2Config = AutonatV2Config.new()): Switch =
-  var builder = newStandardSwitchBuilder().withAutonatV2(config = config)
-  return builder.build()
-
 suite "AutonatV2":
   teardown:
     checkTrackers()
@@ -157,21 +153,24 @@ suite "AutonatV2":
       )
 
   asyncTest "Instantiate server":
-    let serverSwitch = newAutonatV2ServerSwitch()
+    let serverSwitch = newStandardSwitchBuilder().withAutonatV2().build()
     await serverSwitch.start()
     await serverSwitch.stop()
 
   asyncTest "Instantiate server with config":
-    let serverSwitch = newAutonatV2ServerSwitch(
-      config = AutonatV2Config.new(allowPrivateAddresses = true)
-    )
+    let serverSwitch = newStandardSwitchBuilder()
+      .withAutonatV2(config = AutonatV2Config.new(allowPrivateAddresses = true))
+      .build()
+
     await serverSwitch.start()
     await serverSwitch.stop()
 
   asyncTest "Successful DialRequest":
     let
       src = newStandardSwitchBuilder().build()
-      dst = newAutonatV2ServerSwitch()
+      dst = newStandardSwitchBuilder()
+        .withAutonatV2(config = AutonatV2Config.new(allowPrivateAddresses = true))
+        .build()
 
     let client = AutonatV2Client.new(src, newRng())
     src.mount(client)
@@ -199,10 +198,15 @@ suite "AutonatV2":
 
   asyncTest "Successful DialRequest with amplification attack prevention":
     # use ip address other than 127.0.0.1 for client
-    let addrs = MultiAddress.init("/ip4/" & $getPrimaryIPAddr() & "/tcp/0").get()
     let
-      src = newStandardSwitchBuilder(addrs = addrs).build()
-      dst = newAutonatV2ServerSwitch()
+      listenAddrs =
+        @[
+          MultiAddress.init("/ip4/" & $getPrimaryIPAddr() & "/tcp/4040").get(),
+          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ]
+      reqAddrs = @[listenAddrs[0]]
+      src = newStandardSwitchBuilder(addrs = listenAddrs).build()
+      dst = newStandardSwitchBuilder().withAutonatV2().build()
 
     let client = AutonatV2Client.new(src, newRng())
     src.mount(client)
@@ -214,7 +218,7 @@ suite "AutonatV2":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let autonatV2Resp =
-      await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, @[addrs])
+      await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
 
     check autonatV2Resp ==
       AutonatV2Response(
@@ -228,7 +232,71 @@ suite "AutonatV2":
       )
 
   asyncTest "Failed DialRequest":
-    check false
+    let
+      src = newStandardSwitchBuilder().build()
+      dst = newStandardSwitchBuilder()
+        .withAutonatV2(config = AutonatV2Config.new(dialTimeout = 1.seconds))
+        .build()
+
+    let client = AutonatV2Client.new(src, newRng())
+    src.mount(client)
+    await src.start()
+    await dst.start()
+
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let autonatV2Resp = await client.sendDialRequest(
+      dst.peerInfo.peerId,
+      dst.peerInfo.addrs,
+      @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()],
+    )
+
+    check autonatV2Resp ==
+      AutonatV2Response(
+        reachability: NotReachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.EDialError),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()),
+      )
 
   asyncTest "Failed DialRequest with amplification attack prevention":
-    check false
+    # use ip address other than 127.0.0.1 for client
+    let
+      listenAddrs =
+        @[
+          MultiAddress.init("/ip4/" & $getPrimaryIPAddr() & "/tcp/4040").get(),
+          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ]
+      reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
+      src = newStandardSwitchBuilder(addrs = listenAddrs).build()
+      dst = newStandardSwitchBuilder()
+        .withAutonatV2(config = AutonatV2Config.new(dialTimeout = 1.seconds))
+        .build()
+
+    let client = AutonatV2Client.new(src, newRng())
+    src.mount(client)
+    await src.start()
+    await dst.start()
+
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let autonatV2Resp =
+      await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
+
+    check autonatV2Resp ==
+      AutonatV2Response(
+        reachability: NotReachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.EDialError),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()),
+      )

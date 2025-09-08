@@ -132,6 +132,7 @@ proc handleDialDataRequest*(
 proc checkAddrIdx(
     self: AutonatV2Client, addrIdx: AddrIdx, testAddrs: seq[MultiAddress], nonce: Nonce
 ): bool {.raises: [AutonatV2Error].} =
+  debug "checking addrs", addrIdx = addrIdx, testAddrs = testAddrs, nonce = nonce
   let dialBackAddrs =
     try:
       self.expectedNonces[nonce].get()
@@ -192,12 +193,13 @@ proc sendDialRequest*(
         )
     debug "Received DialResponse", dialResp = dialResp
 
-    # check if returned addrIdx is valid
-    dialResp.addrIdx.withValue(addrIdx):
-      if not self.checkAddrIdx(addrIdx, testAddrs, nonce):
-        raise newException(
-          AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
-        )
+    dialResp.dialStatus.withValue(dialStatus):
+      if dialStatus == DialStatus.Ok:
+        dialResp.addrIdx.withValue(addrIdx):
+          if not self.checkAddrIdx(addrIdx, testAddrs, nonce):
+            raise newException(
+              AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
+            )
   except LPStreamRemoteClosedError as exc:
     error "Stream reset by server", description = exc.msg, peer = pid
   finally:
