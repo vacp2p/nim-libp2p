@@ -405,7 +405,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   return switch
 
 type TransportType* {.pure.} = enum
-  Quic
+  QUIC
   TCP
   Memory
 
@@ -446,7 +446,7 @@ proc newStandardSwitchBuilder*(
       addrs
 
   case transport
-  of TransportType.Quic:
+  of TransportType.QUIC:
     when defined(libp2p_quic_support):
       if addrs.len == 0:
         addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
