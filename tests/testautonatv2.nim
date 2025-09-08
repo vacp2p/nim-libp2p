@@ -24,6 +24,12 @@ import
   ],
   ./helpers
 
+proc checkedGetIPAddress(): string =
+  try:
+    $getPrimaryIPAddr()
+  except Exception:
+    ""
+
 proc checkEncodeDecode[T](msg: T) =
   # this would be equivalent of doing the following (e.g. for DialBack)
   # check msg == DialBack.decode(msg.encode()).get()
@@ -201,7 +207,7 @@ suite "AutonatV2":
     let
       listenAddrs =
         @[
-          MultiAddress.init("/ip4/" & $getPrimaryIPAddr() & "/tcp/4040").get(),
+          MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
           MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
         ]
       reqAddrs = @[listenAddrs[0]]
@@ -269,7 +275,7 @@ suite "AutonatV2":
     let
       listenAddrs =
         @[
-          MultiAddress.init("/ip4/" & $getPrimaryIPAddr() & "/tcp/4040").get(),
+          MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
           MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
         ]
       reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
@@ -298,5 +304,5 @@ suite "AutonatV2":
           dialStatus: Opt.some(DialStatus.EDialError),
           addrIdx: Opt.some(0.AddrIdx),
         ),
-        addrs: Opt.some(MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()),
+        addrs: Opt.some(reqAddrs[0]),
       )

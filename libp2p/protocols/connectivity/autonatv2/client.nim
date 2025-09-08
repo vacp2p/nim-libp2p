@@ -30,7 +30,7 @@ const
   DefaultDialBackTimeout* = 5.seconds
 
 type AutonatV2Client* = ref object of LPProtocol
-  switch*: Switch
+  dialer*: Dial
   dialBackTimeout: Duration
   rng: ref HmacDrbgContext
   expectedNonces: Table[Nonce, Opt[MultiAddress]]
@@ -61,31 +61,31 @@ proc handleDialBack(
 
 proc new*(
     T: typedesc[AutonatV2Client],
-    switch: Switch,
+    dialer: Dial,
     rng: ref HmacDrbgContext,
     dialBackTimeout: Duration = DefaultDialBackTimeout,
 ): T =
-  let client = T(switch: switch, rng: rng, dialBackTimeout: dialBackTimeout)
+  let client = T(dialer: dialer, rng: rng, dialBackTimeout: dialBackTimeout)
 
   # handler for DialBack messages
   proc handleStream(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      let dialBack = DialBack.decode(initProtoBuffer(await conn.readLp(1024))).valueOr:
-        raise newException(AutonatV2Error, "Unable to decode DialBack")
+      let dialBack = DialBack.decode(initProtoBuffer(await conn.readLp(DialBackLpSize))).valueOr:
+        trace "Unable to decode DialBack"
+        return
       if not await client.handleDialBack(conn, dialBack).withTimeout(
         client.dialBackTimeout
       ):
-        error "Sending DialBackResponse timeout"
+        trace "Sending DialBackResponse timeout"
         return
     except CancelledError as exc:
-      error "Handler cancelled", description = exc.msg
       raise exc
     except LPStreamRemoteClosedError as exc:
-      error "Connection closed by peer", description = exc.msg, peer = conn.peerId
+      debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
     except CatchableError as exc:
-      error "Exception in handler", description = exc.msg, conn
+      debug "Exception in handler", description = exc.msg, conn
 
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
@@ -112,14 +112,11 @@ proc handleDialDataRequest*(
   let messagesToSend =
     (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
-    try:
-      await conn.writeLp(msg.encode().buffer)
-      debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
-    except CatchableError as exc:
-      raise newException(AutonatV2Error, "Failed to send DialDataResponse", exc)
+    await conn.writeLp(msg.encode().buffer)
+    debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
 
   # get DialResponse
-  msg = AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(1024))).valueOr:
+  msg = AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))).valueOr:
     raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
 
   debug "Receive message", msgType = $msg.msgType
@@ -137,17 +134,19 @@ proc checkAddrIdx(
     try:
       self.expectedNonces[nonce].get()
     except KeyError:
-      error "Not expecting this nonce", nonce = nonce
+      debug "Not expecting this nonce",
+        nonce = nonce, expectedNonces = self.expectedNonces
       return false
 
   if addrIdx >= testAddrs.len.AddrIdx:
-    error "addrIdx outside of testAddrs range", addrIdx = addrIdx
+    debug "addrIdx outside of testAddrs range",
+      addrIdx = addrIdx, testAddrs = testAddrs, testAddrsLen = testAddrs.len
     return false
 
   let dialRespAddrs = testAddrs[addrIdx]
   if not areAddrsConsistent(dialRespAddrs, dialBackAddrs):
-    error "Invalid addrIdx: got DialBack in another address",
-      dialBackAddrs = dialBackAddrs, dialRespAddrs = dialRespAddrs
+    debug "Invalid addrIdx: got DialBack in another address",
+      addrIdx = addrIdx, dialBackAddrs = dialBackAddrs, dialRespAddrs = dialRespAddrs
     return false
   true
 
@@ -166,7 +165,7 @@ proc sendDialRequest*(
 
   var dialResp: DialResponse
   try:
-    let conn = await self.switch.dial(pid, peerAddrs, $AutonatV2Codec.DialRequest)
+    let conn = await self.dialer.dial(pid, peerAddrs, @[$AutonatV2Codec.DialRequest])
     defer:
       await conn.close()
 
@@ -177,7 +176,9 @@ proc sendDialRequest*(
         dialReq: DialRequest(addrs: testAddrs, nonce: nonce),
       ).encode().buffer
     )
-    let msg = AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(1024))).valueOr:
+    let msg = AutonatV2Msg.decode(
+      initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
+    ).valueOr:
       raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
 
     dialResp =

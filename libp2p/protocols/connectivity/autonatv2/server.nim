@@ -122,7 +122,7 @@ proc handleDialDataResponses(
 
   while dataReceived < self.config.dialDataSize:
     let msg = AutonatV2Msg.decode(
-      initProtoBuffer(await conn.readLp(AutonatV2DialDataResponseLpSize))
+      initProtoBuffer(await conn.readLp(DialDataResponseLpSize))
     ).valueOr:
       raise newException(AutonatV2Error, "Received malformed message")
     debug "Received message", msgType = $msg.msgType

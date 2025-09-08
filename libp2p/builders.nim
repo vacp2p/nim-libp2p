@@ -401,7 +401,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   switch.mount(identify)
 
   if b.autonatV2Client:
-    let autonatV2Client = AutonatV2Client.new(switch, b.rng)
+    let autonatV2Client = AutonatV2Client.new(switch.dialer, b.rng)
     switch.mount(autonatV2Client)
 
   if b.autonatV2:
