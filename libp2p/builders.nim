@@ -76,6 +76,7 @@ type
     peerStoreCapacity: Opt[int]
     autonat: bool
     autonatV2: bool
+    autonatV2Config: AutonatV2Config
     autotls: AutotlsService
     circuitRelay: Relay
     rdv: RendezVous
@@ -282,8 +283,11 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
-proc withAutonatV2*(b: SwitchBuilder): SwitchBuilder =
+proc withAutonatV2*(
+    b: SwitchBuilder, config: AutonatV2Config = AutonatV2Config.new()
+): SwitchBuilder =
   b.autonatV2 = true
+  b.autonatV2Config = config
   b
 
 when defined(libp2p_autotls_support):
@@ -386,7 +390,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   switch.mount(identify)
 
   if b.autonatV2:
-    let autonatV2 = AutonatV2.new(switch)
+    let autonatV2 = AutonatV2.new(switch, config = b.autonatV2Config)
     switch.mount(autonatV2)
   elif b.autonat:
     let autonat = Autonat.new(switch)
