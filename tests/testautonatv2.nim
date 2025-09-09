@@ -24,6 +24,22 @@ import
   ],
   ./helpers
 
+proc newSwitches(
+    srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
+    config: AutonatV2Config = AutonatV2Config.new(),
+): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
+  let
+    src = newStandardSwitchBuilder(addrs = srcAddrs).build()
+    dst = newStandardSwitchBuilder().withAutonatV2(config = config).build()
+    client = AutonatV2Client.new(src, newRng())
+
+  src.mount(client)
+  await src.start()
+  await dst.start()
+
+  await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+  (src, dst, client)
+
 proc checkedGetIPAddress(): string =
   try:
     $getPrimaryIPAddr()
@@ -172,26 +188,16 @@ suite "AutonatV2":
     await serverSwitch.stop()
 
   asyncTest "Successful DialRequest":
-    let
-      src = newStandardSwitchBuilder().build()
-      dst = newStandardSwitchBuilder()
-        .withAutonatV2(config = AutonatV2Config.new(allowPrivateAddresses = true))
-        .build()
-
-    let client = AutonatV2Client.new(src, newRng())
-    src.mount(client)
-    await src.start()
-    await dst.start()
-
+    let (src, dst, client) =
+      await newSwitches(config = AutonatV2Config.new(allowPrivateAddresses = true))
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let autonatV2Resp = await client.sendDialRequest(
-      dst.peerInfo.peerId, dst.peerInfo.addrs, src.peerInfo.addrs
-    )
-
-    check autonatV2Resp ==
+    check (
+      await client.sendDialRequest(
+        dst.peerInfo.peerId, dst.peerInfo.addrs, src.peerInfo.addrs
+      )
+    ) ==
       AutonatV2Response(
         reachability: Reachable,
         dialResp: DialResponse(
@@ -211,22 +217,13 @@ suite "AutonatV2":
           MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
         ]
       reqAddrs = @[listenAddrs[0]]
-      src = newStandardSwitchBuilder(addrs = listenAddrs).build()
-      dst = newStandardSwitchBuilder().withAutonatV2().build()
-
-    let client = AutonatV2Client.new(src, newRng())
-    src.mount(client)
-    await src.start()
-    await dst.start()
-
+      (src, dst, client) = await newSwitches(srcAddrs = listenAddrs)
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let autonatV2Resp =
+    check (
       await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
-
-    check autonatV2Resp ==
+    ) ==
       AutonatV2Response(
         reachability: Reachable,
         dialResp: DialResponse(
@@ -238,28 +235,18 @@ suite "AutonatV2":
       )
 
   asyncTest "Failed DialRequest":
-    let
-      src = newStandardSwitchBuilder().build()
-      dst = newStandardSwitchBuilder()
-        .withAutonatV2(config = AutonatV2Config.new(dialTimeout = 1.seconds))
-        .build()
-
-    let client = AutonatV2Client.new(src, newRng())
-    src.mount(client)
-    await src.start()
-    await dst.start()
-
+    let (src, dst, client) =
+      await newSwitches(config = AutonatV2Config.new(dialTimeout = 1.seconds))
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let autonatV2Resp = await client.sendDialRequest(
-      dst.peerInfo.peerId,
-      dst.peerInfo.addrs,
-      @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()],
-    )
-
-    check autonatV2Resp ==
+    check (
+      await client.sendDialRequest(
+        dst.peerInfo.peerId,
+        dst.peerInfo.addrs,
+        @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()],
+      )
+    ) ==
       AutonatV2Response(
         reachability: NotReachable,
         dialResp: DialResponse(
@@ -279,24 +266,15 @@ suite "AutonatV2":
           MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
         ]
       reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
-      src = newStandardSwitchBuilder(addrs = listenAddrs).build()
-      dst = newStandardSwitchBuilder()
-        .withAutonatV2(config = AutonatV2Config.new(dialTimeout = 1.seconds))
-        .build()
-
-    let client = AutonatV2Client.new(src, newRng())
-    src.mount(client)
-    await src.start()
-    await dst.start()
-
+      (src, dst, client) = await newSwitches(
+        srcAddrs = listenAddrs, config = AutonatV2Config.new(dialTimeout = 1.seconds)
+      )
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let autonatV2Resp =
+    check (
       await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
-
-    check autonatV2Resp ==
+    ) ==
       AutonatV2Response(
         reachability: NotReachable,
         dialResp: DialResponse(
