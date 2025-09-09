@@ -1,3 +1,4 @@
 {.used.}
 
-import testdiscoverymngr, testrendezvous, testrendezvousinterface
+import
+  testdiscoverymngr, testrendezvous, testrendezvousprotobuf, testrendezvousinterface
