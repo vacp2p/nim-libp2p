@@ -27,16 +27,13 @@ import
   ./server
 
 type AutonatV2Mock* = ref object of LPProtocol
-  switch*: Switch
   config*: AutonatV2Config
   response*: ProtoBuffer
 
 proc new*(
-    T: typedesc[AutonatV2Mock],
-    switch: Switch,
-    config: AutonatV2Config = AutonatV2Config.new(),
+    T: typedesc[AutonatV2Mock], config: AutonatV2Config = AutonatV2Config.new()
 ): T =
-  let autonatV2 = T(switch: switch, config: config)
+  let autonatV2 = T(config: config)
   proc handleStream(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =

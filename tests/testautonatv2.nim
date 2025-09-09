@@ -25,7 +25,7 @@ import
   ],
   ./helpers
 
-proc newSwitches(
+proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
@@ -190,7 +190,7 @@ suite "AutonatV2":
 
   asyncTest "Successful DialRequest":
     let (src, dst, client) =
-      await newSwitches(config = AutonatV2Config.new(allowPrivateAddresses = true))
+      await setupAutonat(config = AutonatV2Config.new(allowPrivateAddresses = true))
     defer:
       await allFutures(src.stop(), dst.stop())
 
@@ -218,7 +218,7 @@ suite "AutonatV2":
           MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
         ]
       reqAddrs = @[listenAddrs[0]]
-      (src, dst, client) = await newSwitches(srcAddrs = listenAddrs)
+      (src, dst, client) = await setupAutonat(srcAddrs = listenAddrs)
     defer:
       await allFutures(src.stop(), dst.stop())
 
@@ -237,7 +237,7 @@ suite "AutonatV2":
 
   asyncTest "Failed DialRequest":
     let (src, dst, client) =
-      await newSwitches(config = AutonatV2Config.new(dialTimeout = 1.seconds))
+      await setupAutonat(config = AutonatV2Config.new(dialTimeout = 1.seconds))
     defer:
       await allFutures(src.stop(), dst.stop())
 
@@ -267,7 +267,7 @@ suite "AutonatV2":
           MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
         ]
       reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
-      (src, dst, client) = await newSwitches(
+      (src, dst, client) = await setupAutonat(
         srcAddrs = listenAddrs, config = AutonatV2Config.new(dialTimeout = 1.seconds)
       )
     defer:
@@ -291,7 +291,7 @@ suite "AutonatV2":
       src = newStandardSwitchBuilder().build()
       dst = newStandardSwitchBuilder().build()
       client = AutonatV2Client.new(src, newRng())
-      autonatV2Mock = AutonatV2Mock.new(dst)
+      autonatV2Mock = AutonatV2Mock.new()
       reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
 
     dst.mount(autonatV2Mock)
