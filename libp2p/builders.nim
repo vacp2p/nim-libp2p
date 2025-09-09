@@ -408,10 +408,15 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   return switch
 
+type TransportType* {.pure.} = enum
+  QUIC
+  TCP
+  Memory
+
 proc newStandardSwitchBuilder*(
     privKey = none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] =
-      MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
+    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
+    transport: TransportType = TransportType.TCP,
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     transportFlags: set[ServerFlags] = {},
     rng = newRng(),
@@ -426,14 +431,8 @@ proc newStandardSwitchBuilder*(
     peerStoreCapacity = 1000,
 ): SwitchBuilder {.raises: [LPError], public.} =
   ## Helper for common switch configurations.
-  let addrs =
-    when addrs is MultiAddress:
-      @[addrs]
-    else:
-      addrs
   var b = SwitchBuilder
     .new()
-    .withAddresses(addrs)
     .withRng(rng)
     .withSignedPeerRecord(sendSignedPeerRecord)
     .withMaxConnections(maxConnections)
@@ -441,10 +440,33 @@ proc newStandardSwitchBuilder*(
     .withMaxOut(maxOut)
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withPeerStore(capacity = peerStoreCapacity)
-    .withMplex(inTimeout, outTimeout)
-    .withTcpTransport(transportFlags)
     .withNameResolver(nameResolver)
     .withNoise()
+
+  var addrs =
+    when addrs is MultiAddress:
+      @[addrs]
+    else:
+      addrs
+
+  case transport
+  of TransportType.QUIC:
+    when defined(libp2p_quic_support):
+      if addrs.len == 0:
+        addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
+      b = b.withQuicTransport().withAddresses(addrs)
+    else:
+      raiseAssert "QUIC not supported in this build"
+  of TransportType.TCP:
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
+    b = b.withTcpTransport(transportFlags).withAddresses(addrs).withMplex(
+        inTimeout, outTimeout
+      )
+  of TransportType.Memory:
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init(MemoryAutoAddress).tryGet()]
+    b = b.withMemoryTransport().withAddresses(addrs).withMplex(inTimeout, outTimeout)
 
   privKey.withValue(pkey):
     b = b.withPrivateKey(pkey)
@@ -453,8 +475,8 @@ proc newStandardSwitchBuilder*(
 
 proc newStandardSwitch*(
     privKey = none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] =
-      MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
+    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
+    transport: TransportType = TransportType.TCP,
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     transportFlags: set[ServerFlags] = {},
     rng = newRng(),
