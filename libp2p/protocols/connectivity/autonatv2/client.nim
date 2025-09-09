@@ -53,11 +53,8 @@ proc handleDialBack(
     error "Unable to get localAddr from connection"
     return
 
-  try:
-    trace "Sending DialBackResponse"
-    await conn.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode().buffer)
-  except CatchableError as exc:
-    raise newException(AutonatV2Error, "Sending DialBackResponse failed", exc)
+  trace "Sending DialBackResponse"
+  await conn.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode().buffer)
 
 proc new*(
     T: typedesc[AutonatV2Client],
@@ -78,14 +75,13 @@ proc new*(
       if not await client.handleDialBack(conn, dialBack).withTimeout(
         client.dialBackTimeout
       ):
-        trace "Sending DialBackResponse timeout"
-        return
+        trace "Sending DialBackResponse timed out"
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
       debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
-    except CatchableError as exc:
-      debug "Exception in handler", description = exc.msg, conn
+    except LPStreamError as exc:
+      debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
 
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
@@ -119,7 +115,7 @@ proc handleDialDataRequest*(
   msg = AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))).valueOr:
     raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
 
-  debug "Receive message", msgType = $msg.msgType
+  debug "Received message", msgType = msg.msgType
   if msg.msgType != MsgType.DialResponse:
     raise
       newException(AutonatV2Error, "Expecting DialResponse, but got " & $msg.msgType)
@@ -130,18 +126,12 @@ proc checkAddrIdx(
     self: AutonatV2Client, addrIdx: AddrIdx, testAddrs: seq[MultiAddress], nonce: Nonce
 ): bool {.raises: [AutonatV2Error].} =
   debug "checking addrs", addrIdx = addrIdx, testAddrs = testAddrs, nonce = nonce
-  let dialBackAddrs =
-    try:
-      self.expectedNonces[nonce].valueOr:
-        debug "No dialBackAddrs for nonce",
-          nonce = nonce, expectedNonces = self.expectedNonces
-        return false
-    except KeyError:
-      debug "Not expecting this nonce",
-        nonce = nonce, expectedNonces = self.expectedNonces
-      return false
+  let dialBackAddrs = self.expectedNonces.getOrDefault(nonce).valueOr:
+    debug "Not expecting this nonce",
+      nonce = nonce, expectedNonces = self.expectedNonces
+    return false
 
-  if addrIdx >= testAddrs.len.AddrIdx:
+  if addrIdx.int >= testAddrs.len:
     debug "addrIdx outside of testAddrs range",
       addrIdx = addrIdx, testAddrs = testAddrs, testAddrsLen = testAddrs.len
     return false
