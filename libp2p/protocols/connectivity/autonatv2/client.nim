@@ -132,7 +132,10 @@ proc checkAddrIdx(
   debug "checking addrs", addrIdx = addrIdx, testAddrs = testAddrs, nonce = nonce
   let dialBackAddrs =
     try:
-      self.expectedNonces[nonce].get()
+      self.expectedNonces[nonce].valueOr:
+        debug "No dialBackAddrs for nonce",
+          nonce = nonce, expectedNonces = self.expectedNonces
+        return false
     except KeyError:
       debug "Not expecting this nonce",
         nonce = nonce, expectedNonces = self.expectedNonces

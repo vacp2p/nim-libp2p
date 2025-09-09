@@ -21,6 +21,7 @@ import
     protocols/connectivity/autonatv2/server,
     protocols/connectivity/autonatv2/utils,
     protocols/connectivity/autonatv2/client,
+    protocols/connectivity/autonatv2/mock,
   ],
   ./helpers
 
@@ -284,3 +285,47 @@ suite "AutonatV2":
         ),
         addrs: Opt.some(reqAddrs[0]),
       )
+
+  asyncTest "Server responding with invalid messages":
+    let
+      src = newStandardSwitchBuilder().build()
+      dst = newStandardSwitchBuilder().build()
+      client = AutonatV2Client.new(src, newRng())
+      autonatV2Mock = AutonatV2Mock.new(dst)
+      reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
+
+    dst.mount(autonatV2Mock)
+    src.mount(client)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+
+    # 1. invalid autonatv2msg
+    autonatV2Mock.response = DialBackResponse(status: DialBackStatus.Ok).encode()
+    expect(AutonatV2Error):
+      discard
+        await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
+
+    # 2. msg that is not DialResponse or DialDataRequest
+    autonatV2Mock.response = AutonatV2Msg(
+      msgType: MsgType.DialRequest, dialReq: DialRequest(addrs: @[], nonce: 0)
+    ).encode()
+    expect(AutonatV2Error):
+      discard
+        await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
+
+    # 3. invalid addrIdx (e.g. 1000 when only 1 is present)
+    autonatV2Mock.response = AutonatV2Msg(
+      msgType: MsgType.DialResponse,
+      dialResp: DialResponse(
+        status: ResponseStatus.Ok,
+        addrIdx: Opt.some(1000.AddrIdx),
+        dialStatus: Opt.some(DialStatus.Ok),
+      ),
+    ).encode()
+    expect(AutonatV2Error):
+      discard
+        await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
