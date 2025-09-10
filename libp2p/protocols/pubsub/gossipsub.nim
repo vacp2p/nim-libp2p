@@ -932,11 +932,12 @@ method publish*(
     g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish:
-    if isLargeMessage(msg, msgId):
+    if not pubParams.skipIDontWant and isLargeMessage(msg, msgId):
       g.sendIDontWant(msg, msgId, peers)
 
     when defined(libp2p_gossipsub_1_4):
-      g.sendPreamble(msg, msgId, peers)
+      if not pubParams.skipPreamble:
+        g.sendPreamble(msg, msgId, peers)
 
   g.broadcast(
     peers,
