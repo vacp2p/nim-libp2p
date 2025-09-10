@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-# import std/sequtils
+import std/sequtils
 import chronos, metrics
 import unittest2
 import
@@ -50,6 +50,24 @@ proc createSwitch(
     builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
+
+proc createSwitches(n: int): seq[Switch] =
+  var switches: seq[Switch]
+  for i in 0 ..< n:
+    switches.add(createSwitch())
+  switches
+
+proc startAll(switches: seq[Switch]) {.async.} =
+  await allFuturesThrowing(switches.mapIt(it.start()))
+
+proc stopAll(switches: seq[Switch]) {.async.} =
+  await allFuturesThrowing(switches.mapIt(it.stop()))
+
+proc startAndConnect(switch: Switch, switches: seq[Switch]) {.async.} =
+  await switch.start()
+  for peer in switches:
+    await peer.start()
+    await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
 
 proc newService(
     reachability: NetworkReachability,
@@ -101,12 +119,10 @@ suite "AutonatV2 Service":
     checkTrackers()
 
   asyncTest "Peer must be reachable":
-    let (service, client) = newService(NetworkReachability.Reachable)
-
-    let switch1 = createSwitch(service)
-    let switch2 = createSwitch()
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
+    let
+      (service, client) = newService(NetworkReachability.Reachable)
+      switch = createSwitch(service)
+    var switches = createSwitches(3)
 
     let awaiter = newFuture[void]()
 
@@ -122,51 +138,33 @@ suite "AutonatV2 Service":
 
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
-    await switch1.start()
-    await switch2.start()
-    await switch3.start()
-    await switch4.start()
-
-    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+    await switch.startAndConnect(switches)
 
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
 
-    await allFuturesThrowing(
-      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
-    )
+    await switch.stop()
+    await switches.stopAll()
 
   asyncTest "Peer must be not reachable":
     let (service, client) = newService(NetworkReachability.NotReachable)
 
-    let switch1 = createSwitch(service)
-    let switch2 = createSwitch()
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
+    let switch = createSwitch(service)
+    var switches = createSwitches(3)
 
     check service.networkReachability == NetworkReachability.Unknown
 
-    await switch1.start()
-    await switch2.start()
-    await switch3.start()
-    await switch4.start()
-
-    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+    await switch.startAndConnect(switches)
 
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
-    await allFuturesThrowing(
-      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
-    )
+    await switch.stop()
+    await switches.stopAll()
 
   asyncTest "Peer must be not reachable and then reachable":
     let (service, client) = newService(
@@ -175,10 +173,8 @@ suite "AutonatV2 Service":
       config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
     )
 
-    let switch1 = createSwitch(service)
-    let switch2 = createSwitch()
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
+    let switch = createSwitch(service)
+    var switches = createSwitches(3)
 
     let awaiter = newFuture[void]()
 
@@ -203,14 +199,7 @@ suite "AutonatV2 Service":
 
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
-    await switch1.start()
-    await switch2.start()
-    await switch3.start()
-    await switch4.start()
-
-    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+    await switch.startAndConnect(switches)
 
     await awaiter
 
@@ -222,9 +211,8 @@ suite "AutonatV2 Service":
     check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
 
-    await allFuturesThrowing(
-      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
-    )
+    await switch.stop()
+    await switches.stopAll()
 
   asyncTest "Peer must be reachable when one connected peer has autonat disabled":
     let (service, client) = newService(
@@ -235,10 +223,9 @@ suite "AutonatV2 Service":
       ),
     )
 
-    let switch1 = createSwitch(service)
-    let switch2 = createSwitch(withAutonat = false)
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
+    let switch = createSwitch(service)
+    var switches = createSwitches(2)
+    switches.add(createSwitch(withAutonat = false))
 
     let awaiter = newFuture[void]()
 
@@ -254,23 +241,15 @@ suite "AutonatV2 Service":
 
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
-    await switch1.start()
-    await switch2.start()
-    await switch3.start()
-    await switch4.start()
-
-    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+    await switch.startAndConnect(switches)
 
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
 
-    await allFuturesThrowing(
-      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
-    )
+    await switch.stop()
+    await switches.stopAll()
 
   asyncTest "Unknown answers must be ignored":
     let (service, client) = newService(
@@ -279,10 +258,8 @@ suite "AutonatV2 Service":
       config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
     )
 
-    let switch1 = createSwitch(service)
-    let switch2 = createSwitch()
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
+    let switch = createSwitch(service)
+    var switches = createSwitches(3)
 
     let awaiter = newFuture[void]()
 
@@ -306,14 +283,7 @@ suite "AutonatV2 Service":
 
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
-    await switch1.start()
-    await switch2.start()
-    await switch3.start()
-    await switch4.start()
-
-    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
+    await switch.startAndConnect(switches)
 
     await awaiter
 
@@ -325,9 +295,8 @@ suite "AutonatV2 Service":
     check service.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
-    await allFuturesThrowing(
-      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
-    )
+    await switch.stop()
+    await switches.stopAll()
 
   asyncTest "Calling setup and stop twice must work":
     let (service, client) = newService(
@@ -342,7 +311,7 @@ suite "AutonatV2 Service":
     check (await service.stop(switch)) == true
     check (await service.stop(switch)) == false
 
-    await allFuturesThrowing(switch.stop())
+    await switch.stop()
 
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let (service, client) = newService(
@@ -509,19 +478,15 @@ suite "AutonatV2 Service":
     await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   asyncTest "Must work with low maxConnections":
-    let
-      (service, client) = newService(
-        NetworkReachability.Reachable,
-        config = AutonatV2ServiceConfig.new(
-          scheduleInterval = Opt.some(1.seconds), maxQueueSize = 1
-        ),
-      )
+    let (service, client) = newService(
+      NetworkReachability.Reachable,
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(1.seconds), maxQueueSize = 1
+      ),
+    )
 
-      switch1 = createSwitch(service, maxConns = 4)
-      switch2 = createSwitch()
-      switch3 = createSwitch()
-      switch4 = createSwitch()
-      switch5 = createSwitch()
+    let switch = createSwitch(service, maxConns = 4)
+    var switches = createSwitches(4)
 
     var awaiter = newFuture[void]()
 
@@ -537,31 +502,27 @@ suite "AutonatV2 Service":
 
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
-    await switch1.start()
-    await switch2.start()
-    await switch3.start()
-    await switch4.start()
-    await switch5.start()
+    await switch.start()
+    await switches.startAll()
 
-    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+    await switch.connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
 
     await awaiter
 
-    await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
-    await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
-    await switch5.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
+    await switch.connect(switches[2].peerInfo.peerId, switches[2].peerInfo.addrs)
+    await switch.connect(switches[3].peerInfo.peerId, switches[3].peerInfo.addrs)
+    await switches[3].connect(switch.peerInfo.peerId, switch.peerInfo.addrs)
     # switch1 is now full, should stick to last observation
     awaiter = newFuture[void]()
-    await service.run(switch1)
+    await service.run(switch)
 
     await sleepAsync(100.millis)
 
     check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
 
-    await allFuturesThrowing(
-      switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
-    )
+    await switch.stop()
+    await switches.stopAll()
 
   asyncTest "Peer must not ask an incoming peer":
     let (service, client) = newService(
