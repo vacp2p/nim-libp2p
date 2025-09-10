@@ -20,6 +20,11 @@ import
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/server,
     protocols/connectivity/autonatv2/utils,
+<<<<<<< HEAD
+=======
+    protocols/connectivity/autonatv2/client,
+    protocols/connectivity/autonatv2/mockserver,
+>>>>>>> 6ced65edb (feat: start adding service)
   ],
   ./helpers
 
@@ -166,3 +171,135 @@ suite "AutonatV2":
     )
     await serverSwitch.start()
     await serverSwitch.stop()
+<<<<<<< HEAD
+=======
+
+  asyncTest "Successful DialRequest":
+    let (src, dst, client) =
+      await setupAutonat(config = AutonatV2Config.new(allowPrivateAddresses = true))
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    check (await client.sendDialRequest(dst.peerInfo.peerId, src.peerInfo.addrs)) ==
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(src.peerInfo.addrs[0]),
+      )
+
+  asyncTest "Successful DialRequest with amplification attack prevention":
+    # use ip address other than 127.0.0.1 for client
+    let
+      listenAddrs =
+        @[
+          MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
+          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ]
+      reqAddrs = @[listenAddrs[0]]
+      (src, dst, client) = await setupAutonat(srcAddrs = listenAddrs)
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(src.peerInfo.addrs[0]),
+      )
+
+  asyncTest "Failed DialRequest":
+    let (src, dst, client) =
+      await setupAutonat(config = AutonatV2Config.new(dialTimeout = 1.seconds))
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    check (
+      await client.sendDialRequest(
+        dst.peerInfo.peerId, @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
+      )
+    ) ==
+      AutonatV2Response(
+        reachability: NotReachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.EDialError),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()),
+      )
+
+  asyncTest "Failed DialRequest with amplification attack prevention":
+    # use ip address other than 127.0.0.1 for client
+    let
+      listenAddrs =
+        @[
+          MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
+          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ]
+      reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
+      (src, dst, client) = await setupAutonat(
+        srcAddrs = listenAddrs, config = AutonatV2Config.new(dialTimeout = 1.seconds)
+      )
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
+      AutonatV2Response(
+        reachability: NotReachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.EDialError),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(reqAddrs[0]),
+      )
+
+  asyncTest "Server responding with invalid messages":
+    let
+      src = newStandardSwitchBuilder().build()
+      dst = newStandardSwitchBuilder().build()
+      client = AutonatV2Client.new(src, newRng())
+      autonatV2Mock = AutonatV2Mock.new()
+      reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
+
+    dst.mount(autonatV2Mock)
+    src.mount(client)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+
+    # 1. invalid autonatv2msg
+    autonatV2Mock.response = DialBackResponse(status: DialBackStatus.Ok).encode()
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
+
+    # 2. msg that is not DialResponse or DialDataRequest
+    autonatV2Mock.response = AutonatV2Msg(
+      msgType: MsgType.DialRequest, dialReq: DialRequest(addrs: @[], nonce: 0)
+    ).encode()
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
+
+    # 3. invalid addrIdx (e.g. 1000 when only 1 is present)
+    autonatV2Mock.response = AutonatV2Msg(
+      msgType: MsgType.DialResponse,
+      dialResp: DialResponse(
+        status: ResponseStatus.Ok,
+        addrIdx: Opt.some(1000.AddrIdx),
+        dialStatus: Opt.some(DialStatus.Ok),
+      ),
+    ).encode()
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
+>>>>>>> 6ced65edb (feat: start adding service)

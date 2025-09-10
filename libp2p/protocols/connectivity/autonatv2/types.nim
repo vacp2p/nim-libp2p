@@ -14,6 +14,8 @@ import
   ../../../multiaddress, ../../../peerid, ../../../protobuf/minprotobuf, ../../../switch
 from ../autonat/types import NetworkReachability
 
+export NetworkReachability
+
 const
   DefaultDialTimeout*: Duration = 15.seconds
   DefaultAmplificationAttackDialTimeout*: Duration = 3.seconds
