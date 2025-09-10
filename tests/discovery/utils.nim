@@ -13,42 +13,37 @@ proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   .withRendezVous(rdv)
   .build()
 
-proc setupNodes*(count: int): (seq[Switch], seq[RendezVous]) =
+proc setupNodes*(count: int): seq[RendezVous] =
   doAssert(count > 0, "Count must be greater than 0")
 
-  var
-    nodes: seq[Switch] = @[]
-    rdvs: seq[RendezVous] = @[]
+  var rdvs: seq[RendezVous] = @[]
 
   for x in 0 ..< count:
     let rdv = RendezVous.new()
     let node = createSwitch(rdv)
-    nodes.add(node)
     rdvs.add(rdv)
 
-  return (nodes, rdvs)
+  return rdvs
 
-proc setupRendezvousNodeWithPeerNodes*(
-    count: int
-): (Switch, seq[Switch], seq[RendezVous], RendezVous) =
+proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]) =
   let
-    (nodes, rdvs) = setupNodes(count + 1)
-    rendezvousNode = nodes[0]
+    rdvs = setupNodes(count + 1)
     rendezvousRdv = rdvs[0]
-    peerNodes = nodes[1 ..^ 1]
     peerRdvs = rdvs[1 ..^ 1]
 
-  return (rendezvousNode, peerNodes, peerRdvs, rendezvousRdv)
+  return (rendezvousRdv, peerRdvs)
 
-template startAndDeferStop*(nodes: seq[Switch]) =
-  await allFutures(nodes.mapIt(it.start()))
+template startAndDeferStop*(nodes: seq[RendezVous]) =
+  await allFutures(nodes.mapIt(it.switch.start()))
   defer:
-    await allFutures(nodes.mapIt(it.stop()))
+    await allFutures(nodes.mapIt(it.switch.stop()))
 
-proc connectNodes*[T: Switch](dialer: T, target: T) {.async.} =
-  await dialer.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+proc connectNodes*[T: RendezVous](dialer: T, target: T) {.async.} =
+  await dialer.switch.connect(
+    target.switch.peerInfo.peerId, target.switch.peerInfo.addrs
+  )
 
-proc connectNodesToRendezvousNode*[T: Switch](
+proc connectNodesToRendezvousNode*[T: RendezVous](
     nodes: seq[T], rendezvousNode: T
 ) {.async.} =
   for node in nodes:
