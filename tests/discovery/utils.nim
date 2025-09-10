@@ -91,3 +91,15 @@ proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
   let wrongPrivKey = PrivateKey.random(rng[]).tryGet()
   let record = PeerRecord.init(peerId, @[])
   SignedPeerRecord.init(wrongPrivKey, record).tryGet()
+
+proc sendRdvMessage*(
+    node: RendezVous, target: RendezVous, buffer: seq[byte]
+): Future[seq[byte]] {.async.} =
+  let conn = await node.switch.dial(target.switch.peerInfo.peerId, RendezVousCodec)
+  defer:
+    await conn.close()
+
+  await conn.writeLp(buffer)
+
+  let response = await conn.readLp(4096)
+  response

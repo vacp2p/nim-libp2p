@@ -12,7 +12,14 @@
 import sequtils, strutils
 import chronos
 import
-  ../../libp2p/[protocols/rendezvous, peerinfo, switch, routing_record, crypto/crypto]
+  ../../libp2p/[
+    protocols/rendezvous,
+    protocols/rendezvous/protobuf,
+    peerinfo,
+    switch,
+    routing_record,
+    crypto/crypto,
+  ]
 import ../../libp2p/discovery/discoverymngr
 import ../../libp2p/utils/offsettedseq
 import ../helpers
@@ -473,6 +480,28 @@ suite "RendezVous":
     # 1001st registration ignored, limit reached
     await peerRdv.advertise(namespace)
     check rendezvousNode.registered.s.len == RegistrationLimitPerPeer
+
+  asyncTest "Node returns E_INVALID_NAMESPACE for invalid namespace during registration":
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    let peerNode = peerNodes[0]
+
+    let
+      r = Register(
+        ns: "A".repeat(300),
+        signedPeerRecord: peerNode.switch.peerInfo.signedPeerRecord.encode().get,
+        ttl: Opt.some(2.hours.seconds.uint64),
+      )
+      msg = encode(Message(msgType: MessageType.Register, register: Opt.some(r)))
+
+    let
+      responseBuf = await sendRdvMessage(peerNode, rendezvousNode, msg.buffer)
+      responseMessage = Message.decode(responseBuf).tryGet()
+
+    check responseMessage.registerResponse.get.status == ResponseStatus.InvalidNamespace
 
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
