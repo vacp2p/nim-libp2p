@@ -14,12 +14,20 @@ import ../../../peerid, ../../../multiaddress, ../../../switch
 import ./client, ./types
 
 type AutonatV2ClientMock* = ref object of AutonatV2Client
-  responses*: seq[AutonatV2Response]
-  dials: int
+  response*: AutonatV2Response
+  dials*: int
+  expectedDials: int
   finished*: Future[void]
 
-proc new*(T: typedesc[AutonatV2ClientMock], responses: seq[AutonatV2Response]): T =
-  return T(dials: 0, finished: newFuture[void](), responses: responses)
+proc new*(
+    T: typedesc[AutonatV2ClientMock], response: AutonatV2Response, expectedDials: int
+): T =
+  return T(
+    dials: 0,
+    expectedDials: expectedDials,
+    finished: newFuture[void](),
+    response: response,
+  )
 
 method sendDialRequest*(
     self: AutonatV2ClientMock, pid: PeerId, testAddrs: seq[MultiAddress]
@@ -27,6 +35,11 @@ method sendDialRequest*(
     async: (raises: [AutonatV2Error, CancelledError, DialFailedError, LPStreamError])
 .} =
   self.dials += 1
-  if self.dials == self.responses.len:
+  if self.dials == self.expectedDials:
     self.finished.complete()
-  self.responses[self.dials - 1]
+
+  var ans = self.response
+
+  ans.dialResp.addrIdx.withValue(addrIdx):
+    ans.addrs = Opt.some(testAddrs[addrIdx])
+  ans

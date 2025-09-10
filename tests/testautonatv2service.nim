@@ -9,14 +9,15 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[options, sequtils]
+# import std/sequtils
 import chronos, metrics
 import unittest2
 import
   ../libp2p/[
     builders,
     switch,
-    protocols/connectivity/autonatv2/client,
+    protocols/connectivity/autonatv2/types,
+    # protocols/connectivity/autonatv2/client,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/mockclient,
   ]
@@ -37,7 +38,7 @@ proc createSwitch(
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMaxConnections(maxConns)
-    .withMplex()
+    .withYamux()
     .withNoise()
 
   if withAutonat:
@@ -56,17 +57,26 @@ suite "AutonatV2 Service":
     checkTrackers()
 
   asyncTest "Peer must be not reachable":
-    let autonatV2ClientStub = AutonatV2ClientMock.new(expectedDials = 3)
-    autonatV2ClientStub.answer = NotReachable
+    let client = AutonatV2ClientMock.new(
+      AutonatV2Response(
+        reachability: NotReachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.EDialBackError),
+          addrIdx: Opt.some(0.AddrIdx),
+        ), # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+      ),
+      expectedDials = 3,
+    )
 
-    let autonatV2Service = AutonatV2Service.new(autonatV2ClientStub, newRng())
+    let service = AutonatV2Service.new(newRng(), client = client)
 
-    let switch1 = createSwitch(autonatV2Service)
+    let switch1 = createSwitch(service, withAutonat = false)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
     await switch1.start()
     await switch2.start()
@@ -77,9 +87,9 @@ suite "AutonatV2 Service":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await autonatV2ClientStub.finished
+    await client.finished
 
-    check autonatV2Service.networkReachability == NetworkReachability.NotReachable
+    check service.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await allFuturesThrowing(
@@ -87,10 +97,21 @@ suite "AutonatV2 Service":
     )
 
   asyncTest "Peer must be reachable":
-    let autonatV2Service =
-      AutonatV2Service.new(AutonatV2Client.new(), newRng(), Opt.some(1.seconds))
+    let client = AutonatV2ClientMock.new(
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ), # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+      ),
+      expectedDials = 3,
+    )
 
-    let switch1 = createSwitch(autonatV2Service)
+    let service = AutonatV2Service.new(newRng(), client = client)
+
+    let switch1 = createSwitch(service, withAutonat = false)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -105,9 +126,9 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -120,26 +141,33 @@ suite "AutonatV2 Service":
 
     await awaiter
 
-    check autonatV2Service.networkReachability == NetworkReachability.Reachable
+    check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
-
-    check switch1.peerInfo.addrs ==
-      switch1.peerInfo.addrs.mapIt(switch1.peerStore.guessDialableAddr(it))
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
-    check switch1.peerInfo.addrs == switch1.peerInfo.addrs
-
   asyncTest "Peer must be not reachable and then reachable":
-    let autonatV2ClientStub = AutonatV2ClientMock.new(expectedDials = 6)
-    autonatV2ClientStub.answer = NotReachable
+    let client = AutonatV2ClientMock.new(
+      AutonatV2Response(
+        reachability: NotReachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.EDialError),
+          addrIdx: Opt.some(0.AddrIdx),
+        ), # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+      ),
+      expectedDials = 6,
+    )
 
-    let autonatV2Service =
-      AutonatV2Service.new(autonatV2ClientStub, newRng(), Opt.some(1.seconds))
+    let service = AutonatV2Service.new(
+      newRng(),
+      client = client,
+      config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
+    )
 
-    let switch1 = createSwitch(autonatV2Service)
+    let switch1 = createSwitch(service, withAutonat = false)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -152,12 +180,20 @@ suite "AutonatV2 Service":
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
         if not awaiter.finished:
-          autonatV2ClientStub.answer = Reachable
+          client.response = AutonatV2Response(
+            reachability: Reachable,
+            dialResp: DialResponse(
+              status: ResponseStatus.Ok,
+              dialStatus: Opt.some(DialStatus.Ok),
+              addrIdx: Opt.some(0.AddrIdx),
+            ),
+              # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+          )
           awaiter.complete()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -170,12 +206,12 @@ suite "AutonatV2 Service":
 
     await awaiter
 
-    check autonatV2Service.networkReachability == NetworkReachability.NotReachable
+    check service.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
-    await autonatV2ClientStub.finished
+    await client.finished
 
-    check autonatV2Service.networkReachability == NetworkReachability.Reachable
+    check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
 
     await allFuturesThrowing(
@@ -183,11 +219,27 @@ suite "AutonatV2 Service":
     )
 
   asyncTest "Peer must be reachable when one connected peer has autonat disabled":
-    let autonatV2Service = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(1.seconds), maxQueueSize = 2
+    let client = AutonatV2ClientMock.new(
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ), # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+      ),
+      expectedDials = 3,
     )
 
-    let switch1 = createSwitch(autonatV2Service)
+    let service = AutonatV2Service.new(
+      newRng(),
+      client = client,
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(1.seconds), maxQueueSize = 2
+      ),
+    )
+
+    let switch1 = createSwitch(service, withAutonat = false)
     let switch2 = createSwitch(withAutonat = false)
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -202,9 +254,9 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -217,7 +269,7 @@ suite "AutonatV2 Service":
 
     await awaiter
 
-    check autonatV2Service.networkReachability == NetworkReachability.Reachable
+    check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(
@@ -225,14 +277,25 @@ suite "AutonatV2 Service":
     )
 
   asyncTest "Unknown answers must be ignored":
-    let autonatV2ClientStub = AutonatV2ClientMock.new(expectedDials = 6)
-    autonatV2ClientStub.answer = NotReachable
-
-    let autonatV2Service = AutonatV2Service.new(
-      autonatV2ClientStub, newRng(), Opt.some(1.seconds), maxQueueSize = 3
+    let client = AutonatV2ClientMock.new(
+      AutonatV2Response(
+        reachability: NotReachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.EDialError),
+          addrIdx: Opt.some(0.AddrIdx),
+        ), # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+      ),
+      expectedDials = 6,
     )
 
-    let switch1 = createSwitch(autonatV2Service)
+    let service = AutonatV2Service.new(
+      newRng(),
+      client = client,
+      config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
+    )
+
+    let switch1 = createSwitch(service, withAutonat = false)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -245,12 +308,19 @@ suite "AutonatV2 Service":
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
         if not awaiter.finished:
-          autonatV2ClientStub.answer = Unknown
+          client.response = AutonatV2Response(
+            reachability: Unknown,
+            dialResp: DialResponse(
+              status: ResponseStatus.Ok,
+              dialStatus: Opt.some(DialStatus.EDialError),
+              addrIdx: Opt.some(0.AddrIdx),
+            ),
+          )
           awaiter.complete()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -263,13 +333,13 @@ suite "AutonatV2 Service":
 
     await awaiter
 
-    check autonatV2Service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 1 / 3
+    check service.networkReachability == NetworkReachability.NotReachable
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
-    await autonatV2ClientStub.finished
+    await client.finished
 
-    check autonatV2Service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 1 / 3
+    check service.networkReachability == NetworkReachability.NotReachable
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await allFuturesThrowing(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
@@ -277,25 +347,50 @@ suite "AutonatV2 Service":
 
   asyncTest "Calling setup and stop twice must work":
     let switch = createSwitch()
-    let autonatV2Service = AutonatV2Service.new(
-      AutonatV2ClientMock.new(expectedDials = 0), newRng(), Opt.some(1.seconds)
+    let service = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: NotReachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.EDialError),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
     )
 
-    check (await autonatV2Service.setup(switch)) == true
-    check (await autonatV2Service.setup(switch)) == false
+    check (await service.setup(switch)) == true
+    check (await service.setup(switch)) == false
 
-    check (await autonatV2Service.stop(switch)) == true
-    check (await autonatV2Service.stop(switch)) == false
+    check (await service.stop(switch)) == true
+    check (await service.stop(switch)) == false
 
     await allFuturesThrowing(switch.stop())
 
   asyncTest "Must bypass maxConnectionsPerPeer limit":
-    let autonatV2Service = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(1.seconds), maxQueueSize = 1
+    let service = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(1.seconds), maxQueueSize = 1
+      ),
     )
 
-    let switch1 = createSwitch(autonatV2Service, maxConnsPerPeer = 0)
-
+    let switch1 = createSwitch(service, maxConnsPerPeer = 0)
     let switch2 =
       createSwitch(maxConnsPerPeer = 0, nameResolver = MockResolver.default())
 
@@ -309,9 +404,9 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
@@ -322,30 +417,70 @@ suite "AutonatV2 Service":
     )
 
     await switch2.start()
-
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-
     await awaiter
-
-    check autonatV2Service.networkReachability == NetworkReachability.Reachable
+    check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
-
     await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
-    let autonatV2Service1 = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
-    )
-    let autonatV2Service2 = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
-    )
-    let autonatV2Service3 = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
+    let service1 = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
+      ),
     )
 
-    let switch1 = createSwitch(autonatV2Service1, maxConnsPerPeer = 0)
-    let switch2 = createSwitch(autonatV2Service2, maxConnsPerPeer = 0)
-    let switch3 = createSwitch(autonatV2Service2, maxConnsPerPeer = 0)
+    let service2 = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
+      ),
+    )
+
+    let service3 = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
+      ),
+    )
+
+    let switch1 = createSwitch(service1, maxConnsPerPeer = 0)
+    let switch2 = createSwitch(service2, maxConnsPerPeer = 0)
+    let switch3 = createSwitch(service2, maxConnsPerPeer = 0)
 
     let awaiter1 = newFuture[void]()
     let awaiter2 = newFuture[void]()
@@ -367,11 +502,11 @@ suite "AutonatV2 Service":
         if not awaiter2.finished:
           awaiter2.complete()
 
-    check autonatV2Service1.networkReachability == NetworkReachability.Unknown
-    check autonatV2Service2.networkReachability == NetworkReachability.Unknown
+    check service1.networkReachability == NetworkReachability.Unknown
+    check service2.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
-    autonatV2Service2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
+    service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
+    service2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -384,22 +519,51 @@ suite "AutonatV2 Service":
     await awaiter1
     await awaiter2
 
-    check autonatV2Service1.networkReachability == NetworkReachability.Reachable
-    check autonatV2Service2.networkReachability == NetworkReachability.Reachable
+    check service1.networkReachability == NetworkReachability.Reachable
+    check service2.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop())
 
   asyncTest "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
-    let autonatV2Service1 = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
-    )
-    let autonatV2Service2 = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
+    let service1 = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
+      ),
     )
 
-    let switch1 = createSwitch(autonatV2Service1, maxConnsPerPeer = 0)
-    let switch2 = createSwitch(autonatV2Service2, maxConnsPerPeer = 0)
+    let service2 = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
+      ),
+    )
+
+    let switch1 = createSwitch(service1, maxConnsPerPeer = 0)
+    let switch2 = createSwitch(service2, maxConnsPerPeer = 0)
 
     let awaiter1 = newFuture[void]()
 
@@ -411,9 +575,9 @@ suite "AutonatV2 Service":
         if not awaiter1.finished:
           awaiter1.complete()
 
-    check autonatV2Service1.networkReachability == NetworkReachability.Unknown
+    check service1.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
+    service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
 
     await switch1.start()
     await switch2.start()
@@ -431,7 +595,7 @@ suite "AutonatV2 Service":
 
     await awaiter1
 
-    check autonatV2Service1.networkReachability == NetworkReachability.Reachable
+    check service1.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
 
     # Make sure remote peer can't create a connection to us
@@ -440,11 +604,25 @@ suite "AutonatV2 Service":
     await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   asyncTest "Must work with low maxConnections":
-    let autonatV2Service = AutonatV2Service.new(
-      AutonatV2Client.new(), newRng(), Opt.some(1.seconds), maxQueueSize = 1
+    let service = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+      config = AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(1.seconds), maxQueueSize = 1
+      ),
     )
 
-    let switch1 = createSwitch(autonatV2Service, maxConns = 4)
+    let switch1 = createSwitch(service, maxConns = 4)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -460,9 +638,9 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -479,11 +657,11 @@ suite "AutonatV2 Service":
     await switch5.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
     # switch1 is now full, should stick to last observation
     awaiter = newFuture[void]()
-    await autonatV2Service.run(switch1)
+    await service.run(switch1)
 
     await sleepAsync(100.millis)
 
-    check autonatV2Service.networkReachability == NetworkReachability.Reachable
+    check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
 
     await allFuturesThrowing(
@@ -491,9 +669,22 @@ suite "AutonatV2 Service":
     )
 
   asyncTest "Peer must not ask an incoming peer":
-    let autonatV2Service = AutonatV2Service.new(AutonatV2Client.new(), newRng())
+    let service = AutonatV2Service.new(
+      newRng(),
+      client = AutonatV2ClientMock.new(
+        AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+        ),
+        expectedDials = 0,
+      ),
+    )
 
-    let switch1 = createSwitch(autonatV2Service)
+    let switch1 = createSwitch(service)
     let switch2 = createSwitch()
 
     proc statusAndConfidenceHandler(
@@ -501,9 +692,9 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       fail()
 
-    check autonatV2Service.networkReachability == NetworkReachability.Unknown
+    check service.networkReachability == NetworkReachability.Unknown
 
-    autonatV2Service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()

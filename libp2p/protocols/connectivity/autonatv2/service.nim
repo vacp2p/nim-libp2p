@@ -78,8 +78,8 @@ proc new*(
 
 proc new*(
     T: typedesc[AutonatV2Service],
-    client: AutonatV2Client,
     rng: ref HmacDrbgContext,
+    client: AutonatV2Client = AutonatV2Client.new(),
     config: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): T =
   return T(
@@ -154,8 +154,8 @@ proc askPeer(
   trace "Asking peer for reachability"
   let ans =
     try:
-      let autonatV2Resp =
-        await self.client.sendDialRequest(peerId, switch.peerInfo.listenAddrs)
+      let reqAddrs = switch.peerInfo.listenAddrs
+      let autonatV2Resp = await self.client.sendDialRequest(peerId, reqAddrs)
       debug "AutonatV2Response", autonatV2Resp = autonatV2Resp
       autonatV2Resp.reachability
     except CancelledError as exc:
