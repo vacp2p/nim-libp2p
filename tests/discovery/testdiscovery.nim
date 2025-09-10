@@ -1,4 +1,5 @@
 {.used.}
 
 import
-  testdiscoverymngr, testrendezvous, testrendezvousprotobuf, testrendezvousinterface
+  testdiscoverymngr, testrendezvous, testrendezvouserrors, testrendezvousprotobuf,
+  testrendezvousinterface
