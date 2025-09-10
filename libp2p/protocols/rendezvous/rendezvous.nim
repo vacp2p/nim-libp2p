@@ -72,7 +72,7 @@ type
     sema: AsyncSemaphore
     peers: seq[PeerId]
     cookiesSaved*: Table[PeerId, Table[string, seq[byte]]]
-    switch: Switch
+    switch*: Switch
     minDuration: Duration
     maxDuration: Duration
     minTTL: uint64
