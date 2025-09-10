@@ -81,8 +81,7 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
-    autonatV2: bool
-    autonatV2Config: AutonatV2Config
+    autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: bool
     autotls: AutotlsService
     circuitRelay: Relay
@@ -290,14 +289,13 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
-proc withAutonatV2*(
+proc withAutonatV2Server*(
     b: SwitchBuilder, config: AutonatV2Config = AutonatV2Config.new()
 ): SwitchBuilder =
-  b.autonatV2 = true
-  b.autonatV2Config = config
+  b.autonatV2ServerConfig = Opt.some(config)
   b
 
-proc withAutonatV2Client*(b: SwitchBuilder): SwitchBuilder =
+proc withAutonatV2*(b: SwitchBuilder): SwitchBuilder =
   b.autonatV2Client = true
   b
 
@@ -404,12 +402,11 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     let autonatV2Client = AutonatV2Client.new(switch.dialer, b.rng)
     switch.mount(autonatV2Client)
 
-  if b.autonatV2:
-    let autonatV2 = AutonatV2.new(switch, config = b.autonatV2Config)
-    switch.mount(autonatV2)
-  elif b.autonat:
-    let autonat = Autonat.new(switch)
-    switch.mount(autonat)
+  b.autonatV2ServerConfig.withValue(config):
+    switch.mount(AutonatV2.new(switch, config = config))
+
+  if b.autonat:
+    switch.mount(Autonat.new(switch))
 
   if not isNil(b.circuitRelay):
     if b.circuitRelay of RelayClient:
