@@ -51,7 +51,7 @@ type
     scheduleHandle: Future[void]
     networkReachability*: NetworkReachability
     answers: Deque[NetworkReachability]
-    client: AutonatV2Client
+    client*: AutonatV2Client
     rng: ref HmacDrbgContext
 
   StatusAndConfidenceHandler* = proc(
