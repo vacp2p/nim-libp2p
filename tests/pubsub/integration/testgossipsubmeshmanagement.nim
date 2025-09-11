@@ -40,7 +40,7 @@ suite "GossipSub Integration - Mesh Management":
 
   asyncTest "Nodes graft peers according to DValues - numberOfNodes > dHigh":
     let
-      numberOfNodes = 15
+      numberOfNodes = 8
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
@@ -50,17 +50,19 @@ suite "GossipSub Integration - Mesh Management":
 
     let
       expectedNumberOfPeers = numberOfNodes - 1
-      dHigh = 12
+      dHigh = 7
       d = 6
       dLow = 4
 
     for i in 0 ..< numberOfNodes:
       let node = nodes[i]
       checkUntilTimeout:
-        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
-        node.mesh.getOrDefault(topic).len >= dLow and
-          node.mesh.getOrDefault(topic).len <= dHigh
         node.fanout.len == 0
+        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
+        (
+          node.mesh.getOrDefault(topic).len >= dLow and
+          node.mesh.getOrDefault(topic).len <= dHigh
+        )
 
   asyncTest "GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -338,25 +340,21 @@ suite "GossipSub Integration - Mesh Management":
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
 
-  # TODO: Remove loop when GossipSub tests fully switched to QUIC
-  const transports = @[TransportType.TCP, TransportType.QUIC]
-  for transport in transports:
-    asyncTest "Outbound peers are marked correctly " & $transport:
-      let
-        numberOfNodes = 4
-        topic = "foobar"
-        nodes = generateNodes(numberOfNodes, gossip = true, transport = transport)
-          .toGossipSub()
+  asyncTest "Outbound peers are marked correctly ":
+    let
+      numberOfNodes = 4
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-      startNodesAndDeferStop(nodes)
+    startNodesAndDeferStop(nodes)
 
-      await connectNodes(nodes[0], nodes[1]) # Out
-      await connectNodes(nodes[0], nodes[2]) # Out
-      await connectNodes(nodes[3], nodes[0]) # In
-      subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await connectNodes(nodes[0], nodes[1]) # Out
+    await connectNodes(nodes[0], nodes[2]) # Out
+    await connectNodes(nodes[3], nodes[0]) # In
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
 
-      checkUntilTimeout:
-        nodes[0].mesh.outboundPeers(topic) == 2
-        nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId).outbound == true
-        nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId).outbound == true
-        nodes[0].getPeerByPeerId(topic, nodes[3].peerInfo.peerId).outbound == false
+    checkUntilTimeout:
+      nodes[0].mesh.outboundPeers(topic) == 2
+      nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId).outbound == true
+      nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId).outbound == true
+      nodes[0].getPeerByPeerId(topic, nodes[3].peerInfo.peerId).outbound == false

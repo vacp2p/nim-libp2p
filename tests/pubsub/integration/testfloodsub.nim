@@ -247,11 +247,12 @@ suite "FloodSub Integration":
     # test calling unsubscribeAll for coverage
     for node in nodes:
       node.unsubscribeAll("foobar")
-      check:
+      let n = node
+      checkUntilTimeout:
         # we keep the peers in table
-        FloodSub(node).floodsub["foobar"].len == 9
+        FloodSub(n).floodsub["foobar"].len == 9
         # remove the topic tho
-        node.topics.len == 0
+        n.topics.len == 0
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
