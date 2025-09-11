@@ -34,6 +34,9 @@ declarePublicGauge(
 logScope:
   topics = "libp2p autonatv2 service"
 
+# needed because nim 2.0 can't do proper type assertions
+const noneDuration: Opt[Duration] = Opt.none(Duration)
+
 type
   AutonatV2ServiceConfig* = object
     scheduleInterval: Opt[Duration]
@@ -61,7 +64,7 @@ type
 
 proc new*(
     T: typedesc[AutonatV2ServiceConfig],
-    scheduleInterval: Opt[Duration] = Opt.none(Duration),
+    scheduleInterval: Opt[Duration] = noneDuration,
     askNewConnectedPeers = true,
     numPeersToAsk: int = 5,
     maxQueueSize: int = 10,
@@ -84,12 +87,12 @@ proc new*(
     config: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): T =
   return T(
-    networkReachability: Unknown,
+    config: config,
     confidence: Opt.none(float),
+    networkReachability: Unknown,
     answers: initDeque[NetworkReachability](),
     client: client,
     rng: rng,
-    config: config,
   )
 
 proc callHandler(self: AutonatV2Service) {.async: (raises: [CancelledError]).} =
@@ -221,7 +224,7 @@ method setup*(
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return await addressMapper(self, switch.peerStore, listenAddrs)
 
-  info "Setting up AutonatV2Service"
+  trace "Setting up AutonatV2Service"
   let hasBeenSetup = await procCall Service(self).setup(switch)
   if not hasBeenSetup:
     return hasBeenSetup
@@ -253,12 +256,12 @@ method run*(
 method stop*(
     self: AutonatV2Service, switch: Switch
 ): Future[bool] {.public, async: (raises: [CancelledError]).} =
-  info "Stopping AutonatV2Service"
+  trace "Stopping AutonatV2Service"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if not hasBeenStopped:
     return hasBeenStopped
   if not isNil(self.scheduleHandle):
-    self.scheduleHandle.cancel()
+    self.scheduleHandle.cancelSoon()
     self.scheduleHandle = nil
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(
