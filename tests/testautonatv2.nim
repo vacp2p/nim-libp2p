@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
+import std/options, net
 import chronos
 import
   ../libp2p/[
@@ -20,22 +20,37 @@ import
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/server,
     protocols/connectivity/autonatv2/utils,
-<<<<<<< HEAD
-=======
     protocols/connectivity/autonatv2/client,
     protocols/connectivity/autonatv2/mockserver,
->>>>>>> 6ced65edb (feat: start adding service)
   ],
   ./helpers
+
+proc setupAutonat(
+    srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
+    config: AutonatV2Config = AutonatV2Config.new(),
+): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
+  let
+    src = newStandardSwitchBuilder(addrs = srcAddrs).build()
+    dst = newStandardSwitchBuilder().withAutonatV2Server(config = config).build()
+    client = AutonatV2Client.new(src, newRng())
+
+  src.mount(client)
+  await src.start()
+  await dst.start()
+
+  await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+  (src, dst, client)
+
+proc checkedGetIPAddress(): string =
+  try:
+    $getPrimaryIPAddr()
+  except Exception:
+    ""
 
 proc checkEncodeDecode[T](msg: T) =
   # this would be equivalent of doing the following (e.g. for DialBack)
   # check msg == DialBack.decode(msg.encode()).get()
   check msg == T.decode(msg.encode()).get()
-
-proc newAutonatV2ServerSwitch(config: AutonatV2Config = AutonatV2Config.new()): Switch =
-  var builder = newStandardSwitchBuilder().withAutonatV2(config = config)
-  return builder.build()
 
 suite "AutonatV2":
   teardown:
@@ -161,18 +176,17 @@ suite "AutonatV2":
       )
 
   asyncTest "Instantiate server":
-    let serverSwitch = newAutonatV2ServerSwitch()
+    let serverSwitch = newStandardSwitchBuilder().withAutonatV2Server().build()
     await serverSwitch.start()
     await serverSwitch.stop()
 
   asyncTest "Instantiate server with config":
-    let serverSwitch = newAutonatV2ServerSwitch(
-      config = AutonatV2Config.new(allowPrivateAddresses = true)
-    )
+    let serverSwitch = newStandardSwitchBuilder()
+      .withAutonatV2Server(config = AutonatV2Config.new(allowPrivateAddresses = true))
+      .build()
+
     await serverSwitch.start()
     await serverSwitch.stop()
-<<<<<<< HEAD
-=======
 
   asyncTest "Successful DialRequest":
     let (src, dst, client) =
@@ -302,4 +316,3 @@ suite "AutonatV2":
     ).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
->>>>>>> 6ced65edb (feat: start adding service)

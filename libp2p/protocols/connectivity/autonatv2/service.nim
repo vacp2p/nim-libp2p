@@ -269,7 +269,7 @@ method stop*(
   await switch.peerInfo.update()
   return hasBeenStopped
 
-proc statusAndConfidenceHandler*(
+proc setStatusAndConfidenceHandler*(
     self: AutonatV2Service, statusAndConfidenceHandler: StatusAndConfidenceHandler
 ) =
   self.statusAndConfidenceHandler = statusAndConfidenceHandler

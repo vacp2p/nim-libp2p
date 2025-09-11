@@ -140,7 +140,7 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -194,7 +194,7 @@ suite "AutonatV2 Service":
           )
           awaiter.complete()
 
-    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -232,7 +232,7 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -270,7 +270,7 @@ suite "AutonatV2 Service":
           )
           awaiter.complete()
 
-    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -321,7 +321,7 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
@@ -383,8 +383,8 @@ suite "AutonatV2 Service":
         if not awaiter2.finished:
           awaiter2.complete()
 
-    service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
-    service2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
+    service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
+    service2.setStatusAndConfidenceHandler(statusAndConfidenceHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -431,7 +431,7 @@ suite "AutonatV2 Service":
         if not awaiter1.finished:
           awaiter1.complete()
 
-    service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
+    service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
 
     await switch1.start()
     await switch2.start()
@@ -478,7 +478,7 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch.start()
     await switches.startAll()
@@ -516,7 +516,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       fail()
 
-    service.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
