@@ -22,6 +22,7 @@
 ## 2. MURMUR
 
 {.push raises: [].}
+{.used.}
 
 import tables
 import sequtils
@@ -29,9 +30,9 @@ import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import poseidon2
 import varint, vbuffer, multicodec, multibase
 import stew/base58
-import stew/results
 import blscurve/bls_public_exports
 
+import results
 export results
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils
@@ -586,7 +587,7 @@ proc init*(mhtype: typedesc[MultiHash], data: string): MhResult[MultiHash] {.inl
 proc init58*(mhtype: typedesc[MultiHash], data: string): MultiHash {.inline.} =
   ## Create MultiHash from BASE58 encoded string representation ``data``.
   if MultiHash.decode(Base58.decode(data), result) == -1:
-    raise newException(MultihashError, "Incorrect MultiHash binary format")
+    raise newException(MultihashError, "Incorrect MultiHash binary format in init58")
 
 proc cmp(a: openArray[byte], b: openArray[byte]): bool {.inline.} =
   if len(a) != len(b):

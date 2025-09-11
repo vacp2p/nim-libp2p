@@ -10,10 +10,12 @@
 ## This module implementes CID (Content IDentifier).
 
 {.push raises: [].}
+{.used.}
 
 import tables, hashes
-import multibase, multicodec, multihash, vbuffer, varint
-import stew/[base58, results]
+import multibase, multicodec, multihash, vbuffer, varint, results
+import stew/base58
+import ./utils/sequninit
 
 export results
 
@@ -41,6 +43,7 @@ const ContentIdsList* = [
   multiCodec("dag-pb"),
   multiCodec("dag-cbor"),
   multiCodec("dag-json"),
+  multiCodec("libp2p-key"),
   multiCodec("git-raw"),
   multiCodec("eth-block"),
   multiCodec("eth-block-list"),
@@ -127,7 +130,7 @@ proc decode(data: openArray[char]): Result[Cid, CidError] =
     return err(CidError.Incorrect)
   if len(data) == 46:
     if data[0] == 'Q' and data[1] == 'm':
-      buffer = newSeq[byte](BTCBase58.decodedLength(len(data)))
+      buffer = newSeqUninit[byte](BTCBase58.decodedLength(len(data)))
       if BTCBase58.decode(data, buffer, plen) != Base58Status.Success:
         return err(CidError.Incorrect)
       buffer.setLen(plen)
@@ -135,7 +138,7 @@ proc decode(data: openArray[char]): Result[Cid, CidError] =
     let length = MultiBase.decodedLength(data[0], len(data))
     if length == -1:
       return err(CidError.Incorrect)
-    buffer = newSeq[byte](length)
+    buffer = newSeqUninit[byte](length)
     if MultiBase.decode(data, buffer, plen) != MultiBaseStatus.Success:
       return err(CidError.Incorrect)
     buffer.setLen(plen)

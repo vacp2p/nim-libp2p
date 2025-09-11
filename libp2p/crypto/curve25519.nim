@@ -18,7 +18,7 @@
 {.push raises: [].}
 
 import bearssl/[ec, rand]
-import stew/results
+import results
 from stew/assign2 import assign
 export results
 

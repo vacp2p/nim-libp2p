@@ -556,7 +556,7 @@ suite "Mplex":
             listenJob.complete()
 
           await mplexListen.handle()
-          await sleepAsync(1.seconds) # give chronos some slack to process things
+          await sleepAsync(500.millis) # give chronos some slack to process things
           await mplexListen.close()
         except CancelledError as exc:
           raise exc

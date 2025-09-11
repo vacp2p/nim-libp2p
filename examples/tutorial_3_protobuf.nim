@@ -1,3 +1,4 @@
+{.used.}
 ## # Protobuf usage
 ##
 ## In the [previous tutorial](tutorial_2_customproto.md), we created a simple "ping" protocol.

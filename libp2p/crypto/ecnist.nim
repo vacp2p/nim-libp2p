@@ -21,7 +21,9 @@ import bearssl/[ec, rand, hash]
 import nimcrypto/utils as ncrutils
 import minasn1
 export minasn1.Asn1Error
-import stew/[results, ctops]
+import stew/ctops
+import results
+import ../utils/sequninit
 
 import ../utility
 
@@ -457,7 +459,7 @@ proc getBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
   if isNil(seckey):
     return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
-    var res = newSeq[byte]()
+    var res = newSeqUninit[byte](0)
     let length = ?seckey.toBytes(res)
     res.setLen(length)
     discard ?seckey.toBytes(res)
@@ -470,7 +472,7 @@ proc getBytes*(pubkey: EcPublicKey): EcResult[seq[byte]] =
   if isNil(pubkey):
     return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
-    var res = newSeq[byte]()
+    var res = newSeqUninit[byte](0)
     let length = ?pubkey.toBytes(res)
     res.setLen(length)
     discard ?pubkey.toBytes(res)
@@ -482,7 +484,7 @@ proc getBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to ASN.1 DER binary form and return it.
   if isNil(sig):
     return err(EcSignatureError)
-  var res = newSeq[byte]()
+  var res = newSeqUninit[byte](0)
   let length = ?sig.toBytes(res)
   res.setLen(length)
   discard ?sig.toBytes(res)
@@ -493,7 +495,7 @@ proc getRawBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
   if isNil(seckey):
     return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
-    var res = newSeq[byte]()
+    var res = newSeqUninit[byte](0)
     let length = ?seckey.toRawBytes(res)
     res.setLen(length)
     discard ?seckey.toRawBytes(res)
@@ -506,7 +508,7 @@ proc getRawBytes*(pubkey: EcPublicKey): EcResult[seq[byte]] =
   if isNil(pubkey):
     return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
-    var res = newSeq[byte]()
+    var res = newSeqUninit[byte](0)
     let length = ?pubkey.toRawBytes(res)
     res.setLen(length)
     discard ?pubkey.toRawBytes(res)
@@ -518,7 +520,7 @@ proc getRawBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to raw binary form and return it.
   if isNil(sig):
     return err(EcSignatureError)
-  var res = newSeq[byte]()
+  var res = newSeqUninit[byte](0)
   let length = ?sig.toBytes(res)
   res.setLen(length)
   discard ?sig.toBytes(res)
@@ -928,7 +930,7 @@ proc getSecret*(pubkey: EcPublicKey, seckey: EcPrivateKey): seq[byte] =
   var data: array[Secret521Length, byte]
   let res = toSecret(pubkey, seckey, data)
   if res > 0:
-    result = newSeq[byte](res)
+    result = newSeqUninit[byte](res)
     copyMem(addr result[0], addr data[0], res)
 
 proc sign*[T: byte | char](
@@ -942,7 +944,7 @@ proc sign*[T: byte | char](
   var impl = ecGetDefault()
   if seckey.key.curve in EcSupportedCurvesCint:
     var sig = new EcSignature
-    sig.buffer = newSeq[byte](256)
+    sig.buffer = newSeqUninit[byte](256)
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:

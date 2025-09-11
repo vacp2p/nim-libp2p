@@ -10,11 +10,9 @@
 # those terms.
 
 import std/[sequtils, tables]
-import stew/results
+import results
 import chronos
-import
-  ../libp2p/
-    [connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo, errors]
+import ../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
 
 import helpers
 

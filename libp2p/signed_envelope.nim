@@ -12,7 +12,7 @@
 {.push raises: [].}
 
 import std/sugar
-import pkg/stew/[results, byteutils]
+import pkg/stew/byteutils, pkg/results
 import multicodec, crypto/crypto, protobuf/minprotobuf, vbuffer
 
 export crypto

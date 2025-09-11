@@ -4,6 +4,11 @@ name: Daily Common
 on:
   workflow_call:
     inputs:
+      pinned_deps:
+        description: 'Should dependencies be installed from pinned file or use latest versions'
+        required: false
+        type: boolean
+        default: false
       nim:
         description: 'Nim Configuration'
         required: true
@@ -17,26 +22,18 @@ on:
         required: false
         type: string
         default: "[]"
-      use_sat_solver:
-        description: 'Install dependencies with SAT Solver'
-        required: false
-        type: boolean
-        default: false
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   delete_cache:
     name: Delete github action's branch cache
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: snnaplab/delete-branch-cache-action@v1
 
   test:
     needs: delete_cache
-    timeout-minutes: 90
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -81,8 +78,14 @@ jobs:
       - name: Install p2pd
         run: |
           V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
-        
-      - name: Install dependencies
+
+      - name: Install dependencies (pinned)
+        if: ${{ inputs.pinned_deps }}
+        run: |
+          nimble install_pinned
+
+      - name: Install dependencies (latest)
+        if: ${{ inputs.pinned_deps == false }}
         run: |
           nimble install -y --depsOnly
 
@@ -91,11 +94,14 @@ jobs:
           nim --version
           nimble --version
 
-          if [[ "${{ inputs.use_sat_solver }}" == "true" ]]; then
-            dependency_solver="sat"
-          else
-            dependency_solver="legacy"
-          fi
-
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }} --solver:${dependency_solver}"
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble test
+
+      - name: Run integration tests
+        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
+        run: |
+          nim --version
+          nimble --version
+
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          nimble testintegration

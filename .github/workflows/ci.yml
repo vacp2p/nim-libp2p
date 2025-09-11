@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    timeout-minutes: 90
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -32,9 +32,9 @@ jobs:
           - os: windows
             cpu: amd64
         nim:
-          - ref: version-1-6
-            memory_management: refc
           - ref: version-2-0
+            memory_management: refc
+          - ref: version-2-2
             memory_management: refc
         include:
           - platform:
@@ -116,5 +116,5 @@ jobs:
           nimble --version
           gcc --version
 
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" 
           nimble test

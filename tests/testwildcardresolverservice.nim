@@ -9,8 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[options, sequtils]
-import stew/[byteutils]
+import std/options
 import chronos, metrics
 import unittest2
 import ../libp2p/[builders, switch]

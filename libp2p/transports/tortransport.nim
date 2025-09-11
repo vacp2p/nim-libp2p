@@ -11,9 +11,8 @@
 
 {.push raises: [].}
 
-import std/strformat
-import chronos, chronicles, strutils
-import stew/[byteutils, endians2, results, objects]
+import chronos, chronicles, strutils, results
+import stew/[byteutils, endians2, objects]
 import ../multicodec
 import
   transport,
@@ -244,11 +243,13 @@ method dial*(
     raise e
   except CatchableError as e:
     safeCloseWait(transp)
-    raise newException(transport.TransportDialError, e.msg, e)
+    raise newException(
+      transport.TransportDialError, "error in dial TorTransport: " & e.msg, e
+    )
 
 method start*(
     self: TorTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
   ##
 
@@ -302,8 +303,8 @@ proc new*(
     flags: set[ServerFlags] = {},
 ): TorSwitch {.raises: [LPError], public.} =
   var builder = SwitchBuilder.new().withRng(rng).withTransport(
-      proc(upgr: Upgrade): Transport =
-        TorTransport.new(torServer, flags, upgr)
+      proc(config: TransportConfig): Transport =
+        TorTransport.new(torServer, flags, config.upgr)
     )
   if addresses.len != 0:
     builder = builder.withAddresses(addresses)
@@ -325,7 +326,7 @@ proc new*(
   return torSwitch
 
 method addTransport*(s: TorSwitch, t: Transport) =
-  doAssert(false, "not implemented!")
+  doAssert(false, "[TorSwitch.addTransport ] abstract method not implemented!")
 
 method getTorTransport*(s: TorSwitch): Transport {.base.} =
   return s.transports[0]

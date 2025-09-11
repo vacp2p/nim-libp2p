@@ -16,8 +16,10 @@
 {.push raises: [].}
 
 import tables
+import results
 import sequtils
-import stew/[base32, base58, base64, results]
+import stew/[base32, base58, base64]
+import ./utils/sequninit
 
 type
   MultiBaseStatus* {.pure.} = enum
@@ -534,7 +536,7 @@ proc decode*(
     let empty: seq[byte] = @[]
     ok(empty) # empty
   else:
-    var buffer = newSeq[byte](mb.decl(length - 1))
+    var buffer = newSeqUninit[byte](mb.decl(length - 1))
     var outlen = 0
     let res = mb.decr(inbytes.toOpenArray(1, length - 1), buffer, outlen)
     if res != MultiBaseStatus.Success:

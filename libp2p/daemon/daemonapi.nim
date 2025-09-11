@@ -15,6 +15,7 @@ import pkg/[chronos, chronicles]
 import ../varint, ../multiaddress, ../multicodec, ../cid, ../peerid
 import ../wire, ../multihash, ../protobuf/minprotobuf, ../errors
 import ../crypto/crypto, ../utility
+import ../utils/sequninit
 
 export peerid, multiaddress, multicodec, multihash, cid, crypto, wire, errors
 
@@ -496,7 +497,7 @@ proc recvMessage(
     size: uint
     length: int
     res: VarintResult[void]
-  var buffer = newSeq[byte](10)
+  var buffer = newSeqUninit[byte](10)
   try:
     for i in 0 ..< len(buffer):
       await conn.readExactly(addr buffer[i], 1)
@@ -595,13 +596,13 @@ template exceptionToAssert(body: untyped): untyped =
     try:
       res = body
     except OSError as exc:
-      raise exc
+      raise newException(OSError, "failure in exceptionToAssert: " & exc.msg, exc)
     except IOError as exc:
-      raise exc
+      raise newException(IOError, "failure in exceptionToAssert: " & exc.msg, exc)
     except Defect as exc:
-      raise exc
+      raise newException(Defect, "failure in exceptionToAssert: " & exc.msg, exc)
     except Exception as exc:
-      raiseAssert exc.msg
+      raiseAssert "Exception captured in exceptionToAssert: " & exc.msg
     when defined(nimHasWarnBareExcept):
       {.pop.}
     res
@@ -957,8 +958,7 @@ proc openStream*(
       var res: seq[byte]
       if pb.getRequiredField(ResponseType.STREAMINFO.int, res).isOk():
         let resPb = initProtoBuffer(res)
-        # stream.peer = newSeq[byte]()
-        var raddress = newSeq[byte]()
+        var raddress = newSeqUninit[byte](0)
         stream.protocol = ""
         resPb.getRequiredField(1, stream.peer).tryGet()
         resPb.getRequiredField(2, raddress).tryGet()
@@ -967,9 +967,9 @@ proc openStream*(
         stream.flags.incl(Outbound)
         stream.transp = transp
         result = stream
-  except ResultError[ProtoError]:
+  except ResultError[ProtoError] as e:
     await api.closeConnection(transp)
-    raise newException(DaemonLocalError, "Wrong message type!")
+    raise newException(DaemonLocalError, "Wrong message type: " & e.msg, e)
 
 proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   # must not specify raised exceptions as this is StreamCallback from chronos
@@ -977,7 +977,7 @@ proc streamHandler(server: StreamServer, transp: StreamTransport) {.async.} =
   var message = await transp.recvMessage()
   var pb = initProtoBuffer(message)
   var stream = new P2PStream
-  var raddress = newSeq[byte]()
+  var raddress = newSeqUninit[byte](0)
   stream.protocol = ""
   pb.getRequiredField(1, stream.peer).tryGet()
   pb.getRequiredField(2, raddress).tryGet()
@@ -1023,10 +1023,10 @@ proc addHandler*(
       api.servers.add(P2PServer(server: server, address: maddress))
   except DaemonLocalError as e:
     await removeHandler()
-    raise e
+    raise newException(DaemonLocalError, "Could not add stream handler: " & e.msg, e)
   except TransportError as e:
     await removeHandler()
-    raise e
+    raise newException(TransportError, "Could not add stream handler: " & e.msg, e)
   except CancelledError as e:
     await removeHandler()
     raise e
@@ -1116,7 +1116,7 @@ proc dhtGetSinglePeerInfo(pb: ProtoBuffer): PeerInfo {.raises: [DaemonLocalError
     raise newException(DaemonLocalError, "Missing required field `peer`!")
 
 proc dhtGetSingleValue(pb: ProtoBuffer): seq[byte] {.raises: [DaemonLocalError].} =
-  result = newSeq[byte]()
+  result = newSeqUninit[byte](0)
   if pb.getRequiredField(3, result).isErr():
     raise newException(DaemonLocalError, "Missing field `value`!")
 
@@ -1453,8 +1453,8 @@ proc pubsubPublish*(
     await api.closeConnection(transp)
 
 proc getPubsubMessage*(pb: ProtoBuffer): PubSubMessage =
-  result.data = newSeq[byte]()
-  result.seqno = newSeq[byte]()
+  result.data = newSeqUninit[byte](0)
+  result.seqno = newSeqUninit[byte](0)
   discard pb.getField(1, result.peer)
   discard pb.getField(2, result.data)
   discard pb.getField(3, result.seqno)
@@ -1503,10 +1503,14 @@ proc pubsubSubscribe*(
       result = ticket
   except DaemonLocalError as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(
+      DaemonLocalError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
+    )
   except TransportError as exc:
     await api.closeConnection(transp)
-    raise exc
+    raise newException(
+      TransportError, "Could not subscribe to topic '" & topic & "': " & exc.msg, exc
+    )
   except CancelledError as exc:
     await api.closeConnection(transp)
     raise exc

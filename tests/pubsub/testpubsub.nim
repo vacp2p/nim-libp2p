@@ -1,4 +1,10 @@
 {.used.}
 
 import
-  testfloodsub, testgossipsub, testgossipsub2, testmcache, testtimedcache, testmessage
+  testbehavior, testgossipsub, testgossipsubparams, testmcache, testmessage,
+  testscoring, testtimedcache, testpreamblestore
+
+import ./integration/testpubsubintegration
+
+when defined(libp2p_gossipsub_1_4):
+  import testpreamblestore

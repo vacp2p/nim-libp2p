@@ -10,10 +10,11 @@
 ## This module implements MultiCodec.
 
 {.push raises: [].}
+{.used.}
 
 import tables, hashes
 import vbuffer
-import stew/results
+import results
 export results
 
 ## List of officially supported codecs can BE found here
@@ -400,6 +401,7 @@ const MultiCodecList = [
   ("onion3", 0x01BD),
   ("p2p-circuit", 0x0122),
   ("libp2p-peer-record", 0x0301),
+  ("memory", 0x0309),
   ("dns", 0x35),
   ("dns4", 0x36),
   ("dns6", 0x37),
@@ -407,6 +409,7 @@ const MultiCodecList = [
   # IPLD formats
   ("dag-pb", 0x70),
   ("dag-cbor", 0x71),
+  ("libp2p-key", 0x72),
   ("dag-json", 0x129),
   ("git-raw", 0x78),
   ("eth-block", 0x90),

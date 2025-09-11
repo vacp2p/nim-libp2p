@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[strformat]
-import stew/results
+import results
 import chronos, chronicles, metrics
 import connection
 import ../utility
@@ -33,8 +33,6 @@ when defined(libp2p_agents_metrics):
   declareGauge libp2p_peers_identity, "peers identities", labels = ["agent"]
   declareCounter libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"]
   declareCounter libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"]
-
-declareCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
 
 func shortLog*(conn: ChronosStream): auto =
   try:

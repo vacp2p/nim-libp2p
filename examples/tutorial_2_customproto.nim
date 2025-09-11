@@ -1,3 +1,4 @@
+{.used.}
 ## # Custom protocol in libp2p
 ##
 ## In the [previous tutorial](tutorial_1_connect.md), we've looked at how to create a simple ping program using the `nim-libp2p`.

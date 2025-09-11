@@ -9,8 +9,8 @@
 
 {.push raises: [].}
 
-import std/[sequtils, strutils, tables, hashes, options, sets, deques]
-import stew/results
+import std/[sequtils, tables, hashes, options, sets, deques]
+import results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import chronos/ratelimit
 import
@@ -20,7 +20,12 @@ import
   ../../stream/connection,
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
-  ../../utility
+  ../../utility,
+  ../../utils/sequninit,
+  ./bandwidth
+
+when defined(libp2p_gossipsub_1_4):
+  import ./bandwidth
 
 export peerid, connection, deques
 
@@ -95,6 +100,21 @@ type
     # Task for processing non-priority message queue.
     sendNonPriorityTask: Future[void]
 
+  CustomConnCreationProc* = proc(
+    destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+  ): Connection {.gcsafe, raises: [].}
+
+  CustomPeerSelectionProc* = proc(
+    allPeers: HashSet[PubSubPeer],
+    directPeers: HashSet[PubSubPeer],
+    meshPeers: HashSet[PubSubPeer],
+    fanoutPeers: HashSet[PubSubPeer],
+  ): HashSet[PubSubPeer] {.gcsafe, raises: [].}
+
+  CustomConnectionCallbacks* = object
+    customConnCreationCB*: CustomConnCreationProc
+    customPeerSelectionCB*: CustomPeerSelectionProc
+
   PubSubPeer* = ref object of RootObj
     getConn*: GetConn # callback to establish a new send connection
     onEvent*: OnEvent # Connectivity updates for peer
@@ -105,6 +125,9 @@ type
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
+
+    when defined(libp2p_gossipsub_1_4):
+      bandwidthTracking*: BandwidthTracking
 
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
@@ -119,10 +142,16 @@ type
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
 
+    when defined(libp2p_gossipsub_1_4):
+      preambleBudget*: int
+      heIsReceivings*: Table[MessageId, uint32]
+      heIsSendings*: Table[MessageId, Moment]
+
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
       # The max number of elements allowed in the non-priority queue.
     disconnected: bool
+    customConnCallbacks*: Option[CustomConnectionCallbacks]
 
   RPCHandler* =
     proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.async: (raises: []).}
@@ -142,6 +171,9 @@ proc getAgent*(peer: PubSubPeer): string =
       if peer.shortAgent.len > 0: peer.shortAgent else: "unknown"
     else:
       "unknown"
+
+proc `$`*(p: PubSubPeer): string =
+  $p.peerId
 
 func hash*(p: PubSubPeer): Hash =
   p.peerId.hash
@@ -205,7 +237,7 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
           conn, peer = p, closed = conn.closed, data = data.shortLog
 
         await p.handler(p, data)
-        data = newSeq[byte]() # Release memory
+        data = newSeqUninit[byte](0) # Release memory
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
         conn, peer = p, description = exc.msg
@@ -214,10 +246,10 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
         conn, peer = p, closed = conn.closed, description = exc.msg
     finally:
       await conn.close()
-  except CancelledError:
+  except CancelledError as e:
     # This is top-level procedure which will work as separate task, so it
     # do not need to propagate CancelledError.
-    trace "Unexpected cancellation in PubSubPeer.handle"
+    trace "Unexpected cancellation in PubSubPeer.handle", description = e.msg
   finally:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
 
@@ -250,7 +282,7 @@ proc connectOnce(
         await p.getConn().wait(5.seconds)
       except AsyncTimeoutError as error:
         trace "getConn timed out", description = error.msg
-        raise (ref LPError)(msg: "Cannot establish send connection")
+        raise (ref LPError)(msg: "Cannot establish send connection: " & error.msg)
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
@@ -331,13 +363,10 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: [
   try:
     await msgFut
     trace "sent pubsub message to remote", conn
-  except CatchableError as exc: # never cancelled
-    # Because we detach the send call from the currently executing task using
-    # asyncSpawn, no exceptions may leak out of it
-    trace "Unable to send to remote", conn, description = exc.msg
+  except CatchableError as exc:
+    trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
-
     await conn.close() # This will clean up the send connection
 
 proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledError]).} =
@@ -356,21 +385,43 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
   await sendMsgContinue(conn, conn.writeLp(msg))
 
-proc sendMsg(p: PubSubPeer, msg: seq[byte]): Future[void] {.async: (raises: []).} =
-  if p.sendConn != nil and not p.sendConn.closed():
-    # Fast path that avoids copying msg (which happens for {.async.})
-    let conn = p.sendConn
+proc sendMsg(
+    p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
+): Future[void] {.async: (raises: []).} =
+  type ConnectionType = enum
+    ctCustom
+    ctSend
+    ctSlow
 
-    trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
+  var slowPath = false
+  let (conn, connType) =
+    if useCustomConn and p.customConnCallbacks.isSome:
+      let address = p.address
+      (
+        p.customConnCallbacks.get().customConnCreationCB(address, p.peerId, p.codec),
+        ctCustom,
+      )
+    elif p.sendConn != nil and not p.sendConn.closed():
+      (p.sendConn, ctSend)
+    else:
+      slowPath = true
+      (nil, ctSlow)
+
+  if not slowPath:
+    trace "sending encoded msg to peer",
+      conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
     if not f.completed():
       sendMsgContinue(conn, f)
     else:
       f
   else:
+    trace "sending encoded msg to peer via slow path"
     sendMsgSlow(p, msg)
 
-proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[void] =
+proc sendEncoded*(
+    p: PubSubPeer, msg: seq[byte], isHighPriority: bool, useCustomConn: bool = false
+): Future[void] =
   ## Asynchronously sends an encoded message to a specified `PubSubPeer`.
   ##
   ## Parameters:
@@ -399,7 +450,7 @@ proc sendEncoded*(p: PubSubPeer, msg: seq[byte], isHighPriority: bool): Future[v
       maxSize = p.maxMessageSize, msgSize = msg.len
     Future[void].completed()
   elif isHighPriority or emptyQueues:
-    let f = p.sendMsg(msg)
+    let f = p.sendMsg(msg, useCustomConn)
     if not f.finished:
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
       when defined(pubsubpeer_queue_metrics):
@@ -458,7 +509,11 @@ iterator splitRPCMsg(
     trace "message too big to sent", peer, rpcMsg = shortLog(currentRPCMsg)
 
 proc send*(
-    p: PubSubPeer, msg: RPCMsg, anonymize: bool, isHighPriority: bool
+    p: PubSubPeer,
+    msg: RPCMsg,
+    anonymize: bool,
+    isHighPriority: bool,
+    useCustomConn: bool = false,
 ) {.raises: [].} =
   ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
   ##
@@ -489,11 +544,11 @@ proc send*(
 
   if encoded.len > p.maxMessageSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, p.maxMessageSize, anonymize):
-      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority)
+      asyncSpawn p.sendEncoded(encodedSplitMsg, isHighPriority, useCustomConn)
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    asyncSpawn p.sendEncoded(encoded, isHighPriority)
+    asyncSpawn p.sendEncoded(encoded, isHighPriority, useCustomConn)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -552,6 +607,8 @@ proc new*(
     maxMessageSize: int,
     maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
+    customConnCallbacks: Option[CustomConnectionCallbacks] =
+      none(CustomConnectionCallbacks),
 ): T =
   result = T(
     getConn: getConn,
@@ -563,7 +620,13 @@ proc new*(
     overheadRateLimitOpt: overheadRateLimitOpt,
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    customConnCallbacks: customConnCallbacks,
   )
+
+  when defined(libp2p_gossipsub_1_4):
+    result.bandwidthTracking =
+      BandwidthTracking(download: ExponentialMovingAverage.init())
+
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()

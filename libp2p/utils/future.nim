@@ -27,9 +27,9 @@ proc anyCompleted*[T](
       if raceFut.completed:
         return raceFut
       requests.del(requests.find(raceFut))
-    except ValueError:
+    except ValueError as e:
       raise newException(
-        AllFuturesFailedError, "None of the futures completed successfully"
+        AllFuturesFailedError, "None of the futures completed successfully: " & e.msg, e
       )
     except CancelledError as exc:
       raise exc

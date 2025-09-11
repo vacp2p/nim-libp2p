@@ -1,4 +1,3 @@
-import options, tables
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
@@ -8,8 +7,8 @@ import ../libp2p/protocols/connectivity/relay/[relay, client, utils]
 type
   SwitchCreator = proc(
     ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov: TransportProvider = proc(upgr: Upgrade): Transport =
-      TcpTransport.new({}, upgr),
+    prov = proc(config: TransportConfig): Transport =
+      TcpTransport.new({}, config.upgr),
     relay: Relay = Relay.new(circuitRelayV1 = true),
   ): Switch {.gcsafe, raises: [LPError].}
   DaemonPeerInfo = daemonapi.PeerInfo
@@ -77,7 +76,7 @@ proc testPubSubDaemonPublish(
 
   await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
 
-  await sleepAsync(1.seconds)
+  await sleepAsync(500.millis)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
   proc pubsubHandler(
@@ -87,12 +86,12 @@ proc testPubSubDaemonPublish(
 
   asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
   pubsub.subscribe(testTopic, nativeHandler)
-  await sleepAsync(5.seconds)
+  await sleepAsync(3.seconds)
 
   proc publisher() {.async.} =
     while not finished:
       await daemonNode.pubsubPublish(testTopic, msgData)
-      await sleepAsync(500.millis)
+      await sleepAsync(250.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
@@ -129,7 +128,7 @@ proc testPubSubNodePublish(
 
   await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
 
-  await sleepAsync(1.seconds)
+  await sleepAsync(500.millis)
   await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
 
   var times = 0
@@ -149,12 +148,12 @@ proc testPubSubNodePublish(
     discard
 
   pubsub.subscribe(testTopic, nativeHandler)
-  await sleepAsync(5.seconds)
+  await sleepAsync(3.seconds)
 
   proc publisher() {.async.} =
     while not finished:
       discard await pubsub.publish(testTopic, msgData)
-      await sleepAsync(500.millis)
+      await sleepAsync(250.millis)
 
   await wait(publisher(), 5.minutes) # should be plenty of time
 
@@ -207,7 +206,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       await nativeNode.stop()
       await daemonNode.close()
 
-      await sleepAsync(1.seconds)
+      await sleepAsync(500.millis)
 
     asyncTest "native -> daemon connection":
       var protos = @["/test-stream"]
@@ -289,7 +288,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       await stream.close()
       await nativeNode.stop()
       await daemonNode.close()
-      await sleepAsync(1.seconds)
+      await sleepAsync(500.millis)
 
     asyncTest "native -> daemon websocket connection":
       var protos = @["/test-stream"]
@@ -319,8 +318,8 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
 
       let nativeNode = swCreator(
         ma = wsAddress,
-        prov = proc(upgr: Upgrade): Transport =
-          WsTransport.new(upgr),
+        prov = proc(config: TransportConfig): Transport =
+          WsTransport.new(config.upgr),
       )
 
       nativeNode.mount(proto)
@@ -338,7 +337,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
       await stream.close()
       await nativeNode.stop()
       await daemonNode.close()
-      await sleepAsync(1.seconds)
+      await sleepAsync(500.millis)
 
     asyncTest "daemon -> native websocket connection":
       var protos = @["/test-stream"]
@@ -358,10 +357,7 @@ proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
         .withAddress(wsAddress)
         .withRng(crypto.newRng())
         .withMplex()
-        .withTransport(
-          proc(upgr: Upgrade): Transport =
-            WsTransport.new(upgr)
-        )
+        .withWsTransport()
         .withNoise()
         .build()
 

@@ -11,8 +11,7 @@
 
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics]
-import
-  ./coder, ../muxer, ../../stream/[bufferstream, connection, streamseq], ../../peerinfo
+import ./coder, ../muxer, ../../stream/[bufferstream, connection], ../../peerinfo
 
 export connection
 
@@ -87,7 +86,7 @@ proc open*(s: LPChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
     raise exc
   except LPStreamError as exc:
     await s.conn.close()
-    raise exc
+    raise newException(LPStreamError, "Opening LPChannel failed: " & exc.msg, exc)
 
 method closed*(s: LPChannel): bool =
   s.closedLocal

@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[hashes, oids, strformat]
-import stew/results
+import results
 import chronicles, chronos, metrics
 import lpstream, ../multiaddress, ../peerinfo, ../errors
 
@@ -51,6 +51,8 @@ func shortLog*(conn: Connection): string =
 
 chronicles.formatIt(Connection):
   shortLog(it)
+
+declarePublicCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
 
 method initStream*(s: Connection) =
   if s.objName.len == 0:
@@ -124,7 +126,7 @@ proc timeoutMonitor(s: Connection) {.async: (raises: []).} =
       return
 
 method getWrapped*(s: Connection): Connection {.base.} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Connection.getWrapped] abstract method not implemented!")
 
 when defined(libp2p_agents_metrics):
   proc setShortAgent*(s: Connection, shortAgent: string) =

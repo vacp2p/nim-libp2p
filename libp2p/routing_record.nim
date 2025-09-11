@@ -12,7 +12,7 @@
 {.push raises: [].}
 
 import std/[sequtils, times]
-import pkg/stew/results
+import pkg/results
 import multiaddress, multicodec, peerid, protobuf/minprotobuf, signed_envelope
 
 export peerid, multiaddress, signed_envelope

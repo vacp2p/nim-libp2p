@@ -11,7 +11,7 @@
 
 import sugar
 import chronos
-import ../libp2p/[stream/connection, muxers/yamux/yamux], ./helpers
+import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux], ./helpers
 
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()
@@ -27,7 +27,9 @@ suite "Yamux":
   ) {.inject.} =
     #TODO in a template to avoid threadvar
     let
-      (conna {.inject.}, connb {.inject.}) = bridgedConnections()
+      (conna {.inject.}, connb {.inject.}) = bridgedConnections(
+        closeTogether = false, dirA = Direction.Out, dirB = Direction.In
+      )
       yamuxa {.inject.} =
         Yamux.new(conna, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
       yamuxb {.inject.} =

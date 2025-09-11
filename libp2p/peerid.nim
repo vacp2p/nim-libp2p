@@ -11,10 +11,12 @@
 
 {.push raises: [].}
 {.push public.}
+{.used.}
 
 import
   std/[hashes, strutils],
-  stew/[base58, results],
+  stew/base58,
+  results,
   chronicles,
   nimcrypto/utils,
   utility,
@@ -22,7 +24,8 @@ import
   ./multicodec,
   ./multihash,
   ./vbuffer,
-  ./protobuf/minprotobuf
+  ./protobuf/minprotobuf,
+  ./utils/sequninit
 
 export results, utility
 
@@ -140,7 +143,7 @@ func init*(pid: var PeerId, data: string): bool =
   ## Initialize peer id from base58 encoded string representation.
   ##
   ## Returns ``true`` if peer was successfully initialiazed.
-  var p = newSeq[byte](len(data) + 4)
+  var p = newSeqUninit[byte](len(data) + 4)
   var length = 0
   if Base58.decode(data, p, length) == Base58Status.Success:
     p.setLen(length)

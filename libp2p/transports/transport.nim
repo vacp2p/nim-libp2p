@@ -42,7 +42,7 @@ proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
 
 method start*(
     self: Transport, addrs: seq[MultiAddress]
-) {.base, async: (raises: [LPError, TransportError]).} =
+) {.base, async: (raises: [LPError, TransportError, CancelledError]).} =
   ## start the transport
   ##
 
@@ -66,7 +66,7 @@ method accept*(
   ## accept incoming connections
   ##
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Transport.accept] abstract method not implemented!")
 
 method dial*(
     self: Transport,
@@ -79,7 +79,7 @@ method dial*(
   ## dial a peer
   ##
 
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[Transport.dial] abstract method not implemented!")
 
 proc dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)

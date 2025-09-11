@@ -10,8 +10,8 @@
 {.push raises: [].}
 
 import std/[sets, sequtils]
-import stew/[results, objects]
-import chronos, chronicles
+import stew/objects
+import results, chronos, chronicles
 
 import core
 import

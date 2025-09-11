@@ -1,3 +1,4 @@
+{.used.}
 ## # Discovery Manager
 ##
 ## In the [previous tutorial](tutorial_4_gossipsub.md), we built a custom protocol using [protobuf](https://developers.google.com/protocol-buffers) and

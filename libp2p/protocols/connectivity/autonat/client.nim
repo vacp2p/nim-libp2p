@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import stew/results
+import results
 import chronos, chronicles
 import ../../../switch, ../../../multiaddress, ../../../peerid
 import core
@@ -87,7 +87,7 @@ method dialMe*(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    raise newException(AutonatError, "read Dial response failed", e)
+    raise newException(AutonatError, "read Dial response failed: " & e.msg, e)
 
   let response = getResponseOrRaise(AutonatMsg.decode(respBytes))
 

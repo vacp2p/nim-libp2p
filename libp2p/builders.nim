@@ -23,22 +23,36 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport],
+  transports/[transport, tcptransport, wstransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
+  autotls/service,
   nameresolving/nameresolver,
   errors,
   utility
 import services/wildcardresolverservice
 
-export switch, peerid, peerinfo, connection, multiaddress, crypto, errors
+export
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors, TLSPrivateKey,
+  TLSCertificate, TLSFlags, ServerFlags
+
+const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
 type
-  TransportProvider* {.public.} = proc(upgr: Upgrade): Transport {.gcsafe, raises: [].}
+  TransportProvider* {.deprecated: "Use TransportBuilder instead".} =
+    proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
+
+  TransportBuilder* {.public.} =
+    proc(config: TransportConfig): Transport {.gcsafe, raises: [].}
+
+  TransportConfig* = ref object
+    upgr*: Upgrade
+    privateKey*: PrivateKey
+    autotls*: AutotlsService
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -48,7 +62,7 @@ type
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerProvider]
-    transports: seq[TransportProvider]
+    transports: seq[TransportBuilder]
     rng: ref HmacDrbgContext
     maxConnections: int
     maxIn: int
@@ -60,6 +74,7 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
+    autotls: AutotlsService
     circuitRelay: Relay
     rdv: RendezVous
     services: seq[Service]
@@ -144,26 +159,71 @@ proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b
 
 proc withTransport*(
-    b: SwitchBuilder, prov: TransportProvider
+    b: SwitchBuilder, prov: TransportBuilder
 ): SwitchBuilder {.public.} =
   ## Use a custom transport
   runnableExamples:
     let switch = SwitchBuilder
       .new()
       .withTransport(
-        proc(upgr: Upgrade): Transport =
-          TcpTransport.new(flags, upgr)
+        proc(config: TransportConfig): Transport =
+          TcpTransport.new(flags, config.upgr)
       )
       .build()
   b.transports.add(prov)
   b
 
+proc withTransport*(
+    b: SwitchBuilder, prov: TransportProvider
+): SwitchBuilder {.deprecated: "Use TransportBuilder instead".} =
+  ## Use a custom transport
+  runnableExamples:
+    let switch = SwitchBuilder
+      .new()
+      .withTransport(
+        proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
+          TcpTransport.new(flags, upgr)
+      )
+      .build()
+  let tBuilder: TransportBuilder = proc(config: TransportConfig): Transport =
+    prov(config.upgr, config.privateKey)
+  b.withTransport(tBuilder)
+
 proc withTcpTransport*(
     b: SwitchBuilder, flags: set[ServerFlags] = {}
 ): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade): Transport =
-      TcpTransport.new(flags, upgr)
+    proc(config: TransportConfig): Transport =
+      TcpTransport.new(flags, config.upgr)
+  )
+
+proc withWsTransport*(
+    b: SwitchBuilder,
+    tlsPrivateKey: TLSPrivateKey = nil,
+    tlsCertificate: TLSCertificate = nil,
+    tlsFlags: set[TLSFlags] = {},
+    flags: set[ServerFlags] = {},
+): SwitchBuilder =
+  b.withTransport(
+    proc(config: TransportConfig): Transport =
+      WsTransport.new(
+        config.upgr, tlsPrivateKey, tlsCertificate, config.autotls, tlsFlags, flags
+      )
+  )
+
+when defined(libp2p_quic_support):
+  import transports/quictransport
+
+  proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+    b.withTransport(
+      proc(config: TransportConfig): Transport =
+        QuicTransport.new(config.upgr, config.privateKey)
+    )
+
+proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  b.withTransport(
+    proc(config: TransportConfig): Transport =
+      MemoryTransport.new(config.upgr)
   )
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
@@ -220,6 +280,13 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
+when defined(libp2p_autotls_support):
+  proc withAutotls*(
+      b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
+  ): SwitchBuilder {.public.} =
+    b.autotls = AutotlsService.new(config = config)
+    b
+
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = r
   b
@@ -247,6 +314,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   let pkRes = PrivateKey.random(b.rng[])
   let seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
+  if b.secureManagers.len == 0:
+    debug "no secure managers defined. Adding noise by default"
+    b.secureManagers.add(SecureProtocol.Noise)
+
   var secureManagerInstances: seq[Secure]
   if SecureProtocol.Noise in b.secureManagers:
     secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
@@ -267,10 +338,17 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms)
 
+  if not b.autotls.isNil():
+    b.services.insert(b.autotls, 0)
+
   let transports = block:
     var transports: seq[Transport]
     for tProvider in b.transports:
-      transports.add(tProvider(muxedUpgrade))
+      transports.add(
+        tProvider(
+          TransportConfig(upgr: muxedUpgrade, privateKey: seckey, autotls: b.autotls)
+        )
+      )
     transports
 
   if b.secureManagers.len == 0:

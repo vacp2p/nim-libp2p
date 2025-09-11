@@ -11,7 +11,7 @@
 
 import std/sequtils
 
-import stew/results
+import results
 import chronos, chronicles
 
 import core
@@ -107,7 +107,9 @@ proc startSync*(
       description = err.msg
     raise newException(
       DcutrError,
-      "Unexpected error when Dcutr initiator tried to connect to the remote peer", err,
+      "Unexpected error when Dcutr initiator tried to connect to the remote peer: " &
+        err.msg,
+      err,
     )
   finally:
     if stream != nil:

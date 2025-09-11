@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/sequtils
-import chronos, chronicles, stew/results
+import chronos, chronicles, results
 import ../errors
 
 type
@@ -59,7 +59,7 @@ proc `{}`*[T](pa: PeerAttributes, t: typedesc[T]): Opt[T] =
 
 proc `[]`*[T](pa: PeerAttributes, t: typedesc[T]): T {.raises: [KeyError].} =
   pa{T}.valueOr:
-    raise newException(KeyError, "Attritute not found")
+    raise newException(KeyError, "Attribute not found")
 
 proc match*(pa, candidate: PeerAttributes): bool =
   for f in pa.attributes:
@@ -86,12 +86,12 @@ type
 method request*(
     self: DiscoveryInterface, pa: PeerAttributes
 ) {.base, async: (raises: [DiscoveryError, CancelledError]).} =
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[DiscoveryInterface.request] abstract method not implemented!")
 
 method advertise*(
     self: DiscoveryInterface
 ) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
-  doAssert(false, "Not implemented!")
+  doAssert(false, "[DiscoveryInterface.advertise] abstract method not implemented!")
 
 type
   DiscoveryQuery* = ref object
@@ -113,7 +113,7 @@ proc add*(dm: DiscoveryManager, di: DiscoveryInterface) =
         try:
           query.peers.putNoWait(pa)
         except AsyncQueueFullError as exc:
-          debug "Cannot push discovered peer to queue"
+          debug "Cannot push discovered peer to queue", description = exc.msg
 
 proc request*(dm: DiscoveryManager, pa: PeerAttributes): DiscoveryQuery =
   var query = DiscoveryQuery(attr: pa, peers: newAsyncQueue[PeerAttributes]())
@@ -159,7 +159,7 @@ proc stop*(query: DiscoveryQuery) =
   query.finished = true
   for r in query.futs:
     if not r.finished():
-      r.cancel()
+      r.cancelSoon()
 
 proc stop*(dm: DiscoveryManager) =
   for q in dm.queries:
@@ -167,7 +167,7 @@ proc stop*(dm: DiscoveryManager) =
   for i in dm.interfaces:
     if isNil(i.advertiseLoop):
       continue
-    i.advertiseLoop.cancel()
+    i.advertiseLoop.cancelSoon()
 
 proc getPeer*(
     query: DiscoveryQuery
@@ -179,7 +179,7 @@ proc getPeer*(
   try:
     await getter or allFinished(query.futs)
   except CancelledError as exc:
-    getter.cancel()
+    getter.cancelSoon()
     raise exc
 
   if not finished(getter):

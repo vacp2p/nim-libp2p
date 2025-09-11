@@ -140,7 +140,7 @@ proc triggerConnEvent*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    warn "Exception in triggerConnEvents",
+    warn "Exception in triggerConnEvent",
       description = exc.msg, peer = peerId, event = $event
 
 proc addPeerEventHandler*(
@@ -186,7 +186,7 @@ proc expectConnection*(
   if key in c.expectedConnectionsOverLimit:
     raise newException(
       AlreadyExpectingConnectionError,
-      "Already expecting an incoming connection from that peer",
+      "Already expecting an incoming connection from that peer: " & shortLog(p),
     )
 
   let future = Future[Muxer].Raising([CancelledError]).init()

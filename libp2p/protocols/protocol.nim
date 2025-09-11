@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import chronos, stew/results
+import chronos, results
 import ../stream/connection
 
 export results
@@ -66,21 +66,6 @@ template `handler`*(p: LPProtocol, conn: Connection, proto: string): Future[void
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
 
-# Callbacks that are annotated with `{.async: (raises).}` explicitly
-# document the types of errors that they may raise, but are not compatible
-# with `LPProtoHandler` and need to use a custom `proc` type.
-# They are internally wrapped into a `LPProtoHandler`, but still allow the
-# compiler to check that their `{.async: (raises).}` annotation is correct.
-# https://github.com/nim-lang/Nim/issues/23432
-func `handler=`*[E](
-    p: LPProtocol,
-    handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
-) {.deprecated: "Use `LPProtoHandler` that explicitly specifies raised exceptions.".} =
-  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
-    await handler(conn, proto)
-
-  p.handlerImpl = wrap
-
 proc new*(
     T: type LPProtocol,
     codecs: seq[string],
@@ -96,17 +81,3 @@ proc new*(
       else:
         maxIncomingStreams,
   )
-
-proc new*[E](
-    T: type LPProtocol,
-    codecs: seq[string],
-    handler: proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
-    maxIncomingStreams: Opt[int] | int = Opt.none(int),
-): T {.
-    deprecated:
-      "Use `new` with `LPProtoHandler` that explicitly specifies raised exceptions."
-.} =
-  proc wrap(conn: Connection, proto: string): Future[void] {.async.} =
-    await handler(conn, proto)
-
-  T.new(codec, wrap, maxIncomingStreams)

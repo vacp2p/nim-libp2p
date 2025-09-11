@@ -11,15 +11,14 @@
 {.push raises: [].}
 
 import std/[strformat]
-import stew/results
+import results
 import chronos, chronicles
 import
   ../protocol,
-  ../../stream/streamseq,
+  ../../utils/zeroqueue,
   ../../stream/connection,
   ../../multiaddress,
-  ../../peerinfo,
-  ../../errors
+  ../../peerinfo
 
 export protocol, results
 
@@ -33,7 +32,7 @@ type
 
   SecureConn* = ref object of Connection
     stream*: Connection
-    buf: StreamSeq
+    buf: ZeroQueue
 
 func shortLog*(conn: SecureConn): auto =
   try:
@@ -82,7 +81,7 @@ method readMessage*(
 ): Future[seq[byte]] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[SecureConn.readMessage] abstract method not implemented!")
 
 method getWrapped*(s: SecureConn): Connection =
   s.stream
@@ -92,7 +91,7 @@ method handshake*(
 ): Future[SecureConn] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
-  raiseAssert("Not implemented!")
+  raiseAssert("[Secure.handshake] abstract method not implemented!")
 
 proc handleConn(
     s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
@@ -111,8 +110,8 @@ proc handleConn(
           fut2 = sconn.join()
         try: # https://github.com/status-im/nim-chronos/issues/516
           discard await race(fut1, fut2)
-        except ValueError:
-          raiseAssert("Futures list is not empty")
+        except ValueError as e:
+          raiseAssert("Futures list is not empty: " & e.msg)
         # at least one join() completed, cancel pending one, if any
         if not fut1.finished:
           await fut1.cancelAndWait()
@@ -175,22 +174,21 @@ method readOnce*(
   if s.isEof:
     raise newLPStreamEOFError()
 
-  if s.buf.data().len() == 0:
+  if s.buf.isEmpty:
     try:
       let buf = await s.readMessage() # Always returns >0 bytes or raises
       s.activity = true
-      s.buf.add(buf)
+      s.buf.push(buf)
     except LPStreamEOFError as err:
       s.isEof = true
       await s.close()
-      raise err
+      raise newException(LPStreamEOFError, "Secure connection EOF: " & err.msg, err)
     except CancelledError as exc:
       raise exc
     except LPStreamError as err:
       debug "Error while reading message from secure connection, closing.",
         error = err.name, message = err.msg, connection = s
       await s.close()
-      raise err
+      raise newException(LPStreamError, "Secure connection read error: " & err.msg, err)
 
-  var p = cast[ptr UncheckedArray[byte]](pbytes)
-  return s.buf.consumeTo(toOpenArray(p, 0, nbytes - 1))
+  return s.buf.consumeTo(pbytes, nbytes)

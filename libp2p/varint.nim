@@ -18,7 +18,8 @@
 
 {.push raises: [].}
 
-import stew/[byteutils, leb128, results]
+import stew/[byteutils, leb128]
+import results
 export leb128, results
 
 type

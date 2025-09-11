@@ -18,7 +18,8 @@ import constants
 import nimcrypto/[hash, sha2]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import stew/[results, ctops]
+import results
+import stew/ctops
 
 import ../../utility
 

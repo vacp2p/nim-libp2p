@@ -11,11 +11,13 @@
 
 {.push raises: [].}
 
-import stew/[endians2, results, ctops]
+import stew/[endians2, ctops]
+import results
 export results
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utility
+import ../utils/sequninit
 
 type
   Asn1Error* {.pure.} = enum
@@ -290,28 +292,6 @@ proc asn1EncodeBitString*(
       # Set unused bits to zero
       dest[2 + lenlen + bytelen - 1] = lastbyte and mask
   res
-
-proc asn1EncodeTag[T: SomeUnsignedInt](dest: var openArray[byte], value: T): int =
-  var v = value
-  if value <= cast[T](0x7F):
-    if len(dest) >= 1:
-      dest[0] = cast[byte](value)
-    1
-  else:
-    var s = 0
-    var res = 0
-    while v != 0:
-      v = v shr 7
-      s += 7
-      inc(res)
-    if len(dest) >= res:
-      var k = 0
-      while s != 0:
-        s -= 7
-        dest[k] = cast[byte](((value shr s) and cast[T](0x7F)) or cast[T](0x80))
-        inc(k)
-      dest[k - 1] = dest[k - 1] and 0x7F'u8
-    res
 
 proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[byte]): int =
   ## Encode array of bytes ``value`` as ASN.1 DER `OBJECT IDENTIFIER` and return
@@ -665,9 +645,6 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
         return ok(field)
       else:
         return err(Asn1Error.NoSupport)
-
-      inclass = false
-      ttag = 0
     else:
       return err(Asn1Error.NoSupport)
 
@@ -703,15 +680,15 @@ proc init*(t: typedesc[Asn1Buffer], data: string): Asn1Buffer =
 
 proc init*(t: typedesc[Asn1Buffer]): Asn1Buffer =
   ## Initialize empty ``Asn1Buffer``.
-  Asn1Buffer(buffer: newSeq[byte]())
+  Asn1Buffer(buffer: newSeqUninit[byte](0))
 
 proc init*(t: typedesc[Asn1Composite], tag: Asn1Tag): Asn1Composite =
   ## Initialize ``Asn1Composite`` with tag ``tag``.
-  Asn1Composite(tag: tag, buffer: newSeq[byte]())
+  Asn1Composite(tag: tag, buffer: newSeqUninit[byte](0))
 
 proc init*(t: typedesc[Asn1Composite], idx: int): Asn1Composite =
   ## Initialize ``Asn1Composite`` with tag context-specific id ``id``.
-  Asn1Composite(tag: Asn1Tag.Context, idx: idx, buffer: newSeq[byte]())
+  Asn1Composite(tag: Asn1Tag.Context, idx: idx, buffer: newSeqUninit[byte](0))
 
 proc `$`*(buffer: Asn1Buffer): string =
   ## Return string representation of ``buffer``.
