@@ -118,6 +118,12 @@ suite "AutonatV2 Service":
   teardown:
     checkTrackers()
 
+  asyncTest "Reachability unknown before starting switch":
+    let
+      (service, client) = newService(NetworkReachability.Reachable)
+      switch = createSwitch(service)
+    check service.networkReachability == NetworkReachability.Unknown
+
   asyncTest "Peer must be reachable":
     let
       (service, client) = newService(NetworkReachability.Reachable)
@@ -134,12 +140,8 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check service.networkReachability == NetworkReachability.Unknown
-
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
-
     await switch.startAndConnect(switches)
-
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
@@ -149,15 +151,12 @@ suite "AutonatV2 Service":
     await switches.stopAll()
 
   asyncTest "Peer must be not reachable":
-    let (service, client) = newService(NetworkReachability.NotReachable)
-
-    let switch = createSwitch(service)
+    let
+      (service, client) = newService(NetworkReachability.NotReachable)
+      switch = createSwitch(service)
     var switches = createSwitches(3)
 
-    check service.networkReachability == NetworkReachability.Unknown
-
     await switch.startAndConnect(switches)
-
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
@@ -195,12 +194,8 @@ suite "AutonatV2 Service":
           )
           awaiter.complete()
 
-    check service.networkReachability == NetworkReachability.Unknown
-
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
-
     await switch.startAndConnect(switches)
-
     await awaiter
 
     check service.networkReachability == NetworkReachability.NotReachable
@@ -237,12 +232,8 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check service.networkReachability == NetworkReachability.Unknown
-
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
-
     await switch.startAndConnect(switches)
-
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
@@ -279,12 +270,8 @@ suite "AutonatV2 Service":
           )
           awaiter.complete()
 
-    check service.networkReachability == NetworkReachability.Unknown
-
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
-
     await switch.startAndConnect(switches)
-
     await awaiter
 
     check service.networkReachability == NetworkReachability.NotReachable
@@ -333,8 +320,6 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         if not awaiter.finished:
           awaiter.complete()
-
-    check service.networkReachability == NetworkReachability.Unknown
 
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -398,9 +383,6 @@ suite "AutonatV2 Service":
         if not awaiter2.finished:
           awaiter2.complete()
 
-    check service1.networkReachability == NetworkReachability.Unknown
-    check service2.networkReachability == NetworkReachability.Unknown
-
     service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
     service2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
 
@@ -449,8 +431,6 @@ suite "AutonatV2 Service":
         if not awaiter1.finished:
           awaiter1.complete()
 
-    check service1.networkReachability == NetworkReachability.Unknown
-
     service1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
 
     await switch1.start()
@@ -498,8 +478,6 @@ suite "AutonatV2 Service":
         if not awaiter.finished:
           awaiter.complete()
 
-    check service.networkReachability == NetworkReachability.Unknown
-
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch.start()
@@ -537,8 +515,6 @@ suite "AutonatV2 Service":
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async: (raises: [CancelledError]).} =
       fail()
-
-    check service.networkReachability == NetworkReachability.Unknown
 
     service.statusAndConfidenceHandler(statusAndConfidenceHandler)
 
