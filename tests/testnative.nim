@@ -43,5 +43,7 @@ when defined(libp2p_autotls_support):
   import testautotls
 
 import
-  mix/
-    [testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization]
+  mix/[
+    testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
+    testmixmessage,
+  ]
