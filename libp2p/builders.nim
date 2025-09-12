@@ -29,6 +29,7 @@ import
   protocols/connectivity/[
     autonat/server,
     autonatv2/server,
+    autonatv2/service,
     autonatv2/client,
     relay/relay,
     relay/client,
@@ -400,6 +401,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   if b.autonatV2Client:
     let autonatV2Client = AutonatV2Client.new(switch.dialer, b.rng)
+    b.services.add(AutonatV2Service.new(b.rng, client = autonatV2Client))
     switch.mount(autonatV2Client)
 
   b.autonatV2ServerConfig.withValue(config):
