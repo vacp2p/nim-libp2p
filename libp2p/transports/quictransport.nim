@@ -83,7 +83,8 @@ method write*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    raise (ref LPStreamError)(msg: "error in quic stream write: " & exc.msg, parent: exc)
+    raise
+      (ref LPStreamError)(msg: "error in quic stream write: " & exc.msg, parent: exc)
 
 {.pop.}
 
@@ -283,9 +284,7 @@ method start*(
   except QuicConfigError as exc:
     doAssert false, "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
-    raise (ref QuicTransportError)(
-      msg: "tlscert ic start: " & exc.msg, parent: exc
-    )
+    raise (ref QuicTransportError)(msg: "tlscert ic start: " & exc.msg, parent: exc)
   except QuicError as exc:
     raise
       (ref QuicTransportError)(msg: "quicerror in quic start: " & exc.msg, parent: exc)
