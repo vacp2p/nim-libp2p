@@ -58,6 +58,9 @@ type
     NotReachable
     Reachable
 
+proc isReachable*(self: NetworkReachability): bool =
+  self == NetworkReachability.Reachable
+
 proc encode(p: AutonatPeerInfo): ProtoBuffer =
   result = initProtoBuffer()
   p.id.withValue(id):

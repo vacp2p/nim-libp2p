@@ -9,7 +9,6 @@ import
   ../../../multicodec,
   ../../../peerid,
   ../../../protobuf/minprotobuf,
-  ../autonat/service,
   ./types
 
 proc asNetworkReachability*(self: DialResponse): NetworkReachability =
