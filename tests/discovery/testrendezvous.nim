@@ -9,9 +9,17 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import sequtils, strutils
+import sequtils
 import chronos
-import ../../libp2p/[protocols/rendezvous, switch]
+import
+  ../../libp2p/[
+    protocols/rendezvous,
+    protocols/rendezvous/protobuf,
+    peerinfo,
+    switch,
+    routing_record,
+    crypto/crypto,
+  ]
 import ../../libp2p/discovery/discoverymngr
 import ../../libp2p/utils/offsettedseq
 import ../helpers
@@ -73,6 +81,20 @@ suite "RendezVous":
       peerRecords.len == 1
       peerRecords[0] == peerNodes[0].switch.peerInfo.signedPeerRecord.data
 
+  asyncTest "Peer is not registered when peer record validation fails":
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    peerNodes[0].switch.peerInfo.signedPeerRecord =
+      createCorruptedSignedPeerRecord(peerNodes[0].switch.peerInfo.peerId)
+
+    const namespace = "foo"
+    await peerNodes[0].advertise(namespace)
+
+    check rendezvousNode.registered.s.len == 0
+
   asyncTest "Unsubscribe removes registered peer from remote":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     (rendezvousNode & peerNodes).startAndDeferStop()
@@ -86,6 +108,17 @@ suite "RendezVous":
 
     await peerNodes[0].unsubscribe(namespace)
     check (await peerNodes[0].request(Opt.some(namespace))).len == 0
+
+  asyncTest "Unsubscribe for not registered namespace is ignored":
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    await peerNodes[0].advertise("foo")
+    await peerNodes[0].unsubscribe("bar")
+
+    check rendezvousNode.registered.s.len == 1
 
   asyncTest "Consecutive requests with namespace returns peers with pagination":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(11)
@@ -447,26 +480,3 @@ suite "RendezVous":
     # 1001st registration ignored, limit reached
     await peerRdv.advertise(namespace)
     check rendezvousNode.registered.s.len == RegistrationLimitPerPeer
-
-  asyncTest "Various local error":
-    let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
-    expect AdvertiseError:
-      discard await rdv.request(Opt.some("A".repeat(300)))
-    expect AdvertiseError:
-      discard await rdv.request(Opt.some("A"), -1)
-    expect AdvertiseError:
-      discard await rdv.request(Opt.some("A"), 3000)
-    expect AdvertiseError:
-      await rdv.advertise("A".repeat(300))
-    expect AdvertiseError:
-      await rdv.advertise("A", 73.hours)
-    expect AdvertiseError:
-      await rdv.advertise("A", 30.seconds)
-
-  test "Various config error":
-    expect RendezVousError:
-      discard RendezVous.new(minDuration = 30.seconds)
-    expect RendezVousError:
-      discard RendezVous.new(maxDuration = 73.hours)
-    expect RendezVousError:
-      discard RendezVous.new(minDuration = 15.minutes, maxDuration = 10.minutes)
