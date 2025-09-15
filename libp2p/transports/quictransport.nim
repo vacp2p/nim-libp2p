@@ -284,7 +284,9 @@ method start*(
   except QuicConfigError as exc:
     doAssert false, "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
-    raise (ref QuicTransportError)(msg: "tlscert error in quic start: " & exc.msg, parent: exc)
+    raise (ref QuicTransportError)(
+      msg: "tlscert error in quic start: " & exc.msg, parent: exc
+    )
   except QuicError as exc:
     raise
       (ref QuicTransportError)(msg: "quicerror in quic start: " & exc.msg, parent: exc)
