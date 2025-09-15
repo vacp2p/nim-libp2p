@@ -50,14 +50,6 @@ proc new(
 method getWrapped*(self: QuicStream): P2PConnection =
   self
 
-template mapExceptions(body: untyped) =
-  try:
-    body
-  except QuicError:
-    raise newLPStreamEOFError()
-  except CatchableError:
-    raise newLPStreamEOFError()
-
 method readOnce*(
     stream: QuicStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -83,8 +75,15 @@ method readOnce*(
 method write*(
     stream: QuicStream, bytes: seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  mapExceptions(await stream.stream.write(bytes))
-  libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
+  try:
+    await stream.stream.write(bytes)
+    libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
+  except QuicError:
+    raise newLPStreamEOFError()
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    raise (ref LPStreamError)(msg: "error in write: " & exc.msg, parent: exc)
 
 {.pop.}
 
@@ -158,6 +157,8 @@ method newStream*(
 .} =
   try:
     return await m.quicSession.getStream(Direction.Out)
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     raise newException(MuxerError, "error in newStream: " & exc.msg, exc)
 
