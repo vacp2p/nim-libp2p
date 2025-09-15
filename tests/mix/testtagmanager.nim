@@ -10,91 +10,52 @@ suite "tag_manager_tests":
     tm = TagManager.new()
 
   teardown:
-    clearTags(tm)
+    tm.clearTags()
 
   test "add_and_check_tag":
-    let tagRes = generateRandomFieldElement()
-    if tagRes.isErr:
-      error "Generate random field element error", err = tagRes.error
-      fail()
-    let tag = tagRes.get()
+    let
+      tag = generateRandomFieldElement().expect("should generate FE")
+      nonexistentTag = generateRandomFieldElement().expect("should generate FE")
 
-    addTag(tm, tag)
-    if not isTagSeen(tm, tag):
-      error "Tag should be seen after adding", tag = tag
-      fail()
+    tm.addTag(tag)
 
-    let nonexistentTagRes = generateRandomFieldElement()
-    if nonexistentTagRes.isErr:
-      error "Generate random field element error", err = nonexistentTagRes.error
-      fail()
-    let nonexistentTag = nonexistentTagRes.get()
-
-    if isTagSeen(tm, nonexistentTag):
-      error "Nonexistent tag should not be seen", tag = nonexistentTag
-      fail()
+    check:
+      tm.isTagSeen(tag)
+      not tm.isTagSeen(nonexistentTag)
 
   test "remove_tag":
-    let tagRes = generateRandomFieldElement()
-    if tagRes.isErr:
-      error "Generate random field element error", err = tagRes.error
-      fail()
-    let tag = tagRes.get()
+    let tag = generateRandomFieldElement().expect("should generate FE")
 
-    addTag(tm, tag)
-    if not isTagSeen(tm, tag):
-      error "Tag should be seen after adding", tag = tag
-      fail()
+    tm.addTag(tag)
+    check tm.isTagSeen(tag)
 
-    removeTag(tm, tag)
-    if isTagSeen(tm, tag):
-      error "Tag should not be seen after removal", tag = tag
-      fail()
+    tm.removeTag(tag)
+    check not tm.isTagSeen(tag)
 
   test "check_tag_presence":
-    let tagRes = generateRandomFieldElement()
-    if tagRes.isErr:
-      error "Generate random field element error", err = tagRes.error
-      fail()
-    let tag = tagRes.get()
+    let tag = generateRandomFieldElement().expect("should generate FE")
+    check not tm.isTagSeen(tag)
 
-    if isTagSeen(tm, tag):
-      error "Tag should not be seen initially", tag = tag
-      fail()
+    tm.addTag(tag)
+    check tm.isTagSeen(tag)
 
-    addTag(tm, tag)
-    if not isTagSeen(tm, tag):
-      error "Tag should be seen after adding", tag = tag
-      fail()
-
-    removeTag(tm, tag)
-    if isTagSeen(tm, tag):
-      error "Tag should not be seen after removal", tag = tag
-      fail()
+    tm.removeTag(tag)
+    check not tm.isTagSeen(tag)
 
   test "handle_multiple_tags":
-    let tag1Res = generateRandomFieldElement()
-    if tag1Res.isErr:
-      error "Generate random field element error", err = tag1Res.error
-      fail()
-    let tag1 = tag1Res.get()
+    let tag1 = generateRandomFieldElement().expect("should generate FE")
+    let tag2 = generateRandomFieldElement().expect("should generate FE")
 
-    let tag2Res = generateRandomFieldElement()
-    if tag2Res.isErr:
-      error "Generate random field element error", err = tag2Res.error
-      fail()
-    let tag2 = tag2Res.get()
+    tm.addTag(tag1)
+    tm.addTag(tag2)
 
-    addTag(tm, tag1)
-    addTag(tm, tag2)
+    check:
+      tm.isTagSeen(tag1)
+      tm.isTagSeen(tag2)
 
-    if not isTagSeen(tm, tag1) or not isTagSeen(tm, tag2):
-      error "Both tags should be seen after adding", tag1 = tag1, tag2 = tag2
-      fail()
+    tm.removeTag(tag1)
+    tm.removeTag(tag2)
 
-    removeTag(tm, tag1)
-    removeTag(tm, tag2)
-
-    if isTagSeen(tm, tag1) or isTagSeen(tm, tag2):
-      error "Both tags should not be seen after removal", tag1 = tag1, tag2 = tag2
-      fail()
+    check:
+      not tm.isTagSeen(tag1)
+      not tm.isTagSeen(tag2)

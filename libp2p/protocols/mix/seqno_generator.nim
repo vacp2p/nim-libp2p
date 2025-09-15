@@ -1,31 +1,29 @@
 import std/endians, times
 import ../../peerid
 import ./crypto
+import ../../utils/sequninit
 
-type SeqNo* = object
-  counter: uint32
+type SeqNo* = uint32
 
-proc init*(T: typedesc[SeqNo], peerId: PeerId): T =
-  var seqNo = T()
-  let peerIdHash = sha256_hash(peerId.data)
+proc init*(T: typedesc[SeqNo], data: seq[byte]): T =
+  var seqNo: SeqNo = 0
+  let hash = sha256_hash(data)
   for i in 0 .. 3:
-    seqNo.counter = seqNo.counter or (uint32(peerIdHash[i]) shl (8 * (3 - i)))
+    seqNo = seqNo or (uint32(hash[i]) shl (8 * (3 - i)))
   return seqNo
 
-proc generateSeqNo*(seqNo: var SeqNo, messageBytes: seq[byte]) =
+proc init*(T: typedesc[SeqNo], peerId: PeerId): T =
+  SeqNo.init(peerId.data)
+
+proc generate*(seqNo: var SeqNo, messageBytes: seq[byte]) =
   let
     currentTime = getTime().toUnix() * 1000
-    currentTimeBytes = newSeq[byte](8)
+    currentTimeBytes = newSeqUninit[byte](8)
   bigEndian64(unsafeAddr currentTimeBytes[0], unsafeAddr currentTime)
-  let messageHash = sha256_hash(messageBytes & currentTimeBytes)
-  var cnt: uint32
-  for i in 0 .. 3:
-    cnt = cnt or (uint32(messageHash[i]) shl (8 * (3 - i)))
-  seqNo.counter = (seqNo.counter + cnt) mod high(uint32)
 
-proc incSeqNo*(seqNo: var SeqNo) =
-  seqNo.counter = (seqNo.counter + 1) mod high(uint32)
-    # ToDo: Manage sequence no. overflow in a way that it does not affect re-assembly
+  let s = SeqNo.init(messageBytes & currentTimeBytes)
+  seqNo = (seqNo + s) mod high(uint32)
 
-proc getSeqNo*(seqNo: SeqNo): uint32 =
-  return seqNo.counter
+proc inc*(seqNo: var SeqNo) =
+  seqNo = (seqNo + 1) mod high(uint32)
+  # TODO: Manage sequence no. overflow in a way that it does not affect re-assembly
