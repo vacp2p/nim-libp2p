@@ -1,5 +1,6 @@
 import results
 import std/sequtils
+import ../../utility
 
 const
   k* = 16 # Security parameter
@@ -195,17 +196,17 @@ proc serializeMessageWithSURBs*(
   ok(byte(surbs.len) & surbBytes & msg)
 
 proc readBytes(
-    data: seq[byte], offset: var int, dataLen: int = -1
+    data: seq[byte], offset: var int, readSize: Opt[int] = Opt.none(int)
 ): Result[seq[byte], string] =
-  if dataLen > 0:
-    if data.len < offset + dataLen:
-      return err("not enough data")
-
-    let slice = data[offset ..< offset + dataLen]
-    offset += dataLen
-    return ok(slice)
-  elif data.len < offset:
+  if data.len < offset:
     return err("not enough data")
+
+  readSize.withValue(size):
+    if data.len < offset + size:
+      return err("not enough data")
+    let slice = data[offset ..< offset + size]
+    offset += size
+    return ok(slice)
 
   let slice = data[offset .. ^1]
   offset = data.len
@@ -213,7 +214,7 @@ proc readBytes(
 
 proc extractSURBs*(msg: seq[byte]): Result[(seq[SURB], seq[byte]), string] =
   var offset = 0
-  let surbsLenBytes = ?readBytes(msg, offset, 1)
+  let surbsLenBytes = ?readBytes(msg, offset, Opt.some(1))
   let surbsLen = int(surbsLenBytes[0])
 
   if surbsLen > (MessageSize - SurbLenSize - 1) div SurbSize:
@@ -221,10 +222,10 @@ proc extractSURBs*(msg: seq[byte]): Result[(seq[SURB], seq[byte]), string] =
 
   var surbs: seq[SURB] = newSeq[SURB](surbsLen)
   for i in 0 ..< surbsLen:
-    let hopBytes = ?readBytes(msg, offset, AddrSize)
-    let headerBytes = ?readBytes(msg, offset, HeaderSize)
+    let hopBytes = ?readBytes(msg, offset, Opt.some(AddrSize))
+    let headerBytes = ?readBytes(msg, offset, Opt.some(HeaderSize))
     surbs[i].hop = ?Hop.deserialize(hopBytes)
     surbs[i].header = ?Header.deserialize(headerBytes)
-    surbs[i].key = ?readBytes(msg, offset, k)
+    surbs[i].key = ?readBytes(msg, offset, Opt.some(k))
   let msg = ?readBytes(msg, offset)
   return ok((surbs, msg))

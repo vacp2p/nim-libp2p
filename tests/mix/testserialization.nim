@@ -1,6 +1,6 @@
 {.used.}
 
-import chronicles, results, unittest
+import results, unittest
 import ../../libp2p/protocols/mix/serialization
 
 # Define test cases
