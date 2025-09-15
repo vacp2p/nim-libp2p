@@ -1,6 +1,6 @@
 {.used.}
 
-import chronicles, nimcrypto, results, unittest
+import nimcrypto, results, unittest
 import ../../libp2p/protocols/mix/crypto
 
 suite "cryptographic_functions_tests":
@@ -10,27 +10,12 @@ suite "cryptographic_functions_tests":
       iv = cast[array[16, byte]]("thisis16bytesiv!")
       data: seq[byte] = cast[seq[byte]]("thisisdata")
 
-    let encryptedResult = aes_ctr(key, iv, data)
-    if encryptedResult.isErr:
-      error "Encryption failed", err = encryptedResult.error
-      fail()
-    let encrypted = encryptedResult.get()
+    let encrypted = aes_ctr(key, iv, data)
+    let decrypted = aes_ctr(key, iv, encrypted)
 
-    let decryptedResult = aes_ctr(key, iv, encrypted)
-    if decryptedResult.isErr:
-      error "Decryption failed", err = decryptedResult.error
-      fail()
-    let decrypted = decryptedResult.get()
-
-    if data != decrypted:
-      error "Decrypted data does not match the original data",
-        original = data, decrypted = decrypted
-      fail()
-
-    if data == encrypted:
-      error "Encrypted data should not match the original data",
-        original = data, encrypted = encrypted
-      fail()
+    check:
+      data == decrypted
+      data != encrypted
 
   test "sha256_hash_computation":
     let
@@ -40,10 +25,7 @@ suite "cryptographic_functions_tests":
       expectedHash = fromHex(expectedHashHex)
       hash = sha256_hash(data)
 
-    if hash != expectedHash:
-      error "SHA-256 hash does not match the expected hash",
-        hashed = hash, expected = expectedHash
-      fail()
+    check hash == expectedHash
 
   test "kdf_computation":
     let
@@ -52,10 +34,7 @@ suite "cryptographic_functions_tests":
       expectedKdf = fromHex(expectedKdfHex)
       derivedKey = kdf(key)
 
-    if derivedKey != expectedKdf:
-      error "Derived key does not match the expected key",
-        key = derivedKey, expected = expectedKdf
-      fail()
+    check derivedKey == expectedKdf
 
   test "hmac_computation":
     let
@@ -65,10 +44,7 @@ suite "cryptographic_functions_tests":
       expectedHmac = fromHex(expectedHmacHex)
       hmacResult = hmac(key, data)
 
-    if hmacResult != expectedHmac:
-      error "HMAC does not match the expected HMAC",
-        hmac = hmacResult, expected = expectedHmac
-      fail()
+    check hmacResult == expectedHmac
 
   test "aes_ctr_empty_data":
     let
@@ -76,27 +52,12 @@ suite "cryptographic_functions_tests":
       iv = cast[array[16, byte]]("thisis16bytesiv!")
       emptyData: array[0, byte] = []
 
-    let encryptedResult = aes_ctr(key, iv, emptyData)
-    if encryptedResult.isErr:
-      error "Encryption failed", err = encryptedResult.error
-      fail()
-    let encrypted = encryptedResult.get()
+    let encrypted = aes_ctr(key, iv, emptyData)
+    let decrypted = aes_ctr(key, iv, encrypted)
 
-    let decryptedResult = aes_ctr(key, iv, encrypted)
-    if decryptedResult.isErr:
-      error "Decryption failed", err = decryptedResult.error
-      fail()
-    let decrypted = decryptedResult.get()
-
-    if emptyData != decrypted:
-      error "Decrypted empty data does not match the original empty data",
-        original = emptyData, decrypted = decrypted
-      fail()
-
-    if emptyData != encrypted:
-      error "Encrypted empty data should still be empty",
-        original = emptyData, encrypted = encrypted
-      fail()
+    check:
+      emptyData == decrypted
+      emptyData == encrypted
 
   test "sha256_hash_empty_data":
     let
@@ -106,10 +67,7 @@ suite "cryptographic_functions_tests":
       expectedHash = fromHex(expectedHashHex)
       hash = sha256_hash(emptyData)
 
-    if hash != expectedHash:
-      error "SHA-256 hash of empty data does not match the expected hash",
-        hashed = hash, expected = expectedHash
-      fail()
+    check hash == expectedHash
 
   test "kdf_empty_key":
     let
@@ -118,10 +76,7 @@ suite "cryptographic_functions_tests":
       expectedKdf = fromHex(expectedKdfHex)
       derivedKey = kdf(emptyKey)
 
-    if derivedKey != expectedKdf:
-      error "Derived key from empty key does not match the expected key",
-        key = derivedKey, expected = expectedKdf
-      fail()
+    check derivedKey == expectedKdf
 
   test "hmac_empty_key_and_data":
     let
@@ -131,10 +86,7 @@ suite "cryptographic_functions_tests":
       expectedHmac = fromHex(expectedHmacHex)
       hmacResult = hmac(emptyKey, emptyData)
 
-    if hmacResult != expectedHmac:
-      error "HMAC of empty key and data does not match the expected HMAC",
-        hmac = hmacResult, expected = expectedHmac
-      fail()
+    check hmacResult == expectedHmac
 
   test "aes_ctr_start_index_zero_index":
     let
@@ -143,22 +95,10 @@ suite "cryptographic_functions_tests":
       data: seq[byte] = cast[seq[byte]]("thisisdata")
       startIndex = 0
 
-    let encryptedResult = aes_ctr_start_index(key, iv, data, startIndex)
-    if encryptedResult.isErr:
-      error "Encryption with start index failed", err = encryptedResult.error
-      fail()
-    let encrypted = encryptedResult.get()
+    let encrypted = aes_ctr_start_index(key, iv, data, startIndex)
+    let expected = aes_ctr(key, iv, data)
 
-    let expectedResult = aes_ctr(key, iv, data)
-    if expectedResult.isErr:
-      error "Encryption failed", err = expectedResult.error
-      fail()
-    let expected = expectedResult.get()
-
-    if encrypted != expected:
-      error "Encrypted data with start index 0 should match the full AES-CTR encryption",
-        encrypted = encrypted, expected = expected
-      fail()
+    check encrypted == expected
 
   test "aes_ctr_start_index_empty_data":
     let
@@ -167,16 +107,9 @@ suite "cryptographic_functions_tests":
       emptyData: array[0, byte] = []
       startIndex = 0
 
-    let encryptedResult = aes_ctr_start_index(key, iv, emptyData, startIndex)
-    if encryptedResult.isErr:
-      error "Encryption with start index failed", err = encryptedResult.error
-      fail()
-    let encrypted = encryptedResult.get()
+    let encrypted = aes_ctr_start_index(key, iv, emptyData, startIndex)
 
-    if emptyData != encrypted:
-      error "Encrypted empty data with start index 0 should be empty",
-        original = emptyData, encrypted = encrypted
-      fail()
+    check emptyData == encrypted
 
   test "aes_ctr_start_index_middle":
     let
@@ -185,26 +118,8 @@ suite "cryptographic_functions_tests":
       data: seq[byte] = cast[seq[byte]]("thisisverylongdata")
       startIndex = 16
 
-    let encrypted2Result =
-      aes_ctr_start_index(key, iv, data[startIndex ..^ 1], startIndex)
-    if encrypted2Result.isErr:
-      error "Encryption with start index failed", err = encrypted2Result.error
-      fail()
-    let encrypted2 = encrypted2Result.get()
+    let encrypted2 = aes_ctr_start_index(key, iv, data[startIndex ..^ 1], startIndex)
+    let encrypted1 = aes_ctr(key, iv, data[0 .. startIndex - 1])
+    let expected = aes_ctr(key, iv, data)
 
-    let encrypted1Result = aes_ctr(key, iv, data[0 .. startIndex - 1])
-    if encrypted1Result.isErr:
-      error "Encryption with start index failed", err = encrypted1Result.error
-      fail()
-    let encrypted1 = encrypted1Result.get()
-
-    let expectedResult = aes_ctr(key, iv, data)
-    if expectedResult.isErr:
-      error "Encryption failed", err = expectedResult.error
-      fail()
-    let expected = expectedResult.get()
-
-    if encrypted1 & encrypted2 != expected:
-      error "Encrypted data with start index should match the full AES-CTR encryption",
-        encrypted = encrypted1 & encrypted2, expected = expected
-      fail()
+    check encrypted1 & encrypted2 == expected
