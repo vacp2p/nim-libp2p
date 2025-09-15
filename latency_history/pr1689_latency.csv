@@ -1,11 +1,11 @@
 Scenario,Nodes,TotalSent,TotalReceived,MinLatencyMs,MaxLatencyMs,AvgLatencyMs
-Base test,10,100,900,0.325,2.547,1.075
-Low Bandwidth rate 256kbit burst 8kbit limit 5000,10,100,900,0.362,63.294,7.668
-Packet Reorder 15% 40% with 2ms delay,10,100,900,0.336,5.840,2.881
-Queue Limit 5,10,100,900,0.291,2.485,1.073
-Latency 100ms 20ms,10,100,900,38.737,218.294,115.989
-Burst Loss 8% 30%,10,100,900,0.407,3.355,1.161
-Duplication 2%,10,100,900,0.348,2.508,1.081
-Corruption 0.5%,10,100,900,0.411,2.303,1.096
-Packet Loss 5%,10,100,900,0.441,2.488,1.193
-Combined Network Conditions,10,100,900,0.284,280.030,121.600
+Base test,10,100,900,0.262,2.127,0.933
+Low Bandwidth rate 256kbit burst 8kbit limit 5000,10,100,900,0.180,43.727,3.555
+Packet Reorder 15% 40% with 2ms delay,10,100,900,0.333,5.563,2.864
+Queue Limit 5,10,100,900,0.255,2.215,0.929
+Latency 100ms 20ms,10,100,900,39.875,224.376,115.694
+Burst Loss 8% 30%,10,100,900,0.312,2.198,0.956
+Duplication 2%,10,100,900,0.296,2.255,0.949
+Corruption 0.5%,10,100,900,0.273,2.388,0.947
+Packet Loss 5%,10,100,900,0.314,2.342,0.987
+Combined Network Conditions,10,100,900,0.202,243.798,119.007
