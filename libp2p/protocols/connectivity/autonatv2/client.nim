@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import results
-import chronos, chronicles
+import chronos, chronicles, tables
 import
   ../../protocol,
   ../../../switch,
