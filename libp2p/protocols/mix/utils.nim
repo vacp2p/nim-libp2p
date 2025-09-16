@@ -1,6 +1,6 @@
 import results, strutils
 import stew/base58
-import ./config
+import ./serialization
 
 const peerIdByteLen = 39
 
@@ -110,14 +110,14 @@ proc multiAddrToBytes*(multiAddr: string): Result[seq[byte], string] =
     let peerId2Bytes = ?extractPeerId(parts, if isQuic: 10 else: 9)
     res.add(peerId2Bytes)
 
-  if res.len > addrSize:
-    return err("Address must be <= " & $addrSize & " bytes")
+  if res.len > AddrSize:
+    return err("Address must be <= " & $AddrSize & " bytes")
 
-  return ok(res & newSeq[byte](addrSize - res.len))
+  return ok(res & newSeq[byte](AddrSize - res.len))
 
 proc bytesToMultiAddr*(bytes: openArray[byte]): Result[string, string] =
-  if bytes.len != addrSize:
-    return err("Address must be exactly " & $addrSize & " bytes")
+  if bytes.len != AddrSize:
+    return err("Address must be exactly " & $AddrSize & " bytes")
 
   var ipParts: seq[string] = @[]
   for i in 0 .. 3:
