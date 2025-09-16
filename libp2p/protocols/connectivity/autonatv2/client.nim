@@ -58,11 +58,10 @@ proc handleDialBack(
 
 proc new*(
     T: typedesc[AutonatV2Client],
-    dialer: Dial,
     rng: ref HmacDrbgContext,
     dialBackTimeout: Duration = DefaultDialBackTimeout,
 ): T =
-  let client = T(dialer: dialer, rng: rng, dialBackTimeout: dialBackTimeout)
+  let client = T(rng: rng, dialBackTimeout: dialBackTimeout)
 
   # handler for DialBack messages
   proc handleStream(
@@ -86,6 +85,9 @@ proc new*(
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
   client
+
+proc setup*(self: AutonatV2Client, switch: Switch) =
+  self.dialer = switch.dialer
 
 proc handleDialDataRequest*(
     conn: Connection, req: DialDataRequest
