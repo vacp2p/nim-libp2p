@@ -60,3 +60,31 @@ jobs:
   #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
   #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
   #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  run-autonatv2-interop:
+    name: Run AutoNATv2 interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: "stable"
+
+      - name: Run Go and Nim together
+        run: |
+          nimble install .
+          cd go-peer
+          go run testautonatv2.go &
+          GO_PID=$!
+          cd ../nim-peer
+          nim r -y testautonatv2.nim
+          STATUS=$?
+          # Kill Go process after Nim finishes
+          kill $GO_PID || true
+          exit $STATUS
