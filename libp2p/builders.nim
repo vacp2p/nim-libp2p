@@ -83,7 +83,8 @@ type
     peerStoreCapacity: Opt[int]
     autonat: bool
     autonatV2ServerConfig: Opt[AutonatV2Config]
-    autonatV2Client: bool
+    autonatV2Client: AutonatV2Client
+    autonatV2ServiceConfig: AutonatV2ServiceConfig
     autotls: AutotlsService
     circuitRelay: Relay
     rdv: RendezVous
@@ -296,8 +297,11 @@ proc withAutonatV2Server*(
   b.autonatV2ServerConfig = Opt.some(config)
   b
 
-proc withAutonatV2*(b: SwitchBuilder): SwitchBuilder =
-  b.autonatV2Client = true
+proc withAutonatV2*(
+    b: SwitchBuilder, serviceConfig = AutonatV2ServiceConfig.new()
+): SwitchBuilder =
+  b.autonatV2Client = AutonatV2Client.new(b.rng)
+  b.autonatV2ServiceConfig = serviceConfig
   b
 
 when defined(libp2p_autotls_support):
@@ -386,6 +390,13 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   if b.enableWildcardResolver:
     b.services.insert(WildcardAddressResolverService.new(), 0)
 
+  if not isNil(b.autonatV2Client):
+    b.services.add(
+      AutonatV2Service.new(
+        b.rng, client = b.autonatV2Client, config = b.autonatV2ServiceConfig
+      )
+    )
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -399,10 +410,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   switch.mount(identify)
 
-  if b.autonatV2Client:
-    let autonatV2Client = AutonatV2Client.new(switch.dialer, b.rng)
-    b.services.add(AutonatV2Service.new(b.rng, client = autonatV2Client))
-    switch.mount(autonatV2Client)
+  if not isNil(b.autonatV2Client):
+    b.autonatV2Client.setup(switch)
+    switch.mount(b.autonatV2Client)
 
   b.autonatV2ServerConfig.withValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
