@@ -1,5 +1,5 @@
-import results, sequtils
-import ./[crypto, curve25519, serialization, tag_manager, utils]
+import results, sequtils, stew/endians2
+import ./[crypto, curve25519, serialization, tag_manager]
 
 type ProcessingStatus* = enum
   Exit # Packet processed successfully at exit
@@ -279,7 +279,7 @@ proc processSphinxPacket*(
       ProcessedSphinxPacket(
         status: Intermediate,
         nextHop: address,
-        delayMs: (?bytesToUInt16(delay)).int,
+        delayMs: uint16.fromBytes(delay).int,
         serializedSphinxPacket: sphinxPkt.serialize(),
       )
     )
