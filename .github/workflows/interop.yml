@@ -78,13 +78,12 @@ jobs:
 
       - name: Run Go and Nim together
         run: |
-          nimble install .
-          cd go-peer
+          nimble install
+          cd interop/autonatv2/go-peer
+          git clone https://github.com/libp2p/go-libp2p
+          cd go-libp2p
+          git apply ../disable-filtering-of-private-ip-addresses.patch
+          cd ..
           go run testautonatv2.go &
-          GO_PID=$!
           cd ../nim-peer
-          nim r -y testautonatv2.nim
-          STATUS=$?
-          # Kill Go process after Nim finishes
-          kill $GO_PID || true
-          exit $STATUS
+          nim r src/nim_peer.nim
