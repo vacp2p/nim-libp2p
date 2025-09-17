@@ -86,4 +86,4 @@ jobs:
           cd ..
           go run testautonatv2.go &
           cd ../nim-peer
-          nim r src/nim_peer.nim
+          nim r src/nim_peer.nim $(cat ../go-peer/peer.id)
