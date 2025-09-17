@@ -11,7 +11,8 @@ proc main() {.async.} =
   var src = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/3030").tryGet()], false)
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/3030").tryGet()])
+    .withAutonatV2Server()
     .withAutonatV2(
       serviceConfig = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
     )
@@ -30,11 +31,10 @@ proc main() {.async.} =
       if not awaiter.finished:
         awaiter.complete()
 
-  let service = cast[AutonatV2Service](src.services[0])
+  let service = cast[AutonatV2Service](src.services[1])
   service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await src.start()
-  echo "connecting with peer " & $dstPeerId
   await src.connect(dstPeerId, @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()])
 
   await awaiter
