@@ -1,8 +1,6 @@
-# Package
-
 version = "0.1.0"
-author = "Gabriel Cruz"
-description = "A new awesome nimble package"
+author = "Status Research & Development Gmb"
+description = "AutoNATv2 peer for interop testing"
 license = "MIT"
 srcDir = "src"
 bin = @["nim_peer"]

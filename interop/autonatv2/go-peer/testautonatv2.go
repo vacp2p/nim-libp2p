@@ -10,7 +10,6 @@ import (
 	libp2p "github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	peer "github.com/libp2p/go-libp2p/core/peer"
-	b58 "github.com/mr-tron/base58"
 )
 
 const (
@@ -89,8 +88,6 @@ func main() {
 	}
 	defer h.Close()
 
-	pidBytes := []byte(pid)
-	fmt.Println(b58.Encode(pidBytes))
 	fmt.Println("Peer ID:", pid.String())
 	fmt.Println("Listen addresses:", h.Addrs())
 	fmt.Println("AutoNATv2 client started.")

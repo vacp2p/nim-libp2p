@@ -6,8 +6,9 @@ proc main() {.async.} =
   if paramCount() != 1:
     quit("Usage: nim r src/nim_peer.nim <peerid>", 1)
 
-  echo paramStr(0)
-  echo paramStr(1)
+  # ensure go peer is started
+  await sleepAsync(3.seconds)
+
   let dstPeerId = PeerId.init(paramStr(1)).get()
 
   var src = SwitchBuilder
