@@ -1,6 +1,20 @@
-import os, chronos, libp2p
+import net, os, chronos, libp2p
 import libp2p/protocols/connectivity/autonatv2/service
 import libp2p/protocols/connectivity/autonatv2/types
+
+proc waitForService(
+    host: string, port: Port, retries: int = 20, delay: Duration = 500.milliseconds
+): Future[bool] {.async.} =
+  for i in 0 ..< retries:
+    try:
+      var s = newSocket()
+      s.connect(host, port)
+      s.close()
+      return true
+    except OSError:
+      discard
+    await sleepAsync(delay)
+  return false
 
 proc main() {.async.} =
   if paramCount() != 1:
@@ -43,4 +57,8 @@ proc main() {.async.} =
   await awaiter
   echo service.networkReachability
 
-waitFor(main())
+when isMainModule:
+  if waitFor(waitForService("127.0.0.1", Port(4040))):
+    waitFor(main())
+  else:
+    quit("timeout waiting for service", 1)
