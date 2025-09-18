@@ -32,6 +32,9 @@ proc init*(
 ): T =
   return T(Alpha: alpha, Beta: beta, Gamma: gamma)
 
+proc get*(header: Header): (seq[byte], seq[byte], seq[byte]) =
+  (header.Alpha, header.Beta, header.Gamma)
+
 proc serialize*(header: Header): seq[byte] =
   doAssert header.Alpha.len == AlphaSize,
     "Alpha must be exactly " & $AlphaSize & " bytes"
@@ -159,6 +162,9 @@ type SphinxPacket* = object
 
 proc init*(T: typedesc[SphinxPacket], header: Header, payload: seq[byte]): T =
   T(Hdr: header, Payload: payload)
+
+proc get*(packet: SphinxPacket): (Header, seq[byte]) =
+  (packet.Hdr, packet.Payload)
 
 proc serialize*(packet: SphinxPacket): seq[byte] =
   let headerBytes = packet.Hdr.serialize()

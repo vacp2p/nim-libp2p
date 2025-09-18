@@ -20,7 +20,7 @@ proc fieldElementToBytes*(fe: FieldElement): seq[byte] =
 proc generateRandomFieldElement*(): Result[FieldElement, string] =
   let rng = HmacDrbgContext.new()
   if rng.isNil:
-    return err("Failed to creat HmacDrbgContext with system randomness")
+    return err("Failed to create HmacDrbgContext with system randomness")
   ok(Curve25519Key.random(rng[]))
 
 # Generate a key pair (private key and public key are both FieldElements)
