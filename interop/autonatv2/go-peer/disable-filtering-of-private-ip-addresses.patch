@@ -61,14 +61,6 @@ diff --git a/p2p/protocol/autonatv2/server.go b/p2p/protocol/autonatv2/server.go
 index 167d3d8e..e6d1e492 100644
 --- a/p2p/protocol/autonatv2/server.go
 +++ b/p2p/protocol/autonatv2/server.go
-@@ -189,6 +189,7 @@ func (as *server) serveDialRequest(s network.Stream) EventDialRequestCompleted {
- 	var dialAddr ma.Multiaddr
- 	var addrIdx int
- 	for i, ab := range msg.GetDialRequest().GetAddrs() {
-+		log.Debug("here", i, ab)
- 		if i >= maxPeerAddresses {
- 			break
- 		}
 @@ -196,9 +197,6 @@ func (as *server) serveDialRequest(s network.Stream) EventDialRequestCompleted {
  		if err != nil {
  			continue
@@ -79,41 +71,6 @@ index 167d3d8e..e6d1e492 100644
  		if !as.dialerHost.Network().CanDial(p, a) {
  			continue
  		}
-@@ -206,6 +204,7 @@ func (as *server) serveDialRequest(s network.Stream) EventDialRequestCompleted {
- 		addrIdx = i
- 		break
- 	}
-+	log.Debug("here0")
- 	// No dialable address
- 	if dialAddr == nil {
- 		msg = pb.Message{
-@@ -229,8 +228,10 @@ func (as *server) serveDialRequest(s network.Stream) EventDialRequestCompleted {
- 			ResponseStatus: pb.DialResponse_E_DIAL_REFUSED,
- 		}
- 	}
-+	log.Debug("here1")
- 
- 	nonce := msg.GetDialRequest().Nonce
-+	log.Debug("here2")
- 
- 	isDialDataRequired := as.dialDataRequestPolicy(s.Conn().RemoteMultiaddr(), dialAddr)
- 	if isDialDataRequired && !as.limiter.AcceptDialDataRequest() {
-@@ -260,6 +261,7 @@ func (as *server) serveDialRequest(s network.Stream) EventDialRequestCompleted {
- 			DialDataRequired: true,
- 		}
- 	}
-+	log.Debug("here3")
- 
- 	if isDialDataRequired {
- 		if err := getDialData(w, s, &msg, addrIdx); err != nil {
-@@ -287,6 +289,7 @@ func (as *server) serveDialRequest(s network.Stream) EventDialRequestCompleted {
- 		case <-t.C:
- 		}
- 	}
-+	log.Debug("here4")
- 
- 	dialStatus := as.dialBack(ctx, s.Conn().RemotePeer(), dialAddr, nonce)
- 	msg = pb.Message{
 -- 
 2.51.0
 
