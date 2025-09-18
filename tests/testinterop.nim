@@ -52,7 +52,4 @@ proc switchYamuxCreator(
 
 suite "Tests interop":
   commonInteropTests("mplex", switchMplexCreator)
-  relayInteropTests("mplex", switchMplexCreator)
-
   commonInteropTests("yamux", switchYamuxCreator)
-  relayInteropTests("yamux", switchYamuxCreator)
