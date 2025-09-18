@@ -1,17 +1,8 @@
 import chronos, chronicles, stew/byteutils
 import helpers
 import ../libp2p
-import ../libp2p/[daemon/daemonapi, varint, transports/wstransport, crypto/crypto]
+import ../libp2p/[varint, transports/wstransport, crypto/crypto]
 import ../libp2p/protocols/connectivity/relay/[relay, client, utils]
-
-type
-  SwitchCreator = proc(
-    ma: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    prov = proc(config: TransportConfig): Transport =
-      TcpTransport.new({}, config.upgr),
-    relay: Relay = Relay.new(circuitRelayV1 = true),
-  ): Switch {.gcsafe, raises: [LPError].}
-  DaemonPeerInfo = daemonapi.PeerInfo
 
 proc writeLp(s: StreamTransport, msg: string | seq[byte]): Future[int] {.gcsafe.} =
   ## write lenght prefixed
@@ -37,130 +28,6 @@ proc readLp(s: StreamTransport): Future[seq[byte]] {.async.} =
   result.setLen(size)
   if size > 0.uint:
     await s.readExactly(addr result[0], int(size))
-
-proc testPubSubDaemonPublish(
-    gossip: bool = false, count: int = 1, swCreator: SwitchCreator
-) {.async.} =
-  var pubsubData = "TEST MESSAGE"
-  var testTopic = "test-topic"
-  var msgData = pubsubData.toBytes()
-
-  var flags = {PSFloodSub}
-  if gossip:
-    flags = {PSGossipSub}
-
-  let daemonNode = await newDaemonApi(flags)
-  let daemonPeer = await daemonNode.identity()
-  let nativeNode = swCreator()
-
-  let pubsub =
-    if gossip:
-      GossipSub.init(switch = nativeNode).PubSub
-    else:
-      FloodSub.init(switch = nativeNode).PubSub
-
-  nativeNode.mount(pubsub)
-
-  await nativeNode.start()
-  await pubsub.start()
-  let nativePeer = nativeNode.peerInfo
-
-  var finished = false
-  var times = 0
-  proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
-    let smsg = string.fromBytes(data)
-    check smsg == pubsubData
-    times.inc()
-    if times >= count and not finished:
-      finished = true
-
-  await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
-
-  await sleepAsync(500.millis)
-  await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-
-  proc pubsubHandler(
-      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.async: (raises: [CatchableError]).} =
-    result = true # don't cancel subscription
-
-  asyncDiscard daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  pubsub.subscribe(testTopic, nativeHandler)
-  await sleepAsync(3.seconds)
-
-  proc publisher() {.async.} =
-    while not finished:
-      await daemonNode.pubsubPublish(testTopic, msgData)
-      await sleepAsync(250.millis)
-
-  await wait(publisher(), 5.minutes) # should be plenty of time
-
-  await nativeNode.stop()
-  await pubsub.stop()
-  await daemonNode.close()
-
-proc testPubSubNodePublish(
-    gossip: bool = false, count: int = 1, swCreator: SwitchCreator
-) {.async.} =
-  var pubsubData = "TEST MESSAGE"
-  var testTopic = "test-topic"
-  var msgData = pubsubData.toBytes()
-
-  var flags = {PSFloodSub}
-  if gossip:
-    flags = {PSGossipSub}
-
-  let daemonNode = await newDaemonApi(flags)
-  let daemonPeer = await daemonNode.identity()
-  let nativeNode = swCreator()
-
-  let pubsub =
-    if gossip:
-      GossipSub.init(switch = nativeNode).PubSub
-    else:
-      FloodSub.init(switch = nativeNode).PubSub
-
-  nativeNode.mount(pubsub)
-
-  await nativeNode.start()
-  await pubsub.start()
-  let nativePeer = nativeNode.peerInfo
-
-  await nativeNode.connect(daemonPeer.peer, daemonPeer.addresses)
-
-  await sleepAsync(500.millis)
-  await daemonNode.connect(nativePeer.peerId, nativePeer.addrs)
-
-  var times = 0
-  var finished = false
-  proc pubsubHandler(
-      api: DaemonAPI, ticket: PubsubTicket, message: PubSubMessage
-  ): Future[bool] {.async: (raises: [CatchableError]).} =
-    let smsg = string.fromBytes(message.data)
-    check smsg == pubsubData
-    times.inc()
-    if times >= count and not finished:
-      finished = true
-    result = true # don't cancel subscription
-
-  discard await daemonNode.pubsubSubscribe(testTopic, pubsubHandler)
-  proc nativeHandler(topic: string, data: seq[byte]) {.async.} =
-    discard
-
-  pubsub.subscribe(testTopic, nativeHandler)
-  await sleepAsync(3.seconds)
-
-  proc publisher() {.async.} =
-    while not finished:
-      discard await pubsub.publish(testTopic, msgData)
-      await sleepAsync(250.millis)
-
-  await wait(publisher(), 5.minutes) # should be plenty of time
-
-  check finished
-  await nativeNode.stop()
-  await pubsub.stop()
-  await daemonNode.close()
 
 proc commonInteropTests*(name: string, swCreator: SwitchCreator) =
   suite "Interop using " & name:

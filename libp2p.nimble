@@ -49,9 +49,6 @@ proc tutorialToMd(filename: string) =
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
 
-task testdaemon, "Runs daemon tests":
-  runTest("testdaemon")
-
 task testinterop, "Runs interop tests":
   runTest("testinterop")
 
