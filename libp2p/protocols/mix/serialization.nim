@@ -19,7 +19,6 @@ const
     # Size of a surb packet inside the message payload
   SurbLenSize* = 1 # Size of the field storing the number of surbs
   SurbIdLen* = k # Size of the identifier used when sending a message with surb
-  DefaultSurbs* = uint8(4) # Default number of SURBs to send
 
 type Header* = object
   Alpha*: seq[byte]

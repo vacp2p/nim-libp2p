@@ -221,7 +221,7 @@ proc wrapInSphinxPacket*(
     delay: openArray[seq[byte]],
     hop: openArray[Hop],
     destHop: Hop,
-): Result[seq[byte], string] =
+): Result[SphinxPacket, string] =
   # Compute alpha and shared secrets
   let (alpha_0, s) = computeAlpha(publicKeys).valueOr:
     return err("Error in alpha generation: " & error)
@@ -239,9 +239,7 @@ proc wrapInSphinxPacket*(
   # Serialize sphinx packet
   let sphinxPacket = SphinxPacket.init(Header.init(alpha_0, beta_0, gamma_0), delta_0)
 
-  let serialized = sphinxPacket.serialize()
-
-  return ok(serialized)
+  return ok(sphinxPacket)
 
 type ProcessedSphinxPacket* = object
   case status*: ProcessingStatus
