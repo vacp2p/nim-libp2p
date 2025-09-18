@@ -1,11 +1,13 @@
 import results, sequtils, stew/endians2
 import ./[crypto, curve25519, serialization, tag_manager]
+import ../../crypto/crypto
 
 type ProcessingStatus* = enum
-  Exit # Packet processed successfully at exit
-  Intermediate # Packet processed successfully at intermediate node
-  Duplicate # Packet was discarded due to duplicate tag
-  InvalidMAC # Packet was discarded due to MAC verification failure
+  Exit
+  Intermediate
+  Reply
+  Duplicate
+  InvalidMAC
 
 proc computeAlpha(
     publicKeys: openArray[FieldElement]
@@ -81,8 +83,6 @@ proc computeFillerStrings(s: seq[seq[byte]]): Result[seq[byte], string] =
 
 const paddingLength = (((t + 1) * (r - L)) + 1) * k
 
-# Function to compute:
-
 proc computeBetaGamma(
     s: seq[seq[byte]],
     hop: openArray[Hop],
@@ -149,6 +149,74 @@ proc computeDelta(s: seq[seq[byte]], msg: Message): Result[seq[byte], string] =
 
   return ok(delta)
 
+proc createSURB*(
+    publicKeys: openArray[FieldElement],
+    delay: openArray[seq[byte]],
+    hops: openArray[Hop],
+    id: I,
+    rng: ref HmacDrbgContext = newRng(),
+): Result[SURB, string] =
+  if id == default(I):
+    return err("id should be initialized")
+
+  # Compute alpha and shared secrets
+  let (alpha_0, s) = computeAlpha(publicKeys).valueOr:
+    return err("Error in alpha generation: " & error)
+
+  # Compute beta and gamma
+  let (beta_0, gamma_0) = computeBetaGamma(s, hops, delay, Hop(), id).valueOr:
+    return err("Error in beta and gamma generation: " & error)
+
+  # Generate key
+  var key = newSeqUninitialized[byte](k)
+  rng[].generate(key)
+
+  return ok(
+    SURB(
+      hop: hops[0],
+      header: Header.init(alpha_0, beta_0, gamma_0),
+      secret: Opt.some(s),
+      key: key,
+    )
+  )
+
+proc useSURB*(header: Header, key: seq[byte], msg: Message): Result[seq[byte], string] =
+  # Derive AES key and IV
+  let
+    delta_aes_key = deriveKeyMaterial("delta_aes_key", key).kdf()
+    delta_iv = deriveKeyMaterial("delta_iv", key).kdf()
+
+  # Compute Delta
+  let serializedMsg = msg.serialize()
+  let delta = aes_ctr(delta_aes_key, delta_iv, serializedMsg)
+  let serialized = SphinxPacket.init(header, delta).serialize()
+
+  return ok(serialized)
+
+proc processReply*(
+    key: seq[byte], s: seq[seq[byte]], delta_prime: seq[byte]
+): Result[seq[byte], string] =
+  var delta = delta_prime[0 ..^ 1]
+
+  for i in 0 .. s.len:
+    var key_prime: seq[byte]
+
+    if i == 0:
+      key_prime = key
+    else:
+      key_prime = s[i - 1]
+
+    let
+      delta_aes_key = deriveKeyMaterial("delta_aes_key", key_prime).kdf()
+      delta_iv = deriveKeyMaterial("delta_iv", key_prime).kdf()
+
+    delta = aes_ctr(delta_aes_key, delta_iv, delta)
+
+  let deserializeMsg = Message.deserialize(delta).valueOr:
+    return err("Message deserialization error: " & error)
+
+  return ok(deserializeMsg)
+
 proc wrapInSphinxPacket*(
     msg: Message,
     publicKeys: openArray[FieldElement],
@@ -184,6 +252,9 @@ type ProcessedSphinxPacket* = object
     nextHop*: Hop
     delayMs*: int
     serializedSphinxPacket*: seq[byte]
+  of ProcessingStatus.Reply:
+    id*: I
+    delta_prime*: seq[byte]
   else:
     discard
 
@@ -251,8 +322,10 @@ proc processSphinxPacket*(
       else:
         return err("delta_prime should be all zeros")
     elif B[0 .. (t * k) - 1] == newSeq[byte](t * k):
-      # TODO: handle REPLY case
-      discard
+      let idSeq = B[(t * k) .. (((t + 1) * k) - 1)]
+      var id: I
+      copyMem(addr id[0], unsafeAddr idSeq[0], k)
+      return ok(ProcessedSphinxPacket(status: Reply, id: id, delta_prime: delta_prime))
   else:
     # Extract routing information from B
     let routingInfo = RoutingInfo.deserialize(B).valueOr:
