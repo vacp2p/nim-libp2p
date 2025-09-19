@@ -69,16 +69,6 @@ jobs:
           nim_ref: ${{ matrix.nim.ref }}
           cpu: ${{ matrix.cpu }}
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '~1.16.0'
-          cache: false
-
-      - name: Install p2pd
-        run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
-
       - name: Install dependencies (pinned)
         if: ${{ inputs.pinned_deps }}
         run: |
