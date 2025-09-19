@@ -6,6 +6,11 @@ const PaddingLengthSize* = 2
 const SeqNoSize* = 4
 const DataSize* = MessageSize - PaddingLengthSize - SeqNoSize
 
+# Unpadding and reassembling messages will be handled by the top-level applications.
+# Although padding and splitting messages could also be managed at that level, we 
+# implement it here to clarify the sender's logic.
+# This is crucial as the sender is responsible for wrapping messages in Sphinx packets.
+
 type MessageChunk* = object
   paddingLength: uint16
   data: seq[byte]
@@ -43,7 +48,7 @@ proc deserialize*(T: typedesc[MessageChunk], data: openArray[byte]): Result[T, s
 proc ceilDiv*(a, b: int): int =
   (a + b - 1) div b
 
-proc padMessage*(messageBytes: seq[byte], peerId: PeerId): MessageChunk =
+proc addPadding*(messageBytes: seq[byte], peerId: PeerId): MessageChunk =
   ## Pads messages smaller than DataSize
   var seqNoGen = SeqNo.init(peerId)
   seqNoGen.generate(messageBytes)
@@ -59,7 +64,7 @@ proc padMessage*(messageBytes: seq[byte], peerId: PeerId): MessageChunk =
 
   MessageChunk(paddingLength: paddingLength, data: paddedData, seqNo: seqNoGen)
 
-proc unpadMessage*(msgChunk: MessageChunk): Result[seq[byte], string] =
+proc removePadding*(msgChunk: MessageChunk): Result[seq[byte], string] =
   let msgLength = len(msgChunk.data) - int(msgChunk.paddingLength)
   if msgLength < 0:
     return err("Invalid padding length")
@@ -95,7 +100,3 @@ proc padAndChunkMessage*(messageBytes: seq[byte], peerId: PeerId): seq[MessageCh
     seqNoGen.inc()
 
   return chunks
-
-# TODO: Unpadding and reassembling messages will be handled by the top-level applications.
-# Although padding and splitting messages could also be managed at that level, we implement it here to clarify the sender's logic.
-# This is crucial as the sender is responsible for wrapping messages in Sphinx packets.

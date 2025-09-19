@@ -1,6 +1,7 @@
 import results, sequtils, stew/endians2
 import ./[crypto, curve25519, serialization, tag_manager]
 import ../../crypto/crypto
+import ../../utils/sequninit
 
 type ProcessingStatus* = enum
   Exit
@@ -88,7 +89,7 @@ proc computeBetaGamma(
     hop: openArray[Hop],
     delay: openArray[seq[byte]],
     destHop: Hop,
-    id: I,
+    id: SURBIdentifier,
 ): Result[tuple[beta: seq[byte], gamma: seq[byte]], string] =
   ## Calculates the following elements:
   ## - Beta: The nested encrypted routing information. It encodes the next hop address, the forwarding delay, integrity check Gamma for the next hop, and the Beta for subsequent hops.
@@ -153,10 +154,10 @@ proc createSURB*(
     publicKeys: openArray[FieldElement],
     delay: openArray[seq[byte]],
     hops: openArray[Hop],
-    id: I,
+    id: SURBIdentifier,
     rng: ref HmacDrbgContext = newRng(),
 ): Result[SURB, string] =
-  if id == default(I):
+  if id == default(SURBIdentifier):
     return err("id should be initialized")
 
   # Compute alpha and shared secrets
@@ -168,7 +169,7 @@ proc createSURB*(
     return err("Error in beta and gamma generation: " & error)
 
   # Generate key
-  var key = newSeqUninitialized[byte](k)
+  var key = newSeqUninit[byte](k)
   rng[].generate(key)
 
   return ok(
@@ -198,12 +199,9 @@ proc processReply*(
 ): Result[seq[byte], string] =
   var delta = delta_prime[0 ..^ 1]
 
+  var key_prime = key
   for i in 0 .. s.len:
-    var key_prime: seq[byte]
-
-    if i == 0:
-      key_prime = key
-    else:
+    if i != 0:
       key_prime = s[i - 1]
 
     let
@@ -229,7 +227,9 @@ proc wrapInSphinxPacket*(
     return err("Error in alpha generation: " & error)
 
   # Compute beta and gamma
-  let (beta_0, gamma_0) = computeBetaGamma(s, hop, delay, destHop, default(I)).valueOr:
+  let (beta_0, gamma_0) = computeBetaGamma(
+    s, hop, delay, destHop, default(SURBIdentifier)
+  ).valueOr:
     return err("Error in beta and gamma generation: " & error)
 
   # Compute delta
@@ -253,7 +253,7 @@ type ProcessedSphinxPacket* = object
     delayMs*: int
     serializedSphinxPacket*: seq[byte]
   of ProcessingStatus.Reply:
-    id*: I
+    id*: SURBIdentifier
     delta_prime*: seq[byte]
   else:
     discard
@@ -323,7 +323,7 @@ proc processSphinxPacket*(
         return err("delta_prime should be all zeros")
     elif B[0 .. (t * k) - 1] == newSeq[byte](t * k):
       let idSeq = B[(t * k) .. (((t + 1) * k) - 1)]
-      var id: I
+      var id: SURBIdentifier
       copyMem(addr id[0], unsafeAddr idSeq[0], k)
       return ok(ProcessedSphinxPacket(status: Reply, id: id, delta_prime: delta_prime))
   else:

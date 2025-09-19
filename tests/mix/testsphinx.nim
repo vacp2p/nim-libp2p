@@ -6,7 +6,7 @@ import ../../libp2p/protocols/mix/[curve25519, serialization, sphinx, tag_manage
 import bearssl/rand
 
 # Helper function to pad/truncate message
-proc padMessage(message: openArray[byte], size: int): seq[byte] =
+proc addPadding(message: openArray[byte], size: int): seq[byte] =
   if message.len >= size:
     return message[0 .. size - 1] # Truncate if larger
   else:
@@ -39,8 +39,8 @@ proc createDummyData(): (
     dest = Hop.init(newSeq[byte](AddrSize))
   return (message, privateKeys, publicKeys, delay, hops, dest)
 
-proc randomI(): I =
-  newRng()[].generate(I)
+template randomI(): SURBIdentifier =
+  newRng()[].generate(SURBIdentifier)
 
 # Unit tests for sphinx.nim
 suite "Sphinx Tests":
@@ -52,7 +52,7 @@ suite "Sphinx Tests":
   teardown:
     clearTags(tm)
 
-  test "sphinx_wrap_and_process":
+  test "sphinx wrap and process":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
     let packetBytes = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
@@ -94,7 +94,7 @@ suite "Sphinx Tests":
       processedSP3.status == Exit
       processedSP3.messageChunk == message
 
-  test "sphinx_wrap_empty_public_keys":
+  test "sphinx wrap empty public keys":
     let (message, _, _, delay, _, dest) = createDummyData()
     check wrapInSphinxPacket(message, @[], delay, @[], dest).isErr
 
@@ -118,7 +118,7 @@ suite "Sphinx Tests":
 
     check invalidMacPkt.status == InvalidMAC
 
-  test "sphinx_process_duplicate_tag":
+  test "sphinx process duplicate tag":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
     let packetBytes = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
@@ -140,7 +140,7 @@ suite "Sphinx Tests":
 
     check processedSP2.status == Duplicate
 
-  test "sphinx_wrap_and_process_message_sizes":
+  test "sphinx wrap and process message sizes":
     let MessageSizes = @[32, 64, 128, 256, 512]
     for size in MessageSizes:
       let (_, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
@@ -148,7 +148,7 @@ suite "Sphinx Tests":
       randomize()
       for i in 0 ..< size:
         message[i] = byte(rand(256))
-      let paddedMessage = padMessage(message, MessageSize)
+      let paddedMessage = addPadding(message, MessageSize)
 
       let packetBytes = wrapInSphinxPacket(paddedMessage, publicKeys, delay, hops, dest)
         .expect("Sphinx wrap error")
@@ -187,7 +187,7 @@ suite "Sphinx Tests":
         processedSP3.status == Exit
         processedSP3.messageChunk == paddedMessage
 
-  test "create_and_use_surb":
+  test "create and use surb":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
@@ -232,11 +232,11 @@ suite "Sphinx Tests":
 
     check msg == message
 
-  test "create_surb_empty_public_keys":
+  test "create surb empty public keys":
     let (message, _, _, delay, _, _) = createDummyData()
     check createSURB(@[], delay, @[], randomI()).isErr()
 
-  test "surb_sphinx_process_invalid_mac":
+  test "surb sphinx process invalid mac":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
@@ -259,7 +259,7 @@ suite "Sphinx Tests":
 
     check processedSP1.status == InvalidMAC
 
-  test "surb_sphinx_process_duplicate_tag":
+  test "surb sphinx process duplicate tag":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
@@ -282,7 +282,7 @@ suite "Sphinx Tests":
 
     check processedSP2.status == Duplicate
 
-  test "create_and_use_surb_message_sizes":
+  test "create and use surb message sizes":
     let messageSizes = @[32, 64, 128, 256, 512]
     for size in messageSizes:
       let (_, privateKeys, publicKeys, delay, hops, _) = createDummyData()
@@ -290,7 +290,7 @@ suite "Sphinx Tests":
       randomize()
       for i in 0 ..< size:
         message[i] = byte(rand(256))
-      let paddedMessage = padMessage(message, MessageSize)
+      let paddedMessage = addPadding(message, MessageSize)
 
       let surb =
         createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")

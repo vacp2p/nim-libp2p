@@ -183,7 +183,7 @@ type
 
   Key* = seq[byte]
 
-  I* = array[SurbIdLen, byte]
+  SURBIdentifier* = array[SurbIdLen, byte]
 
   SURB* = object
     hop*: Hop
