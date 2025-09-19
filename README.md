@@ -149,7 +149,6 @@ List of packages modules implemented in nim-libp2p:
 | [connmanager](libp2p/connmanager.nim)                      | Connection manager                                                                                               |
 | [identify / push identify](libp2p/protocols/identify.nim)  | [Identify](https://docs.libp2p.io/concepts/fundamentals/protocols/#identify) protocol                            |
 | [ping](libp2p/protocols/ping.nim)                          | [Ping](https://docs.libp2p.io/concepts/fundamentals/protocols/#ping) protocol                                    |
-| [interop-libp2p](tests/testinterop.nim)                    | Interop tests                                                                                                    |
 | **Transports**                                             |                                                                                                                  |
 | [libp2p-tcp](libp2p/transports/tcptransport.nim)           | TCP transport                                                                                                    |
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |

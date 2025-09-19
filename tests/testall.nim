@@ -1,3 +1,3 @@
 {.used.}
 
-import testnative, ./pubsub/testpubsub, testinterop
+import testnative, ./pubsub/testpubsub
