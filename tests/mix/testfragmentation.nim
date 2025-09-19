@@ -23,14 +23,14 @@ suite "Fragmentation":
       message = cast[seq[byte]]("Hello, World!")
       messageBytesLen = len(message)
       paddedMsg = addPadding(message, peerId)
-      msg = removePadding(paddedMsg).expect("Unpad error")
+      unpaddedMessage = removePadding(paddedMsg).expect("Unpad error")
 
     let (paddingLength, data, _) = paddedMsg.get()
 
     check:
       paddingLength == uint16(DataSize - messageBytesLen)
       data.len == DataSize
-      msg.len == messageBytesLen
+      unpaddedMessage.len == messageBytesLen
 
   test "pad and chunk large message":
     let

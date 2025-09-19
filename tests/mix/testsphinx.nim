@@ -192,7 +192,7 @@ suite "Sphinx Tests":
 
     let surb =
       createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
-    let packetBytes = useSURB(surb.header, surb.key, message).expect("Use SURB error")
+    let packetBytes = useSURB(surb, message).serialize()
 
     check packetBytes.len == PacketSize
 
@@ -242,13 +242,13 @@ suite "Sphinx Tests":
     let surb =
       createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
 
-    let packet = useSURB(surb.header, surb.key, message).expect("Use SURB error")
+    let packetBytes = useSURB(surb, message).serialize()
 
-    check packet.len == PacketSize
+    check packetBytes.len == PacketSize
 
     # Corrupt the MAC for testing
-    var tamperedPacketBytes = packet
-    tamperedPacketBytes[0] = packet[0] xor 0x01
+    var tamperedPacketBytes = packetBytes
+    tamperedPacketBytes[0] = packetBytes[0] xor 0x01
 
     let tamperedPacket =
       SphinxPacket.deserialize(tamperedPacketBytes).expect("Sphinx wrap error")
@@ -265,7 +265,7 @@ suite "Sphinx Tests":
     let surb =
       createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
 
-    let packetBytes = useSURB(surb.header, surb.key, message).expect("Use SURB error")
+    let packetBytes = useSURB(surb, message).serialize()
 
     check packetBytes.len == PacketSize
 
@@ -295,8 +295,7 @@ suite "Sphinx Tests":
       let surb =
         createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
 
-      let packetBytes =
-        useSURB(surb.header, surb.key, Message(paddedMessage)).expect("Use SURB error")
+      let packetBytes = useSURB(surb, Message(paddedMessage)).serialize()
 
       check packetBytes.len == PacketSize
 

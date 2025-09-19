@@ -3,6 +3,8 @@ import ./[crypto, curve25519, serialization, tag_manager]
 import ../../crypto/crypto
 import ../../utils/sequninit
 
+const PaddingLength = (((t + 1) * (r - L)) + 1) * k
+
 type ProcessingStatus* = enum
   Exit
   Intermediate
@@ -82,8 +84,6 @@ proc computeFillerStrings(s: seq[seq[byte]]): Result[seq[byte], string] =
 
   return ok(filler)
 
-const paddingLength = (((t + 1) * (r - L)) + 1) * k
-
 proc computeBetaGamma(
     s: seq[seq[byte]],
     hop: openArray[Hop],
@@ -113,7 +113,7 @@ proc computeBetaGamma(
     # Compute Beta and Gamma
     if i == sLen - 1:
       let destBytes = destHop.serialize()
-      let destPadding = destBytes & delay[i] & @id & newSeq[byte](paddingLength)
+      let destPadding = destBytes & delay[i] & @id & newSeq[byte](PaddingLength)
 
       let aes = aes_ctr(beta_aes_key, beta_iv, destPadding)
 
@@ -181,18 +181,17 @@ proc createSURB*(
     )
   )
 
-proc useSURB*(header: Header, key: seq[byte], msg: Message): Result[seq[byte], string] =
+proc useSURB*(surb: SURB, msg: Message): SphinxPacket =
   # Derive AES key and IV
   let
-    delta_aes_key = deriveKeyMaterial("delta_aes_key", key).kdf()
-    delta_iv = deriveKeyMaterial("delta_iv", key).kdf()
+    delta_aes_key = deriveKeyMaterial("delta_aes_key", surb.key).kdf()
+    delta_iv = deriveKeyMaterial("delta_iv", surb.key).kdf()
 
   # Compute Delta
   let serializedMsg = msg.serialize()
   let delta = aes_ctr(delta_aes_key, delta_iv, serializedMsg)
-  let serialized = SphinxPacket.init(header, delta).serialize()
 
-  return ok(serialized)
+  return SphinxPacket.init(surb.header, delta)
 
 proc processReply*(
     key: seq[byte], s: seq[seq[byte]], delta_prime: seq[byte]
@@ -258,6 +257,21 @@ type ProcessedSphinxPacket* = object
   else:
     discard
 
+proc isZeros(data: seq[byte], startIdx: int, endIdx: int): bool =
+  doAssert 0 <= startIdx and endIdx < data.len and startIdx <= endIdx
+  for i in startIdx .. endIdx:
+    if data[i] != 0:
+      return false
+  return true
+
+template extractSurbId(data: seq[byte]): SURBIdentifier =
+  const startIndex = t * k
+  const endIndex = startIndex + SurbIdLen - 1
+  doAssert data.len > startIndex and endIndex < data.len
+  var id: SURBIdentifier
+  copyMem(addr id[0], addr data[startIndex], SurbIdLen)
+  id
+
 proc processSphinxPacket*(
     sphinxPacket: SphinxPacket, privateKey: FieldElement, tm: var TagManager
 ): Result[ProcessedSphinxPacket, string] =
@@ -299,19 +313,16 @@ proc processSphinxPacket*(
   let delta_prime = aes_ctr(delta_aes_key, delta_iv, payload)
 
   # Compute B
-  var zeroPadding = newSeq[byte]((t + 1) * k)
-
+  let zeroPadding = newSeq[byte]((t + 1) * k)
   let B = aes_ctr(beta_aes_key, beta_iv, beta & zeroPadding)
 
   # Check if B has the required prefix for the original message
-  zeroPadding = newSeq[byte](paddingLength)
-
-  if B[((t + 1) * k) .. ((t + 1) * k) + paddingLength - 1] == zeroPadding:
+  if B.isZeros((t + 1) * k, ((t + 1) * k) + PaddingLength - 1):
     let hop = Hop.deserialize(B[0 .. AddrSize - 1]).valueOr:
       return err(error)
 
-    if B[AddrSize .. ((t + 1) * k) - 1] == newSeq[byte](k + 2):
-      if delta_prime[0 .. (k - 1)] == newSeq[byte](k):
+    if B.isZeros(AddrSize, ((t + 1) * k) - 1):
+      if delta_prime.isZeros(0, k - 1):
         let msg = Message.deserialize(delta_prime).valueOr:
           return err("Message deserialization error: " & error)
         return ok(
@@ -321,11 +332,12 @@ proc processSphinxPacket*(
         )
       else:
         return err("delta_prime should be all zeros")
-    elif B[0 .. (t * k) - 1] == newSeq[byte](t * k):
-      let idSeq = B[(t * k) .. (((t + 1) * k) - 1)]
-      var id: SURBIdentifier
-      copyMem(addr id[0], unsafeAddr idSeq[0], k)
-      return ok(ProcessedSphinxPacket(status: Reply, id: id, delta_prime: delta_prime))
+    elif B.isZeros(0, (t * k) - 1):
+      return ok(
+        ProcessedSphinxPacket(
+          status: Reply, id: B.extractSurbId(), delta_prime: delta_prime
+        )
+      )
   else:
     # Extract routing information from B
     let routingInfo = RoutingInfo.deserialize(B).valueOr:

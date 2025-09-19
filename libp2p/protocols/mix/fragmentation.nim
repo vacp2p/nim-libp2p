@@ -48,21 +48,22 @@ proc deserialize*(T: typedesc[MessageChunk], data: openArray[byte]): Result[T, s
 proc ceilDiv*(a, b: int): int =
   (a + b - 1) div b
 
-proc addPadding*(messageBytes: seq[byte], peerId: PeerId): MessageChunk =
+proc addPadding*(messageBytes: seq[byte], seqNo: SeqNo): MessageChunk =
   ## Pads messages smaller than DataSize
-  var seqNoGen = SeqNo.init(peerId)
-  seqNoGen.generate(messageBytes)
-
   let paddingLength = uint16(DataSize - messageBytes.len)
-
   let paddedData =
     if paddingLength > 0:
       let paddingBytes = newSeq[byte](paddingLength)
       paddingBytes & messageBytes
     else:
       messageBytes
+  MessageChunk(paddingLength: paddingLength, data: paddedData, seqNo: seqNo)
 
-  MessageChunk(paddingLength: paddingLength, data: paddedData, seqNo: seqNoGen)
+proc addPadding*(messageBytes: seq[byte], peerId: PeerId): MessageChunk =
+  ## Pads messages smaller than DataSize
+  var seqNoGen = SeqNo.init(peerId)
+  seqNoGen.generate(messageBytes)
+  messageBytes.addPadding(seqNoGen)
 
 proc removePadding*(msgChunk: MessageChunk): Result[seq[byte], string] =
   let msgLength = len(msgChunk.data) - int(msgChunk.paddingLength)
@@ -85,16 +86,8 @@ proc padAndChunkMessage*(messageBytes: seq[byte], peerId: PeerId): seq[MessageCh
       startIdx = i * DataSize
       endIdx = min(startIdx + DataSize, messageBytes.len)
       chunkData = messageBytes[startIdx .. endIdx - 1]
-      paddingLength = uint16(DataSize - chunkData.len)
+      msgChunk = chunkData.addPadding(seqNoGen)
 
-    let paddedData =
-      if paddingLength > 0:
-        let paddingBytes = newSeq[byte](paddingLength)
-        paddingBytes & chunkData
-      else:
-        chunkData
-
-    let msgChunk = MessageChunk.init(paddingLength, paddedData, seqNoGen)
     chunks.add(msgChunk)
 
     seqNoGen.inc()
