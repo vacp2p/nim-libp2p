@@ -47,7 +47,7 @@ nimble install libp2p
 You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/). See [examples](./examples) for simple usage patterns.
 
 ## Getting Started
-Try out the chat example. For this you'll need to have [`go-libp2p-daemon`](examples/go-daemon/daemonapi.md) running. Full code can be found [here](https://github.com/status-im/nim-libp2p/blob/master/examples/chat.nim):
+Try out the chat example. Full code can be found [here](https://github.com/status-im/nim-libp2p/blob/master/examples/chat.nim):
 
 ```bash
 nim c -r --threads:on examples/directchat.nim
@@ -80,12 +80,6 @@ Run unit tests:
 ```sh
 # run all the unit tests
 nimble test
-```
-**Obs:** Running all tests requires the [`go-libp2p-daemon` to be installed and running](examples/go-daemon/daemonapi.md).
-
-If you only want to run tests that don't require `go-libp2p-daemon`, use:
-```
-nimble testnative
 ```
 
 For a list of all available test suites, use:
@@ -155,8 +149,6 @@ List of packages modules implemented in nim-libp2p:
 | [connmanager](libp2p/connmanager.nim)                      | Connection manager                                                                                               |
 | [identify / push identify](libp2p/protocols/identify.nim)  | [Identify](https://docs.libp2p.io/concepts/fundamentals/protocols/#identify) protocol                            |
 | [ping](libp2p/protocols/ping.nim)                          | [Ping](https://docs.libp2p.io/concepts/fundamentals/protocols/#ping) protocol                                    |
-| [libp2p-daemon-client](libp2p/daemon/daemonapi.nim)        | [go-daemon](https://github.com/libp2p/go-libp2p-daemon) nim wrapper                                              |
-| [interop-libp2p](tests/testinterop.nim)                    | Interop tests                                                                                                    |
 | **Transports**                                             |                                                                                                                  |
 | [libp2p-tcp](libp2p/transports/tcptransport.nim)           | TCP transport                                                                                                    |
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |

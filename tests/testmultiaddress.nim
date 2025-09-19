@@ -123,7 +123,7 @@ const
     "/ip4/127.0.0.1/ipfs", "/ip4/127.0.0.1/ipfs/tcp", "/p2p-circuit/50",
   ]
 
-  PathVectors = ["/unix/tmp/p2pd.sock", "/unix/a/b/c/d/e/f/g/h/i.sock"]
+  PathVectors = ["/unix/a/b/c/d/e/f/g/h/i.sock"]
 
   PathExpects = [
     "90030E2F746D702F703270642E736F636B",
