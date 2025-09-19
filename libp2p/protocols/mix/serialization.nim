@@ -139,6 +139,23 @@ proc serialize*(info: RoutingInfo): seq[byte] =
 
   return addrBytes & info.Delay & info.Gamma & info.Beta
 
+proc readBytes(
+    data: openArray[byte], offset: var int, readSize: Opt[int] = Opt.none(int)
+): Result[seq[byte], string] =
+  if data.len < offset:
+    return err("not enough data")
+
+  readSize.withValue(size):
+    if data.len < offset + size:
+      return err("not enough data")
+    let slice = data[offset ..< offset + size]
+    offset += size
+    return ok(slice)
+
+  let slice = data[offset .. ^1]
+  offset = data.len
+  return ok(slice)
+
 proc deserialize*(T: typedesc[RoutingInfo], data: openArray[byte]): Result[T, string] =
   if len(data) != BetaSize + ((t + 1) * k):
     return err("Data must be exactly " & $(BetaSize + ((t + 1) * k)) & " bytes")
@@ -146,13 +163,13 @@ proc deserialize*(T: typedesc[RoutingInfo], data: openArray[byte]): Result[T, st
   let hop = Hop.deserialize(data[0 .. AddrSize - 1]).valueOr:
     return err("Deserialize hop error: " & error)
 
+  var offset: int = AddrSize
   return ok(
     RoutingInfo(
       Addr: hop,
-      Delay: data[AddrSize .. (AddrSize + DelaySize - 1)],
-      Gamma: data[(AddrSize + DelaySize) .. (AddrSize + DelaySize + GammaSize - 1)],
-      Beta:
-        data[(AddrSize + DelaySize + GammaSize) .. (((r * (t + 1)) + t + 2) * k) - 1],
+      Delay: ?data.readBytes(offset, Opt.some(DelaySize)),
+      Gamma: ?data.readBytes(offset, Opt.some(GammaSize)),
+      Beta: ?data.readBytes(offset, Opt.some(BetaSize)),
     )
   )
 
@@ -183,7 +200,7 @@ type
 
   Key* = seq[byte]
 
-  I* = array[SurbIdLen, byte]
+  SURBIdentifier* = array[SurbIdLen, byte]
 
   SURB* = object
     hop*: Hop
@@ -200,23 +217,6 @@ proc serializeMessageWithSURBs*(
   let surbBytes =
     surbs.mapIt(it.hop.serialize() & it.header.serialize() & it.key).concat()
   ok(byte(surbs.len) & surbBytes & msg)
-
-proc readBytes(
-    data: seq[byte], offset: var int, readSize: Opt[int] = Opt.none(int)
-): Result[seq[byte], string] =
-  if data.len < offset:
-    return err("not enough data")
-
-  readSize.withValue(size):
-    if data.len < offset + size:
-      return err("not enough data")
-    let slice = data[offset ..< offset + size]
-    offset += size
-    return ok(slice)
-
-  let slice = data[offset .. ^1]
-  offset = data.len
-  return ok(slice)
 
 proc extractSURBs*(msg: seq[byte]): Result[(seq[SURB], seq[byte]), string] =
   var offset = 0
