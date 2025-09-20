@@ -31,6 +31,8 @@ import ./helpers
 when defined(linux) and defined(amd64):
   {.used.}
 
+  import ../libp2p/utils/ipaddr
+
   suite "AutoTLS Integration":
     asyncTeardown:
       checkTrackers()
