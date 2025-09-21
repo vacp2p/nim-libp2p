@@ -1,6 +1,6 @@
 {.used.}
 
-import chronicles, strformat, results, unittest2
+import strformat, results, unittest2
 import ../../libp2p/[crypto/crypto, crypto/secp, multiaddress, multicodec, peerid]
 import ../../libp2p/protocols/mix/[curve25519, mix_node]
 
@@ -8,7 +8,7 @@ suite "Mix Node Tests":
   var mixNodes {.threadvar.}: MixNodes
 
   setup:
-    var count = 5
+    const count = 5
     let mixNodes = initializeMixNodes(count).expect("could not generate mix nodes")
     check:
       mixNodes.len == count
@@ -72,7 +72,7 @@ suite "Mix Node Tests":
       MixNodeInfo.readFromFile(999).isErr()
 
   test "generate mix nodes with different ports":
-    count = 3
+    const count = 3
     let basePort = 5000
     let mixNodes =
       initializeMixNodes(count, basePort).expect("could not generate mix nodes")

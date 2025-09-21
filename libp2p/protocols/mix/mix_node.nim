@@ -41,7 +41,7 @@ proc get*(
   )
 
 proc serialize*(nodeInfo: MixNodeInfo): Result[seq[byte], string] =
-  let addrBytes = multiAddrToBytes(?toFullAddress(nodeInfo.peerId, nodeInfo.multiAddr)).valueOr:
+  let addrBytes = multiAddrToBytes(nodeInfo.peerId, nodeInfo.multiAddr).valueOr:
     return err("Error in multiaddress conversion to bytes: " & error)
 
   let
@@ -59,10 +59,8 @@ proc deserialize*(T: typedesc[MixNodeInfo], data: openArray[byte]): Result[T, st
     return
       err("Serialized Mix node info must be exactly " & $MixNodeInfoSize & " bytes")
 
-  let ma = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
+  let (peerId, multiAddr) = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
     return err("Error in multiaddress conversion to bytes: " & error)
-
-  let (peerId, multiAddr) = ?ma.parseFullAddress()
 
   let mixPubKey = bytesToFieldElement(
     data[AddrSize .. (AddrSize + FieldElementSize - 1)]
@@ -171,7 +169,7 @@ proc get*(info: MixPubInfo): (PeerId, MultiAddress, FieldElement, SkPublicKey) =
   (info.peerId, info.multiAddr, info.mixPubKey, info.libp2pPubKey)
 
 proc serialize*(nodeInfo: MixPubInfo): Result[seq[byte], string] =
-  let addrBytes = multiAddrToBytes(?toFullAddress(nodeInfo.peerId, nodeInfo.multiAddr)).valueOr:
+  let addrBytes = multiAddrToBytes(nodeInfo.peerId, nodeInfo.multiAddr).valueOr:
     return err("Error in multiaddress conversion to bytes: " & error)
 
   let
@@ -185,7 +183,7 @@ proc deserialize*(T: typedesc[MixPubInfo], data: openArray[byte]): Result[T, str
     return
       err("Serialized mix public info must be exactly " & $MixPubInfoSize & " bytes")
 
-  let ma = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
+  let (peerId, multiAddr) = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
     return err("Error in bytes to multiaddress conversion: " & error)
 
   let mixPubKey = bytesToFieldElement(
@@ -195,8 +193,6 @@ proc deserialize*(T: typedesc[MixPubInfo], data: openArray[byte]): Result[T, str
 
   let libp2pPubKey = SkPublicKey.init(data[(AddrSize + FieldElementSize) ..^ 1]).valueOr:
     return err("Failed to initialize libp2p public key: ")
-
-  let (peerId, multiAddr) = ?ma.parseFullAddress()
 
   ok(
     MixPubInfo(
