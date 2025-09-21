@@ -86,7 +86,7 @@ method writeLp*(
   buf[0 ..< vbytes.len] = vbytes.toOpenArray(0, vbytes.len - 1)
   buf[vbytes.len ..< buf.len] = msg
 
-  self.mixDialer(@buf, self.codec, self.destination)
+  self.write(buf)
 
 method writeLp*(
     self: MixEntryConnection, msg: string
@@ -126,8 +126,8 @@ proc new*(
       await srcMix.anonymizeLocalProtocolSend(
         nil, msg, codec, dest, 0 # TODO: set incoming queue for replies and surbs
       )
-    except CatchableError as e:
-      error "Error during execution of anonymizeLocalProtocolSend: ", err = e.msg
+    except CatchableError as exc:
+      error "Error during execution of anonymizeLocalProtocolSend: ", err = exc.msg
     return
 
   when defined(libp2p_agents_metrics):

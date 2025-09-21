@@ -1,4 +1,4 @@
-import chronicles, chronos, sequtils, strutils, os, results, sugar
+import chronicles, chronos, sequtils, strutils, os, results
 import std/[strformat, tables], metrics
 import
   ./[
@@ -30,13 +30,11 @@ proc loadAllButIndexMixPubInfo*(
 ): Result[Table[PeerId, MixPubInfo], string] =
   var pubInfoTable = initTable[PeerId, MixPubInfo]()
   for i in 0 ..< numNodes:
-    if i != index:
-      let
-        pubInfo = MixPubInfo.readFromFile(i, pubInfoFolderPath).valueOr:
-          return err("Failed to load pub info from file: " & error)
-        (peerId, _) = ?parseFullAddress(pubInfo.multiAddr)
-
-      pubInfoTable[peerId] = pubInfo
+    if i == index:
+      continue
+    let pubInfo = MixPubInfo.readFromFile(i, pubInfoFolderPath).valueOr:
+      return err("Failed to load pub info from file: " & error)
+    pubInfoTable[pubInfo.peerId] = pubInfo
   return ok(pubInfoTable)
 
 proc cryptoRandomInt(rng: ref HmacDrbgContext, max: int): Result[int, string] =
@@ -66,7 +64,7 @@ proc handleMixNodeConnection(
     return # No data, end of stream
 
   # Process the packet
-  let (multiAddr, _, mixPrivKey, _, _) = mixProto.mixNodeInfo.get()
+  let (peerId, multiAddr, _, mixPrivKey, _, _) = mixProto.mixNodeInfo.get()
 
   let sphinxPacket = SphinxPacket.deserialize(receivedBytes).valueOr:
     error "Sphinx packet deserialization error", err = error
@@ -87,7 +85,7 @@ proc handleMixNodeConnection(
       mix_messages_error.inc(labelValues = ["Exit", "INVALID_SPHINX"])
       return
 
-    let unpaddedMsg = unpadMessage(msgChunk).valueOr:
+    let unpaddedMsg = msgChunk.removePadding().valueOr:
       error "Unpadding message failed", err = error
       mix_messages_error.inc(labelValues = ["Exit", "INVALID_SPHINX"])
       return
@@ -98,7 +96,7 @@ proc handleMixNodeConnection(
       return
 
     trace "Exit node - Received mix message",
-      receiver = multiAddr, message = deserialized.message, codec = deserialized.codec
+      peerId, message = deserialized.message, codec = deserialized.codec
 
     if processedSP.destination == Hop():
       error "no destination available"
@@ -107,13 +105,8 @@ proc handleMixNodeConnection(
 
     let destBytes = processedSP.destination.get()
 
-    let fullAddr = bytesToMultiAddr(destBytes).valueOr:
+    let (destPeerId, destAddr) = bytesToMultiAddr(destBytes).valueOr:
       error "Failed to convert bytes to multiaddress", err = error
-      mix_messages_error.inc(labelValues = ["Exit", "INVALID_DEST"])
-      return
-
-    let (destPeerId, destAddr) = parseFullAddress(fullAddr).valueOr:
-      error "Failed to extract peerId and baseAddr from multiaddress", err = error
       mix_messages_error.inc(labelValues = ["Exit", "INVALID_DEST"])
       return
 
@@ -126,7 +119,7 @@ proc handleMixNodeConnection(
     # TODO: implement
     discard
   of Intermediate:
-    trace "# Intermediate: ", multiAddr = multiAddr
+    trace "# Intermediate: ", peerId, multiAddr
     # Add delay
     mix_messages_recvd.inc(labelValues = ["Intermediate"])
     await sleepAsync(milliseconds(processedSP.delayMs))
@@ -134,14 +127,9 @@ proc handleMixNodeConnection(
     # Forward to next hop
     let nextHopBytes = processedSP.nextHop.get()
 
-    let fullAddr = bytesToMultiAddr(nextHopBytes).valueOr:
+    let (nextPeerId, nextAddr) = bytesToMultiAddr(nextHopBytes).valueOr:
       error "Failed to convert bytes to multiaddress", err = error
       mix_messages_error.inc(labelValues = ["Intermediate", "INVALID_DEST"])
-      return
-
-    let (nextPeerId, nextAddr) = parseFullAddress(fullAddr).valueOr:
-      error "Failed to extract peerId and baseAddr from multiaddress", err = error
-      mix_messages_error.inc(labelValues = ["Exit", "INVALID_DEST"])
       return
 
     var nextHopConn: Connection
@@ -206,7 +194,7 @@ proc sendPacket(
         error "Failed to close outgoing stream: ", err = e.msg
 
 proc buildMessage(
-    msg: seq[byte], codec: string, multiAddr: MultiAddress
+    msg: seq[byte], codec: string, peerId: PeerId
 ): Result[Message, (string, string)] =
   let
     mixMsg = MixMessage.init(msg, codec)
@@ -215,11 +203,9 @@ proc buildMessage(
   if serialized.len > DataSize:
     return err(("message size exceeds maximum payload size", "INVALID_SIZE"))
 
-  let (peerId, _) = ?parseFullAddress(multiAddr).mapErr(x => (x, "INVALID_DEST"))
-
-  let paddedMsg = padMessage(serialized, peerId)
-
-  let serializedMsgChunk = paddedMsg.serialize()
+  let
+    paddedMsg = addPadding(serialized, peerId)
+    serializedMsgChunk = paddedMsg.serialize()
 
   ok(serializedMsgChunk)
 
@@ -235,12 +221,6 @@ proc init*(T: typedesc[MixDestination], peerId: PeerId, address: MultiAddress): 
 
 proc `$`*(d: MixDestination): string =
   $d.address & "/p2p/" & $d.peerId
-
-proc multiAddress(d: MixDestination): MultiAddress =
-  try:
-    return MultiAddress.init($d).tryGet()
-  except:
-    doAssert false, "MixDestination initialized incorrectly"
 
 proc anonymizeLocalProtocolSend*(
     mixProto: MixProtocol,
@@ -296,11 +276,12 @@ proc anonymizeLocalProtocolSend*(
     debug "Selected mix node: ", indexInPath = i, peerId = randPeerId
 
     # Extract multiaddress, mix public key, and hop
-    let (multiAddr, mixPubKey, _) = mixProto.pubNodeInfo.getOrDefault(randPeerId).get()
+    let (peerId, multiAddr, mixPubKey, _) =
+      mixProto.pubNodeInfo.getOrDefault(randPeerId).get()
     multiAddrs.add(multiAddr)
     publicKeys.add(mixPubKey)
 
-    let multiAddrBytes = multiAddrToBytes(multiAddr).valueOr:
+    let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
       error "Failed to convert multiaddress to bytes", err = error
       mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
       #TODO: should we skip and pick a different node here??
@@ -323,12 +304,12 @@ proc anonymizeLocalProtocolSend*(
     i = i + 1
 
   #Encode destination
-  let destAddrBytes = multiAddrToBytes(destination.multiAddress()).valueOr:
+  let destAddrBytes = multiAddrToBytes(destination.peerId, destination.address).valueOr:
     error "Failed to convert multiaddress to bytes", err = error
     mix_messages_error.inc(labelValues = ["Entry", "INVALID_DEST"])
     return
   let destHop = Hop.init(destAddrBytes)
-  let message = buildMessage(msg, codec, mixProto.mixNodeInfo.multiAddr).valueOr:
+  let message = buildMessage(msg, codec, mixProto.mixNodeInfo.peerId).valueOr:
     error "Error building message", err = error[0]
     mix_messages_error.inc(labelValues = ["Entry", error[1]])
     return
