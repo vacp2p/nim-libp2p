@@ -25,6 +25,7 @@ import
     builders,
     protocols/ping,
     wire,
+    utils/ipaddr,
   ]
 
 from ./helpers import suite, asyncTest, asyncTeardown, checkTrackers, skip, check
