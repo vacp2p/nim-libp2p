@@ -1,17 +1,17 @@
 import results, sugar, sequtils, strutils
 import ./serialization
-import stew/[base58, endians2]
+import stew/endians2
 import ../../[multicodec, multiaddress, peerid]
 
 const
   PeerIdByteLen = 39 # ed25519 and secp256k1 multihash length
-  MinMultiAddrComponentLen = 3
-  MaxMultiAddrComponentLen = 6 # quic + circuit relay
+  MinMultiAddrComponentLen = 2
+  MaxMultiAddrComponentLen = 5 # quic + circuit relay
 
 # TODO: Add support for ipv6, dns, dns4,  ws/wss/sni support
 
 proc multiAddrToBytes*(
-    multiAddr: MultiAddress
+    peerId: PeerId, multiAddr: MultiAddress
 ): Result[seq[byte], string] {.raises: [].} =
   var ma = multiAddr
   let sma = multiAddr.items().toSeq()
@@ -22,7 +22,7 @@ proc multiAddrToBytes*(
 
   # Only IPV4 is supported
   let isCircuitRelay = ?ma.contains(multiCodec("p2p-circuit"))
-  let baseP2PEndIdx = if isCircuitRelay: 4 else: 2
+  let baseP2PEndIdx = if isCircuitRelay: 3 else: 1
   let baseAddr =
     try:
       if sma.len - 1 - baseP2PEndIdx < 0:
@@ -53,27 +53,22 @@ proc multiAddrToBytes*(
   let portNum = ?catch(port.split('/')[2].parseInt()).mapErr(x => x.msg)
   res.add(portNum.uint16.toBytesBE())
 
-  # PeerID (39 bytes),  if using circuit relay, this represents the relay server
-  let p2pPart = ?ma.getPart(multiCodec("p2p"))
-  let peerId = ?PeerId.init(?p2pPart.protoArgument()).mapErr(x => $x)
-
-  if peerId.data.len != PeerIdByteLen:
-    return err("unsupported PeerId key type")
-  res.add(peerId.data)
-
   if isCircuitRelay:
-    let dstPart = ?sma[^1]
-    let dstPeerId = ?PeerId.init(?dstPart.protoArgument()).mapErr(x => $x)
-    if dstPeerId.data.len != PeerIdByteLen:
+    let relayIdPart = ?ma.getPart(multiCodec("p2p"))
+    let relayId = ?PeerId.init(?relayIdPart.protoArgument()).mapErr(x => $x)
+    if relayId.data.len != PeerIdByteLen:
       return err("unsupported PeerId key type")
-    res.add(dstPeerId.data)
+    res.add(relayId.data)
+
+  # PeerID (39 bytes)
+  res.add(peerId.data)
 
   if res.len > AddrSize:
     return err("Address must be <= " & $AddrSize & " bytes")
 
   return ok(res & newSeq[byte](AddrSize - res.len))
 
-proc bytesToMultiAddr*(bytes: openArray[byte]): Result[MultiAddress, string] =
+proc bytesToMultiAddr*(bytes: openArray[byte]): MaResult[(PeerId, MultiAddress)] =
   if bytes.len != AddrSize:
     return err("Address must be exactly " & $AddrSize & " bytes")
 
@@ -83,15 +78,18 @@ proc bytesToMultiAddr*(bytes: openArray[byte]): Result[MultiAddress, string] =
     quic = if bytes[4] == 1: "/quic-v1" else: ""
     port = uint16.fromBytesBE(bytes[5 .. 6])
     # peerId1 represents the circuit relay server addr if p2p-circuit addr, otherwise it's the node's actual peerId
-    peerId1 = "/p2p/" & Base58.encode(bytes[7 ..< 46])
+    peerId1Bytes = bytes[7 ..< 46]
     peerId2Bytes = bytes[7 + PeerIdByteLen ..< 7 + (PeerIdByteLen * 2)]
-    # peerId2 will contain a value only if this is a p2p-circuit address
-    peerId2 =
-      if peerId2Bytes != newSeq[byte](PeerIdByteLen):
-        "/p2p-circuit/p2p/" & Base58.encode(peerId2Bytes)
-      else:
-        ""
 
-  return MultiAddress
-    .init("/ip4/" & ip & "/" & protocol & "/" & $port & quic & peerId1 & peerId2)
-    .mapErr(x => $x)
+  let ma = ?MultiAddress.init("/ip4/" & ip & "/" & protocol & "/" & $port & quic)
+
+  return
+    if peerId2Bytes != newSeq[byte](PeerIdByteLen):
+      # Has circuit relay address
+      let relayIdMa = ?MultiAddress.init(multiCodec("p2p"), peerId1Bytes)
+      let p2pCircuitMa = ?MultiAddress.init(multiCodec("p2p-circuit"))
+      let peerId = ?PeerId.init(peerId2Bytes).mapErr(x => $x)
+      ok((peerId, ?(ma & relayIdMa & p2pCircuitMa).catch().mapErr(x => x.msg)))
+    else:
+      let peerId = ?PeerId.init(peerId1Bytes).mapErr(x => $x)
+      ok((peerId, ma))
