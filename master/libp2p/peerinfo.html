@@ -211,6 +211,10 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#shortLog%2CPeerInfo" title="shortLog(p: PeerInfo): auto">shortLog(p: PeerInfo): auto</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">toFullAddress
+  <li><a class="reference" href="#toFullAddress%2CPeerId%2CMultiAddress" title="toFullAddress(peerId: PeerId; ma: MultiAddress): MaResult[MultiAddress]">toFullAddress(peerId: PeerId; ma: MultiAddress): MaResult[MultiAddress]</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">update
   <li><a class="reference" href="#update%2CPeerInfo" title="update(p: PeerInfo): InternalRaisesFuture[void, (CancelledError,)]">update(p: PeerInfo): InternalRaisesFuture[void, (CancelledError,)]</a></li>
 
@@ -353,8 +357,8 @@ A proc that expected to resolve the listen addresses into dialable addresses
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerinfo.nim#L96" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L96" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerinfo.nim#L100" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L100" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -393,6 +397,20 @@ A proc that expected to resolve the listen addresses into dialable addresses
 
 <a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerinfo.nim#L43" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
 <a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L43" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="toFullAddress-procs-all">
+  <div id="toFullAddress,PeerId,MultiAddress" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#toFullAddress%2CPeerId%2CMultiAddress"><span class="Identifier">toFullAddress</span></a><span class="Other">(</span><span class="Identifier">peerId</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">ma</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <a href="multiaddress.html#MaResult"><span class="Identifier">MaResult</span></a><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerinfo.nim#L96" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerinfo.nim#L96" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -448,7 +466,7 @@ A proc that expected to resolve the listen addresses into dialable addresses
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-20 22:43:08 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-21 16:50:04 UTC</small>
       </div>
     </div>
   </div>
