@@ -56,7 +56,7 @@ suite "serialization_tests":
       header = Header.init(
         newSeq[byte](AlphaSize), newSeq[byte](BetaSize), newSeq[byte](GammaSize)
       )
-      payload = newSeq[byte](payloadSize)
+      payload = newSeq[byte](PayloadSize)
       packet = SphinxPacket.init(header, payload)
 
     let serialized = packet.serialize()

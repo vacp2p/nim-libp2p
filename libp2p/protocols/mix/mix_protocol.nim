@@ -45,19 +45,14 @@ proc cryptoRandomInt(rng: ref HmacDrbgContext, max: int): Result[int, string] =
 
 proc handleMixNodeConnection(
     mixProto: MixProtocol, conn: Connection
-) {.async: (raises: [CancelledError]).} =
-  var receivedBytes: seq[byte]
-
-  try:
-    receivedBytes = await conn.readLp(PacketSize)
-  except Exception as e:
-    error "Failed to read: ", err = e.msg
-  finally:
-    if conn != nil:
-      try:
-        await conn.close()
-      except CatchableError as e:
-        error "Failed to close incoming stream: ", err = e.msg
+) {.async: (raises: [LPStreamError, CancelledError]).} =
+  let receivedBytes =
+    try:
+      await conn.readLp(PacketSize)
+    except CancelledError as exc:
+      raise exc
+    finally:
+      await conn.close()
 
   if receivedBytes.len == 0:
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "NO_DATA"])
@@ -79,6 +74,7 @@ proc handleMixNodeConnection(
   case processedSP.status
   of Exit:
     mix_messages_recvd.inc(labelValues = ["Exit"])
+
     # This is the exit node, forward to destination
     let msgChunk = MessageChunk.deserialize(processedSP.messageChunk).valueOr:
       error "Deserialization failed", err = error
@@ -95,9 +91,6 @@ proc handleMixNodeConnection(
       mix_messages_error.inc(labelValues = ["Exit", "INVALID_SPHINX"])
       return
 
-    trace "Exit node - Received mix message",
-      peerId, message = deserialized.message, codec = deserialized.codec
-
     if processedSP.destination == Hop():
       error "no destination available"
       mix_messages_error.inc(labelValues = ["Exit", "NO_DESTINATION"])
@@ -109,6 +102,12 @@ proc handleMixNodeConnection(
       error "Failed to convert bytes to multiaddress", err = error
       mix_messages_error.inc(labelValues = ["Exit", "INVALID_DEST"])
       return
+
+    trace "Exit node - Received mix message",
+      peerId,
+      message = deserialized.message,
+      codec = deserialized.codec,
+      to = destPeerId
 
     await mixProto.exitLayer.onMessage(
       deserialized.codec, deserialized.message, destAddr, destPeerId
@@ -132,20 +131,21 @@ proc handleMixNodeConnection(
       mix_messages_error.inc(labelValues = ["Intermediate", "INVALID_DEST"])
       return
 
-    var nextHopConn: Connection
     try:
-      nextHopConn = await mixProto.switch.dial(nextPeerId, @[nextAddr], MixProtocolID)
+      let nextHopConn =
+        await mixProto.switch.dial(nextPeerId, @[nextAddr], MixProtocolID)
+      defer:
+        await nextHopConn.close()
 
       await nextHopConn.writeLp(processedSP.serializedSphinxPacket)
       mix_messages_forwarded.inc(labelValues = ["Intermediate"])
-    except CatchableError as e:
-      error "Failed to dial next hop: ", err = e.msg
-    finally:
-      if nextHopConn != nil:
-        try:
-          await nextHopConn.close()
-        except CatchableError as e:
-          error "Failed to close outgoing stream: ", err = e.msg
+    except CancelledError as exc:
+      raise exc
+    except DialFailedError as exc:
+      error "Failed to dial next hop: ", err = exc.msg
+      mix_messages_error.inc(labelValues = ["Intermediate", "DIAL_FAILED"])
+    except LPStreamError as exc:
+      error "Failed to write to next hop: ", err = exc.msg
       mix_messages_error.inc(labelValues = ["Intermediate", "DIAL_FAILED"])
   of Duplicate:
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "DUPLICATE"])
@@ -168,7 +168,7 @@ proc sendPacket(
     multiAddrs: MultiAddress,
     sphinxPacket: seq[byte],
     label: string,
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   ## Send the wrapped message to the first mix node in the selected path
 
   let (firstMixPeerId, firstMixAddr) = parseFullAddress(multiAddrs).valueOr:
@@ -176,22 +176,24 @@ proc sendPacket(
     mix_messages_error.inc(labelValues = [label, "NON_RECOVERABLE"])
     return
 
-  var nextHopConn: Connection
   try:
-    nextHopConn =
+    let nextHopConn =
       await mixProto.switch.dial(firstMixPeerId, @[firstMixAddr], @[MixProtocolID])
-
+    defer:
+      await nextHopConn.close()
     await nextHopConn.writeLp(sphinxPacket)
-    mix_messages_forwarded.inc(labelValues = ["Entry"])
-  except CatchableError as e:
-    error "Failed to send message to next hop: ", err = e.msg
+  except DialFailedError as exc:
+    error "Failed to dial next hop: ",
+      peerId = firstMixPeerId, address = firstMixAddr, err = exc.msg
     mix_messages_error.inc(labelValues = [label, "SEND_FAILED"])
-  finally:
-    if nextHopConn != nil:
-      try:
-        await nextHopConn.close()
-      except CatchableError as e:
-        error "Failed to close outgoing stream: ", err = e.msg
+  except LPStreamError as exc:
+    error "Failed to write to next hop: ",
+      peerId = firstMixPeerId, address = firstMixAddr, err = exc.msg
+    mix_messages_error.inc(labelValues = [label, "SEND_FAILED"])
+  except CancelledError as exc:
+    raise exc
+
+  mix_messages_forwarded.inc(labelValues = ["Entry"])
 
 proc buildMessage(
     msg: seq[byte], codec: string, peerId: PeerId
@@ -229,7 +231,7 @@ proc anonymizeLocalProtocolSend*(
     codec: string,
     destination: MixDestination,
     numSurbs: uint8,
-) {.async.} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   mix_messages_recvd.inc(labelValues = ["Entry"])
 
   var
@@ -248,9 +250,9 @@ proc anonymizeLocalProtocolSend*(
   if mixProto.pubNodeInfo.hasKey(destination.peerId):
     numAvailableNodes = numMixNodes - 1
 
-  if numAvailableNodes < L:
+  if numAvailableNodes < PathLength:
     error "No. of public mix nodes less than path length.",
-      numMixNodes = numAvailableNodes, pathLength = L
+      numMixNodes = numAvailableNodes, pathLength = PathLength
     mix_messages_error.inc(labelValues = ["Entry", "LOW_MIX_POOL"])
     return
 
@@ -260,9 +262,9 @@ proc anonymizeLocalProtocolSend*(
   var availableIndices = toSeq(0 ..< pubNodeInfoKeys.len)
 
   var i = 0
-  while i < L:
+  while i < PathLength:
     let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
-      error "Failed to genanrate random number", err = error
+      error "Failed to generate random number", err = error
       mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
       return
     let selectedIndex = availableIndices[randomIndexPosition]
@@ -270,7 +272,7 @@ proc anonymizeLocalProtocolSend*(
     availableIndices.del(randomIndexPosition)
 
     # Last hop will be the exit node that will forward the request
-    if i == L - 1:
+    if i == PathLength - 1:
       exitPeerId = randPeerId
 
     debug "Selected mix node: ", indexInPath = i, peerId = randPeerId
@@ -291,7 +293,7 @@ proc anonymizeLocalProtocolSend*(
 
     # Compute delay
     let delayMillisec =
-      if i != L - 1:
+      if i != PathLength - 1:
         cryptoRandomInt(mixProto.rng, 3).valueOr:
           error "Failed to generate random number", err = error
           mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
@@ -342,7 +344,10 @@ proc init*(
   mixProto.handler = proc(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
-    await mixProto.handleMixNodeConnection(conn)
+    try:
+      await mixProto.handleMixNodeConnection(conn)
+    except LPStreamError as e:
+      debug "Stream error", conn = conn, err = e.msg
 
 proc new*(
     T: typedesc[MixProtocol],

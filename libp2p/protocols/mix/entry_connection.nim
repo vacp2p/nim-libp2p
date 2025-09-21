@@ -73,17 +73,10 @@ method writeLp*(
     )
     return fut
 
-  var
-    vbytes: seq[byte] = @[]
-    value = msg.len().uint64
-
-  while value >= 128:
-    vbytes.add(byte((value and 127) or 128))
-    value = value shr 7
-  vbytes.add(byte(value))
-
+  ## Write `msg` with a varint-encoded length prefix
+  let vbytes = PB.toBytes(msg.len().uint64)
   var buf = newSeqUninit[byte](msg.len() + vbytes.len)
-  buf[0 ..< vbytes.len] = vbytes.toOpenArray(0, vbytes.len - 1)
+  buf[0 ..< vbytes.len] = vbytes.toOpenArray()
   buf[vbytes.len ..< buf.len] = msg
 
   self.write(buf)
@@ -122,13 +115,9 @@ proc new*(
   instance.mixDialer = proc(
       msg: seq[byte], codec: string, dest: MixDestination
   ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-    try:
-      await srcMix.anonymizeLocalProtocolSend(
-        nil, msg, codec, dest, 0 # TODO: set incoming queue for replies and surbs
-      )
-    except CatchableError as exc:
-      error "Error during execution of anonymizeLocalProtocolSend: ", err = exc.msg
-    return
+    await srcMix.anonymizeLocalProtocolSend(
+      nil, msg, codec, dest, 0 # TODO: set incoming queue for replies and surbs
+    )
 
   when defined(libp2p_agents_metrics):
     instance.shortAgent = connection.shortAgent

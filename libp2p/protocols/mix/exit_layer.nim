@@ -16,14 +16,21 @@ proc onMessage*(
     destAddr: MultiAddress,
     destPeerId: PeerId,
 ) {.async: (raises: [CancelledError]).} =
-  var destConn: Connection
+  # If dialing destination fails, no response is returned to
+  # the sender, so, flow can just end here. Only log errors
+  # for now
+  # https://github.com/vacp2p/mix/issues/86
+
   try:
-    destConn = await self.switch.dial(destPeerId, @[destAddr], codec)
-    await destConn.write(message)
-  except CatchableError as e:
-    error "Failed to dial next hop: ", err = e.msg
-    mix_messages_error.inc(labelValues = ["ExitLayer", "DIAL_FAILED"])
-    return
-  finally:
-    if not destConn.isNil:
+    let destConn = await self.switch.dial(destPeerId, @[destAddr], codec)
+    defer:
       await destConn.close()
+    await destConn.write(message)
+  except LPStreamError as exc:
+    error "Stream error while writing to next hop: ", err = exc.msg
+    mix_messages_error.inc(labelValues = ["ExitLayer", "LPSTREAM_ERR"])
+  except DialFailedError as exc:
+    error "Failed to dial next hop: ", err = exc.msg
+    mix_messages_error.inc(labelValues = ["ExitLayer", "DIAL_FAILED"])
+  except CancelledError as exc:
+    raise exc
