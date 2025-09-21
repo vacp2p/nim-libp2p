@@ -1,7 +1,7 @@
-import os, results, strformat, sugar
+import os, results, strformat, sugar, sequtils
 import std/streams
 import ../../crypto/[crypto, curve25519, secp]
-import ../../[multiaddress, multicodec, peerid]
+import ../../[multiaddress, multicodec, peerid, peerinfo]
 import ./[serialization, curve25519, multiaddr]
 
 const MixNodeInfoSize* =
@@ -9,6 +9,7 @@ const MixNodeInfoSize* =
 const MixPubInfoSize* = AddrSize + FieldElementSize + SkRawPublicKeySize
 
 type MixNodeInfo* = object
+  peerId*: PeerId
   multiAddr*: MultiAddress
   mixPubKey*: FieldElement
   mixPrivKey*: FieldElement
@@ -16,12 +17,14 @@ type MixNodeInfo* = object
   libp2pPrivKey*: SkPrivateKey
 
 proc initMixNodeInfo*(
+    peerId: PeerId,
     multiAddr: MultiAddress,
     mixPubKey, mixPrivKey: FieldElement,
     libp2pPubKey: SkPublicKey,
     libp2pPrivKey: SkPrivateKey,
 ): MixNodeInfo =
   MixNodeInfo(
+    peerId: peerId,
     multiAddr: multiAddr,
     mixPubKey: mixPubKey,
     mixPrivKey: mixPrivKey,
@@ -31,14 +34,14 @@ proc initMixNodeInfo*(
 
 proc get*(
     info: MixNodeInfo
-): (MultiAddress, FieldElement, FieldElement, SkPublicKey, SkPrivateKey) =
+): (PeerId, MultiAddress, FieldElement, FieldElement, SkPublicKey, SkPrivateKey) =
   (
-    info.multiAddr, info.mixPubKey, info.mixPrivKey, info.libp2pPubKey,
+    info.peerId, info.multiAddr, info.mixPubKey, info.mixPrivKey, info.libp2pPubKey,
     info.libp2pPrivKey,
   )
 
 proc serialize*(nodeInfo: MixNodeInfo): Result[seq[byte], string] =
-  let addrBytes = multiAddrToBytes(nodeInfo.multiAddr).valueOr:
+  let addrBytes = multiAddrToBytes(?toFullAddress(nodeInfo.peerId, nodeInfo.multiAddr)).valueOr:
     return err("Error in multiaddress conversion to bytes: " & error)
 
   let
@@ -56,8 +59,10 @@ proc deserialize*(T: typedesc[MixNodeInfo], data: openArray[byte]): Result[T, st
     return
       err("Serialized Mix node info must be exactly " & $MixNodeInfoSize & " bytes")
 
-  let multiAddr = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
+  let ma = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
     return err("Error in multiaddress conversion to bytes: " & error)
+
+  let (peerId, multiAddr) = ?ma.parseFullAddress()
 
   let mixPubKey = bytesToFieldElement(
     data[AddrSize .. (AddrSize + FieldElementSize - 1)]
@@ -84,6 +89,7 @@ proc deserialize*(T: typedesc[MixNodeInfo], data: openArray[byte]): Result[T, st
 
   ok(
     T(
+      peerId: peerId,
       multiAddr: multiAddr,
       mixPubKey: mixPubKey,
       mixPrivKey: mixPrivKey,
@@ -91,9 +97,6 @@ proc deserialize*(T: typedesc[MixNodeInfo], data: openArray[byte]): Result[T, st
       libp2pPrivKey: libp2pPrivKey,
     )
   )
-
-proc isNodeMultiaddress*(mixNodeInfo: MixNodeInfo, multiAddr: MultiAddress): bool =
-  return mixNodeInfo.multiAddr == multiAddr
 
 proc writeToFile*(
     node: MixNodeInfo, index: int, nodeInfoFolderPath: string = "./nodeInfo"
@@ -116,31 +119,27 @@ proc writeToFile*(
 proc readFromFile*(
     T: typedesc[MixNodeInfo], index: int, nodeInfoFolderPath: string = "./nodeInfo"
 ): Result[T, string] =
-  try:
-    let filename = nodeInfoFolderPath / fmt"mixNode_{index}"
-    if not fileExists(filename):
-      return err("File does not exist")
-    var file = newFileStream(filename, fmRead)
-    if file == nil:
-      return err(
-        "Failed to open file: " & filename &
-          ". Check permissions or if the path is correct."
-      )
-    defer:
-      file.close()
-    let data = file.readAll()
-    if data.len != MixNodeInfoSize:
-      return err(
-        "Invalid data size for MixNodeInfo: expected " & $MixNodeInfoSize &
-          " bytes, but got " & $(data.len) & " bytes."
-      )
-    let dMixNodeInfo = MixNodeInfo.deserialize(cast[seq[byte]](data)).valueOr:
-      return err("Mix node info deserialize error: " & error)
-    return ok(dMixNodeInfo)
-  except IOError as e:
-    return err("File read error: " & $e.msg)
-  except OSError as e:
-    return err("OS error: " & $e.msg)
+  let filename = nodeInfoFolderPath / fmt"mixNode_{index}"
+  if not fileExists(filename):
+    return err("File does not exist")
+  var file = newFileStream(filename, fmRead)
+  if file == nil:
+    return err(
+      "Failed to open file: " & filename &
+        ". Check permissions or if the path is correct."
+    )
+  defer:
+    file.close()
+
+  let data = ?file.readAll().catch().mapErr(x => "File read error: " & x.msg)
+  if data.len != MixNodeInfoSize:
+    return err(
+      "Invalid data size for MixNodeInfo: expected " & $MixNodeInfoSize &
+        " bytes, but got " & $(data.len) & " bytes."
+    )
+  let dMixNodeInfo = MixNodeInfo.deserialize(cast[seq[byte]](data)).valueOr:
+    return err("Mix node info deserialize error: " & error)
+  return ok(dMixNodeInfo)
 
 proc deleteNodeInfoFolder*(nodeInfoFolderPath: string = "./nodeInfo") =
   ## Deletes the folder that stores serialized mix node info files
@@ -149,23 +148,30 @@ proc deleteNodeInfoFolder*(nodeInfoFolderPath: string = "./nodeInfo") =
     removeDir(nodeInfoFolderPath)
 
 type MixPubInfo* = object
+  peerId*: PeerId
   multiAddr*: MultiAddress
   mixPubKey*: FieldElement
   libp2pPubKey*: SkPublicKey
 
 proc init*(
     T: typedesc[MixPubInfo],
+    peerId: PeerId,
     multiAddr: MultiAddress,
     mixPubKey: FieldElement,
     libp2pPubKey: SkPublicKey,
 ): T =
-  T(multiAddr: multiAddr, mixPubKey: mixPubKey, libp2pPubKey: libp2pPubKey)
+  T(
+    peerId: PeerId,
+    multiAddr: multiAddr,
+    mixPubKey: mixPubKey,
+    libp2pPubKey: libp2pPubKey,
+  )
 
-proc get*(info: MixPubInfo): (MultiAddress, FieldElement, SkPublicKey) =
-  (info.multiAddr, info.mixPubKey, info.libp2pPubKey)
+proc get*(info: MixPubInfo): (PeerId, MultiAddress, FieldElement, SkPublicKey) =
+  (info.peerId, info.multiAddr, info.mixPubKey, info.libp2pPubKey)
 
 proc serialize*(nodeInfo: MixPubInfo): Result[seq[byte], string] =
-  let addrBytes = multiAddrToBytes(nodeInfo.multiAddr).valueOr:
+  let addrBytes = multiAddrToBytes(?toFullAddress(nodeInfo.peerId, nodeInfo.multiAddr)).valueOr:
     return err("Error in multiaddress conversion to bytes: " & error)
 
   let
@@ -179,7 +185,7 @@ proc deserialize*(T: typedesc[MixPubInfo], data: openArray[byte]): Result[T, str
     return
       err("Serialized mix public info must be exactly " & $MixPubInfoSize & " bytes")
 
-  let multiAddr = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
+  let ma = bytesToMultiAddr(data[0 .. AddrSize - 1]).valueOr:
     return err("Error in bytes to multiaddress conversion: " & error)
 
   let mixPubKey = bytesToFieldElement(
@@ -190,7 +196,16 @@ proc deserialize*(T: typedesc[MixPubInfo], data: openArray[byte]): Result[T, str
   let libp2pPubKey = SkPublicKey.init(data[(AddrSize + FieldElementSize) ..^ 1]).valueOr:
     return err("Failed to initialize libp2p public key: ")
 
-  ok(MixPubInfo(multiAddr: multiAddr, mixPubKey: mixPubKey, libp2pPubKey: libp2pPubKey))
+  let (peerId, multiAddr) = ?ma.parseFullAddress()
+
+  ok(
+    MixPubInfo(
+      peerId: peerId,
+      multiAddr: multiAddr,
+      mixPubKey: mixPubKey,
+      libp2pPubKey: libp2pPubKey,
+    )
+  )
 
 proc writeToFile*(
     node: MixPubInfo, index: int, pubInfoFolderPath: string = "./pubInfo"
@@ -213,31 +228,26 @@ proc writeToFile*(
 proc readFromFile*(
     T: typedesc[MixPubInfo], index: int, pubInfoFolderPath: string = "./pubInfo"
 ): Result[T, string] =
-  try:
-    let filename = pubInfoFolderPath / fmt"mixNode_{index}"
-    if not fileExists(filename):
-      return err("File does not exist")
-    var file = newFileStream(filename, fmRead)
-    if file == nil:
-      return err(
-        "Failed to open file: " & filename &
-          ". Check permissions or if the path is correct."
-      )
-    defer:
-      file.close()
-    let data = file.readAll()
-    if data.len != MixPubInfoSize:
-      return err(
-        "Invalid data size for MixNodeInfo: expected " & $MixNodeInfoSize &
-          " bytes, but got " & $(data.len) & " bytes."
-      )
-    let dMixPubInfo = MixPubInfo.deserialize(cast[seq[byte]](data)).valueOr:
-      return err("Mix pub info deserialize error: " & error)
-    return ok(dMixPubInfo)
-  except IOError as e:
-    return err("File read error: " & $e.msg)
-  except OSError as e:
-    return err("OS error: " & $e.msg)
+  let filename = pubInfoFolderPath / fmt"mixNode_{index}"
+  if not fileExists(filename):
+    return err("File does not exist")
+  var file = newFileStream(filename, fmRead)
+  if file == nil:
+    return err(
+      "Failed to open file: " & filename &
+        ". Check permissions or if the path is correct."
+    )
+  defer:
+    file.close()
+  let data = ?file.readAll().catch().mapErr(x => "File read error: " & x.msg)
+  if data.len != MixPubInfoSize:
+    return err(
+      "Invalid data size for MixNodeInfo: expected " & $MixNodeInfoSize &
+        " bytes, but got " & $(data.len) & " bytes."
+    )
+  let dMixPubInfo = MixPubInfo.deserialize(cast[seq[byte]](data)).valueOr:
+    return err("Mix pub info deserialize error: " & error)
+  return ok(dMixPubInfo)
 
 proc deletePubInfoFolder*(pubInfoFolderPath: string = "./pubInfo") =
   ## Deletes the folder containing serialized public mix node info
@@ -252,13 +262,16 @@ proc getMixPubInfoByIndex*(self: MixNodes, index: int): Result[MixPubInfo, strin
     return err("Index must be between 0 and " & $(self.len))
   ok(
     MixPubInfo(
+      peerId: self[index].peerId,
       multiAddr: self[index].multiAddr,
       mixPubKey: self[index].mixPubKey,
       libp2pPubKey: self[index].libp2pPubKey,
     )
   )
 
-proc generateMixNodes(count: int, basePort: int = 4242): Result[MixNodes, string] =
+proc generateMixNodes(
+    count: int, basePort: int = 4242, rng: ref HmacDrbgContext = newRng()
+): Result[MixNodes, string] =
   var nodes = newSeq[MixNodeInfo](count)
   for i in 0 ..< count:
     let keyPairResult = generateKeyPair()
@@ -269,23 +282,20 @@ proc generateMixNodes(count: int, basePort: int = 4242): Result[MixNodes, string
     let
       rng = newRng()
       keyPair = SkKeyPair.random(rng[])
-      libp2pPrivKey = keyPair.seckey
-      libp2pPubKey = keyPair.pubkey
-      pubKeyProto = PublicKey(scheme: Secp256k1, skkey: libp2pPubKey)
+      pubKeyProto = PublicKey(scheme: Secp256k1, skkey: keyPair.pubkey)
       peerId = PeerId.init(pubKeyProto).get()
       multiAddr =
-        ?MultiAddress
-        .init(fmt"/ip4/0.0.0.0/tcp/{basePort + i}/p2p/{peerId}")
-        .tryGet()
-        .catch()
-        .mapErr(x => x.msg)
+        ?MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{basePort + i}").tryGet().catch().mapErr(
+          x => x.msg
+        )
 
     nodes[i] = MixNodeInfo(
+      peerId: peerId,
       multiAddr: multiAddr,
       mixPubKey: mixPubKey,
       mixPrivKey: mixPrivKey,
-      libp2pPubKey: libp2pPubKey,
-      libp2pPrivKey: libp2pPrivKey,
+      libp2pPubKey: keyPair.pubkey,
+      libp2pPrivKey: keyPair.seckey,
     )
 
   ok(nodes)
@@ -297,17 +307,16 @@ proc initializeMixNodes*(count: int, basePort: int = 4242): Result[MixNodes, str
   return ok(mixNodes)
 
 proc findByPeerId*(self: MixNodes, peerId: PeerId): Result[MixNodeInfo, string] =
-  for node in self:
-    let p2pPart = ?node.multiAddr.getPart(multiCodec("p2p"))
-    let nodePeerId = ?PeerId.init(?p2pPart.protoArgument()).mapErr(x => $x)
-    if nodePeerId == peerId:
-      return ok(node)
+  let filteredNodes = self.filterIt(it.peerId == peerId)
+  if filteredNodes.len != 0:
+    return ok(filteredNodes[0])
   return err("No node with peer id: " & $peerId)
 
 proc initMixMultiAddrByIndex*(
-    self: var MixNodes, index: int, multiAddr: MultiAddress
+    self: var MixNodes, index: int, peerId: PeerId, multiAddr: MultiAddress
 ): Result[void, string] =
   if index < 0 or index >= self.len:
     return err("Index must be between 0 and " & $(self.len))
   self[index].multiAddr = multiAddr
+  self[index].peerId = peerId
   ok()

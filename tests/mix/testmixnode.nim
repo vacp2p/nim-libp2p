@@ -21,12 +21,13 @@ suite "Mix Node Tests":
     for i in 0 ..< count:
       let node = mixNodes[i]
       let
-        (multiAddr, mixPubKey, mixPrivKey, libp2pPubKey, libp2pPrivKey) = node.get()
+        (peerId, multiAddr, mixPubKey, mixPrivKey, libp2pPubKey, libp2pPrivKey) =
+          node.get()
         pubKeyProto = PublicKey(scheme: Secp256k1, skkey: libp2pPubKey)
-        peerId = PeerId.init(pubKeyProto).get()
-        expectedMA =
-          MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{4242 + i}/p2p/{peerId}").tryGet()
+        expectedPeerId = PeerId.init(pubKeyProto).get()
+        expectedMA = MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{4242 + i}").tryGet()
       check:
+        peerId == expectedPeerId
         multiAddr == expectedMA
         fieldElementToBytes(mixPubKey).len == FieldElementSize
         fieldElementToBytes(mixPrivKey).len == FieldElementSize
@@ -37,10 +38,7 @@ suite "Mix Node Tests":
     for i in 0 ..< count:
       let
         node = mixNodes[i]
-        ma = node.multiAddr
-        p2pPart = ma.getPart(multiCodec("p2p")).value()
-        peerId = PeerId.init(p2pPart.protoArgument().value()).value()
-        foundNode = mixNodes.findByPeerId(peerId).expect("find mix node error")
+        foundNode = mixNodes.findByPeerId(node.peerId).expect("find mix node error")
 
       check:
         foundNode == node
