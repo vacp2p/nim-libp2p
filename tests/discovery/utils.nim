@@ -1,6 +1,16 @@
-import sequtils
 import chronos
-import ../../libp2p/[protobuf/minprotobuf, protocols/rendezvous, switch, builders]
+import sequtils
+import
+  ../../libp2p/[
+    builders,
+    crypto/crypto,
+    peerid,
+    protobuf/minprotobuf,
+    protocols/rendezvous,
+    protocols/rendezvous/protobuf,
+    routing_record,
+    switch,
+  ]
 
 proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   SwitchBuilder
@@ -76,3 +86,41 @@ proc populatePeerRegistrations*(
   let record = targetRdv.registered.s[0]
   for i in 0 ..< count - 1:
     targetRdv.registered.s.add(record)
+
+proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
+  let rng = newRng()
+  let wrongPrivKey = PrivateKey.random(rng[]).tryGet()
+  let record = PeerRecord.init(peerId, @[])
+  SignedPeerRecord.init(wrongPrivKey, record).tryGet()
+
+proc sendRdvMessage*(
+    node: RendezVous, target: RendezVous, buffer: seq[byte]
+): Future[seq[byte]] {.async.} =
+  let conn = await node.switch.dial(target.switch.peerInfo.peerId, RendezVousCodec)
+  defer:
+    await conn.close()
+
+  await conn.writeLp(buffer)
+
+  let response = await conn.readLp(4096)
+  response
+
+proc prepareRegisterMessage*(
+    namespace: string, spr: seq[byte], ttl: Duration
+): Message =
+  Message(
+    msgType: MessageType.Register,
+    register: Opt.some(
+      Register(ns: namespace, signedPeerRecord: spr, ttl: Opt.some(ttl.seconds.uint64))
+    ),
+  )
+
+proc prepareDiscoverMessage*(
+    ns: Opt[string] = Opt.none(string),
+    limit: Opt[uint64] = Opt.none(uint64),
+    cookie: Opt[seq[byte]] = Opt.none(seq[byte]),
+): Message =
+  Message(
+    msgType: MessageType.Discover,
+    discover: Opt.some(Discover(ns: ns, limit: limit, cookie: cookie)),
+  )
