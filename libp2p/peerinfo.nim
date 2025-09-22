@@ -93,6 +93,10 @@ proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
 proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)] =
   parseFullAddress(?MultiAddress.init(ma))
 
+proc toFullAddress*(peerId: PeerId, ma: MultiAddress): MaResult[MultiAddress] =
+  let peerIdPart = ?MultiAddress.init(multiCodec("p2p"), peerId.data)
+  concat(ma, peerIdPart)
+
 proc new*(
     p: typedesc[PeerInfo],
     key: PrivateKey,
