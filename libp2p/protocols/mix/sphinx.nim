@@ -3,7 +3,8 @@ import ./[crypto, curve25519, serialization, tag_manager]
 import ../../crypto/crypto
 import ../../utils/sequninit
 
-const PaddingLength = (((t + 1) * (r - L)) + 1) * k
+const PathLength* = 3 # Path length (L)
+const PaddingLength = (((t + 1) * (r - PathLength)) + 1) * k
 
 type ProcessingStatus* = enum
   Exit

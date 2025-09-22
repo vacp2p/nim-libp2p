@@ -6,7 +6,6 @@ const
   k* = 16 # Security parameter
   r* = 5 # Maximum path length
   t* = 6 # t.k - combined length of next hop address and delay
-  L* = 3 # Path length
   AlphaSize* = 32 # Group element
   BetaSize* = ((r * (t + 1)) + 1) * k # bytes
   GammaSize* = 16 # Output of HMAC-SHA-256, truncated to 16 bytes
@@ -15,7 +14,7 @@ const
   AddrSize* = (t * k) - DelaySize # Address size
   PacketSize* = 4608 # Total packet size (from spec)
   MessageSize* = PacketSize - HeaderSize - k # Size of the message itself
-  payloadSize* = MessageSize + k # Total payload size
+  PayloadSize* = MessageSize + k # Total payload size
   SurbSize* = HeaderSize + k + AddrSize
     # Size of a surb packet inside the message payload
   SurbLenSize* = 1 # Size of the field storing the number of surbs
@@ -70,8 +69,8 @@ proc serialize*(message: Message): seq[byte] =
 proc deserialize*(
     T: typedesc[Message], serializedMessage: openArray[byte]
 ): Result[T, string] =
-  if len(serializedMessage) != payloadSize:
-    return err("Serialized message must be exactly " & $payloadSize & " bytes")
+  if len(serializedMessage) != PayloadSize:
+    return err("Serialized message must be exactly " & $PayloadSize & " bytes")
   return ok(serializedMessage[k ..^ 1])
 
 type Hop* = object
