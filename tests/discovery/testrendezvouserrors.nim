@@ -9,7 +9,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import sequtils, strutils
+import sequtils
+import strformat
+import strutils
 import chronos
 import
   ../../libp2p/[
@@ -53,8 +55,8 @@ suite "RendezVous Errors":
 
   let testCases =
     @[
-      # Register - Invalid Namespace
       (
+        "Register - Invalid Namespace",
         (
           proc(node: RendezVous): Message =
             prepareRegisterMessage(
@@ -65,8 +67,8 @@ suite "RendezVous Errors":
         ),
         ResponseStatus.InvalidNamespace,
       ),
-      # Register - Invalid Signed Peer Record
       (
+        "Register - Invalid Signed Peer Record",
         (
           proc(node: RendezVous): Message =
             # Malformed SPR - empty bytes will fail validation
@@ -74,8 +76,8 @@ suite "RendezVous Errors":
         ),
         ResponseStatus.InvalidSignedPeerRecord,
       ),
-      # Register - Invalid TTL
       (
+        "Register - Invalid TTL",
         (
           proc(node: RendezVous): Message =
             prepareRegisterMessage(
@@ -84,16 +86,16 @@ suite "RendezVous Errors":
         ),
         ResponseStatus.InvalidTTL,
       ),
-      # Discover - Invalid Namespace
       (
+        "Discover - Invalid Namespace",
         (
           proc(node: RendezVous): Message =
             prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
         ),
         ResponseStatus.InvalidNamespace,
       ),
-      # Discover - Invalid Cookie (malformed/undecodable)
       (
+        "Discover - Invalid Cookie",
         (
           proc(node: RendezVous): Message =
             # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
@@ -104,8 +106,9 @@ suite "RendezVous Errors":
     ]
 
   for test in testCases:
-    let (getMessage, expectedStatus) = test
-    asyncTest "Node returns ERROR_CODE for invalid message":
+    let (testName, getMessage, expectedStatus) = test
+
+    asyncTest &"Node returns ERROR_CODE for invalid message - {testName}":
       let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
       (rendezvousNode & peerNodes).startAndDeferStop()
 
