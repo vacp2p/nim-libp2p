@@ -47,7 +47,7 @@ nimble install libp2p
 You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/). See [examples](./examples) for simple usage patterns.
 
 ## Getting Started
-Try out the chat example. Full code can be found [here](https://github.com/status-im/nim-libp2p/blob/master/examples/chat.nim):
+Try out the chat example. Full code can be found [here](https://github.com/status-im/nim-libp2p/blob/master/examples/directchat.nim):
 
 ```bash
 nim c -r --threads:on examples/directchat.nim
