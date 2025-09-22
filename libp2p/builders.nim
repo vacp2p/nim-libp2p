@@ -29,6 +29,7 @@ import
   protocols/connectivity/[
     autonat/server,
     autonatv2/server,
+    autonatv2/service,
     autonatv2/client,
     relay/relay,
     relay/client,
@@ -81,9 +82,9 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
-    autonatV2: bool
-    autonatV2Config: AutonatV2Config
-    autonatV2Client: bool
+    autonatV2ServerConfig: Opt[AutonatV2Config]
+    autonatV2Client: AutonatV2Client
+    autonatV2ServiceConfig: AutonatV2ServiceConfig
     autotls: AutotlsService
     circuitRelay: Relay
     rdv: RendezVous
@@ -290,15 +291,17 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
-proc withAutonatV2*(
+proc withAutonatV2Server*(
     b: SwitchBuilder, config: AutonatV2Config = AutonatV2Config.new()
 ): SwitchBuilder =
-  b.autonatV2 = true
-  b.autonatV2Config = config
+  b.autonatV2ServerConfig = Opt.some(config)
   b
 
-proc withAutonatV2Client*(b: SwitchBuilder): SwitchBuilder =
-  b.autonatV2Client = true
+proc withAutonatV2*(
+    b: SwitchBuilder, serviceConfig = AutonatV2ServiceConfig.new()
+): SwitchBuilder =
+  b.autonatV2Client = AutonatV2Client.new(b.rng)
+  b.autonatV2ServiceConfig = serviceConfig
   b
 
 when defined(libp2p_autotls_support):
@@ -387,6 +390,13 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   if b.enableWildcardResolver:
     b.services.insert(WildcardAddressResolverService.new(), 0)
 
+  if not isNil(b.autonatV2Client):
+    b.services.add(
+      AutonatV2Service.new(
+        b.rng, client = b.autonatV2Client, config = b.autonatV2ServiceConfig
+      )
+    )
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -400,16 +410,15 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   switch.mount(identify)
 
-  if b.autonatV2Client:
-    let autonatV2Client = AutonatV2Client.new(switch.dialer, b.rng)
-    switch.mount(autonatV2Client)
+  if not isNil(b.autonatV2Client):
+    b.autonatV2Client.setup(switch)
+    switch.mount(b.autonatV2Client)
 
-  if b.autonatV2:
-    let autonatV2 = AutonatV2.new(switch, config = b.autonatV2Config)
-    switch.mount(autonatV2)
-  elif b.autonat:
-    let autonat = Autonat.new(switch)
-    switch.mount(autonat)
+  b.autonatV2ServerConfig.withValue(config):
+    switch.mount(AutonatV2.new(switch, config = config))
+
+  if b.autonat:
+    switch.mount(Autonat.new(switch))
 
   if not isNil(b.circuitRelay):
     if b.circuitRelay of RelayClient:

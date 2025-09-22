@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import results
-import chronos, chronicles
+import chronos, chronicles, tables
 import
   ../../protocol,
   ../../../switch,
@@ -58,11 +58,10 @@ proc handleDialBack(
 
 proc new*(
     T: typedesc[AutonatV2Client],
-    dialer: Dial,
     rng: ref HmacDrbgContext,
     dialBackTimeout: Duration = DefaultDialBackTimeout,
 ): T =
-  let client = T(dialer: dialer, rng: rng, dialBackTimeout: dialBackTimeout)
+  let client = T(rng: rng, dialBackTimeout: dialBackTimeout)
 
   # handler for DialBack messages
   proc handleStream(
@@ -86,6 +85,9 @@ proc new*(
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
   client
+
+proc setup*(self: AutonatV2Client, switch: Switch) =
+  self.dialer = switch.dialer
 
 proc handleDialDataRequest*(
     conn: Connection, req: DialDataRequest
@@ -143,22 +145,20 @@ proc checkAddrIdx(
     return false
   true
 
-proc sendDialRequest*(
-    self: AutonatV2Client,
-    pid: PeerId,
-    peerAddrs: seq[MultiAddress],
-    testAddrs: seq[MultiAddress],
+method sendDialRequest*(
+    self: AutonatV2Client, pid: PeerId, testAddrs: seq[MultiAddress]
 ): Future[AutonatV2Response] {.
+    base,
     async: (raises: [AutonatV2Error, CancelledError, DialFailedError, LPStreamError])
 .} =
-  ## Dials peer with `pid` at `peerAddrs` and requests that it tries connecting to `testAddrs`
+  ## Dials peer with `pid` and requests that it tries connecting to `testAddrs`
 
   let nonce = self.rng[].generate(Nonce)
   self.expectedNonces[nonce] = Opt.none(MultiAddress)
 
   var dialResp: DialResponse
   try:
-    let conn = await self.dialer.dial(pid, peerAddrs, @[$AutonatV2Codec.DialRequest])
+    let conn = await self.dialer.dial(pid, @[$AutonatV2Codec.DialRequest])
     defer:
       await conn.close()
 

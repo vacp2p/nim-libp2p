@@ -1,7 +1,7 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.12.0"
+version = "1.13.0"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
@@ -48,12 +48,6 @@ proc tutorialToMd(filename: string) =
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
-
-task testdaemon, "Runs daemon tests":
-  runTest("testdaemon")
-
-task testinterop, "Runs interop tests":
-  runTest("testinterop")
 
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")

@@ -21,7 +21,7 @@ import
     protocols/connectivity/autonatv2/server,
     protocols/connectivity/autonatv2/utils,
     protocols/connectivity/autonatv2/client,
-    protocols/connectivity/autonatv2/mock,
+    protocols/connectivity/autonatv2/mockserver,
   ],
   ./helpers
 
@@ -31,9 +31,10 @@ proc setupAutonat(
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
   let
     src = newStandardSwitchBuilder(addrs = srcAddrs).build()
-    dst = newStandardSwitchBuilder().withAutonatV2(config = config).build()
-    client = AutonatV2Client.new(src, newRng())
+    dst = newStandardSwitchBuilder().withAutonatV2Server(config = config).build()
+    client = AutonatV2Client.new(newRng())
 
+  client.setup(src)
   src.mount(client)
   await src.start()
   await dst.start()
@@ -176,13 +177,13 @@ suite "AutonatV2":
       )
 
   asyncTest "Instantiate server":
-    let serverSwitch = newStandardSwitchBuilder().withAutonatV2().build()
+    let serverSwitch = newStandardSwitchBuilder().withAutonatV2Server().build()
     await serverSwitch.start()
     await serverSwitch.stop()
 
   asyncTest "Instantiate server with config":
     let serverSwitch = newStandardSwitchBuilder()
-      .withAutonatV2(config = AutonatV2Config.new(allowPrivateAddresses = true))
+      .withAutonatV2Server(config = AutonatV2Config.new(allowPrivateAddresses = true))
       .build()
 
     await serverSwitch.start()
@@ -194,11 +195,7 @@ suite "AutonatV2":
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    check (
-      await client.sendDialRequest(
-        dst.peerInfo.peerId, dst.peerInfo.addrs, src.peerInfo.addrs
-      )
-    ) ==
+    check (await client.sendDialRequest(dst.peerInfo.peerId, src.peerInfo.addrs)) ==
       AutonatV2Response(
         reachability: Reachable,
         dialResp: DialResponse(
@@ -222,9 +219,7 @@ suite "AutonatV2":
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    check (
-      await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
-    ) ==
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
       AutonatV2Response(
         reachability: Reachable,
         dialResp: DialResponse(
@@ -243,9 +238,7 @@ suite "AutonatV2":
 
     check (
       await client.sendDialRequest(
-        dst.peerInfo.peerId,
-        dst.peerInfo.addrs,
-        @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()],
+        dst.peerInfo.peerId, @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
       )
     ) ==
       AutonatV2Response(
@@ -273,9 +266,7 @@ suite "AutonatV2":
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    check (
-      await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
-    ) ==
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
       AutonatV2Response(
         reachability: NotReachable,
         dialResp: DialResponse(
@@ -290,10 +281,11 @@ suite "AutonatV2":
     let
       src = newStandardSwitchBuilder().build()
       dst = newStandardSwitchBuilder().build()
-      client = AutonatV2Client.new(src, newRng())
+      client = AutonatV2Client.new(newRng())
       autonatV2Mock = AutonatV2Mock.new()
       reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
 
+    client.setup(src)
     dst.mount(autonatV2Mock)
     src.mount(client)
     await src.start()
@@ -306,16 +298,14 @@ suite "AutonatV2":
     # 1. invalid autonatv2msg
     autonatV2Mock.response = DialBackResponse(status: DialBackStatus.Ok).encode()
     expect(AutonatV2Error):
-      discard
-        await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
     # 2. msg that is not DialResponse or DialDataRequest
     autonatV2Mock.response = AutonatV2Msg(
       msgType: MsgType.DialRequest, dialReq: DialRequest(addrs: @[], nonce: 0)
     ).encode()
     expect(AutonatV2Error):
-      discard
-        await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
     # 3. invalid addrIdx (e.g. 1000 when only 1 is present)
     autonatV2Mock.response = AutonatV2Msg(
@@ -327,5 +317,4 @@ suite "AutonatV2":
       ),
     ).encode()
     expect(AutonatV2Error):
-      discard
-        await client.sendDialRequest(dst.peerInfo.peerId, dst.peerInfo.addrs, reqAddrs)
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
