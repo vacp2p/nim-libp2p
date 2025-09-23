@@ -12,3 +12,4 @@ bin           = @["example"]
 
 requires "stew"
 requires "chronos"
+requires "libp2p"
