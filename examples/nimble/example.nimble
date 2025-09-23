@@ -10,6 +10,5 @@ bin           = @["example"]
 
 # Dependencies
 
-requires "libp2p"
 requires "stew"
 requires "chronos"

@@ -27,9 +27,13 @@ jobs:
     - name: Display Nimble version
       run: nimble --version
 
-    - name: Install libp2p from head of PR branch
+    - name: Add libp2p from head of PR branch
       working-directory: examples/nimble
-      run: nimble --verbose install "libp2p@#${{ github.event.pull_request.head.sha }}"
+      run: nimble --verbose add "libp2p@#${{ github.event.pull_request.head.sha }}"
+
+    - name: Nimble install
+      working-directory: examples/nimble
+      run: nimble --verbose install
 
     - name: List installed packages
       working-directory: examples/nimble
