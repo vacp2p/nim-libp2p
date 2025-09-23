@@ -121,52 +121,6 @@ suite "RendezVous":
 
     check rendezvousNode.registered.s.len == 1
 
-  asyncTest "Peer can register to and unsubscribe multiple namespaces":
-    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
-    (rendezvousNode & peerNodes).startAndDeferStop()
-
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
-
-    let
-      joiner = peerNodes[0]
-      requester1 = peerNodes[1]
-      requester2 = peerNodes[2]
-
-    const namespaces = (0 ..< 5).mapIt(&"foo{it}")
-
-    # Join all the namespaces
-    for ns in namespaces:
-      await joiner.advertise(ns)
-
-    # Assert all the namespaces return Peer
-    for ns in namespaces:
-      check (await requester1.request(Opt.some(ns))).len == 1
-
-    # Assert request without namespace returns only one Peer
-    check (await requester1.request()).len == 1
-
-    # Unsubscribe subset of namespaces
-    const unsubscribedNamespaces = namespaces[0 ..< 3]
-    const subscribedNamespaces = namespaces[3 ..< 5]
-    check:
-      unsubscribedNamespaces.len == 3
-      subscribedNamespaces.len == 2
-
-    for ns in unsubscribedNamespaces:
-      await joiner.unsubscribe(ns)
-
-    # Change the requester to avoid wrong results due to request cookie and no new peers
-    # Assert unsubscribed namespaces don't return Peer
-    for ns in unsubscribedNamespaces:
-      check (await requester2.request(Opt.some(ns))).len == 0
-
-    # Assert still subscribed namespaces return Peer
-    for ns in subscribedNamespaces:
-      check (await requester2.request(Opt.some(ns))).len == 1
-
-    # Assert request without namespace still returns only one Peer
-    check (await requester2.request()).len == 1
-
   asyncTest "Consecutive requests with namespace returns peers with pagination":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(11)
     (rendezvousNode & peerNodes).startAndDeferStop()
@@ -527,3 +481,49 @@ suite "RendezVous":
     # 1001st registration ignored, limit reached
     await peerRdv.advertise(namespace)
     check rendezvousNode.registered.s.len == RegistrationLimitPerPeer
+
+  asyncTest "Peer can register to and unsubscribe multiple namespaces":
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+
+    let
+      joiner = peerNodes[0]
+      requester1 = peerNodes[1]
+      requester2 = peerNodes[2]
+
+    const namespaces = (0 ..< 5).mapIt(&"foo{it}")
+
+    # Join all the namespaces
+    for ns in namespaces:
+      await joiner.advertise(ns)
+
+    # Assert all the namespaces return Peer
+    for ns in namespaces:
+      check (await requester1.request(Opt.some(ns))).len == 1
+
+    # Assert request without namespace returns only one Peer
+    check (await requester1.request()).len == 1
+
+    # Unsubscribe subset of namespaces
+    const unsubscribedNamespaces = namespaces[0 ..< 3]
+    const subscribedNamespaces = namespaces[3 ..< 5]
+    check:
+      unsubscribedNamespaces.len == 3
+      subscribedNamespaces.len == 2
+
+    for ns in unsubscribedNamespaces:
+      await joiner.unsubscribe(ns)
+
+    # Change the requester to avoid wrong results due to request cookie and no new peers
+    # Assert unsubscribed namespaces don't return Peer
+    for ns in unsubscribedNamespaces:
+      check (await requester2.request(Opt.some(ns))).len == 0
+
+    # Assert still subscribed namespaces return Peer
+    for ns in subscribedNamespaces:
+      check (await requester2.request(Opt.some(ns))).len == 1
+
+    # Assert request without namespace still returns only one Peer
+    check (await requester2.request()).len == 1
