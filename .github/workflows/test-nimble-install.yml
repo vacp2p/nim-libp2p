@@ -1,0 +1,49 @@
+name: Test Nimble Installation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  test-nimble-install:
+    strategy:
+      matrix:
+        os: [ubuntu-latest] # TODO: Windows, mac
+        nim-version: ['2.2.4'] # TODO: tests with more versions
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - uses: nim-lang/setup-nimble-action@v1
+      with:
+        nimble-version: "nightly"
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Display Nimble version
+      run: nimble --version
+
+    - name: Install libp2p from head of PR branch
+      working-directory: examples/nimble
+      run: nimble --verbose install "libp2p@#${{ github.event.pull_request.head.sha }}"
+
+    - name: List installed packages
+      working-directory: examples/nimble
+      run: |
+        nimble list --installed --ver
+        
+    - name: Build example project
+      working-directory: examples/nimble
+      run: |
+        echo "Building example project..."
+        nimble --verbose build
+
+    - name: Run example project
+      working-directory: examples/nimble
+      run: |
+        echo "Running example project..."
+        nimble --verbose run
