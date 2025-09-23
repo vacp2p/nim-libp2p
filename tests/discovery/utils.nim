@@ -127,7 +127,7 @@ proc prepareDiscoverMessage*(
     discover: Opt.some(Discover(ns: ns, limit: limit, cookie: cookie)),
   )
 
-proc setupDiscMgrNodes*(count: int): (seq[DiscoveryManager], seq[RendezVous]) =
+proc setupDiscMngrNodes*(count: int): (seq[DiscoveryManager], seq[RendezVous]) =
   doAssert(count > 0, "Count must be greater than 0")
 
   var dms: seq[DiscoveryManager] = @[]

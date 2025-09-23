@@ -30,7 +30,7 @@ suite "Discovery Manager":
     const namespace = "foo"
 
     # Setup: [0] ClientA, [1] ClientB, [2] RemoteNode
-    let (dms, nodes) = setupDiscMgrNodes(3)
+    let (dms, nodes) = setupDiscMngrNodes(3)
     nodes.startAndDeferStop()
     dms.deferStop()
 
@@ -58,7 +58,7 @@ suite "Discovery Manager":
       rdvNamespace = RdvNamespace(namespace)
 
     # Setup: [0] ClientA, [1] ClientB, [2] ClientC, [3] RemoteNode
-    let (dms, nodes) = setupDiscMgrNodes(4)
+    let (dms, nodes) = setupDiscMngrNodes(4)
     nodes.startAndDeferStop()
     dms.deferStop()
 
