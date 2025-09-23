@@ -62,7 +62,7 @@ suite "Discovery Manager":
     nodes.startAndDeferStop()
     dms.deferStop()
 
-    # Topology: All Clients <==> RemoteNode
+    # Topology: Each Client <==> RemoteNode
     await connectNodes(nodes[0], nodes[3])
     await connectNodes(nodes[1], nodes[3])
     await connectNodes(nodes[2], nodes[3])
