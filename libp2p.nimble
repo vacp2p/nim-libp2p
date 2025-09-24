@@ -12,7 +12,7 @@ requires "nim >= 2.0.0",
   "chronicles >= 0.11.0 & < 0.12.0", "chronos >= 4.0.4", "metrics", "secp256k1",
   "stew >= 0.4.0", "websock >= 0.2.0", "unittest2", "results",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f",
-  "https://github.com/vacp2p/nim-quic.git##e5bcee4b909a9924fa6fbea305884888ce466330"
+  "https://github.com/vacp2p/nim-quic.git#77fbd31d9ca7f919013394f3163573e267bbd576"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
