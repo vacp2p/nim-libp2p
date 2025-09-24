@@ -75,12 +75,10 @@ suite "Discovery Manager":
 
       let query = dms[0].request(rdvNamespace) # ClientA
 
-      var seen = 0
-      while seen < 2:
+      for i in 0 ..< expectedPeerIds.len:
         let peerAttributes = await query.getPeer()
         let actualPeerId = peerAttributes{PeerId}.get()
         check actualPeerId in expectedPeerIds
-        seen.inc()
 
       # Discovery Manager times out if there are no new Peers
       check not await query.getPeer().withTimeout(50.milliseconds)
