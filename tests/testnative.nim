@@ -31,9 +31,9 @@ import
   testnameresolve, testmultistream, testbufferstream, testidentify,
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
-  testyamuxheader, testautonat, testautonatservice, testautonatv2, testautorelay,
-  testdcutr, testhpservice, testutility, testhelpers, testwildcardresolverservice,
-  testperf
+  testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
+  testautorelay, testdcutr, testhpservice, testutility, testhelpers,
+  testwildcardresolverservice, testperf
 
 import discovery/testdiscovery
 
@@ -41,3 +41,9 @@ import kademlia/[testencoding, testroutingtable, testfindnode, testputval]
 
 when defined(libp2p_autotls_support):
   import testautotls
+
+import
+  mix/[
+    testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
+    testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode,
+  ]

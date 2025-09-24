@@ -1,0 +1,76 @@
+From 29bac4cd8f28abfb9efb481d800b7c2e855d9b03 Mon Sep 17 00:00:00 2001
+From: Gabriel Cruz <gabe@gmelodie.com>
+Date: Wed, 17 Sep 2025 10:42:14 -0300
+Subject: [PATCH] disable filtering of private ip addresses
+
+---
+ p2p/protocol/autonatv2/autonat.go | 24 +-----------------------
+ p2p/protocol/autonatv2/server.go  |  9 ++++++---
+ 2 files changed, 7 insertions(+), 26 deletions(-)
+
+diff --git a/p2p/protocol/autonatv2/autonat.go b/p2p/protocol/autonatv2/autonat.go
+index 24883052..00a6211f 100644
+--- a/p2p/protocol/autonatv2/autonat.go
++++ b/p2p/protocol/autonatv2/autonat.go
+@@ -16,7 +16,6 @@ import (
+ 	"github.com/libp2p/go-libp2p/core/peer"
+ 	logging "github.com/libp2p/go-libp2p/gologshim"
+ 	ma "github.com/multiformats/go-multiaddr"
+-	manet "github.com/multiformats/go-multiaddr/net"
+ )
+ 
+ const (
+@@ -180,21 +179,7 @@ func (an *AutoNAT) Close() {
+ // GetReachability makes a single dial request for checking reachability for requested addresses
+ func (an *AutoNAT) GetReachability(ctx context.Context, reqs []Request) (Result, error) {
+ 	var filteredReqs []Request
+-	if !an.allowPrivateAddrs {
+-		filteredReqs = make([]Request, 0, len(reqs))
+-		for _, r := range reqs {
+-			if manet.IsPublicAddr(r.Addr) {
+-				filteredReqs = append(filteredReqs, r)
+-			} else {
+-				log.Error("private address in reachability check", "address", r.Addr)
+-			}
+-		}
+-		if len(filteredReqs) == 0 {
+-			return Result{}, ErrPrivateAddrs
+-		}
+-	} else {
+-		filteredReqs = reqs
+-	}
++	filteredReqs = reqs
+ 	an.mx.Lock()
+ 	now := time.Now()
+ 	var p peer.ID
+@@ -215,13 +200,6 @@ func (an *AutoNAT) GetReachability(ctx context.Context, reqs []Request) (Result,
+ 		log.Debug("reachability check failed", "peer", p, "err", err)
+ 		return res, fmt.Errorf("reachability check with %s failed: %w", p, err)
+ 	}
+-	// restore the correct index in case we'd filtered private addresses
+-	for i, r := range reqs {
+-		if r.Addr.Equal(res.Addr) {
+-			res.Idx = i
+-			break
+-		}
+-	}
+ 	log.Debug("reachability check successful", "peer", p)
+ 	return res, nil
+ }
+diff --git a/p2p/protocol/autonatv2/server.go b/p2p/protocol/autonatv2/server.go
+index 167d3d8e..e6d1e492 100644
+--- a/p2p/protocol/autonatv2/server.go
++++ b/p2p/protocol/autonatv2/server.go
+@@ -196,9 +197,6 @@ func (as *server) serveDialRequest(s network.Stream) EventDialRequestCompleted {
+ 		if err != nil {
+ 			continue
+ 		}
+-		if !as.allowPrivateAddrs && !manet.IsPublicAddr(a) {
+-			continue
+-		}
+ 		if !as.dialerHost.Network().CanDial(p, a) {
+ 			continue
+ 		}
+-- 
+2.51.0
+

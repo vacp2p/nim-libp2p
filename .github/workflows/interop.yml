@@ -60,3 +60,30 @@ jobs:
   #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
   #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
   #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  run-autonatv2-interop:
+    name: Run AutoNATv2 interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: "stable"
+
+      - name: Run Go and Nim together
+        run: |
+          nimble install
+          cd interop/autonatv2/go-peer
+          git clone https://github.com/libp2p/go-libp2p
+          cd go-libp2p
+          git apply ../disable-filtering-of-private-ip-addresses.patch
+          cd ..
+          go run testautonatv2.go &
+          cd ../nim-peer
+          nim r src/nim_peer.nim $(cat ../go-peer/peer.id)
