@@ -22,33 +22,73 @@ import ../helpers
 import ../utils/async_tests
 import ./utils
 
-suite "Discovery":
+suite "Discovery Manager":
   teardown:
     checkTrackers()
-  asyncTest "RendezVous test":
-    let
-      rdvA = RendezVous.new()
-      rdvB = RendezVous.new()
-      clientA = createSwitch(rdvA)
-      clientB = createSwitch(rdvB)
-      remoteNode = createSwitch()
-      dmA = DiscoveryManager()
-      dmB = DiscoveryManager()
-    dmA.add(RendezVousInterface.new(rdvA, ttr = 500.milliseconds))
-    dmB.add(RendezVousInterface.new(rdvB))
-    await allFutures(clientA.start(), clientB.start(), remoteNode.start())
 
-    await clientB.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
-    await clientA.connect(remoteNode.peerInfo.peerId, remoteNode.peerInfo.addrs)
+  asyncTest "RendezVous - advertise and request":
+    const namespace = "foo"
 
-    dmB.advertise(RdvNamespace("foo"))
+    # Setup: [0] ClientA, [1] ClientB, [2] RemoteNode
+    let (dms, nodes) = setupDiscMngrNodes(3)
+    nodes.startAndDeferStop()
+    dms.deferStop()
+
+    # Topology: ClientA <==> RemoteNode <==> ClientB
+    await connectNodes(nodes[0], nodes[2])
+    await connectNodes(nodes[1], nodes[2])
+
+    dms[0].advertise(RdvNamespace(namespace))
 
     let
-      query = dmA.request(RdvNamespace("foo"))
-      res = await query.getPeer()
+      query = dms[1].request(RdvNamespace(namespace))
+      peerAttributes = await query.getPeer()
+
+    let expectedPeerId = nodes[0].switch.peerInfo.peerId
     check:
-      res{PeerId}.get() == clientB.peerInfo.peerId
-      res[PeerId] == clientB.peerInfo.peerId
-      res.getAll(PeerId) == @[clientB.peerInfo.peerId]
-      toHashSet(res.getAll(MultiAddress)) == toHashSet(clientB.peerInfo.addrs)
-    await allFutures(clientA.stop(), clientB.stop(), remoteNode.stop())
+      peerAttributes{PeerId}.get() == expectedPeerId
+      peerAttributes[PeerId] == expectedPeerId
+      peerAttributes.getAll(PeerId) == @[expectedPeerId]
+      toHashSet(peerAttributes.getAll(MultiAddress)) ==
+        toHashSet(nodes[0].switch.peerInfo.addrs)
+
+  asyncTest "RendezVous - frequent advertise and unsubscribe with multiple clients":
+    const
+      namespace = "foo"
+      rdvNamespace = RdvNamespace(namespace)
+
+    # Setup: [0] ClientA, [1] ClientB, [2] ClientC, [3] RemoteNode
+    let (dms, nodes) = setupDiscMngrNodes(4)
+    nodes.startAndDeferStop()
+    dms.deferStop()
+
+    # Topology: Each Client <==> RemoteNode
+    await connectNodes(nodes[0], nodes[3])
+    await connectNodes(nodes[1], nodes[3])
+    await connectNodes(nodes[2], nodes[3])
+
+    for i in 0 ..< 10:
+      dms[1].advertise(rdvNamespace) # ClientB
+      dms[2].advertise(rdvNamespace) # ClientC
+      let expectedPeerIds =
+        @[nodes[1].switch.peerInfo.peerId, nodes[2].switch.peerInfo.peerId]
+
+      let query = dms[0].request(rdvNamespace) # ClientA
+
+      for i in 0 ..< expectedPeerIds.len:
+        let peerAttributes = await query.getPeer()
+        let actualPeerId = peerAttributes{PeerId}.get()
+        check actualPeerId in expectedPeerIds
+
+      # Discovery Manager times out if there are no new Peers
+      check not await query.getPeer().withTimeout(50.milliseconds)
+      query.stop()
+
+      await nodes[1].unsubscribe(namespace)
+      await nodes[2].unsubscribe(namespace)
+
+      # Ensure Discovery Manager doesn't return anything after Peers unsubscribed
+      # Using different requester to avoid false positive due to no new Peers registered
+      let newQuery = dms[1].request(rdvNamespace)
+      check not await newQuery.getPeer().withTimeout(50.milliseconds)
+      newQuery.stop()
