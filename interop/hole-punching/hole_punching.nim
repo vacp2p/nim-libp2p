@@ -56,7 +56,7 @@ proc main() {.async.} =
     auxSwitch = createSwitch()
     redisClient = open("redis", 6379.Port)
 
-  debug "Connected to redis"
+  debug "Connected to redis", mode = getEnv("MODE"), isListener = isListener
 
   await switch.start()
   await auxSwitch.start()
@@ -67,7 +67,7 @@ proc main() {.async.} =
     except Exception as e:
       raise newException(CatchableError, e.msg)
 
-  debug "All relay addresses", relayAddr
+  debug "Relay addresses", relayAddr
 
   # This is necessary to make the autonat service work. It will ask this peer for our reachability which the autonat
   # client stub will answer NotReachable.
