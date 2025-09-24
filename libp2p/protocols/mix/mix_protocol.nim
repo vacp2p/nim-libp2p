@@ -7,8 +7,14 @@ import
   ]
 import stew/endians2
 import ../protocol
+import ../../utils/sequninit
 import ../../stream/[connection, lpstream]
 import ../../[switch, multicodec, peerinfo]
+
+when defined(enable_mix_benchmarks):
+  import ./benchmark
+
+from times import getTime, toUnixFloat, `-`, initTime, `$`, inMilliseconds, Time
 
 const MixProtocolID* = "/mix/1.0.0"
 
@@ -67,6 +73,10 @@ proc cryptoRandomInt(rng: ref HmacDrbgContext, max: int): Result[int, string] =
 proc handleMixNodeConnection(
     mixProto: MixProtocol, conn: Connection
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
+  when defined(enable_mix_benchmarks):
+    let metadataBytes = newSeqUninit[byte](MetadataSize)
+    await conn.readExactly(addr metadataBytes[0], MetadataSize)
+
   let receivedBytes =
     try:
       await conn.readLp(PacketSize)
@@ -74,6 +84,13 @@ proc handleMixNodeConnection(
       raise exc
     finally:
       await conn.close()
+
+  when defined(enable_mix_benchmarks):
+    let startTime = getTime()
+
+    if metadataBytes.len == 0:
+      mix_messages_error.inc(labelValues = ["Intermediate/Exit", "NO_DATA"])
+      return # No data, end of stream  
 
   if receivedBytes.len == 0:
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "NO_DATA"])
@@ -91,6 +108,9 @@ proc handleMixNodeConnection(
     error "Failed to process Sphinx packet", err = error
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_SPHINX"])
     return
+
+  when defined(enable_mix_benchmarks):
+    let metadata = Metadata.deserialize(metadataBytes)
 
   case processedSP.status
   of Exit:
@@ -134,6 +154,14 @@ proc handleMixNodeConnection(
       message = deserialized.message,
       codec = deserialized.codec,
       to = destPeerId
+
+    when defined(enable_mix_benchmarks):
+      benchmarkLog "Exit",
+        mixProto.switch.peerInfo.peerId,
+        startTime,
+        metadata,
+        Opt.some(conn.peerId),
+        Opt.none(PeerId)
 
     await mixProto.exitLayer.onMessage(
       deserialized.codec, message, destAddr, destPeerId, surbs
@@ -179,6 +207,14 @@ proc handleMixNodeConnection(
       mix_messages_error.inc(labelValues = ["Reply", "INVALID_SPHINX"])
       return
 
+    when defined(enable_mix_benchmarks):
+      benchmarkLog "Reply",
+        mixProto.switch.peerInfo.peerId,
+        startTime,
+        metadata,
+        Opt.some(conn.peerId),
+        Opt.none(PeerId)
+
     await connCred.incoming.put(deserialized.message)
   of Intermediate:
     trace "# Intermediate: ", peerId, multiAddr
@@ -194,11 +230,22 @@ proc handleMixNodeConnection(
       mix_messages_error.inc(labelValues = ["Intermediate", "INVALID_DEST"])
       return
 
+    when defined(enable_mix_benchmarks):
+      benchmarkLog "Intermediate",
+        mixProto.switch.peerInfo.peerId,
+        startTime,
+        metadata,
+        Opt.some(conn.peerId),
+        Opt.some(peerId)
+
     try:
       let nextHopConn =
         await mixProto.switch.dial(nextPeerId, @[nextAddr], MixProtocolID)
       defer:
         await nextHopConn.close()
+
+      when defined(enable_mix_benchmarks):
+        await nextHopConn.write(metadataBytes)
 
       await nextHopConn.writeLp(processedSP.serializedSphinxPacket)
       mix_messages_forwarded.inc(labelValues = ["Intermediate"])
@@ -319,8 +366,11 @@ type SendPacketLogType* = enum
   Entry
   Reply
 
-type SendPacketLogConfig = object # TODO:benchmark params go here
+type SendPacketLogConfig = object
   logType: SendPacketLogType
+  when defined(enable_mix_benchmarks):
+    startTime: Time
+    metadata: Metadata
 
 proc sendPacket(
     mixProto: MixProtocol,
@@ -332,11 +382,25 @@ proc sendPacket(
   ## Send the wrapped message to the first mix node in the selected path
 
   let label = $logConfig.logType
+
+  when defined(enable_mix_benchmarks):
+    if logConfig.logType == Entry:
+      benchmarkLog "Sender",
+        mixProto.switch.peerInfo.peerId,
+        logConfig.startTime,
+        logConfig.metadata,
+        Opt.none(PeerId),
+        Opt.some(peerId)
+
   try:
     let nextHopConn =
       await mixProto.switch.dial(peerId, @[multiAddress], @[MixProtocolID])
     defer:
       await nextHopConn.close()
+
+    when defined(enable_mix_benchmarks):
+      await nextHopConn.writeLp(logConfig.metadata.serialize())
+
     await nextHopConn.writeLp(sphinxPacket.serialize())
   except DialFailedError as exc:
     error "Failed to dial next hop: ",
@@ -390,7 +454,12 @@ proc anonymizeLocalProtocolSend*(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   mix_messages_recvd.inc(labelValues = ["Entry"])
 
-  let logConfig = SendPacketLogConfig(logType: Entry)
+  var logConfig = SendPacketLogConfig(logType: Entry)
+  when defined(enable_mix_benchmarks):
+    # Assumes a fixed message layout whose first 16 bytes are the time at 
+    # origin and msgId
+    logConfig.startTime = getTime()
+    logConfig.metadata = Metadata.deserialize(msg)
 
   var
     publicKeys: seq[FieldElement] = @[]
