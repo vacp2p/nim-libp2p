@@ -156,7 +156,7 @@ method readLp*(
   if length == 0:
     return
 
-  var res = newSeqUninitialized[byte](length)
+  var res = newSeqUninit[byte](length)
   await s.readExactly(addr res[0], res.len)
   res
 
@@ -199,17 +199,14 @@ proc shortLog*(self: MixEntryConnection): string {.raises: [].} =
 method closeImpl*(
     self: MixEntryConnection
 ): Future[void] {.async: (raises: [], raw: true).} =
-  self.incomingFut.cancelSoon()
+  if not self.incomingFut.isNil:
+    self.incomingFut.cancelSoon()
   let fut = newFuture[void]()
   fut.complete()
   return fut
 
 func hash*(self: MixEntryConnection): Hash =
   hash($self.destination)
-
-when defined(libp2p_agents_metrics):
-  proc setShortAgent*(self: MixEntryConnection, shortAgent: string) =
-    discard
 
 proc new*(
     T: typedesc[MixEntryConnection],
@@ -244,9 +241,6 @@ proc new*(
     await srcMix.anonymizeLocalProtocolSend(
       instance.incoming, msg, codec, dest, numSurbs
     )
-
-  when defined(libp2p_agents_metrics):
-    instance.shortAgent = connection.shortAgent
 
   instance
 

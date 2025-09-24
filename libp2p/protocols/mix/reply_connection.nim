@@ -78,6 +78,9 @@ method writeLp*(
 proc shortLog*(self: MixReplyConnection): string {.raises: [].} =
   "[MixReplyConnection]"
 
+chronicles.formatIt(MixReplyConnection):
+  shortLog(it)
+
 method initStream*(self: MixReplyConnection) =
   discard
 
@@ -91,16 +94,7 @@ method closeImpl*(
 func hash*(self: MixReplyConnection): Hash =
   hash($self.surbs)
 
-when defined(libp2p_agents_metrics):
-  proc setShortAgent*(self: MixReplyConnection, shortAgent: string) =
-    discard
-
 proc new*(
     T: typedesc[MixReplyConnection], surbs: seq[SURB], mixReplyDialer: MixReplyDialer
 ): T =
-  let instance = T(surbs: surbs, mixReplyDialer: mixReplyDialer)
-
-  when defined(libp2p_agents_metrics):
-    instance.shortAgent = connection.shortAgent
-
-  instance
+  T(surbs: surbs, mixReplyDialer: mixReplyDialer)

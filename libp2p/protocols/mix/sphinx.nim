@@ -87,7 +87,7 @@ proc computeFillerStrings(s: seq[seq[byte]]): Result[seq[byte], string] =
 
 proc computeBetaGamma(
     s: seq[seq[byte]],
-    hop: openArray[Hop],
+    hops: openArray[Hop],
     delay: openArray[seq[byte]],
     destHop: Hop,
     id: SURBIdentifier,
@@ -121,7 +121,7 @@ proc computeBetaGamma(
       beta = aes & filler
     else:
       let routingInfo = RoutingInfo.init(
-        hop[i + 1], delay[i], gamma, beta[0 .. (((r * (t + 1)) - t) * k) - 1]
+        hops[i + 1], delay[i], gamma, beta[0 .. (((r * (t + 1)) - t) * k) - 1]
       )
 
       let serializedRoutingInfo = routingInfo.serialize()

@@ -57,10 +57,12 @@ proc multiAddrToBytes*(
     let relayIdPart = ?ma.getPart(multiCodec("p2p"))
     let relayId = ?PeerId.init(?relayIdPart.protoArgument()).mapErr(x => $x)
     if relayId.data.len != PeerIdByteLen:
-      return err("unsupported PeerId key type")
+      return err("unsupported PeerId key type, only Secp256k1 keys are supported")
     res.add(relayId.data)
 
   # PeerID (39 bytes)
+  if peerId.data.len != PeerIdByteLen:
+    return err("Unsupported PeerId key type, only Secp256k1 keys are supported")
   res.add(peerId.data)
 
   if res.len > AddrSize:

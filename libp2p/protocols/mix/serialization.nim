@@ -90,8 +90,11 @@ proc get*(hop: Hop): seq[byte] =
 proc serialize*(hop: Hop): seq[byte] =
   if hop.MultiAddress.len == 0:
     return newSeq[byte](AddrSize)
+
   doAssert len(hop.MultiAddress) == AddrSize,
     "MultiAddress must be exactly " & $AddrSize & " bytes"
+
+  return hop.MultiAddress
 
 proc deserialize*(T: typedesc[Hop], data: openArray[byte]): Result[T, string] =
   if len(data) != AddrSize:

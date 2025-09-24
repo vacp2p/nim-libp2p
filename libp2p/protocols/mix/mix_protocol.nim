@@ -475,7 +475,7 @@ proc anonymizeLocalProtocolSend*(
 
     i = i + 1
 
-  #Encode destination
+  # Encode destination
   let destAddrBytes = multiAddrToBytes(destination.peerId, destination.address).valueOr:
     error "Failed to convert multiaddress to bytes", err = error
     mix_messages_error.inc(labelValues = ["Entry", "INVALID_DEST"])

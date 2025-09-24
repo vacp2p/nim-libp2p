@@ -49,8 +49,7 @@ proc reply(
 
   let replyConn = MixReplyConnection.new(surbs, self.replyDialerCbFactory())
   defer:
-    if not replyConn.isNil:
-      await replyConn.close()
+    await replyConn.close()
   try:
     await replyConn.write(response)
   except LPStreamError as exc:
@@ -89,7 +88,6 @@ proc onMessage*(
         doAssert false, "checked with HasKey"
 
       response = await behaviorCb(destConn)
-
   except LPStreamError as exc:
     error "Stream error while writing to next hop: ", err = exc.msg
     mix_messages_error.inc(labelValues = ["ExitLayer", "LPSTREAM_ERR"])
