@@ -14,23 +14,7 @@ type MixReplyConnection* = ref object of Connection
 method readExactly*(
     self: MixReplyConnection, pbytes: pointer, nbytes: int
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  raise
-    newException(LPStreamError, "readExactly not implemented for MixReplyConnection")
-
-method readLine*(
-    self: MixReplyConnection, limit = 0, sep = "\r\n"
-): Future[string] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  raise newException(LPStreamError, "readLine not implemented for MixReplyConnection")
-
-method readVarint*(
-    self: MixReplyConnection
-): Future[uint64] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  raise newException(LPStreamError, "readVarint not implemented for MixReplyConnection")
-
-method readLp*(
-    self: MixReplyConnection, maxSize: int
-): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  raise newException(LPStreamError, "readLp not implemented for MixReplyConnection")
+  raise newException(LPStreamError, "MixReplyConnection does not allow reading")
 
 method write*(
     self: MixReplyConnection, msg: seq[byte]
@@ -43,37 +27,6 @@ method write*(
     return fut
 
   self.mixReplyDialer(self.surbs, msg)
-
-proc write*(
-    self: MixReplyConnection, msg: string
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
-  let fut = newFuture[void]()
-  fut.fail(
-    newException(LPStreamError, "write(string) not implemented for MixReplyConnection")
-  )
-  return fut
-
-method writeLp*(
-    self: MixReplyConnection, msg: openArray[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
-  let fut = newFuture[void]()
-  fut.fail(
-    newException(
-      LPStreamError, "writeLp(seq[byte]) not implemented for MixReplyConnection"
-    )
-  )
-  return fut
-
-method writeLp*(
-    self: MixReplyConnection, msg: string
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
-  let fut = newFuture[void]()
-  fut.fail(
-    newException(
-      LPStreamError, "writeLp(string) not implemented for MixReplyConnection"
-    )
-  )
-  return fut
 
 proc shortLog*(self: MixReplyConnection): string {.raises: [].} =
   "[MixReplyConnection]"
