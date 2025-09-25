@@ -365,7 +365,7 @@ proc sendPacket(
     multiAddress: MultiAddress,
     sphinxPacket: SphinxPacket,
     logConfig: SendPacketLogConfig,
-) {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   ## Send the wrapped message to the first mix node in the selected path
 
   let label = $logConfig.logType
@@ -390,17 +390,16 @@ proc sendPacket(
 
     await nextHopConn.writeLp(sphinxPacket.serialize())
   except DialFailedError as exc:
-    error "Failed to dial next hop: ",
-      peerId = peerId, address = multiAddress, err = exc.msg
     mix_messages_error.inc(labelValues = [label, "SEND_FAILED"])
+    return err(fmt"Failed to dial to next hop ({peerId}, {multiAddress}): {exc.msg}")
   except LPStreamError as exc:
-    error "Failed to write to next hop: ",
-      peerId = peerId, address = multiAddress, err = exc.msg
     mix_messages_error.inc(labelValues = [label, "SEND_FAILED"])
+    return err(fmt"Failed to write to next hop ({peerId}, {multiAddress}): {exc.msg}")
   except CancelledError as exc:
     raise exc
 
   mix_messages_forwarded.inc(labelValues = ["Entry"])
+  return ok()
 
 proc buildMessage(
     msg: seq[byte], codec: string, peerId: PeerId
@@ -457,7 +456,7 @@ proc anonymizeLocalProtocolSend*(
     codec: string,
     destination: MixDestination,
     numSurbs: uint8,
-) {.async: (raises: [CancelledError, LPStreamError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError, LPStreamError]).} =
   when not defined(libp2p_mix_experimental_exit_is_dest):
     doAssert destination.kind == ForwardAddr, "Only exit != destination is allowed"
 
@@ -486,10 +485,10 @@ proc anonymizeLocalProtocolSend*(
     numAvailableNodes = numMixNodes - 1
 
   if numAvailableNodes < PathLength:
-    error "No. of public mix nodes less than path length.",
-      numMixNodes = numAvailableNodes, pathLength = PathLength
     mix_messages_error.inc(labelValues = ["Entry", "LOW_MIX_POOL"])
-    return
+    return err(
+      fmt"No. of public mix nodes ({numAvailableNodes}) less than path length ({PathLength})."
+    )
 
   # Skip the destination peer
   var pubNodeInfoKeys = mixProto.pubNodeInfo.keys.toSeq()
@@ -499,16 +498,14 @@ proc anonymizeLocalProtocolSend*(
   if index != -1:
     availableIndices.del(index)
   elif destination.kind == MixNode:
-    error "Destination does not support mix"
-    return
+    return err("Destination does not support mix")
 
   var nextHopAddr: MultiAddress
   var nextHopPeerId: PeerId
   for i in 0 ..< PathLength:
     let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
-      error "Failed to generate random number", err = error
       mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
-      return
+      return err(fmt"Failed to generate random number: {error}")
     let selectedIndex = availableIndices[randomIndexPosition]
     var randPeerId = pubNodeInfoKeys[selectedIndex]
     availableIndices.del(randomIndexPosition)
@@ -541,10 +538,9 @@ proc anonymizeLocalProtocolSend*(
       nextHopPeerId = peerId
 
     let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
-      error "Failed to convert multiaddress to bytes", err = error
       mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
+      return err(fmt"Failed to convert multiaddress to bytes: {error}")
       #TODO: should we skip and pick a different node here??
-      return
 
     hop.add(Hop.init(multiAddrBytes))
 
@@ -552,9 +548,8 @@ proc anonymizeLocalProtocolSend*(
     let delayMillisec =
       if i != PathLength - 1:
         cryptoRandomInt(mixProto.rng, 3).valueOr:
-          error "Failed to generate random number", err = error
           mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
-          return
+          return err(fmt"Failed to generate random number: {error}")
       else:
         0 # Last hop does not require a delay
 
@@ -564,9 +559,8 @@ proc anonymizeLocalProtocolSend*(
   let destHop =
     if destination.kind == ForwardAddr:
       let destAddrBytes = multiAddrToBytes(destination.peerId, destination.address).valueOr:
-        error "Failed to convert multiaddress to bytes", err = error
         mix_messages_error.inc(labelValues = ["Entry", "INVALID_DEST"])
-        return
+        return err(fmt"Failed to convert multiaddress to bytes: {error}")
       Hop.init(destAddrBytes)
     else:
       Hop()
@@ -574,19 +568,16 @@ proc anonymizeLocalProtocolSend*(
   let msgWithSurbs = mixProto.prepareMsgWithSurbs(
     incoming, msg, numSurbs, destination.peerId, exitPeerId
   ).valueOr:
-    error "Could not prepend SURBs", err = error
-    return
+    return err(fmt"Could not prepend SURBs: {error}")
 
   let message = buildMessage(msgWithSurbs, codec, mixProto.mixNodeInfo.peerId).valueOr:
-    error "Error building message", err = error[0]
     mix_messages_error.inc(labelValues = ["Entry", error[1]])
-    return
+    return err(fmt"Error building message: {error[0]}")
 
   # Wrap in Sphinx packet
   let sphinxPacket = wrapInSphinxPacket(message, publicKeys, delay, hop, destHop).valueOr:
-    error "Failed to wrap in sphinx packet", err = error
     mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
-    return
+    return err(fmt"Failed to wrap in sphinx packet: {error}")
 
   # Send the wrapped message to the first mix node in the selected path
   await mixProto.sendPacket(nextHopPeerId, nextHopAddr, sphinxPacket, logConfig)
@@ -605,9 +596,11 @@ proc reply(
 
   let sphinxPacket = useSURB(surb, message)
 
-  await mixProto.sendPacket(
+  let sendRes = await mixProto.sendPacket(
     peerId, multiAddr, sphinxPacket, SendPacketLogConfig(logType: Reply)
   )
+  if sendRes.isErr:
+    error "could not send reply", peerId, multiAddr, err = sendRes.error
 
 proc init*(
     mixProto: MixProtocol,
