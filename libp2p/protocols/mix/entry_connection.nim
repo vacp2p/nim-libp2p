@@ -42,8 +42,8 @@ method readOnce*(
 
   try:
     await s.replyReceivedFut
-    s.isEof = true
     if s.cached.len == 0:
+      s.isEof = true
       raise newLPStreamEOFError()
   except CancelledError as exc:
     raise exc

@@ -1,4 +1,4 @@
-import chronicles, chronos, metrics
+import chronicles, chronos, metrics, sequtils
 import ../../builders
 import ../../stream/connection
 import ./[mix_metrics, reply_connection, serialization]
@@ -30,16 +30,8 @@ proc replyDialerCbFactory(self: ExitLayer): MixReplyDialer =
   return proc(
       surbs: seq[SURB], msg: seq[byte]
   ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-    try:
-      var respFuts: seq[Future[void]] = @[]
-      for surb in surbs:
-        respFuts.add(self.onReplyDialer(surb, msg))
-      await allFutures(respFuts)
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      error "Error during execution of reply: ", err = e.msg
-    return
+    let respFuts = surbs.mapIt(self.onReplyDialer(it, msg))
+    await allFutures(respFuts)
 
 proc reply(
     self: ExitLayer, surbs: seq[SURB], response: seq[byte]

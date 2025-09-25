@@ -142,42 +142,44 @@ proc handleMixNodeConnection(
     mix_messages_forwarded.inc(labelValues = ["Exit"])
   of Reply:
     trace "# Reply", id = processedSP.id
+
+    if not mixProto.connCreds.hasKey(processedSP.id):
+      mix_messages_error.inc(labelValues = ["Sender/Reply", "NO_CONN_FOUND"])
+      return
+
+    var connCred: ConnCreds
     try:
-      if not mixProto.connCreds.hasKey(processedSP.id):
-        mix_messages_error.inc(labelValues = ["Sender/Reply", "NO_CONN_FOUND"])
-        return
-
-      let connCred = mixProto.connCreds[processedSP.id]
-
-      let reply = processReply(
-        connCred.surbKey, connCred.surbSecret, processedSP.delta_prime
-      ).valueOr:
-        error "could not process reply", id = processedSP.id
-        mix_messages_error.inc(labelValues = ["Reply", "INVALID_CREDS"])
-        return
-
-      # Deleting all other SURBs associated to this
-      for id in connCred.igroup.members:
-        mixProto.connCreds.del(id)
-
-      let msgChunk = MessageChunk.deserialize(reply).valueOr:
-        error "Deserialization failed", err = error
-        mix_messages_error.inc(labelValues = ["Reply", "INVALID_SPHINX"])
-        return
-
-      let unpaddedMsg = msgChunk.removePadding().valueOr:
-        error "Unpadding message failed", err = error
-        mix_messages_error.inc(labelValues = ["Reply", "INVALID_SPHINX"])
-        return
-
-      let deserialized = MixMessage.deserialize(unpaddedMsg).valueOr:
-        error "Deserialization failed", err = error
-        mix_messages_error.inc(labelValues = ["Reply", "INVALID_SPHINX"])
-        return
-
-      await connCred.incoming.put(deserialized.message)
+      connCred = mixProto.connCreds[processedSP.id]
     except KeyError:
       doAssert false, "checked with hasKey"
+
+    let reply = processReply(
+      connCred.surbKey, connCred.surbSecret, processedSP.delta_prime
+    ).valueOr:
+      error "could not process reply", id = processedSP.id
+      mix_messages_error.inc(labelValues = ["Reply", "INVALID_CREDS"])
+      return
+
+    # Deleting all other SURBs associated to this
+    for id in connCred.igroup.members:
+      mixProto.connCreds.del(id)
+
+    let msgChunk = MessageChunk.deserialize(reply).valueOr:
+      error "Deserialization failed", err = error
+      mix_messages_error.inc(labelValues = ["Reply", "INVALID_SPHINX"])
+      return
+
+    let unpaddedMsg = msgChunk.removePadding().valueOr:
+      error "Unpadding message failed", err = error
+      mix_messages_error.inc(labelValues = ["Reply", "INVALID_SPHINX"])
+      return
+
+    let deserialized = MixMessage.deserialize(unpaddedMsg).valueOr:
+      error "Deserialization failed", err = error
+      mix_messages_error.inc(labelValues = ["Reply", "INVALID_SPHINX"])
+      return
+
+    await connCred.incoming.put(deserialized.message)
   of Intermediate:
     trace "# Intermediate: ", peerId, multiAddr
     # Add delay
@@ -220,9 +222,7 @@ proc getMaxMessageSizeForCodec*(
   ## with the given `codec`, optionally including space for the chosen number of surbs.  
   ## Returns an error if the codec + surb overhead exceeds the data capacity.  
   let serializedMsg = MixMessage.init(@[], codec).serialize()
-  var totalLen = serializedMsg.len + SurbLenSize + (int(numberOfSurbs) * SurbSize)
-  if numberOfSurbs > 0:
-    totalLen += SurbIdLen
+  let totalLen = serializedMsg.len + SurbLenSize + (int(numberOfSurbs) * SurbSize)
   if totalLen > DataSize:
     return err("cannot encode messages for this codec")
   return ok(DataSize - totalLen)
@@ -259,7 +259,7 @@ proc buildSurbs(
 
     # Select L mix nodes at random
     var i = 0
-    while i < PathLength:
+    while i in 0 ..< PathLength:
       let (peerId, multiAddr, mixPubKey, delayMillisec) =
         if i < PathLength - 1:
           let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
@@ -315,10 +315,7 @@ proc prepareMsgWithSurbs(
 ): Result[seq[byte], string] =
   let surbs = mixProto.buildSurbs(incoming, numSurbs, destPeerId, exitPeerId).valueOr:
     return err(error)
-
-  let serialized = ?serializeMessageWithSURBs(msg, surbs)
-
-  ok(serialized)
+  serializeMessageWithSURBs(msg, surbs)
 
 type SendPacketLogType* = enum
   Entry
@@ -337,14 +334,12 @@ proc sendPacket(
   ## Send the wrapped message to the first mix node in the selected path
 
   let label = $logConfig.logType
-  let sphinxPacketBytes = sphinxPacket.serialize()
-
   try:
     let nextHopConn =
       await mixProto.switch.dial(peerId, @[multiAddress], @[MixProtocolID])
     defer:
       await nextHopConn.close()
-    await nextHopConn.writeLp(sphinxPacketBytes)
+    await nextHopConn.writeLp(sphinxPacket.serialize())
   except DialFailedError as exc:
     error "Failed to dial next hop: ",
       peerId = peerId, address = multiAddress, err = exc.msg

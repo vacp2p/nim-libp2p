@@ -15,7 +15,7 @@ const
   PacketSize* = 4608 # Total packet size (from spec)
   MessageSize* = PacketSize - HeaderSize - k # Size of the message itself
   PayloadSize* = MessageSize + k # Total payload size
-  SurbSize* = HeaderSize + k + AddrSize
+  SurbSize* = HeaderSize + AddrSize + k
     # Size of a surb packet inside the message payload
   SurbLenSize* = 1 # Size of the field storing the number of surbs
   SurbIdLen* = k # Size of the identifier used when sending a message with surb

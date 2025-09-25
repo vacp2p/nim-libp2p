@@ -11,24 +11,16 @@ import ../helpers
 proc createSwitch(
     multiAddr: MultiAddress, libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey)
 ): Switch =
-  var b = SwitchBuilder
-    .new()
-    .withAddress(multiAddr)
-    .withRng(crypto.newRng())
-    .withYamux()
-    .withTcpTransport()
-    .withNoise()
-
-  let privKey =
-    if libp2pPrivKey.isSome:
-      libp2pPrivKey.get()
-    else:
-      let keyPair = SkKeyPair.random(rng[])
-      keyPair.seckey
-
-  b = b.withPrivateKey(PrivateKey(scheme: Secp256k1, skkey: privKey))
-
-  return b.build()
+  let privKey = PrivateKey(
+    scheme: Secp256k1,
+    skkey:
+      if libp2pPrivKey.isSome:
+        libp2pPrivKey.get()
+      else:
+        let keyPair = SkKeyPair.random(rng[])
+        keyPair.seckey,
+  )
+  return newStandardSwitchBuilder(some(privKey), multiAddr).build()
 
 proc setupSwitches(numNodes: int): seq[Switch] =
   # Initialize mix nodes
@@ -51,7 +43,7 @@ const NoReplyProtocolCodec = "/test/1.0.0"
 type NoReplyProtocol* = ref object of LPProtocol
 
 proc newNoReplyProtocol*(
-    switch: Switch, futToComplete: Future[seq[byte]]
+    switch: Switch, receivedMessageFut: Future[seq[byte]]
 ): NoReplyProtocol =
   let nrProto = NoReplyProtocol()
 
@@ -64,7 +56,7 @@ proc newNoReplyProtocol*(
       discard
 
     await conn.close()
-    futToComplete.complete(buffer)
+    receivedMessageFut.complete(buffer)
 
   nrProto.handler = handler
   nrProto.codec = NoReplyProtocolCodec
@@ -132,8 +124,8 @@ suite "Mix Protocol":
     defer:
       await destNode.stop()
 
-    let fut = newFuture[seq[byte]]()
-    let nrProto = newNoReplyProtocol(destNode, fut)
+    let receivedMessageFut = newFuture[seq[byte]]()
+    let nrProto = newNoReplyProtocol(destNode, receivedMessageFut)
     destNode.mount(nrProto)
 
     # Start all nodes
@@ -151,5 +143,4 @@ suite "Mix Protocol":
     await conn.writeLp(data)
     await conn.close()
 
-    let receivedAtServer = await fut
-    check data == receivedAtServer
+    check data == await receivedMessageFut
