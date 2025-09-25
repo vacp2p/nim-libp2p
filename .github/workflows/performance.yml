@@ -23,6 +23,7 @@ jobs:
         shell: bash
 
     env:
+      VACP2P: "vacp2p"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
@@ -69,15 +70,25 @@ jobs:
         uses: ./.github/actions/process_stats
 
       - name: Publish history
+        if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/publish_history
 
       - name: Generate plots
+        if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/generate_plots
-
-      - name: Publish plots and add to summary
-        if: success() || failure()
-        uses: ./.github/actions/publish_plots
 
       - name: Post/Update PR comment
         if: ${{ (success() || failure()) && github.event_name == 'pull_request' }}
         uses: ./.github/actions/add_comment
+
+      - name: Upload performance artifacts
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-artifacts
+          path: |
+            performance/output/pr*_latency.csv
+            performance/output/*.png
+            history/latency_history/*.png
+          if-no-files-found: ignore
+          retention-days: 7

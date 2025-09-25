@@ -36,22 +36,19 @@ type QuicStream* = ref object of P2PConnection
   cached: seq[byte]
 
 proc new(
-    _: type QuicStream, stream: Stream, oaddr: Opt[MultiAddress], peerId: PeerId
+    _: type QuicStream,
+    stream: Stream,
+    oaddr: Opt[MultiAddress],
+    laddr: Opt[MultiAddress],
+    peerId: PeerId,
 ): QuicStream =
-  let quicstream = QuicStream(stream: stream, observedAddr: oaddr, peerId: peerId)
+  let quicstream =
+    QuicStream(stream: stream, observedAddr: oaddr, localAddr: laddr, peerId: peerId)
   procCall P2PConnection(quicstream).initStream()
   quicstream
 
 method getWrapped*(self: QuicStream): P2PConnection =
   self
-
-template mapExceptions(body: untyped) =
-  try:
-    body
-  except QuicError:
-    raise newLPStreamEOFError()
-  except CatchableError:
-    raise newLPStreamEOFError()
 
 method readOnce*(
     stream: QuicStream, pbytes: pointer, nbytes: int
@@ -78,8 +75,16 @@ method readOnce*(
 method write*(
     stream: QuicStream, bytes: seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  mapExceptions(await stream.stream.write(bytes))
-  libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
+  try:
+    await stream.stream.write(bytes)
+    libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
+  except QuicError:
+    raise newLPStreamEOFError()
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    raise
+      (ref LPStreamError)(msg: "error in quic stream write: " & exc.msg, parent: exc)
 
 {.pop.}
 
@@ -120,7 +125,8 @@ proc getStream*(
       stream = await session.connection.openStream()
       await stream.write(@[]) # QUIC streams do not exist until data is sent
 
-    let qs = QuicStream.new(stream, session.observedAddr, session.peerId)
+    let qs =
+      QuicStream.new(stream, session.observedAddr, session.localAddr, session.peerId)
     when defined(libp2p_agents_metrics):
       qs.shortAgent = session.shortAgent
 
@@ -152,6 +158,8 @@ method newStream*(
 .} =
   try:
     return await m.quicSession.getStream(Direction.Out)
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     raise newException(MuxerError, "error in newStream: " & exc.msg, exc)
 
@@ -189,7 +197,7 @@ type CertGenerator =
 
 type QuicTransport* = ref object of Transport
   listener: Listener
-  client: QuicClient
+  client: Opt[QuicClient]
   privateKey: PrivateKey
   connections: seq[P2PConnection]
   rng: ref HmacDrbgContext
@@ -242,27 +250,33 @@ method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises:
     return false
   QUIC_V1.match(address)
 
-method start*(
-    self: QuicTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
-  doAssert self.listener.isNil, "start() already called"
-  #TODO handle multiple addr
-
+proc makeConfig(self: QuicTransport): TLSConfig =
   let pubkey = self.privateKey.getPublicKey().valueOr:
     doAssert false, "could not obtain public key"
     return
 
-  try:
-    if self.rng.isNil:
-      self.rng = newRng()
+  let cert = self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
+  let tlsConfig = TLSConfig.init(
+    cert.certificate, cert.privateKey, @[alpn], Opt.some(makeCertificateVerifier())
+  )
+  return tlsConfig
 
-    let cert = self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
-    let tlsConfig = TLSConfig.init(
-      cert.certificate, cert.privateKey, @[alpn], Opt.some(makeCertificateVerifier())
-    )
-    self.client = QuicClient.init(tlsConfig, rng = self.rng)
-    self.listener =
-      QuicServer.init(tlsConfig, rng = self.rng).listen(initTAddress(addrs[0]).tryGet)
+proc getRng(self: QuicTransport): ref HmacDrbgContext =
+  if self.rng.isNil:
+    self.rng = newRng()
+
+  return self.rng
+
+method start*(
+    self: QuicTransport, addrs: seq[MultiAddress]
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
+  doAssert self.listener.isNil, "start() already called"
+  # TODO(#1663): handle multiple addr
+
+  try:
+    self.listener = QuicServer.init(self.makeConfig(), rng = self.getRng()).listen(
+        initTAddress(addrs[0]).tryGet
+      )
     await procCall Transport(self).start(addrs)
     self.addrs[0] =
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
@@ -283,28 +297,36 @@ method start*(
   self.running = true
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
-  if transport.running:
-    let conns = transport.connections[0 .. ^1]
-    for c in conns:
-      await c.close()
-    await procCall Transport(transport).stop()
+  let conns = transport.connections[0 .. ^1]
+  for c in conns:
+    await c.close()
+
+  if not transport.listener.isNil:
     try:
       await transport.listener.stop()
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
     transport.listener.destroy()
-    transport.running = false
     transport.listener = nil
+
+  transport.client = Opt.none(QuicClient)
+  await procCall Transport(transport).stop()
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection
 ): QuicSession {.raises: [TransportOsError, MaError].} =
   let
-    remoteAddr = connection.remoteAddress()
     observedAddr =
-      MultiAddress.init(remoteAddr, IPPROTO_UDP).get() &
+      MultiAddress.init(connection.remoteAddress(), IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
-    session = QuicSession(connection: connection, observedAddr: Opt.some(observedAddr))
+    localAddr =
+      MultiAddress.init(connection.localAddress(), IPPROTO_UDP).get() &
+      MultiAddress.init("/quic-v1").get()
+    session = QuicSession(
+      connection: connection,
+      observedAddr: Opt.some(observedAddr),
+      localAddr: Opt.some(localAddr),
+    )
 
   session.initStream()
 
@@ -353,7 +375,11 @@ method dial*(
     async: (raises: [transport.TransportError, CancelledError])
 .} =
   try:
-    let quicConnection = await self.client.dial(initTAddress(address).tryGet)
+    if not self.client.isSome:
+      self.client = Opt.some(QuicClient.init(self.makeConfig(), rng = self.getRng()))
+
+    let client = self.client.get()
+    let quicConnection = await client.dial(initTAddress(address).tryGet)
     return self.wrapConnection(quicConnection)
   except CancelledError as e:
     raise e

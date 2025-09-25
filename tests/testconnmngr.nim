@@ -17,7 +17,7 @@ import ../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, p
 import helpers
 
 proc getMuxer(peerId: PeerId, dir: Direction = Direction.In): Muxer =
-  return Muxer(connection: Connection.new(peerId, dir, Opt.none(MultiAddress)))
+  return Muxer(connection: Connection.new(peerId, dir))
 
 type TestMuxer = ref object of Muxer
   peerId: PeerId
@@ -25,7 +25,7 @@ type TestMuxer = ref object of Muxer
 method newStream*(
     m: TestMuxer, name: string = "", lazy: bool = false
 ): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
-  Connection.new(m.peerId, Direction.Out, Opt.none(MultiAddress))
+  Connection.new(m.peerId, Direction.Out)
 
 suite "Connection Manager":
   teardown:
@@ -124,7 +124,7 @@ suite "Connection Manager":
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     let muxer = new TestMuxer
-    let connection = Connection.new(peerId, Direction.In, Opt.none(MultiAddress))
+    let connection = Connection.new(peerId, Direction.In)
     muxer.peerId = peerId
     muxer.connection = connection
 
@@ -144,7 +144,7 @@ suite "Connection Manager":
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
     let muxer = new TestMuxer
-    let connection = Connection.new(peerId, Direction.In, Opt.none(MultiAddress))
+    let connection = Connection.new(peerId, Direction.In)
     muxer.peerId = peerId
     muxer.connection = connection
 

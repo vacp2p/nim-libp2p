@@ -20,9 +20,9 @@ import
   ../../../peerid,
   ../../../utils/[semaphore, future],
   ../../../errors
-import core
+import types
 
-export core
+export types
 
 logScope:
   topics = "libp2p autonat"

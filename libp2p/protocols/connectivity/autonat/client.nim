@@ -12,7 +12,7 @@
 import results
 import chronos, chronicles
 import ../../../switch, ../../../multiaddress, ../../../peerid
-import core
+import types
 
 logScope:
   topics = "libp2p autonat"

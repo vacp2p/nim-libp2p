@@ -18,9 +18,9 @@ import
   ../multicodec,
   ../muxers/muxer,
   ../upgrademngrs/upgrade,
-  ../protocols/connectivity/autonat/core
+  ../protocols/connectivity/autonat/types
 
-export core.NetworkReachability
+export types.NetworkReachability
 
 logScope:
   topics = "libp2p transport"

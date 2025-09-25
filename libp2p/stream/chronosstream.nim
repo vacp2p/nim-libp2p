@@ -62,8 +62,15 @@ proc init*(
     dir: Direction,
     timeout = DefaultChronosStreamTimeout,
     observedAddr: Opt[MultiAddress],
+    localAddr: Opt[MultiAddress],
 ): ChronosStream =
-  result = C(client: client, timeout: timeout, dir: dir, observedAddr: observedAddr)
+  result = C(
+    client: client,
+    timeout: timeout,
+    dir: dir,
+    observedAddr: observedAddr,
+    localAddr: localAddr,
+  )
   result.initStream()
 
 template withExceptions(body: untyped) =

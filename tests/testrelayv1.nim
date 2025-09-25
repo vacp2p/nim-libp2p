@@ -28,7 +28,6 @@ import
     builders,
     upgrademngrs/upgrade,
     varint,
-    daemon/daemonapi,
   ]
 import ./helpers
 

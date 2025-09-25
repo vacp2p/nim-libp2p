@@ -146,8 +146,23 @@ type
     ## This callback can be used to reject topic we're not interested in
 
   PublishParams* = object
+    ## Used to indicate whether a message will be broadcasted using a custom connection
+    ## defined when instantiating Pubsub, or if it will use the normal connection
     useCustomConn*: bool
+
+    ## Can be used to avoid having the node reply to IWANT messages when initially 
+    ## broadcasting a message, it's only after relaying its own message that the
+    ## node will reply to IWANTs
     skipMCache*: bool
+
+    ## Determines whether an IDontWant message will be sent for the current message
+    ## when it is published if it's a large message. 
+    skipIDontWant*: bool
+
+    when defined(libp2p_gossipsub_1_4):
+      ## Determines whether a Preamble message will be sent for the current message
+      ## when it is published if it's a large message
+      skipPreamble*: bool
 
   PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
