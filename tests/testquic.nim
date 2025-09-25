@@ -238,7 +238,7 @@ suite "Quic transport":
       await client.stop()
 
     let server = await createTransport(isServer = true)
-    let serverHandlerFut = serverHandler(server)       
+    let serverHandlerFut = serverHandler(server)
 
     await runClient(server)
     await serverHandlerFut
