@@ -9,7 +9,7 @@ const DefaultSurbs = uint8(4)
 
 type MixDialer* = proc(
   msg: seq[byte], codec: string, destination: MixDestination
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).}
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).}
 
 type MixParameters* = object
   expectReply*: Opt[bool]
@@ -59,26 +59,17 @@ method readOnce*(
 
 method write*(
     self: MixEntryConnection, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   if msg.len() > DataSize:
-    let fut = newFuture[void]()
-    fut.fail(
-      newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
-    )
-    return fut
-  self.mixDialer(msg, self.codec, self.destination)
+    raise newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
+  await self.mixDialer(msg, self.codec, self.destination)
 
 proc shortLog*(self: MixEntryConnection): string {.raises: [].} =
   "[MixEntryConnection] Destination: " & $self.destination
 
-method closeImpl*(
-    self: MixEntryConnection
-): Future[void] {.async: (raises: [], raw: true).} =
+method closeImpl*(self: MixEntryConnection): Future[void] {.async: (raises: []).} =
   if not self.incomingFut.isNil:
     self.incomingFut.cancelSoon()
-  let fut = newFuture[void]()
-  fut.complete()
-  return fut
 
 func hash*(self: MixEntryConnection): Hash =
   hash($self.destination)
