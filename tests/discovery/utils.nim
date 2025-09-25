@@ -139,7 +139,9 @@ proc setupDiscMngrNodes*(count: int): (seq[DiscoveryManager], seq[RendezVous]) =
     nodes.add(node)
 
     let dm = DiscoveryManager()
-    dm.add(RendezVousInterface.new(node, ttr = 500.milliseconds))
+    dm.add(
+      RendezVousInterface.new(node, ttr = 100.milliseconds, tta = 100.milliseconds)
+    )
     dms.add(dm)
 
   return (dms, nodes)
