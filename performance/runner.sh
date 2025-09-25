@@ -30,7 +30,7 @@ for ((i = 0; i < $PEERS; i++)); do
       -v /var/run/docker.sock:/var/run/docker.sock \
       --hostname="$hostname" \
       --network="$network" \
-      test-node > /dev/null
+      perf-base > /dev/null
 
     container_names+=("$hostname")
 done

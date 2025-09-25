@@ -57,7 +57,7 @@ jobs:
         with:
           context: .
           file: performance/Dockerfile
-          tags: test-node:latest
+          tags: perf-base:latest
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -73,9 +73,10 @@ jobs:
         if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/publish_history
 
-      - name: Generate plots
-        if: github.repository_owner == env.VACP2P
-        uses: ./.github/actions/generate_plots
+      # TODO: Refactor
+      # - name: Generate plots
+      #   if: github.repository_owner == env.VACP2P
+      #   uses: ./.github/actions/generate_plots
 
       - name: Post/Update PR comment
         if: ${{ (success() || failure()) && github.event_name == 'pull_request' }}

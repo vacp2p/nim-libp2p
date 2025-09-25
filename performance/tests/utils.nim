@@ -11,12 +11,12 @@ import stew/endians2
 import strutils
 import strformat
 import tables
-import ../libp2p
-import ../libp2p/protocols/pubsub/rpc/messages
-import ../libp2p/muxers/mplex/lpchannel
-import ../libp2p/protocols/ping
-import ../tests/helpers
-import ./types
+import ../../libp2p
+import ../../libp2p/protocols/pubsub/rpc/messages
+import ../../libp2p/muxers/mplex/lpchannel
+import ../../libp2p/protocols/ping
+import ../../tests/helpers
+import ../types
 
 const
   topic* = "test"
