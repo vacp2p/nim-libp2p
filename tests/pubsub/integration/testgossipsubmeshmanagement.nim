@@ -286,6 +286,8 @@ suite "GossipSub Integration - Mesh Management":
       numberOfNodes = 9
       topic = "foobar"
       pruneBackoff = 1.seconds # 1s is the minimum
+      checkTimeout = 10.seconds
+        # increased because for quick transport it takes more time
       dValues = some(
         DValues(
           dLow: some(6),
@@ -310,7 +312,7 @@ suite "GossipSub Integration - Mesh Management":
       await connectNodes(node0, nodes[i])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
 
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(checkTimeout, 100.milliseconds):
       node0.mesh.getOrDefault(topic).len == numberOfNodes - 1
 
     # When DValues of Node0 are updated to lower than initial dValues
@@ -328,12 +330,12 @@ suite "GossipSub Integration - Mesh Management":
 
     # Then Node0 mesh is pruned to newDValues.dHigh length
     # And pruned peers have applied pruneBackoff
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(checkTimeout, 100.milliseconds):
       node0.mesh.getOrDefault(topic).len == newDValues.get.dHigh.get
 
     # When DValues of Node0 are updated back to the initial dValues
     node0.parameters.applyDValues(dValues)
 
     # Then on the next heartbeat mesh is rebalanced and peers are regrafted to the initial d value
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(checkTimeout, 100.milliseconds):
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
