@@ -19,7 +19,7 @@ type MixEntryConnection* = ref object of Connection
   destination: MixDestination
   codec: string
   mixDialer: MixDialer
-  params: Opt[MixParameters]
+  params: MixParameters
   incoming: AsyncQueue[seq[byte]]
   incomingFut: Future[void]
   replyReceivedFut: Future[void]
@@ -88,9 +88,8 @@ proc new*(
     srcMix: MixProtocol,
     destination: MixDestination,
     codec: string,
-    params: Opt[MixParameters],
+    params: MixParameters,
 ): T {.raises: [].} =
-  let params = params.get(MixParameters())
   let expectReply = params.expectReply.get(false)
   let numSurbs =
     if expectReply:
@@ -123,13 +122,13 @@ proc toConnection*(
     srcMix: MixProtocol,
     destination: MixDestination,
     codec: string,
-    params: Opt[MixParameters] = Opt.none(MixParameters),
+    params: MixParameters = MixParameters(),
 ): Result[Connection, string] {.gcsafe, raises: [].} =
   ## Create a stream to send and optionally receive responses.
   ## Under the hood it will wrap the message in a sphinx packet
   ## and send it via a random mix path.
   if not srcMix.hasDestReadBehavior(codec):
-    if params.get(MixParameters()).expectReply.get(false):
+    if params.expectReply.get(false):
       return err("no destination read behavior for codec")
     else:
       warn "no destination read behavior for codec", codec

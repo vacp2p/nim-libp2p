@@ -227,6 +227,57 @@ proc getMaxMessageSizeForCodec*(
     return err("cannot encode messages for this codec")
   return ok(DataSize - totalLen)
 
+proc buildSurb(
+    mixProto: MixProtocol, id: SURBIdentifier, destPeerId: PeerId, exitPeerId: PeerId
+): Result[SURB, string] =
+  var
+    multiAddrs: seq[MultiAddress] = @[]
+    publicKeys: seq[FieldElement] = @[]
+    hops: seq[Hop] = @[]
+    delay: seq[seq[byte]] = @[]
+
+  if mixProto.pubNodeInfo.len < PathLength:
+    return err("No. of public mix nodes less than path length")
+
+  # Remove exit and dest node from nodes to consider for surbs
+  var pubNodeInfoKeys =
+    mixProto.pubNodeInfo.keys.toSeq().filterIt(it != exitPeerId and it != destPeerId)
+  var availableIndices = toSeq(0 ..< pubNodeInfoKeys.len)
+
+  # Select L mix nodes at random
+  for i in 0 ..< PathLength:
+    let (peerId, multiAddr, mixPubKey, delayMillisec) =
+      if i < PathLength - 1:
+        let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
+          return err("failed to generate random num: " & error)
+        let selectedIndex = availableIndices[randomIndexPosition]
+        let randPeerId = pubNodeInfoKeys[selectedIndex]
+        availableIndices.del(randomIndexPosition)
+        debug "Selected mix node for surbs: ", indexInPath = i, peerId = randPeerId
+        let mixPubInfo = mixProto.pubNodeInfo.getOrDefault(randPeerId)
+        # Compute delay
+        let delayMillisec = cryptoRandomInt(mixProto.rng, 3).valueOr:
+          mix_messages_error.inc(labelValues = ["Entry/SURB", "NON_RECOVERABLE"])
+          return err("failed to generate random number: " & error)
+        (mixPubInfo.peerId, mixPubInfo.multiAddr, mixPubInfo.mixPubKey, delayMillisec)
+      else:
+        (
+          mixProto.mixNodeInfo.peerId, mixProto.mixNodeInfo.multiAddr,
+          mixProto.mixNodeInfo.mixPubKey, 0,
+        ) # No delay
+
+    publicKeys.add(mixPubKey)
+
+    let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
+      mix_messages_error.inc(labelValues = ["Entry/SURB", "INVALID_MIX_INFO"])
+      return err("failed to convert multiaddress to bytes: " & error)
+
+    hops.add(Hop.init(multiAddrBytes))
+
+    delay.add(@(delayMillisec.uint16.toBytesBE()))
+
+  return createSURB(publicKeys, delay, hops, id)
+
 proc buildSurbs(
     mixProto: MixProtocol,
     incoming: AsyncQueue[seq[byte]],
@@ -238,62 +289,9 @@ proc buildSurbs(
   var igroup = SURBIdentifierGroup(members: initHashSet[SURBIdentifier]())
 
   for _ in 0.uint8 ..< numSurbs:
-    var
-      id: SURBIdentifier
-      multiAddrs: seq[MultiAddress] = @[]
-      publicKeys: seq[FieldElement] = @[]
-      hops: seq[Hop] = @[]
-      delay: seq[seq[byte]] = @[]
-
+    var id: SURBIdentifier
     hmacDrbgGenerate(mixProto.rng[], id)
-
-    # Select L mix nodes at random
-
-    if mixProto.pubNodeInfo.len < PathLength:
-      return err("No. of public mix nodes less than path length")
-
-    # Remove exit and dest node from nodes to consider for surbs
-    var pubNodeInfoKeys =
-      mixProto.pubNodeInfo.keys.toSeq().filterIt(it != exitPeerId and it != destPeerId)
-    var availableIndices = toSeq(0 ..< pubNodeInfoKeys.len)
-
-    # Select L mix nodes at random
-    var i = 0
-    while i in 0 ..< PathLength:
-      let (peerId, multiAddr, mixPubKey, delayMillisec) =
-        if i < PathLength - 1:
-          let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
-            return err("failed to generate random num: " & error)
-          let selectedIndex = availableIndices[randomIndexPosition]
-          let randPeerId = pubNodeInfoKeys[selectedIndex]
-          availableIndices.del(randomIndexPosition)
-          debug "Selected mix node for surbs: ", indexInPath = i, peerId = randPeerId
-          let mixPubInfo = mixProto.pubNodeInfo.getOrDefault(randPeerId)
-          # Compute delay
-          let delayMillisec = cryptoRandomInt(mixProto.rng, 3).valueOr:
-            mix_messages_error.inc(labelValues = ["Entry/SURB", "NON_RECOVERABLE"])
-            return err("failed to generate random number: " & error)
-          (mixPubInfo.peerId, mixPubInfo.multiAddr, mixPubInfo.mixPubKey, delayMillisec)
-        else:
-          (
-            mixProto.mixNodeInfo.peerId, mixProto.mixNodeInfo.multiAddr,
-            mixProto.mixNodeInfo.mixPubKey, 0,
-          ) # No delay
-
-      publicKeys.add(mixPubKey)
-
-      let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
-        mix_messages_error.inc(labelValues = ["Entry/SURB", "INVALID_MIX_INFO"])
-        return err("failed to convert multiaddress to bytes: " & error)
-
-      hops.add(Hop.init(multiAddrBytes))
-
-      delay.add(@(delayMillisec.uint16.toBytesBE()))
-
-      i.inc()
-
-    let surb = ?createSURB(publicKeys, delay, hops, id)
-
+    let surb = ?mixProto.buildSurb(id, destPeerId, exitPeerId)
     igroup.members.incl(id)
     mixProto.connCreds[id] = ConnCreds(
       igroup: igroup,

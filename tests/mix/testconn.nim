@@ -1,6 +1,6 @@
 {.used.}
 
-import results, unittest2
+import results, unittest2, options
 import std/[enumerate, sequtils]
 import ../../libp2p/protocols/[mix, ping]
 import ../../libp2p/[peerid, multiaddress, switch, builders]
@@ -20,7 +20,7 @@ proc createSwitch(
         let keyPair = SkKeyPair.random(rng[])
         keyPair.seckey,
   )
-  return newStandardSwitchBuilder(some(privKey), multiAddr).build()
+  return newStandardSwitchBuilder(privKey = some(privKey), addrs = multiAddr).build()
 
 proc setupSwitches(numNodes: int): seq[Switch] =
   # Initialize mix nodes
@@ -100,9 +100,7 @@ suite "Mix Protocol":
       .toConnection(
         MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
         PingCodec,
-        Opt.some(
-          MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1)))
-        ),
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
       )
       .expect("could not build connection")
 
