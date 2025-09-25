@@ -15,11 +15,10 @@ const
   PacketSize* = 4608 # Total packet size (from spec)
   MessageSize* = PacketSize - HeaderSize - k # Size of the message itself
   PayloadSize* = MessageSize + k # Total payload size
-  SurbSize* = HeaderSize + k + AddrSize
+  SurbSize* = HeaderSize + AddrSize + k
     # Size of a surb packet inside the message payload
   SurbLenSize* = 1 # Size of the field storing the number of surbs
   SurbIdLen* = k # Size of the identifier used when sending a message with surb
-  DefaultSurbs* = uint8(4) # Default number of SURBs to send
 
 type Header* = object
   Alpha*: seq[byte]
@@ -91,8 +90,11 @@ proc get*(hop: Hop): seq[byte] =
 proc serialize*(hop: Hop): seq[byte] =
   if hop.MultiAddress.len == 0:
     return newSeq[byte](AddrSize)
+
   doAssert len(hop.MultiAddress) == AddrSize,
     "MultiAddress must be exactly " & $AddrSize & " bytes"
+
+  return hop.MultiAddress
 
 proc deserialize*(T: typedesc[Hop], data: openArray[byte]): Result[T, string] =
   if len(data) != AddrSize:

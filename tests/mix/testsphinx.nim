@@ -55,9 +55,10 @@ suite "Sphinx Tests":
   test "sphinx wrap and process":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
-    let packetBytes = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
         "sphinx wrap error"
       )
+    let packetBytes = sp.serialize()
 
     check packetBytes.len == PacketSize
 
@@ -100,9 +101,10 @@ suite "Sphinx Tests":
 
   test "sphinx_process_invalid_mac":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
-    let packetBytes = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
         "Sphinx wrap error"
       )
+    let packetBytes = sp.serialize()
 
     check packetBytes.len == PacketSize
 
@@ -121,9 +123,10 @@ suite "Sphinx Tests":
   test "sphinx process duplicate tag":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
-    let packetBytes = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
         "Sphinx wrap error"
       )
+    let packetBytes = sp.serialize()
 
     check packetBytes.len == PacketSize
 
@@ -150,8 +153,10 @@ suite "Sphinx Tests":
         message[i] = byte(rand(256))
       let paddedMessage = addPadding(message, MessageSize)
 
-      let packetBytes = wrapInSphinxPacket(paddedMessage, publicKeys, delay, hops, dest)
-        .expect("Sphinx wrap error")
+      let sp = wrapInSphinxPacket(paddedMessage, publicKeys, delay, hops, dest).expect(
+          "Sphinx wrap error"
+        )
+      let packetBytes = sp.serialize()
 
       check packetBytes.len == PacketSize
 
