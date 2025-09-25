@@ -123,4 +123,5 @@ if __name__ == "__main__":
     for csv_file in csv_files:
         file_name = os.path.splitext(os.path.basename(csv_file))[0]
         data = parse_csv(csv_file)
-        plot_metrics(data, title=file_name, output_path=os.path.join(shared_volume_path, f"{file_name}.png"))
+        if len(data) > 0:
+            plot_metrics(data, title=file_name, output_path=os.path.join(shared_volume_path, f"{file_name}.png"))
