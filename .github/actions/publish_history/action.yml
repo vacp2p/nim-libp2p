@@ -34,3 +34,8 @@ runs:
         fi
 
         cd ..
+
+    - name: Add plot to GitHub Actions summary
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/latency_history_chart ./performance/scripts/latency_history_chart.nim

@@ -1,3 +1,10 @@
+## process_docker_stats.nim
+## Processes Docker stats JSON log files into CSV format suitable for chart generation.
+## Handles all data processing including rate calculations, offset adjustments, and
+## value clamping to produce ready-to-chart CSV files.
+##
+## CSV output format: timestamp,cpu_percent,mem_usage_mb,download_MBps,upload_MBps,download_MB,upload_MB
+
 from times import parse, toTime, toUnix
 import strformat
 import strutils
@@ -120,7 +127,10 @@ proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
     let ulMBps = calcRateMBps(s.netTxMB, prevTx, dt)
     let dlAcc = s.netRxMB - rxOffset
     let ulAcc = s.netTxMB - txOffset
-    let memUsage = s.memUsageMB - memOffset
+    var memUsage = s.memUsageMB - memOffset
+    # Clamp negative memory values to 0 (processing moved from csv_to_mermaid.nim)
+    if memUsage < 0:
+      memUsage = 0
     f.writeLine(
       fmt"{relTimestamp:.2f},{s.cpuPercent:.2f},{memUsage:.2f},{dlMBps:.4f},{ulMBps:.4f},{dlAcc:.4f},{ulAcc:.4f}"
     )
