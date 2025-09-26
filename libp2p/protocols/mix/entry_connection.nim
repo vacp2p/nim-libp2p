@@ -103,9 +103,11 @@ proc new*(
   instance.mixDialer = proc(
       msg: seq[byte], codec: string, dest: MixDestination
   ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-    await srcMix.anonymizeLocalProtocolSend(
+    let sendRes = await srcMix.anonymizeLocalProtocolSend(
       instance.incoming, msg, codec, dest, numSurbs
     )
+    if sendRes.isErr:
+      raise newException(LPStreamError, sendRes.error)
 
   instance
 
