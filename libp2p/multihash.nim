@@ -244,7 +244,6 @@ macro registerMultiHashes*(body: untyped): untyped =
     result.add quote do:
       static:
         CodeHashes[`stmt`.mcodec] = `stmt`
-        echo "Registered multihash: ", `stmt`
 
 registerMultiHashes:
   MHash(mcodec: multiCodec("identity"), size: 0, coder: identhash)
