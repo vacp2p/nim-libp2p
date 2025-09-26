@@ -17,8 +17,6 @@ suite "Performance Tests":
   teardown:
     checkTrackers()
 
-asyncTest "Base Test (TCP+mplex)":
-  await baseTest("TCP mplex")
-
-asyncTest "Base Test (QUIC)":
-  await baseTest("QUIC", transport = TransportType.QUIC)
+  asyncTest "Base Test":
+    await baseTest("Base Test", TransportType.TCP)
+    await baseTest("Base Test", TransportType.QUIC)

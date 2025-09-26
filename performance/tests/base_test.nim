@@ -14,6 +14,7 @@ import metrics/chronos_httpserver
 import os
 import osproc
 import strutils
+import strformat
 import ../../libp2p
 import ../../libp2p/protocols/pubsub/peertable
 import ../../libp2p/protocols/ping
@@ -21,11 +22,9 @@ import ../../tests/helpers
 import ./utils
 from nativesockets import getHostname
 
-proc baseTest*(
-    scenarioName = "Base test", transport: TransportType = TransportType.TCP
-) {.async.} =
+proc baseTest*(scenarioName = "Base test", transport: TransportType) {.async.} =
   # --- Scenario ---
-  let scenario = scenarioName
+  let scenario = fmt"{scenarioName} ({transport})"
   const
     nodeCount = 10
     publisherCount = 5
