@@ -118,7 +118,7 @@ proc write*(pb: var ProtoBuffer, field: int, env: Envelope): Result[void, Crypto
   ok()
 
 type SignedPayload*[T] = object
-  # T needs to have .encode(), .decode(), .payloadType(), .domain()
+  # T needs to have .encode(), .decode(), .payloadType(), .payloadDomain()
   envelope*: Envelope
   data*: T
 

@@ -10,11 +10,12 @@
 {.push raises: [].}
 
 import chronos
-import ./discoverymngr, ../protocols/rendezvous, ../peerid
+import ./discoverymngr, ../protocols/rendezvous, ../peerid, ../routing_record
 
 type
   RendezVousInterface* = ref object of DiscoveryInterface
-    rdv*: RendezVous
+    rdv*: RendezVous[PeerRecord]
+      # using PeerRecord as default should be fine since this interface is used within libp2p
     timeToRequest: Duration
     timeToAdvertise: Duration
     ttl: Duration

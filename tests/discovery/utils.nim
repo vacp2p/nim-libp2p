@@ -14,7 +14,11 @@ import
     switch,
   ]
 
-proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
+proc createSwitch*(rdv: RendezVous): Switch =
+  var lrdv = rdv
+  if lrdv == nil:
+    lrdv = RendezVous.new()
+
   SwitchBuilder
   .new()
   .withRng(newRng())
@@ -22,22 +26,24 @@ proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   .withMemoryTransport()
   .withMplex()
   .withNoise()
-  .withRendezVous(rdv)
+  .withRendezVous(lrdv)
   .build()
 
-proc setupNodes*(count: int): seq[RendezVous] =
+proc setupNodes*(count: int): seq[RendezVous[PeerRecord]] =
   doAssert(count > 0, "Count must be greater than 0")
 
-  var rdvs: seq[RendezVous] = @[]
+  var rdvs: seq[RendezVous[PeerRecord]] = @[]
 
   for x in 0 ..< count:
-    let rdv = RendezVous.new()
+    let rdv = RendezVous[PeerRecord].new()
     let node = createSwitch(rdv)
     rdvs.add(rdv)
 
   return rdvs
 
-proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]) =
+proc setupRendezvousNodeWithPeerNodes*(
+    count: int
+): (RendezVous[PeerRecord], seq[RendezVous[PeerRecord]]) =
   let
     rdvs = setupNodes(count + 1)
     rendezvousRdv = rdvs[0]
