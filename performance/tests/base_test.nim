@@ -22,7 +22,7 @@ import ../../tests/helpers
 import ./utils
 from nativesockets import getHostname
 
-proc baseTest*(scenarioName = "Base test", transport: TransportType) {.async.} =
+proc baseTest*(scenarioName: string, transport: TransportType) {.async.} =
   # --- Scenario ---
   let scenario = fmt"{scenarioName} ({transport})"
   const
