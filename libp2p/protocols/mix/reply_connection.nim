@@ -4,7 +4,7 @@ import ./[serialization]
 from fragmentation import DataSize
 
 type MixReplyDialer* = proc(surbs: seq[SURB], msg: seq[byte]): Future[void] {.
-  async: (raises: [CancelledError, LPStreamError], raw: true)
+  async: (raises: [CancelledError, LPStreamError])
 .}
 
 type MixReplyConnection* = ref object of Connection
@@ -18,15 +18,10 @@ method readExactly*(
 
 method write*(
     self: MixReplyConnection, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
   if msg.len() > DataSize:
-    let fut = newFuture[void]()
-    fut.fail(
-      newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
-    )
-    return fut
-
-  self.mixReplyDialer(self.surbs, msg)
+    raise newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
+  await self.mixReplyDialer(self.surbs, msg)
 
 proc shortLog*(self: MixReplyConnection): string {.raises: [].} =
   "[MixReplyConnection]"
@@ -37,12 +32,8 @@ chronicles.formatIt(MixReplyConnection):
 method initStream*(self: MixReplyConnection) =
   discard
 
-method closeImpl*(
-    self: MixReplyConnection
-): Future[void] {.async: (raises: [], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
-  return fut
+method closeImpl*(self: MixReplyConnection): Future[void] {.async: (raises: []).} =
+  discard
 
 func hash*(self: MixReplyConnection): Hash =
   hash($self.surbs)

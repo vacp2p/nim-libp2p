@@ -142,3 +142,34 @@ suite "Mix Protocol":
     await conn.close()
 
     check data == await receivedMessageFut
+
+  asyncTest "e2e - expect reply, exit == destination":
+    var mixProto: seq[MixProtocol] = @[]
+    for index, _ in enumerate(switches):
+      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
+          "should have initialized mix protocol"
+        )
+      # We'll fwd requests, so let's register how should the exit node will read responses
+      proto.registerDestReadBehavior(PingCodec, readExactly(32))
+      mixProto.add(proto)
+      switches[index].mount(proto)
+
+    let destNode = switches[^1]
+    let pingProto = Ping.new()
+    destNode.mount(pingProto)
+
+    # Start all nodes
+    await switches.mapIt(it.start()).allFutures()
+
+    let conn = mixProto[0]
+      .toConnection(
+        MixDestination.exitNode(destNode.peerInfo.peerId),
+        PingCodec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
+      )
+      .expect("could not build connection")
+
+    let response = await pingProto.ping(conn)
+    await conn.close()
+
+    check response != 0.seconds
