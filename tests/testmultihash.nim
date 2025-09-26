@@ -9,9 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-# from std/strutils import repeat
 import unittest2
-import nimcrypto/utils
 import ../libp2p/multicodec
 import ../libp2p/multihash
 
@@ -72,56 +70,49 @@ const RustTestVectors = [
 ]
 
 
-proc coder1(data: openArray[byte], output: var openArray[byte]) =
-  if len(output) > 0:
-    var length =
-      if len(data) > len(output):
-        len(output)
-      else:
-        len(data)
-    copyMem(addr output[0], unsafeAddr data[0], length)
-
-proc coder2(data: openArray[byte], output: var openArray[byte]) =
-  if len(output) > 0:
-    var length =
-      if len(data) > len(output):
-        len(output)
-      else:
-        len(data)
-    copyMem(addr output[0], unsafeAddr data[0], length)
-
-proc coder3(data: openArray[byte], output: var openArray[byte]) =
-  if len(output) > 0:
-    var length =
-      if len(data) > len(output):
-        len(output)
-      else:
-        len(data)
-    copyMem(addr output[0], unsafeAddr data[0], length)
-
-registerMultiCodecs:
-  ("codec1", 0x101)
-  ("codec2", 0x102)
-  ("codec3", 0x103)
-
-registerMultiHashes:
-  MHash(
-    mcodec: multiCodec("codec1"),
-    size: 0,
-    coder: coder1,
-  )
-  MHash(
-    mcodec: multiCodec("codec2"),
-    size: 0,
-    coder: coder2
-  )
-  MHash(
-    mcodec: multiCodec("codec3"),
-    size: 0,
-    coder: coder3
-  )
-
 suite "MultiHash test suite":
+
+  proc coder1(data: openArray[byte], output: var openArray[byte]) =
+    copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+  proc coder2(data: openArray[byte], output: var openArray[byte]) =
+    debugEcho "using coder2"
+    copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+  proc coder3(data: openArray[byte], output: var openArray[byte]) =
+    copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+  proc coderReverse(data: openArray[byte], output: var openArray[byte]) =
+    debugEcho "using coderReverse"
+    # Reverse the data before hashing
+    debugEcho "data: ", data
+    var buf = newSeq[byte](len(data))
+    for i in 0 ..< len(data):
+      buf[i] = data[len(data) - 1 - i]
+    debugEcho "buf: ", buf
+    copyMem(addr output[0], unsafeAddr buf[0], len(buf))
+
+  registerMultiCodecs:
+    ("codec1", 0x101)
+    ("codec2", 0x102)
+    ("codec3", 0x103)
+
+  registerMultiHashes:
+    MHash(
+      mcodec: multiCodec("codec1"),
+      size: 0,
+      coder: coder1,
+    )
+    MHash(
+      mcodec: multiCodec("codec2"),
+      size: 6,
+      coder: coder2
+    )
+    MHash(
+      mcodec: multiCodec("codec2"),
+      size: 6,
+      coder: coderReverse
+    )
 
   test "rust-multihash test vectors":
     for item in RustTestVectors:
@@ -146,29 +137,19 @@ suite "MultiHash test suite":
 
   test "registered hashes correctly hash data":
     var data = cast[seq[byte]]("hello")
-
-    let mh1 = MultiHash.digest("codec1", data).get
-    let mh2 = MultiHash.digest("codec2", data).get
-    let mh3 = MultiHash.digest("codec3", data).get
-
-    let expected1 = "81020568656C6C6F"
-    let mh1init = MultiHash.init(expected1).get
-
-    let expected2 = "82020568656C6C6F"
-    let mh2init = MultiHash.init(expected2).get
-
-    let expected3 = "83020568656C6C6F"
-    let mh3init = MultiHash.init(expected3).get
+    let mh = MultiHash.digest("codec1", data).get
+    let expected = "81020568656C6C6F"
+    let mhInit = MultiHash.init(expected).get
 
     check:
-      mh1.hex == expected1
-      mh1.hex == mh1init.hex
-      mh1 == mh1init
+      mh.hex == expected
+      mh.hex == mhInit.hex
+      mh == mhInit
 
-      mh2.hex == expected2
-      mh2.hex == mh2init.hex
-      mh2 == mh2init
+  test "can register an overriding hash function for already registered hash":
+    var data = cast[seq[byte]]("hello")
+    let mh = MultiHash.digest("codec2", data).get
+    let expected = "8202066F6C6C656800"
 
-      mh3.hex == expected3
-      mh3.hex == mh3init.hex
-      mh3 == mh3init
+    check:
+      mh.hex == expected

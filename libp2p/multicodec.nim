@@ -19,8 +19,8 @@ import ./vbuffer
 import results
 export results
 
-var NameCodecs#[CompileTime]# {.compileTime.}: Table[string, int]
-var CodeCodecs#[CompileTime]# {.compileTime.}: Table[int, string]
+var NameCodecs {.compileTime.}: Table[string, int]
+var CodeCodecs {.compileTime.}: Table[int, string]
 
 proc parseCodecTuple(node: NimNode): tuple[name: string, code: int] {.compileTime.} =
   ## Parse a (name, code) tuple from the AST
