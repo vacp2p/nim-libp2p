@@ -26,7 +26,7 @@ asyncTest "Latency Test":
   discard execShellCommand(
     fmt"{enableTcCommand} netem delay {latency}ms {jitter}ms distribution normal"
   )
-  await baseTest(fmt"Latency {latency}ms {jitter}ms (TCP Yamux)")
+  await baseTest(fmt"Latency {latency}ms {jitter}ms (TCP mplex)")
   await baseTest(
     fmt"Latency {latency}ms {jitter}ms (QUIC)", transport = TransportType.QUIC
   )
@@ -36,7 +36,7 @@ asyncTest "Packet Loss Test":
   const packetLoss = 5
 
   discard execShellCommand(fmt"{enableTcCommand} netem loss {packetLoss}%")
-  await baseTest(fmt"Packet Loss {packetLoss}% (TCP Yamux)")
+  await baseTest(fmt"Packet Loss {packetLoss}% (TCP mplex)")
   await baseTest(fmt"Packet Loss {packetLoss}% (QUIC)", transport = TransportType.QUIC)
   discard execShellCommand(disableTcCommand)
 
@@ -48,7 +48,7 @@ asyncTest "Low Bandwidth Test":
 
   discard
     execShellCommand(fmt"{enableTcCommand} tbf rate {rate} burst {burst} limit {limit}")
-  await baseTest(fmt"Low Bandwidth rate {rate} burst {burst} limit {limit} (TCP Yamux)")
+  await baseTest(fmt"Low Bandwidth rate {rate} burst {burst} limit {limit} (TCP mplex)")
   await baseTest(
     fmt"Low Bandwidth rate {rate} burst {burst} limit {limit} (QUIC)",
     transport = TransportType.QUIC,
@@ -65,7 +65,7 @@ asyncTest "Packet Reorder Test":
     fmt"{enableTcCommand} netem delay {delay}ms reorder {reorderPercent}% {reorderCorr}%"
   )
   await baseTest(
-    fmt"Packet Reorder {reorderPercent}% {reorderCorr}% with {delay}ms delay (TCP Yamux)"
+    fmt"Packet Reorder {reorderPercent}% {reorderCorr}% with {delay}ms delay (TCP mplex)"
   )
   await baseTest(
     fmt"Packet Reorder {reorderPercent}% {reorderCorr}% with {delay}ms delay (QUIC)",
@@ -79,7 +79,7 @@ asyncTest "Burst Loss Test":
     lossCorr = 30
 
   discard execShellCommand(fmt"{enableTcCommand} netem loss {lossPercent}% {lossCorr}%")
-  await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}% (TCP Yamux)")
+  await baseTest(fmt"Burst Loss {lossPercent}% {lossCorr}% (TCP mplex)")
   await baseTest(
     fmt"Burst Loss {lossPercent}% {lossCorr}% (QUIC)", transport = TransportType.QUIC
   )
@@ -89,7 +89,7 @@ asyncTest "Duplication Test":
   const duplicatePercent = 2
 
   discard execShellCommand(fmt"{enableTcCommand} netem duplicate {duplicatePercent}%")
-  await baseTest(fmt"Duplication {duplicatePercent}% (TCP Yamux)")
+  await baseTest(fmt"Duplication {duplicatePercent}% (TCP mplex)")
   await baseTest(
     fmt"Duplication {duplicatePercent}% (QUIC)", transport = TransportType.QUIC
   )
@@ -99,7 +99,7 @@ asyncTest "Corruption Test":
   const corruptPercent = 0.5
 
   discard execShellCommand(fmt"{enableTcCommand} netem corrupt {corruptPercent}%")
-  await baseTest(fmt"Corruption {corruptPercent}% (TCP Yamux)")
+  await baseTest(fmt"Corruption {corruptPercent}% (TCP mplex)")
   await baseTest(
     fmt"Corruption {corruptPercent}% (QUIC)", transport = TransportType.QUIC
   )
@@ -109,7 +109,7 @@ asyncTest "Queue Limit Test":
   const queueLimit = 5
 
   discard execShellCommand(fmt"{enableTcCommand} netem limit {queueLimit}")
-  await baseTest(fmt"Queue Limit {queueLimit} (TCP Yamux)")
+  await baseTest(fmt"Queue Limit {queueLimit} (TCP mplex)")
   await baseTest(fmt"Queue Limit {queueLimit} (QUIC)", transport = TransportType.QUIC)
   discard execShellCommand(disableTcCommand)
 
@@ -120,7 +120,7 @@ asyncTest "Combined Network Conditions Test":
   discard execShellCommand(
     "tc qdisc add dev eth0 parent 1:1 handle 10: netem delay 100ms 20ms distribution normal loss 5% 20% reorder 10% 30% duplicate 0.5% corrupt 0.05% limit 20"
   )
-  await baseTest(fmt"Combined Network Conditions (TCP Yamux)")
+  await baseTest(fmt"Combined Network Conditions (TCP mplex)")
   await baseTest(
     fmt"Combined Network Conditions (QUIC)", transport = TransportType.QUIC
   )
