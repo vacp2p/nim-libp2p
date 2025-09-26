@@ -14,10 +14,10 @@ import
     switch,
   ]
 
-proc createSwitch*(rdv: RendezVous): Switch =
+proc createSwitch*(rdv: RendezVous[PeerRecord]): Switch =
   var lrdv = rdv
   if lrdv == nil:
-    lrdv = RendezVous.new()
+    lrdv = newRendezVous[PeerRecord]()
 
   SwitchBuilder
   .new()
@@ -35,7 +35,7 @@ proc setupNodes*(count: int): seq[RendezVous[PeerRecord]] =
   var rdvs: seq[RendezVous[PeerRecord]] = @[]
 
   for x in 0 ..< count:
-    let rdv = RendezVous[PeerRecord].new()
+    let rdv = newRendezVous[PeerRecord]()
     let node = createSwitch(rdv)
     rdvs.add(rdv)
 
@@ -51,17 +51,17 @@ proc setupRendezvousNodeWithPeerNodes*(
 
   return (rendezvousRdv, peerRdvs)
 
-template startAndDeferStop*(nodes: seq[RendezVous]) =
+template startAndDeferStop*(nodes: seq[RendezVous[PeerRecord]]) =
   await allFutures(nodes.mapIt(it.switch.start()))
   defer:
     await allFutures(nodes.mapIt(it.switch.stop()))
 
-proc connectNodes*[T: RendezVous](dialer: T, target: T) {.async.} =
+proc connectNodes*[T: RendezVous[PeerRecord]](dialer: T, target: T) {.async.} =
   await dialer.switch.connect(
     target.switch.peerInfo.peerId, target.switch.peerInfo.addrs
   )
 
-proc connectNodesToRendezvousNode*[T: RendezVous](
+proc connectNodesToRendezvousNode*[T: RendezVous[PeerRecord]](
     nodes: seq[T], rendezvousNode: T
 ) {.async.} =
   for node in nodes:
@@ -75,12 +75,15 @@ proc buildProtobufCookie*(offset: uint64, namespace: string): seq[byte] =
   pb.buffer
 
 proc injectCookieForPeer*(
-    rdv: RendezVous, peerId: PeerId, namespace: string, cookie: seq[byte]
+    rdv: RendezVous[PeerRecord], peerId: PeerId, namespace: string, cookie: seq[byte]
 ) =
   discard rdv.cookiesSaved.hasKeyOrPut(peerId, {namespace: cookie}.toTable())
 
 proc populatePeerRegistrations*(
-    peerRdv: RendezVous, targetRdv: RendezVous, namespace: string, count: int
+    peerRdv: RendezVous[PeerRecord],
+    targetRdv: RendezVous[PeerRecord],
+    namespace: string,
+    count: int,
 ) {.async.} =
   # Test helper: quickly populate many registrations for a peer.
   # We first create a single real registration, then clone that record
@@ -102,7 +105,7 @@ proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
   SignedPeerRecord.init(wrongPrivKey, record).tryGet()
 
 proc sendRdvMessage*(
-    node: RendezVous, target: RendezVous, buffer: seq[byte]
+    node: RendezVous[PeerRecord], target: RendezVous[PeerRecord], buffer: seq[byte]
 ): Future[seq[byte]] {.async.} =
   let conn = await node.switch.dial(target.switch.peerInfo.peerId, RendezVousCodec)
   defer:

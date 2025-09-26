@@ -486,7 +486,7 @@ proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch.addPeerEventHandler(handlePeer, Joined)
   rdv.switch.addPeerEventHandler(handlePeer, Left)
 
-proc new*[T = PeerRecord](
+proc newRendezVous*[T = PeerRecord](
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
@@ -552,14 +552,14 @@ proc getPeerRecordEncoder(rdv: RendezVous): EncodePeerRecord =
   return proc(): Result[seq[byte], CryptoError] {.closure, gcsafe, raises: [].} =
     result = rdv.switch.peerInfo.signedPeerRecord.encode()
 
-proc new*[T = PeerRecord](
+proc newRendezVous*[T = PeerRecord](
     switch: Switch,
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
     encodeSignedPeerRecord: EncodePeerRecord,
 ): RendezVous[T] {.raises: [RendezVousError].} =
-  let rdv = RendezVous[T].new(rng, minDuration, maxDuration)
+  let rdv = newRendezVous[T](rng, minDuration, maxDuration)
   if encodeSignedPeerRecord == nil:
     rdv.encodeSignedPeerRecord = rdv.getPeerRecordEncoder()
   else:
