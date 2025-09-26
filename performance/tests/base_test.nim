@@ -21,7 +21,9 @@ import ../../tests/helpers
 import ./utils
 from nativesockets import getHostname
 
-proc baseTest*(scenarioName = "Base test", useQuic: bool = false) {.async.} =
+proc baseTest*(
+    scenarioName = "Base test", transport: TransportType = TransportType.TCP
+) {.async.} =
   # --- Scenario ---
   let scenario = scenarioName
   const
@@ -51,7 +53,7 @@ proc baseTest*(scenarioName = "Base test", useQuic: bool = false) {.async.} =
   defer:
     dockerStatsProc.stopDockerStatsProcess()
 
-  let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng, useQuic)
+  let (switch, gossipSub, pingProtocol) = setupNode(nodeId, rng, transport)
   gossipSub.setGossipSubParams()
 
   var (messageHandler, receivedMessages) = createMessageHandler(nodeId)
@@ -77,7 +79,8 @@ proc baseTest*(scenarioName = "Base test", useQuic: bool = false) {.async.} =
   await syncNodes("started", nodeId, nodeCount)
 
   # --- Peer Discovery & Connection ---
-  var peersAddresses = resolvePeersAddresses(nodeCount, hostnamePrefix, nodeId, useQuic)
+  var peersAddresses =
+    resolvePeersAddresses(nodeCount, hostnamePrefix, nodeId, transport)
   rng.shuffle(peersAddresses)
 
   await connectPeers(switch, peersAddresses, peerLimit, nodeId)

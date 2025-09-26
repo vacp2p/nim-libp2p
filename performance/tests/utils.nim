@@ -18,6 +18,8 @@ import ../../libp2p/protocols/ping
 import ../../tests/helpers
 import ../types
 
+export TransportType
+
 const
   topic* = "test"
   warmupData* = "warmup".toBytes()
@@ -25,51 +27,41 @@ const
 proc msgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ok(($m.data.hash).toBytes())
 
-proc buildTcpSwitch(address: TransportAddress, rng: ref HmacDrbgContext): Switch =
-  return SwitchBuilder
-    .new()
-    .withAddress(MultiAddress.init(address).tryGet())
-    .withRng(rng)
-    .withYamux()
-    .withTcpTransport(flags = {ServerFlags.TcpNoDelay})
-    .withNoise()
-    .build()
-
-proc buildQuicSwitch(address: TransportAddress, rng: ref HmacDrbgContext): Switch =
-  when defined(libp2p_quic_support):
-    return SwitchBuilder
-      .new()
-      .withAddress(
-        MultiAddress.init(address, IPPROTO_UDP).tryGet() &
-          MultiAddress.init("/quic-v1").get()
-      )
-      .withRng(rng)
-      .withQuicTransport()
-      .withNoise()
-      .build()
-  else:
-    doAssert false, "libp2p_quic_support not enabled"
-
 proc setupNode*(
-    nodeId: int, rng: ref HmacDrbgContext, useQuic: bool = false
+    nodeId: int, rng: ref HmacDrbgContext, transport: TransportType = TransportType.TCP
 ): (Switch, GossipSub, Ping) =
   let
     myPort = 5000 + nodeId
     myAddress = "0.0.0.0:" & $myPort
     address = initTAddress(myAddress)
-    switch =
-      if useQuic:
-        buildQuicSwitch(address, rng)
-      else:
-        buildTcpSwitch(address, rng)
 
+  var switch: Switch
+
+  case transport
+  of TransportType.TCP:
+    switch = newStandardSwitch(
+      rng = rng,
+      addrs = MultiAddress.init(address).tryGet(),
+      transport = TransportType.TCP,
+    )
+  of TransportType.QUIC:
+    switch = newStandardSwitch(
+      rng = rng,
+      addrs =
+        MultiAddress.init(address, IPPROTO_UDP).tryGet() &
+        MultiAddress.init("/quic-v1").get(),
+      transport = TransportType.QUIC,
+    )
+  of TransportType.Memory:
+    raiseAssert "TransportType.Memory not supported"
+
+  let
     gossipSub = GossipSub.init(
       switch = switch,
       msgIdProvider = msgIdProvider,
       verifySignature = false,
       anonymize = true,
     )
-
     pingProtocol = Ping.new(rng = rng)
 
   return (switch, gossipSub, pingProtocol)
@@ -129,7 +121,10 @@ proc createMessageHandler*(
   return (messageHandler, receivedMessages)
 
 proc resolvePeersAddresses*(
-    nodeCount: int, hostnamePrefix: string, nodeId: int, useQuic: bool = false
+    nodeCount: int,
+    hostnamePrefix: string,
+    nodeId: int,
+    transport: TransportType = TransportType.TCP,
 ): seq[MultiAddress] =
   var addrs: seq[MultiAddress]
 
@@ -140,14 +135,18 @@ proc resolvePeersAddresses*(
     let peerAddr = hostnamePrefix & $i & ":" & $(5000 + i)
     try:
       let resolved = resolveTAddress(peerAddr)
-      let addresses =
-        if useQuic:
-          resolved.mapIt(
-            MultiAddress.init(it, IPPROTO_UDP).tryGet() &
-              MultiAddress.init("/quic-v1").get()
-          )
-        else:
-          resolved.mapIt(MultiAddress.init(it).tryGet())
+      var addresses: seq[MultiAddress]
+      case transport
+      of TransportType.TCP:
+        addresses = resolved.mapIt(MultiAddress.init(it).tryGet())
+      of TransportType.QUIC:
+        addresses = resolved.mapIt(
+          MultiAddress.init(it, IPPROTO_UDP).tryGet() &
+            MultiAddress.init("/quic-v1").get()
+        )
+      of TransportType.Memory:
+        raiseAssert "TransportType.Memory not supported"
+
       addrs.add(addresses)
 
       debug "Peer resolved", nodeId, peerAddr = peerAddr, resolved = resolved

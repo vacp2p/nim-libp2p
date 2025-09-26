@@ -11,6 +11,7 @@
 
 import ../../tests/helpers
 import ./base_test
+import ./utils
 
 suite "Performance Tests":
   teardown:
@@ -20,4 +21,4 @@ asyncTest "Base Test (TCP+Yamux)":
   await baseTest("TCP Yamux")
 
 asyncTest "Base Test (QUIC)":
-  await baseTest("QUIC", useQuic = true)
+  await baseTest("QUIC", transport = TransportType.QUIC)
