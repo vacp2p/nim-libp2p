@@ -26,17 +26,23 @@ suite "Discovery Manager":
   teardown:
     checkTrackers()
 
-  asyncTest "RendezVous - advertise and request":
-    const namespace = "foo"
+  const
+    namespace = "foo"
+    rdvNamespace = RdvNamespace(namespace)
 
-    # Setup: [0] ClientA, [1] ClientB, [2] RemoteNode
+  asyncTest "RendezVous - advertise and request":
     let (dms, nodes) = setupDiscMngrNodes(3)
     nodes.startAndDeferStop()
     dms.deferStop()
 
+    let
+      clientA = nodes[0]
+      clientB = nodes[1]
+      remoteNode = nodes[2]
+
     # Topology: ClientA <==> RemoteNode <==> ClientB
-    await connectNodes(nodes[0], nodes[2])
-    await connectNodes(nodes[1], nodes[2])
+    await connectNodes(clientA, remoteNode)
+    await connectNodes(clientB, remoteNode)
 
     dms[0].advertise(RdvNamespace(namespace))
 
@@ -44,34 +50,36 @@ suite "Discovery Manager":
       query = dms[1].request(RdvNamespace(namespace))
       peerAttributes = await query.getPeer()
 
-    let expectedPeerId = nodes[0].switch.peerInfo.peerId
+    let expectedPeerId = clientA.switch.peerInfo.peerId
     check:
       peerAttributes{PeerId}.get() == expectedPeerId
       peerAttributes[PeerId] == expectedPeerId
       peerAttributes.getAll(PeerId) == @[expectedPeerId]
       toHashSet(peerAttributes.getAll(MultiAddress)) ==
-        toHashSet(nodes[0].switch.peerInfo.addrs)
+        toHashSet(clientA.switch.peerInfo.addrs)
 
   asyncTest "RendezVous - frequent advertise and unsubscribe with multiple clients":
-    const
-      namespace = "foo"
-      rdvNamespace = RdvNamespace(namespace)
-
-    # Setup: [0] ClientA, [1] ClientB, [2] ClientC, [3] RemoteNode
     let (dms, nodes) = setupDiscMngrNodes(4)
     nodes.startAndDeferStop()
     dms.deferStop()
 
+    let
+      clientA = nodes[0]
+      clientB = nodes[1]
+      clientC = nodes[2]
+      remoteNode = nodes[3]
+
     # Topology: Each Client <==> RemoteNode
-    await connectNodes(nodes[0], nodes[3])
-    await connectNodes(nodes[1], nodes[3])
-    await connectNodes(nodes[2], nodes[3])
+    await connectNodes(clientA, remoteNode)
+    await connectNodes(clientB, remoteNode)
+    await connectNodes(clientC, remoteNode)
 
     for i in 0 ..< 10:
-      dms[1].advertise(rdvNamespace) # ClientB
-      dms[2].advertise(rdvNamespace) # ClientC
+      # Use protocol directly to avoid concurrent advertise to prevent BufferStream defects
+      await clientB.advertise(namespace)
+      await clientC.advertise(namespace)
       let expectedPeerIds =
-        @[nodes[1].switch.peerInfo.peerId, nodes[2].switch.peerInfo.peerId]
+        @[clientB.switch.peerInfo.peerId, clientC.switch.peerInfo.peerId]
 
       let query = dms[0].request(rdvNamespace) # ClientA
 
@@ -92,3 +100,77 @@ suite "Discovery Manager":
       let newQuery = dms[1].request(rdvNamespace)
       check not await newQuery.getPeer().withTimeout(50.milliseconds)
       newQuery.stop()
+
+  asyncTest "RendezVous - time to advertise":
+    let (dms, nodes) = setupDiscMngrNodes(3)
+    nodes.startAndDeferStop()
+    dms.deferStop()
+
+    let
+      clientA = nodes[0]
+      clientB = nodes[1]
+      remoteNode = nodes[2]
+
+    # Topology: ClientA <==> RemoteNode <==> ClientB
+    await connectNodes(clientA, remoteNode)
+    await connectNodes(clientB, remoteNode)
+
+    # DiscoveryManager uses RendezVousInterface with time to advertise = 100ms (see setupDiscMngrNodes).
+    # Calling dm.advertise() starts a periodic advertise loop with tta as an interval.
+    dms[0].advertise(RdvNamespace(namespace))
+
+    # Time to advertise is way lower than time to live, so the peers do not expire and
+    # count grows over time. We wait until at least 5 entries appear to confirm
+    # that the advertise loop is running.
+    checkUntilTimeout:
+      remoteNode.registered.s.len == 5
+
+  asyncTest "RendezVous - time to request":
+    let (dms, nodes) = setupDiscMngrNodes(4)
+    nodes.startAndDeferStop()
+    dms.deferStop()
+
+    let
+      clientA = nodes[0]
+      clientB = nodes[1]
+      clientC = nodes[2]
+      remoteNode = nodes[3]
+
+    # Topology: Each Client <==> RemoteNode
+    await connectNodes(clientA, remoteNode)
+    await connectNodes(clientB, remoteNode)
+    await connectNodes(clientC, remoteNode)
+
+    # Use single protocol advertises to control timing.
+    # A advertises now, B and C with delays.
+    await clientA.advertise(namespace)
+    asyncSpawn (
+      proc() {.async.} =
+        await sleepAsync(50.milliseconds)
+        await clientB.advertise(namespace)
+    )()
+    asyncSpawn (
+      proc() {.async.} =
+        await sleepAsync(100.milliseconds)
+        await clientC.advertise(namespace)
+    )()
+
+    # Ensure only A is registered.
+    check remoteNode.registered.s.len == 1
+
+    let expectedPeerIds =
+      @[
+        clientA.switch.peerInfo.peerId, clientB.switch.peerInfo.peerId,
+        clientC.switch.peerInfo.peerId,
+      ]
+
+    # DiscoveryManager uses RendezVousInterface with time to request = 100ms (see setupDiscMngrNodes).
+    let query = dms[0].request(rdvNamespace) # ClientA requester
+
+    # The three getPeer() calls resolve at the ttr interval as B and C register.
+    for i in 0 ..< expectedPeerIds.len:
+      let peerAttributes = await query.getPeer()
+      let actualPeerId = peerAttributes{PeerId}.get()
+      check actualPeerId in expectedPeerIds
+
+    query.stop()

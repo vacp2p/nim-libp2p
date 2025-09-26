@@ -1,18 +1,29 @@
-import hashes, chronos, stew/byteutils, results, chronicles
+import hashes, chronos, results, chronicles
 import ../../stream/connection
 import ../../varint
 import ../../utils/sequninit
 import ./mix_protocol
 from fragmentation import DataSize
 
+const DefaultSurbs = uint8(4)
+
 type MixDialer* = proc(
   msg: seq[byte], codec: string, destination: MixDestination
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).}
+
+type MixParameters* = object
+  expectReply*: Opt[bool]
+  numSurbs*: Opt[uint8]
 
 type MixEntryConnection* = ref object of Connection
   destination: MixDestination
   codec: string
   mixDialer: MixDialer
+  params: MixParameters
+  incoming: AsyncQueue[seq[byte]]
+  incomingFut: Future[void]
+  replyReceivedFut: Future[void]
+  cached: seq[byte]
 
 func shortLog*(conn: MixEntryConnection): string =
   if conn == nil:
@@ -26,45 +37,28 @@ chronicles.formatIt(MixEntryConnection):
 method readOnce*(
     s: MixEntryConnection, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  # TODO: implement
-  raise newLPStreamEOFError()
+  if s.isEof:
+    raise newLPStreamEOFError()
 
-method readExactly*(
-    s: MixEntryConnection, pbytes: pointer, nbytes: int
-): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  # TODO: implement
-  raise newLPStreamEOFError()
+  try:
+    await s.replyReceivedFut
+    if s.cached.len == 0:
+      s.isEof = true
+      raise newLPStreamEOFError()
+  except CancelledError as exc:
+    raise exc
+  except LPStreamEOFError as exc:
+    raise exc
+  except CatchableError as exc:
+    raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
 
-method readLine*(
-    s: MixEntryConnection, limit = 0, sep = "\r\n"
-): Future[string] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  # TODO: implement
-  raise newLPStreamEOFError()
-
-method readVarint*(
-    conn: MixEntryConnection
-): Future[uint64] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  # TODO: implement
-  raise newLPStreamEOFError()
-
-method readLp*(
-    s: MixEntryConnection, maxSize: int
-): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]), public.} =
-  # TODO: implement
-  raise newLPStreamEOFError()
+  let toRead = min(nbytes, s.cached.len)
+  copyMem(pbytes, addr s.cached[0], toRead)
+  s.cached = s.cached[toRead ..^ 1]
+  return toRead
 
 method write*(
     self: MixEntryConnection, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
-  self.mixDialer(msg, self.codec, self.destination)
-
-proc write*(
-    self: MixEntryConnection, msg: string
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
-  self.write(msg.toBytes())
-
-method writeLp*(
-    self: MixEntryConnection, msg: openArray[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
   if msg.len() > DataSize:
     let fut = newFuture[void]()
@@ -72,19 +66,7 @@ method writeLp*(
       newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
     )
     return fut
-
-  ## Write `msg` with a varint-encoded length prefix
-  let vbytes = PB.toBytes(msg.len().uint64)
-  var buf = newSeqUninit[byte](msg.len() + vbytes.len)
-  buf[0 ..< vbytes.len] = vbytes.toOpenArray()
-  buf[vbytes.len ..< buf.len] = msg
-
-  self.write(buf)
-
-method writeLp*(
-    self: MixEntryConnection, msg: string
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
-  self.writeLp(msg.toOpenArrayByte(0, msg.high))
+  self.mixDialer(msg, self.codec, self.destination)
 
 proc shortLog*(self: MixEntryConnection): string {.raises: [].} =
   "[MixEntryConnection] Destination: " & $self.destination
@@ -92,6 +74,8 @@ proc shortLog*(self: MixEntryConnection): string {.raises: [].} =
 method closeImpl*(
     self: MixEntryConnection
 ): Future[void] {.async: (raises: [], raw: true).} =
+  if not self.incomingFut.isNil:
+    self.incomingFut.cancelSoon()
   let fut = newFuture[void]()
   fut.complete()
   return fut
@@ -99,35 +83,54 @@ method closeImpl*(
 func hash*(self: MixEntryConnection): Hash =
   hash($self.destination)
 
-when defined(libp2p_agents_metrics):
-  proc setShortAgent*(self: MixEntryConnection, shortAgent: string) =
-    discard
-
 proc new*(
     T: typedesc[MixEntryConnection],
     srcMix: MixProtocol,
     destination: MixDestination,
     codec: string,
+    params: MixParameters,
 ): T {.raises: [].} =
+  let expectReply = params.expectReply.get(false)
+  let numSurbs =
+    if expectReply:
+      params.numSurbs.get(DefaultSurbs)
+    else:
+      0
+
   var instance = T()
   instance.destination = destination
   instance.codec = codec
+
+  if expectReply:
+    instance.incoming = newAsyncQueue[seq[byte]]()
+    instance.replyReceivedFut = newFuture[void]()
+    let checkForIncoming = proc(): Future[void] {.async: (raises: [CancelledError]).} =
+      instance.cached = await instance.incoming.get()
+      instance.replyReceivedFut.complete()
+    instance.incomingFut = checkForIncoming()
+
   instance.mixDialer = proc(
       msg: seq[byte], codec: string, dest: MixDestination
   ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
     await srcMix.anonymizeLocalProtocolSend(
-      nil, msg, codec, dest, 0 # TODO: set incoming queue for replies and surbs
+      instance.incoming, msg, codec, dest, numSurbs
     )
-
-  when defined(libp2p_agents_metrics):
-    instance.shortAgent = connection.shortAgent
 
   instance
 
 proc toConnection*(
-    srcMix: MixProtocol, destination: MixDestination, codec: string
+    srcMix: MixProtocol,
+    destination: MixDestination,
+    codec: string,
+    params: MixParameters = MixParameters(),
 ): Result[Connection, string] {.gcsafe, raises: [].} =
   ## Create a stream to send and optionally receive responses.
   ## Under the hood it will wrap the message in a sphinx packet
   ## and send it via a random mix path.
-  ok(MixEntryConnection.new(srcMix, destination, codec))
+  if not srcMix.hasDestReadBehavior(codec):
+    if params.expectReply.get(false):
+      return err("no destination read behavior for codec")
+    else:
+      warn "no destination read behavior for codec", codec
+
+  ok(MixEntryConnection.new(srcMix, destination, codec, params))
