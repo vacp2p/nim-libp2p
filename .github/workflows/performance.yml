@@ -79,7 +79,7 @@ jobs:
       #   uses: ./.github/actions/generate_plots
 
       - name: Post/Update PR comment
-        if: ${{ (success() || failure()) && github.event_name == 'pull_request' }}
+        if: github.event_name == 'pull_request'
         uses: ./.github/actions/add_comment
 
       - name: Upload performance artifacts
