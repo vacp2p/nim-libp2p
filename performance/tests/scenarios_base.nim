@@ -17,7 +17,7 @@ suite "Performance Tests":
     checkTrackers()
 
 asyncTest "Base Test (TCP+Yamux)":
-  await baseTest("Base test TCP Yamux")
+  await baseTest("TCP Yamux")
 
 asyncTest "Base Test (QUIC)":
-  await baseTest("Base test QUIC", useQuic = true)
+  await baseTest("QUIC", useQuic = true)
