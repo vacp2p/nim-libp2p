@@ -11,12 +11,14 @@ import stew/endians2
 import strutils
 import strformat
 import tables
-import ../libp2p
-import ../libp2p/protocols/pubsub/rpc/messages
-import ../libp2p/muxers/mplex/lpchannel
-import ../libp2p/protocols/ping
-import ../tests/helpers
-import ./types
+import ../../libp2p
+import ../../libp2p/protocols/pubsub/rpc/messages
+import ../../libp2p/muxers/mplex/lpchannel
+import ../../libp2p/protocols/ping
+import ../../tests/helpers
+import ../types
+
+export TransportType
 
 const
   topic* = "test"
@@ -25,28 +27,41 @@ const
 proc msgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ok(($m.data.hash).toBytes())
 
-proc setupNode*(nodeId: int, rng: ref HmacDrbgContext): (Switch, GossipSub, Ping) =
+proc setupNode*(
+    nodeId: int, rng: ref HmacDrbgContext, transport: TransportType = TransportType.TCP
+): (Switch, GossipSub, Ping) =
   let
     myPort = 5000 + nodeId
     myAddress = "0.0.0.0:" & $myPort
     address = initTAddress(myAddress)
 
-    switch = SwitchBuilder
-      .new()
-      .withAddress(MultiAddress.init(address).tryGet())
-      .withRng(rng)
-      .withYamux()
-      .withTcpTransport(flags = {ServerFlags.TcpNoDelay})
-      .withNoise()
-      .build()
+  var switch: Switch
 
+  case transport
+  of TransportType.TCP:
+    switch = newStandardSwitch(
+      rng = rng,
+      addrs = MultiAddress.init(address).tryGet(),
+      transport = TransportType.TCP,
+    )
+  of TransportType.QUIC:
+    switch = newStandardSwitch(
+      rng = rng,
+      addrs =
+        MultiAddress.init(address, IPPROTO_UDP).tryGet() &
+        MultiAddress.init("/quic-v1").get(),
+      transport = TransportType.QUIC,
+    )
+  of TransportType.Memory:
+    raiseAssert "TransportType.Memory not supported"
+
+  let
     gossipSub = GossipSub.init(
       switch = switch,
       msgIdProvider = msgIdProvider,
       verifySignature = false,
       anonymize = true,
     )
-
     pingProtocol = Ping.new(rng = rng)
 
   return (switch, gossipSub, pingProtocol)
@@ -106,7 +121,10 @@ proc createMessageHandler*(
   return (messageHandler, receivedMessages)
 
 proc resolvePeersAddresses*(
-    nodeCount: int, hostnamePrefix: string, nodeId: int
+    nodeCount: int,
+    hostnamePrefix: string,
+    nodeId: int,
+    transport: TransportType = TransportType.TCP,
 ): seq[MultiAddress] =
   var addrs: seq[MultiAddress]
 
@@ -116,8 +134,20 @@ proc resolvePeersAddresses*(
 
     let peerAddr = hostnamePrefix & $i & ":" & $(5000 + i)
     try:
-      let resolved = resolveTAddress(peerAddr).mapIt(MultiAddress.init(it).tryGet())
-      addrs.add(resolved)
+      let resolved = resolveTAddress(peerAddr)
+      var addresses: seq[MultiAddress]
+      case transport
+      of TransportType.TCP:
+        addresses = resolved.mapIt(MultiAddress.init(it).tryGet())
+      of TransportType.QUIC:
+        addresses = resolved.mapIt(
+          MultiAddress.init(it, IPPROTO_UDP).tryGet() &
+            MultiAddress.init("/quic-v1").get()
+        )
+      of TransportType.Memory:
+        raiseAssert "TransportType.Memory not supported"
+
+      addrs.add(addresses)
 
       debug "Peer resolved", nodeId, peerAddr = peerAddr, resolved = resolved
     except CatchableError as exc:
@@ -131,7 +161,7 @@ proc connectPeers*(
   proc connectPeer(address: MultiAddress): Future[bool] {.async.} =
     try:
       let peerId =
-        await switch.connect(address, allowUnknownPeerId = true).wait(5.seconds)
+        await switch.connect(address, allowUnknownPeerId = true).wait(15.seconds)
       debug "Connected peer", nodeId, address, peerId
       return true
     except CatchableError as exc:
@@ -139,7 +169,7 @@ proc connectPeers*(
       return false
 
   for index in 0 ..< peerLimit:
-    checkUntilTimeoutCustom(5.seconds, 500.milliseconds):
+    checkUntilTimeoutCustom(15.seconds, 500.milliseconds):
       await connectPeer(peersAddresses[index])
 
 proc publishMessagesWithWarmup*(
