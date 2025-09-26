@@ -596,7 +596,9 @@ method handle*(m: Yamux) {.async: (raises: []).} =
               raise newException(YamuxError, "Peer used our reserved stream id")
             let newStream =
               m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
-            if m.channels.len >= m.maxChannCount:
+            if m.channels.len > m.maxChannCount:
+              warn "too many channels created by remote peer",
+                peerId = m.connection.peerId, allowedMax = m.maxChannCount
               await newStream.reset()
               continue
             await newStream.open()
