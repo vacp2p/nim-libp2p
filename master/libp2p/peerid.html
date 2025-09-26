@@ -218,7 +218,8 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">shortLog
-  <li><a class="reference" href="#shortLog%2CPeerId" title="shortLog(pid: PeerId): string">shortLog(pid: PeerId): string</a></li>
+  <li><a class="reference" href="#shortLog%2COpt%5BPeerId%5D" title="shortLog(pid: Opt[PeerId]): string">shortLog(pid: Opt[PeerId]): string</a></li>
+<li><a class="reference" href="#shortLog%2CPeerId" title="shortLog(pid: PeerId): string">shortLog(pid: PeerId): string</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">toBytes
@@ -263,7 +264,8 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">formatItIMPL
-  <li><a class="reference" href="#formatItIMPL.t%2CPeerId" title="formatItIMPL(it: PeerId): auto">formatItIMPL(it: PeerId): auto</a></li>
+  <li><a class="reference" href="#formatItIMPL.t%2COpt%5BPeerId%5D" title="formatItIMPL(it: Opt[PeerId]): auto">formatItIMPL(it: Opt[PeerId]): auto</a></li>
+<li><a class="reference" href="#formatItIMPL.t%2CPeerId" title="formatItIMPL(it: PeerId): auto">formatItIMPL(it: PeerId): auto</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">getBytes
@@ -358,8 +360,8 @@ Return base58 encoded <tt class="docutils literal"><span class="pre">pid</span><
 
 Compares two peer ids <tt class="docutils literal"><span class="pre">a</span></tt> and <tt class="docutils literal"><span class="pre">b</span></tt>. Returns:<p>0 iff a == b<br/>&lt; 0 iff a &lt; b<br/><blockquote class="markdown-quote"><p>0 iff a &gt; b</p></blockquote>
 <br/></p>
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L75" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L75" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L84" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L84" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -374,8 +376,8 @@ Compares two peer ids <tt class="docutils literal"><span class="pre">a</span></t
 <p>Returns <tt class="docutils literal"><span class="pre">true</span></tt> if public key was successfully decoded from PeerId <tt class="docutils literal"><span class="pre">pid</span></tt>and stored to <tt class="docutils literal"><span class="pre">pubkey</span></tt>.</p>
 <p>Returns <tt class="docutils literal"><span class="pre">false</span></tt> otherwise.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L121" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L121" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L130" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L130" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -388,8 +390,8 @@ Compares two peer ids <tt class="docutils literal"><span class="pre">a</span></t
 <dd>
 
 Read <tt class="docutils literal"><span class="pre">PeerId</span></tt> from ProtoBuf's message and validate it
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L210" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L210" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L219" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L219" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -401,8 +403,8 @@ Read <tt class="docutils literal"><span class="pre">PeerId</span></tt> from Prot
 <dd>
 
 Returns <tt class="docutils literal"><span class="pre">true</span></tt> if <tt class="docutils literal"><span class="pre">pid</span></tt> is small enough to hold public key inside.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L113" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L113" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L122" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L122" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -414,8 +416,8 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt> if <tt c
 <dd>
 
 Returns hexadecimal string representation of <tt class="docutils literal"><span class="pre">pid</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L67" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L67" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L76" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L76" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -430,8 +432,8 @@ Returns hexadecimal string representation of <tt class="docutils literal"><span 
 <p>Initialize peer id from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Returns <tt class="docutils literal"><span class="pre">true</span></tt> if peer was successfully initialiazed.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L133" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L133" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L142" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L142" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -443,8 +445,8 @@ Returns hexadecimal string representation of <tt class="docutils literal"><span 
 <p>Initialize peer id from base58 encoded string representation.</p>
 <p>Returns <tt class="docutils literal"><span class="pre">true</span></tt> if peer was successfully initialiazed.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L142" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L142" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L151" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L151" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -454,8 +456,8 @@ Returns hexadecimal string representation of <tt class="docutils literal"><span 
 <dd>
 
 Create new peer id from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L156" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L156" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L165" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L165" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -465,8 +467,8 @@ Create new peer id from raw binary representation <tt class="docutils literal"><
 <dd>
 
 Create new peer id from base58 encoded string representation <tt class="docutils literal"><span class="pre">data</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L164" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L164" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L173" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L173" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -476,8 +478,8 @@ Create new peer id from base58 encoded string representation <tt class="docutils
 <dd>
 
 Create new peer id from public key <tt class="docutils literal"><span class="pre">pubkey</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L172" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L172" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L181" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L181" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -487,8 +489,8 @@ Create new peer id from public key <tt class="docutils literal"><span class="pre
 <dd>
 
 Create new peer id from private key <tt class="docutils literal"><span class="pre">seckey</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L183" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L183" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L192" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L192" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -501,8 +503,8 @@ Create new peer id from private key <tt class="docutils literal"><span class="pr
 <dd>
 
 Returns <tt class="docutils literal"><span class="pre">true</span></tt> if <tt class="docutils literal"><span class="pre">pid</span></tt> matches public key <tt class="docutils literal"><span class="pre">pubkey</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L192" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L192" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L201" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L201" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -512,8 +514,8 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt> if <tt c
 <dd>
 
 Returns <tt class="docutils literal"><span class="pre">true</span></tt> if <tt class="docutils literal"><span class="pre">pid</span></tt> matches private key <tt class="docutils literal"><span class="pre">seckey</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L196" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L196" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L205" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L205" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -526,15 +528,25 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt> if <tt c
 <dd>
 
 Create new peer id with random public key.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L187" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L187" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L196" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L196" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 
 </div>
 <div id="shortLog-procs-all">
-  <div id="shortLog,PeerId" class="tohide">
+  <div id="shortLog,Opt[PeerId]" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#shortLog%2COpt%5BPeerId%5D"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">pid</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L55" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L55" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="shortLog,PeerId" class="tohide">
 <dt><pre><span class="Keyword">func</span> <a href="#shortLog%2CPeerId"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">pid</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -555,8 +567,8 @@ Returns compact string representation of <tt class="docutils literal"><span clas
 <p>Store PeerId <tt class="docutils literal"><span class="pre">pid</span></tt> to array of bytes <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Returns number of bytes needed to store <tt class="docutils literal"><span class="pre">pid</span></tt>.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L55" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L55" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L64" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L64" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -568,8 +580,8 @@ Returns compact string representation of <tt class="docutils literal"><span clas
 <dd>
 
 Validate check if <tt class="docutils literal"><span class="pre">pid</span></tt> is empty or not.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L109" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L109" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L118" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L118" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -582,8 +594,8 @@ Validate check if <tt class="docutils literal"><span class="pre">pid</span></tt>
 <dd>
 
 Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span></tt> to object <tt class="docutils literal"><span class="pre">pb</span></tt> using ProtoBuf's encoding.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L206" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L206" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L215" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L215" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -592,8 +604,8 @@ Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span><
 <dd>
 
 Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L202" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L202" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L211" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L211" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -611,8 +623,8 @@ Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L94" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L94" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L103" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L103" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -624,8 +636,8 @@ Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L91" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L91" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L100" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L100" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -637,8 +649,8 @@ Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L103" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L103" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L112" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L112" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -650,8 +662,8 @@ Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L100" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L100" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L109" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L109" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -663,15 +675,25 @@ Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L97" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L97" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L106" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L106" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 
 </div>
 <div id="formatItIMPL-templates-all">
-  <div id="formatItIMPL.t,PeerId" class="tohide">
+  <div id="formatItIMPL.t,Opt[PeerId]" class="tohide">
+<dt><pre><span class="Keyword">template</span> <a href="#formatItIMPL.t%2COpt%5BPeerId%5D"><span class="Identifier">formatItIMPL</span></a><span class="Other">(</span><span class="Identifier">it</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {..}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L61" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L61" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="formatItIMPL.t,PeerId" class="tohide">
 <dt><pre><span class="Keyword">template</span> <a href="#formatItIMPL.t%2CPeerId"><span class="Identifier">formatItIMPL</span></a><span class="Other">(</span><span class="Identifier">it</span><span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {..}</pre></dt>
 <dd>
 
@@ -689,8 +711,8 @@ Write PeerId value <tt class="docutils literal"><span class="pre">peerid</span><
 <dd>
 
 Return PeerId <tt class="docutils literal"><span class="pre">pid</span></tt> as array of bytes.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L63" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L63" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L72" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L72" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -702,8 +724,8 @@ Return PeerId <tt class="docutils literal"><span class="pre">pid</span></tt> as 
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L106" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L106" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L115" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L115" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -715,8 +737,8 @@ Return PeerId <tt class="docutils literal"><span class="pre">pid</span></tt> as 
 <dd>
 
 Returns length of <tt class="docutils literal"><span class="pre">pid</span></tt> binary representation.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L71" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L71" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/peerid.nim#L80" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/peerid.nim#L80" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -738,7 +760,7 @@ Returns length of <tt class="docutils literal"><span class="pre">pid</span></tt>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-25 19:40:26 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-09-26 20:34:58 UTC</small>
       </div>
     </div>
   </div>
