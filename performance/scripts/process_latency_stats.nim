@@ -91,7 +91,7 @@ proc getMarkdownReport*(
   var output: seq[string]
 
   output.add marker & "\n"
-  output.add "# 🏁 **Performance Summary**\n"
+  output.add "## 🏁 **Performance Summary**\n"
 
   let commitUrl = fmt"https://github.com/vacp2p/nim-libp2p/commit/{commitSha}"
   output.add fmt"**Commit:** [`{commitSha}`]({commitUrl})"
@@ -106,7 +106,7 @@ proc getMarkdownReport*(
   let runId = getEnv("GITHUB_RUN_ID", "")
   let summaryUrl = fmt"https://github.com/vacp2p/nim-libp2p/actions/runs/{runId}"
   output.add(
-    fmt"### 📊 View Latency History and full Container Resources in the [Workflow Summary]({summaryUrl})"
+    fmt"### 📊 View Container Resources in the [Workflow Summary]({summaryUrl})"
   )
 
   let markdown = output.join("\n")
