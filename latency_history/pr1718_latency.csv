@@ -1,3 +1,3 @@
 Scenario,Nodes,TotalSent,TotalReceived,MinLatencyMs,MaxLatencyMs,AvgLatencyMs
-Base test TCP Yamux,10,100,900,0.257,1.913,0.818
-Base test QUIC,10,100,600,0.000,1.670,0.380
+Base test TCP Yamux,10,100,900,0.325,2.309,1.035
+Base test QUIC,10,100,420,0.000,1.469,0.434
