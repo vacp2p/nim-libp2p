@@ -154,13 +154,18 @@ proc withMplex*(
 
 proc withYamux*(
     b: SwitchBuilder,
+    maxChannCount: int = MaxChannelCount,
     windowSize: int = YamuxDefaultWindowSize,
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
 ): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer =
     Yamux.new(
-      conn, windowSize = windowSize, inTimeout = inTimeout, outTimeout = outTimeout
+      conn,
+      maxChannCount = maxChannCount,
+      windowSize = windowSize,
+      inTimeout = inTimeout,
+      outTimeout = outTimeout,
     )
 
   assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"

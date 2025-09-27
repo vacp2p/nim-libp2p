@@ -24,7 +24,7 @@ const
   YamuxVersion = 0.uint8
   YamuxDefaultWindowSize* = 256000
   MaxSendQueueSize = 256000
-  MaxChannelCount = 200
+  MaxChannelCount* = 256
 
 when defined(libp2p_yamux_metrics):
   declareGauge libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"]
