@@ -76,20 +76,13 @@ suite "MultiHash test suite":
     copyMem(addr output[0], unsafeAddr data[0], len(output))
 
   proc coder2(data: openArray[byte], output: var openArray[byte]) =
-    debugEcho "using coder2"
-    copyMem(addr output[0], unsafeAddr data[0], len(output))
-
-  proc coder3(data: openArray[byte], output: var openArray[byte]) =
-    copyMem(addr output[0], unsafeAddr data[0], len(output))
+    coder1(data, output)
 
   proc coderReverse(data: openArray[byte], output: var openArray[byte]) =
-    debugEcho "using coderReverse"
     # Reverse the data before hashing
-    debugEcho "data: ", data
     var buf = newSeq[byte](len(data))
     for i in 0 ..< len(data):
       buf[i] = data[len(data) - 1 - i]
-    debugEcho "buf: ", buf
     copyMem(addr output[0], unsafeAddr buf[0], len(buf))
 
   registerMultiCodecs:
@@ -147,9 +140,13 @@ suite "MultiHash test suite":
       mh == mhInit
 
   test "can register an overriding hash function for already registered hash":
+    # the second MHash registration overrides the first "codec2" registration,
+    # which uses codec1 for hashing
     var data = cast[seq[byte]]("hello")
-    let mh = MultiHash.digest("codec2", data).get
+    let mh1 = MultiHash.digest("codec1", data).get
+    let mh2 = MultiHash.digest("codec2", data).get
     let expected = "8202066F6C6C656800"
 
     check:
-      mh.hex == expected
+      mh2.hex == expected
+      mh2.hex != mh1.hex
