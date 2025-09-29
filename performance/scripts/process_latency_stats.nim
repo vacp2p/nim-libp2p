@@ -1,5 +1,4 @@
 import json
-import os
 import sequtils
 import strformat
 import strutils
@@ -76,6 +75,7 @@ proc getMarkdownReport*(
     validNodes: Table[string, int],
     marker: string,
     commitSha: string,
+    runId: string,
 ): string =
   var output: seq[string]
 
@@ -92,7 +92,6 @@ proc getMarkdownReport*(
     let nodes = validNodes[scenarioName]
     output.add fmt"| {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {stats.latency.avgLatencyMs:.3f} |"
 
-  let runId = getEnv("GITHUB_RUN_ID", "")
   let summaryUrl = fmt"https://github.com/vacp2p/nim-libp2p/actions/runs/{runId}"
   output.add(
     fmt"### 📊 View Container Resources in the [Workflow Summary]({summaryUrl})"
@@ -128,8 +127,7 @@ proc main() =
   writeFile(csvFilename, csvContent)
 
   let env = getGitHubEnv()
-  let marker = getEnv("MARKER", "<!-- marker -->")
-  let markdown = getMarkdownReport(aggregatedResults, validNodes, marker, env.prHeadSha)
+  let markdown = getMarkdownReport(aggregatedResults, validNodes, env.marker, env.prHeadSha, env.runId)
 
   echo markdown
   writeGitHubOutputs(markdown, env, toJobSummary = true, toComment = true)

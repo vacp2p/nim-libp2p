@@ -32,6 +32,10 @@ type GitHubEnv* = object
   prNumber*: string
   prHeadSha*: string
   githubSha*: string
+  marker*: string
+  sharedVolumePath*: string
+  dockerStatsPrefix*: string
+  latencyHistoryPath*: string
 
 type ChartConfig* = object
   colors*: seq[string]

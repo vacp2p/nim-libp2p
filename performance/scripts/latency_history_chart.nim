@@ -1,4 +1,4 @@
-import algorithm, os, sequtils, strutils
+import algorithm, sequtils, strutils
 import ../types
 import common
 
@@ -8,10 +8,6 @@ type LatencyData = object
   latency: LatencyStats
 
 proc readLatencyCsv(path: string): seq[LatencyData] =
-  if not fileExists(path):
-    echo "Warning: CSV file not found: " & path
-    return @[]
-
   let lines = readFile(path).splitLines()
   if lines.len < 2:
     echo "Warning: CSV appears empty: " & path
@@ -52,17 +48,14 @@ proc readLatencyCsv(path: string): seq[LatencyData] =
 
 when isMainModule:
   let env = getGitHubEnv()
-  let latencyDir = getEnv("LATENCY_HISTORY_PATH", "latency_history")
-  if not dirExists(latencyDir):
-    raiseAssert "Directory not found: " & latencyDir
 
   # Find all latency CSV files
-  let csvFiles = findCsvFiles(latencyDir).filterIt(
-      it.extractFilename.startsWith("pr") and it.endsWith("_latency.csv")
+  let csvFiles = findCsvFiles(env.latencyHistoryPath).filterIt(
+      it.startsWith("pr") and it.endsWith("_latency.csv")
     )
 
   if csvFiles.len == 0:
-    raiseAssert "No pr*_latency.csv files found in " & latencyDir
+    raiseAssert "No pr*_latency.csv files found in " & env.latencyHistoryPath
 
   # Read and collect all latency data
   var allLatencyData: seq[LatencyData]
@@ -73,8 +66,7 @@ when isMainModule:
         allLatencyData.add data
 
   if allLatencyData.len == 0:
-    echo "Warning: No valid latency data found in any CSV files"
-    quit(0)
+    raiseAssert " No valid latency data found in any CSV files"
 
   # Group data by scenario type and sort chronologically
   let tcpData = allLatencyData.filterIt(it.scenario == "TCP").sortedByIt(it.prNumber)

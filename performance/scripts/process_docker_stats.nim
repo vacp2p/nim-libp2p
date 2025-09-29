@@ -2,7 +2,6 @@ from times import parse, toTime, toUnix
 import strformat
 import strutils
 import json
-import os
 import options
 import ../types
 import common
@@ -123,10 +122,8 @@ proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
 
 
 proc main() =
-  let dir = getEnv("SHARED_VOLUME_PATH", "performance/output")
-  let prefix = getEnv("DOCKER_STATS_PREFIX", "docker_stats_")
-
-  let inputFiles = findLogFiles(dir, prefix)
+  let env = getGitHubEnv()
+  let inputFiles = findLogFiles(env.sharedVolumePath, env.dockerStatsPrefix)
   if inputFiles.len == 0:
     echo "No docker stats files found."
     return

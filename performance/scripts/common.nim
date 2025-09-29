@@ -5,6 +5,9 @@ import strutils
 import ../types
 
 proc findFilesByPattern*(dir: string, patterns: seq[string]): seq[string] =
+  if not dirExists(dir):
+    raiseAssert "Directory not found: " & dir
+
   var files: seq[string] = @[]
   for entry in walkDir(dir):
     if entry.kind == pcFile:
@@ -63,6 +66,10 @@ proc getGitHubEnv*(): GitHubEnv =
     prNumber: getEnv("PR_NUMBER", "unknown"),
     prHeadSha: getEnv("PR_HEAD_SHA", getEnv("GITHUB_SHA", "unknown")),
     githubSha: getEnv("GITHUB_SHA", "unknown"),
+    marker: getEnv("MARKER", "<!-- marker -->"),
+    sharedVolumePath: getEnv("SHARED_VOLUME_PATH", "performance/output"),
+    dockerStatsPrefix: getEnv("DOCKER_STATS_PREFIX", "docker_stats_"),
+    latencyHistoryPath: getEnv("LATENCY_HISTORY_PATH", "latency_history"),
   )
 
 proc writeGitHubOutputs*(
