@@ -19,8 +19,8 @@ import ./vbuffer
 import results
 export results
 
-var NameCodecs {.compileTime.}: Table[string, int]
-var CodeCodecs {.compileTime.}: Table[int, string]
+var NameCodecs* {.compileTime.}: Table[string, int]
+var CodeCodecs* {.compileTime.}: Table[int, string]
 
 proc parseCodecTuple(node: NimNode): tuple[name: string, code: int] {.compileTime.} =
   ## Parse a (name, code) tuple from the AST
@@ -47,16 +47,24 @@ proc parseCodecTuple(node: NimNode): tuple[name: string, code: int] {.compileTim
 
 macro registerMultiCodecs*(body: untyped): untyped =
   ## Register custom multicodecs at compile time.
+
+  result = newStmtList()
+
   for stmt in body:
     let codec = parseCodecTuple(stmt)
 
     if codec.name in NameCodecs:
       error("Codec name '" & codec.name & "' is already registered")
-    NameCodecs[codec.name] = codec.code
+    result.add quote do:
+      static:
+        NameCodecs[`codec`[0]] = `codec`[1]
 
     if codec.code in CodeCodecs:
       error("Codec code 0x" & codec.code.toHex(4) & " is already registered")
-    CodeCodecs[codec.code] = codec.name
+
+    result.add quote do:
+      static:
+        CodeCodecs[`codec`[1]] = `codec`[0]
 
 ## List of officially supported codecs can BE found here
 ## https://github.com/multiformats/multicodec/blob/master/table.csv
@@ -492,20 +500,41 @@ proc multiCodec*(code: int): MultiCodec {.compileTime.} =
   doAssert(name != "")
   MultiCodec(code)
 
-proc `$`*(mc: MultiCodec): string =
+template name*(mc: MultiCodec): string =
+  ## Returns string representation of MultiCodec ``mc`` at compile time.
+  (static(CodeCodecs)).getOrDefault(int(mc), "")
+
+template codec*(mt: typedesc[MultiCodec], name: string): MultiCodec =
+  ## Return MultiCodec from string representation ``name``.
+  ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
+  ## be returned.
+  MultiCodec((static NameCodecs).getOrDefault(name, -1))
+
+template codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
+  ## Return MultiCodec from integer representation ``code``.
+  ## If ``code`` is not valid multicodec code, then ``InvalidMultiCodec`` will
+  ## be returned.
+  let res = MultiCodec(code).name
+  if res == "":
+    InvalidMultiCodec
+  else:
+    MultiCodec(code)
+
+template `$`*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc``.
-  let name = CodeCodecs.getOrDefault(int(mc), "")
+  let name = (static CodeCodecs).getOrDefault(mc, "")
   doAssert(name != "")
   name
 
-proc `==`*(mc: MultiCodec, name: string): bool {.inline.} =
+template `==`*(mc: MultiCodec, compareName: string): bool =
   ## Compares MultiCodec ``mc`` with string ``name``.
-  let mcname = CodeCodecs.getOrDefault(int(mc), "")
+  let mcname = name(mc)
   if mcname == "":
-    return false
-  result = (mcname == name)
+    false
+  else:
+    (mcname == compareName)
 
-proc `==`*(mc: MultiCodec, code: int): bool {.inline.} =
+template `==`*(mc: MultiCodec, code: int): bool =
   ## Compares MultiCodec ``mc`` with integer ``code``.
   (int(mc) == code)
 
@@ -516,34 +545,6 @@ proc `==`*(a, b: MultiCodec): bool =
 proc hash*(m: MultiCodec): Hash {.inline.} =
   ## Hash procedure for tables.
   hash(int(m))
-
-proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec {.inline.} =
-  ## Return MultiCodec from string representation ``name``.
-  ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
-  ## be returned.
-
-  # Static copy is needed to access the table at runtime. If the copy was made
-  # at the module-level, it would not be possible to add register new codecs
-  # because the table would be evaluated at the time of module import, BEFORE
-  # external registrations would have happened.
-  const NameCodecsCopy = static NameCodecs
-  MultiCodec(NameCodecsCopy.getOrDefault(name, -1))
-
-proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec {.inline.} =
-  ## Return MultiCodec from integer representation ``code``.
-  ## If ``code`` is not valid multicodec code, then ``InvalidMultiCodec`` will
-  ## be returned.
-
-  # Static copy is needed to access the table at runtime. If the copy was made
-  # at the module-level, it would not be possible to add register new codecs
-  # because the table would be evaluated at the time of module import, BEFORE
-  # external registrations would have happened.
-  const CodeCodecsCopy = static CodeCodecs
-  let res = CodeCodecsCopy.getOrDefault(code, "")
-  if res == "":
-    InvalidMultiCodec
-  else:
-    MultiCodec(code)
 
 proc write*(vb: var VBuffer, mc: MultiCodec) {.inline.} =
   ## Write MultiCodec to buffer ``vb``.
