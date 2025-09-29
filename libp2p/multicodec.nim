@@ -522,7 +522,7 @@ template codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
 
 template `$`*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc``.
-  let name = (static CodeCodecs).getOrDefault(mc, "")
+  let name = mc.name
   doAssert(name != "")
   name
 

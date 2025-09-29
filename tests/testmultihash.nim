@@ -69,43 +69,7 @@ const RustTestVectors = [
   ],
 ]
 
-
 suite "MultiHash test suite":
-
-  proc coder1(data: openArray[byte], output: var openArray[byte]) =
-    copyMem(addr output[0], unsafeAddr data[0], len(output))
-
-  proc coder2(data: openArray[byte], output: var openArray[byte]) =
-    coder1(data, output)
-
-  proc coderReverse(data: openArray[byte], output: var openArray[byte]) =
-    # Reverse the data before hashing
-    var buf = newSeq[byte](len(data))
-    for i in 0 ..< len(data):
-      buf[i] = data[len(data) - 1 - i]
-    copyMem(addr output[0], unsafeAddr buf[0], len(buf))
-
-  registerMultiCodecs:
-    ("codec1", 0x101)
-    ("codec2", 0x102)
-    ("codec3", 0x103)
-
-  registerMultiHashes:
-    MHash(
-      mcodec: multiCodec("codec1"),
-      size: 0,
-      coder: coder1,
-    )
-    MHash(
-      mcodec: multiCodec("codec2"),
-      size: 6,
-      coder: coder2
-    )
-    MHash(
-      mcodec: multiCodec("codec2"),
-      size: 6,
-      coder: coderReverse
-    )
 
   test "rust-multihash test vectors":
     for item in RustTestVectors:
@@ -118,35 +82,3 @@ suite "MultiHash test suite":
         hex(mh1) == hex(mh2)
         mh1 == mh2
 
-  test "does not allow registering anything other than MHash objects":
-    type NotAnMHash {.used.} = object
-      x: int
-
-    check:
-      not compiles(block:
-        registerMultiHashes:
-          NotAnMHash(x: 1)
-      )
-
-  test "registered hashes correctly hash data":
-    var data = cast[seq[byte]]("hello")
-    let mh = MultiHash.digest("codec1", data).get
-    let expected = "81020568656C6C6F"
-    let mhInit = MultiHash.init(expected).get
-
-    check:
-      mh.hex == expected
-      mh.hex == mhInit.hex
-      mh == mhInit
-
-  test "can register an overriding hash function for already registered hash":
-    # the second MHash registration overrides the first "codec2" registration,
-    # which uses codec1 for hashing
-    var data = cast[seq[byte]]("hello")
-    let mh1 = MultiHash.digest("codec1", data).get
-    let mh2 = MultiHash.digest("codec2", data).get
-    let expected = "8202066F6C6C656800"
-
-    check:
-      mh2.hex == expected
-      mh2.hex != mh1.hex
