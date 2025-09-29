@@ -1,24 +1,13 @@
 import json
 import os
 import sequtils
-import strutils
 import strformat
+import strutils
 import tables
 import ../types
+import common
 
 const unknownFloat = -1.0
-
-proc parseJsonFiles*(outputDir: string): seq[JsonNode] =
-  var jsons: seq[JsonNode]
-
-  for kind, path in walkDir(outputDir):
-    if kind == pcFile and path.endsWith(".json"):
-      let content = readFile(path)
-      let json = parseJson(content)
-
-      jsons.add(json)
-
-  return jsons
 
 proc extractStats(scenario: JsonNode): Stats =
   Stats(
@@ -91,7 +80,7 @@ proc getMarkdownReport*(
   var output: seq[string]
 
   output.add marker & "\n"
-  output.add "# 🏁 **Performance Summary**\n"
+  output.add "## 🏁 **Performance Summary**\n"
 
   let commitUrl = fmt"https://github.com/vacp2p/nim-libp2p/commit/{commitSha}"
   output.add fmt"**Commit:** [`{commitSha}`]({commitUrl})"
@@ -106,15 +95,15 @@ proc getMarkdownReport*(
   let runId = getEnv("GITHUB_RUN_ID", "")
   let summaryUrl = fmt"https://github.com/vacp2p/nim-libp2p/actions/runs/{runId}"
   output.add(
-    fmt"### 📊 View Latency History and full Container Resources in the [Workflow Summary]({summaryUrl})"
+    fmt"### 📊 View Container Resources in the [Workflow Summary]({summaryUrl})"
   )
 
   let markdown = output.join("\n")
   return markdown
 
 proc getCsvFilename*(outputDir: string): string =
-  let prNum = getEnv("PR_NUMBER", "unknown")
-  result = fmt"{outputDir}/pr{prNum}_latency.csv"
+  let env = getGitHubEnv()
+  result = fmt"{outputDir}/pr{env.prNumber}_latency.csv"
 
 proc getCsvReport*(
     results: Table[string, Stats], validNodes: Table[string, int]
@@ -138,18 +127,11 @@ proc main() =
   let csvContent = getCsvReport(aggregatedResults, validNodes)
   writeFile(csvFilename, csvContent)
 
+  let env = getGitHubEnv()
   let marker = getEnv("MARKER", "<!-- marker -->")
-  let commitSha = getEnv("PR_HEAD_SHA", getEnv("GITHUB_SHA", "unknown"))
-  let markdown = getMarkdownReport(aggregatedResults, validNodes, marker, commitSha)
+  let markdown = getMarkdownReport(aggregatedResults, validNodes, marker, env.prHeadSha)
 
   echo markdown
-
-  # For GitHub summary
-  let summaryPath = getEnv("GITHUB_STEP_SUMMARY", "/tmp/summary.txt")
-  writeFile(summaryPath, markdown & "\n")
-
-  # For PR comment
-  let commentPath = getEnv("COMMENT_SUMMARY_PATH", "/tmp/summary.txt")
-  writeFile(commentPath, markdown & "\n")
+  writeGitHubOutputs(markdown, env, toJobSummary = true, toComment = true)
 
 main()
