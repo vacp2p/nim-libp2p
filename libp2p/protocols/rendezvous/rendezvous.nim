@@ -180,7 +180,7 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
   conn.sendRegisterResponse(ttl)
 
-proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
+proc unregister*(rdv: RendezVous, conn: Connection, u: Unregister) =
   trace "Received Unregister", peerId = conn.peerId, ns = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
@@ -191,7 +191,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   except KeyError:
     return
 
-proc discover(
+proc discover*(
     rdv: RendezVous, conn: Connection, d: Discover
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
@@ -303,7 +303,7 @@ method advertise*(
 ) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
   await rdv.advertise(ns, ttl, rdv.peers)
 
-proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
+proc requestLocally*[T](rdv: RendezVous, ns: string): seq[T] =
   let
     nsSalted = ns & rdv.salt
     n = Moment.now()
@@ -311,17 +311,17 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
     collect(newSeq()):
       for index in rdv.namespaces[nsSalted]:
         if rdv.registered[index].expiration > n:
-          let res = SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).valueOr:
+          let res = SignedPayload[T].decode(rdv.registered[index].data.signedPeerRecord).valueOr:
             continue
           res.data
   except KeyError as exc:
     @[]
 
-proc request*(
+proc request*[T](
     rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int, peers: seq[PeerId]
-): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
   var
-    s: Table[PeerId, (PeerRecord, Register)]
+    s: Table[PeerId, (T, Register)]
     limit: uint64
     d = Discover(ns: ns)
 
@@ -379,7 +379,7 @@ proc request*(
       if ttl > rdv.maxTTL:
         continue
       let
-        spr = SignedPeerRecord.decode(r.signedPeerRecord).valueOr:
+        spr = SignedPayload[T].decode(r.signedPeerRecord).valueOr:
           continue
         pr = spr.data
       if s.hasKey(pr.peerId):
@@ -414,15 +414,15 @@ proc request*(
       trace "failed to communicate with a peer", description = e.msg
   return toSeq(s.values()).mapIt(it[0])
 
-proc request*(
+proc request*[T](
     rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int
-): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
-  await rdv.request(ns, l, rdv.peers)
+): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+  await rdv.request[T](ns, l, rdv.peers)
 
-proc request*(
+proc request*[T](
     rdv: RendezVous, l: int = DiscoverLimit.int
-): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
-  await rdv.request(Opt.none(string), l, rdv.peers)
+): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+  await rdv.request[T](Opt.none(string), l, rdv.peers)
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
