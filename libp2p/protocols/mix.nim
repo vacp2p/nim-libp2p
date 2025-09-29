@@ -39,3 +39,7 @@ proc readExactly*(nBytes: int): destReadBehaviorCb =
     let buf = newSeqUninit[byte](nBytes)
     await conn.readExactly(addr buf[0], nBytes)
     return buf
+
+when defined(libp2p_mix_experimental_exit_is_dest):
+  export exitNode
+  export forwardToAddr
