@@ -9,11 +9,12 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import std/tables
 import unittest2
 import ../libp2p/multicodec
 import ../libp2p/utils/sequninit
 
-suite "multicodecs":
+suite "Multicodec regisration":
 
   # register once for entire module (at compile time)
   registerMultiCodecs:
@@ -59,17 +60,41 @@ suite "multicodecs":
       MultiCodec.codec(0x102) == MultiCodec.codec("codec2")
       MultiCodec.codec(0x103) == MultiCodec.codec("codec3")
 
+  test "prints name at compile time":
+    check:
+      multiCodec(0x101) == "codec1"
+      multiCodec(0x102) == "codec2"
+      multiCodec(0x103) == "codec3"
+
+  test "prints name at runtime":
+    check:
+      MultiCodec.codec(0x101) == "codec1"
+      MultiCodec.codec(0x102) == "codec2"
+      MultiCodec.codec(0x103) == "codec3"
+
+  test "can compare MultiCodec to string name and int code":
+    check:
+      MultiCodec.codec(0x101) == "codec1"
+      MultiCodec.codec(0x102) == "codec2"
+      MultiCodec.codec(0x103) == "codec3"
+      MultiCodec.codec("codec1") == 0x101
+      MultiCodec.codec("codec2") == 0x102
+      MultiCodec.codec("codec3") == 0x103
+
   test "registered codecs are the same at compile time and runtime":
     check:
       MultiCodec.codec(0x101) == multiCodec(0x101)
       MultiCodec.codec(0x102) == multiCodec(0x102)
       MultiCodec.codec(0x103) == multiCodec(0x103)
-
-  test "registered codecs are the same at compile time and runtime":
-    check:
       MultiCodec.codec("codec1") == multiCodec("codec1")
       MultiCodec.codec("codec2") == multiCodec("codec2")
       MultiCodec.codec("codec3") == multiCodec("codec3")
+      MultiCodec.codec(0x101) == multiCodec("codec1")
+      MultiCodec.codec(0x102) == multiCodec("codec2")
+      MultiCodec.codec(0x103) == multiCodec("codec3")
+      MultiCodec.codec("codec1") == multiCodec(0x101)
+      MultiCodec.codec("codec2") == multiCodec(0x102)
+      MultiCodec.codec("codec3") == multiCodec(0x103)
 
   test "referencing unregistered codecs by name does not compile":
       check:
