@@ -1,25 +1,24 @@
 import algorithm, sequtils, strformat, strutils, tables
 import ../types
-import common
-
-type
-  ChartType = enum
-    ctCpu
-    ctMemory
-    ctNetThroughput
-    ctNetTotal
-
-  LocalChartConfig = object
-    title, yAxis: string
-    chartType: ChartType
+import ./common
 
 const CHART_CONFIGS = [
-  LocalChartConfig(title: "CPU % vs Time", yAxis: "CPU %", chartType: ctCpu),
-  LocalChartConfig(title: "Memory Usage (MB)", yAxis: "Memory (MB)", chartType: ctMemory),
-  LocalChartConfig(
-    title: "Network Throughput (MB/s)", yAxis: "MB/s", chartType: ctNetThroughput
+  ResourceChartConfig(
+    title: "CPU % vs Time", yAxis: "CPU %", chartType: ResourceChartType.Cpu
   ),
-  LocalChartConfig(title: "Total Network Data (MB)", yAxis: "MB", chartType: ctNetTotal),
+  ResourceChartConfig(
+    title: "Memory Usage (MB)",
+    yAxis: "Memory (MB)",
+    chartType: ResourceChartType.Memory,
+  ),
+  ResourceChartConfig(
+    title: "Network Throughput (MB/s)",
+    yAxis: "MB/s",
+    chartType: ResourceChartType.NetThroughput,
+  ),
+  ResourceChartConfig(
+    title: "Total Network Data (MB)", yAxis: "MB", chartType: ResourceChartType.NetTotal
+  ),
 ]
 
 proc readCsv(path: string): CsvData =
@@ -47,28 +46,28 @@ proc readCsv(path: string): CsvData =
       discard
   return data
 
-
-proc buildSeries(runs: seq[TestRun], config: LocalChartConfig): seq[(string, seq[float])] =
+proc buildSeries(
+    runs: seq[TestRun], config: ResourceChartConfig
+): seq[(string, seq[float])] =
   var series: seq[(string, seq[float])]
   for run in runs:
     case config.chartType
-    of ctCpu:
+    of ResourceChartType.Cpu:
       if run.data.samples.len > 0:
         series.add (run.name, run.data.samples.mapIt(it.cpuPercent))
-    of ctMemory:
+    of ResourceChartType.Memory:
       if run.data.samples.len > 0:
         series.add (run.name, run.data.samples.mapIt(it.memUsageMB))
-    of ctNetThroughput:
+    of ResourceChartType.NetThroughput:
       if run.data.downloadRate.len > 0:
         series.add (run.name & " download", run.data.downloadRate)
       if run.data.uploadRate.len > 0:
         series.add (run.name & " upload", run.data.uploadRate)
-    of ctNetTotal:
+    of ResourceChartType.NetTotal:
       if run.data.samples.len > 0:
         series.add (run.name & " download", run.data.samples.mapIt(it.netRxMB))
         series.add (run.name & " upload", run.data.samples.mapIt(it.netTxMB))
   return series
-
 
 when isMainModule:
   let outDir = "performance/output"
@@ -97,7 +96,7 @@ when isMainModule:
         "Time (s)",
         config.yAxis,
         runs.buildSeries(config),
-        chartConfig
+        chartConfig,
       )
       if chart.len > 0:
         outputSections.add chart

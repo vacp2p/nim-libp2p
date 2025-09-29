@@ -1,13 +1,8 @@
 import algorithm, sequtils, strutils
 import ../types
-import common
+import ./common
 
-type LatencyData = object
-  prNumber: int
-  scenario: string
-  latency: LatencyStats
-
-proc readLatencyCsv(path: string): seq[LatencyData] =
+proc readLatencyCsv(path: string): seq[LatencyChartData] =
   let lines = readFile(path).splitLines()
   if lines.len < 2:
     echo "Warning: CSV appears empty: " & path
@@ -18,7 +13,7 @@ proc readLatencyCsv(path: string): seq[LatencyData] =
     echo "Warning: Invalid PR number in filename: " & path
     return @[]
 
-  var latencyData: seq[LatencyData]
+  var latencyData: seq[LatencyChartData]
   for i, line in lines:
     if i == 0 or line.len == 0:
       continue
@@ -29,7 +24,7 @@ proc readLatencyCsv(path: string): seq[LatencyData] =
     let scenarioType = extractScenarioType(cols[0])
     if scenarioType != "":
       try:
-        let data = LatencyData(
+        let data = LatencyChartData(
           prNumber: prNumber,
           scenario: scenarioType,
           latency: LatencyStats(
@@ -58,7 +53,7 @@ when isMainModule:
     raiseAssert "No pr*_latency.csv files found in " & env.latencyHistoryPath
 
   # Read and collect all latency data
-  var allLatencyData: seq[LatencyData]
+  var allLatencyData: seq[LatencyChartData]
   for csvFile in csvFiles:
     let dataList = readLatencyCsv(csvFile)
     for data in dataList:
@@ -66,7 +61,7 @@ when isMainModule:
         allLatencyData.add data
 
   if allLatencyData.len == 0:
-    raiseAssert " No valid latency data found in any CSV files"
+    raiseAssert "No valid latency data found in any CSV files"
 
   # Group data by scenario type and sort chronologically
   let tcpData = allLatencyData.filterIt(it.scenario == "TCP").sortedByIt(it.prNumber)
@@ -88,7 +83,7 @@ when isMainModule:
         it.latency.maxLatencyMs,
       )
     )
-    charts.add formatLatencyChart(tcpChartData, "TCP (ms)", chartConfig, false)
+    charts.add formatLatencyChart(tcpChartData, "TCP", chartConfig, false)
 
   if quicData.len > 0:
     let quicChartData = quicData.mapIt(
@@ -97,7 +92,7 @@ when isMainModule:
         it.latency.maxLatencyMs,
       )
     )
-    charts.add formatLatencyChart(quicChartData, "QUIC (ms)", chartConfig, false)
+    charts.add formatLatencyChart(quicChartData, "QUIC", chartConfig, false)
 
   # Combine charts with single legend
   if charts.len > 0:

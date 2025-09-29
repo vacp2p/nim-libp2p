@@ -9,6 +9,11 @@ type Stats* = object
   totalReceived*: int
   latency*: LatencyStats
 
+type LatencyChartData* = object
+  prNumber*: int
+  scenario*: string
+  latency*: LatencyStats
+
 type DockerStatsSample* = object
   timestamp*: float
   cpuPercent*: float
@@ -41,3 +46,14 @@ type ChartConfig* = object
   colors*: seq[string]
   width*: int
   height*: int
+
+type ResourceChartType* = enum
+  Cpu
+  Memory
+  NetThroughput
+  NetTotal
+
+type ResourceChartConfig* = object
+  title*: string
+  yAxis*: string
+  chartType*: ResourceChartType
