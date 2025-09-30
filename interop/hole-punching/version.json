@@ -1,6 +1,6 @@
 {
   "id": "nim-libp2p-hp-head",
-  "containerImageID": "nim-libp2p-hp--head",
+  "containerImageID": "nim-libp2p-hp-head",
   "transports": [
     "tcp"
   ]
