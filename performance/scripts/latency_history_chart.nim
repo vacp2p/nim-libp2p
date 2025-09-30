@@ -41,7 +41,7 @@ proc readLatencyCsv(path: string): seq[LatencyChartData] =
     echo "Warning: No TCP or QUIC data found in: " & path
   return latencyData
 
-when isMainModule:
+proc main() =
   let env = getGitHubEnv()
 
   # Find all latency CSV files
@@ -101,3 +101,5 @@ when isMainModule:
   let markdown = sections.join("\n")
   echo markdown
   writeGitHubOutputs(markdown, env, toJobSummary = true, toComment = true)
+
+main()

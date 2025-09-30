@@ -66,7 +66,7 @@ proc buildSeries(
         series.add (run.name & " upload", run.data.mapIt(it.netTxMB))
   return series
 
-when isMainModule:
+proc main() =
   let env = getGitHubEnv()
   let outDir = env.sharedVolumePath
   let csvFiles = findCsvFiles(outDir, env.dockerStatsPrefix).sorted
@@ -103,3 +103,5 @@ when isMainModule:
 
   echo output
   writeGitHubOutputs(output, env, toJobSummary = true, toComment = false)
+
+main()
