@@ -51,7 +51,6 @@ proc extractNetworkRaw(statsJson: JsonNode): (int, int) =
       netTxBytes += v["tx_bytes"].getInt(0)
   return (netRxBytes, netTxBytes)
 
-
 proc parseDockerStatsLine(line: string): Option[DockerStatsSample] =
   var samples = none(DockerStatsSample)
   if line.len == 0:
@@ -85,7 +84,6 @@ proc processDockerStatsLog*(inputPath: string): seq[DockerStatsSample] =
       samples.add(sampleOpt.get)
   return samples
 
-
 proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
   var f = open(outPath, fmWrite)
   f.writeLine(
@@ -109,7 +107,6 @@ proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
     let dlAcc = s.netRxMB - rxOffset
     let ulAcc = s.netTxMB - txOffset
     var memUsage = s.memUsageMB - memOffset
-    # Clamp negative memory values to 0 (processing moved from csv_to_mermaid.nim)
     if memUsage < 0:
       memUsage = 0
     f.writeLine(
@@ -119,7 +116,6 @@ proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
     prevTx = s.netTxMB
     prevTimestamp = relTimestamp
   f.close()
-
 
 proc main() =
   let env = getGitHubEnv()

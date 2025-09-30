@@ -100,9 +100,8 @@ proc getMarkdownReport*(
   let markdown = output.join("\n")
   return markdown
 
-proc getCsvFilename*(outputDir: string): string =
-  let env = getGitHubEnv()
-  result = fmt"{outputDir}/pr{env.prNumber}_latency.csv"
+proc getCsvFilename*(outputDir: string, prNumber: string): string =
+  result = fmt"{outputDir}/pr{prNumber}_latency.csv"
 
 proc getCsvReport*(
     results: Table[string, Stats], validNodes: Table[string, int]
@@ -115,19 +114,21 @@ proc getCsvReport*(
   result = output.join("\n")
 
 proc main() =
-  let outputDir = "performance/output"
+  let env = getGitHubEnv()
+  let outputDir = env.sharedVolumePath
   let parsedJsons = parseJsonFiles(outputDir)
 
   let jsonResults = getJsonResults(parsedJsons)
   let (aggregatedResults, validNodes) = aggregateResults(jsonResults)
 
   # For History
-  let csvFilename = getCsvFilename(outputDir)
+  let csvFilename = getCsvFilename(outputDir, env.prNumber)
   let csvContent = getCsvReport(aggregatedResults, validNodes)
   writeFile(csvFilename, csvContent)
 
-  let env = getGitHubEnv()
-  let markdown = getMarkdownReport(aggregatedResults, validNodes, env.marker, env.prHeadSha, env.runId)
+  let markdown = getMarkdownReport(
+    aggregatedResults, validNodes, env.marker, env.prHeadSha, env.runId
+  )
 
   echo markdown
   writeGitHubOutputs(markdown, env, toJobSummary = true, toComment = true)

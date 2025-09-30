@@ -34,19 +34,6 @@ proc findLogFiles*(dir: string, prefix: string): seq[string] =
   let allLogFiles = findFilesByPattern(dir, @[".log"])
   return allLogFiles.filterIt(prefix in it)
 
-proc readCsvLines*(path: string): seq[seq[string]] =
-  if not fileExists(path):
-    return @[]
-
-  let lines = readFile(path).splitLines()
-  var output: seq[seq[string]] = @[]
-
-  for line in lines:
-    if line.len > 0:
-      output.add(line.split(','))
-
-  return output
-
 proc parseJsonFiles*(outputDir: string): seq[JsonNode] =
   var jsons: seq[JsonNode]
 

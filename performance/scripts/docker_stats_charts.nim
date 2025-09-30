@@ -69,7 +69,7 @@ proc buildSeries(
 when isMainModule:
   let env = getGitHubEnv()
   let outDir = env.sharedVolumePath
-  let csvFiles = findCsvFiles(outDir, "docker_stats").sorted
+  let csvFiles = findCsvFiles(outDir, env.dockerStatsPrefix).sorted
 
   if csvFiles.len == 0:
     raiseAssert "No docker_stats*.csv files found in " & outDir
