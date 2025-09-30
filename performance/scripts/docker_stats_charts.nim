@@ -2,21 +2,21 @@ import algorithm, sequtils, strformat, strutils, tables
 import ../types
 import ./common
 
-const CHART_CONFIGS = [
-  ResourceChartConfig(
+const CHARTS_DATA = [
+  ResourceChartData(
     title: "CPU % vs Time", yAxis: "CPU %", chartType: ResourceChartType.Cpu
   ),
-  ResourceChartConfig(
+  ResourceChartData(
     title: "Memory Usage (MB)",
     yAxis: "Memory (MB)",
     chartType: ResourceChartType.Memory,
   ),
-  ResourceChartConfig(
+  ResourceChartData(
     title: "Network Throughput (MB/s)",
     yAxis: "MB/s",
     chartType: ResourceChartType.NetThroughput,
   ),
-  ResourceChartConfig(
+  ResourceChartData(
     title: "Total Network Data (MB)", yAxis: "MB", chartType: ResourceChartType.NetTotal
   ),
 ]
@@ -47,7 +47,7 @@ proc readCsv(path: string): CsvData =
   return data
 
 proc buildSeries(
-    runs: seq[TestRun], config: ResourceChartConfig
+    runs: seq[TestRun], config: ResourceChartData
 ): seq[(string, seq[float])] =
   var series: seq[(string, seq[float])]
   for run in runs:
@@ -89,13 +89,13 @@ when isMainModule:
     let runs = groups[groupName]
     outputSections.add fmt"### {groupName}"
 
-    for config in CHART_CONFIGS:
-      let chartConfig = getDefaultChartConfig()
+    for chartData in CHARTS_DATA:
+      let chartConfig = ChartConfig(colors: defaultColors, width: 450, height: 300)
       let chart = formatMermaidChart(
-        config.title & " - " & groupName,
+        chartData.title & " - " & groupName,
         "Time (s)",
-        config.yAxis,
-        runs.buildSeries(config),
+        chartData.yAxis,
+        runs.buildSeries(chartData),
         chartConfig,
       )
       if chart.len > 0:

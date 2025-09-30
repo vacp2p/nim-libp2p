@@ -1,4 +1,4 @@
-import algorithm, sequtils, strutils
+import algorithm, os, sequtils, strutils
 import ../types
 import ./common
 
@@ -46,7 +46,7 @@ when isMainModule:
 
   # Find all latency CSV files
   let csvFiles = findCsvFiles(env.latencyHistoryPath).filterIt(
-      it.startsWith("pr") and it.endsWith("_latency.csv")
+      it.extractFilename.startsWith("pr") and it.endsWith("_latency.csv")
     )
 
   if csvFiles.len == 0:

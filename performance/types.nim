@@ -53,7 +53,9 @@ type ResourceChartType* = enum
   NetThroughput
   NetTotal
 
-type ResourceChartConfig* = object
+type ResourceChartData* = object
   title*: string
   yAxis*: string
   chartType*: ResourceChartType
+
+const defaultColors* = @["🔵", "🟢", "🔴", "🟠"]

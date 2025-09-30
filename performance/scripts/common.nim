@@ -231,11 +231,6 @@ proc formatMultipleCharts*(
 
   return parts.join("\n")
 
-const defaultColors* = @["🔵", "🟢", "🔴", "🟠"]
-
-proc getDefaultChartConfig*(): ChartConfig =
-  ChartConfig(colors: defaultColors, width: 450, height: 300)
-
 proc convertMB*(bytes: int): float =
   return float(bytes) / 1024.0 / 1024.0
 
