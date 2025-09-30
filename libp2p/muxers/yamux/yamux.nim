@@ -24,7 +24,7 @@ const
   YamuxVersion = 0.uint8
   YamuxDefaultWindowSize* = 256000
   MaxSendQueueSize = 256000
-  MaxChannelCount = 200
+  MaxChannelCount* = 256
 
 when defined(libp2p_yamux_metrics):
   declareGauge libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"]
@@ -596,7 +596,9 @@ method handle*(m: Yamux) {.async: (raises: []).} =
               raise newException(YamuxError, "Peer used our reserved stream id")
             let newStream =
               m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
-            if m.channels.len >= m.maxChannCount:
+            if m.channels.len > m.maxChannCount:
+              warn "too many channels created by remote peer",
+                peerId = m.connection.peerId, allowedMax = m.maxChannCount
               await newStream.reset()
               continue
             await newStream.open()
