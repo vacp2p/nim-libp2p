@@ -25,13 +25,6 @@ suite "MutliHash regisration":
     debugEcho "using override sha2-256 coder"
     copyMem(addr output[0], unsafeAddr data[0], len(output))
 
-  proc coderReverse(data: openArray[byte], output: var openArray[byte]) =
-    # Reverse the data before hashing
-    var buf = newSeq[byte](len(data))
-    for i in 0 ..< len(data):
-      buf[i] = data[len(data) - 1 - i]
-    copyMem(addr output[0], unsafeAddr buf[0], len(buf))
-
   registerMultiCodecs:
     ("codec_mh1", 0xFF04)
     ("codec_mh2", 0xFF05)

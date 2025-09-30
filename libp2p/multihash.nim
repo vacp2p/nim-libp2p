@@ -33,7 +33,7 @@ import stew/base58
 import results
 export results
 # This is workaround for Nim `import` bug.
-export sha, sha2, keccak, blake2, hash, utils
+export sha, sha2, keccak, blake2, hash, utils, vbuffer
 
 const
   MaxHashSize* = 128
@@ -637,10 +637,10 @@ proc base58*(value: MultiHash): string =
   ## Return Base58 encoded string representation of MultiHash ``value``.
   result = Base58.encode(value.data.buffer)
 
-proc `$`*(mh: MultiHash): string =
+template `$`*(mh: MultiHash): string =
   ## Return string representation of MultiHash ``value``.
   let digest = toHex(mh.data.buffer.toOpenArray(mh.dpos, mh.dpos + mh.size - 1))
-  result = $(mh.mcodec) & "/" & digest
+  $(mh.mcodec) & "/" & digest
 
 proc write*(vb: var VBuffer, mh: MultiHash) {.inline.} =
   ## Write MultiHash value ``mh`` to buffer ``vb``.
