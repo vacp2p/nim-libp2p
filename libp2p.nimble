@@ -31,7 +31,7 @@ proc runTest(filename: string, moreoptions: string = "") =
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
   exec excstr &
-    " -r -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest tests/" &
+    " -r -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
     filename
   #rmFile "tests/" & filename.toExe
 
