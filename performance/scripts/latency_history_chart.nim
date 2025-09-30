@@ -38,7 +38,7 @@ proc readLatencyCsv(path: string): seq[LatencyChartData] =
         continue
 
   if latencyData.len == 0:
-    echo "Warning: No Base test or QUIC data found in: " & path
+    echo "Warning: No TCP or QUIC data found in: " & path
   return latencyData
 
 when isMainModule:

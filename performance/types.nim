@@ -14,21 +14,33 @@ type LatencyChartData* = object
   scenario*: string
   latency*: LatencyStats
 
-type DockerStatsSample* = object
+type DockerStatsSample* = object of RootObj
   timestamp*: float
   cpuPercent*: float
   memUsageMB*: float
   netRxMB*: float
   netTxMB*: float
 
-type CsvData* = object
-  samples*: seq[DockerStatsSample]
-  downloadRate*: seq[float]
-  uploadRate*: seq[float]
+type ResourceChartsSample* = object of DockerStatsSample
+  downloadRate*: float
+  uploadRate*: float
 
 type TestRun* = object
   name*: string
-  data*: CsvData
+  data*: seq[ResourceChartsSample]
+
+type ResourceChartType* = enum
+  Cpu
+  Memory
+  NetThroughput
+  NetTotal
+
+type ResourceChartData* = object
+  title*: string
+  yAxis*: string
+  chartType*: ResourceChartType
+
+const defaultColors* = @["🔵", "🟢", "🔴", "🟠"]
 
 type GitHubEnv* = object
   runId*: string
@@ -46,16 +58,3 @@ type ChartConfig* = object
   colors*: seq[string]
   width*: int
   height*: int
-
-type ResourceChartType* = enum
-  Cpu
-  Memory
-  NetThroughput
-  NetTotal
-
-type ResourceChartData* = object
-  title*: string
-  yAxis*: string
-  chartType*: ResourceChartType
-
-const defaultColors* = @["🔵", "🟢", "🔴", "🟠"]

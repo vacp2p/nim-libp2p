@@ -3,9 +3,7 @@ import ../types
 import ./common
 
 const CHARTS_DATA = [
-  ResourceChartData(
-    title: "CPU % vs Time", yAxis: "CPU %", chartType: ResourceChartType.Cpu
-  ),
+  ResourceChartData(title: "CPU %", yAxis: "CPU %", chartType: ResourceChartType.Cpu),
   ResourceChartData(
     title: "Memory Usage (MB)",
     yAxis: "Memory (MB)",
@@ -21,9 +19,9 @@ const CHARTS_DATA = [
   ),
 ]
 
-proc readCsv(path: string): CsvData =
+proc readCsv(path: string): seq[ResourceChartsSample] =
   let lines = readFile(path).splitLines()
-  var data = CsvData()
+  var data: seq[ResourceChartsSample]
   for i, line in lines:
     if i == 0 or line.len == 0:
       continue
@@ -31,17 +29,17 @@ proc readCsv(path: string): CsvData =
     if cols.len < 7:
       continue
     try:
-      data.samples.add(
-        DockerStatsSample(
+      data.add(
+        ResourceChartsSample(
           timestamp: parseFloat(cols[0]),
           cpuPercent: parseFloat(cols[1]),
           memUsageMB: parseFloat(cols[2]),
           netRxMB: parseFloat(cols[5]),
           netTxMB: parseFloat(cols[6]),
+          downloadRate: parseFloat(cols[3]),
+          uploadRate: parseFloat(cols[4]),
         )
       )
-      data.downloadRate.add(parseFloat(cols[3]))
-      data.uploadRate.add(parseFloat(cols[4]))
     except ValueError:
       discard
   return data
@@ -53,24 +51,24 @@ proc buildSeries(
   for run in runs:
     case config.chartType
     of ResourceChartType.Cpu:
-      if run.data.samples.len > 0:
-        series.add (run.name, run.data.samples.mapIt(it.cpuPercent))
+      if run.data.len > 0:
+        series.add (run.name, run.data.mapIt(it.cpuPercent))
     of ResourceChartType.Memory:
-      if run.data.samples.len > 0:
-        series.add (run.name, run.data.samples.mapIt(it.memUsageMB))
+      if run.data.len > 0:
+        series.add (run.name, run.data.mapIt(it.memUsageMB))
     of ResourceChartType.NetThroughput:
-      if run.data.downloadRate.len > 0:
-        series.add (run.name & " download", run.data.downloadRate)
-      if run.data.uploadRate.len > 0:
-        series.add (run.name & " upload", run.data.uploadRate)
+      if run.data.len > 0:
+        series.add (run.name & " download", run.data.mapIt(it.downloadRate))
+        series.add (run.name & " upload", run.data.mapIt(it.uploadRate))
     of ResourceChartType.NetTotal:
-      if run.data.samples.len > 0:
-        series.add (run.name & " download", run.data.samples.mapIt(it.netRxMB))
-        series.add (run.name & " upload", run.data.samples.mapIt(it.netTxMB))
+      if run.data.len > 0:
+        series.add (run.name & " download", run.data.mapIt(it.netRxMB))
+        series.add (run.name & " upload", run.data.mapIt(it.netTxMB))
   return series
 
 when isMainModule:
-  let outDir = "performance/output"
+  let env = getGitHubEnv()
+  let outDir = env.sharedVolumePath
   let csvFiles = findCsvFiles(outDir, "docker_stats").sorted
 
   if csvFiles.len == 0:
@@ -79,7 +77,7 @@ when isMainModule:
   var groups: Table[string, seq[TestRun]]
   for file in csvFiles:
     let data = readCsv(file)
-    if data.samples.len > 0:
+    if data.len > 0:
       let group = extractTestName(file)
       let run = extractTestName(file, keepSuffix = true)
       groups.mgetOrPut(group, @[]).add TestRun(name: run, data: data)
@@ -102,7 +100,6 @@ when isMainModule:
         outputSections.add chart
 
   let output = outputSections.join("\n")
-  let env = getGitHubEnv()
 
   echo output
   writeGitHubOutputs(output, env, toJobSummary = true, toComment = false)
