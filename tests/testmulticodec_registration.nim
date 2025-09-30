@@ -14,13 +14,19 @@ import unittest2
 import ../libp2p/multicodec
 import ../libp2p/utils/sequninit
 
+
+registerMultiCodecs:
+  ("codec_mc1", 0xFF01)
+  ("codec_mc2", 0xFF02)
+  ("codec_mc3", 0xFF03)
+
 suite "Multicodec regisration":
 
   # register once for entire module (at compile time)
-  registerMultiCodecs:
-    ("codec_mc1", 0xFF01)
-    ("codec_mc2", 0xFF02)
-    ("codec_mc3", 0xFF03)
+  # registerMultiCodecs:
+  #   ("codec_mc1", 0xFF01)
+  #   ("codec_mc2", 0xFF02)
+  #   ("codec_mc3", 0xFF03)
 
   test "can assign registered codecs by name":
     check:
