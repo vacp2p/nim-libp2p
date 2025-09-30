@@ -46,4 +46,5 @@ import
   mix/[
     testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
     testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode, testconn,
+    testpkifilter,
   ]

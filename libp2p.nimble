@@ -56,14 +56,12 @@ task testpubsub, "Runs pubsub tests":
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter")
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
 task testintegration, "Runs integraion tests":
   runTest("testintegration")
 
 task test, "Runs the test suite":
   runTest("testall")
-  # exec "nimble testfilter"
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
