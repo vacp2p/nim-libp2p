@@ -33,7 +33,7 @@ proc runTest(filename: string, moreoptions: string = "") =
   exec excstr &
     " -r -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
     filename
-  #rmFile "tests/" & filename.toExe
+  rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false, extraFlags = "") =
   var excstr = nimc & " " & lang & " " & cfg & " " & flags & " -p:. " & extraFlags

@@ -301,6 +301,6 @@ suite "Name resolving":
       check invalid.len == 0
 
     asyncTest "unreachable dns server":
-      var dnsresolver = DnsResolver.new(@[initTAddress("172.67.10.161:53")])
+      var dnsresolver = DnsResolver.new(@[initTAddress("172.67.10.161:0")])
       let invalid = await dnsresolver.resolveIp("google.fr", 0.Port)
       check invalid.len == 0
