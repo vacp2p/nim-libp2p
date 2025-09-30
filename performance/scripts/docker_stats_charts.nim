@@ -102,6 +102,6 @@ proc main() =
   let output = outputSections.join("\n")
 
   echo output
-  writeGitHubOutputs(output, env, toJobSummary = true, toComment = false)
+  writeGitHubSummary(output, env)
 
 main()

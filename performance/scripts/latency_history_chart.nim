@@ -100,6 +100,7 @@ proc main() =
 
   let markdown = sections.join("\n")
   echo markdown
-  writeGitHubOutputs(markdown, env, toJobSummary = true, toComment = true)
+  writeGitHubSummary(markdown, env)
+  writeGitHubComment(markdown, env)
 
 main()

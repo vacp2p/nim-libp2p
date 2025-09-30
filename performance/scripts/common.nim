@@ -4,24 +4,21 @@ import sequtils
 import strutils
 import ../types
 
-proc findFilesByPattern*(dir: string, patterns: seq[string]): seq[string] =
+proc findFilesByPattern*(dir: string, pattern: string): seq[string] =
   if not dirExists(dir):
     raiseAssert "Directory not found: " & dir
 
   var files: seq[string] = @[]
   for entry in walkDir(dir):
-    if entry.kind == pcFile:
-      for pattern in patterns:
-        if pattern in entry.path or entry.path.endsWith(pattern):
-          files.add(entry.path)
-          break
+    if entry.kind == pcFile and pattern in entry.path:
+      files.add(entry.path)
   return files
 
 proc findJsonFiles*(dir: string): seq[string] =
-  findFilesByPattern(dir, @[".json"])
+  findFilesByPattern(dir, ".json")
 
 proc findCsvFiles*(dir: string, prefix: string = ""): seq[string] =
-  let allCsvFiles = findFilesByPattern(dir, @[".csv"])
+  let allCsvFiles = findFilesByPattern(dir, ".csv")
   let files =
     if prefix == "":
       allCsvFiles
@@ -31,17 +28,17 @@ proc findCsvFiles*(dir: string, prefix: string = ""): seq[string] =
   return files
 
 proc findLogFiles*(dir: string, prefix: string): seq[string] =
-  let allLogFiles = findFilesByPattern(dir, @[".log"])
+  let allLogFiles = findFilesByPattern(dir, ".log")
   return allLogFiles.filterIt(prefix in it)
 
 proc parseJsonFiles*(outputDir: string): seq[JsonNode] =
   var jsons: seq[JsonNode]
+  let paths = findJsonFiles(outputDir)
 
-  for kind, path in walkDir(outputDir):
-    if kind == pcFile and path.endsWith(".json"):
-      let content = readFile(path)
-      let json = parseJson(content)
-      jsons.add(json)
+  for path in paths:
+    let content = readFile(path)
+    let json = parseJson(content)
+    jsons.add(json)
 
   return jsons
 
@@ -59,28 +56,27 @@ proc getGitHubEnv*(): GitHubEnv =
     latencyHistoryPath: getEnv("LATENCY_HISTORY_PATH", "latency_history"),
   )
 
-proc writeGitHubOutputs*(
-    content: string, env: GitHubEnv, toJobSummary: bool, toComment: bool
-) =
-  if toJobSummary:
-    let file = open(env.stepSummary, fmAppend)
-    file.write(content & "\n")
-    file.close()
+proc appendFile(content: string, path: string) =
+  let file = open(path, fmAppend)
+  file.write(content & "\n")
+  file.close()
 
-  if toComment:
-    let file = open(env.commentSummaryPath, fmAppend)
-    file.write(content & "\n")
-    file.close()
+proc writeGitHubSummary*(content: string, env: GitHubEnv) =
+  appendFile(content, env.stepSummary)
+
+proc writeGitHubComment*(content: string, env: GitHubEnv) =
+  appendFile(content, env.commentSummaryPath)
 
 proc extractPrNumber*(filename: string): int =
   let base = filename.extractFilename
-  if base.startsWith("pr") and base.endsWith("_latency.csv"):
-    let prString = base[2 .. ^13]
-    try:
-      return parseInt(prString)
-    except ValueError:
-      return 0
-  return 0
+  if not base.startsWith("pr") or not base.endsWith("_latency.csv"):
+    return 0
+
+  let prString = base[2 .. ^13]
+  try:
+    return parseInt(prString)
+  except ValueError:
+    return 0
 
 proc extractScenarioType*(scenarioName: string): string =
   if "QUIC" in scenarioName:
@@ -105,13 +101,15 @@ proc sanitizeFilename*(
 proc extractTestName*(path: string, keepSuffix = false): string =
   var name = sanitizeFilename(path, "docker_stats_", ".csv")
 
-  if not keepSuffix:
-    let underscorePos = name.rfind('_')
-    if underscorePos > 0:
-      let suffix = name[underscorePos + 1 .. ^1]
-      let isRunNumber = suffix.len > 0 and suffix.allCharsInSet({'0' .. '9'})
-      if isRunNumber:
-        name = name[0 .. underscorePos - 1]
+  if keepSuffix:
+    return name
+
+  let underscorePos = name.rfind('_')
+  if underscorePos > 0:
+    let suffix = name[underscorePos + 1 .. ^1]
+    let isRunNumber = suffix.len > 0 and suffix.allCharsInSet({'0' .. '9'})
+    if isRunNumber:
+      name = name[0 .. underscorePos - 1]
 
   return name
 
@@ -126,6 +124,30 @@ proc generateLegend*(items: seq[string], colors: seq[string]): string =
     legendItems.add(color & " " & item)
   return "<sub>" & legendItems.join(" • ") & "</sub>\n\n"
 
+proc formatMermaidChartDirective(config: ChartConfig): string =
+  return
+    "%%{init: {\"xyChart\": {\"width\": " & $config.width & ", \"height\": " &
+    $config.height & "}}}%%"
+
+proc formatMermaidChartxAxis(xAxis: string, xAxisRange: string): string =
+  return
+    if xAxisRange == "":
+      "    x-axis \"" & xAxis & "\""
+    else:
+      "    x-axis \"" & xAxis & "\" " & xAxisRange
+
+proc formatMermaidChartLines(
+    series: seq[(string, seq[float])], precision: int
+): string =
+  var lines: seq[string]
+  for serie in series:
+    let lineName = serie[0]
+    let values = serie[1].mapIt(formatFloat(it, ffDecimal, precision))
+    let line = "    line \"" & lineName & "\" [" & values.join(", ") & "]"
+    lines.add(line)
+
+  return lines.join("\n")
+
 proc formatMermaidChart*(
     title, xAxis, yAxis: string,
     series: seq[(string, seq[float])],
@@ -137,19 +159,6 @@ proc formatMermaidChart*(
   if series.len == 0:
     return ""
 
-  let values = series
-    .mapIt(
-      "    line \"" & it[0] & "\" [" &
-        it[1].mapIt(formatFloat(it, ffDecimal, precision)).join(", ") & "]"
-    )
-    .join("\n")
-
-  let xAxisLine =
-    if xAxisRange == "":
-      "    x-axis \"" & xAxis & "\""
-    else:
-      "    x-axis \"" & xAxis & "\" " & xAxisRange
-
   var parts: seq[string] = @[]
 
   if includeLegend:
@@ -157,15 +166,12 @@ proc formatMermaidChart*(
     parts.add(legend)
 
   parts.add("```mermaid")
-  parts.add(
-    "%%{init: {\"xyChart\": {\"width\": " & $config.width & ", \"height\": " &
-      $config.height & "}}}%%"
-  )
+  parts.add(formatMermaidChartDirective(config))
   parts.add("xychart-beta")
   parts.add("    title \"" & title & "\"")
-  parts.add(xAxisLine)
+  parts.add(formatMermaidChartxAxis(xAxis, xAxisRange))
   parts.add("    y-axis \"" & yAxis & "\"")
-  parts.add(values)
+  parts.add(formatMermaidChartLines(series, precision))
   parts.add("```")
   parts.add("")
 
