@@ -504,13 +504,15 @@ template name*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc`` at compile time.
   (static(CodeCodecs)).getOrDefault(int(mc), "")
 
-template codec*(mt: typedesc[MultiCodec], name: string): MultiCodec =
+proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec =
   ## Return MultiCodec from string representation ``name``.
   ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
   ## be returned.
-  MultiCodec((static NameCodecs).getOrDefault(name, -1))
+  const nameCodecsRuntime = (static NameCodecs)
+  # echo "nameCodecsRuntime: ", nameCodecsRuntime
+  MultiCodec(nameCodecsRuntime.getOrDefault(name, -1))
 
-template codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
+proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
   ## Return MultiCodec from integer representation ``code``.
   ## If ``code`` is not valid multicodec code, then ``InvalidMultiCodec`` will
   ## be returned.
@@ -520,7 +522,7 @@ template codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
   else:
     MultiCodec(code)
 
-template `$`*(mc: MultiCodec): string =
+proc `$`*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc``.
   let name = mc.name
   doAssert(name != "")
@@ -534,7 +536,7 @@ template `==`*(mc: MultiCodec, compareName: string): bool =
   else:
     (mcname == compareName)
 
-template `==`*(mc: MultiCodec, code: int): bool =
+proc `==`*(mc: MultiCodec, code: int): bool =
   ## Compares MultiCodec ``mc`` with integer ``code``.
   (int(mc) == code)
 
