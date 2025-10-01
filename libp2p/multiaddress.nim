@@ -75,6 +75,8 @@ type
 func maErr*(msg: string): ref MaError =
   (ref MaError)(msg: msg)
 
+const libp2p_multiaddress_exts* {.strdefine.} = ""
+
 const
   # These are needed in order to avoid an ambiguity error stemming from
   # some cint constants with the same name defined in the posix modules
@@ -432,67 +434,78 @@ const
 
   Memory* = mapEq("memory")
 
-var CodeAddresses {.compileTime.}: Table[MultiCodec, MAProtocol]
+  ProtocolsList = [
+    MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderIP4),
+    MAProtocol(mcodec: multiCodec("tcp"), kind: Fixed, size: 2, coder: TranscoderPort),
+    MAProtocol(mcodec: multiCodec("udp"), kind: Fixed, size: 2, coder: TranscoderPort),
+    MAProtocol(mcodec: multiCodec("ip6"), kind: Fixed, size: 16, coder: TranscoderIP6),
+    MAProtocol(mcodec: multiCodec("dccp"), kind: Fixed, size: 2, coder: TranscoderPort),
+    MAProtocol(mcodec: multiCodec("sctp"), kind: Fixed, size: 2, coder: TranscoderPort),
+    MAProtocol(mcodec: multiCodec("udt"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("utp"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("http"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("https"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("quic"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("quic-v1"), kind: Marker, size: 0),
+    MAProtocol(
+      mcodec: multiCodec("ip6zone"), kind: Length, size: 0, coder: TranscoderIP6Zone
+    ),
+    MAProtocol(
+      mcodec: multiCodec("onion"), kind: Fixed, size: 10, coder: TranscoderOnion
+    ),
+    MAProtocol(
+      mcodec: multiCodec("onion3"), kind: Fixed, size: 37, coder: TranscoderOnion3
+    ),
+    MAProtocol(mcodec: multiCodec("ws"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("wss"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("tls"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("ipfs"), kind: Length, size: 0, coder: TranscoderP2P),
+    MAProtocol(mcodec: multiCodec("p2p"), kind: Length, size: 0, coder: TranscoderP2P),
+    MAProtocol(mcodec: multiCodec("unix"), kind: Path, size: 0, coder: TranscoderUnix),
+    MAProtocol(mcodec: multiCodec("dns"), kind: Length, size: 0, coder: TranscoderDNS),
+    MAProtocol(mcodec: multiCodec("dns4"), kind: Length, size: 0, coder: TranscoderDNS),
+    MAProtocol(mcodec: multiCodec("dns6"), kind: Length, size: 0, coder: TranscoderDNS),
+    MAProtocol(
+      mcodec: multiCodec("dnsaddr"), kind: Length, size: 0, coder: TranscoderDNS
+    ),
+    MAProtocol(mcodec: multiCodec("p2p-circuit"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("p2p-websocket-star"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0),
+    MAProtocol(
+      mcodec: multiCodec("memory"), kind: Path, size: 0, coder: TranscoderMemory
+    )
+  ]
 
-macro registerProtocols*(body: untyped): untyped =
-  ## Register custom MultiAddresses at compile time.
-  result = newStmtList()
+proc initMultiAddressCodeTable(protocols: openArray[MAProtocol]): Table[MultiCodec, MAProtocol] {.compileTime.} =
+  for protocol in protocols:
+    result[protocol.mcodec] = protocol
 
-  for stmt in body:
-    if stmt.kind != nnkObjConstr:
-      error("Expected MAProtocol(mcodec: ..., kind: ..., size: ..., coder: ...)", stmt)
+when libp2p_multiaddress_exts != "":
+  includeFile(libp2p_multiaddress_exts)
+  const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList & @AddressExts)
+else:
+  const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList)
 
-    if stmt[0].kind != nnkIdent or $stmt[0] != "MAProtocol":
-      error("Expected MAProtocol constructor", stmt)
 
-    result.add quote do:
-      static:
-        CodeAddresses[`stmt`.mcodec] = `stmt`
+# macro registerProtocols*(body: untyped): untyped =
+#   ## Register custom MultiAddresses at compile time.
+#   result = newStmtList()
 
-registerProtocols:
-  MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderIP4)
-  MAProtocol(mcodec: multiCodec("tcp"), kind: Fixed, size: 2, coder: TranscoderPort)
-  MAProtocol(mcodec: multiCodec("udp"), kind: Fixed, size: 2, coder: TranscoderPort)
-  MAProtocol(mcodec: multiCodec("ip6"), kind: Fixed, size: 16, coder: TranscoderIP6)
-  MAProtocol(mcodec: multiCodec("dccp"), kind: Fixed, size: 2, coder: TranscoderPort)
-  MAProtocol(mcodec: multiCodec("sctp"), kind: Fixed, size: 2, coder: TranscoderPort)
-  MAProtocol(mcodec: multiCodec("udt"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("utp"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("http"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("https"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("quic"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("quic-v1"), kind: Marker, size: 0)
-  MAProtocol(
-    mcodec: multiCodec("ip6zone"), kind: Length, size: 0, coder: TranscoderIP6Zone
-  )
-  MAProtocol(
-    mcodec: multiCodec("onion"), kind: Fixed, size: 10, coder: TranscoderOnion
-  )
-  MAProtocol(
-    mcodec: multiCodec("onion3"), kind: Fixed, size: 37, coder: TranscoderOnion3
-  )
-  MAProtocol(mcodec: multiCodec("ws"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("wss"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("tls"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("ipfs"), kind: Length, size: 0, coder: TranscoderP2P)
-  MAProtocol(mcodec: multiCodec("p2p"), kind: Length, size: 0, coder: TranscoderP2P)
-  MAProtocol(mcodec: multiCodec("unix"), kind: Path, size: 0, coder: TranscoderUnix)
-  MAProtocol(mcodec: multiCodec("dns"), kind: Length, size: 0, coder: TranscoderDNS)
-  MAProtocol(mcodec: multiCodec("dns4"), kind: Length, size: 0, coder: TranscoderDNS)
-  MAProtocol(mcodec: multiCodec("dns6"), kind: Length, size: 0, coder: TranscoderDNS)
-  MAProtocol(
-    mcodec: multiCodec("dnsaddr"), kind: Length, size: 0, coder: TranscoderDNS
-  )
-  MAProtocol(mcodec: multiCodec("p2p-circuit"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("p2p-websocket-star"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0)
-  MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0)
-  MAProtocol(
-    mcodec: multiCodec("memory"), kind: Path, size: 0, coder: TranscoderMemory
-  )
+#   for stmt in body:
+#     if stmt.kind != nnkObjConstr:
+#       error("Expected MAProtocol(mcodec: ..., kind: ..., size: ..., coder: ...)", stmt)
 
-template maProtocol(mcodec: MultiCodec): MAProtocol =
-  (static CodeAddresses).getOrDefault(mcodec)
+#     if stmt[0].kind != nnkIdent or $stmt[0] != "MAProtocol":
+#       error("Expected MAProtocol constructor", stmt)
+
+#     result.add quote do:
+#       static:
+#         CodeAddresses[`stmt`.mcodec] = `stmt`
+
+
+# template maProtocol(mcodec: MultiCodec): MAProtocol =
+#   (static CodeAddresses.getOrDefault(mcodec)
 
 proc trimRight(s: string, ch: char): string =
   ## Consume trailing characters ``ch`` from string ``s`` and return result.
@@ -511,7 +524,7 @@ proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
-    let proto = (static CodeAddresses).getOrDefault(MultiCodec(header))
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       err("multiaddress: Unsupported protocol '" & $header & "'")
     else:
@@ -524,7 +537,7 @@ proc protoName*(ma: MultiAddress): MaResult[string] =
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
-    let proto = (static CodeAddresses).getOrDefault(MultiCodec(header))
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       err("multiaddress: Unsupported protocol '" & $header & "'")
     else:
@@ -541,21 +554,22 @@ proc protoArgument*(ma: MultiAddress, value: var openArray[byte]): MaResult[int]
   if vb.data.readVarint(header) == -1:
     err("multiaddress: Malformed binary address!")
   else:
-    let proto = (static CodeAddresses).getOrDefault(MultiCodec(header))
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       err("multiaddress: Unsupported protocol '" & $header & "'")
     else:
       var res: int
       if proto.kind == Fixed:
         res = proto.size
+        echo "[protoArgument] res: ", res, " len(value): ", len(value), " proto.size: ", proto.size
         if len(value) >= res and
             vb.data.readArray(value.toOpenArray(0, proto.size - 1)) != proto.size:
-          err("multiaddress: Decoding protocol error")
+          err("multiaddress1: Decoding protocol error")
         else:
           ok(res)
       elif proto.kind in {MAKind.Length, Path}:
         if vb.data.readSeq(buffer) == -1:
-          err("multiaddress: Decoding protocol error")
+          err("multiaddress2: Decoding protocol error")
         else:
           res = len(buffer)
           if len(value) >= res:
@@ -596,13 +610,13 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
     if vb.data.readVarint(header) == -1:
       return err("multiaddress: Malformed binary address!")
 
-    let proto = (static CodeAddresses).getOrDefault(MultiCodec(header))
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       return err("multiaddress: Unsupported protocol '" & $header & "'")
     elif proto.kind == Fixed:
       data.setLen(proto.size)
       if vb.data.readArray(data) != proto.size:
-        return err("multiaddress: Decoding protocol error")
+        return err("multiaddress3: Decoding protocol error")
 
       if offset == index:
         res.data.writeVarint(header)
@@ -610,7 +624,7 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
         res.data.finish()
     elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
-        return err("multiaddress: Decoding protocol error")
+        return err("multiaddress4: Decoding protocol error")
 
       if offset == index:
         res.data.writeVarint(header)
@@ -667,19 +681,19 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
     if vb.data.readVarint(header) == -1:
       yield err(MaResult[MultiAddress], "Malformed binary address!")
 
-    let proto = (static CodeAddresses).getOrDefault(MultiCodec(header))
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       yield err(MaResult[MultiAddress], "Unsupported protocol '" & $header & "'")
     elif proto.kind == Fixed:
       data.setLen(proto.size)
       if vb.data.readArray(data) != proto.size:
-        yield err(MaResult[MultiAddress], "Decoding protocol error")
+        yield err(MaResult[MultiAddress], "5Decoding protocol error")
 
       res.data.writeVarint(header)
       res.data.writeArray(data)
     elif proto.kind in {MAKind.Length, Path}:
       if vb.data.readSeq(data) == -1:
-        yield err(MaResult[MultiAddress], "Decoding protocol error")
+        yield err(MaResult[MultiAddress], "6Decoding protocol error")
 
       res.data.writeVarint(header)
       res.data.writeSeq(data)
@@ -725,14 +739,14 @@ proc toString*(value: MultiAddress): MaResult[string] =
       break
     if vb.data.readVarint(header) == -1:
       return err("multiaddress: Malformed binary address!")
-    let proto = (static CodeAddresses).getOrDefault(MultiCodec(header))
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       return err("multiaddress: Unsupported protocol '" & $header & "'")
     if proto.kind in {Fixed, Length, Path}:
       if isNil(proto.coder.bufferToString):
         return err("multiaddress: Missing protocol '" & $(proto.mcodec) & "' coder")
       if not proto.coder.bufferToString(vb.data, part):
-        return err("multiaddress: Decoding protocol error")
+        return err("multiaddress7: Decoding protocol error")
       parts.add($(proto.mcodec))
       if len(part) > 0 and (proto.kind == Path) and (part[0] == '/'):
         parts.add(part[1 ..^ 1])
@@ -783,7 +797,7 @@ proc validate*(ma: MultiAddress): bool =
       break
     if vb.data.readVarint(header) == -1:
       return false
-    let proto = (static CodeAddresses).getOrDefault(MultiCodec(header))
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       return false
     if proto.kind in {Fixed, Length, Path}:
@@ -800,7 +814,7 @@ proc init*(
 ): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and array
   ## of bytes ``value``.
-  let proto = (static CodeAddresses).getOrDefault(protocol)
+  let proto = CodeAddresses.getOrDefault(protocol)
   if proto.kind == None:
     err("multiaddress: Protocol not found")
   else:
@@ -845,7 +859,7 @@ proc init*(
   if protocol notin allowed:
     err("multiaddress: Incorrect protocol for integer value")
   else:
-    let proto = (static CodeAddresses).getOrDefault(protocol)
+    let proto = CodeAddresses.getOrDefault(protocol)
     var res: MultiAddress
     res.data = initVBuffer()
     res.data.writeVarint(cast[uint64](proto.mcodec))
@@ -867,7 +881,7 @@ proc getPart*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] =
 proc getProtocol(name: string): MAProtocol {.inline.} =
   let mc = MultiCodec.codec(name)
   if mc != InvalidMultiCodec:
-    result = (static CodeAddresses).getOrDefault(mc)
+    result = CodeAddresses.getOrDefault(mc)
 
 proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from string representation ``value``.
@@ -1044,10 +1058,6 @@ proc `==`*(m1: var MultiAddress, m2: MultiAddress): bool =
 proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
   var empty: seq[MultiCodec]
   var pcs = protos
-  try:
-    echo "[multiaddreess.matchPart] pat: ", $pat, " protos: ", pcs
-  except Exception:
-    discard
   if pat.operator == Or:
     result = MaPatResult(flag: false, rem: empty)
     for a in pat.args:
@@ -1077,7 +1087,6 @@ proc match*(pat: MaPattern, address: MultiAddress): bool =
   ## ``address`` satisfies pattern.
   let protos = address.protocols().valueOr:
     return false
-  echo "[multiaddreess.match] protos: ", protos
   let res = matchPart(pat, protos)
   res.flag and (len(res.rem) == 0)
 
