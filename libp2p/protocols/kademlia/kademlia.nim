@@ -169,6 +169,18 @@ proc putValue*(
     discard
   return ok()
 
+proc getValue*(
+    self: KadDHT, key: Key
+): Future[Result[seq[byte], string]] {.async: (raises: [CancelledError]).} =
+  # TODO: implement
+  # - Have pluggable quorum mechanism (like validator/selector) that returns Q (number of responses needed)
+  # - Try to fetch from local store first, if found and quorum Q is 0 or 1, return the value
+  # - Find closest peer to key, we need to collect Q values. See algorithm at See value retrieval: https://github.com/libp2p/specs/blob/master/kad-dht/README.md#value-retrieval
+  # - Send a GET_VALUE request to each peer
+  # - Validate all the responses retrieved (use kad.entryValidator.isValid)
+  # - Update nodes that returned worse records, and nodes that returned no records by using PUT_VALUE
+  discard
+
 # Helper function forward declaration
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.}
 
@@ -357,6 +369,9 @@ proc new*(
 
         # Peer is useful. adding to rtable
         discard kad.rtable.insert(conn.peerId)
+      of MessageType.getValue:
+        # TODO:
+        raise newException(LPError, "Not implemented yet")
       of MessageType.putValue:
         let record = msg.record.valueOr:
           error "no record in message buffer", msg = msg, conn = conn
