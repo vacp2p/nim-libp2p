@@ -1,45 +1,26 @@
-import algorithm, os, sequtils, strutils
+import algorithm, os, parsecsv, sequtils, strutils
 import ../types
 import ./common
 
-proc readLatencyCsv(path: string): seq[LatencyChartData] =
-  let lines = readFile(path).splitLines()
-  if lines.len < 2:
-    echo "Warning: CSV appears empty: " & path
-    return @[]
-
+proc createLatencyRowHandler(path: string): proc(row: CsvRow): LatencyChartData =
   let prNumber = extractPrNumber(path)
   if prNumber == 0:
     echo "Warning: Invalid PR number in filename: " & path
-    return @[]
 
-  var latencyData: seq[LatencyChartData]
-  for i, line in lines:
-    if i == 0 or line.len == 0:
-      continue
-    let cols = line.split(',')
-    if cols.len < 7:
-      continue
+  return proc(row: CsvRow): LatencyChartData =
+    let scenarioType = extractScenarioType(row[0])
+    if scenarioType == "":
+      raise newException(ValueError, "Ignored scenario type")
 
-    let scenarioType = extractScenarioType(cols[0])
-    if scenarioType != "":
-      try:
-        let data = LatencyChartData(
-          prNumber: prNumber,
-          scenario: scenarioType,
-          latency: LatencyStats(
-            minLatencyMs: parseFloat(cols[4]),
-            maxLatencyMs: parseFloat(cols[5]),
-            avgLatencyMs: parseFloat(cols[6]),
-          ),
-        )
-        latencyData.add data
-      except ValueError:
-        continue
-
-  if latencyData.len == 0:
-    echo "Warning: No TCP or QUIC data found in: " & path
-  return latencyData
+    return LatencyChartData(
+      prNumber: prNumber,
+      scenario: scenarioType,
+      latency: LatencyStats(
+        minLatencyMs: parseFloat(row[4]),
+        maxLatencyMs: parseFloat(row[5]),
+        avgLatencyMs: parseFloat(row[6]),
+      ),
+    )
 
 proc main() =
   let env = getGitHubEnv()
@@ -55,7 +36,7 @@ proc main() =
   # Read and collect all latency data
   var allLatencyData: seq[LatencyChartData]
   for csvFile in csvFiles:
-    let dataList = readLatencyCsv(csvFile)
+    let dataList = readCsv[LatencyChartData](csvFile, createLatencyRowHandler(csvFile))
     for data in dataList:
       if data.prNumber > 0:
         allLatencyData.add data

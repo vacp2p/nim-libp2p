@@ -1,4 +1,9 @@
-import algorithm, sequtils, strformat, strutils, tables
+import algorithm
+import parsecsv
+import sequtils
+import strformat
+import strutils
+import tables
 import ../types
 import ./common
 
@@ -19,30 +24,16 @@ const CHARTS_DATA = [
   ),
 ]
 
-proc readCsv(path: string): seq[ResourceChartsSample] =
-  let lines = readFile(path).splitLines()
-  var data: seq[ResourceChartsSample]
-  for i, line in lines:
-    if i == 0 or line.len == 0:
-      continue
-    let cols = line.split(',')
-    if cols.len < 7:
-      continue
-    try:
-      data.add(
-        ResourceChartsSample(
-          timestamp: parseFloat(cols[0]),
-          cpuPercent: parseFloat(cols[1]),
-          memUsageMB: parseFloat(cols[2]),
-          netRxMB: parseFloat(cols[5]),
-          netTxMB: parseFloat(cols[6]),
-          downloadRate: parseFloat(cols[3]),
-          uploadRate: parseFloat(cols[4]),
-        )
-      )
-    except ValueError:
-      discard
-  return data
+proc csvRowHandler(row: CsvRow): ResourceChartsSample =
+  ResourceChartsSample(
+    timestamp: parseFloat(row[0]),
+    cpuPercent: parseFloat(row[1]),
+    memUsageMB: parseFloat(row[2]),
+    netRxMB: parseFloat(row[5]),
+    netTxMB: parseFloat(row[6]),
+    downloadRate: parseFloat(row[3]),
+    uploadRate: parseFloat(row[4]),
+  )
 
 proc buildSeries(
     runs: seq[TestRun], config: ResourceChartData
@@ -76,7 +67,7 @@ proc main() =
 
   var groups: Table[string, seq[TestRun]]
   for file in csvFiles:
-    let data = readCsv(file)
+    let data = readCsv[ResourceChartsSample](file, csvRowHandler)
     if data.len > 0:
       let group = extractTestName(file)
       let run = extractTestName(file, keepSuffix = true)

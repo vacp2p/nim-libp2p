@@ -1,5 +1,6 @@
 import json
 import os
+import parsecsv
 import sequtils
 import strutils
 import ../types
@@ -231,3 +232,19 @@ proc calcRateMBps*(curr: float, prev: float, dt: float): float =
   if dt == 0:
     return 0.0
   return (curr - prev) / dt
+
+proc readCsv*[T](path: string, rowHandler: proc(row: CsvRow): T): seq[T] =
+  var data: seq[T]
+  var p: CsvParser
+  p.open(path)
+  defer:
+    p.close()
+
+  p.readHeaderRow()
+  while p.readRow():
+    try:
+      data.add(rowHandler(p.row))
+    except ValueError:
+      discard
+
+  return data
