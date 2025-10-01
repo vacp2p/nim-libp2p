@@ -174,10 +174,16 @@ proc testTransportEvents(transport: Transport, addrs: seq[MultiAddress]) {.async
   var onStopFired = false
 
   proc onRunningHandler() {.async.} =
+    # onRunning only gets set during start() call
+    if transport.onRunning.isNil:
+      transport.onRunning = newAsyncEvent()
     await transport.onRunning.wait()
     onRunningFired = true
 
   proc onStopHandler() {.async.} =
+    # onStop only gets set during stop() call
+    if transport.onStop.isNil:
+      transport.onStop = newAsyncEvent()
     await transport.onStop.wait()
     onStopFired = true
 
