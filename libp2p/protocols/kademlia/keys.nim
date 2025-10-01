@@ -1,48 +1,19 @@
-import nimcrypto/sha2
 import ../../peerid
 import chronicles
+import results
+import sugar
 import stew/byteutils
 
-type
-  KeyType* {.pure.} = enum
-    Raw
-    PeerId
-
-  Key* = object
-    case kind*: KeyType
-    of KeyType.PeerId:
-      peerId*: PeerId
-    of KeyType.Raw:
-      data*: seq[byte]
-
-proc toKey*(s: seq[byte]): Key =
-  return Key(kind: KeyType.Raw, data: s)
+type Key* = seq[byte]
 
 proc toKey*(p: PeerId): Key =
-  return Key(kind: KeyType.PeerId, peerId: p)
+  return Key(p.data)
 
-proc toPeerId*(k: Key): PeerId {.raises: [ValueError].} =
-  if k.kind != KeyType.PeerId:
-    raise newException(ValueError, "not a peerId")
-  k.peerId
-
-proc getBytes*(k: Key): seq[byte] =
-  return
-    case k.kind
-    of KeyType.PeerId:
-      k.peerId.getBytes()
-    of KeyType.Raw:
-      @(k.data)
-
-template `==`*(a, b: Key): bool =
-  a.getBytes() == b.getBytes() and a.kind == b.kind
+proc toPeerId*(k: Key): Result[PeerId, string] =
+  PeerId.init(k).mapErr(x => $x)
 
 proc shortLog*(k: Key): string =
-  case k.kind
-  of KeyType.PeerId:
-    "PeerId:" & $k.peerId
-  of KeyType.Raw:
-    $k.kind & ":" & toHex(k.data)
+  "key:" & toHex(k)
 
 chronicles.formatIt(Key):
   shortLog(it)

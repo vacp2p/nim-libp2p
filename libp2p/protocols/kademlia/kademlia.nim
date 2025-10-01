@@ -1,83 +1,53 @@
+import std/[times, tables, sequtils, sets]
 import chronos
 import chronicles
-import sequtils
-import sets
-import ../../peerid
-import ./consts
-import ./xordistance
-import ./routingtable
-import ./lookupstate
-import ./requests
-import ./keys
-import ../protocol
-import ./protobuf
-import ../../switch
-import ../../multihash
-import ../../utils/heartbeat
-import std/[times, options, tables]
 import results
+import ./[consts, xordistance, routingtable, lookupstate, requests, keys, protobuf]
+import ../protocol
+import ../../[peerid, switch, multihash]
+import ../../utils/heartbeat
 
 logScope:
   topics = "kad-dht"
 
-type EntryKey* = object
-  data: seq[byte]
-
-proc init*(T: typedesc[EntryKey], inner: seq[byte]): EntryKey {.gcsafe, raises: [].} =
-  EntryKey(data: inner)
-
-type EntryValue* = object
-  data*: seq[byte] # public because needed for tests
-
-proc init*(
-    T: typedesc[EntryValue], inner: seq[byte]
-): EntryValue {.gcsafe, raises: [].} =
-  EntryValue(data: inner)
-
-type TimeStamp* = object
-  # Currently a string, because for some reason, that's what is chosen at the protobuf level
-  # TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
-  ts*: string # only public because needed for tests
+## Currently a string, because for some reason, that's what is chosen at the protobuf level
+## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
+type TimeStamp* = string
 
 type EntryRecord* = object
-  value*: EntryValue # only public because needed for tests
-  time*: TimeStamp # only public because needed for tests
+  value*: seq[byte]
+  time*: TimeStamp
 
 proc init*(
-    T: typedesc[EntryRecord], value: EntryValue, time: Option[TimeStamp]
+    T: typedesc[EntryRecord], value: Key, time: Opt[TimeStamp]
 ): EntryRecord {.gcsafe, raises: [].} =
   EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
 
-type LocalTable* = object
-  entries*: Table[EntryKey, EntryRecord] # public because needed for tests
-
-proc init(self: typedesc[LocalTable]): LocalTable {.raises: [].} =
-  LocalTable()
-
-type EntryCandidate* = object
-  key*: EntryKey
-  value*: EntryValue
-
-type ValidatedEntry* = object
-  key: EntryKey
-  value: EntryValue
-
-proc init*(
-    T: typedesc[ValidatedEntry], key: EntryKey, value: EntryValue
-): ValidatedEntry {.gcsafe, raises: [].} =
-  ValidatedEntry(key: key, value: value)
+type LocalTable* = Table[Key, EntryRecord]
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
-    self: EntryValidator, key: EntryKey, val: EntryValue
+    self: EntryValidator, key: Key, value: seq[byte]
 ): bool {.base, raises: [], gcsafe.} =
-  doAssert(false, "unimplimented base method")
+  doAssert(false, "EntryValidator base not implemented")
 
 type EntrySelector* = ref object of RootObj
 method select*(
-    self: EntrySelector, cand: EntryRecord, others: seq[EntryRecord]
-): Result[EntryRecord, string] {.base, raises: [], gcsafe.} =
+    self: EntrySelector, key: Key, values: seq[seq[byte]]
+): Result[int, string] {.base, raises: [], gcsafe.} =
   doAssert(false, "EntrySelection base not implemented")
+
+type DefaultEntryValidator* = ref object of EntryValidator
+method isValid*(
+    self: DefaultEntryValidator, key: Key, value: seq[byte]
+): bool {.raises: [], gcsafe.} =
+  return true
+
+type DefaultEntrySelector* = ref object of EntrySelector
+method select*(
+    self: DefaultEntrySelector, key: Key, values: seq[seq[byte]]
+): Result[int, string] {.raises: [], gcsafe.} =
+  return ok(0)
 
 type KadDHT* = ref object of LPProtocol
   switch: Switch
@@ -89,10 +59,18 @@ type KadDHT* = ref object of LPProtocol
   entrySelector: EntrySelector
 
 proc insert*(
-    self: var LocalTable, value: sink ValidatedEntry, time: TimeStamp
+    self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
 ) {.raises: [].} =
-  debug "local table insertion", key = value.key.data, value = value.value.data
-  self.entries[value.key] = EntryRecord(value: value.value, time: time)
+  debug "local table insertion", key, value
+  self[key] = EntryRecord(value: value, time: time)
+
+proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =
+  if not self.hasKey(key):
+    return Opt.none(EntryRecord)
+  try:
+    return Opt.some(self[key])
+  except KeyError:
+    doAssert false, "checked with hasKey"
 
 const MaxMsgSize = 4096
 # Forward declaration
@@ -113,7 +91,7 @@ proc sendFindNode(
   defer:
     await conn.close()
 
-  let msg = Message(msgType: MessageType.findNode, key: some(targetId.getBytes()))
+  let msg = Message(msgType: MessageType.findNode, key: Opt.some(targetId))
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
@@ -125,7 +103,7 @@ proc sendFindNode(
 proc waitRepliesOrTimeouts(
     pendingFutures: Table[PeerId, Future[Message]]
 ): Future[(seq[Message], seq[PeerId])] {.async: (raises: [CancelledError]).} =
-  await allFutures(toSeq(pendingFutures.values))
+  await allFutures(pendingFutures.values.toSeq())
 
   var receivedReplies: seq[Message] = @[]
   var failedPeers: seq[PeerId] = @[]
@@ -140,14 +118,14 @@ proc waitRepliesOrTimeouts(
   return (receivedReplies, failedPeers)
 
 proc dispatchPutVal(
-    kad: KadDHT, peer: PeerId, entry: ValidatedEntry
+    kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
   let conn = await kad.switch.dial(peer, KadCodec)
   defer:
     await conn.close()
   let msg = Message(
     msgType: MessageType.putValue,
-    record: some(Record(key: some(entry.key.data), value: some(entry.value.data))),
+    record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
   await conn.writeLp(msg.encode().buffer)
 
@@ -160,29 +138,24 @@ proc dispatchPutVal(
       msg = msg, reply = reply, conn = conn
 
 proc putValue*(
-    kad: KadDHT, entKey: EntryKey, value: EntryValue, timeout: Option[int]
+    kad: KadDHT, key: Key, value: seq[byte], timeout: Opt[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  if not kad.entryValidator.isValid(entKey, value):
+  if not kad.entryValidator.isValid(key, value):
     return err("invalid key/value pair")
 
-  let others: seq[EntryRecord] =
-    if entKey in kad.dataTable.entries:
-      @[kad.dataTable.entries.getOrDefault(entKey)]
-    else:
-      @[]
+  let existingRecord = kad.dataTable.get(key)
+  existingRecord.withValue(existing):
+    let selectedIdx = kad.entrySelector.select(key, @[value, existing.value]).valueOr:
+      error "application provided selector error (local)", msg = error
+      return err(error)
+    if selectedIdx != 0:
+      return err("can't replace a newer value with an older value")
 
-  let candAsRec = EntryRecord.init(value, none(TimeStamp))
-  let confirmedRec = kad.entrySelector.select(candAsRec, others).valueOr:
-    error "application provided selector error (local)", msg = error
-    return err(error)
-  trace "local putval", candidate = candAsRec, others = others, selected = confirmedRec
-  let validEnt = ValidatedEntry.init(entKey, confirmedRec.value)
-
-  let peers = await kad.findNode(entKey.data.toKey())
+  let peers = await kad.findNode(key)
   # We first prime the sends so the data is ready to go
-  let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, validEnt))
+  let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, key, value))
   # then we do the `move`, as insert takes the data as `sink`
-  kad.dataTable.insert(validEnt, confirmedRec.time)
+  kad.dataTable.insert(key, value, $times.now().utc)
   try:
     # now that the all the data is where it needs to be in memory, we can dispatch the
     # RPCs
@@ -193,7 +166,7 @@ proc putValue*(
     # future to get rpc telemetry, but in the meantime, we just move on...
   except AsyncTimeoutError:
     discard
-  return results.ok()
+  return ok()
 
 # Helper function forward declaration
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.}
@@ -203,8 +176,6 @@ proc findNode*(
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   ## Node lookup. Iteratively search for the k closest peers to a target ID.
   ## Not necessarily will return the target itself
-
-  #debug "findNode", target = target
 
   var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
   var state = LookupState.init(targetId, initialPeers, kad.rtable.hasher)
@@ -216,10 +187,7 @@ proc findNode*(
     debug "queries", list = toQuery.mapIt(it.shortLog()), addrTab = addrTable
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
-    # TODO: pending futures always empty here, no?
-    for peer in toQuery.filterIt(
-      kad.switch.peerInfo.peerId != it or pendingFutures.hasKey(it)
-    ):
+    for peer in toQuery.filterIt(kad.switch.peerInfo.peerId != it):
       state.markPending(peer)
 
       pendingFutures[peer] = kad
@@ -310,10 +278,8 @@ proc bootstrap*(
         debug "invalid peer id received", error = error
         continue
       discard kad.rtable.insert(p)
-      try:
-        kad.switch.peerStore[AddressBook][p] = peer.addrs
-      except:
-        error "this is here because an ergonomic means of keying into a table without exceptions is unknown"
+
+      kad.switch.peerStore[AddressBook][p] = peer.addrs
 
     # bootstrap node replied succesfully. Adding to routing table
     discard kad.rtable.insert(b.peerId)
@@ -337,16 +303,15 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
-    validator: EntryValidator,
-    entrySelector: EntrySelector,
+    validator: EntryValidator = DefaultEntryValidator(),
+    entrySelector: EntrySelector = DefaultEntrySelector(),
     rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
-  var rtable = RoutingTable.init(switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
+  var rtable = RoutingTable.new(switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
   let kad = T(
     rng: rng,
     switch: switch,
     rtable: rtable,
-    dataTable: LocalTable.init(),
     entryValidator: validator,
     entrySelector: entrySelector,
   )
@@ -395,36 +360,27 @@ proc new*(
         let record = msg.record.valueOr:
           error "no record in message buffer", msg = msg, conn = conn
           return
-        let (skey, svalue) =
+        let (key, value) =
           if record.key.isSome() and record.value.isSome():
             (record.key.unsafeGet(), record.value.unsafeGet())
           else:
             error "no key or no value in rpc buffer", msg = msg, conn = conn
             return
-        let key = EntryKey.init(skey)
-        let value = EntryValue.init(svalue)
 
         # Value sanitisation done. Start insertion process
         if not kad.entryValidator.isValid(key, value):
+          debug "record is not valid", key, value
           return
 
-        let others =
-          if kad.dataTable.entries.contains(key):
-            # need to do this shenans in order to avoid exceptions.
-            @[kad.dataTable.entries.getOrDefault(key)]
-          else:
-            @[]
-        let candRec = EntryRecord.init(value, none(TimeStamp))
-        let selectedRec = kad.entrySelector.select(candRec, others).valueOr:
-          error "application provided selector error", msg = error, conn = conn
-          return
-        trace "putval handler selection",
-          cand = candRec, others = others, selected = selectedRec
+        let existingRecord = kad.dataTable.get(key)
+        existingRecord.withValue(existing):
+          let selectedIdx = kad.entrySelector.select(key, @[value, existing.value]).valueOr:
+            error "application provided selector error", msg = error
+            return
+          if selectedIdx != 0:
+            error "can't replace a newer value with an older value"
 
-        # Assume that if selection goes with another value, that it is valid
-        let validated = ValidatedEntry(key: key, value: selectedRec.value)
-
-        kad.dataTable.insert(validated, selectedRec.time)
+        kad.dataTable.insert(key, value, $times.now().utc)
         # consistent with following link, echo message without change
         # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
         try:
@@ -446,29 +402,20 @@ proc setValidator*(kad: KadDHT, validator: EntryValidator) =
   doAssert(validator != nil)
   kad.entryValidator = validator
 
-method start*(
-    kad: KadDHT
-): Future[void] {.async: (raises: [CancelledError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
+method start*(kad: KadDHT): Future[void] {.async: (raises: [CancelledError]).} =
   if kad.started:
     warn "Starting kad-dht twice"
-    return fut
+    return
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.started = true
 
   info "kad-dht started"
 
-  fut
-
-method stop*(kad: KadDHT): Future[void] {.async: (raises: [], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
+method stop*(kad: KadDHT): Future[void] {.async: (raises: []).} =
   if not kad.started:
-    return fut
+    return
 
   kad.started = false
   kad.maintenanceLoop.cancelSoon()
   kad.maintenanceLoop = nil
-  return fut
