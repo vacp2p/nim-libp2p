@@ -31,6 +31,7 @@ import ./varint, ./vbuffer, multicodec, multibase
 import stew/base58
 # import ./registrar
 import results
+import ./utility
 export results
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils, vbuffer
@@ -42,6 +43,7 @@ const
   ErrWrongDigestSize = "Incorrect digest size"
   ErrDecodeError = "Decoding error from bytes"
   ErrParseError = "Parse error fromHex"
+  libp2p_multihash_exts* {.strdefine.} = ""
 
 type
   MHashCoderProc* = proc(data: openArray[byte], output: var openArray[byte]) {.
@@ -228,145 +230,139 @@ proc shake_256hash(data: openArray[byte], output: var openArray[byte]) =
     discard sctx.output(addr output[0], uint(len(output)))
     sctx.clear()
 
-var CodeHashes {.compileTime.}: Table[MultiCodec, MHash]
-
-macro registerMultiHashes*(body: untyped): untyped =
-  ## Register custom MultiHashes at compile time.
-  result = newStmtList()
-
-  for stmt in body:
-    if stmt.kind != nnkObjConstr:
-      error("Expected MHash(mcodec: ..., size: ..., coder: ...)", stmt)
-
-    if stmt[0].kind != nnkIdent or $stmt[0] != "MHash":
-      error("Expected MHash constructor", stmt)
-
-    result.add quote do:
-      static:
-        CodeHashes[`stmt`.mcodec] = `stmt`
-
-registerMultiHashes:
-  MHash(mcodec: multiCodec("identity"), size: 0, coder: identhash)
-  MHash(mcodec: multiCodec("sha1"), size: sha1.sizeDigest, coder: sha1hash)
+const HashesList = [
+  MHash(mcodec: multiCodec("identity"), size: 0, coder: identhash),
+  MHash(mcodec: multiCodec("sha1"), size: sha1.sizeDigest, coder: sha1hash),
   MHash(
     mcodec: multiCodec("dbl-sha2-256"), size: sha256.sizeDigest, coder: dblsha2_256hash
-  )
-  MHash(mcodec: multiCodec("sha2-256"), size: sha256.sizeDigest, coder: sha2_256hash)
-  MHash(mcodec: multiCodec("sha2-512"), size: sha512.sizeDigest, coder: sha2_512hash)
-  MHash(mcodec: multiCodec("sha3-224"), size: sha3_224.sizeDigest, coder: sha3_224hash)
-  MHash(mcodec: multiCodec("sha3-256"), size: sha3_256.sizeDigest, coder: sha3_256hash)
-  MHash(mcodec: multiCodec("sha3-384"), size: sha3_384.sizeDigest, coder: sha3_384hash)
-  MHash(mcodec: multiCodec("sha3-512"), size: sha3_512.sizeDigest, coder: sha3_512hash)
-  MHash(mcodec: multiCodec("shake-128"), size: 32, coder: shake_128hash)
-  MHash(mcodec: multiCodec("shake-256"), size: 64, coder: shake_256hash)
+  ),
+  MHash(mcodec: multiCodec("sha2-256"), size: sha256.sizeDigest, coder: sha2_256hash),
+  MHash(mcodec: multiCodec("sha2-512"), size: sha512.sizeDigest, coder: sha2_512hash),
+  MHash(mcodec: multiCodec("sha3-224"), size: sha3_224.sizeDigest, coder: sha3_224hash),
+  MHash(mcodec: multiCodec("sha3-256"), size: sha3_256.sizeDigest, coder: sha3_256hash),
+  MHash(mcodec: multiCodec("sha3-384"), size: sha3_384.sizeDigest, coder: sha3_384hash),
+  MHash(mcodec: multiCodec("sha3-512"), size: sha3_512.sizeDigest, coder: sha3_512hash),
+  MHash(mcodec: multiCodec("shake-128"), size: 32, coder: shake_128hash),
+  MHash(mcodec: multiCodec("shake-256"), size: 64, coder: shake_256hash),
   MHash(
     mcodec: multiCodec("keccak-224"), size: keccak224.sizeDigest, coder: keccak_224hash
-  )
+  ),
   MHash(
     mcodec: multiCodec("keccak-256"), size: keccak256.sizeDigest, coder: keccak_256hash
-  )
+  ),
   MHash(
     mcodec: multiCodec("keccak-384"), size: keccak384.sizeDigest, coder: keccak_384hash
-  )
+  ),
   MHash(
     mcodec: multiCodec("keccak-512"), size: keccak512.sizeDigest, coder: keccak_512hash
-  )
-  MHash(mcodec: multiCodec("blake2b-8"), size: 1, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-16"), size: 2, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-24"), size: 3, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-32"), size: 4, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-40"), size: 5, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-48"), size: 6, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-56"), size: 7, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-64"), size: 8, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-72"), size: 9, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-80"), size: 10, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-88"), size: 11, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-96"), size: 12, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-104"), size: 13, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-112"), size: 14, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-120"), size: 15, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-128"), size: 16, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-136"), size: 17, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-144"), size: 18, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-152"), size: 19, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-160"), size: 20, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-168"), size: 21, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-176"), size: 22, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-184"), size: 23, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-192"), size: 24, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-200"), size: 25, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-208"), size: 26, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-216"), size: 27, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-224"), size: 28, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-232"), size: 29, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-240"), size: 30, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-248"), size: 31, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-256"), size: 32, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-264"), size: 33, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-272"), size: 34, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-280"), size: 35, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-288"), size: 36, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-296"), size: 37, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-304"), size: 38, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-312"), size: 39, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-320"), size: 40, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-328"), size: 41, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-336"), size: 42, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-344"), size: 43, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-352"), size: 44, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-360"), size: 45, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-368"), size: 46, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-376"), size: 47, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-384"), size: 48, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-392"), size: 49, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-400"), size: 50, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-408"), size: 51, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-416"), size: 52, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-424"), size: 53, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-432"), size: 54, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-440"), size: 55, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-448"), size: 56, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-456"), size: 57, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-464"), size: 58, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-472"), size: 59, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-480"), size: 60, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-488"), size: 61, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-496"), size: 62, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-504"), size: 63, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2b-512"), size: 64, coder: blake2Bhash)
-  MHash(mcodec: multiCodec("blake2s-8"), size: 1, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-16"), size: 2, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-24"), size: 3, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-32"), size: 4, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-40"), size: 5, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-48"), size: 6, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-56"), size: 7, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-64"), size: 8, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-72"), size: 9, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-80"), size: 10, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-88"), size: 11, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-96"), size: 12, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-104"), size: 13, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-112"), size: 14, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-120"), size: 15, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-128"), size: 16, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-136"), size: 17, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-144"), size: 18, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-152"), size: 19, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-160"), size: 20, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-168"), size: 21, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-176"), size: 22, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-184"), size: 23, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-192"), size: 24, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-200"), size: 25, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-208"), size: 26, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-216"), size: 27, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-224"), size: 28, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-232"), size: 29, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-240"), size: 30, coder: blake2Shash)
-  MHash(mcodec: multiCodec("blake2s-248"), size: 31, coder: blake2Shash)
+  ),
+  MHash(mcodec: multiCodec("blake2b-8"), size: 1, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-16"), size: 2, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-24"), size: 3, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-32"), size: 4, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-40"), size: 5, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-48"), size: 6, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-56"), size: 7, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-64"), size: 8, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-72"), size: 9, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-80"), size: 10, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-88"), size: 11, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-96"), size: 12, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-104"), size: 13, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-112"), size: 14, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-120"), size: 15, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-128"), size: 16, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-136"), size: 17, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-144"), size: 18, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-152"), size: 19, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-160"), size: 20, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-168"), size: 21, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-176"), size: 22, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-184"), size: 23, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-192"), size: 24, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-200"), size: 25, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-208"), size: 26, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-216"), size: 27, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-224"), size: 28, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-232"), size: 29, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-240"), size: 30, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-248"), size: 31, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-256"), size: 32, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-264"), size: 33, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-272"), size: 34, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-280"), size: 35, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-288"), size: 36, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-296"), size: 37, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-304"), size: 38, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-312"), size: 39, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-320"), size: 40, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-328"), size: 41, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-336"), size: 42, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-344"), size: 43, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-352"), size: 44, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-360"), size: 45, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-368"), size: 46, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-376"), size: 47, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-384"), size: 48, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-392"), size: 49, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-400"), size: 50, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-408"), size: 51, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-416"), size: 52, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-424"), size: 53, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-432"), size: 54, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-440"), size: 55, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-448"), size: 56, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-456"), size: 57, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-464"), size: 58, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-472"), size: 59, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-480"), size: 60, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-488"), size: 61, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-496"), size: 62, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-504"), size: 63, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2b-512"), size: 64, coder: blake2Bhash),
+  MHash(mcodec: multiCodec("blake2s-8"), size: 1, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-16"), size: 2, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-24"), size: 3, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-32"), size: 4, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-40"), size: 5, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-48"), size: 6, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-56"), size: 7, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-64"), size: 8, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-72"), size: 9, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-80"), size: 10, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-88"), size: 11, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-96"), size: 12, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-104"), size: 13, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-112"), size: 14, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-120"), size: 15, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-128"), size: 16, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-136"), size: 17, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-144"), size: 18, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-152"), size: 19, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-160"), size: 20, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-168"), size: 21, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-176"), size: 22, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-184"), size: 23, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-192"), size: 24, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-200"), size: 25, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-208"), size: 26, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-216"), size: 27, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-224"), size: 28, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-232"), size: 29, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-240"), size: 30, coder: blake2Shash),
+  MHash(mcodec: multiCodec("blake2s-248"), size: 31, coder: blake2Shash),
   MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash)
+]
+
+proc initMultiHashCodeTable(hashes: openArray[MHash]): Table[MultiCodec, MHash] {.compileTime.} =
+  for hash in hashes:
+    result[hash.mcodec] = hash
+
+when libp2p_multihash_exts != "":
+  includeFile(libp2p_multihash_exts)
+  const CodeAddresses = initMultiHashCodeTable(@HashesList & @HashExts)
+else:
+  const CodeAddresses = initMultiHashCodeTable(@HashesList)
 
 proc digestImplWithHash(hash: MHash, data: openArray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
@@ -411,7 +407,7 @@ proc digest*(
   if mc == InvalidMultiCodec:
     err(ErrIncorrectName)
   else:
-    let hash = mc.multiHash
+    let hash = CodeAddresses.getOrDefault(mc)
     if isNil(hash.coder):
       err(ErrNotSupported)
     else:
@@ -422,7 +418,7 @@ proc digest*(
 ): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with code ``hashcode`` on
   ## data array ``data``.
-  let hash = hashcode.multiHash
+  let hash = CodeAddresses.getOrDefault(hashcode)
   if isNil(hash.coder):
     err(ErrNotSupported)
   else:
@@ -437,7 +433,7 @@ proc init*[T](
   if mc == InvalidMultiCodec:
     err(ErrIncorrectName)
   else:
-    let hash = mc.multiHash
+    let hash = CodeAddresses.getOrDefault(mc)
     if isNil(hash.coder):
       err(ErrNotSupported)
     elif hash.size != len(mdigest.data):
@@ -450,7 +446,7 @@ proc init*[T](
 ): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` and hash algorithm code
   ## ``hashcode``.
-  let hash = hashcode.multiHash
+  let hash = CodeAddresses.getOrDefault(hashcode)
   if isNil(hash.coder):
     err(ErrNotSupported)
   elif (hash.size != 0) and (hash.size != len(mdigest.data)):
@@ -467,7 +463,7 @@ proc init*(
   if mc == InvalidMultiCodec:
     err(ErrIncorrectName)
   else:
-    let hash = mc.multiHash
+    let hash = CodeAddresses.getOrDefault(mc)
     if isNil(hash.coder):
       err(ErrNotSupported)
     elif (hash.size != 0) and (hash.size != len(bdigest)):
@@ -480,7 +476,7 @@ proc init*(
 ): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
-  let hash = hashcode.multiHash
+  let hash = CodeAddresses.getOrDefault(hashcode)
   if isNil(hash.coder):
     err(ErrNotSupported)
   elif (hash.size != 0) and (hash.size != len(bdigest)):
@@ -519,7 +515,7 @@ proc decode*(
   if size > 0x7FFF_FFFF'u64:
     return err(ErrDecodeError)
 
-  let hash = MultiCodec(code).multiHash
+  let hash = CodeAddresses.getOrDefault(MultiCodec(code))
   if isNil(hash.coder):
     return err(ErrDecodeError)
 
@@ -556,7 +552,7 @@ proc validate*(mhtype: typedesc[MultiHash], data: openArray[byte]): bool =
   offset += length
   if size > 0x7FFF_FFFF'u64:
     return false
-  let hash = cast[MultiCodec](code).multiHash
+  let hash = CodeAddresses.getOrDefault(cast[MultiCodec](code))
   if isNil(hash.coder):
     return false
   if (hash.size != 0) and (hash.size != int(size)):

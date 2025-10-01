@@ -25,13 +25,13 @@ let cfg =
 
 import hashes, strutils
 
-proc runTest(filename: string, moreoptions: string = "") =
+proc runTest(filename: string, moreoptions: string = "", libp2pOpts = "") =
   var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
   exec excstr &
-    " -r -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
+    " -r " & libp2pOpts & " -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
     filename
   rmFile "tests/" & filename.toExe
 
@@ -49,7 +49,11 @@ proc tutorialToMd(filename: string) =
   writeFile(filename.replace(".nim", ".md"), markdown)
 
 task testnative, "Runs libp2p native tests":
-  runTest("testnative")
+  let libp2pOpts = "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
+                   "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
+                   "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim"
+
+  runTest("testnative", "", libp2pOpts)
 
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")

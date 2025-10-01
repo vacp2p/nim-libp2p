@@ -19,6 +19,7 @@ import tables
 import results
 import stew/[base32, base58, base64]
 import ./utils/sequninit
+import ./utility
 # import ./registrar
 
 type
@@ -45,6 +46,8 @@ type
     ): MultiBaseStatus {.nimcall, gcsafe, noSideEffect, raises: [].}
     encl: MBCodeSize
     decl: MBCodeSize
+
+const libp2p_multibase_exts* {.strdefine.} = ""
 
 proc idd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
@@ -300,102 +303,105 @@ proc b64upd(
   result = b64ce(Base64UrlPad.decode(inbytes, outbytes, outlen))
 
 const MultiBaseCodecs = [
-  # MBCodec(
-  #   name: "identity", code: chr(0x00), decr: idd, encr: ide, decl: iddl, encl: idel
-  # ),
+  MBCodec(
+    name: "identity", code: chr(0x00), decr: idd, encr: ide, decl: iddl, encl: idel
+  ),
   MBCodec(name: "base1", code: '1'),
-  # MBCodec(name: "base2", code: '0'),
-  # MBCodec(name: "base8", code: '7'),
-  # MBCodec(name: "base10", code: '9'),
-  # MBCodec(name: "base16", code: 'f', decr: b16d, encr: b16e, decl: b16dl, encl: b16el),
-  # MBCodec(
-  #   name: "base16upper", code: 'F', decr: b16ud, encr: b16ue, decl: b16dl, encl: b16el
-  # ),
-  # MBCodec(
-  #   name: "base32hex", code: 'v', decr: b32hd, encr: b32he, decl: b32dl, encl: b32el
-  # ),
-  # MBCodec(
-  #   name: "base32hexupper",
-  #   code: 'V',
-  #   decr: b32hud,
-  #   encr: b32hue,
-  #   decl: b32dl,
-  #   encl: b32el,
-  # ),
-  # MBCodec(
-  #   name: "base32hexpad",
-  #   code: 't',
-  #   decr: b32hpd,
-  #   encr: b32hpe,
-  #   decl: b32pdl,
-  #   encl: b32pel,
-  # ),
-  # MBCodec(
-  #   name: "base32hexpadupper",
-  #   code: 'T',
-  #   decr: b32hpud,
-  #   encr: b32hpue,
-  #   decl: b32pdl,
-  #   encl: b32pel,
-  # ),
-  # MBCodec(name: "base32", code: 'b', decr: b32d, encr: b32e, decl: b32dl, encl: b32el),
-  # MBCodec(
-  #   name: "base32upper", code: 'B', decr: b32ud, encr: b32ue, decl: b32dl, encl: b32el
-  # ),
-  # MBCodec(
-  #   name: "base32pad", code: 'c', decr: b32pd, encr: b32pe, decl: b32pdl, encl: b32pel
-  # ),
-  # MBCodec(
-  #   name: "base32padupper",
-  #   code: 'C',
-  #   decr: b32pud,
-  #   encr: b32pue,
-  #   decl: b32pdl,
-  #   encl: b32pel,
-  # ),
-  # MBCodec(name: "base32z", code: 'h'),
-  # MBCodec(
-  #   name: "base58flickr", code: 'Z', decr: b58fd, encr: b58fe, decl: b58dl, encl: b58el
-  # ),
-  # MBCodec(
-  #   name: "base58btc", code: 'z', decr: b58bd, encr: b58be, decl: b58dl, encl: b58el
-  # ),
-  # MBCodec(name: "base64", code: 'm', decr: b64d, encr: b64e, decl: b64dl, encl: b64el),
-  # MBCodec(
-  #   name: "base64pad", code: 'M', decr: b64pd, encr: b64pe, decl: b64pdl, encl: b64pel
-  # ),
-  # MBCodec(
-  #   name: "base64url", code: 'u', decr: b64ud, encr: b64ue, decl: b64dl, encl: b64el
-  # ),
-  # MBCodec(
-  #   name: "base64urlpad",
-  #   code: 'U',
-  #   decr: b64upd,
-  #   encr: b64upe,
-  #   decl: b64pdl,
-  #   encl: b64pel,
-  # ),
+  MBCodec(name: "base2", code: '0'),
+  MBCodec(name: "base8", code: '7'),
+  MBCodec(name: "base10", code: '9'),
+  MBCodec(name: "base16", code: 'f', decr: b16d, encr: b16e, decl: b16dl, encl: b16el),
+  MBCodec(
+    name: "base16upper", code: 'F', decr: b16ud, encr: b16ue, decl: b16dl, encl: b16el
+  ),
+  MBCodec(
+    name: "base32hex", code: 'v', decr: b32hd, encr: b32he, decl: b32dl, encl: b32el
+  ),
+  MBCodec(
+    name: "base32hexupper",
+    code: 'V',
+    decr: b32hud,
+    encr: b32hue,
+    decl: b32dl,
+    encl: b32el,
+  ),
+  MBCodec(
+    name: "base32hexpad",
+    code: 't',
+    decr: b32hpd,
+    encr: b32hpe,
+    decl: b32pdl,
+    encl: b32pel,
+  ),
+  MBCodec(
+    name: "base32hexpadupper",
+    code: 'T',
+    decr: b32hpud,
+    encr: b32hpue,
+    decl: b32pdl,
+    encl: b32pel,
+  ),
+  MBCodec(name: "base32", code: 'b', decr: b32d, encr: b32e, decl: b32dl, encl: b32el),
+  MBCodec(
+    name: "base32upper", code: 'B', decr: b32ud, encr: b32ue, decl: b32dl, encl: b32el
+  ),
+  MBCodec(
+    name: "base32pad", code: 'c', decr: b32pd, encr: b32pe, decl: b32pdl, encl: b32pel
+  ),
+  MBCodec(
+    name: "base32padupper",
+    code: 'C',
+    decr: b32pud,
+    encr: b32pue,
+    decl: b32pdl,
+    encl: b32pel,
+  ),
+  MBCodec(name: "base32z", code: 'h'),
+  MBCodec(
+    name: "base58flickr", code: 'Z', decr: b58fd, encr: b58fe, decl: b58dl, encl: b58el
+  ),
+  MBCodec(
+    name: "base58btc", code: 'z', decr: b58bd, encr: b58be, decl: b58dl, encl: b58el
+  ),
+  MBCodec(name: "base64", code: 'm', decr: b64d, encr: b64e, decl: b64dl, encl: b64el),
+  MBCodec(
+    name: "base64pad", code: 'M', decr: b64pd, encr: b64pe, decl: b64pdl, encl: b64pel
+  ),
+  MBCodec(
+    name: "base64url", code: 'u', decr: b64ud, encr: b64ue, decl: b64dl, encl: b64el
+  ),
+  MBCodec(
+    name: "base64urlpad",
+    code: 'U',
+    decr: b64upd,
+    encr: b64upe,
+    decl: b64pdl,
+    encl: b64pel,
+  ),
 ]
 
 proc initMultiBaseCodeTable(): Table[char, MBCodec] {.compileTime.} =
   for item in MultiBaseCodecs:
     result[item.code] = item
-  # Append custom multiaddresses. Will overwrite existing multiaddress.
-  # for item in CustomBaseCodecs:
-  #   result[item.code] = item
 
 proc initMultiBaseNameTable(): Table[string, MBCodec] {.compileTime.} =
   for item in MultiBaseCodecs:
     result[item.name] = item
-  # Append custom multiaddresses. Will overwrite existing multiaddress.
-  # echo "CustomBaseCodecs: ", CustomBaseCodecs
-  # for item in CustomBaseCodecs:
-  #   echo "adding custom multibase codec: ", item.name
-  #   result[item.name] = item
 
-const
-  CodeMultiBases* = initMultiBaseCodeTable()
-  NameMultiBases* = initMultiBaseNameTable()
+proc initLists(codecs: seq[MBCodec]):
+  tuple[codes: Table[char, MBCodec], names: Table[string, MBCodec]] {.compileTime.} =
+
+  result = (initTable[char, MBCodec](), initTable[string, MBCodec]())
+
+  for codec in codecs:
+    result.codes[codec.code] = codec
+    result.names[codec.name] = codec
+
+when libp2p_multibase_exts != "":
+  includeFile(libp2p_multibase_exts)
+  const (CodeMultiBases, NameMultiBases) = initLists(@MultiBaseCodecs & @BaseExts)
+else:
+  const (CodeMultiBases, NameMultiBases) = initLists(@MultiBaseCodecs)
 
 proc encodedLength*(mbtype: typedesc[MultiBase], encoding: string, length: int): int =
   ## Return estimated size of buffer to store MultiBase encoded value with
