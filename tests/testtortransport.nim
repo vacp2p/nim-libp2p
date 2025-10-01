@@ -175,15 +175,11 @@ proc testTransportEvents(transport: Transport, addrs: seq[MultiAddress]) {.async
 
   proc onRunningHandler() {.async.} =
     # onRunning only gets set during start() call
-    if transport.onRunning.isNil:
-      transport.onRunning = newAsyncEvent()
     await transport.onRunning.wait()
     onRunningFired = true
 
   proc onStopHandler() {.async.} =
     # onStop only gets set during stop() call
-    if transport.onStop.isNil:
-      transport.onStop = newAsyncEvent()
     await transport.onStop.wait()
     onStopFired = true
 
@@ -207,7 +203,7 @@ proc testTransportEvents(transport: Transport, addrs: seq[MultiAddress]) {.async
 
   await transport.stop()
 
-  # Give the event handler time to run  
+  # Give the event handler time to run
   await sleepAsync(10.milliseconds)
 
   check:
@@ -217,15 +213,13 @@ proc testTransportEvents(transport: Transport, addrs: seq[MultiAddress]) {.async
 
 suite "Transport Events":
   asyncTest "onRunning with TCP transport":
-    let upgrader = Upgrade()
-    let transport = TcpTransport.new(upgrade = upgrader)
+    let transport = TcpTransport.new(upgrade = Upgrade())
     await testTransportEvents(
       transport, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
     )
 
   asyncTest "onRunning event can be awaited":
-    let upgrader = Upgrade()
-    let transport = TcpTransport.new(upgrade = upgrader)
+    let transport = TcpTransport.new(upgrade = Upgrade())
 
     let startFut =
       transport.start(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
@@ -238,54 +232,37 @@ suite "Transport Events":
     await startFut
     await transport.stop()
 
-  asyncTest "onRunning with Memory transport":
-    let upgrader = Upgrade()
-    let transport = MemoryTransport.new(upgrade = upgrader)
-    await testTransportEvents(transport, @[])
-
-  asyncTest "onRunning with QUIC transport":
-    let upgrader = Upgrade()
-    let privateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
-    let transport = QuicTransport.new(upgrader, privateKey)
+  asyncTest "onRunning with transports":
+    await testTransportEvents(MemoryTransport.new(upgrade = Upgrade()), @[])
     await testTransportEvents(
-      transport, @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
+      WsTransport.new(Upgrade()),
+      @[MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()],
     )
-
-  asyncTest "onRunning with WebSocket transport":
-    let upgrader = Upgrade()
-    let transport = WsTransport.new(upgrader)
     await testTransportEvents(
-      transport, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()]
+      QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, (newRng())[]).tryGet()),
+      @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()],
     )
 
   asyncTest "onRunning with Tor transport":
     # Setup Tor stub server
-    let torServer = initTAddress("127.0.0.1", 9050.Port)
+    let addrs = initTAddress("127.0.0.1", 9050.Port)
     let stub = TorServerStub.new()
     stub.registerAddr(
       "a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion:80",
       "/ip4/127.0.0.1/tcp/8080",
     )
-    let stubStartFut = stub.start(torServer)
+    let startFut = stub.start(addrs)
 
-    try:
-      # Give stub time to start
-      await sleepAsync(50.milliseconds)
+    await sleepAsync(100.milliseconds)
 
-      let upgrader = Upgrade()
-      let transport = TorTransport.new(torServer, upgrade = upgrader)
-
-      # Use a proper TcpOnion3 address format that the stub knows about
-      await testTransportEvents(
-        transport,
-        @[
-          MultiAddress
-          .init(
-            "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
-          )
-          .tryGet()
-        ],
-      )
-    finally:
-      await stubStartFut.cancelAndWait()
-      await stub.stop()
+    # Use a proper TcpOnion3 address format that the stub knows about
+    await testTransportEvents(
+      TorTransport.new(addrs, upgrade = Upgrade()),
+      @[
+        MultiAddress
+        .init(
+          "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
+        )
+        .tryGet()
+      ],
+    )

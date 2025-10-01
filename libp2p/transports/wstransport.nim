@@ -395,7 +395,7 @@ proc new*(
 ): T {.public.} =
   ## Creates a secure WebSocket transport
 
-  T(
+  let self = T(
     upgrader: upgrade,
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
@@ -406,6 +406,8 @@ proc new*(
     rng: rng,
     handshakeTimeout: handshakeTimeout,
   )
+  procCall Transport(self).init()
+  self
 
 proc new*(
     T: typedesc[WsTransport],

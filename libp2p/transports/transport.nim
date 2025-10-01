@@ -42,6 +42,10 @@ type
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
 
+proc init*(self: Transport) =
+  self.onRunning = newAsyncEvent()
+  self.onStop = newAsyncEvent()
+
 method start*(
     self: Transport, addrs: seq[MultiAddress]
 ) {.base, async: (raises: [LPError, TransportError, CancelledError]).} =
@@ -51,8 +55,6 @@ method start*(
   trace "starting transport on addrs", address = $addrs
   self.addrs = addrs
   self.running = true
-  if self.onRunning.isNil:
-    self.onRunning = newAsyncEvent()
   self.onRunning.fire()
 
 method stop*(self: Transport) {.base, async: (raises: []).} =
@@ -62,8 +64,6 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
 
   trace "stopping transport", address = $self.addrs
   self.running = false
-  if self.onStop.isNil:
-    self.onStop = newAsyncEvent()
   self.onStop.fire()
 
 method accept*(

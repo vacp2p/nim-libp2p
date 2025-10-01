@@ -37,7 +37,9 @@ proc new*(
     upgrade: Upgrade = Upgrade(),
     rng: ref HmacDrbgContext = newRng(),
 ): T =
-  T(upgrader: upgrade, rng: rng)
+  let self = T(upgrader: upgrade, rng: rng)
+  procCall Transport(self).init()
+  self
 
 proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
   if $ma != MemoryAutoAddress:
@@ -60,8 +62,6 @@ method start*(
 
   self.addrs = addrs.mapIt(self.listenAddress(it))
   self.running = true
-  if self.onRunning.isNil:
-    self.onRunning = newAsyncEvent()
   self.onRunning.fire()
 
 method stop*(self: MemoryTransport) {.async: (raises: []).} =
@@ -70,8 +70,6 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
 
   trace "stopping memory transport", address = $self.addrs
   self.running = false
-  if self.onStop.isNil:
-    self.onStop = newAsyncEvent()
   self.onStop.fire()
 
   # closing listener will throw interruption error to caller of accept()
