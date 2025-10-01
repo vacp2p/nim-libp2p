@@ -460,7 +460,7 @@ proc newStandardSwitchBuilder*(
     maxIn = -1,
     maxOut = -1,
     maxConnsPerPeer = MaxConnectionsPerPeer,
-    nameResolver: NameResolver = nil,
+    nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,
 ): SwitchBuilder {.raises: [LPError], public.} =
@@ -474,8 +474,13 @@ proc newStandardSwitchBuilder*(
     .withMaxOut(maxOut)
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withPeerStore(capacity = peerStoreCapacity)
-    .withNameResolver(nameResolver)
     .withNoise()
+
+  privKey.withValue(pkey):
+    b = b.withPrivateKey(pkey)
+
+  nameResolver.withValue(nr):
+    b = b.withNameResolver(nr)
 
   var addrs =
     when addrs is MultiAddress:
@@ -502,13 +507,10 @@ proc newStandardSwitchBuilder*(
       addrs = @[MultiAddress.init(MemoryAutoAddress).tryGet()]
     b = b.withMemoryTransport().withAddresses(addrs).withMplex(inTimeout, outTimeout)
 
-  privKey.withValue(pkey):
-    b = b.withPrivateKey(pkey)
-
   b
 
 proc newStandardSwitch*(
-    privKey = none(PrivateKey),
+    privKey = Opt.none(PrivateKey),
     addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
@@ -520,7 +522,7 @@ proc newStandardSwitch*(
     maxIn = -1,
     maxOut = -1,
     maxConnsPerPeer = MaxConnectionsPerPeer,
-    nameResolver: NameResolver = nil,
+    nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,
 ): Switch {.raises: [LPError], public.} =

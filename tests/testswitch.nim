@@ -31,6 +31,7 @@ import
     muxers/mplex/lpchannel,
     stream/lpstream,
     nameresolving/mockresolver,
+    nameresolving/nameresolver,
     stream/chronosstream,
     utils/semaphore,
     transports/tcptransport,
@@ -222,7 +223,8 @@ suite "Switch":
     let resolver = MockResolver.new()
     let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
     let switch2 = newStandardSwitch(
-      secureManagers = [SecureProtocol.Noise], nameResolver = resolver
+      secureManagers = [SecureProtocol.Noise],
+      nameResolver = Opt.some(NameResolver(resolver)),
     )
     await switch1.start()
     await switch2.start()
@@ -964,7 +966,7 @@ suite "Switch":
     resolver.ipResponses[("localhost", true)] = @["::1"]
 
     let
-      srcSwitch = newStandardSwitch(nameResolver = resolver)
+      srcSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
       destSwitch = newStandardSwitch()
 
     await destSwitch.start()
@@ -987,7 +989,7 @@ suite "Switch":
       wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
-      srcTcpSwitch = newStandardSwitch(nameResolver = resolver)
+      srcTcpSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
