@@ -16,16 +16,10 @@ import chronos, stew/[byteutils]
 import
   ../libp2p/[
     stream/connection,
-    transports/tcptransport,
     transports/tortransport,
-    transports/transport,
-    transports/memorytransport,
-    transports/quictransport,
-    transports/wstransport,
     upgrademngrs/upgrade,
     multiaddress,
     builders,
-    crypto/crypto,
   ]
 
 import ./helpers, ./stubs/torstub, ./commontransport
@@ -167,102 +161,3 @@ suite "Tor transport":
     "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
     "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81",
   )
-
-proc testTransportEvents(transport: Transport, addrs: seq[MultiAddress]) {.async.} =
-  ## Common test procedure for transport events
-  var onRunningFired = false
-  var onStopFired = false
-
-  proc onRunningHandler() {.async.} =
-    # onRunning only gets set during start() call
-    await transport.onRunning.wait()
-    onRunningFired = true
-
-  proc onStopHandler() {.async.} =
-    # onStop only gets set during stop() call
-    await transport.onStop.wait()
-    onStopFired = true
-
-  asyncSpawn onRunningHandler()
-  asyncSpawn onStopHandler()
-
-  check:
-    onRunningFired == false
-    onStopFired == false
-    transport.running == false
-
-  await transport.start(addrs)
-
-  # Give the event handler time to run
-  await sleepAsync(10.milliseconds)
-
-  check:
-    onRunningFired == true
-    onStopFired == false
-    transport.running == true
-
-  await transport.stop()
-
-  # Give the event handler time to run
-  await sleepAsync(10.milliseconds)
-
-  check:
-    onRunningFired == true
-    onStopFired == true
-    transport.running == false
-
-suite "Transport Events":
-  asyncTest "onRunning with TCP transport":
-    let transport = TcpTransport.new(upgrade = Upgrade())
-    await testTransportEvents(
-      transport, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
-    )
-
-  asyncTest "onRunning event can be awaited":
-    let transport = TcpTransport.new(upgrade = Upgrade())
-
-    let startFut =
-      transport.start(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
-
-    await transport.onRunning.wait()
-
-    check:
-      transport.running == true
-
-    await startFut
-    await transport.stop()
-
-  asyncTest "onRunning with transports":
-    await testTransportEvents(MemoryTransport.new(upgrade = Upgrade()), @[])
-    await testTransportEvents(
-      WsTransport.new(Upgrade()),
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()],
-    )
-    await testTransportEvents(
-      QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, (newRng())[]).tryGet()),
-      @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()],
-    )
-
-  asyncTest "onRunning with Tor transport":
-    # Setup Tor stub server
-    let addrs = initTAddress("127.0.0.1", 9050.Port)
-    let stub = TorServerStub.new()
-    stub.registerAddr(
-      "a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad.onion:80",
-      "/ip4/127.0.0.1/tcp/8080",
-    )
-    let startFut = stub.start(addrs)
-
-    await sleepAsync(100.milliseconds)
-
-    # Use a proper TcpOnion3 address format that the stub knows about
-    await testTransportEvents(
-      TorTransport.new(addrs, upgrade = Upgrade()),
-      @[
-        MultiAddress
-        .init(
-          "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
-        )
-        .tryGet()
-      ],
-    )

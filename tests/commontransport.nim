@@ -232,3 +232,47 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await transport1.stop()
+
+    asyncTest "transport start/stop events":
+      let transport = transpProvider()
+      let addrs = @[MultiAddress.init(ma1).tryGet()]
+      var onRunningFired = false
+      var onStopFired = false
+
+      proc onRunningHandler() {.async.} =
+        # onRunning only gets set during start() call
+        await transport.onRunning.wait()
+        onRunningFired = true
+
+      proc onStopHandler() {.async.} =
+        # onStop only gets set during stop() call
+        await transport.onStop.wait()
+        onStopFired = true
+
+      asyncSpawn onRunningHandler()
+      asyncSpawn onStopHandler()
+
+      check:
+        onRunningFired == false
+        onStopFired == false
+        transport.running == false
+
+      await transport.start(addrs)
+
+      # Give the event handler time to run
+      await sleepAsync(10.milliseconds)
+
+      check:
+        onRunningFired == true
+        onStopFired == false
+        transport.running == true
+
+      await transport.stop()
+
+      # Give the event handler time to run
+      await sleepAsync(10.milliseconds)
+
+      check:
+        onRunningFired == true
+        onStopFired == true
+        transport.running == false
