@@ -95,3 +95,96 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           nimble testintegration
+
+  # hole punching interop tests are always failing
+  # not sure why, investigated quite a bit
+  #
+  # interop-hole-punching:
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: docker/setup-buildx-action@v3
+
+  #     - name: Build image
+  #       run: docker buildx build --load -t nim-libp2p-head -f interop/hole-punching/Dockerfile .
+
+  #     - name: Run tests (try 1)
+  #       id: t1
+  #       uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+  #       with:
+  #         test-filter: nim-libp2p-head
+  #         test-ignore: rust
+  #         extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
+  #         s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+  #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+  #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  #       continue-on-error: true
+
+  #     - name: Run tests (try 2)
+  #       id: t2
+  #       if: steps.t1.outcome == 'failure'
+  #       uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+  #       with:
+  #         test-filter: nim-libp2p-head
+  #         test-ignore: rust
+  #         extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
+  #         s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+  #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+  #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  #       continue-on-error: true
+
+  #     - name: Run tests (try 3)
+  #       id: t3
+  #       if: steps.t2.outcome == 'failure'
+  #       uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+  #       with:
+  #         test-filter: nim-libp2p-head
+  #         test-ignore: rust
+  #         extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
+  #         s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+  #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+  #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  #       continue-on-error: true
+
+  #     - name: Run tests (try 4)
+  #       id: t4
+  #       if: steps.t3.outcome == 'failure'
+  #       uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+  #       with:
+  #         test-filter: nim-libp2p-head
+  #         test-ignore: rust
+  #         extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
+  #         s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+  #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+  #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  #       continue-on-error: true
+
+  #     - name: Run tests (try 5)
+  #       id: t5
+  #       if: steps.t4.outcome == 'failure'
+  #       uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+  #       with:
+  #         test-filter: nim-libp2p-head
+  #         test-ignore: rust
+  #         extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
+  #         s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+  #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+  #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  #       continue-on-error: true
+
+  #     - name: Fail if all attempts failed
+  #       if: always() &&
+  #           steps.t1.outcome == 'failure' &&
+  #           steps.t2.outcome == 'failure' &&
+  #           steps.t3.outcome == 'failure' &&
+  #           steps.t4.outcome == 'failure' &&
+  #           steps.t5.outcome == 'failure'
+  #       run: |
+  #         echo "All retries failed" >&2
+  #         exit 1
+
