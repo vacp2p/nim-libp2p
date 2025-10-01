@@ -59,7 +59,7 @@ type
     peerId*: PeerId
     data*: Register
 
-  RendezVous*[T = PeerRecord] = ref object of LPProtocol
+  RendezVous*[T] = ref object of LPProtocol
     # Registered needs to be an offsetted sequence
     # because we need stable index for the cookies.
     registered*: OffsettedSeq[RegisteredData]
@@ -139,13 +139,13 @@ proc sendDiscoverResponseError(
   )
   await conn.writeLp(msg.buffer)
 
-proc countRegister[T](rdv: RendezVous[T], peerId: PeerId): int =
+proc countRegister(rdv: RendezVous, peerId: PeerId): int =
   for data in rdv.registered:
     if data.peerId == peerId:
       result.inc()
 
-proc save[T](
-    rdv: RendezVous[T], ns: string, peerId: PeerId, r: Register, update: bool = true
+proc save(
+    rdv: RendezVous, ns: string, peerId: PeerId, r: Register, update: bool = true
 ) =
   let nsSalted = ns & rdv.salt
   discard rdv.namespaces.hasKeyOrPut(nsSalted, newSeq[int]())
@@ -167,7 +167,7 @@ proc save[T](
   except exceptions.KeyError as e:
     doAssert false, "Should have key: " & e.msg
 
-proc register[T](rdv: RendezVous[T], conn: Connection, r: Register): Future[void] =
+proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   trace "Received Register", peerId = conn.peerId, ns = r.ns
   libp2p_rendezvous_register.inc()
   if r.ns.len < MinimumNamespaceLen or r.ns.len > MaximumNamespaceLen:
@@ -180,12 +180,12 @@ proc register[T](rdv: RendezVous[T], conn: Connection, r: Register): Future[void
     return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
     return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
-  rdv.save[T](r.ns, conn.peerId, r)
+  rdv.save(r.ns, conn.peerId, r)
   libp2p_rendezvous_registered.inc()
   libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
   conn.sendRegisterResponse(ttl)
 
-proc unregister*[T](rdv: RendezVous[T], conn: Connection, u: Unregister) =
+proc unregister*(rdv: RendezVous, conn: Connection, u: Unregister) =
   trace "Received Unregister", peerId = conn.peerId, ns = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
@@ -196,8 +196,8 @@ proc unregister*[T](rdv: RendezVous[T], conn: Connection, u: Unregister) =
   except exceptions.KeyError:
     return
 
-proc discover*[T](
-    rdv: RendezVous[T], conn: Connection, d: Discover
+proc discover*(
+    rdv: RendezVous, conn: Connection, d: Discover
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
   libp2p_rendezvous_discover.inc()
@@ -252,8 +252,8 @@ proc discover*[T](
   rdv.rng.shuffle(s)
   await conn.sendDiscoverResponse(s, Cookie(offset: nextOffset, ns: d.ns))
 
-proc advertisePeer[T](
-    rdv: RendezVous[T], peer: PeerId, msg: seq[byte]
+proc advertisePeer(
+    rdv: RendezVous, peer: PeerId, msg: seq[byte]
 ) {.async: (raises: [CancelledError]).} =
   proc advertiseWrap() {.async: (raises: []).} =
     try:
@@ -278,8 +278,8 @@ proc advertisePeer[T](
   await rdv.sema.acquire()
   await advertiseWrap()
 
-proc advertise*[T](
-    rdv: RendezVous[T], ns: string, ttl: Duration, peers: seq[PeerId]
+proc advertise*(
+    rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
 ) {.async: (raises: [CancelledError, AdvertiseError]).} =
   if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(AdvertiseError, "Invalid namespace")
@@ -303,8 +303,8 @@ proc advertise*[T](
 
   await allFutures(futs)
 
-method advertise*[T](
-    rdv: RendezVous[T], ns: string, ttl: Duration = 0.minutes
+method advertise*(
+    rdv: RendezVous, ns: string, ttl: Duration = 0.minutes
 ) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
   var lttl = ttl
   if lttl == 0.minutes:
@@ -486,7 +486,7 @@ proc setup*(rdv: RendezVous, switch: Switch) =
   rdv.switch.addPeerEventHandler(handlePeer, Joined)
   rdv.switch.addPeerEventHandler(handlePeer, Left)
 
-proc newRendezVous*[T = PeerRecord](
+proc newRendezVous*[T](
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
@@ -552,7 +552,7 @@ proc getPeerRecordEncoder(rdv: RendezVous): EncodePeerRecord =
   return proc(): Result[seq[byte], CryptoError] {.closure, gcsafe, raises: [].} =
     result = rdv.switch.peerInfo.signedPeerRecord.encode()
 
-proc newRendezVous*[T = PeerRecord](
+proc newRendezVous*[T](
     switch: Switch,
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,

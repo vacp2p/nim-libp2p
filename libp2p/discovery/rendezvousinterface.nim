@@ -39,7 +39,8 @@ method request*(
       # unhandled type
       return
   while true:
-    for pr in await self.rdv.request(namespace):
+    let peerRecords: seq[PeerRecord] = await self.rdv.request(namespace)
+    for pr in peerRecords:
       var peer: PeerAttributes
       peer.add(pr.peerId)
       for address in pr.addresses:
