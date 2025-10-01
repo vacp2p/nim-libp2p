@@ -1,20 +1,12 @@
 {.used.}
+import std/[times, tables]
 import chronicles
-import strformat
-# import sequtils
-import options
-import std/[times]
-# import std/enumerate
 import chronos
-import ../../libp2p/[switch, builders]
-import ../../libp2p/protocols/kademlia
-import ../../libp2p/protocols/kademlia/kademlia
-import ../../libp2p/protocols/kademlia/routingtable
-import ../../libp2p/protocols/kademlia/keys
 import unittest2
+import ../../libp2p/[switch, builders]
+import ../../libp2p/protocols/kademlia/[kademlia, routingtable, keys]
 import ../utils/async_tests
 import ./utils.nim
-import std/tables
 import ../helpers
 
 proc createSwitch(): Switch =
@@ -55,23 +47,22 @@ suite "KadDHT - PutVal":
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad2.findNode(kad1.rtable.selfId)
 
-    doAssert(len(kad1.dataTable.entries) == 0)
-    doAssert(len(kad2.dataTable.entries) == 0)
-    let puttedData = kad1.rtable.selfId.getBytes()
-    let entryKey = EntryKey.init(puttedData)
-    let entryVal = EntryValue.init(puttedData)
-    discard await kad2.putValue(entryKey, entryVal, some(1))
+    check:
+      kad1.dataTable.len == 0
+      kad2.dataTable.len == 0
 
-    let entered1: EntryValue = kad1.dataTable.entries[entryKey].value
-    let entered2: EntryValue = kad2.dataTable.entries[entryKey].value
+    let entryKey = kad1.rtable.selfId
+    let entryValue = @[1.byte, 2, 3, 4, 5]
+    discard await kad2.putValue(entryKey, entryValue)
 
-    var ents = kad1.dataTable.entries
-    doAssert(entered1.data == entryVal.data, fmt"table: {ents}, putted: {entryVal}")
-    doAssert(len(kad1.dataTable.entries) == 1)
+    let entered1 = kad1.dataTable[entryKey].value
+    let entered2 = kad2.dataTable[entryKey].value
 
-    ents = kad2.dataTable.entries
-    doAssert(entered2.data == entryVal.data, fmt"table: {ents}, putted: {entryVal}")
-    doAssert(len(kad2.dataTable.entries) == 1)
+    check:
+      kad1.dataTable.len == 1
+      kad2.dataTable.len == 1
+      entered1 == entryValue
+      entered2 == entryValue
 
   asyncTest "Change Validator":
     let switch1 = createSwitch()
@@ -86,19 +77,26 @@ suite "KadDHT - PutVal":
       await allFutures(switch1.stop(), switch2.stop())
 
     await kad2.bootstrap(@[switch1.peerInfo])
-    doAssert(len(kad1.dataTable.entries) == 0)
-    let puttedData = kad1.rtable.selfId.getBytes()
-    let entryVal = EntryValue.init(puttedData)
-    let entryKey = EntryKey.init(puttedData)
-    discard await kad2.putValue(entryKey, entryVal, some(1))
-    doAssert(len(kad1.dataTable.entries) == 0, fmt"content: {kad1.dataTable.entries}")
+    check kad1.dataTable.len == 0
+    let entryKey = kad1.rtable.selfId
+    let entryValue = @[1.byte, 2, 3, 4, 5]
+    let putValRes1 = await kad2.putValue(entryKey, entryValue)
+    check:
+      putValRes1.isErr()
+      kad1.dataTable.len == 0
     kad1.setValidator(PermissiveValidator())
-    discard await kad2.putValue(entryKey, entryVal, some(1))
-
-    doAssert(len(kad1.dataTable.entries) == 0, fmt"{kad1.dataTable.entries}")
+    let putValRes2 = await kad2.putValue(entryKey, entryValue)
+    echo putValRes2.error
+    check:
+      putValRes2.isErr()
+      kad1.dataTable.len == 0
     kad2.setValidator(PermissiveValidator())
-    discard await kad2.putValue(entryKey, entryVal, some(1))
-    doAssert(len(kad1.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
+    let putValRes3 = await kad2.putValue(entryKey, entryValue)
+    check:
+      putValRes3.isOk()
+      kad1.dataTable.len == 1
+      kad2.dataTable.len == 1
+      kad1.dataTable[entryKey].value == kad2.dataTable[entryKey].value
 
   asyncTest "Good Time":
     let switch1 = createSwitch()
@@ -112,12 +110,11 @@ suite "KadDHT - PutVal":
       await allFutures(switch1.stop(), switch2.stop())
     await kad2.bootstrap(@[switch1.peerInfo])
 
-    let puttedData = kad1.rtable.selfId.getBytes()
-    let entryVal = EntryValue.init(puttedData)
-    let entryKey = EntryKey.init(puttedData)
-    discard await kad2.putValue(entryKey, entryVal, some(1))
+    let entryKey = kad1.rtable.selfId
+    let entryValue = @[1.byte, 2, 3, 4, 5]
+    discard await kad2.putValue(entryKey, entryValue)
 
-    let time: string = kad1.dataTable.entries[entryKey].time.ts
+    let time: string = kad1.dataTable[entryKey].time
 
     let now = times.now().utc
     let parsed = time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
@@ -138,18 +135,16 @@ suite "KadDHT - PutVal":
       await allFutures(switch1.stop(), switch2.stop())
     await kad2.bootstrap(@[switch1.peerInfo])
 
-    let puttedData = kad1.rtable.selfId.getBytes()
-    let entryVal = EntryValue.init(puttedData)
-    let entryKey = EntryKey.init(puttedData)
-    discard await kad1.putValue(entryKey, entryVal, some(1))
-    doAssert(len(kad2.dataTable.entries) == 1, fmt"{kad1.dataTable.entries}")
-    doAssert(kad2.dataTable.entries[entryKey].value.data == entryVal.data)
-    discard await kad1.putValue(entryKey, EntryValue.init(@[]), some(1))
-    doAssert(kad2.dataTable.entries[entryKey].value.data == entryVal.data)
+    let entryKey = kad1.rtable.selfId
+    let entryValue = @[1.byte, 2, 3, 4, 5]
+    discard await kad1.putValue(entryKey, entryValue)
+    check:
+      kad2.dataTable.len == 1
+      kad2.dataTable[entryKey].value == entryValue
+    let emptyVal: seq[byte] = @[]
+    discard await kad1.putValue(entryKey, emptyVal)
+    check kad2.dataTable[entryKey].value == entryValue
     kad2.setSelector(CandSelector())
     kad1.setSelector(CandSelector())
-    discard await kad1.putValue(entryKey, EntryValue.init(@[]), some(1))
-    doAssert(
-      kad2.dataTable.entries[entryKey].value == EntryValue.init(@[]),
-      fmt"{kad2.dataTable.entries}",
-    )
+    discard await kad1.putValue(entryKey, emptyVal)
+    check kad2.dataTable[entryKey].value == emptyVal

@@ -18,14 +18,14 @@ import results
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
-  return Key(kind: KeyType.Raw, data: @buf)
+  return @buf
 
 let rng = crypto.newRng()
 
 suite "routing table":
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId, Opt.none(XorDHasher))
+    var rt = RoutingTable.new(selfId, Opt.none(XorDHasher))
     let other = testKey(0b10000000)
     discard rt.insert(other)
 
@@ -37,11 +37,10 @@ suite "routing table":
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId, Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
     let targetBucket = 6
     for _ in 0 ..< DefaultReplic + 5:
       var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
-      kid.kind = KeyType.Raw # Overriding so we don't use sha for comparing xor distances
       discard rt.insert(kid)
 
     check targetBucket < rt.buckets.len
@@ -50,7 +49,7 @@ suite "routing table":
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId, Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
     let ids = @[testKey(1), testKey(2), testKey(3), testKey(4), testKey(5)]
     for id in ids:
       discard rt.insert(id)
@@ -75,7 +74,6 @@ suite "routing table":
     let selfId = testKey(0)
     let targetBucket = 3
     var rid = randomKeyInBucketRange(selfId, targetBucket, rng)
-    rid.kind = KeyType.Raw # Overriding so we don't use sha for comparing xor distances
     let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
     check:
       idx == targetBucket

@@ -11,11 +11,8 @@ proc encodeFindNodeReply*(
   var msg: Message
   msg.msgType = MessageType.findNode
   for peer in closerPeers:
-    let peer =
-      try:
-        peer.toPeerId()
-      except ValueError:
-        continue
+    let peer = peer.toPeerId().valueOr:
+      continue
     let addrs = switch.peerStore[AddressBook][peer]
     if addrs.len == 0:
       continue

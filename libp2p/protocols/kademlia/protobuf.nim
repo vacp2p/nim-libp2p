@@ -4,14 +4,12 @@ import ../../utility
 import results
 import ../../multiaddress
 import stew/objects
-import stew/assign2
-import options
 
 type
   Record* {.public.} = object
-    key*: Option[seq[byte]]
-    value*: Option[seq[byte]]
-    timeReceived*: Option[string]
+    key*: Opt[seq[byte]]
+    value*: Opt[seq[byte]]
+    timeReceived*: Opt[string]
 
   MessageType* = enum
     putValue = 0
@@ -34,16 +32,14 @@ type
 
   Message* {.public.} = object
     msgType*: MessageType
-    key*: Option[seq[byte]]
-    record*: Option[Record]
+    key*: Opt[seq[byte]]
+    record*: Opt[Record]
     closerPeers*: seq[Peer]
     providerPeers*: seq[Peer]
 
 proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.}
 
-proc writeOpt*[T](
-  pb: var ProtoBuffer, field: int, opt: Option[T]
-) {.raises: [], gcsafe.}
+proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.}
 
 proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
@@ -82,9 +78,7 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
 
   return pb
 
-proc writeOpt*[T](
-    pb: var ProtoBuffer, field: int, opt: Option[T]
-) {.raises: [], gcsafe.} =
+proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.} =
   opt.withValue(v):
     pb.write(field, v)
 
@@ -92,21 +86,21 @@ proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe
   pb.write(field, value.encode())
 
 proc getOptionField[T: ProtoScalar | string | seq[byte]](
-    pb: ProtoBuffer, field: int, output: var Option[T]
+    pb: ProtoBuffer, field: int, output: var Opt[T]
 ): ProtoResult[void] =
   var f: T
   if ?pb.getField(field, f):
-    assign(output, some(f))
+    output = Opt.some(f)
   ok()
 
-proc decode*(T: type Record, pb: ProtoBuffer): ProtoResult[Option[T]] =
+proc decode*(T: type Record, pb: ProtoBuffer): ProtoResult[Opt[T]] =
   var r: Record
   ?pb.getOptionField(1, r.key)
   ?pb.getOptionField(2, r.value)
   ?pb.getOptionField(5, r.timeReceived)
-  return ok(some(r))
+  return ok(Opt.some(r))
 
-proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[Option[T]] =
+proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[Opt[T]] =
   var
     p: Peer
     id: seq[byte]
@@ -122,7 +116,7 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[Option[T]] =
       return err(ProtoError.BadWireType)
     p.connection = connType
 
-  return ok(some(p))
+  return ok(Opt.some(p))
 
 proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
   var
@@ -146,7 +140,7 @@ proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
   ?pb.getOptionField(2, m.key)
 
   if ?pb.getField(3, recPb):
-    assign(m.record, ?Record.decode(initProtoBuffer(recPb)))
+    m.record = ?Record.decode(initProtoBuffer(recPb))
 
   discard ?pb.getRepeatedField(8, closerPbs)
   for ppb in closerPbs:

@@ -1,27 +1,29 @@
 {.used.}
 import results
-import ../../libp2p/protocols/kademlia/kademlia
+import ../../libp2p/protocols/kademlia/[kademlia, keys]
 
 type PermissiveValidator* = ref object of EntryValidator
-method isValid*(self: PermissiveValidator, key: EntryKey, val: EntryValue): bool =
+method isValid*(self: PermissiveValidator, key: Key, val: seq[byte]): bool =
   true
 
 type RestrictiveValidator* = ref object of EntryValidator
-method isValid(self: RestrictiveValidator, key: EntryKey, val: EntryValue): bool =
+method isValid(self: RestrictiveValidator, key: Key, val: seq[byte]): bool =
   false
 
 type CandSelector* = ref object of EntrySelector
 method select*(
-    self: CandSelector, cand: EntryRecord, others: seq[EntryRecord]
-): Result[EntryRecord, string] =
-  return ok(cand)
+    self: CandSelector, key: Key, values: seq[seq[byte]]
+): Result[int, string] =
+  return ok(0)
 
 type OthersSelector* = ref object of EntrySelector
 method select*(
-    self: OthersSelector, cand: EntryRecord, others: seq[EntryRecord]
-): Result[EntryRecord, string] =
+    self: OthersSelector, key: Key, values: seq[seq[byte]]
+): Result[int, string] =
+  if values.len == 0:
+    return err("no values were given")
   return
-    if others.len == 0:
-      ok(cand)
+    if values.len == 1:
+      ok(0)
     else:
-      ok(others[0])
+      ok(1)
