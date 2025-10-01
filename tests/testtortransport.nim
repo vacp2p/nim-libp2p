@@ -17,6 +17,7 @@ import
   ../libp2p/[
     stream/connection,
     transports/tortransport,
+    transports/tcptransport,
     upgrademngrs/upgrade,
     multiaddress,
     builders,

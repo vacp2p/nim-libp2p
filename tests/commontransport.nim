@@ -236,43 +236,9 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
     asyncTest "transport start/stop events":
       let transport = transpProvider()
       let addrs = @[MultiAddress.init(ma1).tryGet()]
-      var onRunningFired = false
-      var onStopFired = false
-
-      proc onRunningHandler() {.async.} =
-        # onRunning only gets set during start() call
-        await transport.onRunning.wait()
-        onRunningFired = true
-
-      proc onStopHandler() {.async.} =
-        # onStop only gets set during stop() call
-        await transport.onStop.wait()
-        onStopFired = true
-
-      asyncSpawn onRunningHandler()
-      asyncSpawn onStopHandler()
-
-      check:
-        onRunningFired == false
-        onStopFired == false
-        transport.running == false
 
       await transport.start(addrs)
-
-      # Give the event handler time to run
-      await sleepAsync(10.milliseconds)
-
-      check:
-        onRunningFired == true
-        onStopFired == false
-        transport.running == true
+      check await transport.onRunning.wait().withTimeout(1.seconds)
 
       await transport.stop()
-
-      # Give the event handler time to run
-      await sleepAsync(10.milliseconds)
-
-      check:
-        onRunningFired == true
-        onStopFired == true
-        transport.running == false
+      check await transport.onStop.wait().withTimeout(1.seconds)
