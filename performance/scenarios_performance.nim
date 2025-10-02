@@ -9,13 +9,10 @@
 
 {.used.}
 
-import ../tests/helpers
+import ../tests/utils/async_tests
 import ./runner
 
 suite "Performance Tests":
-  teardown:
-    checkTrackers()
-
   asyncTest "Base Test TCP":
     run("TCP")
 

@@ -10,7 +10,7 @@
 {.used.}
 
 import strformat
-import ../tests/helpers
+import ../tests/utils/async_tests
 import ./runner
 
 type NetworkScenario = object
@@ -58,9 +58,6 @@ const
   ]
 
 suite "Network Reliability Tests":
-  teardown:
-    checkTrackers()
-
   for transport in transportTypes:
     for scenario in scenarios:
       asyncTest fmt"{scenario.name} {transport}":
