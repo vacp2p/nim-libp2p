@@ -23,7 +23,7 @@ const libp2p_multicodec_exts* {.strdefine.} = ""
 
 ## List of officially supported codecs can BE found here
 ## https://github.com/multiformats/multicodec/blob/master/table.csv
-const MultiCodecsList = [
+const MultiCodecList = [
   ("raw", 0x55),
   # serialization formats
   ("cbor", 0x51),
@@ -459,9 +459,9 @@ proc initLists(codecs: seq[tuple[name: string, code: int]]):
 
 when libp2p_multicodec_exts != "":
   includeFile(libp2p_multicodec_exts)
-  const (NameCodecs, CodeCodecs) = initLists(@MultiCodecsList & @CodecExts)
+  const (NameCodecs, CodeCodecs) = initLists(@MultiCodecList & @CodecExts)
 else:
-  const (NameCodecs, CodeCodecs) = initLists(@MultiCodecsList)
+  const (NameCodecs, CodeCodecs) = initLists(@MultiCodecList)
 
 proc multiCodec*(name: string): MultiCodec {.compileTime.} =
   ## Generate MultiCodec from string ``name`` at compile time.
