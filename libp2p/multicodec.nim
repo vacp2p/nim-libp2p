@@ -444,9 +444,9 @@ type
 
 const InvalidMultiCodec* = MultiCodec(-1)
 
-proc initLists(codecs: seq[tuple[name: string, code: int]]):
-  tuple[nameCodecs: Table[string, int], codeCodecs: Table[int, string]] {.compileTime.} =
-
+proc initLists(
+    codecs: seq[tuple[name: string, code: int]]
+): tuple[nameCodecs: Table[string, int], codeCodecs: Table[int, string]] {.compileTime.} =
   result = (initTable[string, int](), initTable[int, string]())
 
   for (name, code) in codecs:

@@ -16,11 +16,12 @@ proc ma1VB(vb: var VBuffer): bool =
   if vb.readSeq(temp) == 5 and temp == "test":
     result = true
 
-const
-  TranscoderMA1 =
-    Transcoder(stringToBuffer: ma1StB, bufferToString: ma1BtS, validateBuffer: ma1VB)
+const TranscoderMA1 =
+  Transcoder(stringToBuffer: ma1StB, bufferToString: ma1BtS, validateBuffer: ma1VB)
 
 const AddressExts = [
-  MAProtocol(mcodec: multiCodec("codec_mc1"), kind: Fixed, size: 4, coder: TranscoderMA1),
-  MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderMA1)
+  MAProtocol(
+    mcodec: multiCodec("codec_mc1"), kind: Fixed, size: 4, coder: TranscoderMA1
+  ),
+  MAProtocol(mcodec: multiCodec("ip4"), kind: Fixed, size: 4, coder: TranscoderMA1),
 ]
