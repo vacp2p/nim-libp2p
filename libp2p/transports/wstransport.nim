@@ -57,7 +57,7 @@ proc new*(
     observedAddr: Opt[MultiAddress],
     localAddr: Opt[MultiAddress],
     timeout = 10.minutes,
-): T =
+): T {.raises: [].} =
   let stream = T(
     session: session,
     timeout: timeout,
@@ -393,7 +393,7 @@ proc new*(
     factories: openArray[ExtFactory] = [],
     rng: ref HmacDrbgContext = nil,
     handshakeTimeout = DefaultHeadersTimeout,
-): T {.public.} =
+): T {.raises: [].} =
   ## Creates a secure WebSocket transport
 
   let self = T(
@@ -417,7 +417,7 @@ proc new*(
     factories: openArray[ExtFactory] = [],
     rng: ref HmacDrbgContext = nil,
     handshakeTimeout = DefaultHeadersTimeout,
-): T {.public.} =
+): T {.raises: [].} =
   ## Creates a clear-text WebSocket transport
 
   T.new(

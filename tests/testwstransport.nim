@@ -73,7 +73,7 @@ suite "WebSocket transport":
 
   commonTransportTest(wsTranspProvider, "/ip4/0.0.0.0/tcp/0/ws")
 
-  proc wsSecureTranspProvider(): Transport {.gcsafe.} =
+  proc wsSecureTranspProvider(): Transport {.gcsafe, raises: [].} =
     try:
       return WsTransport.new(
         Upgrade(),
@@ -82,8 +82,8 @@ suite "WebSocket transport":
         Opt.none(AutotlsService),
         {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
       )
-    except CatchableError:
-      check(false)
+    except TLSStreamProtocolError:
+      check false
 
   commonTransportTest(wsSecureTranspProvider, "/ip4/0.0.0.0/tcp/0/wss")
 
@@ -118,9 +118,9 @@ suite "WebSocket transport":
     await conn.close()
 
     try:
-      let conn = await transport1.dial("ws.wronghostname", transport1.addrs[0])
+      let conn2 = await transport1.dial("ws.wronghostname", transport1.addrs[0])
       check false
-    except CatchableError as exc:
+    except TransportDialError as exc:
       check true
 
   asyncTest "handles tls/ws":
