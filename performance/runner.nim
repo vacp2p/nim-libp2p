@@ -76,8 +76,9 @@ proc startContainer*(
 proc streamContainerLogs*(containerIds: seq[string]) =
   for containerId in containerIds:
     discard startProcess(
-      fmt"docker logs -f {containerId} > /dev/tty 2>&1",
-      options = {poEvalCommand, poUsePath},
+      "docker",
+      args = ["logs", "-f", containerId],
+      options = {poParentStreams, poUsePath},
     )
 
 proc waitForContainers*(containerIds: seq[string]) =
