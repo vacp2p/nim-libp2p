@@ -37,10 +37,11 @@ FROM nimlang/nim:2.2.4-alpine-slim
 WORKDIR /node
 
 COPY --from=build /node/performance/main /node/main
+COPY performance/entrypoint.sh /node/entrypoint.sh
 
-RUN chmod +x main \
+RUN chmod +x main entrypoint.sh \
   && apk add --no-cache curl iproute2 openssl
 
 VOLUME ["/output"]
 
-ENTRYPOINT ["./main"]
+ENTRYPOINT ["/node/entrypoint.sh"]

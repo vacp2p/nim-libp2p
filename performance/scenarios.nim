@@ -18,3 +18,10 @@ suite "Performance Tests":
 
   asyncTest "Base Test":
     run()
+
+  asyncTest "Network Delay Test":
+    run(
+      preExecCmd =
+        "tc qdisc add dev eth0 root netem delay 100ms 20ms distribution normal",
+      postExecCmd = "tc qdisc del dev eth0 root",
+    )

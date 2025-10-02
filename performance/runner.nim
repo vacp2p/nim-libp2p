@@ -31,15 +31,27 @@ proc removeDockerNetwork*(network: string) =
   echo execShellCommand(fmt"docker network rm {network} > /dev/null")
 
 proc startContainer*(
-    i: int, hostnamePrefix: string, outputDir: string, network: string
+    i: int,
+    hostnamePrefix: string,
+    outputDir: string,
+    network: string,
+    preExecCmd: string = "",
+    postExecCmd: string = "",
 ): string =
   let hostname = fmt"{hostnamePrefix}{i}"
+
+  var envVars = ""
+  if preExecCmd != "":
+    envVars &= fmt" -e PRE_EXEC_CMD='{preExecCmd}'"
+  if postExecCmd != "":
+    envVars &= fmt" -e POST_EXEC_CMD='{postExecCmd}'"
+
   let containerId = execShellCommand(
     fmt"""docker run -d \
             --cap-add=NET_ADMIN \
             --name {hostname} \
             -e NODE_ID={i} \
-            -e HOSTNAME_PREFIX={hostnamePrefix} \
+            -e HOSTNAME_PREFIX={hostnamePrefix}{envVars} \
             -v {outputDir}:/output \
             -v /var/run/docker.sock:/var/run/docker.sock \
             --hostname={hostname} \
@@ -63,7 +75,7 @@ proc removeContainers*(containerIds: seq[string]) =
   for containerId in containerIds:
     echo execShellCommand(fmt"docker rm -f {containerId}")
 
-proc run*() =
+proc run*(preExecCmd: string = "", postExecCmd: string = "") =
   let outputDir = setupOutputDirectory()
 
   const network = "performance-test-network"
@@ -73,7 +85,8 @@ proc run*() =
   try:
     for i in 0 ..< 10:
       let hostname_prefix = "node-"
-      let containerId = startContainer(i, hostname_prefix, outputDir, network)
+      let containerId =
+        startContainer(i, hostname_prefix, outputDir, network, preExecCmd, postExecCmd)
       containerIds.add(containerId)
 
     streamContainerLogs(containerIds)
