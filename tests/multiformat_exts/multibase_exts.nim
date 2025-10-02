@@ -1,5 +1,4 @@
 import stew/byteutils
-# import std/strutils
 
 proc mb1Decode(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
@@ -32,4 +31,3 @@ const BaseExts = [
   MBCodec(name: "codec_mb1", code: chr(0x24), decr: mb1Decode, encr: mb1Encode, decl: mb1DecodeLen, encl: mb1EncodeLen),
   MBCodec(name: "identity", code: chr(0x00), decr: mb1Decode, encr: mb1Encode, decl: mb1DecodeLen, encl: mb1EncodeLen),
 ]
-

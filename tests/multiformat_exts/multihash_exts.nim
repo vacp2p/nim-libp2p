@@ -24,4 +24,3 @@ const HashExts = [
     coder: sha2_256_override
   )
 ]
-

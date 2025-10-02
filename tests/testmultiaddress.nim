@@ -11,10 +11,10 @@
 
 {.push raises: [].}
 
-# import std/sequtils
+import std/sequtils
 
 import unittest2
-# import stew/byteutils
+import stew/byteutils
 import ../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
 
 type PatternVector = object
@@ -250,209 +250,204 @@ const
   ]
 
 suite "MultiAddress test suite":
-  # test "go-multiaddr success test vectors":
-  #   for item in SuccessVectors:
-  #     var a = MultiAddress.init(item).get()
-  #     check a.isEmpty() == false
-  #     check a.validate() == true
+  test "go-multiaddr success test vectors":
+    for item in SuccessVectors:
+      var a = MultiAddress.init(item).get()
+      check a.isEmpty() == false
+      check a.validate() == true
 
-  # test "go-multiaddr failure test vectors":
-  #   for item in FailureVectors:
-  #     check MultiAddress.init(item).isErr()
-  #     check MultiAddress.init(item.toBytes()).isErr()
+  test "go-multiaddr failure test vectors":
+    for item in FailureVectors:
+      check MultiAddress.init(item).isErr()
+      check MultiAddress.init(item.toBytes()).isErr()
 
-  # test "rust-multiaddr success test vectors":
-  #   ## Rust test vectors are with changed UDP encoding and without WSS
-  #   for i in 0 ..< len(RustSuccessVectors):
-  #     var a = MultiAddress.init(RustSuccessVectors[i]).get()
-  #     check:
-  #       hex(a) == RustSuccessExpects[i]
+  test "rust-multiaddr success test vectors":
+    ## Rust test vectors are with changed UDP encoding and without WSS
+    for i in 0 ..< len(RustSuccessVectors):
+      var a = MultiAddress.init(RustSuccessVectors[i]).get()
+      check:
+        hex(a) == RustSuccessExpects[i]
 
-  # test "rust-multiaddr failure test vectors":
-  #   for item in RustFailureVectors:
-  #     check MultiAddress.init(item).isErr()
+  test "rust-multiaddr failure test vectors":
+    for item in RustFailureVectors:
+      check MultiAddress.init(item).isErr()
 
-  # test "Concatenation test":
-  #   var ma1 = MultiAddress.init()
-  #   var ma2 = MultiAddress.init()
-  #   var ma3 = MultiAddress.init("/ip4/127.0.0.1").get()
-  #   var ma4 = MultiAddress.init("/udp/30000").get()
-  #   var ma5 = MultiAddress.init("/p2p-circuit").get()
-  #   var cma = ma1 & ma3 & ma4 & ma5
-  #   ma2 &= ma3
-  #   ma2 &= ma4
-  #   ma2 &= ma5
-  #   check:
-  #     $cma == "/ip4/127.0.0.1/udp/30000/p2p-circuit"
-  #     $ma2 == "/ip4/127.0.0.1/udp/30000/p2p-circuit"
+  test "Concatenation test":
+    var ma1 = MultiAddress.init()
+    var ma2 = MultiAddress.init()
+    var ma3 = MultiAddress.init("/ip4/127.0.0.1").get()
+    var ma4 = MultiAddress.init("/udp/30000").get()
+    var ma5 = MultiAddress.init("/p2p-circuit").get()
+    var cma = ma1 & ma3 & ma4 & ma5
+    ma2 &= ma3
+    ma2 &= ma4
+    ma2 &= ma5
+    check:
+      $cma == "/ip4/127.0.0.1/udp/30000/p2p-circuit"
+      $ma2 == "/ip4/127.0.0.1/udp/30000/p2p-circuit"
 
-  # test "Path addresses serialization/deserialization":
-  #   for i in 0 ..< len(PathVectors):
-  #     var a = MultiAddress.init(PathVectors[i]).get()
-  #     check:
-  #       hex(a) == PathExpects[i]
-  #       $a == PathVectors[i]
+  test "Path addresses serialization/deserialization":
+    for i in 0 ..< len(PathVectors):
+      var a = MultiAddress.init(PathVectors[i]).get()
+      check:
+        hex(a) == PathExpects[i]
+        $a == PathVectors[i]
 
   test "MultiAddress pattern matching test vectors":
-    # for item in PatternVectors:
-      # for gitem in item.good:
-    let item = PatternVectors[6]
-    let gitem = item.good[0]
-    var a = MultiAddress.init(gitem).get()
-    if not item.pattern.match(a):
-      debugEcho "Failed pattern: ", item.pattern
-      debugEcho "On good item:  ", gitem
-    check item.pattern.match(a) == true
-      # for bitem in item.bad:
-      #   var a = MultiAddress.init(bitem).get()
-      #   check item.pattern.match(a) == false
+    for item in PatternVectors:
+      for gitem in item.good:
+        var a = MultiAddress.init(gitem).get()
+        check item.pattern.match(a) == true
+      for bitem in item.bad:
+        var a = MultiAddress.init(bitem).get()
+        check item.pattern.match(a) == false
 
-  # test "MultiAddress init(\"tcp/udp/dccp/sctp\", int) test":
-  #   check:
-  #     $MultiAddress.init(multiCodec("tcp"), 0).get() == "/tcp/0"
-  #     $MultiAddress.init(multiCodec("tcp"), 65535).get() == "/tcp/65535"
-  #     $MultiAddress.init(multiCodec("tcp"), 34000).get() == "/tcp/34000"
-  #     $MultiAddress.init(multiCodec("udp"), 0).get() == "/udp/0"
-  #     $MultiAddress.init(multiCodec("udp"), 65535).get() == "/udp/65535"
-  #     $MultiAddress.init(multiCodec("udp"), 34000).get() == "/udp/34000"
-  #     $MultiAddress.init(multiCodec("dccp"), 0).get() == "/dccp/0"
-  #     $MultiAddress.init(multiCodec("dccp"), 65535).get() == "/dccp/65535"
-  #     $MultiAddress.init(multiCodec("dccp"), 34000).get() == "/dccp/34000"
-  #     $MultiAddress.init(multiCodec("sctp"), 0).get() == "/sctp/0"
-  #     $MultiAddress.init(multiCodec("sctp"), 65535).get() == "/sctp/65535"
-  #     $MultiAddress.init(multiCodec("sctp"), 34000).get() == "/sctp/34000"
+  test "MultiAddress init(\"tcp/udp/dccp/sctp\", int) test":
+    check:
+      $MultiAddress.init(multiCodec("tcp"), 0).get() == "/tcp/0"
+      $MultiAddress.init(multiCodec("tcp"), 65535).get() == "/tcp/65535"
+      $MultiAddress.init(multiCodec("tcp"), 34000).get() == "/tcp/34000"
+      $MultiAddress.init(multiCodec("udp"), 0).get() == "/udp/0"
+      $MultiAddress.init(multiCodec("udp"), 65535).get() == "/udp/65535"
+      $MultiAddress.init(multiCodec("udp"), 34000).get() == "/udp/34000"
+      $MultiAddress.init(multiCodec("dccp"), 0).get() == "/dccp/0"
+      $MultiAddress.init(multiCodec("dccp"), 65535).get() == "/dccp/65535"
+      $MultiAddress.init(multiCodec("dccp"), 34000).get() == "/dccp/34000"
+      $MultiAddress.init(multiCodec("sctp"), 0).get() == "/sctp/0"
+      $MultiAddress.init(multiCodec("sctp"), 65535).get() == "/sctp/65535"
+      $MultiAddress.init(multiCodec("sctp"), 34000).get() == "/sctp/34000"
 
-  #   check:
-  #     MultiAddress.init(multiCodec("ip4"), 0).isErr()
-  #     MultiAddress.init(multiCodec("ip6"), 0).isErr()
-  #     MultiAddress.init(multiCodec("p2p"), 0).isErr()
-  #     MultiAddress.init(multiCodec("tcp"), 65536).isErr()
-  #     MultiAddress.init(multiCodec("udp"), 65536).isErr()
-  #     MultiAddress.init(multiCodec("dccp"), 65536).isErr()
-  #     MultiAddress.init(multiCodec("sctp"), 65536).isErr()
-  #     MultiAddress.init(multiCodec("tcp"), -1).isErr()
-  #     MultiAddress.init(multiCodec("udp"), -1).isErr()
-  #     MultiAddress.init(multiCodec("dccp"), -1).isErr()
-  #     MultiAddress.init(multiCodec("sctp"), -1).isErr()
+    check:
+      MultiAddress.init(multiCodec("ip4"), 0).isErr()
+      MultiAddress.init(multiCodec("ip6"), 0).isErr()
+      MultiAddress.init(multiCodec("p2p"), 0).isErr()
+      MultiAddress.init(multiCodec("tcp"), 65536).isErr()
+      MultiAddress.init(multiCodec("udp"), 65536).isErr()
+      MultiAddress.init(multiCodec("dccp"), 65536).isErr()
+      MultiAddress.init(multiCodec("sctp"), 65536).isErr()
+      MultiAddress.init(multiCodec("tcp"), -1).isErr()
+      MultiAddress.init(multiCodec("udp"), -1).isErr()
+      MultiAddress.init(multiCodec("dccp"), -1).isErr()
+      MultiAddress.init(multiCodec("sctp"), -1).isErr()
 
-  # test "MultiAddress protoAddress(fixed) test":
-  #   var
-  #     address_v4: array[4, byte]
-  #     address_v6: array[16, byte]
-  #   check:
-  #     MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
-  #     MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
+  test "MultiAddress protoAddress(fixed) test":
+    var
+      address_v4: array[4, byte]
+      address_v6: array[16, byte]
+    check:
+      MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
+      MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
 
-  # test "MultiAddress getPart":
-  #   let ma = MultiAddress
-  #     .init(
-  #       "/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/"
-  #     )
-  #     .get()
-  #   check:
-  #     $ma.getPart(multiCodec("ip4")).get() == "/ip4/0.0.0.0"
-  #     $ma.getPart(multiCodec("tcp")).get() == "/tcp/0"
-  #     # returns first codec match
-  #     $ma.getPart(multiCodec("p2p")).get() ==
-  #       "/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
-  #     ma.getPart(multiCodec("udp")).isErr()
+  test "MultiAddress getPart":
+    let ma = MultiAddress
+      .init(
+        "/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/"
+      )
+      .get()
+    check:
+      $ma.getPart(multiCodec("ip4")).get() == "/ip4/0.0.0.0"
+      $ma.getPart(multiCodec("tcp")).get() == "/tcp/0"
+      # returns first codec match
+      $ma.getPart(multiCodec("p2p")).get() ==
+        "/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+      ma.getPart(multiCodec("udp")).isErr()
 
-  # test "MultiAddress getParts":
-  #   let ma = MultiAddress
-  #     .init(
-  #       "/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/"
-  #     )
-  #     .get()
-  #   check:
-  #     $ma[0 .. 0].get() == "/ip4/0.0.0.0"
-  #     $ma[^1].get() == "/unix/stdio"
-  #     ma[-100].isErr()
-  #     ma[100].isErr()
-  #     ma[^100].isErr()
-  #     ma[^0].isErr()
-  #     $ma[0 .. 1].get() == "/ip4/0.0.0.0/tcp/0"
-  #     $ma[1 .. 2].get() == "/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
-  #     $ma[^3 ..^ 1].get() ==
-  #       "/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio"
-  #     ma[5 .. 7].isErr()
+  test "MultiAddress getParts":
+    let ma = MultiAddress
+      .init(
+        "/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/"
+      )
+      .get()
+    check:
+      $ma[0 .. 0].get() == "/ip4/0.0.0.0"
+      $ma[^1].get() == "/unix/stdio"
+      ma[-100].isErr()
+      ma[100].isErr()
+      ma[^100].isErr()
+      ma[^0].isErr()
+      $ma[0 .. 1].get() == "/ip4/0.0.0.0/tcp/0"
+      $ma[1 .. 2].get() == "/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+      $ma[^3 ..^ 1].get() ==
+        "/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio"
+      ma[5 .. 7].isErr()
 
-  # test "[](MultiCodec) test":
-  #   let onionMAStr =
-  #     "/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80"
-  #   let ma = MultiAddress.init(onionMAStr).get()
-  #   check $(ma[multiCodec("onion3")].tryGet()) == onionMAStr
+  test "[](MultiCodec) test":
+    let onionMAStr =
+      "/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80"
+    let ma = MultiAddress.init(onionMAStr).get()
+    check $(ma[multiCodec("onion3")].tryGet()) == onionMAStr
 
-  #   let onionMAWithTcpStr =
-  #     "/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80/tcp/80"
-  #   let maWithTcp = MultiAddress.init(onionMAWithTcpStr).get()
-  #   check $(maWithTcp[multiCodec("onion3")].tryGet()) == onionMAStr
+    let onionMAWithTcpStr =
+      "/onion3/torchdeedp3i2jigzjdmfpn5ttjhthh5wbmda2rr3jvqjg5p77c54dqd:80/tcp/80"
+    let maWithTcp = MultiAddress.init(onionMAWithTcpStr).get()
+    check $(maWithTcp[multiCodec("onion3")].tryGet()) == onionMAStr
 
-  # test "matchPartial":
-  #   const tcp = mapEq("tcp")
-  #   let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
+  test "matchPartial":
+    const tcp = mapEq("tcp")
+    let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
 
-  #   check not tcp.matchPartial(ma)
-  #   check IP4.matchPartial(ma)
+    check not tcp.matchPartial(ma)
+    check IP4.matchPartial(ma)
 
-  # test "getRepeatedField does not fail when all addresses are valid":
-  #   var pb = initProtoBuffer()
-  #   let mas = SuccessVectors.mapIt(MultiAddress.init(it).get())
-  #   for ma in mas:
-  #     pb.write(1, ma)
-  #   pb.finish()
+  test "getRepeatedField does not fail when all addresses are valid":
+    var pb = initProtoBuffer()
+    let mas = SuccessVectors.mapIt(MultiAddress.init(it).get())
+    for ma in mas:
+      pb.write(1, ma)
+    pb.finish()
 
-  #   var decoded = newSeq[MultiAddress]()
-  #   check pb.getRepeatedField(1, decoded).isOk()
-  #   check decoded == mas
+    var decoded = newSeq[MultiAddress]()
+    check pb.getRepeatedField(1, decoded).isOk()
+    check decoded == mas
 
-  # test "getRepeatedField does not fail when some addresses are invalid":
-  #   var pb = initProtoBuffer()
-  #   var mas = @[MultiAddress.init("/ip4/1.2.3.4").get(), MultiAddress()]
-  #   for ma in mas:
-  #     pb.write(1, ma)
-  #   pb.finish()
+  test "getRepeatedField does not fail when some addresses are invalid":
+    var pb = initProtoBuffer()
+    var mas = @[MultiAddress.init("/ip4/1.2.3.4").get(), MultiAddress()]
+    for ma in mas:
+      pb.write(1, ma)
+    pb.finish()
 
-  #   var decoded = newSeq[MultiAddress]()
-  #   check pb.getRepeatedField(1, decoded).isOk()
-  #   check decoded == @[MultiAddress.init("/ip4/1.2.3.4").get()]
+    var decoded = newSeq[MultiAddress]()
+    check pb.getRepeatedField(1, decoded).isOk()
+    check decoded == @[MultiAddress.init("/ip4/1.2.3.4").get()]
 
-  # test "getRepeatedField fails when all addresses are invalid":
-  #   var pb = initProtoBuffer()
-  #   var mas = @[MultiAddress(), MultiAddress()]
-  #   for ma in mas:
-  #     pb.write(1, ma)
-  #   pb.finish()
+  test "getRepeatedField fails when all addresses are invalid":
+    var pb = initProtoBuffer()
+    var mas = @[MultiAddress(), MultiAddress()]
+    for ma in mas:
+      pb.write(1, ma)
+    pb.finish()
 
-  #   var decoded = newSeq[MultiAddress]()
-  #   let error = pb.getRepeatedField(1, decoded).error()
-  #   check error == ProtoError.IncorrectBlob
-  #   check decoded.len == 0
+    var decoded = newSeq[MultiAddress]()
+    let error = pb.getRepeatedField(1, decoded).error()
+    check error == ProtoError.IncorrectBlob
+    check decoded.len == 0
 
-  # test "MultiAddress with empty path test":
-  #   for item in ZeroPathFailureVectors:
-  #     let res = MultiAddress.init(hexToSeqByte(item))
-  #     check res.isErr()
+  test "MultiAddress with empty path test":
+    for item in ZeroPathFailureVectors:
+      let res = MultiAddress.init(hexToSeqByte(item))
+      check res.isErr()
 
-  # test "MultiAddress crash test":
-  #   for item in CrashesVectors:
-  #     let res = MultiAddress.init(hexToSeqByte(item))
-  #     check res.isErr()
+  test "MultiAddress crash test":
+    for item in CrashesVectors:
+      let res = MultiAddress.init(hexToSeqByte(item))
+      check res.isErr()
 
-  # test "areAddrsConsistent":
-  #   # same address should be consistent
-  #   check areAddrsConsistent(
-  #     MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-  #     MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-  #   )
+  test "areAddrsConsistent":
+    # same address should be consistent
+    check areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+    )
 
-  #   # different addresses with same stack should be consistent
-  #   check areAddrsConsistent(
-  #     MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
-  #     MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-  #   )
+    # different addresses with same stack should be consistent
+    check areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+    )
 
-  #   # addresses with different stacks should not be consistent
-  #   check not areAddrsConsistent(
-  #     MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-  #     MultiAddress.init("/ip4/127.0.0.1/udp/4040").get(),
-  #   )
+    # addresses with different stacks should not be consistent
+    check not areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      MultiAddress.init("/ip4/127.0.0.1/udp/4040").get(),
+    )

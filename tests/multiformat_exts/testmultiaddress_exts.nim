@@ -10,7 +10,6 @@
 # those terms.
 
 import unittest2
-# import stew/byteutils
 import ../../libp2p/multicodec
 import ../../libp2p/multiaddress
 import ../../libp2p/transcoder

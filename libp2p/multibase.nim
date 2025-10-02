@@ -20,7 +20,6 @@ import results
 import stew/[base32, base58, base64]
 import ./utils/sequninit
 import ./utility
-# import ./registrar
 
 type
   MultiBaseStatus* {.pure.} = enum
@@ -51,7 +50,7 @@ const libp2p_multibase_exts* {.strdefine.} = ""
 
 proc idd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
-): MultiBaseStatus {.nimcall.} =
+): MultiBaseStatus =
   let length = len(inbytes)
   if length > len(outbytes):
     outlen = length
@@ -63,7 +62,7 @@ proc idd(
 
 proc ide(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
-): MultiBaseStatus {.nimcall, gcsafe, noSideEffect, raises: [].} =
+): MultiBaseStatus =
   let length = len(inbytes)
   if length > len(outbytes):
     outlen = length

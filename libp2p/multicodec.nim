@@ -15,30 +15,28 @@
 import tables, hashes
 import macros
 import strutils
-import ./vbuffer
+import vbuffer
 import results
-import ./utility
+import utility
 export results
 
 const libp2p_multicodec_exts* {.strdefine.} = ""
 
 ## List of officially supported codecs can BE found here
 ## https://github.com/multiformats/multicodec/blob/master/table.csv
-## Needs to be exported so duplicates can be checked in registrar.nim
-# registerMultiCodecs:
 const MultiCodecsList = [
   ("raw", 0x55),
-  # serialization formats,
+  # serialization formats
   ("cbor", 0x51),
   ("protobuf", 0x50),
   ("rlp", 0x60),
   ("bencode", 0x63),
-  # multiformats,
+  # multiformats
   ("multicodec", 0x30),
   ("multihash", 0x31),
   ("multiaddr", 0x32),
   ("multibase", 0x33),
-  # multihashes,
+  # multihashes
   ("identity", 0x00),
   ("md4", 0xD4),
   ("md5", 0xD5),
@@ -377,7 +375,7 @@ const MultiCodecsList = [
   ("skein1024-1008", 0xB3DE),
   ("skein1024-1016", 0xB3DF),
   ("skein1024-1024", 0xB3E0),
-  # multiaddrs,
+  # multiaddrs
   ("ip4", 0x04),
   ("ip6", 0x29),
   ("ip6zone", 0x2A),
@@ -387,7 +385,7 @@ const MultiCodecsList = [
   ("sctp", 0x84),
   ("udt", 0x012D),
   ("utp", 0x012E),
-  ("unix", 0x0190), # not in multicodec list,
+  ("unix", 0x0190), # not in multicodec list
   ("ipfs", 0xE3),
   ("p2p", 0x01A5),
   ("http", 0x01E0),
@@ -397,9 +395,9 @@ const MultiCodecsList = [
   ("quic-v1", 0x01CD),
   ("ws", 0x01DD),
   ("wss", 0x01DE),
-  ("p2p-websocket-star", 0x01DF), # not in multicodec list,
-  ("p2p-webrtc-star", 0x0113), # not in multicodec list,
-  ("p2p-webrtc-direct", 0x0114), # not in multicodec list,
+  ("p2p-websocket-star", 0x01DF), # not in multicodec list
+  ("p2p-webrtc-star", 0x0113), # not in multicodec list
+  ("p2p-webrtc-direct", 0x0114), # not in multicodec list
   ("onion", 0x01BC),
   ("onion3", 0x01BD),
   ("p2p-circuit", 0x0122),
@@ -409,7 +407,7 @@ const MultiCodecsList = [
   ("dns4", 0x36),
   ("dns6", 0x37),
   ("dnsaddr", 0x38),
-  # IPLD formats,
+  # IPLD formats
   ("dag-pb", 0x70),
   ("dag-cbor", 0x71),
   ("libp2p-key", 0x72),
@@ -439,6 +437,13 @@ const MultiCodecsList = [
   ("ed25519-pub", 0xED)
 ]
 
+type
+  MultiCodec* = distinct int
+  MultiCodecError* = enum
+    MultiCodecNotSupported
+
+const InvalidMultiCodec* = MultiCodec(-1)
+
 proc initLists(codecs: seq[tuple[name: string, code: int]]):
   tuple[nameCodecs: Table[string, int], codeCodecs: Table[int, string]] {.compileTime.} =
 
@@ -459,13 +464,6 @@ when libp2p_multicodec_exts != "":
 else:
   const (NameCodecs, CodeCodecs) = initLists(@MultiCodecsList)
 
-type
-  MultiCodec* = distinct int
-  MultiCodecError* = enum
-    MultiCodecNotSupported
-
-const InvalidMultiCodec* = MultiCodec(-1)
-
 proc multiCodec*(name: string): MultiCodec {.compileTime.} =
   ## Generate MultiCodec from string ``name`` at compile time.
   let code = NameCodecs.getOrDefault(name, -1)
@@ -477,22 +475,6 @@ proc multiCodec*(code: int): MultiCodec {.compileTime.} =
   let name = CodeCodecs.getOrDefault(code, "")
   doAssert(name != "")
   MultiCodec(code)
-
-proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec =
-  ## Return MultiCodec from string representation ``name``.
-  ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
-  ## be returned.
-  MultiCodec(NameCodecs.getOrDefault(name, -1))
-
-proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
-  ## Return MultiCodec from integer representation ``code``.
-  ## If ``code`` is not valid multicodec code, then ``InvalidMultiCodec`` will
-  ## be returned.
-  let res = CodeCodecs.getOrDefault(code, "")
-  if res == "":
-    InvalidMultiCodec
-  else:
-    MultiCodec(code)
 
 proc `$`*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc``.
@@ -519,6 +501,23 @@ proc `==`*(a, b: MultiCodec): bool =
 proc hash*(m: MultiCodec): Hash {.inline.} =
   ## Hash procedure for tables.
   hash(int(m))
+
+
+proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec =
+  ## Return MultiCodec from string representation ``name``.
+  ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
+  ## be returned.
+  MultiCodec(NameCodecs.getOrDefault(name, -1))
+
+proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
+  ## Return MultiCodec from integer representation ``code``.
+  ## If ``code`` is not valid multicodec code, then ``InvalidMultiCodec`` will
+  ## be returned.
+  let res = CodeCodecs.getOrDefault(code, "")
+  if res == "":
+    InvalidMultiCodec
+  else:
+    MultiCodec(code)
 
 proc write*(vb: var VBuffer, mc: MultiCodec) {.inline.} =
   ## Write MultiCodec to buffer ``vb``.
