@@ -49,12 +49,12 @@ proc tutorialToMd(filename: string) =
   writeFile(filename.replace(".nim", ".md"), markdown)
 
 task testnative, "Runs libp2p native tests":
+  runTest("testnative")
   let libp2pOpts = "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
                    "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
                    "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
                    "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim "
-
-  runTest("testnative", "", libp2pOpts)
+  runTest("multiformat_exts/testmultiformat_exts", "", libp2pOpts)
 
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")
