@@ -137,5 +137,5 @@ proc new*(T: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): T =
   let self = T(client: cl, upgrader: upgrader)
   self.running = true
   self.queue = newAsyncQueue[Connection](0)
-  procCall Transport(self).init()
+  procCall Transport(self).initialize()
   self

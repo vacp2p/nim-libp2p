@@ -232,7 +232,7 @@ proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransp
     privateKey: privateKey,
     certGenerator: defaultCertGenerator,
   )
-  procCall Transport(self).init()
+  procCall Transport(self).initialize()
   self
 
 proc new*(
@@ -246,7 +246,7 @@ proc new*(
     privateKey: privateKey,
     certGenerator: certGenerator,
   )
-  procCall Transport(self).init()
+  procCall Transport(self).initialize()
   self
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =

@@ -106,7 +106,7 @@ proc new*(
     networkReachability: NetworkReachability.Unknown,
     connectionsTimeout: connectionsTimeout,
   )
-  procCall Transport(self).init()
+  procCall Transport(self).initialize()
   self
 
 method start*(

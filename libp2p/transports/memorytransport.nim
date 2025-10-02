@@ -38,7 +38,7 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
 ): T =
   let self = T(upgrader: upgrade, rng: rng)
-  procCall Transport(self).init()
+  procCall Transport(self).initialize()
   self
 
 proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =

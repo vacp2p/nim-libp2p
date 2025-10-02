@@ -42,7 +42,7 @@ type
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
 
-proc init*(self: Transport) =
+proc initialize*(self: Transport) =
   self.onRunning = newAsyncEvent()
   self.onStop = newAsyncEvent()
 

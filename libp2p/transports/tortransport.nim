@@ -84,7 +84,7 @@ proc new*(
     upgrader: upgrade,
     tcpTransport: TcpTransport.new(flags, upgrade),
   )
-  procCall Transport(self).init()
+  procCall Transport(self).initialize()
   self
 
 proc handlesDial(address: MultiAddress): bool {.gcsafe.} =

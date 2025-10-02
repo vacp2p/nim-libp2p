@@ -406,7 +406,7 @@ proc new*(
     rng: rng,
     handshakeTimeout: handshakeTimeout,
   )
-  procCall Transport(self).init()
+  procCall Transport(self).initialize()
   self
 
 proc new*(
