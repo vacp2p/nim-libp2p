@@ -84,11 +84,7 @@ proc sendFindNode(
 ): Future[Message] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  let conn =
-    if addrs.len == 0:
-      await kad.switch.dial(peerId, KadCodec)
-    else:
-      await kad.switch.dial(peerId, addrs, KadCodec)
+  let conn = await kad.switch.dial(peerId, addrs, KadCodec)
   defer:
     await conn.close()
 
@@ -138,19 +134,22 @@ proc dispatchPutVal(
     error "unexpected change between msg and reply: ",
       msg = msg, reply = reply, conn = conn
 
+proc ensureBestValue(kad: KadDHT, key: Key, value: seq[byte]): Result[void, string] =
+  kad.dataTable.get(key).withValue(existing):
+    let selectedIdx = kad.entrySelector.select(key, @[value, existing.value]).valueOr:
+      return err(error)
+    if selectedIdx != 0:
+      return err("can't replace a newer value with an older value")
+  return ok()
+
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   if not kad.entryValidator.isValid(key, value):
     return err("invalid key/value pair")
 
-  let existingRecord = kad.dataTable.get(key)
-  existingRecord.withValue(existing):
-    let selectedIdx = kad.entrySelector.select(key, @[value, existing.value]).valueOr:
-      error "application provided selector error (local)", msg = error
-      return err(error)
-    if selectedIdx != 0:
-      return err("can't replace a newer value with an older value")
+  kad.ensureBestValue(key, value).isOkOr:
+    return err(error)
 
   let peers = await kad.findNode(key)
   # We first prime the sends so the data is ready to go
@@ -180,8 +179,9 @@ proc findNode*(
 
   var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
   var state = LookupState.init(targetId, initialPeers, kad.rtable.hasher)
-  var addrTable: Table[PeerId, seq[MultiAddress]] =
-    initTable[PeerId, seq[MultiAddress]]()
+  var addrTable: Table[PeerId, seq[MultiAddress]]
+  for p in initialPeers:
+    addrTable[p] = kad.switch.peerStore[AddressBook][p]
 
   while not state.done:
     let toQuery = state.selectAlphaPeers()
@@ -190,10 +190,12 @@ proc findNode*(
 
     for peer in toQuery.filterIt(kad.switch.peerInfo.peerId != it):
       state.markPending(peer)
-
-      pendingFutures[peer] = kad
-        .sendFindNode(peer, addrTable.getOrDefault(peer, @[]), targetId)
-        .wait(chronos.seconds(5))
+      let addrs = addrTable.getOrDefault(peer, @[])
+      if addrs.len == 0:
+        state.markFailed(peer)
+        continue
+      pendingFutures[peer] =
+        kad.sendFindNode(peer, addrs, targetId).wait(chronos.seconds(5))
 
       state.activeQueries.inc
 
@@ -373,13 +375,9 @@ proc new*(
           debug "record is not valid", key, value
           return
 
-        let existingRecord = kad.dataTable.get(key)
-        existingRecord.withValue(existing):
-          let selectedIdx = kad.entrySelector.select(key, @[value, existing.value]).valueOr:
-            error "application provided selector error", msg = error
-            return
-          if selectedIdx != 0:
-            error "can't replace a newer value with an older value"
+        kad.ensureBestValue(key, value).isOkOr:
+          error "dropping received value", err = error
+          return
 
         kad.dataTable.insert(key, value, $times.now().utc)
         # consistent with following link, echo message without change

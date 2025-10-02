@@ -22,8 +22,6 @@ method select*(
 ): Result[int, string] =
   if values.len == 0:
     return err("no values were given")
-  return
-    if values.len == 1:
-      ok(0)
-    else:
-      ok(1)
+  if values.len == 1:
+    return ok(0)
+  ok(1)
