@@ -67,6 +67,7 @@ jobs:
 
       - name: Run
         run: |
+          nimble install chronicles
           nimble install chronos
           nim c -r -d:release -o:/tmp/scenarios_performance ./performance/scenarios_performance.nim
 
