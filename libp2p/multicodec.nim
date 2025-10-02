@@ -13,7 +13,6 @@
 {.used.}
 
 import tables, hashes
-import macros
 import strutils
 import vbuffer
 import results
@@ -486,9 +485,8 @@ proc `==`*(mc: MultiCodec, name: string): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with string ``name``.
   let mcname = CodeCodecs.getOrDefault(int(mc), "")
   if mcname == "":
-    false
-  else:
-    (mcname == name)
+    return false
+  result = (mcname == name)
 
 proc `==`*(mc: MultiCodec, code: int): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with integer ``code``.
@@ -501,7 +499,6 @@ proc `==`*(a, b: MultiCodec): bool =
 proc hash*(m: MultiCodec): Hash {.inline.} =
   ## Hash procedure for tables.
   hash(int(m))
-
 
 proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec {.inline.} =
   ## Return MultiCodec from string representation ``name``.

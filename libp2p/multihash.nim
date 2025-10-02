@@ -24,7 +24,6 @@
 {.push raises: [].}
 {.used.}
 
-import macros
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, multicodec, multibase
