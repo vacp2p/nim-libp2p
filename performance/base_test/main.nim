@@ -1,5 +1,5 @@
-import ./tests/base_test
-import ./tests/utils
+import ./base_test
+import ./utils
 import chronos
 import os
 

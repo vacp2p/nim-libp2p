@@ -11,7 +11,7 @@ import strformat
 import strutils
 import os
 import osproc
-import ./tests/utils
+import ./base_test/utils
 
 proc setupOutputDirectory*(): string =
   let outputDir = getCurrentDir() / "output"

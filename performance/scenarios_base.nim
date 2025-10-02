@@ -16,16 +16,8 @@ suite "Performance Tests":
   teardown:
     checkTrackers()
 
-  asyncTest "Base Test":
+  asyncTest "Base Test TCP":
     run("TCP")
 
-  asyncTest "Base Test":
+  asyncTest "Base Test QUIC":
     run("QUIC")
-
-  asyncTest "Network Delay Test":
-    run(
-      "TCP",
-      preExecCmd =
-        "tc qdisc add dev eth0 root netem delay 100ms 20ms distribution normal",
-      postExecCmd = "tc qdisc del dev eth0 root",
-    )
