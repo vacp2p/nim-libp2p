@@ -14,8 +14,7 @@ import os
 import osproc
 
 proc setupOutputDirectory*(): string =
-  let outputDir = getCurrentDir() / "output"
-  createDir(outputDir)
+  let outputDir = getCurrentDir() / "performance" / "output"
   removeDir(outputDir)
   createDir(outputDir / "sync")
   return outputDir
