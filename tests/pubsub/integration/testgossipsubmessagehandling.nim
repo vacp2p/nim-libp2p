@@ -458,8 +458,8 @@ suite "GossipSub Integration - Message Handling":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    var cRelayed: Future[void] = newFuture[void]()
-    var bFinished: Future[void] = newFuture[void]()
+    var cRelayed = newAsyncEvent()
+    var bFinished = newAsyncEvent()
     var
       aReceived = 0
       cReceived = 0
@@ -473,7 +473,7 @@ suite "GossipSub Integration - Message Handling":
     proc handlerC(topic: string, data: seq[byte]) {.async.} =
       inc cReceived
       check cReceived < 2
-      cRelayed.complete()
+      cRelayed.fire()
 
     nodes[0].subscribe("foobar", handlerA)
     nodes[1].subscribe("foobar", handlerB)
@@ -488,7 +488,7 @@ suite "GossipSub Integration - Message Handling":
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
       try:
-        await cRelayed
+        await cRelayed.wait()
         # Empty A & C caches to detect duplicates
         gossip1.seen = TimedCache[SaltedId].init()
         gossip3.seen = TimedCache[SaltedId].init()
@@ -500,8 +500,8 @@ suite "GossipSub Integration - Message Handling":
             false
         )
         result = ValidationResult.Accept
-        bFinished.complete()
-      except CatchableError:
+        bFinished.fire()
+      except CancelledError:
         raiseAssert "err on slowValidator"
 
     nodes[1].addValidator("foobar", slowValidator)
@@ -512,7 +512,7 @@ suite "GossipSub Integration - Message Handling":
       gossip3.mesh.getOrDefault("foobar").len == 2
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 2
 
-    await bFinished
+    await bFinished.wait()
 
   asyncTest "GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()

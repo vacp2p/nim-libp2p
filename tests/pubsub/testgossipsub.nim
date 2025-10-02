@@ -340,7 +340,7 @@ suite "GossipSub":
     let peerId = randomPeerId()
     let peer = gossipSub.getPubSubPeer(peerId)
 
-    expect(CatchableError):
+    expect(PeerMessageDecodeError):
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
   asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded":

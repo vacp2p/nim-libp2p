@@ -135,7 +135,9 @@ macro checkUntilTimeoutCustom*(
   let combinedBoolExpr = buildAndExpr(code)
 
   result = quote:
-    proc checkExpiringInternal(): Future[void] {.gensym, async.} =
+    proc checkExpiringInternal(): Future[void] {.
+        gensym, async: (raises: [CancelledError])
+    .} =
       let start = Moment.now()
       while true:
         if Moment.now() > (start + `timeout`):
