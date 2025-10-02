@@ -22,8 +22,8 @@ import
 import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
 
 import
-  testmultibase, testmultiaddress, testcid, testpeerid, testsigned_envelope,
-  testrouting_record
+  testmultibase, testmultihash, testmultiaddress, testcid, testpeerid,
+  testsigned_envelope, testrouting_record
 
 import
   testtcptransport,

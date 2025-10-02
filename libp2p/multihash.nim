@@ -27,9 +27,8 @@
 import macros
 import tables
 import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
-import ./varint, ./vbuffer, multicodec, multibase
+import varint, vbuffer, multicodec, multibase
 import stew/base58
-# import ./registrar
 import results
 import ./utility
 export results
@@ -351,7 +350,7 @@ const HashesList = [
   MHash(mcodec: multiCodec("blake2s-232"), size: 29, coder: blake2Shash),
   MHash(mcodec: multiCodec("blake2s-240"), size: 30, coder: blake2Shash),
   MHash(mcodec: multiCodec("blake2s-248"), size: 31, coder: blake2Shash),
-  MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash)
+  MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash),
 ]
 
 proc initMultiHashCodeTable(hashes: openArray[MHash]): Table[MultiCodec, MHash] {.compileTime.} =
@@ -360,9 +359,9 @@ proc initMultiHashCodeTable(hashes: openArray[MHash]): Table[MultiCodec, MHash] 
 
 when libp2p_multihash_exts != "":
   includeFile(libp2p_multihash_exts)
-  const CodeAddresses = initMultiHashCodeTable(@HashesList & @HashExts)
+  const CodeHashes = initMultiHashCodeTable(@HashesList & @HashExts)
 else:
-  const CodeAddresses = initMultiHashCodeTable(@HashesList)
+  const CodeHashes = initMultiHashCodeTable(@HashesList)
 
 proc digestImplWithHash(hash: MHash, data: openArray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
@@ -392,12 +391,6 @@ proc digestImplWithoutHash(hash: MHash, data: openArray[byte]): MultiHash =
   result.data.writeArray(data)
   result.data.finish()
 
-template multiHash(mcodec: MultiCodec): MHash =
-  ## Get MHash structure for hash algorithm with code ``mcodec``.
-
-  # static read allows to get compile time value from runtime context
-  (static CodeHashes).getOrDefault(mcodec)
-
 proc digest*(
     mhtype: typedesc[MultiHash], hashname: string, data: openArray[byte]
 ): MhResult[MultiHash] {.inline.} =
@@ -407,7 +400,7 @@ proc digest*(
   if mc == InvalidMultiCodec:
     err(ErrIncorrectName)
   else:
-    let hash = CodeAddresses.getOrDefault(mc)
+    let hash = CodeHashes.getOrDefault(mc)
     if isNil(hash.coder):
       err(ErrNotSupported)
     else:
@@ -418,7 +411,7 @@ proc digest*(
 ): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with code ``hashcode`` on
   ## data array ``data``.
-  let hash = CodeAddresses.getOrDefault(hashcode)
+  let hash = CodeHashes.getOrDefault(hashcode)
   if isNil(hash.coder):
     err(ErrNotSupported)
   else:
@@ -433,7 +426,7 @@ proc init*[T](
   if mc == InvalidMultiCodec:
     err(ErrIncorrectName)
   else:
-    let hash = CodeAddresses.getOrDefault(mc)
+    let hash = CodeHashes.getOrDefault(mc)
     if isNil(hash.coder):
       err(ErrNotSupported)
     elif hash.size != len(mdigest.data):
@@ -446,7 +439,7 @@ proc init*[T](
 ): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from nimcrypto's `MDigest` and hash algorithm code
   ## ``hashcode``.
-  let hash = CodeAddresses.getOrDefault(hashcode)
+  let hash = CodeHashes.getOrDefault(hashcode)
   if isNil(hash.coder):
     err(ErrNotSupported)
   elif (hash.size != 0) and (hash.size != len(mdigest.data)):
@@ -463,7 +456,7 @@ proc init*(
   if mc == InvalidMultiCodec:
     err(ErrIncorrectName)
   else:
-    let hash = CodeAddresses.getOrDefault(mc)
+    let hash = CodeHashes.getOrDefault(mc)
     if isNil(hash.coder):
       err(ErrNotSupported)
     elif (hash.size != 0) and (hash.size != len(bdigest)):
@@ -476,7 +469,7 @@ proc init*(
 ): MhResult[MultiHash] {.inline.} =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
-  let hash = CodeAddresses.getOrDefault(hashcode)
+  let hash = CodeHashes.getOrDefault(hashcode)
   if isNil(hash.coder):
     err(ErrNotSupported)
   elif (hash.size != 0) and (hash.size != len(bdigest)):
@@ -515,7 +508,7 @@ proc decode*(
   if size > 0x7FFF_FFFF'u64:
     return err(ErrDecodeError)
 
-  let hash = CodeAddresses.getOrDefault(MultiCodec(code))
+  let hash = CodeHashes.getOrDefault(MultiCodec(code))
   if isNil(hash.coder):
     return err(ErrDecodeError)
 
@@ -552,7 +545,7 @@ proc validate*(mhtype: typedesc[MultiHash], data: openArray[byte]): bool =
   offset += length
   if size > 0x7FFF_FFFF'u64:
     return false
-  let hash = CodeAddresses.getOrDefault(cast[MultiCodec](code))
+  let hash = CodeHashes.getOrDefault(cast[MultiCodec](code))
   if isNil(hash.coder):
     return false
   if (hash.size != 0) and (hash.size != int(size)):
@@ -633,10 +626,10 @@ proc base58*(value: MultiHash): string =
   ## Return Base58 encoded string representation of MultiHash ``value``.
   result = Base58.encode(value.data.buffer)
 
-template `$`*(mh: MultiHash): string =
+proc `$`*(mh: MultiHash): string =
   ## Return string representation of MultiHash ``value``.
   let digest = toHex(mh.data.buffer.toOpenArray(mh.dpos, mh.dpos + mh.size - 1))
-  $(mh.mcodec) & "/" & digest
+  result = $(mh.mcodec) & "/" & digest
 
 proc write*(vb: var VBuffer, mh: MultiHash) {.inline.} =
   ## Write MultiHash value ``mh`` to buffer ``vb``.

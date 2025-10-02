@@ -10,7 +10,7 @@
 # those terms.
 
 import unittest2
-import ../libp2p/multicodec
+import nimcrypto/utils
 import ../libp2p/multihash
 
 const RustTestVectors = [
@@ -70,7 +70,6 @@ const RustTestVectors = [
 ]
 
 suite "MultiHash test suite":
-
   test "rust-multihash test vectors":
     for item in RustTestVectors:
       var msg = item[1]
@@ -81,4 +80,3 @@ suite "MultiHash test suite":
         hex(mh1) == stripSpaces(item[2])
         hex(mh1) == hex(mh2)
         mh1 == mh2
-
