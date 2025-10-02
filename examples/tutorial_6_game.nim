@@ -169,10 +169,10 @@ proc new(T: typedesc[GameProto], g: Game): T =
       # The handler of a protocol must wait for the stream to
       # be finished before returning
       await conn.join()
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except CancelledError as exc:
+      raise exc
+    except LPStreamError as exc:
+      echo "exception in handler", exc.msg
 
   return T.new(codecs = @["/tron/1.0.0"], handler = handle)
 
@@ -207,20 +207,18 @@ proc networking(g: Game) {.async.} =
         return
       g.hasCandidate = true
 
-      try:
-        let
-          (peerId, multiAddress) = parseFullAddress(data).tryGet()
-          stream = await switch.dial(peerId, @[multiAddress], gameProto.codec)
+      # try:
+      let
+        (peerId, multiAddress) = parseFullAddress(data).tryGet()
+        stream = await switch.dial(peerId, @[multiAddress], gameProto.codec)
 
-        await stream.writeLp("ok")
-        if (await stream.readLp(10)) != "ok".toBytes:
-          g.hasCandidate = false
-          return
-        g.peerFound.complete(stream)
-        # We are "player 2"
-        swap(g.localPlayer, g.remotePlayer)
-      except CatchableError as exc:
-        discard,
+      await stream.writeLp("ok")
+      if (await stream.readLp(10)) != "ok".toBytes:
+        g.hasCandidate = false
+        return
+      g.peerFound.complete(stream)
+      # We are "player 2"
+      swap(g.localPlayer, g.remotePlayer),
   )
 
   await switch.start()
@@ -243,7 +241,9 @@ proc networking(g: Game) {.async.} =
   discoveryQuery.forEach:
     try:
       await switch.connect(peer[PeerId], peer.getAll(MultiAddress))
-    except CatchableError as exc:
+    except KeyError as exc:
+      echo "Peer not found: ", exc.msg
+    except DialFailedError as exc:
       echo "Failed to dial a peer: ", exc.msg
 
   # We will try to publish our address multiple times, in case
