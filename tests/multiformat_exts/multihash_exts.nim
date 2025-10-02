@@ -1,5 +1,5 @@
 proc coder1(data: openArray[byte], output: var openArray[byte]) =
-    copyMem(addr output[0], unsafeAddr data[0], len(output))
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
 
 proc coder2(data: openArray[byte], output: var openArray[byte]) =
   copyMem(addr output[0], unsafeAddr data[0], len(output))
