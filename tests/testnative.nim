@@ -10,14 +10,20 @@
 # those terms.
 
 import
+  multiformat_exts/testmulticodec_exts,
+  multiformat_exts/testmultihash_exts,
+  multiformat_exts/testmultiaddress_exts,
+  multiformat_exts/testmultibase_exts
+
+import
   testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
   testheartbeat, testfuture, testzeroqueue, testbytesview
 
 import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
 
 import
-  testmultibase, testmultihash, testmultiaddress, testmulticodec,
-  testcid, testpeerid, testsigned_envelope, testrouting_record
+  testmultibase, testmultiaddress, testcid, testpeerid, testsigned_envelope,
+  testrouting_record
 
 import
   testtcptransport,
