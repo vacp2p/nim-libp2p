@@ -16,6 +16,7 @@ import ../../libp2p/protocols/pubsub/rpc/messages
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/ping
 import ../../tests/helpers
+import ../runner
 import ../types
 
 export TransportType
@@ -273,17 +274,6 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
 const
   enableTcCommand* = "tc qdisc add dev eth0 root"
   disableTcCommand* = "tc qdisc del dev eth0 root"
-
-proc execShellCommand*(cmd: string): string =
-  try:
-    let output = execProcess(
-        "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
-      )
-      .strip()
-    debug "Shell command executed", cmd, output
-    return output
-  except OSError as e:
-    raise newException(OSError, "Shell command failed")
 
 const syncDir = "/output/sync"
 

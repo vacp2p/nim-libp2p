@@ -7,11 +7,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import chronicles
 import strformat
 import strutils
 import os
 import osproc
-import ./base_test/utils
 
 proc setupOutputDirectory*(): string =
   let outputDir = getCurrentDir() / "output"
@@ -19,6 +19,17 @@ proc setupOutputDirectory*(): string =
   removeDir(outputDir)
   createDir(outputDir / "sync")
   return outputDir
+
+proc execShellCommand*(cmd: string): string =
+  try:
+    let output = execProcess(
+        "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
+      )
+      .strip()
+    debug "Shell command executed", cmd, output
+    return output
+  except OSError as e:
+    raise newException(OSError, "Shell command failed")
 
 proc setupDockerNetwork*(network: string) =
   let inspectOutput = execShellCommand(fmt"docker network inspect {network}")
