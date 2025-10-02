@@ -23,6 +23,7 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
+  routing_record,
   transports/[transport, tcptransport, wstransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
@@ -87,7 +88,7 @@ type
     autonatV2ServiceConfig: AutonatV2ServiceConfig
     autotls: AutotlsService
     circuitRelay: Relay
-    rdv: RendezVous
+    rdv: RendezVous[PeerRecord]
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
@@ -323,7 +324,7 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
   b
 
 proc withRendezVous*(
-    b: SwitchBuilder, rdv: RendezVous = RendezVous.new()
+    b: SwitchBuilder, rdv: RendezVous[PeerRecord] = RendezVous[PeerRecord].new()
 ): SwitchBuilder =
   b.rdv = rdv
   b

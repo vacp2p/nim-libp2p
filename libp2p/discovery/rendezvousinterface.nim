@@ -10,11 +10,12 @@
 {.push raises: [].}
 
 import chronos
-import ./discoverymngr, ../protocols/rendezvous, ../peerid
+import ./discoverymngr, ../protocols/rendezvous, ../peerid, ../routing_record
 
 type
   RendezVousInterface* = ref object of DiscoveryInterface
-    rdv*: RendezVous
+    rdv*: RendezVous[PeerRecord]
+      # using PeerRecord as default should be fine since this interface is used within libp2p
     timeToRequest: Duration
     timeToAdvertise: Duration
     ttl: Duration
@@ -38,7 +39,8 @@ method request*(
       # unhandled type
       return
   while true:
-    for pr in await self.rdv.request(namespace):
+    let peerRecords: seq[PeerRecord] = await self.rdv.request(namespace)
+    for pr in peerRecords:
       var peer: PeerAttributes
       peer.add(pr.peerId)
       for address in pr.addresses:
