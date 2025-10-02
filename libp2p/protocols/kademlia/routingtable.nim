@@ -29,7 +29,7 @@ type
 proc `$`*(rt: RoutingTable): string =
   "selfId(" & $rt.selfId & ") buckets(" & $rt.buckets & ")"
 
-proc init*(T: typedesc[RoutingTable], selfId: Key, hasher: Opt[XorDHasher]): T =
+proc new*(T: typedesc[RoutingTable], selfId: Key, hasher: Opt[XorDHasher]): T =
   return RoutingTable(selfId: selfId, buckets: @[], hasher: hasher)
 
 proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
@@ -90,7 +90,10 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
   return allNodes[0 ..< min(count, allNodes.len)]
 
 proc findClosestPeers*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
-  findClosest(rtable, targetId, count).mapIt(it.peerId)
+  return findClosest(rtable, targetId, count)
+    .mapIt(it.toPeerId())
+    .filterIt(it.isOk)
+    .mapIt(it.value())
 
 proc isStale*(bucket: Bucket): bool =
   if bucket.peers.len == 0:
@@ -103,7 +106,7 @@ proc isStale*(bucket: Bucket): bool =
 proc randomKeyInBucketRange*(
     selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext
 ): Key =
-  var raw = selfId.getBytes()
+  var raw = selfId
 
   # zero out higher bits
   for i in 0 ..< bucketIndex:
@@ -134,4 +137,4 @@ proc randomKeyInBucketRange*(
     else:
       raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
 
-  return raw.toKey()
+  return raw
