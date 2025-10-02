@@ -37,13 +37,15 @@ proc new*(
     upgrade: Upgrade = Upgrade(),
     rng: ref HmacDrbgContext = newRng(),
 ): T =
-  T(upgrader: upgrade, rng: rng)
+  let self = T(upgrader: upgrade, rng: rng)
+  procCall Transport(self).initialize()
+  self
 
 proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
   if $ma != MemoryAutoAddress:
     return ma
 
-  # when special address is used `/memory/*` use any free address. 
+  # when special address is used `/memory/*` use any free address.
   # here we assume that any random generated address will be free.
   var randomBuf: array[10, byte]
   hmacDrbgGenerate(self.rng[], randomBuf)
@@ -60,6 +62,7 @@ method start*(
 
   self.addrs = addrs.mapIt(self.listenAddress(it))
   self.running = true
+  self.onRunning.fire()
 
 method stop*(self: MemoryTransport) {.async: (raises: []).} =
   if not self.running:
@@ -67,6 +70,7 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
 
   trace "stopping memory transport", address = $self.addrs
   self.running = false
+  self.onStop.fire()
 
   # closing listener will throw interruption error to caller of accept()
   let listener = self.listener
