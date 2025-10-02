@@ -1,5 +1,11 @@
 import ./tests/base_test
 import ./tests/utils
 import chronos
+import os
 
-waitFor(baseTest("Base Test", TransportType.TCP))
+let transportType =
+  case getEnv("TRANSPORT_TYPE", "TCP")
+  of "QUIC": TransportType.QUIC
+  else: TransportType.TCP
+
+waitFor(baseTest("Base Test", transportType))
