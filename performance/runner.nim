@@ -25,7 +25,7 @@ proc execShellCommand*(cmd: string): string =
         "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
       )
       .strip()
-    debug "Shell command executed", cmd, output
+    info "Shell command executed", cmd, output
     return output
   except OSError as e:
     raise newException(OSError, "Shell command failed")
@@ -87,7 +87,7 @@ proc waitForContainers*(containerIds: seq[string]) =
 
 proc removeContainers*(containerIds: seq[string]) =
   for containerId in containerIds:
-    echo execShellCommand(fmt"docker rm -f {containerId}")
+    discard execShellCommand(fmt"docker rm -f {containerId}")
 
 proc run*(transportType: string, preExecCmd: string = "", postExecCmd: string = "") =
   let outputDir = setupOutputDirectory()
