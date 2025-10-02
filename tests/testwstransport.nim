@@ -12,6 +12,7 @@
 import chronos, stew/byteutils
 import
   ../libp2p/[
+    autotls/service,
     stream/connection,
     transports/transport,
     transports/wstransport,
@@ -78,7 +79,7 @@ suite "WebSocket transport":
         Upgrade(),
         TLSPrivateKey.init(SecureKey),
         TLSCertificate.init(SecureCert),
-        nil, # autotls
+        Opt.none(AutotlsService),
         {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
       )
     except CatchableError:
@@ -92,7 +93,7 @@ suite "WebSocket transport":
       Upgrade(),
       TLSPrivateKey.init(SecureKey),
       TLSCertificate.init(SecureCert),
-      nil, # autotls
+      Opt.none(AutotlsService),
       {TLSFlags.NoVerifyHost},
     )
 
@@ -171,7 +172,7 @@ when defined(libp2p_autotls_support):
         Upgrade(),
         nil, # TLSPrivateKey
         nil, # TLSCertificate
-        autotls,
+        Opt.some(AutotlsService(autotls)),
       )
       await wstransport.start(ma)
       defer:
@@ -197,7 +198,9 @@ when defined(libp2p_autotls_support):
       let secureKey = TLSPrivateKey.init(SecureKey)
       let secureCert = TLSCertificate.init(SecureCert)
 
-      let wstransport = WsTransport.new(Upgrade(), secureKey, secureCert, autotls)
+      let wstransport = WsTransport.new(
+        Upgrade(), secureKey, secureCert, Opt.some(AutotlsService(autotls))
+      )
       await wstransport.start(ma)
       defer:
         await wstransport.stop()
@@ -215,7 +218,7 @@ when defined(libp2p_autotls_support):
         Upgrade(),
         nil, # TLSPrivateKey
         nil, # TLSCertificate
-        nil, # autotls
+        Opt.none(AutotlsService),
       )
       await wstransport.start(ma)
       defer:
