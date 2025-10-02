@@ -13,7 +13,7 @@
 {.push public.}
 
 import pkg/[chronos, chronicles, results]
-import std/[macros, nativesockets, net, hashes]
+import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
   multicodec,
@@ -414,7 +414,7 @@ const
     MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0),
     MAProtocol(
       mcodec: multiCodec("memory"), kind: Path, size: 0, coder: TranscoderMemory
-    )
+    ),
   ]
 
   DNSANY* = mapEq("dns")
