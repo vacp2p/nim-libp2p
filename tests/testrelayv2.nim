@@ -183,9 +183,7 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             check false # should not be here
           finally:
             await conn.close()
@@ -235,9 +233,7 @@ suite "Circuit Relay V2":
             await sleepAsync(chronos.timer.seconds(ldur + 1))
             await conn.writeLp("that was a cool power nap")
             check false # must not be here - should timeout
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             discard # will get here after timeout
           finally:
             await conn.close()
@@ -301,9 +297,7 @@ suite "Circuit Relay V2":
     philosophical flourish Cato throws himself upon his sword; I quietly
     take to the ship."""
             )
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             discard # will get here after data exceeded
           finally:
             await conn.close()
@@ -353,9 +347,7 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             check false # should not be here
           finally:
             await conn.close()
@@ -461,9 +453,7 @@ suite "Circuit Relay V2":
             check:
               "testABC3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testABC4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             check false # should not be here
           finally:
             await conn.close()
@@ -478,9 +468,7 @@ suite "Circuit Relay V2":
             check:
               "testBCA3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testBCA4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             check false # should not be here
           finally:
             await conn.close()
@@ -495,9 +483,7 @@ suite "Circuit Relay V2":
             check:
               "testCAB3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testCAB4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             check false # should not be here
           finally:
             await conn.close()

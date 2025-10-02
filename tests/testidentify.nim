@@ -116,13 +116,13 @@ suite "Identify":
     asyncTest "handle failed identify":
       msListen.addHandler(IdentifyCodec, identifyProto1)
 
-      proc acceptHandler() {.async.} =
+      proc acceptHandler() {.async: (raises: [CancelledError]).} =
         var conn: Connection
         try:
           conn = await transport1.accept()
           await msListen.handle(conn)
-        except CatchableError:
-          discard
+        except transport.TransportError as exc:
+          echo "Transport error: ", exc.msg
         finally:
           await conn.close()
 

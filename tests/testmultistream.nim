@@ -293,9 +293,7 @@ suite "Multistream select":
       check proto == "/test/proto/1.0.0"
       try:
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -331,7 +329,7 @@ suite "Multistream select":
 
   asyncTest "e2e - streams limit":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-    let blocker = newFuture[void]()
+    let blocker = newAsyncEvent()
 
     # Start 5 streams which are blocked by `blocker`
     # Try to start a new one, which should fail
@@ -340,11 +338,9 @@ suite "Multistream select":
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       try:
-        await blocker
+        await blocker.wait()
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -386,8 +382,8 @@ suite "Multistream select":
     for _ in 0 ..< 5:
       dialers.add(connector())
 
-    # This one will fail during negotiation
-    expect(CatchableError):
+      # This one will fail during negotiation
+    expect(LPStreamEOFError):
       try:
         waitFor(connector().wait(1.seconds))
       except AsyncTimeoutError as exc:
@@ -398,7 +394,7 @@ suite "Multistream select":
       (await dialers[0].withTimeout(10.milliseconds)) == false
 
     # unblock the dialers
-    blocker.complete()
+    blocker.fire()
     await allFutures(dialers)
 
     # now must work
@@ -470,9 +466,7 @@ suite "Multistream select":
       check proto == "/test/proto/1.0.0"
       try:
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -513,9 +507,7 @@ suite "Multistream select":
     ): Future[void] {.async: (raises: [CancelledError]).} =
       try:
         await conn.writeLp(&"Hello from {proto}!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()

@@ -47,9 +47,7 @@ method init(p: TestProto) {.gcsafe.} =
       let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
       await conn.writeLp("Hello!")
-    except CancelledError as e:
-      raise e
-    except CatchableError:
+    except LPStreamError as exc:
       check false # should not be here
     finally:
       await conn.close()
@@ -148,7 +146,7 @@ suite "Noise":
       try:
         conn = await transport1.accept()
         discard await serverNoise.secure(conn, Opt.none(PeerId))
-      except CatchableError:
+      except LPStreamError:
         discard
       finally:
         await conn.close()

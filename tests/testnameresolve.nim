@@ -39,7 +39,7 @@ const unixPlatform =
 when unixPlatform:
   import std/strutils
 
-proc guessOsNameServers(): seq[TransportAddress] =
+proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
   when unixPlatform:
     var resultSeq = newSeqOfCap[TransportAddress](3)
     try:
@@ -56,8 +56,10 @@ proc guessOsNameServers(): seq[TransportAddress] =
           if resultSeq.len > 2:
             break
             #3 nameserver max on linux
-    except CatchableError as err:
-      echo "Failed to get unix nameservers ", err.msg
+    except IOError as exc:
+      echo "Failed to get unix nameservers ", exc.msg
+    except TransportAddressError as exc:
+      echo "Failed to init address ", exc.msg
     finally:
       if resultSeq.len > 0:
         return resultSeq

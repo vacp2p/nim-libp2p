@@ -217,14 +217,14 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
       try:
         await conn.readExactly(addr msg[0], 6)
         check false
-      except CatchableError as exc:
+      except LPStreamEOFError as exc:
         check true
 
       # we don't HAVE to throw on write on EOF
       # (at least TCP doesn't)
       try:
         await conn.write(msg)
-      except CatchableError as exc:
+      except LPStreamEOFError as exc:
         check true
 
       await conn.close()

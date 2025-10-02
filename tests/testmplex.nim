@@ -560,7 +560,7 @@ suite "Mplex":
           await mplexListen.close()
         except CancelledError as exc:
           raise exc
-        except CatchableError as exc:
+        except transport.TransportError:
           check false
 
       let acceptFut = acceptHandler()
