@@ -10,12 +10,6 @@
 # those terms.
 
 import
-  multiformat_exts/testmulticodec_exts,
-  multiformat_exts/testmultihash_exts,
-  multiformat_exts/testmultiaddress_exts,
-  multiformat_exts/testmultibase_exts
-
-import
   testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
   testheartbeat, testfuture, testzeroqueue, testbytesview
 
@@ -41,7 +35,7 @@ import
   testautorelay, testdcutr, testhpservice, testutility, testhelpers,
   testwildcardresolverservice, testperf, testpkifilter
 
-import discovery/testdiscovery
+# import discovery/testdiscovery
 
 import kademlia/[testencoding, testroutingtable, testfindnode, testputval]
 

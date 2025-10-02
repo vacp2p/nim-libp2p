@@ -13,6 +13,7 @@
 {.used.}
 
 import tables, hashes
+import macros
 import strutils
 import vbuffer
 import results
