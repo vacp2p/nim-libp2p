@@ -232,3 +232,13 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await transport1.stop()
+
+    asyncTest "transport start/stop events":
+      let transport = transpProvider()
+      let addrs = @[MultiAddress.init(ma1).tryGet()]
+
+      await transport.start(addrs)
+      check await transport.onRunning.wait().withTimeout(1.seconds)
+
+      await transport.stop()
+      check await transport.onStop.wait().withTimeout(1.seconds)

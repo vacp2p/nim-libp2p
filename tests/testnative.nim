@@ -33,7 +33,7 @@ import
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
   testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
   testautorelay, testdcutr, testhpservice, testutility, testhelpers,
-  testwildcardresolverservice, testperf
+  testwildcardresolverservice, testperf, testpkifilter
 
 import discovery/testdiscovery
 
