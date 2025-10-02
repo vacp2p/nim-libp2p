@@ -28,6 +28,20 @@ proc mb1DecodeLen(length: int): int =
   length - 4
 
 const BaseExts = [
-  MBCodec(name: "codec_mb1", code: chr(0x24), decr: mb1Decode, encr: mb1Encode, decl: mb1DecodeLen, encl: mb1EncodeLen),
-  MBCodec(name: "identity", code: chr(0x00), decr: mb1Decode, encr: mb1Encode, decl: mb1DecodeLen, encl: mb1EncodeLen),
+  MBCodec(
+    name: "codec_mb1",
+    code: chr(0x24),
+    decr: mb1Decode,
+    encr: mb1Encode,
+    decl: mb1DecodeLen,
+    encl: mb1EncodeLen,
+  ),
+  MBCodec(
+    name: "identity",
+    code: chr(0x00),
+    decr: mb1Decode,
+    encr: mb1Encode,
+    decl: mb1DecodeLen,
+    encl: mb1EncodeLen,
+  ),
 ]

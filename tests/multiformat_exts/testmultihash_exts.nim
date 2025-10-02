@@ -14,7 +14,6 @@ import ../../libp2p/multicodec
 import ../../libp2p/multihash
 
 suite "MutliHash extensions":
-
   test "extended hashes correctly hash data":
     var data = cast[seq[byte]]("hello")
     let mh1 = MultiHash.digest("codec_mc1", data).get
@@ -53,7 +52,8 @@ suite "MutliHash extensions":
     # extended a new "sha2-256" which uses `sha2_256_override` for hashing.
     var data = cast[seq[byte]]("hello")
     let mh = MultiHash.digest("sha2-256", data).get
-    let expected_orig = "12202CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824"
+    let expected_orig =
+      "12202CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824"
     let expected_override = "120668656C6C6F00"
 
     check:

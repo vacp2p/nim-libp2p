@@ -477,7 +477,9 @@ const
 
   Memory* = mapEq("memory")
 
-proc initMultiAddressCodeTable(protocols: openArray[MAProtocol]): Table[MultiCodec, MAProtocol] {.compileTime.} =
+proc initMultiAddressCodeTable(
+    protocols: openArray[MAProtocol]
+): Table[MultiCodec, MAProtocol] {.compileTime.} =
   for protocol in protocols:
     result[protocol.mcodec] = protocol
 

@@ -352,7 +352,9 @@ const HashesList = [
   MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash),
 ]
 
-proc initMultiHashCodeTable(hashes: openArray[MHash]): Table[MultiCodec, MHash] {.compileTime.} =
+proc initMultiHashCodeTable(
+    hashes: openArray[MHash]
+): Table[MultiCodec, MHash] {.compileTime.} =
   for hash in hashes:
     result[hash.mcodec] = hash
 

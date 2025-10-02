@@ -15,7 +15,6 @@ import ../../libp2p/multiaddress
 import ../../libp2p/transcoder
 
 suite "MutliAddress extensions":
-
   test "registered protocols can be correctly initialized":
     let maInit = MultiAddress.init("/codec_mc1/test").get()
 

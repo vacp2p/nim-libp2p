@@ -15,7 +15,6 @@ import ../../libp2p/multicodec
 import ../../libp2p/utils/sequninit
 
 suite "Multicodec extensions":
-
   test "can assign extended codecs by name":
     check:
       compiles:
@@ -91,16 +90,12 @@ suite "Multicodec extensions":
       MultiCodec.codec("codec_mc3") == multiCodec(0xFF03)
 
   test "referencing unextended codecs by name does not compile":
-      check:
-        not compiles(
-          multiCodec("codecX")
-        )
+    check:
+      not compiles(multiCodec("codecX"))
 
   test "referencing unextended codecs by code does not compile":
     check:
-      not compiles(
-        multiCodec(0x9999)
-      )
+      not compiles(multiCodec(0x9999))
 
   test "referencing unextended codecs by name at runtime returns InvalidMultiCodec":
     check:

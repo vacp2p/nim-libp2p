@@ -15,7 +15,6 @@ import stew/byteutils
 import results
 
 suite "MutliBase extensions":
-
   test "extended hashes correctly hash data":
     var enc = newString(6)
     var dec = newSeq[byte](1)

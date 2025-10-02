@@ -387,9 +387,9 @@ proc initMultiBaseNameTable(): Table[string, MBCodec] {.compileTime.} =
   for item in MultiBaseCodecs:
     result[item.name] = item
 
-proc initLists(codecs: seq[MBCodec]):
-  tuple[codes: Table[char, MBCodec], names: Table[string, MBCodec]] {.compileTime.} =
-
+proc initLists(
+    codecs: seq[MBCodec]
+): tuple[codes: Table[char, MBCodec], names: Table[string, MBCodec]] {.compileTime.} =
   result = (initTable[char, MBCodec](), initTable[string, MBCodec]())
 
   for codec in codecs:
