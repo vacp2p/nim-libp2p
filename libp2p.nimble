@@ -30,8 +30,8 @@ proc runTest(filename: string, moreoptions: string = "", libp2pOpts = "") =
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
-  exec excstr &
-    " -r " & libp2pOpts & " -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
+  exec excstr & " -r " & libp2pOpts &
+    " -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
     filename
   rmFile "tests/" & filename.toExe
 
@@ -50,10 +50,11 @@ proc tutorialToMd(filename: string) =
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
-  let libp2pOpts = "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
-                   "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
-                   "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
-                   "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim "
+  let libp2pOpts =
+    "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
+    "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
+    "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
+    "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim "
   runTest("multiformat_exts/testmultiformat_exts", "", libp2pOpts)
 
 task testpubsub, "Runs pubsub tests":
