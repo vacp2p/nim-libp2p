@@ -1,4 +1,5 @@
-when defined(perf_reliability):
-  import ./tests/scenarios_reliability as scenarios
-else:
-  import ./tests/scenarios_base as scenarios
+import ./tests/base_test
+import ./tests/utils
+import chronos
+
+waitFor(baseTest("Base Test", TransportType.TCP))
