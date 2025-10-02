@@ -434,7 +434,7 @@ const MultiCodecsList = [
   ("dash-tx", 0xF1),
   ("torrent-info", 0x7B),
   ("torrent-file", 0x7C),
-  ("ed25519-pub", 0xED)
+  ("ed25519-pub", 0xED),
 ]
 
 type
@@ -451,11 +451,11 @@ proc initLists(codecs: seq[tuple[name: string, code: int]]):
 
   for (name, code) in codecs:
     if name in result.nameCodecs:
-      error("Codec name '" & name & "' is already registered")
+      error("Codec name '" & name & "' is already used. Name must be unique.")
     result.nameCodecs[name] = code
 
     if code in result.codeCodecs:
-      error("Codec code 0x" & code.toHex(4) & " is already registered")
+      error("Codec code 0x" & code.toHex(4) & " is already used. Code must be unique.")
     result.codeCodecs[code] = name
 
 when libp2p_multicodec_exts != "":
@@ -482,15 +482,15 @@ proc `$`*(mc: MultiCodec): string =
   doAssert(name != "")
   name
 
-template `==`*(mc: MultiCodec, compareName: string): bool =
+proc `==`*(mc: MultiCodec, name: string): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with string ``name``.
   let mcname = CodeCodecs.getOrDefault(int(mc), "")
   if mcname == "":
     false
   else:
-    (mcname == compareName)
+    (mcname == name)
 
-proc `==`*(mc: MultiCodec, code: int): bool =
+proc `==`*(mc: MultiCodec, code: int): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with integer ``code``.
   (int(mc) == code)
 
@@ -503,13 +503,13 @@ proc hash*(m: MultiCodec): Hash {.inline.} =
   hash(int(m))
 
 
-proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec =
+proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec {.inline.} =
   ## Return MultiCodec from string representation ``name``.
   ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
   ## be returned.
   MultiCodec(NameCodecs.getOrDefault(name, -1))
 
-proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
+proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec {.inline.} =
   ## Return MultiCodec from integer representation ``code``.
   ## If ``code`` is not valid multicodec code, then ``InvalidMultiCodec`` will
   ## be returned.
