@@ -65,6 +65,8 @@ when defined(libp2p_autotls_support):
       domain: api.Domain,
       certKeyPair: KeyPair,
       challenge: ACMEChallengeResponseWrapper,
+      acmeRetries: int = 10,
+      finalizeRetries: int = 10,
   ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
     let chalURL = parseUri(challenge.dns01.url)
     let orderURL = parseUri(challenge.order)
@@ -76,7 +78,7 @@ when defined(libp2p_autotls_support):
 
     trace "Checking for completed challenge"
     let completed = await self.api.checkChallengeCompleted(
-      chalURL, self.key, await self.getOrInitKid()
+      chalURL, self.key, await self.getOrInitKid(), acmeRetries
     )
     if not completed:
       raise newException(
@@ -85,7 +87,13 @@ when defined(libp2p_autotls_support):
 
     trace "Waiting for certificate to be finalized"
     let finalized = await self.api.certificateFinalized(
-      domain, finalizeURL, orderURL, certKeyPair, self.key, await self.getOrInitKid()
+      domain,
+      finalizeURL,
+      orderURL,
+      certKeyPair,
+      self.key,
+      await self.getOrInitKid(),
+      finalizeRetries,
     )
     if not finalized:
       raise
