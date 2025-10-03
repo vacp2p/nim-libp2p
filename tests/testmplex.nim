@@ -731,7 +731,7 @@ suite "Mplex":
           listenStreams.add(stream)
           try:
             discard await stream.readLp(1024)
-          except CancelledError, LPStreamError, LPStreamEOFError:
+          except CancelledError, LPStreamError:
             return
           finally:
             await stream.close()

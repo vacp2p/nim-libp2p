@@ -226,11 +226,16 @@ suite "Circuit Relay V2":
         proto.handler = proc(
             conn: Connection, proto: string
         ) {.async: (raises: [CancelledError]).} =
-          expect LPStreamError:
+          try:
             check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("yeah!")
             check "go!" == string.fromBytes(await conn.readLp(1024))
-            await sleepAsync(chronos.timer.seconds(ldur + 1))
+          except LPStreamError:
+            raiseAssert "Unexpected LPStreamError when writing"
+
+          await sleepAsync(chronos.timer.seconds(ldur + 1))
+
+          expect LPStreamError:
             await conn.writeLp("that was a cool power nap")
           await conn.close()
         rv2 = Relay.new(

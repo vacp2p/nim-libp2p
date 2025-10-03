@@ -78,7 +78,7 @@ proc handlePeer(
         strData = await conn.readLp(1024)
         str = string.fromBytes(strData)
       c.writeStdout $conn.peerId & ": " & $str
-  except LPStreamEOFError, LPStreamError:
+  except LPStreamError:
     defer:
       c.writeStdout $conn.peerId & " disconnected"
     await c.conn.close()

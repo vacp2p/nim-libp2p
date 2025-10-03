@@ -84,9 +84,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
-      done.wait().withTimeout(5.seconds), switch1.stop(), switch2.stop()
-    )
+    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -132,9 +130,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
-      done.wait().withTimeout(5.seconds), switch1.stop(), switch2.stop()
-    )
+    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -175,9 +171,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
-      done.wait().withTimeout(5.seconds), switch1.stop(), switch2.stop()
-    )
+    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -875,9 +869,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
-      done.wait().withTimeout(5.seconds), switch1.stop(), switch2.stop()
-    )
+    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
