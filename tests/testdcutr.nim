@@ -66,7 +66,7 @@ suite "Dcutr":
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
-    expect CatchableError:
+    expect AsyncTimeoutError:
       # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
       # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
@@ -168,7 +168,7 @@ suite "Dcutr":
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
-    expect CatchableError:
+    expect AsyncTimeoutError:
       # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
       # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
