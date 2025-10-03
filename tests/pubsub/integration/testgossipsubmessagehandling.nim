@@ -458,8 +458,10 @@ suite "GossipSub Integration - Message Handling":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    var cRelayed: Future[void] = newFuture[void]()
-    var bFinished: Future[void] = newFuture[void]()
+    var cRelayed: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
+    var bFinished: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
     var
       aReceived = 0
       cReceived = 0
@@ -501,7 +503,7 @@ suite "GossipSub Integration - Message Handling":
         )
         result = ValidationResult.Accept
         bFinished.complete()
-      except CatchableError:
+      except CancelledError:
         raiseAssert "err on slowValidator"
 
     nodes[1].addValidator("foobar", slowValidator)

@@ -11,6 +11,7 @@
 
 import std/[sequtils, tables]
 import chronos
+import chronicles
 import
   ../libp2p/[
     stream/connection,
@@ -39,7 +40,7 @@ const unixPlatform =
 when unixPlatform:
   import std/strutils
 
-proc guessOsNameServers(): seq[TransportAddress] =
+proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
   when unixPlatform:
     var resultSeq = newSeqOfCap[TransportAddress](3)
     try:
@@ -56,8 +57,10 @@ proc guessOsNameServers(): seq[TransportAddress] =
           if resultSeq.len > 2:
             break
             #3 nameserver max on linux
-    except CatchableError as err:
-      echo "Failed to get unix nameservers ", err.msg
+    except IOError as exc:
+      debug "Failed to get unix nameservers", description = exc.msg
+    except TransportAddressError as exc:
+      debug "Failed to init address", description = exc.msg
     finally:
       if resultSeq.len > 0:
         return resultSeq
@@ -72,18 +75,14 @@ suite "Name resolving":
   suite "Generic Resolving":
     var resolver {.threadvar.}: MockResolver
 
-    proc testOne(input: string, output: seq[MultiAddress]): bool =
+    proc testOne(input: string, output: seq[MultiAddress]) =
       let resolved = waitFor resolver.resolveMAddress(MultiAddress.init(input).tryGet())
-      if resolved != output:
-        echo "Expected ", output
-        echo "Got ", resolved
-        return false
-      return true
+      check resolved == output
 
-    proc testOne(input: string, output: seq[string]): bool =
+    proc testOne(input: string, output: seq[string]) =
       testOne(input, output.mapIt(MultiAddress.init(it).tryGet()))
 
-    proc testOne(input, output: string): bool =
+    proc testOne(input, output: string) =
       testOne(input, @[MultiAddress.init(output).tryGet()])
 
     asyncSetup:
@@ -93,10 +92,10 @@ suite "Name resolving":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
       resolver.ipResponses[("localhost", true)] = @["::1"]
 
-      check testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
-      check testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
-      check testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
-      check testOne(
+      testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
+      testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
+      testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
+      testOne(
         "/dns6/localhost/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "/ip6/::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
       )
@@ -105,7 +104,7 @@ suite "Name resolving":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
       resolver.ipResponses[("localhost", true)] = @["::1"]
 
-      check testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
+      testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
 
     asyncTest "dnsaddr recursive test":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
@@ -126,7 +125,7 @@ suite "Name resolving":
           "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
         ]
 
-      check testOne(
+      testOne(
         "/dnsaddr/bootstrap.libp2p.io/",
         @[
           "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -157,7 +156,7 @@ suite "Name resolving":
           "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
         ]
 
-      check testOne(
+      testOne(
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         @[
           "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -169,7 +168,7 @@ suite "Name resolving":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
         @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
 
-      check testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
+      testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
 
     test "getHostname":
       check:

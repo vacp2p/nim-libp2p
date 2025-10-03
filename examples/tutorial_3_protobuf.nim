@@ -103,7 +103,8 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
 ## ## Creating the protocol
 ## We'll next create a protocol, like in the last tutorial, to request these metrics from our host
 type
-  MetricCallback = proc(): Future[MetricList] {.raises: [], gcsafe.}
+  MetricCallback =
+    proc(): Future[MetricList] {.async: (raises: [CancelledError]), gcsafe.}
   MetricProto = ref object of LPProtocol
     metricGetter: MetricCallback
 
@@ -115,10 +116,8 @@ proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
         metrics = await res.metricGetter()
         asProtobuf = metrics.encode()
       await conn.writeLp(asProtobuf.buffer)
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except LPStreamError as exc:
+      echo "exception in handler", exc.msg
     finally:
       await conn.close()
 
@@ -135,7 +134,7 @@ proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
 ## We can now create our main procedure:
 proc main() {.async.} =
   let rng = newRng()
-  proc randomMetricGenerator(): Future[MetricList] {.async.} =
+  proc randomMetricGenerator(): Future[MetricList] {.async: (raises: [CancelledError]).} =
     let metricCount = rng[].generate(uint32) mod 16
     for i in 0 ..< metricCount + 1:
       result.metrics.add(

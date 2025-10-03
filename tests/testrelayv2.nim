@@ -96,7 +96,7 @@ suite "Circuit Relay V2":
         msg.status == Opt.some(StatusV2.ReservationRefused)
 
     asyncTest "Too many reservations + Reconnect":
-      expect(ReservationError):
+      expect ReservationError:
         discard await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
       await rel.disconnect(src1.peerInfo.peerId)
       rsvp = await cl2.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
@@ -137,7 +137,7 @@ suite "Circuit Relay V2":
         rsvp.expire.int64.fromUnix.utc in range
         rsvp.limitDuration == ldur
         rsvp.limitData == ldata
-      expect(ReservationError):
+      expect ReservationError:
         discard await cl1.reserve(src2.peerInfo.peerId, addrs)
 
   for (useYamux, muxName) in [(false, "Mplex"), (true, "Yamux")]:
@@ -183,10 +183,8 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
-            check false # should not be here
+          except LPStreamError:
+            raiseAssert "LPStreamError while handling connection"
           finally:
             await conn.close()
         rv2 = Relay.new(
@@ -232,15 +230,14 @@ suite "Circuit Relay V2":
             check "wanna sleep?" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("yeah!")
             check "go!" == string.fromBytes(await conn.readLp(1024))
-            await sleepAsync(chronos.timer.seconds(ldur + 1))
+          except LPStreamError:
+            raiseAssert "Unexpected LPStreamError when writing"
+
+          await sleepAsync(chronos.timer.seconds(ldur + 1))
+
+          expect LPStreamError:
             await conn.writeLp("that was a cool power nap")
-            check false # must not be here - should timeout
-          except CancelledError as e:
-            raise e
-          except CatchableError:
-            discard # will get here after timeout
-          finally:
-            await conn.close()
+          await conn.close()
         rv2 = Relay.new(
           reservationTTL = initDuration(seconds = ttl),
           limitDuration = ldur,
@@ -269,7 +266,7 @@ suite "Circuit Relay V2":
         check:
           "yeah!" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("go!")
-        expect(LPStreamEOFError):
+        expect LPStreamEOFError:
           discard await conn.readLp(1024)
         await allFutures(conn.close())
         await allFutures(src.stop(), dst.stop(), rel.stop())
@@ -301,9 +298,7 @@ suite "Circuit Relay V2":
     philosophical flourish Cato throws himself upon his sword; I quietly
     take to the ship."""
             )
-          except CancelledError as e:
-            raise e
-          except CatchableError:
+          except LPStreamError:
             discard # will get here after data exceeded
           finally:
             await conn.close()
@@ -336,7 +331,7 @@ suite "Circuit Relay V2":
           "do you expect a lorem ipsum or...?" ==
             string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("surprise me!")
-        expect(LPStreamEOFError):
+        expect LPStreamEOFError:
           discard await conn.readLp(1024)
         await allFutures(conn.close())
         await allFutures(src.stop(), dst.stop(), rel.stop())
@@ -353,10 +348,8 @@ suite "Circuit Relay V2":
             check:
               "test3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("test4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
-            check false # should not be here
+          except LPStreamError:
+            raiseAssert "LPStreamError while handling connection"
           finally:
             await conn.close()
         rv2 = Relay.new(
@@ -392,7 +385,7 @@ suite "Circuit Relay V2":
         await src.disconnect(rel.peerInfo.peerId)
         await sleepAsync(chronos.timer.seconds(ttl + 1))
 
-        expect(DialFailedError):
+        expect DialFailedError:
           await conn.close()
           await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
           conn = await src.dial(dst.peerInfo.peerId, @[addrs], customProtoCodec)
@@ -407,7 +400,7 @@ suite "Circuit Relay V2":
         proto.handler = proc(
             conn: Connection, proto: string
         ) {.async: (raises: [CancelledError]).} =
-          check false # should not be here
+          raiseAssert "Should not receive connection"
 
         let
           rel2Cl = RelayClient.new(canHop = true)
@@ -439,7 +432,7 @@ suite "Circuit Relay V2":
         rsvp = await rel2Cl.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
         let rsvp2 = await dstCl.reserve(rel2.peerInfo.peerId, rel2.peerInfo.addrs)
 
-        expect(DialFailedError):
+        expect DialFailedError:
           conn = await src.dial(dst.peerInfo.peerId, addrs, customProtoCodec)
         if not conn.isNil():
           await allFutures(conn.close())
@@ -461,10 +454,8 @@ suite "Circuit Relay V2":
             check:
               "testABC3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testABC4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
-            check false # should not be here
+          except LPStreamError:
+            raiseAssert "LPStreamError while handling connection"
           finally:
             await conn.close()
         protoBCA.codec = "/bcatest"
@@ -478,10 +469,8 @@ suite "Circuit Relay V2":
             check:
               "testBCA3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testBCA4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
-            check false # should not be here
+          except LPStreamError:
+            raiseAssert "LPStreamError while handling connection"
           finally:
             await conn.close()
         protoCAB.codec = "/cabtest"
@@ -495,10 +484,8 @@ suite "Circuit Relay V2":
             check:
               "testCAB3" == string.fromBytes(await conn.readLp(1024))
             await conn.writeLp("testCAB4")
-          except CancelledError as e:
-            raise e
-          except CatchableError:
-            check false # should not be here
+          except LPStreamError:
+            raiseAssert "LPStreamError while handling connection"
           finally:
             await conn.close()
 

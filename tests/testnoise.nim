@@ -47,10 +47,8 @@ method init(p: TestProto) {.gcsafe.} =
       let msg = string.fromBytes(await conn.readLp(1024))
       check "Hello!" == msg
       await conn.writeLp("Hello!")
-    except CancelledError as e:
-      raise e
-    except CatchableError:
-      check false # should not be here
+    except LPStreamError:
+      raiseAssert "LPStreamError while handling connection"
     finally:
       await conn.close()
 
@@ -148,7 +146,7 @@ suite "Noise":
       try:
         conn = await transport1.accept()
         discard await serverNoise.secure(conn, Opt.none(PeerId))
-      except CatchableError:
+      except LPStreamError:
         discard
       finally:
         await conn.close()
@@ -164,7 +162,7 @@ suite "Noise":
       conn = await transport2.dial(transport1.addrs[0])
 
     var sconn: Connection = nil
-    expect(NoiseDecryptTagError):
+    expect NoiseDecryptTagError:
       sconn = await clientNoise.secure(conn, Opt.some(conn.peerId))
 
     await conn.close()
@@ -295,7 +293,7 @@ suite "Noise":
     (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
     await switch1.start()
     await switch2.start()
-    expect(DialFailedError):
+    expect DialFailedError:
       let conn =
         await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 

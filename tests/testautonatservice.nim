@@ -426,7 +426,7 @@ suite "Autonat Service":
       await switch2.connect(
         switch1.peerInfo.peerId, switch1.peerInfo.addrs, reuseConnection = false
       )
-    except CatchableError:
+    except DialFailedError:
       discard
 
     await awaiter1
