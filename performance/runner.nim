@@ -13,11 +13,13 @@ import strutils
 import os
 import osproc
 
-proc setupOutputDirectory*(): string =
-  let outputDir = getCurrentDir() / "output"
+proc getOutputDir*(): string =
+  return getCurrentDir() / "output"
+
+proc setupOutputDirectory*() =
+  let outputDir = getOutputDir()
   removeDir(outputDir)
   createDir(outputDir / "sync")
-  return outputDir
 
 proc execShellCommand*(cmd: string): string =
   try:
@@ -90,7 +92,7 @@ proc removeContainers*(containerIds: seq[string]) =
     discard execShellCommand(fmt"docker rm -f {containerId}")
 
 proc run*(transportType: string, preExecCmd: string = "", postExecCmd: string = "") =
-  let outputDir = setupOutputDirectory()
+  let outputDir = getOutputDir()
 
   const network = "performance-test-network"
   setupDockerNetwork(network)

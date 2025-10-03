@@ -12,6 +12,8 @@
 import ../tests/utils/async_tests
 import ./runner
 
+setupOutputDirectory()
+
 suite "Performance Tests":
   asyncTest "Base Test TCP":
     run("TCP")

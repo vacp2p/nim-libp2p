@@ -57,6 +57,8 @@ const
     ),
   ]
 
+setupOutputDirectory()
+
 suite "Network Reliability Tests":
   for transport in transportTypes:
     for scenario in scenarios:
