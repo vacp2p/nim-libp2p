@@ -243,3 +243,11 @@ suite "Quic transport":
     await runClient(server)
     await serverHandlerFut
     await server.stop()
+
+  asyncTest "quic transport start/stop events":
+    let transport = await createTransport(isServer = true)
+    # createTransport will call start
+    check await transport.onRunning.wait().withTimeout(1.seconds)
+
+    await transport.stop()
+    check await transport.onStop.wait().withTimeout(1.seconds)

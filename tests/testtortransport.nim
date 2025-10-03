@@ -16,8 +16,8 @@ import chronos, stew/[byteutils]
 import
   ../libp2p/[
     stream/connection,
-    transports/tcptransport,
     transports/tortransport,
+    transports/tcptransport,
     upgrademngrs/upgrade,
     multiaddress,
     builders,

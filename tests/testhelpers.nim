@@ -65,10 +65,17 @@ suite "checkUntilTimeout helpers":
       a == b
 
 suite "checkUntilTimeout helpers - failed":
+  var programResultBefore {.threadvar.}: int
+
+  setup:
+    programResultBefore = exitProcs.getProgramResult()
+
   teardown:
     require testStatusIMPL == TestStatus.Failed
     testStatusIMPL = TestStatus.OK
-    exitProcs.setProgramResult(QuitSuccess)
+    if programResultBefore == QuitSuccess:
+      # if before out test program result was not success, leave it as failed
+      exitProcs.setProgramResult(QuitSuccess)
 
   asyncTest "checkUntilTimeout should timeout if condition is never true":
     checkUntilTimeout:

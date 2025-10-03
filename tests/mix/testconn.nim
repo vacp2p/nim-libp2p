@@ -20,7 +20,8 @@ proc createSwitch(
         let keyPair = SkKeyPair.random(rng[])
         keyPair.seckey,
   )
-  return newStandardSwitchBuilder(privKey = some(privKey), addrs = multiAddr).build()
+  return
+    newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
 
 proc setupSwitches(numNodes: int): seq[Switch] =
   # Initialize mix nodes
