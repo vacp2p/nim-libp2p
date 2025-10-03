@@ -329,7 +329,8 @@ suite "Multistream select":
 
   asyncTest "e2e - streams limit":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-    let blocker = newAsyncEvent()
+    let blocker: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
 
     # Start 5 streams which are blocked by `blocker`
     # Try to start a new one, which should fail
@@ -338,7 +339,7 @@ suite "Multistream select":
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       try:
-        await blocker.wait()
+        await blocker
         await conn.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
@@ -393,7 +394,7 @@ suite "Multistream select":
       (await dialers[0].withTimeout(10.milliseconds)) == false
 
     # unblock the dialers
-    blocker.fire()
+    blocker.complete()
     await allFutures(dialers)
 
     # now must work
