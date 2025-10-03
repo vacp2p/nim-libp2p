@@ -117,11 +117,8 @@ suite "WebSocket transport":
 
     await conn.close()
 
-    try:
-      let conn2 = await transport1.dial("ws.wronghostname", transport1.addrs[0])
-      check false
-    except TransportDialError as exc:
-      check true
+    expect TransportDialError:
+      discard await transport1.dial("ws.wronghostname", transport1.addrs[0])
 
   asyncTest "handles tls/ws":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]

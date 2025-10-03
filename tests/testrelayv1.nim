@@ -89,7 +89,7 @@ suite "Circuit Relay":
       check "line3" == string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("line4")
     except LPStreamError:
-      check false # should not be here
+      raiseAssert "LPStreamError while handling connection"
     finally:
       await conn.close()
 
@@ -321,24 +321,24 @@ suite "Circuit Relay":
   asyncTest "Bad MultiAddress":
     await src.connect(srelay.peerInfo.peerId, srelay.peerInfo.addrs)
     await srelay.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    expect(DialFailedError):
+    expect DialFailedError:
       let maStr =
         $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId & "/p2p/" &
         $dst.peerInfo.peerId
       let maddr = MultiAddress.init(maStr).tryGet()
       conn = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
 
-    expect(DialFailedError):
+    expect DialFailedError:
       let maStr = $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId
       let maddr = MultiAddress.init(maStr).tryGet()
       conn = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
 
-    expect(DialFailedError):
+    expect DialFailedError:
       let maStr = "/ip4/127.0.0.1"
       let maddr = MultiAddress.init(maStr).tryGet()
       conn = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
 
-    expect(LPError):
+    expect LPError:
       let maStr = $dst.peerInfo.peerId
       let maddr = MultiAddress.init(maStr).tryGet()
       conn = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])

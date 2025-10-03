@@ -17,8 +17,6 @@ proc new(T: typedesc[TestProto]): T =
     try:
       echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("Roger p2p!")
-    except CancelledError as exc:
-      raise exc
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
     finally:

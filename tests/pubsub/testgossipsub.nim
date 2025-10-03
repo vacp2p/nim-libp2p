@@ -340,7 +340,7 @@ suite "GossipSub":
     let peerId = randomPeerId()
     let peer = gossipSub.getPubSubPeer(peerId)
 
-    expect(PeerMessageDecodeError):
+    expect PeerMessageDecodeError:
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
   asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
@@ -372,7 +372,7 @@ suite "GossipSub":
 
     # When the GossipSub processes the message
     # Then it throws an exception due to peer disconnection
-    expect(PeerRateLimitError):
+    expect PeerRateLimitError:
       await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg(messages: @[msg]), false))
 
     # And the rate limit hit counter is incremented
@@ -401,7 +401,7 @@ suite "GossipSub":
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
 
     # When invalid RPC data is sent that fails to decode
-    expect(PeerRateLimitError):
+    expect PeerRateLimitError:
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
     # And the rate limit hit counter is incremented
@@ -434,7 +434,7 @@ suite "GossipSub":
       peer.behaviourPenalty == 0.0
 
     # When invalid RPC data is sent that fails to decode
-    expect(PeerMessageDecodeError):
+    expect PeerMessageDecodeError:
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
     # And the rate limit hit counter is incremented
@@ -455,7 +455,7 @@ suite "GossipSub":
       peer.behaviourPenalty == 0.0
 
     # When invalid RPC data is sent that fails to decode
-    expect(PeerMessageDecodeError):
+    expect PeerMessageDecodeError:
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
     # Then the peer is penalized with behavior penalty

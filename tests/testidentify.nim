@@ -11,6 +11,7 @@
 
 import options
 import chronos
+import chronicles
 import
   ../libp2p/[
     protocols/identify,
@@ -122,7 +123,7 @@ suite "Identify":
           conn = await transport1.accept()
           await msListen.handle(conn)
         except transport.TransportError as exc:
-          echo "Transport error: ", exc.msg
+          debug "Transport error", description = exc.msg
         finally:
           await conn.close()
 

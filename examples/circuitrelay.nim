@@ -39,8 +39,6 @@ proc main() {.async.} =
       echo "2 - Dst Received: ", msg
       assert "test3" == msg
       await conn.writeLp("test4")
-    except CancelledError as exc:
-      raise exc
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
 

@@ -294,7 +294,7 @@ suite "Multistream select":
       try:
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "LPStreamError while handling connection"
       finally:
         await conn.close()
 
@@ -341,7 +341,7 @@ suite "Multistream select":
         await blocker.wait()
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "LPStreamError while handling connection"
       finally:
         await conn.close()
 
@@ -383,12 +383,11 @@ suite "Multistream select":
       dialers.add(connector())
 
       # This one will fail during negotiation
-    expect(LPStreamEOFError):
+    expect LPStreamEOFError:
       try:
         waitFor(connector().wait(1.seconds))
-      except AsyncTimeoutError as exc:
-        check false
-        raise exc
+      except AsyncTimeoutError:
+        raiseAssert "Timeout while waiting for connector"
     # check that the dialers aren't finished
     check:
       (await dialers[0].withTimeout(10.milliseconds)) == false
@@ -467,7 +466,7 @@ suite "Multistream select":
       try:
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "LPStreamError while handling connection"
       finally:
         await conn.close()
 
@@ -508,7 +507,7 @@ suite "Multistream select":
       try:
         await conn.writeLp(&"Hello from {proto}!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "LPStreamError while handling connection"
       finally:
         await conn.close()
 

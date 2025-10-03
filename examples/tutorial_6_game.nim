@@ -169,8 +169,6 @@ proc new(T: typedesc[GameProto], g: Game): T =
       # The handler of a protocol must wait for the stream to
       # be finished before returning
       await conn.join()
-    except CancelledError as exc:
-      raise exc
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
 
@@ -207,7 +205,6 @@ proc networking(g: Game) {.async.} =
         return
       g.hasCandidate = true
 
-      # try:
       let
         (peerId, multiAddress) = parseFullAddress(data).tryGet()
         stream = await switch.dial(peerId, @[multiAddress], gameProto.codec)

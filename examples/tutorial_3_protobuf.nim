@@ -116,8 +116,6 @@ proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
         metrics = await res.metricGetter()
         asProtobuf = metrics.encode()
       await conn.writeLp(asProtobuf.buffer)
-    except CancelledError as exc:
-      raise exc
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
     finally:

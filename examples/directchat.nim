@@ -50,8 +50,6 @@ proc new(T: typedesc[ChatProto], c: Chat): T =
         c.writeStdout "a chat session is already in progress - refusing incoming peer!"
       else:
         await c.handlePeer(stream)
-    except CancelledError as exc:
-      raise exc
     except IOError as exc:
       echo "exception in handler", exc.msg
     finally:
