@@ -1,3 +1,4 @@
+from ../../tests/helpers import checkTrackers
 import ./test_node
 import ./utils
 import chronos
@@ -9,3 +10,5 @@ let transportType =
   else: TransportType.TCP
 
 waitFor(baseTest("Base Test", transportType))
+
+checkTrackers()
