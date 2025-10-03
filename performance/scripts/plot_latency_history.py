@@ -1,6 +1,7 @@
 import os
 import glob
 import csv
+import numpy as np
 import matplotlib
 
 matplotlib.use("Agg")
@@ -56,9 +57,10 @@ def plot_latency_history(pr_numbers, scenario_data, output_path):
 
     for i, (scenario, pr_stats) in enumerate(scenario_data.items()):
         ax = axes[i]
-        min_vals = [pr_stats.get(pr, {"min": None})["min"] for pr in pr_numbers]
-        avg_vals = [pr_stats.get(pr, {"avg": None})["avg"] for pr in pr_numbers]
-        max_vals = [pr_stats.get(pr, {"max": None})["max"] for pr in pr_numbers]
+
+        min_vals = [float(pr_stats[pr]["min"]) if pr in pr_stats else np.nan for pr in pr_numbers]
+        avg_vals = [float(pr_stats[pr]["avg"]) if pr in pr_stats else np.nan for pr in pr_numbers]
+        max_vals = [float(pr_stats[pr]["max"]) if pr in pr_stats else np.nan for pr in pr_numbers]
 
         color = color_map(i % color_map.N)
 

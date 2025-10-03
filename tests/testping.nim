@@ -105,10 +105,8 @@ suite "Ping":
           fakebuf: array[32, byte]
         await conn.readExactly(addr buf[0], 32)
         await conn.write(@fakebuf)
-      except CancelledError as e:
-        raise e
-      except CatchableError as e:
-        check false # should not be here
+      except LPStreamError:
+        raiseAssert "LPStreamError while handling connection"
 
     fakePingProto.codec = PingCodec
     fakePingProto.handler = fakeHandle
@@ -123,11 +121,6 @@ suite "Ping":
     conn = await transport2.dial(transport1.addrs[0])
 
     discard await msDial.select(conn, PingCodec)
-    let p = pingProto2.ping(conn)
-    var raised = false
-    try:
-      discard await p
-      check false #should have raised
-    except WrongPingAckError:
-      raised = true
-    check raised
+
+    expect WrongPingAckError:
+      discard await pingProto2.ping(conn)

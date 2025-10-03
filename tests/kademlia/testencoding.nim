@@ -13,22 +13,21 @@ import unittest2
 import ../../libp2p/protobuf/minprotobuf
 import ../../libp2p/protocols/kademlia/protobuf
 import ../../libp2p/multiaddress
-import options
 import results
 
 suite "kademlia protobuffers":
   const invalidType = uint32(999)
 
-  proc valFromResultOption[T](res: ProtoResult[Option[T]]): T =
+  proc valFromResultOption[T](res: ProtoResult[Opt[T]]): T =
     assert res.isOk()
     assert res.value().isSome()
     return res.value().unsafeGet()
 
   test "record encode/decode":
     let rec = Record(
-      key: some(@[1'u8, 2, 3]),
-      value: some(@[4'u8, 5, 6]),
-      timeReceived: some("2025-05-12T12:00:00Z"),
+      key: Opt.some(@[1'u8, 2, 3]),
+      value: Opt.some(@[4'u8, 5, 6]),
+      timeReceived: Opt.some("2025-05-12T12:00:00Z"),
     )
     let encoded = rec.encode()
     let decoded = Record.decode(encoded).valFromResultOption
@@ -49,11 +48,13 @@ suite "kademlia protobuffers":
   test "message encode/decode roundtrip":
     let maddr = MultiAddress.init("/ip4/10.0.0.1/tcp/4001").tryGet()
     let peer = Peer(id: @[9'u8], addrs: @[maddr], connection: canConnect)
-    let r = Record(key: some(@[1'u8]), value: some(@[2'u8]), timeReceived: some("t"))
+    let r = Record(
+      key: Opt.some(@[1'u8]), value: Opt.some(@[2'u8]), timeReceived: Opt.some("t")
+    )
     let msg = Message(
       msgType: MessageType.findNode,
-      key: some(@[7'u8]),
-      record: some(r),
+      key: Opt.some(@[7'u8]),
+      record: Opt.some(r),
       closerPeers: @[peer],
       providerPeers: @[peer],
     )
@@ -124,8 +125,8 @@ suite "kademlia protobuffers":
   test "message with empty closer/provider peers":
     let msg = Message(
       msgType: MessageType.ping,
-      key: none[seq[byte]](),
-      record: none[Record](),
+      key: Opt.none(seq[byte]),
+      record: Opt.none(Record),
       closerPeers: @[],
       providerPeers: @[],
     )

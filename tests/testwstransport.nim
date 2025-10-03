@@ -12,6 +12,7 @@
 import chronos, stew/byteutils
 import
   ../libp2p/[
+    autotls/service,
     stream/connection,
     transports/transport,
     transports/wstransport,
@@ -72,17 +73,17 @@ suite "WebSocket transport":
 
   commonTransportTest(wsTranspProvider, "/ip4/0.0.0.0/tcp/0/ws")
 
-  proc wsSecureTranspProvider(): Transport {.gcsafe.} =
+  proc wsSecureTranspProvider(): Transport {.gcsafe, raises: [].} =
     try:
       return WsTransport.new(
         Upgrade(),
         TLSPrivateKey.init(SecureKey),
         TLSCertificate.init(SecureCert),
-        nil, # autotls
+        Opt.none(AutotlsService),
         {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
       )
-    except CatchableError:
-      check(false)
+    except TLSStreamProtocolError:
+      check false
 
   commonTransportTest(wsSecureTranspProvider, "/ip4/0.0.0.0/tcp/0/wss")
 
@@ -92,7 +93,7 @@ suite "WebSocket transport":
       Upgrade(),
       TLSPrivateKey.init(SecureKey),
       TLSCertificate.init(SecureCert),
-      nil, # autotls
+      Opt.none(AutotlsService),
       {TLSFlags.NoVerifyHost},
     )
 
@@ -116,11 +117,8 @@ suite "WebSocket transport":
 
     await conn.close()
 
-    try:
-      let conn = await transport1.dial("ws.wronghostname", transport1.addrs[0])
-      check false
-    except CatchableError as exc:
-      check true
+    expect TransportDialError:
+      discard await transport1.dial("ws.wronghostname", transport1.addrs[0])
 
   asyncTest "handles tls/ws":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
@@ -171,7 +169,7 @@ when defined(libp2p_autotls_support):
         Upgrade(),
         nil, # TLSPrivateKey
         nil, # TLSCertificate
-        autotls,
+        Opt.some(AutotlsService(autotls)),
       )
       await wstransport.start(ma)
       defer:
@@ -197,7 +195,9 @@ when defined(libp2p_autotls_support):
       let secureKey = TLSPrivateKey.init(SecureKey)
       let secureCert = TLSCertificate.init(SecureCert)
 
-      let wstransport = WsTransport.new(Upgrade(), secureKey, secureCert, autotls)
+      let wstransport = WsTransport.new(
+        Upgrade(), secureKey, secureCert, Opt.some(AutotlsService(autotls))
+      )
       await wstransport.start(ma)
       defer:
         await wstransport.stop()
@@ -215,7 +215,7 @@ when defined(libp2p_autotls_support):
         Upgrade(),
         nil, # TLSPrivateKey
         nil, # TLSCertificate
-        nil, # autotls
+        Opt.none(AutotlsService),
       )
       await wstransport.start(ma)
       defer:

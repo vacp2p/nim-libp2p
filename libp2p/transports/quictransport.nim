@@ -227,11 +227,13 @@ proc defaultCertGenerator(
   return generateX509(kp, encodingFormat = EncodingFormat.PEM)
 
 proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
-  return QuicTransport(
+  let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms),
     privateKey: privateKey,
     certGenerator: defaultCertGenerator,
   )
+  procCall Transport(self).initialize()
+  self
 
 proc new*(
     _: type QuicTransport,
@@ -239,11 +241,13 @@ proc new*(
     privateKey: PrivateKey,
     certGenerator: CertGenerator,
 ): QuicTransport =
-  return QuicTransport(
+  let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms),
     privateKey: privateKey,
     certGenerator: certGenerator,
   )
+  procCall Transport(self).initialize()
+  self
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
@@ -294,7 +298,6 @@ method start*(
     raise (ref QuicTransportError)(
       msg: "transport error in quic start: " & exc.msg, parent: exc
     )
-  self.running = true
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let conns = transport.connections[0 .. ^1]

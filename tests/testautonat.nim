@@ -50,9 +50,7 @@ proc makeAutonatServicePrivate(): Switch =
           status: DialError, text: Opt.some("dial failed"), ma: Opt.none(MultiAddress)
         ).encode().buffer
       )
-    except CancelledError as e:
-      raise e
-    except CatchableError:
+    except LPStreamError:
       check false # should not be here
     finally:
       await conn.close()

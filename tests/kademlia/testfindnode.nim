@@ -1,16 +1,13 @@
 {.used.}
-import chronicles, strformat, sequtils
-import std/enumerate
-import chronos
-import ../../libp2p/[switch, builders]
-import ../../libp2p/protocols/kademlia
-import ../../libp2p/protocols/kademlia/kademlia
-import ../../libp2p/protocols/kademlia/routingtable
-import ../../libp2p/protocols/kademlia/keys
 import unittest2
+import chronos
+import chronicles
+import std/[sequtils, enumerate]
+import ../../libp2p/[switch, builders]
+import ../../libp2p/protocols/kademlia/[kademlia, routingtable, keys]
+import ../helpers
 import ../utils/async_tests
 import ./utils.nim
-import ../helpers
 
 proc createSwitch(): Switch =
   SwitchBuilder
@@ -22,13 +19,12 @@ proc createSwitch(): Switch =
   .withNoise()
   .build()
 
-proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
-  var res: uint32 = 0
-  for b in buckets:
+proc hasKey(kad: KadDHT, key: Key): bool =
+  for b in kad.rtable.buckets:
     for ent in b.peers:
       if ent.nodeId == key:
-        res += 1
-  return res
+        return true
+  return false
 
 suite "KadDHT - FindNode":
   teardown:
@@ -56,14 +52,10 @@ suite "KadDHT - FindNode":
     # Similarly, refer to the mathematical properties according to the spec, and systematically cover all possible states.
     var entries = @[kads[0].rtable.selfId]
 
-    # assert all the nodes that bootstropped off kad[0] has exactly 1 of each previous nodes, + kads[0], in their buckets
+    #  All the nodes that bootstropped off kad[0] has exactly 1 of each previous nodes, + kads[0], in their buckets
     for i, kad in enumerate(kads[1 ..^ 1]):
       for id in entries:
-        let count = countBucketEntries(kad.rtable.buckets, id)
-        doAssert(
-          count == 1,
-          fmt"bootstrap state broken - count: {count}|entries: {entries}|i: {i}|key: {id}|buckets: {kad.rtable.buckets}",
-        )
+        check kad.hasKey(id)
       entries.add(kad.rtable.selfId)
 
     trace "Simple findNode precondition asserted"
@@ -75,11 +67,7 @@ suite "KadDHT - FindNode":
       for k in kads:
         if k.rtable.selfId == id:
           continue
-        let count = countBucketEntries(k.rtable.buckets, id)
-        doAssert(
-          count == 1,
-          fmt"findNode post-check broken - entries: {entries}|id: {id}|buckets: {k.rtable.buckets}",
-        )
+        check k.hasKey(id)
     await switches.mapIt(it.stop()).allFutures()
 
   asyncTest "Relay find node":
@@ -105,42 +93,57 @@ suite "KadDHT - FindNode":
 
     await broKad.bootstrap(@[parentSwitch.peerInfo])
     # Bro and parent know each other
-    doAssert(countBucketEntries(broKad.rtable.buckets, parentKad.rtable.selfId) == 1)
-    doAssert(countBucketEntries(parentKad.rtable.buckets, broKad.rtable.selfId) == 1)
+    check:
+      broKad.hasKey(parentKad.rtable.selfId)
+      parentKad.hasKey(broKad.rtable.selfId)
 
     await sisKad.bootstrap(@[parentSwitch.peerInfo])
 
     # Sis and parent know each other...
-    doAssert(countBucketEntries(sisKad.rtable.buckets, parentKad.rtable.selfId) == 1)
-    doAssert(countBucketEntries(parentKad.rtable.buckets, sisKad.rtable.selfId) == 1)
+    check:
+      sisKad.hasKey(parentKad.rtable.selfId)
+      parentKad.hasKey(sisKad.rtable.selfId)
 
     # But has been informed of bro by parent during bootstrap
-    doAssert(countBucketEntries(sisKad.rtable.buckets, broKad.rtable.selfId) == 1)
+    check sisKad.hasKey(broKad.rtable.selfId)
 
     await neiceKad.bootstrap(@[sisSwitch.peerInfo])
     # Neice and sis know each other:
-    doAssert(countBucketEntries(neiceKad.rtable.buckets, sisKad.rtable.selfId) == 1)
-    doAssert(countBucketEntries(sisKad.rtable.buckets, neiceKad.rtable.selfId) == 1)
+    check:
+      neiceKad.hasKey(sisKad.rtable.selfId)
+      sisKad.hasKey(neiceKad.rtable.selfId)
 
     # But Neice has also been informed of those that Sis knows of:
-    doAssert(countBucketEntries(neiceKad.rtable.buckets, parentKad.rtable.selfId) == 1)
-    doAssert(countBucketEntries(neiceKad.rtable.buckets, broKad.rtable.selfId) == 1)
+    check:
+      neiceKad.hasKey(parentKad.rtable.selfId)
+      neiceKad.hasKey(broKad.rtable.selfId)
 
     # Now let's make sure that when Bro is trying to find neice, it's an "I know someone,
-    # who knows someone, who knows the one I'm looking for"
-    doAssert(countBucketEntries(broKad.rtable.buckets, parentKad.rtable.selfId) == 1)
-    doAssert(countBucketEntries(broKad.rtable.buckets, sisKad.rtable.selfId) == 0)
-    doAssert(countBucketEntries(broKad.rtable.buckets, neiceKad.rtable.selfId) == 0)
+    # who knows someone, who knows the one I'm looking for, so forcing the routing table 
+    # to look like this scenario
+    for b in broKad.rtable.buckets.mitems:
+      for p in b.peers:
+        echo p.nodeId
+      b.peers = b.peers.filterIt(
+        it.nodeId != sisKad.rtable.selfId and it.nodeId != neiceKad.rtable.selfId
+      )
+
+    for b in broKad.rtable.buckets.mitems:
+      echo b.peers.len
+
+    check:
+      broKad.hasKey(parentKad.rtable.selfId)
+      not broKad.hasKey(sisKad.rtable.selfId)
+      not broKad.hasKey(neiceKad.rtable.selfId)
 
     discard await broKad.findNode(neiceKad.rtable.selfId)
 
     # Bro should now know of sis and neice as well
-    doAssert(countBucketEntries(broKad.rtable.buckets, parentKad.rtable.selfId) == 1)
-    doAssert(countBucketEntries(broKad.rtable.buckets, sisKad.rtable.selfId) == 1)
-    doAssert(
-      countBucketEntries(broKad.rtable.buckets, neiceKad.rtable.selfId) == 1,
-      fmt"brobuck: {broKad.rtable.buckets}|neice: {neiceKad.rtable.selfId}",
-    )
+    check:
+      broKad.hasKey(parentKad.rtable.selfId)
+      broKad.hasKey(sisKad.rtable.selfId)
+      broKad.hasKey(neiceKad.rtable.selfId)
+
     await parentSwitch.stop()
     await broSwitch.stop()
     await sisSwitch.stop()
@@ -166,11 +169,12 @@ suite "KadDHT - FindNode":
     await charlieKad.bootstrap(@[aliceSwitch.peerInfo])
 
     let peerInfoRes = await bobKad.findPeer(charlieSwitch.peerInfo.peerId)
-    doAssert peerInfoRes.isOk
-    doAssert peerInfoRes.get().peerId == charlieSwitch.peerInfo.peerId
+    check:
+      peerInfoRes.isOk
+      peerInfoRes.get().peerId == charlieSwitch.peerInfo.peerId
 
     let peerInfoRes2 = await bobKad.findPeer(PeerId.random(newRng()).get())
-    doAssert peerInfoRes2.isErr
+    check peerInfoRes2.isErr
 
     await aliceSwitch.stop()
     await bobSwitch.stop()

@@ -87,7 +87,7 @@ proc computeFillerStrings(s: seq[seq[byte]]): Result[seq[byte], string] =
 
 proc computeBetaGamma(
     s: seq[seq[byte]],
-    hop: openArray[Hop],
+    hops: openArray[Hop],
     delay: openArray[seq[byte]],
     destHop: Hop,
     id: SURBIdentifier,
@@ -121,7 +121,7 @@ proc computeBetaGamma(
       beta = aes & filler
     else:
       let routingInfo = RoutingInfo.init(
-        hop[i + 1], delay[i], gamma, beta[0 .. (((r * (t + 1)) - t) * k) - 1]
+        hops[i + 1], delay[i], gamma, beta[0 .. (((r * (t + 1)) - t) * k) - 1]
       )
 
       let serializedRoutingInfo = routingInfo.serialize()
@@ -221,7 +221,7 @@ proc wrapInSphinxPacket*(
     delay: openArray[seq[byte]],
     hop: openArray[Hop],
     destHop: Hop,
-): Result[seq[byte], string] =
+): Result[SphinxPacket, string] =
   # Compute alpha and shared secrets
   let (alpha_0, s) = computeAlpha(publicKeys).valueOr:
     return err("Error in alpha generation: " & error)
@@ -239,9 +239,7 @@ proc wrapInSphinxPacket*(
   # Serialize sphinx packet
   let sphinxPacket = SphinxPacket.init(Header.init(alpha_0, beta_0, gamma_0), delta_0)
 
-  let serialized = sphinxPacket.serialize()
-
-  return ok(serialized)
+  return ok(sphinxPacket)
 
 type ProcessedSphinxPacket* = object
   case status*: ProcessingStatus

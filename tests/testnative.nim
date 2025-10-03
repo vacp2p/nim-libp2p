@@ -33,7 +33,7 @@ import
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
   testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
   testautorelay, testdcutr, testhpservice, testutility, testhelpers,
-  testwildcardresolverservice, testperf
+  testwildcardresolverservice, testperf, testpkifilter
 
 import discovery/testdiscovery
 
@@ -45,5 +45,5 @@ when defined(libp2p_autotls_support):
 import
   mix/[
     testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
-    testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode,
+    testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode, testconn,
   ]
