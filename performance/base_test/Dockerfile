@@ -4,7 +4,6 @@ FROM nimlang/nim:2.2.4-alpine-regular AS build
 WORKDIR /node
 
 COPY libp2p.nimble config.nims ./
-RUN git config --global http.sslVerify false
 RUN apk add --no-cache openssl-dev pkgconfig
 RUN nimble install -y
 
