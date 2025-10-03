@@ -67,9 +67,9 @@ jobs:
 
       - name: Run
         run: |
-          nimble install chronicles
-          nimble install chronos
-          nim c -r -d:release -o:/tmp/scenarios_performance -d:chronicles_log_level:INFO ./performance/scenarios_performance.nim
+          cd performance
+          nimble install 
+          nimble performance
 
       - name: Process latency and docker stats
         uses: ./.github/actions/process_stats
