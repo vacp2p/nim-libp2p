@@ -1,4 +1,4 @@
-import ./base_test
+import ./test_node
 import ./utils
 import chronos
 import os

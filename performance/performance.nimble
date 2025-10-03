@@ -10,4 +10,4 @@ license = "MIT"
 requires "nim >= 2.2.4", "chronicles", "chronos", "unittest2"
 
 task performance, "Run performance tests":
-  exec "nim c -r -d:release -o:/tmp/scenarios_performance -d:chronicles_log_level:INFO ./scenarios_performance.nim"
+  exec "nim c -r -d:release -o:/tmp/scenarios_performance -d:chronicles_log_level:DEBUG ./scenarios_performance.nim"

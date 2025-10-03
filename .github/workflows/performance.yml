@@ -53,8 +53,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: performance/base_test/Dockerfile
-          tags: base:latest
+          file: performance/test_node/Dockerfile
+          tags: test_node:latest
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max

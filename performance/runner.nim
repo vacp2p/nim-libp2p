@@ -25,7 +25,7 @@ proc execShellCommand*(cmd: string): string =
         "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
       )
       .strip()
-    info "Shell command executed", cmd, output
+    debug "Shell command executed", cmd, output
     return output
   except OSError as e:
     raise newException(OSError, "Shell command failed")
@@ -69,7 +69,7 @@ proc startContainer*(
             -v /var/run/docker.sock:/var/run/docker.sock \
             --hostname={hostname} \
             --network={network} \
-            base"""
+            test_node"""
   )
   return containerId
 

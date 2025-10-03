@@ -16,15 +16,15 @@ RUN nimble c \
     -d:libp2p_network_protocols_metrics \
     -d:libp2p_quic_support \
     -d:release \
-    performance/base_test/main.nim
+    performance/test_node/main.nim
 
 
 FROM nimlang/nim:2.2.4-alpine-slim
 
 WORKDIR /node
 
-COPY --from=build /node/performance/base_test/main /node/main
-COPY performance/base_test/entrypoint.sh /node/entrypoint.sh
+COPY --from=build /node/performance/test_node/main /node/main
+COPY performance/test_node/entrypoint.sh /node/entrypoint.sh
 
 RUN chmod +x main entrypoint.sh \
     && apk add --no-cache curl iproute2 openssl
