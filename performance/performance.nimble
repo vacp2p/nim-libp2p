@@ -4,8 +4,6 @@ version = "0.1.0"
 author = "Status Research & Development GmbH"
 description = "A new awesome nimble package"
 license = "MIT"
-srcDir = "src"
-bin = @["performance"]
 
 # Dependencies
 
