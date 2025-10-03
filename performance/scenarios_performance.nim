@@ -10,9 +10,13 @@
 {.used.}
 
 import ../tests/utils/async_tests
+from ../tests/helpers import checkTrackers
 import ./runner
 
 suite "Performance Tests":
+  teardown:
+    checkTrackers()
+
   asyncTest "Base Test TCP":
     run("TCP")
 
