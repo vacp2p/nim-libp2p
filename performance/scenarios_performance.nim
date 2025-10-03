@@ -9,14 +9,14 @@
 
 {.used.}
 
-import ../../tests/helpers
-import ./base_test
-import ./utils
+import ../tests/utils/async_tests
+import ./runner
+
+setupOutputDirectory()
 
 suite "Performance Tests":
-  teardown:
-    checkTrackers()
+  asyncTest "Base Test TCP":
+    run("TCP")
 
-  asyncTest "Base Test":
-    await baseTest("Base Test", TransportType.TCP)
-    await baseTest("Base Test", TransportType.QUIC)
+  asyncTest "Base Test QUIC":
+    run("QUIC")
