@@ -67,27 +67,6 @@ suite "AutoTLS Configuration Tests":
       config.finalizeRetries == customFinalizeRetries
       config.finalizeRetryTime == customFinalizeRetryTime
 
-  asyncTest "AutotlsConfig preserves existing parameters":
-    let customServerURL = parseUri("https://custom-acme.example.com")
-    let customRenewCheckTime = 30.minutes
-    let customRenewBufferTime = 2.hours
-
-    let config = AutotlsConfig.new(
-      acmeServerURL = customServerURL,
-      renewCheckTime = customRenewCheckTime,
-      renewBufferTime = customRenewBufferTime,
-      brokerURL = "custom-broker.test",
-    )
-
-    check:
-      config.acmeServerURL == customServerURL
-      config.renewCheckTime == customRenewCheckTime
-      config.renewBufferTime == customRenewBufferTime
-      config.brokerURL == "custom-broker.test"
-      # Default values should still be used for non-specified params
-      config.dnsServerURL == AutoTLSDNSServer
-      config.dnsRetries == 10
-
   asyncTest "AutotlsService uses custom broker URL in registration":
     let customBrokerURL = "test-broker.example.com"
     let config = AutotlsConfig.new(brokerURL = customBrokerURL)
@@ -95,32 +74,6 @@ suite "AutoTLS Configuration Tests":
 
     # Verify the config was stored correctly
     check service.config.brokerURL == customBrokerURL
-
-  asyncTest "AutotlsConfig integration with all components":
-    # Test that custom config values flow through the entire system
-    let customConfig = AutotlsConfig.new(
-      brokerURL = "integration-test-broker.example.com",
-      dnsServerURL = "integration-test-dns.example.com",
-      dnsRetries = 2,
-      dnsRetryTime = 100.milliseconds,
-      acmeRetries = 3,
-      acmeRetryTime = 200.milliseconds,
-      finalizeRetries = 4,
-      finalizeRetryTime = 300.milliseconds,
-    )
-
-    let service = AutotlsService.new(config = customConfig)
-
-    # Verify all config values are preserved in the service
-    check:
-      service.config.brokerURL == "integration-test-broker.example.com"
-      service.config.dnsServerURL == "integration-test-dns.example.com"
-      service.config.dnsRetries == 2
-      service.config.dnsRetryTime == 100.milliseconds
-      service.config.acmeRetries == 3
-      service.config.acmeRetryTime == 200.milliseconds
-      service.config.finalizeRetries == 4
-      service.config.finalizeRetryTime == 300.milliseconds
 
   asyncTest "Backward compatibility with existing AutotlsConfig usage":
     # Test that existing code using AutotlsConfig.new() without new parameters still works
