@@ -446,17 +446,20 @@ const InvalidMultiCodec* = MultiCodec(-1)
 
 proc initLists(
     codecs: seq[tuple[name: string, code: int]]
-): tuple[nameCodecs: Table[string, int], codeCodecs: Table[int, string]] {.compileTime.} =
-  result = (initTable[string, int](), initTable[int, string]())
+): (Table[string, int], Table[int, string]) {.compileTime.} =
+  var nameCodecs: Table[string, int]
+  var codeCodecs: Table[int, string]
 
   for (name, code) in codecs:
-    if name in result.nameCodecs:
+    if name in nameCodecs:
       error("Codec name '" & name & "' is already used. Name must be unique.")
-    result.nameCodecs[name] = code
+    nameCodecs[name] = code
 
-    if code in result.codeCodecs:
+    if code in codeCodecs:
       error("Codec code 0x" & code.toHex(4) & " is already used. Code must be unique.")
-    result.codeCodecs[code] = name
+    codeCodecs[code] = name
+
+  return (nameCodecs, codeCodecs)
 
 when libp2p_multicodec_exts != "":
   includeFile(libp2p_multicodec_exts)

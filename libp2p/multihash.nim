@@ -355,8 +355,12 @@ const HashesList = [
 proc initMultiHashCodeTable(
     hashes: openArray[MHash]
 ): Table[MultiCodec, MHash] {.compileTime.} =
+  var res: Table[MultiCodec, MHash]
+
   for hash in hashes:
-    result[hash.mcodec] = hash
+    res[hash.mcodec] = hash
+
+  return res
 
 when libp2p_multihash_exts != "":
   includeFile(libp2p_multihash_exts)

@@ -480,8 +480,12 @@ const
 proc initMultiAddressCodeTable(
     protocols: openArray[MAProtocol]
 ): Table[MultiCodec, MAProtocol] {.compileTime.} =
+  var res: Table[MultiCodec, MAProtocol]
+
   for protocol in protocols:
-    result[protocol.mcodec] = protocol
+    res[protocol.mcodec] = protocol
+
+  return res
 
 when libp2p_multiaddress_exts != "":
   includeFile(libp2p_multiaddress_exts)

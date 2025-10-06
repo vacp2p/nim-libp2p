@@ -389,12 +389,15 @@ proc initMultiBaseNameTable(): Table[string, MBCodec] {.compileTime.} =
 
 proc initLists(
     codecs: seq[MBCodec]
-): tuple[codes: Table[char, MBCodec], names: Table[string, MBCodec]] {.compileTime.} =
-  result = (initTable[char, MBCodec](), initTable[string, MBCodec]())
+): (Table[char, MBCodec], Table[string, MBCodec]) {.compileTime.} =
+  var codes: Table[char, MBCodec]
+  var names: Table[string, MBCodec]
 
   for codec in codecs:
-    result.codes[codec.code] = codec
-    result.names[codec.name] = codec
+    codes[codec.code] = codec
+    names[codec.name] = codec
+
+  return (codes, names)
 
 when libp2p_multibase_exts != "":
   includeFile(libp2p_multibase_exts)
