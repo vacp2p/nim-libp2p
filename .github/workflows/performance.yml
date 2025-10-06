@@ -53,15 +53,23 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: performance/Dockerfile
-          tags: perf-base:latest
+          file: performance/test_node/Dockerfile
+          tags: test_node:latest
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.x"
+          repo-token: ${{ env.GITHUB_TOKEN }}
+
       - name: Run
         run: |
-          ./performance/runner.sh
+          cd performance
+          nimble install 
+          nimble performance
 
       - name: Process latency and docker stats
         uses: ./.github/actions/process_stats
