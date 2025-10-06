@@ -16,7 +16,7 @@
 ## We'll start by creating our metric structure like previously
 
 import chronos
-import stew/results
+import results
 
 import libp2p
 import libp2p/protocols/pubsub/rpc/messages
