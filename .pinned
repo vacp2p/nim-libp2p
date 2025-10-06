@@ -12,10 +12,10 @@ quic;https://github.com/vacp2p/nim-quic@#9370190ded18d78a5a9990f57aa8cbbf947f389
 results;https://github.com/arnetheduck/nim-results@#df8113dda4c2d74d460a8fa98252b0b771bf1f27
 secp256k1;https://github.com/status-im/nim-secp256k1@#f808ed5e7a7bfc42204ec7830f14b7a42b63c284
 serialization;https://github.com/status-im/nim-serialization@#548d0adc9797a10b2db7f788b804330306293088
-stew;https://github.com/status-im/nim-stew@#0db179256cf98eb9ce9ee7b9bc939f219e621f77
+stew;https://github.com/status-im/nim-stew@#b66168735d6f3841c5239c3169d3fe5fe98b1257
 testutils;https://github.com/status-im/nim-testutils@#9e842bd58420d23044bc55e16088e8abbe93ce51
 unittest2;https://github.com/status-im/nim-unittest2@#8b51e99b4a57fcfb31689230e75595f024543024
-websock;https://github.com/status-im/nim-websock@#d5cd89062cd2d168ef35193c7d29d2102921d97e
+websock;https://github.com/status-im/nim-websock@#35ae76f1559e835c80f9c1a3943bf995d3dd9eb5
 zlib;https://github.com/status-im/nim-zlib@#daa8723fd32299d4ca621c837430c29a5a11e19a
 jwt;https://github.com/vacp2p/nim-jwt@#18f8378de52b241f321c1f9ea905456e89b95c6f
 bearssl_pkey_decoder;https://github.com/vacp2p/bearssl_pkey_decoder@#21dd3710df9345ed2ad8bf8f882761e07863b8e0
