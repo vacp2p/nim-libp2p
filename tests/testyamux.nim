@@ -375,21 +375,21 @@ suite "Yamux":
       check streamA == yamuxa.getStreams()[0]
 
       await streamA.writeLp(fromHex("1234"))
-      expect LPStreamRemoteClosedError:
+      expect LPStreamEOFError:
         discard await streamA.readLp(100)
       await streamA.writeLp(fromHex("5678"))
       await streamA.close()
 
-    asyncTest "Local & Remote reset":
+    asyncTest "Local & Remote read/write after Yamux is closed":
       mSetup()
       let blocker = newBlockerFut()
-
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
-        await blocker
+        defer:
+          await blocker
         try:
-          expect LPStreamResetError:
+          expect LPStreamClosedError:
             discard await conn.readLp(100)
-          expect LPStreamResetError:
+          expect LPStreamClosedError:
             await conn.writeLp(fromHex("1234"))
         except CancelledError, LPStreamError:
           return
@@ -402,7 +402,7 @@ suite "Yamux":
       await yamuxa.close()
       expect LPStreamClosedError:
         await streamA.writeLp(fromHex("1234"))
-      expect LPStreamClosedError:
+      expect LPStreamEOFError:
         discard await streamA.readLp(100)
       blocker.complete()
       await streamA.close()

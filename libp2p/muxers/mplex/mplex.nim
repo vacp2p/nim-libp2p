@@ -14,6 +14,7 @@ import chronos, chronicles, stew/byteutils, metrics
 import
   ../muxer,
   ../../stream/connection,
+  ../../stream/lpstream,
   ../../stream/bufferstream,
   ../../utility,
   ../../peerinfo,
@@ -182,7 +183,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         await channel.pushEof()
       of MessageType.ResetIn, MessageType.ResetOut:
         channel.remoteReset = true
-        await channel.reset()
+        await LPStream(channel).reset()
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
@@ -241,7 +242,7 @@ method close*(m: Mplex) {.async: (raises: []).} =
   channs = toSeq(m.channels[false].values) & toSeq(m.channels[true].values)
 
   for chann in channs:
-    await chann.reset()
+    await LPStream(chann).reset()
 
   m.channels[false].clear()
   m.channels[true].clear()

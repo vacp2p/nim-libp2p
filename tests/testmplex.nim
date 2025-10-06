@@ -225,7 +225,7 @@ suite "Mplex":
 
       await chann.reset()
       var data = newSeq[byte](1)
-      expect LPStreamClosedError:
+      expect LPStreamResetError:
         await chann.readExactly(addr data[0], 1)
 
       await conn.close()
@@ -244,7 +244,7 @@ suite "Mplex":
       let fut = chann.readExactly(addr data[0], 1)
 
       await chann.reset()
-      expect LPStreamClosedError:
+      expect LPStreamResetError:
         await fut
 
       await conn.close()
@@ -432,7 +432,7 @@ suite "Mplex":
         chann = LPChannel.init(1, conn, true)
       await chann.reset()
 
-      expect LPStreamClosedError:
+      expect LPStreamResetError:
         await chann.write(("Hello!").toBytes)
 
       await conn.close()

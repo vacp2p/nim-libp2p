@@ -152,7 +152,7 @@ type
     isSending: bool
     sendQueue: seq[ToSend]
     recvQueue: ZeroQueue
-    isReset: bool
+    resetLocally: bool
     remoteReset: bool
     closedRemotely: AsyncEvent
     closedLocally: bool
@@ -166,7 +166,7 @@ proc `$`(channel: YamuxChannel): string =
     s.add("ClosedRemotely")
   if channel.closedLocally:
     s.add("ClosedLocally")
-  if channel.isReset:
+  if channel.resetLocally:
     s.add("Reset")
   if s.len > 0:
     result &=
@@ -210,7 +210,7 @@ method closeImpl*(channel: YamuxChannel) {.async: (raises: []).} =
     trace "Closing yamux channel locally", streamId = channel.id, conn = channel.conn
     channel.closedLocally = true
 
-    if not channel.isReset and channel.sendQueue.len == 0:
+    if not channel.resetLocally and channel.sendQueue.len == 0:
       try:
         await channel.conn.write(YamuxHeader.data(channel.id, 0, {Fin}))
       except CancelledError, LPStreamError:
@@ -230,14 +230,15 @@ proc clearQueues(channel: YamuxChannel, error: ref LPStreamEOFError = nil) =
   channel.sendQueue = @[]
   channel.recvQueue.clear()
 
-proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).} =
+proc doReset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).} =
   # If we reset locally, we want to flush up to a maximum of recvWindow
   # bytes. It's because the peer we're connected to can send us data before
   # it receives the reset.
-  if channel.isReset:
+  if channel.resetLocally:
     return
+
   trace "Reset channel"
-  channel.isReset = true
+  channel.resetLocally = true
   channel.remoteReset = not isLocal
   channel.clearQueues(newLPStreamEOFError())
 
@@ -255,6 +256,9 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).}
   if not isLocal:
     # If the reset is remote, there's no reason to flush anything.
     channel.recvWindow = 0
+
+method resetImpl*(channel: YamuxChannel) {.async: (raises: []).} =
+  channel.doReset(isLocal = true)
 
 proc updateRecvWindow(
     channel: YamuxChannel
@@ -276,21 +280,15 @@ method readOnce*(
     channel: YamuxChannel, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Read from a yamux channel
-
-  if channel.isReset:
-    raise
-      if channel.remoteReset:
-        trace "stream is remote reset when readOnce", channel = $channel
-        newLPStreamResetError()
-      elif channel.closedLocally:
-        trace "stream is closed locally when readOnce", channel = $channel
-        newLPStreamClosedError()
-      else:
-        trace "stream is down when readOnce", channel = $channel
-        newLPStreamConnDownError()
+  if channel.resetLocally or channel.remoteReset:
+    trace "stream is reset when readOnce",
+      channel = $channel,
+      resetLocally = channel.resetLocally,
+      remoteReset = channel.remoteReset
+    raise newLPStreamResetError()
   if channel.isEof:
     channel.clearQueues()
-    raise newLPStreamRemoteClosedError()
+    raise newLPStreamEOFError()
   if channel.recvQueue.isEmpty():
     channel.receivedData.clear()
     let
@@ -346,7 +344,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
         trace "channel send queue too big, resetting",
           maxSendQueueSize = channel.maxSendQueueSize,
           currentQueueSize = channel.lengthSendQueueWithLimit()
-        await channel.reset(isLocal = true)
+        await channel.doReset(isLocal = true)
       break
 
     let
@@ -396,7 +394,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures:
         fut.fail(connDown)
-      await channel.reset()
+      await channel.doReset()
       break
 
     for fut in futures:
@@ -410,13 +408,12 @@ method write*(
   ## Write to yamux channel
   ##
   var resFut = newFuture[void]("Yamux Send")
-
-  if channel.remoteReset:
+  if channel.remoteReset or channel.resetLocally:
     trace "stream is reset when write", channel = $channel
     resFut.fail(newLPStreamResetError())
     return resFut
 
-  if channel.closedLocally or channel.isReset:
+  if channel.closedLocally:
     resFut.fail(newLPStreamClosedError())
     return resFut
 
@@ -440,7 +437,7 @@ proc open(channel: YamuxChannel) {.async: (raises: [CancelledError, LPStreamErro
     trace "Try to open channel twice"
     return
   channel.opened = true
-  channel.isReset = false
+  channel.resetLocally = false
 
   await channel.conn.write(
     YamuxHeader.windowUpdate(
@@ -479,7 +476,7 @@ proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
     libp2p_yamux_channels.set(
       m.lenBySrc(channel.isSrc).int64, [$channel.isSrc, $channel.peerId]
     )
-  if channel.isReset and channel.recvWindow > 0:
+  if channel.resetLocally and channel.recvWindow > 0:
     m.flushed[channel.id] = channel.recvWindow
 
 proc createStream(
@@ -511,7 +508,7 @@ proc createStream(
     stream.timeout = m.inTimeout
   stream.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
     trace "Idle timeout expired, resetting YamuxChannel"
-    stream.reset(isLocal = true)
+    stream.doReset(isLocal = true)
   stream.initStream()
   stream.peerId = m.connection.peerId
   stream.observedAddr = m.connection.observedAddr
@@ -538,7 +535,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
     channel.recvWindow = 0
     channel.sendWindow = 0
     channel.closedLocally = true
-    channel.isReset = true
+    channel.resetLocally = false
     channel.opened = false
     channel.isClosed = true
     await channel.remoteClosed()
@@ -599,7 +596,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             if m.channels.len > m.maxChannCount:
               warn "too many channels created by remote peer",
                 peerId = m.connection.peerId, allowedMax = m.maxChannCount
-              await newStream.reset()
+              await newStream.doReset()
               continue
             await newStream.open()
             asyncSpawn m.handleStream(newStream)
@@ -650,7 +647,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           await channel.remoteClosed()
         if MsgFlags.Rst in header.flags:
           trace "remote reset channel"
-          await channel.reset()
+          await channel.doReset()
   except CancelledError as exc:
     debug "Unexpected cancellation in yamux handler", description = exc.msg
   except LPStreamEOFError as exc:
