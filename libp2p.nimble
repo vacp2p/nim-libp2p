@@ -48,14 +48,16 @@ proc tutorialToMd(filename: string) =
     " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
   writeFile(filename.replace(".nim", ".md"), markdown)
 
-task testnative, "Runs libp2p native tests":
-  runTest("testnative")
+task testmultiformatexts, "Run multiformat extensions tests":
   let libp2pOpts =
     "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
     "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
     "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim "
   runTest("multiformat_exts/testmultiformat_exts", "", libp2pOpts)
+
+task testnative, "Runs libp2p native tests":
+  runTest("testnative")
 
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")
@@ -68,6 +70,7 @@ task testintegration, "Runs integraion tests":
 
 task test, "Runs the test suite":
   runTest("testall")
+  exec "nimble testmultiformatexts"
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
