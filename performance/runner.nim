@@ -13,6 +13,11 @@ import strutils
 import os
 import osproc
 
+const
+  NetworkName = "performance-test-network"
+  NodeCount = 10
+  HostnamePrefix = "node-"
+
 proc getOutputDir*(): string =
   return getCurrentDir() / "output"
 
@@ -30,17 +35,17 @@ proc execShellCommand*(cmd: string): string =
     debug "Shell command executed", cmd, output
     return output
   except OSError as e:
-    raise newException(OSError, "Shell command failed")
+    raise newException(OSError, "Shell command failed: " & getCurrentExceptionMsg())
 
 proc setupDockerNetwork*(network: string) =
   let inspectOutput = execShellCommand(fmt"docker network inspect {network}")
   if "Error" in inspectOutput:
-    echo execShellCommand(
+    discard execShellCommand(
       fmt"docker network create --attachable --driver bridge {network} > /dev/null"
     )
 
 proc removeDockerNetwork*(network: string) =
-  echo execShellCommand(fmt"docker network rm {network} > /dev/null")
+  discard execShellCommand(fmt"docker network rm {network} > /dev/null")
 
 proc startContainer*(
     i: int,
@@ -94,15 +99,14 @@ proc removeContainers*(containerIds: seq[string]) =
 proc run*(transportType: string, preExecCmd: string = "", postExecCmd: string = "") =
   let outputDir = getOutputDir()
 
-  const network = "performance-test-network"
-  setupDockerNetwork(network)
+  setupDockerNetwork(NetworkName)
 
   var containerIds: seq[string]
   try:
-    for i in 0 ..< 10:
-      let hostname_prefix = "node-"
+    for i in 0 ..< NodeCount:
       let containerId = startContainer(
-        i, hostname_prefix, outputDir, network, transportType, preExecCmd, postExecCmd
+        i, HostnamePrefix, outputDir, NetworkName, transportType, preExecCmd,
+        postExecCmd,
       )
       containerIds.add(containerId)
 
@@ -110,4 +114,4 @@ proc run*(transportType: string, preExecCmd: string = "", postExecCmd: string = 
     waitForContainers(containerIds)
   finally:
     removeContainers(containerIds)
-    removeDockerNetwork(network)
+    removeDockerNetwork(NetworkName)

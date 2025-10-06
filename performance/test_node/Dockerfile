@@ -9,6 +9,7 @@ RUN nimble install -y
 
 COPY . .
 RUN nimble c \
+    --mm:refc \
     -d:chronicles_colors=None \
     -d:chronicles_log_level:INFO \
     --threads:on \
