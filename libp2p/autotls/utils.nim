@@ -56,6 +56,7 @@ when defined(libp2p_autotls_support):
       baseDomain: api.Domain,
       keyAuth: KeyAuthorization,
       retries: int = DefaultDnsRetries,
+      retryTime: Duration = DefaultDnsRetryTime,
   ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
     # if my ip address is 100.10.10.3 then the ip4Domain will be:
     #     100-10-10-3.{peerIdBase36}.libp2p.direct
@@ -77,6 +78,6 @@ when defined(libp2p_autotls_support):
         error "Failed to resolve IP", description = exc.msg # retry
     if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
       return true
-    await sleepAsync(DefaultDnsRetryTime)
+    await sleepAsync(retryTime)
 
     return false

@@ -38,10 +38,8 @@ proc new(T: typedesc[DumbProto], nodeNumber: int): T =
   proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except LPStreamError as exc:
+      echo "exception in handler", exc.msg
     finally:
       await conn.close()
 

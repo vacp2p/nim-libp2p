@@ -65,7 +65,7 @@ suite "Connection Manager":
     let mux = getMuxer(peerId)
     await mux.connection.close()
 
-    expect CatchableError:
+    expect LPError:
       connMngr.storeMuxer(mux)
 
     await connMngr.close()
@@ -76,7 +76,7 @@ suite "Connection Manager":
     let mux = getMuxer(peerId)
     mux.connection.isEof = true
 
-    expect CatchableError:
+    expect LPError:
       connMngr.storeMuxer(mux)
 
     await mux.close()
@@ -89,7 +89,7 @@ suite "Connection Manager":
     let conn = muxer.connection
     muxer.connection = nil
 
-    expect CatchableError:
+    expect LPError:
       connMngr.storeMuxer(muxer)
 
     await conn.close()

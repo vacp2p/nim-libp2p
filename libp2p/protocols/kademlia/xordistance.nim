@@ -50,14 +50,7 @@ proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
 proc hashFor(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
-  return
-    @(
-      case k.kind
-      of KeyType.PeerId:
-        hasher.get(defaultHasher)(k.peerId.getBytes())
-      of KeyType.Raw:
-        hasher.get(defaultHasher)(k.data)
-    )
+  return @(hasher.get(defaultHasher)(k))
 
 proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
   let hashA = a.hashFor(hasher)

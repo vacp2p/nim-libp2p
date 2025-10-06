@@ -50,10 +50,8 @@ proc new(T: typedesc[ChatProto], c: Chat): T =
         c.writeStdout "a chat session is already in progress - refusing incoming peer!"
       else:
         await c.handlePeer(stream)
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except IOError as exc:
+      echo "exception in handler", exc.msg
     finally:
       await stream.close()
 
@@ -65,7 +63,9 @@ proc new(T: typedesc[ChatProto], c: Chat): T =
 ##
 # Chat application
 ##
-proc handlePeer(c: Chat, conn: Connection) {.async.} =
+proc handlePeer(
+    c: Chat, conn: Connection
+) {.async: (raises: [CancelledError, IOError]).} =
   # Handle a peer (incoming or outgoing)
   try:
     c.conn = conn
@@ -78,7 +78,7 @@ proc handlePeer(c: Chat, conn: Connection) {.async.} =
         strData = await conn.readLp(1024)
         str = string.fromBytes(strData)
       c.writeStdout $conn.peerId & ": " & $str
-  except LPStreamEOFError:
+  except LPStreamError:
     defer:
       c.writeStdout $conn.peerId & " disconnected"
     await c.conn.close()
@@ -134,12 +134,8 @@ proc readLoop(c: Chat) {.async.} =
       if c.connected:
         await c.conn.writeLp(line)
       else:
-        try:
-          if line.startsWith("/") and "p2p" in line:
-            await c.dialPeer(line)
-        except CatchableError as exc:
-          echo &"unable to dial remote peer {line}"
-          echo exc.msg
+        if line.startsWith("/") and "p2p" in line:
+          await c.dialPeer(line)
 
 proc readInput(wfd: AsyncFD) {.thread.} =
   ## This thread performs reading from `stdin` and sends data over

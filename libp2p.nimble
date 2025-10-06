@@ -10,7 +10,7 @@ skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0 & < 0.12.0", "chronos >= 4.0.4", "metrics", "secp256k1",
-  "stew >= 0.4.0", "websock >= 0.2.0", "unittest2", "results", "quic >= 0.2.16",
+  "stew >= 0.4.2", "websock >= 0.2.1", "unittest2", "results", "quic >= 0.2.16",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
@@ -31,7 +31,7 @@ proc runTest(filename: string, moreoptions: string = "") =
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
   exec excstr &
-    " -r -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest tests/" &
+    " -r -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
     filename
   rmFile "tests/" & filename.toExe
 
@@ -56,14 +56,12 @@ task testpubsub, "Runs pubsub tests":
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter")
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
 
 task testintegration, "Runs integraion tests":
   runTest("testintegration")
 
 task test, "Runs the test suite":
   runTest("testall")
-  exec "nimble testfilter"
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")

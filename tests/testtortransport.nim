@@ -16,8 +16,8 @@ import chronos, stew/[byteutils]
 import
   ../libp2p/[
     stream/connection,
-    transports/tcptransport,
     transports/tortransport,
+    transports/tcptransport,
     upgrademngrs/upgrade,
     multiaddress,
     builders,
@@ -102,9 +102,7 @@ suite "Tor transport":
           await conn.readExactly(addr resp, 6)
           check string.fromBytes(resp) == "client"
           await conn.write("server")
-        except CancelledError as e:
-          raise e
-        except CatchableError:
+        except LPStreamError:
           check false # should not be here
         finally:
           await conn.close()

@@ -125,10 +125,7 @@ const
 
   PathVectors = ["/unix/a/b/c/d/e/f/g/h/i.sock"]
 
-  PathExpects = [
-    "90030E2F746D702F703270642E736F636B",
-    "9003172F612F622F632F642F652F662F672F682F692E736F636B",
-  ]
+  PathExpects = ["9003172F612F622F632F642F652F662F672F682F692E736F636B"]
 
   PatternVectors = [
     PatternVector(

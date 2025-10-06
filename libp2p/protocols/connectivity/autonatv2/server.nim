@@ -174,38 +174,43 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
 
 proc forceNewConnection(
     self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
-): Future[Opt[Connection]] {.async: (raises: [CancelledError]).} =
+): Future[Opt[(Muxer, Connection)]] {.async: (raises: [CancelledError]).} =
   ## Bypasses connManager to force a new connection to ``pid``
   ## instead of reusing a preexistent one
   try:
     let mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
     if mux.isNil():
-      return Opt.none(Connection)
+      return Opt.none((Muxer, Connection))
     return Opt.some(
-      await self.switch.dialer.negotiateStream(
-        await mux.newStream(), @[$AutonatV2Codec.DialBack]
+      (
+        mux,
+        await self.switch.dialer.negotiateStream(
+          await mux.newStream(), @[$AutonatV2Codec.DialBack]
+        ),
       )
     )
   except CancelledError as exc:
     raise exc
   except CatchableError:
-    return Opt.none(Connection)
+    return Opt.none((Muxer, Connection))
 
 proc chooseDialAddr(
     self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
-): Future[(Opt[Connection], Opt[AddrIdx])] {.async: (raises: [CancelledError]).} =
+): Future[(Opt[(Muxer, Connection)], Opt[AddrIdx])] {.
+    async: (raises: [CancelledError])
+.} =
   for i, ma in addrs:
     if self.canDial(ma):
       debug "Trying to dial", chosenAddrs = ma, addrIdx = i
-      let conn =
+      let (mux, conn) =
         try:
           (await (self.forceNewConnection(pid, @[ma]).wait(self.config.dialTimeout))).valueOr:
-            return (Opt.none(Connection), Opt.none(AddrIdx))
+            return (Opt.none((Muxer, Connection)), Opt.none(AddrIdx))
         except AsyncTimeoutError:
           trace "Dial timed out"
-          return (Opt.none(Connection), Opt.some(i.AddrIdx))
-      return (Opt.some(conn), Opt.some(i.AddrIdx))
-  return (Opt.none(Connection), Opt.none(AddrIdx))
+          return (Opt.none((Muxer, Connection)), Opt.some(i.AddrIdx))
+      return (Opt.some((mux, conn)), Opt.some(i.AddrIdx))
+  return (Opt.none((Muxer, Connection)), Opt.none(AddrIdx))
 
 proc handleDialRequest(
     self: AutonatV2, conn: Connection, req: DialRequest
@@ -220,7 +225,7 @@ proc handleDialRequest(
     trace "No dialable addresses found"
     await conn.sendDialResponse(ResponseStatus.EDialRefused)
     return
-  let dialBackConn = dialBackConnOpt.valueOr:
+  let (dialBackMux, dialBackConn) = dialBackConnOpt.valueOr:
     trace "Dial failed"
     await conn.sendDialResponse(
       ResponseStatus.Ok,
@@ -230,6 +235,7 @@ proc handleDialRequest(
     return
   defer:
     await dialBackConn.close()
+    await dialBackMux.close()
 
   # if observed address for peer is not in address list to try
   # then we perform Amplification Attack Prevention
