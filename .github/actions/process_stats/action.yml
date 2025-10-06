@@ -19,3 +19,9 @@ runs:
       shell: bash
       run: |
         nim c -r -d:release -o:/tmp/process_docker_stats ./performance/scripts/process_docker_stats.nim
+    
+    - name: Process csv files and create mermaid charts
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/docker_stats_charts ./performance/scripts/docker_stats_charts.nim
+        

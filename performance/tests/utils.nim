@@ -311,7 +311,11 @@ proc clearSyncFiles*() =
         removeFile(f.path)
 
 proc getDockerStatsLogPath*(scenarioName: string, nodeId: int): string =
-  let sanitizedScenario = scenarioName.replace(" ", "").replace("%", "percent")
+  let sanitizedScenario = scenarioName
+    .replace(" ", "")
+    .replace("%", "percent")
+    .replace("(", "_")
+    .replace(")", "")
   return &"/output/docker_stats_{sanitizedScenario}_{nodeId}.log"
 
 proc clearDockerStats*(outputPath: string) =
