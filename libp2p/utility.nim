@@ -145,9 +145,11 @@ template filterIt*[T](set: HashSet[T], condition: untyped): HashSet[T] =
   filtered
 
 macro includeFile*(file: static[string]): untyped =
-  result = newStmtList()
+  let res = newStmtList()
+
   try:
-    # result.add(parseStmt("include " & file))
-    result.add(nnkIncludeStmt.newTree(newLit(file)))
+    res.add(nnkIncludeStmt.newTree(newLit(file)))
   except ValueError as e:
     raiseAssert("Failed to include file: " & file & ", error: " & e.msg)
+
+  return res

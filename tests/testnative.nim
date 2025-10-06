@@ -35,7 +35,7 @@ import
   testautorelay, testdcutr, testhpservice, testutility, testhelpers,
   testwildcardresolverservice, testperf, testpkifilter
 
-# import discovery/testdiscovery
+import discovery/testdiscovery
 
 import kademlia/[testencoding, testroutingtable, testfindnode, testputval]
 

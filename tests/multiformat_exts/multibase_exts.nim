@@ -3,23 +3,20 @@ import stew/byteutils
 proc mb1Decode(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  try:
-    copyMem(addr outbytes[0], unsafeAddr inbytes[4], inbytes.len - 4)
-    outlen = outbytes.len
-    result = MultiBaseStatus.Success
-  except CatchableError:
-    result = MultiBaseStatus.Error
+  if inbytes.len < 4:
+    return MultiBaseStatus.Error
+
+  copyMem(addr outbytes[0], unsafeAddr inbytes[4], inbytes.len - 4)
+  outlen = outbytes.len
+  MultiBaseStatus.Success
 
 proc mb1Encode(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  try:
-    let inp = "ext_".toBytes & @inbytes
-    copyMem(addr outbytes[0], unsafeAddr inp[0], inp.len)
-    outlen = inp.len
-    result = MultiBaseStatus.Success
-  except CatchableError:
-    result = MultiBaseStatus.Error
+  let inp = "ext_".toBytes & @inbytes
+  copyMem(addr outbytes[0], unsafeAddr inp[0], inp.len)
+  outlen = inp.len
+  MultiBaseStatus.Success
 
 proc mb1EncodeLen(length: int): int =
   length + 4
