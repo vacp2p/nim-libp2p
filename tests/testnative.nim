@@ -37,7 +37,7 @@ import
 
 import discovery/testdiscovery
 
-import kademlia/[testencoding, testroutingtable, testfindnode, testputval]
+import kademlia/[testencoding, testroutingtable, testfindnode, testputval, testping]
 
 when defined(libp2p_autotls_support):
   import testautotls

@@ -61,7 +61,7 @@ type KadDHT* = ref object of LPProtocol
 proc insert*(
     self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
 ) {.raises: [].} =
-  debug "local table insertion", key, value
+  debug "Local table insertion", key, value
   self[key] = EntryRecord(value: value, time: time)
 
 proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =
@@ -92,7 +92,7 @@ proc sendFindNode(
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
   if reply.msgType != MessageType.findNode:
-    raise newException(ValueError, "unexpected message type in reply: " & $reply)
+    raise newException(ValueError, "Unexpected message type in reply: " & $reply)
 
   return reply
 
@@ -109,7 +109,7 @@ proc waitRepliesOrTimeouts(
       receivedReplies.add(await replyFut)
     except CatchableError:
       failedPeers.add(peerId)
-      error "could not send find_node to peer", peerId, err = getCurrentExceptionMsg()
+      error "Could not send find_node to peer", peerId, err = getCurrentExceptionMsg()
 
   return (receivedReplies, failedPeers)
 
@@ -127,10 +127,10 @@ proc dispatchPutVal(
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
     # todo log this more meaningfully
-    error "putValue reply decode fail", error = error, conn = conn
+    error "PutValue reply decode fail", error = error, conn = conn
     return
   if reply != msg:
-    error "unexpected change between msg and reply: ",
+    error "Unexpected change between msg and reply: ",
       msg = msg, reply = reply, conn = conn
 
 proc ensureBestValue(kad: KadDHT, key: Key, value: seq[byte]): Result[void, string] =
@@ -184,7 +184,7 @@ proc findNode*(
 
   while not state.done:
     let toQuery = state.selectAlphaPeers()
-    debug "queries", list = toQuery.mapIt(it.shortLog()), addrTab = addrTable
+    debug "Queries", list = toQuery.mapIt(it.shortLog()), addrTab = addrTable
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
     for peer in toQuery.filterIt(kad.switch.peerInfo.peerId != it):
@@ -249,6 +249,22 @@ proc findPeer*(
 
   return ok(PeerInfo(peerId: peer, addrs: kad.switch.peerStore[AddressBook][peer]))
 
+proc ping*(
+    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
+): Future[bool] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
+.} =
+  let conn = await kad.switch.dial(peerId, addrs, KadCodec)
+  defer:
+    await conn.close()
+
+  let request = Message(msgType: MessageType.ping)
+  await conn.writeLp(request.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
+
+  reply == request
+
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
   let ready = state.activeQueries == 0
   let noNew = selectAlphaPeers(state).filterIt(me != it).len == 0
@@ -260,10 +276,10 @@ proc bootstrap*(
   for b in bootstrapNodes:
     try:
       await kad.switch.connect(b.peerId, b.addrs)
-      debug "connected to bootstrap peer", peerId = b.peerId
-    except DialFailedError as e:
+      debug "Connected to bootstrap peer", peerId = b.peerId
+    except DialFailedError as exc:
       # at some point will want to bubble up a Result[void, SomeErrorEnum]
-      error "failed to dial to bootstrap peer", peerId = b.peerId, error = e.msg
+      error "failed to dial to bootstrap peer", peerId = b.peerId, error = exc.msg
       continue
 
     let msg =
@@ -271,13 +287,13 @@ proc bootstrap*(
         await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
           chronos.seconds(5)
         )
-      except CatchableError as e:
-        debug "send find node exception during bootstrap",
-          target = b.peerId, addrs = b.addrs, err = e.msg
+      except CatchableError as exc:
+        debug "Send find node exception during bootstrap",
+          target = b.peerId, addrs = b.addrs, err = exc.msg
         continue
     for peer in msg.closerPeers:
       let p = PeerId.init(peer.id).valueOr:
-        debug "invalid peer id received", error = error
+        debug "Invalid peer id received", error = error
         continue
       discard kad.rtable.insert(p)
 
@@ -290,7 +306,7 @@ proc bootstrap*(
     doAssert(false, "this should never happen")
     return
   discard await kad.findNode(key.toKey())
-  info "bootstrap lookup complete"
+  info "Bootstrap lookup complete"
 
 proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   for i in 0 ..< kad.rtable.buckets.len:
@@ -328,20 +344,20 @@ proc new*(
       let buf =
         try:
           await conn.readLp(MaxMsgSize)
-        except LPStreamError as e:
-          debug "Read error when handling kademlia RPC", conn = conn, err = e.msg
+        except LPStreamError as exc:
+          debug "Read error when handling kademlia RPC", conn = conn, err = exc.msg
           return
       let msg = Message.decode(buf).valueOr:
-        debug "msg decode error handling kademlia RPC", err = error
+        debug "Failed to decode message", err = error
         return
 
       case msg.msgType
       of MessageType.findNode:
         let targetIdBytes = msg.key.valueOr:
-          error "findNode message without key data present", msg = msg, conn = conn
+          error "FindNode message without key data present", msg = msg, conn = conn
           return
         let targetId = PeerId.init(targetIdBytes).valueOr:
-          error "findNode message without valid key data", msg = msg, conn = conn
+          error "FindNode message without valid key data", msg = msg, conn = conn
           return
         let closerPeers = kad.rtable
           .findClosest(targetId.toKey(), DefaultReplic)
@@ -351,31 +367,31 @@ proc new*(
         let responsePb = encodeFindNodeReply(closerPeers, switch)
         try:
           await conn.writeLp(responsePb.buffer)
-        except LPStreamError as e:
-          debug "write error when writing kad find-node RPC reply",
-            conn = conn, err = e.msg
+        except LPStreamError as exc:
+          debug "Write error when writing kad find-node RPC reply",
+            conn = conn, err = exc.msg
           return
 
         # Peer is useful. adding to rtable
         discard kad.rtable.insert(conn.peerId)
       of MessageType.putValue:
         let record = msg.record.valueOr:
-          error "no record in message buffer", msg = msg, conn = conn
+          error "No record in message buffer", msg = msg, conn = conn
           return
         let (key, value) =
           if record.key.isSome() and record.value.isSome():
             (record.key.unsafeGet(), record.value.unsafeGet())
           else:
-            error "no key or no value in rpc buffer", msg = msg, conn = conn
+            error "No key or no value in rpc buffer", msg = msg, conn = conn
             return
 
         # Value sanitisation done. Start insertion process
         if not kad.entryValidator.isValid(key, value):
-          debug "record is not valid", key, value
+          debug "Record is not valid", key, value
           return
 
         kad.ensureBestValue(key, value).isOkOr:
-          error "dropping received value", err = error
+          error "Dropping received value", err = error
           return
 
         kad.dataTable.insert(key, value, $times.now().utc)
@@ -383,12 +399,17 @@ proc new*(
         # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
         try:
           await conn.writeLp(buf)
-        except LPStreamError as e:
-          debug "write error when writing kad find-node RPC reply",
-            conn = conn, err = e.msg
+        except LPStreamError as exc:
+          debug "Failed to send find-node RPC reply", conn = conn, err = exc.msg
+          return
+      of MessageType.ping:
+        try:
+          await conn.writeLp(msg.encode().buffer)
+        except LPStreamError as exc:
+          debug "Failed to send ping reply", conn = conn, err = exc.msg
           return
       else:
-        error "unhandled kad-dht message type", msg = msg
+        error "Unhandled kad-dht message type", msg = msg
         return
   return kad
 
@@ -408,7 +429,7 @@ method start*(kad: KadDHT): Future[void] {.async: (raises: [CancelledError]).} =
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.started = true
 
-  info "kad-dht started"
+  info "Kad DHT started"
 
 method stop*(kad: KadDHT): Future[void] {.async: (raises: []).} =
   if not kad.started:
