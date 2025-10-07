@@ -25,12 +25,12 @@ let cfg =
 
 import hashes, strutils
 
-proc runTest(filename: string, moreoptions: string = "", libp2pOpts = "") =
+proc runTest(filename: string, moreoptions: string = "") =
   var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
-  exec excstr & " -r " & libp2pOpts &
+  exec excstr & " -r " &
     " -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
     filename
   rmFile "tests/" & filename.toExe
@@ -49,12 +49,12 @@ proc tutorialToMd(filename: string) =
   writeFile(filename.replace(".nim", ".md"), markdown)
 
 task testmultiformatexts, "Run multiformat extensions tests":
-  let libp2pOpts =
+  let opts =
     "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
     "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
     "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim "
-  runTest("multiformat_exts/testmultiformat_exts", "", libp2pOpts)
+  runTest("multiformat_exts/testmultiformat_exts", opts)
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
@@ -70,7 +70,7 @@ task testintegration, "Runs integraion tests":
 
 task test, "Runs the test suite":
   runTest("testall")
-  exec "nimble testmultiformatexts"
+  testmultiformatextsTask()
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")

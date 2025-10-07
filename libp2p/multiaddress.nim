@@ -459,7 +459,7 @@ const
 
   P2PPattern* = mapEq("p2p")
 
-  IPFS* = mapAnd(Reliable, P2PPattern)
+  IPFS* = mapAnd(Reliable, mapEq("ipfs"))
 
   HTTP* = mapOr(
     mapAnd(TCP, mapEq("http")), mapAnd(IP, mapEq("http")), mapAnd(DNS, mapEq("http"))
