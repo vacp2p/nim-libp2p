@@ -303,7 +303,7 @@ method advertise*(
 ) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
   await rdv.advertise(ns, ttl, rdv.peers)
 
-proc requestLocally*[T](rdv: RendezVous, ns: string): seq[T] =
+proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
   let
     nsSalted = ns & rdv.salt
     n = Moment.now()
@@ -311,24 +311,22 @@ proc requestLocally*[T](rdv: RendezVous, ns: string): seq[T] =
     collect(newSeq()):
       for index in rdv.namespaces[nsSalted]:
         if rdv.registered[index].expiration > n:
-          let res = SignedPayload[T].decode(rdv.registered[index].data.signedPeerRecord).valueOr:
+          let res = SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).valueOr:
             continue
           res.data
   except KeyError as exc:
     @[]
 
 proc request*[T](
-    rdv: RendezVous,
-    ns: Opt[string],
-    lt: Opt[int] = Opt.some(DiscoverLimit.int),
-    peersOpt: Opt[seq[PeerId]] = Opt.some(rdv.peers),
+    rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int, lpeers: seq[PeerId]
 ): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
   var
     s: Table[PeerId, (T, Register)]
     limit: uint64
     d = Discover(ns: ns)
-  let l = lt.get()
-  let peers = peersOpt.get()
+  var peers = lpeers
+  if peers.len == 0:
+    peers = rdv.peers
   if l <= 0 or l > DiscoverLimit.int:
     raise newException(AdvertiseError, "Invalid limit")
   if ns.isSome() and ns.get().len > MaximumNamespaceLen:
@@ -337,7 +335,9 @@ proc request*[T](
   limit = l.uint64
   proc requestPeer(
       peer: PeerId
-  ): seq[Register] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+  ): Future[seq[Register]] {.
+      async: (raises: [CancelledError, DialFailedError, LPStreamError])
+  .} =
     let conn = await rdv.switch.dial(peer, RendezVousCodec)
     defer:
       await conn.close()
@@ -418,16 +418,6 @@ proc request*[T](
     except LPStreamError as e:
       trace "failed to communicate with a peer", description = e.msg
   return toSeq(s.values()).mapIt(it[0])
-
-#[ proc request*[T](
-    rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int
-): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
-  await rdv.request[T](ns, l, rdv.peers)
-
-proc request*[T](
-    rdv: RendezVous, l: int = DiscoverLimit.int
-): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
-  await rdv.request[T](Opt.none(string), l, rdv.peers) ]#
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
