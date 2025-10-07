@@ -55,7 +55,7 @@ suite "RendezVous":
 
     const namespace = "foo"
     await nodes[0].advertise(namespace)
-    check nodes[0].requestLocally(namespace).len == 1
+    check nodes[0].requestLocally[PeerRecord](namespace).len == 1
 
     nodes[0].unsubscribeLocally(namespace)
     check nodes[0].requestLocally[PeerRecord](namespace).len == 0
