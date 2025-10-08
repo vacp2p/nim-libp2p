@@ -404,7 +404,7 @@ proc new*(
           return
       of MessageType.ping:
         try:
-          await conn.writeLp(msg.encode().buffer)
+          await conn.writeLp(buf)
         except LPStreamError as exc:
           debug "Failed to send ping reply", conn = conn, err = exc.msg
           return
