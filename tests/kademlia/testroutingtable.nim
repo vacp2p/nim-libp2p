@@ -47,6 +47,29 @@ suite "routing table":
     let bucket = rt.buckets[targetBucket]
     check bucket.peers.len <= DefaultReplic
 
+  test "evicts oldest key at max capacity":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
+    let targetBucket = 6
+    for _ in 0 ..< DefaultReplic + 10:
+      var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
+      discard rt.insert(kid)
+
+    check rt.buckets[targetBucket].peers.len == DefaultReplic
+
+    # new entry should evict oldest entry
+    var newKid = randomKeyInBucketRange(selfId, targetBucket, rng)
+    var oldest = rt.buckets[targetBucket].peers[0]
+    for entry in rt.buckets[targetBucket].peers:
+      if entry.lastSeen < oldest.lastSeen:
+        oldest = entry
+
+    check rt.insert(newKid)
+
+    # oldest was evicted
+    for entry in rt.buckets[targetBucket].peers:
+      check entry.nodeId != oldest.nodeId
+
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
     var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
