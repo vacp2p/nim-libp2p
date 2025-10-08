@@ -33,13 +33,10 @@ jobs:
       SHARED_VOLUME_PATH: "performance/output"
       DOCKER_STATS_PREFIX: "docker_stats_"
       PUBLISH_BRANCH_NAME: "performance_plots"
-      CHECKOUT_SUBFOLDER_SUBPLOTS: "subplots"
-      PUBLISH_DIR_PLOTS: "plots"
       CHECKOUT_SUBFOLDER_HISTORY: "history"
       PUBLISH_DIR_LATENCY_HISTORY: "latency_history"
       LATENCY_HISTORY_PATH: "history/latency_history"
       LATENCY_HISTORY_PREFIX: "pr"
-      LATENCY_HISTORY_PLOT_FILENAME: "latency_history_all_scenarios.png"
 
     name: "Performance"
     runs-on: ubuntu-22.04
@@ -56,15 +53,23 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: performance/Dockerfile
-          tags: perf-base:latest
+          file: performance/test_node/Dockerfile
+          tags: test_node:latest
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.x"
+          repo-token: ${{ env.GITHUB_TOKEN }}
+
       - name: Run
         run: |
-          ./performance/runner.sh
+          cd performance
+          nimble install 
+          nimble performance
 
       - name: Process latency and docker stats
         uses: ./.github/actions/process_stats
@@ -73,23 +78,6 @@ jobs:
         if: github.repository_owner == env.VACP2P
         uses: ./.github/actions/publish_history
 
-      # TODO: Refactor
-      # - name: Generate plots
-      #   if: github.repository_owner == env.VACP2P
-      #   uses: ./.github/actions/generate_plots
-
       - name: Post/Update PR comment
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/add_comment
-
-      - name: Upload performance artifacts
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: performance-artifacts
-          path: |
-            performance/output/pr*_latency.csv
-            performance/output/*.png
-            history/latency_history/*.png
-          if-no-files-found: ignore
-          retention-days: 7

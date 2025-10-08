@@ -13,9 +13,14 @@
 {.used.}
 
 import tables, hashes
+import macros
+import strutils
 import vbuffer
 import results
+import utility
 export results
+
+const libp2p_multicodec_exts* {.strdefine.} = ""
 
 ## List of officially supported codecs can BE found here
 ## https://github.com/multiformats/multicodec/blob/master/table.csv
@@ -381,7 +386,7 @@ const MultiCodecList = [
   ("udt", 0x012D),
   ("utp", 0x012E),
   ("unix", 0x0190), # not in multicodec list
-  ("ipfs", 0x01A5),
+  ("ipfs", 0xE3),
   ("p2p", 0x01A5),
   ("http", 0x01E0),
   ("https", 0x01BB),
@@ -439,17 +444,28 @@ type
 
 const InvalidMultiCodec* = MultiCodec(-1)
 
-proc initMultiCodecNameTable(): Table[string, int] {.compileTime.} =
-  for item in MultiCodecList:
-    result[item[0]] = item[1]
+proc initLists(
+    codecs: seq[tuple[name: string, code: int]]
+): (Table[string, int], Table[int, string]) {.compileTime.} =
+  var nameCodecs: Table[string, int]
+  var codeCodecs: Table[int, string]
 
-proc initMultiCodecCodeTable(): Table[int, string] {.compileTime.} =
-  for item in MultiCodecList:
-    result[item[1]] = item[0]
+  for (name, code) in codecs:
+    if name in nameCodecs:
+      error("Codec name '" & name & "' is already used. Name must be unique.")
+    nameCodecs[name] = code
 
-const
-  CodeCodecs = initMultiCodecCodeTable()
-  NameCodecs = initMultiCodecNameTable()
+    if code in codeCodecs:
+      error("Codec code 0x" & code.toHex(4) & " is already used. Code must be unique.")
+    codeCodecs[code] = name
+
+  return (nameCodecs, codeCodecs)
+
+when libp2p_multicodec_exts != "":
+  includeFile(libp2p_multicodec_exts)
+  const (NameCodecs, CodeCodecs) = initLists(@MultiCodecList & @CodecExts)
+else:
+  const (NameCodecs, CodeCodecs) = initLists(@MultiCodecList)
 
 proc multiCodec*(name: string): MultiCodec {.compileTime.} =
   ## Generate MultiCodec from string ``name`` at compile time.

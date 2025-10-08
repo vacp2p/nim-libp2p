@@ -9,7 +9,7 @@
 ## Here, we'll create a slightly more complex protocol, which parses & generate protobuf
 ## messages. Let's start by importing our dependencies, as usual:
 import chronos
-import stew/results # for Opt[T]
+import results # for Opt[T]
 
 import libp2p
 

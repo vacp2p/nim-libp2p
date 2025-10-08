@@ -1,24 +1,12 @@
 import json
-import os
 import sequtils
-import strutils
 import strformat
+import strutils
 import tables
 import ../types
+import common
 
 const unknownFloat = -1.0
-
-proc parseJsonFiles*(outputDir: string): seq[JsonNode] =
-  var jsons: seq[JsonNode]
-
-  for kind, path in walkDir(outputDir):
-    if kind == pcFile and path.endsWith(".json"):
-      let content = readFile(path)
-      let json = parseJson(content)
-
-      jsons.add(json)
-
-  return jsons
 
 proc extractStats(scenario: JsonNode): Stats =
   Stats(
@@ -87,11 +75,12 @@ proc getMarkdownReport*(
     validNodes: Table[string, int],
     marker: string,
     commitSha: string,
+    runId: string,
 ): string =
   var output: seq[string]
 
   output.add marker & "\n"
-  output.add "# 🏁 **Performance Summary**\n"
+  output.add "## 🏁 **Performance Summary**\n"
 
   let commitUrl = fmt"https://github.com/vacp2p/nim-libp2p/commit/{commitSha}"
   output.add fmt"**Commit:** [`{commitSha}`]({commitUrl})"
@@ -103,18 +92,16 @@ proc getMarkdownReport*(
     let nodes = validNodes[scenarioName]
     output.add fmt"| {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {stats.latency.avgLatencyMs:.3f} |"
 
-  let runId = getEnv("GITHUB_RUN_ID", "")
   let summaryUrl = fmt"https://github.com/vacp2p/nim-libp2p/actions/runs/{runId}"
   output.add(
-    fmt"### 📊 View Latency History and full Container Resources in the [Workflow Summary]({summaryUrl})"
+    fmt"### 📊 View Container Resources in the [Workflow Summary]({summaryUrl})"
   )
 
   let markdown = output.join("\n")
   return markdown
 
-proc getCsvFilename*(outputDir: string): string =
-  let prNum = getEnv("PR_NUMBER", "unknown")
-  result = fmt"{outputDir}/pr{prNum}_latency.csv"
+proc getCsvFilename*(outputDir: string, prNumber: string): string =
+  result = fmt"{outputDir}/pr{prNumber}_latency.csv"
 
 proc getCsvReport*(
     results: Table[string, Stats], validNodes: Table[string, int]
@@ -127,29 +114,24 @@ proc getCsvReport*(
   result = output.join("\n")
 
 proc main() =
-  let outputDir = "performance/output"
+  let env = getGitHubEnv()
+  let outputDir = env.sharedVolumePath
   let parsedJsons = parseJsonFiles(outputDir)
 
   let jsonResults = getJsonResults(parsedJsons)
   let (aggregatedResults, validNodes) = aggregateResults(jsonResults)
 
   # For History
-  let csvFilename = getCsvFilename(outputDir)
+  let csvFilename = getCsvFilename(outputDir, env.prNumber)
   let csvContent = getCsvReport(aggregatedResults, validNodes)
   writeFile(csvFilename, csvContent)
 
-  let marker = getEnv("MARKER", "<!-- marker -->")
-  let commitSha = getEnv("PR_HEAD_SHA", getEnv("GITHUB_SHA", "unknown"))
-  let markdown = getMarkdownReport(aggregatedResults, validNodes, marker, commitSha)
+  let markdown = getMarkdownReport(
+    aggregatedResults, validNodes, env.marker, env.prHeadSha, env.runId
+  )
 
   echo markdown
-
-  # For GitHub summary
-  let summaryPath = getEnv("GITHUB_STEP_SUMMARY", "/tmp/summary.txt")
-  writeFile(summaryPath, markdown & "\n")
-
-  # For PR comment
-  let commentPath = getEnv("COMMENT_SUMMARY_PATH", "/tmp/summary.txt")
-  writeFile(commentPath, markdown & "\n")
+  writeGitHubSummary(markdown, env)
+  writeGitHubComment(markdown, env)
 
 main()

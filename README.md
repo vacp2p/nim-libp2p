@@ -17,17 +17,20 @@
 </p>
 
 # Table of Contents
-- [Background](#background)
-- [Install](#install)
-- [Getting Started](#getting-started)
-- [Development](#development)
-  - [Contribute](#contribute)
-  - [Contributors](#contributors)
-  - [Core Maintainers](#core-maintainers)
-- [Modules](#modules)
-- [Users](#users)
-- [Stability](#stability)
-- [License](#license)
+- [Table of Contents](#table-of-contents)
+  - [Background](#background)
+  - [Install](#install)
+  - [Getting Started](#getting-started)
+  - [Development](#development)
+    - [Testing](#testing)
+    - [Contribute](#contribute)
+    - [Contributors](#contributors)
+    - [Core Maintainers](#core-maintainers)
+    - [Compile time flags](#compile-time-flags)
+  - [Modules](#modules)
+  - [Users](#users)
+  - [Stability](#stability)
+  - [License](#license)
 
 ## Background
 libp2p is a [Peer-to-Peer](https://en.wikipedia.org/wiki/Peer-to-peer) networking stack, with [implementations](https://github.com/libp2p/libp2p#implementations) in multiple languages derived from the same [specifications.](https://github.com/libp2p/specs)
@@ -138,6 +141,32 @@ Specify gossipsub specific topics to measure in the metrics:
 nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```
 
+Extend `MultiFormats`:
+| Multi format   | Compiler flag<br>(path to extensions file) | Expected definition in extension file |
+|----------------|--------------------------------------------|-------------------------------|
+| `MultiCodec`   | `-d:libp2p_multicodec_exts`                | `const CodecExts = []`        |
+| `MultiHash`    | `-d:libp2p_multihash_exts`                 | `const HashExts = []`         |
+| `MultiAddress` | `-d:libp2p_multiaddress_exts`              | `const AddressExts = []`      |
+| `MultiBase`    | `-d:libp2p_multibase_exts`                 | `const BaseExts = []`         |
+
+For example, a file called `multihash_exts.nim` could be created and contain `MultiHash` extensions:
+```nim
+proc coder1(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+proc coder2(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+proc sha2_256_override(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+const HashExts = [
+  MHash(mcodec: multiCodec("codec_mc1"), size: 0, coder: coder1),
+  MHash(mcodec: multiCodec("codec_mc2"), size: 6, coder: coder2),
+  MHash(mcodec: multiCodec("sha2-256"), size: 6, coder: sha2_256_override),
+]
+```
+These `MultiHashes` will be available at compile time when the binary is compiled with `-d:libp2p_multihash_exts=multihash_exts.nim`.
 
 ## Modules
 List of packages modules implemented in nim-libp2p:

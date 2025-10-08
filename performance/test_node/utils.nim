@@ -16,6 +16,7 @@ import ../../libp2p/protocols/pubsub/rpc/messages
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/ping
 import ../../tests/helpers
+import ../runner
 import ../types
 
 export TransportType
@@ -274,17 +275,6 @@ const
   enableTcCommand* = "tc qdisc add dev eth0 root"
   disableTcCommand* = "tc qdisc del dev eth0 root"
 
-proc execShellCommand*(cmd: string): string =
-  try:
-    let output = execProcess(
-        "/bin/sh", args = ["-c", cmd], options = {poUsePath, poStdErrToStdOut}
-      )
-      .strip()
-    debug "Shell command executed", cmd, output
-    return output
-  except OSError as e:
-    raise newException(OSError, "Shell command failed")
-
 const syncDir = "/output/sync"
 
 proc syncNodes*(stage: string, nodeId, nodeCount: int) {.async.} =
@@ -311,7 +301,11 @@ proc clearSyncFiles*() =
         removeFile(f.path)
 
 proc getDockerStatsLogPath*(scenarioName: string, nodeId: int): string =
-  let sanitizedScenario = scenarioName.replace(" ", "").replace("%", "percent")
+  let sanitizedScenario = scenarioName
+    .replace(" ", "")
+    .replace("%", "percent")
+    .replace("(", "_")
+    .replace(")", "")
   return &"/output/docker_stats_{sanitizedScenario}_{nodeId}.log"
 
 proc clearDockerStats*(outputPath: string) =

@@ -10,7 +10,7 @@ skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0 & < 0.12.0", "chronos >= 4.0.4", "metrics", "secp256k1",
-  "stew >= 0.4.0", "websock >= 0.2.0", "unittest2", "results", "quic >= 0.2.16",
+  "stew >= 0.4.2", "websock >= 0.2.1", "unittest2", "results", "quic >= 0.2.16",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
@@ -48,6 +48,14 @@ proc tutorialToMd(filename: string) =
     " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
   writeFile(filename.replace(".nim", ".md"), markdown)
 
+task testmultiformatexts, "Run multiformat extensions tests":
+  let opts =
+    "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
+    "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
+    "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
+    "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim "
+  runTest("multiformat_exts/testmultiformat_exts", opts)
+
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
 
@@ -62,6 +70,7 @@ task testintegration, "Runs integraion tests":
 
 task test, "Runs the test suite":
   runTest("testall")
+  testmultiformatextsTask()
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")

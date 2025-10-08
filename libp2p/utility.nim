@@ -143,3 +143,13 @@ template filterIt*[T](set: HashSet[T], condition: untyped): HashSet[T] =
       if condition:
         filtered.incl(it)
   filtered
+
+macro includeFile*(file: static[string]): untyped =
+  let res = newStmtList()
+
+  try:
+    res.add(nnkIncludeStmt.newTree(newLit(file)))
+  except ValueError as e:
+    raiseAssert("Failed to include file: " & file & ", error: " & e.msg)
+
+  return res

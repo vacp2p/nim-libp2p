@@ -29,9 +29,10 @@ import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, multicodec, multibase
 import stew/base58
 import results
+import ./utility
 export results
 # This is workaround for Nim `import` bug.
-export sha, sha2, keccak, blake2, hash, utils
+export sha, sha2, keccak, blake2, hash, utils, vbuffer
 
 const
   MaxHashSize* = 128
@@ -40,6 +41,7 @@ const
   ErrWrongDigestSize = "Incorrect digest size"
   ErrDecodeError = "Decoding error from bytes"
   ErrParseError = "Parse error fromHex"
+  libp2p_multihash_exts* {.strdefine.} = ""
 
 type
   MHashCoderProc* = proc(data: openArray[byte], output: var openArray[byte]) {.
@@ -350,11 +352,21 @@ const HashesList = [
   MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash),
 ]
 
-proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
-  for item in HashesList:
-    result[item.mcodec] = item
+proc initMultiHashCodeTable(
+    hashes: openArray[MHash]
+): Table[MultiCodec, MHash] {.compileTime.} =
+  var res: Table[MultiCodec, MHash]
 
-const CodeHashes = initMultiHashCodeTable()
+  for hash in hashes:
+    res[hash.mcodec] = hash
+
+  return res
+
+when libp2p_multihash_exts != "":
+  includeFile(libp2p_multihash_exts)
+  const CodeHashes = initMultiHashCodeTable(@HashesList & @HashExts)
+else:
+  const CodeHashes = initMultiHashCodeTable(@HashesList)
 
 proc digestImplWithHash(hash: MHash, data: openArray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
