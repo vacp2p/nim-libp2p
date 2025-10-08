@@ -165,6 +165,15 @@ window.addEventListener("DOMContentLoaded", main2);
 </li>
 <li>
   <details open>
+    <summary><a class="reference reference-toplevel" href="#10" id="60">Consts</a></summary>
+    <ul class="simple simple-toc-section">
+      <li><a class="reference" href="#libp2p_multibase_exts" title="libp2p_multibase_exts {.strdefine.} = &quot;&quot;">libp2p_multibase_exts</a></li>
+
+    </ul>
+  </details>
+</li>
+<li>
+  <details open>
     <summary><a class="reference reference-toplevel" href="#12" id="62">Procs</a></summary>
     <ul class="simple simple-toc-section">
       <ul class="simple nested-toc-section">decode
@@ -215,7 +224,7 @@ window.addEventListener("DOMContentLoaded", main2);
     <div class="section" id="6">
   <h1><a class="toc-backref" href="#6">Imports</a></h1>
   <dl class="item">
-    <a class="reference external" href="utils/sequninit.html">utils/sequninit</a>
+    <a class="reference external" href="utils/sequninit.html">utils/sequninit</a>, <a class="reference external" href="utility.html">utility</a>
   </dl>
 </div>
 <div class="section" id="7">
@@ -226,8 +235,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L32" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L32" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L33" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L33" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -237,8 +246,24 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L24" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L24" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L25" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L25" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+  </dl>
+</div>
+<div class="section" id="10">
+  <h1><a class="toc-backref" href="#10">Consts</a></h1>
+  <dl class="item">
+    <div id="libp2p_multibase_exts" class="tohide">
+<dt><pre><a href="multibase.html#libp2p_multibase_exts"><span class="Identifier">libp2p_multibase_exts</span></a> {.<span class="Identifier">strdefine</span>.} <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span></pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L49" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L49" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -255,8 +280,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 Decode MultiBase encoded array <tt class="docutils literal"><span class="pre">inbytes</span></tt> and return decoded sequence of bytes.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L520" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L520" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L537" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L537" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -271,8 +296,8 @@ Decode MultiBase encoded array <tt class="docutils literal"><span class="pre">in
 <p>If length of <tt class="docutils literal"><span class="pre">outbytes</span></tt> is not enough to store decoded result, then <tt class="docutils literal"><span class="pre">MultiBaseStatus.Overrun</span></tt> error will be returned and <tt class="docutils literal"><span class="pre">outlen</span></tt> will be set to length required.</p>
 <p>On successfull decoding <tt class="docutils literal"><span class="pre">MultiBaseStatus.Success</span></tt> will be returned and <tt class="docutils literal"><span class="pre">outlen</span></tt> will be set to number of encoded octets (bytes).</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L461" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L461" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L478" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L478" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -285,8 +310,8 @@ Decode MultiBase encoded array <tt class="docutils literal"><span class="pre">in
 <dd>
 
 Return estimated size of buffer to store MultiBase decoded value with encoding character <tt class="docutils literal"><span class="pre">encoding</span></tt> of length <tt class="docutils literal"><span class="pre">length</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L406" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L406" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L423" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L423" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -299,8 +324,8 @@ Return estimated size of buffer to store MultiBase decoded value with encoding c
 <dd>
 
 Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> using MultiBase encoding scheme <tt class="docutils literal"><span class="pre">encoding</span></tt> and return encoded string.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L495" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L495" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L512" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L512" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -316,8 +341,8 @@ Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> 
 <p>If length of <tt class="docutils literal"><span class="pre">outbytes</span></tt> is not enough to store encoded result, then <tt class="docutils literal"><span class="pre">MultiBaseStatus.Overrun</span></tt> error will be returned and <tt class="docutils literal"><span class="pre">outlen</span></tt> will be set to length required.</p>
 <p>On successfull encoding <tt class="docutils literal"><span class="pre">MultiBaseStatus.Success</span></tt> will be returned and <tt class="docutils literal"><span class="pre">outlen</span></tt> will be set to number of encoded octets (bytes).</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L418" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L418" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L435" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L435" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -332,8 +357,8 @@ Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> 
 <p>Return estimated size of buffer to store MultiBase encoded value with encoding <tt class="docutils literal"><span class="pre">encoding</span></tt> of length <tt class="docutils literal"><span class="pre">length</span></tt>.</p>
 <p>Procedure returns <tt class="docutils literal"><span class="pre">-1</span></tt> if <tt class="docutils literal"><span class="pre">encoding</span></tt> scheme is not supported or not present.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L391" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L391" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multibase.nim#L408" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multibase.nim#L408" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -349,7 +374,7 @@ Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> 
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-10-06 15:48:53 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-10-08 12:22:53 UTC</small>
       </div>
     </div>
   </div>
