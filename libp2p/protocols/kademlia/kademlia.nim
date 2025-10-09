@@ -315,6 +315,60 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", chronos.minutes(10):
     await kad.refreshBuckets()
 
+proc handleFindNode(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let targetIdBytes = msg.key.valueOr:
+    error "FindNode message without key data present", msg = msg, conn = conn
+    return
+  let targetId = PeerId.init(targetIdBytes).valueOr:
+    error "FindNode message without valid key data", msg = msg, conn = conn
+    return
+  let closerPeers = kad.rtable.findClosest(targetId.toKey(), DefaultReplic)
+    # exclude the node requester because telling a peer about itself does not reduce the distance,
+    .filterIt(it != conn.peerId.toKey())
+
+  let responsePb = encodeFindNodeReply(closerPeers, kad.switch)
+  try:
+    await conn.writeLp(responsePb.buffer)
+  except LPStreamError as exc:
+    debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg
+    return
+
+  # Peer is useful. adding to rtable
+  discard kad.rtable.insert(conn.peerId)
+
+proc handlePutValue(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let record = msg.record.valueOr:
+    error "No record in message buffer", msg = msg, conn = conn
+    return
+  let (key, value) =
+    if record.key.isSome() and record.value.isSome():
+      (record.key.unsafeGet(), record.value.unsafeGet())
+    else:
+      error "No key or no value in rpc buffer", msg = msg, conn = conn
+      return
+
+  # Value sanitisation done. Start insertion process
+  if not kad.entryValidator.isValid(key, value):
+    debug "Record is not valid", key, value
+    return
+
+  if not kad.isBestValue(key, value):
+    error "Dropping received value, we have a better one"
+    return
+
+  kad.dataTable.insert(key, value, $times.now().utc)
+  # consistent with following link, echo message without change
+  # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
+  try:
+    await conn.writeLp(msg.encode().buffer)
+  except LPStreamError as exc:
+    debug "Failed to send find-node RPC reply", conn = conn, err = exc.msg
+    return
+
 proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
@@ -350,55 +404,9 @@ proc new*(
 
       case msg.msgType
       of MessageType.findNode:
-        let targetIdBytes = msg.key.valueOr:
-          error "FindNode message without key data present", msg = msg, conn = conn
-          return
-        let targetId = PeerId.init(targetIdBytes).valueOr:
-          error "FindNode message without valid key data", msg = msg, conn = conn
-          return
-        let closerPeers = kad.rtable
-          .findClosest(targetId.toKey(), DefaultReplic)
-          # exclude the node requester because telling a peer about itself does not reduce the distance,
-          .filterIt(it != conn.peerId.toKey())
-
-        let responsePb = encodeFindNodeReply(closerPeers, switch)
-        try:
-          await conn.writeLp(responsePb.buffer)
-        except LPStreamError as exc:
-          debug "Write error when writing kad find-node RPC reply",
-            conn = conn, err = exc.msg
-          return
-
-        # Peer is useful. adding to rtable
-        discard kad.rtable.insert(conn.peerId)
+        await kad.handleFindNode(conn, msg)
       of MessageType.putValue:
-        let record = msg.record.valueOr:
-          error "No record in message buffer", msg = msg, conn = conn
-          return
-        let (key, value) =
-          if record.key.isSome() and record.value.isSome():
-            (record.key.unsafeGet(), record.value.unsafeGet())
-          else:
-            error "No key or no value in rpc buffer", msg = msg, conn = conn
-            return
-
-        # Value sanitisation done. Start insertion process
-        if not kad.entryValidator.isValid(key, value):
-          debug "Record is not valid", key, value
-          return
-
-        if not kad.isBestValue(key, value):
-          error "Dropping received value, we have a better one"
-          return
-
-        kad.dataTable.insert(key, value, $times.now().utc)
-        # consistent with following link, echo message without change
-        # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
-        try:
-          await conn.writeLp(buf)
-        except LPStreamError as exc:
-          debug "Failed to send find-node RPC reply", conn = conn, err = exc.msg
-          return
+        await kad.handlePutValue(conn, msg)
       of MessageType.ping:
         try:
           await conn.writeLp(buf)
