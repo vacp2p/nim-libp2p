@@ -315,7 +315,7 @@ proc wrapConnection(
       MultiAddress.init(connection.localAddress(), IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
   except MaError as e:
-    error "Multiaddr Error", description = e.msg
+    raiseAssert "Multiaddr Error" & e.msg
 
   let session = QuicSession(
     connection: connection,
