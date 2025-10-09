@@ -173,8 +173,7 @@ proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe
 proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
-  ## Node lookup. Iteratively search for the k closest peers to a target ID.
-  ## Not necessarily will return the target itself
+  ## Iteratively search for the k closest peers to a target ID.
 
   var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
   var state = LookupState.init(targetId, initialPeers, kad.rtable.hasher)
@@ -204,19 +203,22 @@ proc findNode*(
       for peer in msg.closerPeers:
         let pid = PeerId.init(peer.id)
         if not pid.isOk:
-          error "PeerId init went bad. this is unusual", data = peer.id
+          error "Invalid PeerId in successful reply", peerId = peer.id
           continue
         addrTable[pid.get()] = peer.addrs
       state.updateShortlist(
         msg,
-        proc(p: PeerInfo) =
+        proc(p: PeerInfo) {.raises: [].} =
           discard kad.rtable.insert(p.peerId)
           # Nodes might return different addresses for a peer, so we append instead of replacing
-          var existingAddresses =
-            kad.switch.peerStore[AddressBook][p.peerId].toHashSet()
-          for a in p.addrs:
-            existingAddresses.incl(a)
-          kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
+          try:
+            var existingAddresses =
+              kad.switch.peerStore[AddressBook][p.peerId].toHashSet()
+            for a in p.addrs:
+              existingAddresses.incl(a)
+            kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
+          except KeyError as exc:
+            debug "Could not update shortlist", err = exc.msg
           # TODO: add TTL to peerstore, otherwise we can spam it with junk
         ,
         kad.rtable.hasher,
