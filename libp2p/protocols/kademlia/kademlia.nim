@@ -113,62 +113,20 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
-proc dispatchPutVal(
-    kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await kad.switch.dial(peer, KadCodec)
-  defer:
-    await conn.close()
-  let msg = Message(
-    msgType: MessageType.putValue,
-    record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
-  )
-  await conn.writeLp(msg.encode().buffer)
+proc isBestValue(kad: KadDHT, key: Key, value: seq[byte]): bool =
+  ## Returns whether `value` is a better value than what we have locally
+  ## Always returns `true` if we don't have the value locally
 
-  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
-    # todo log this more meaningfully
-    error "PutValue reply decode fail", error = error, conn = conn
-    return
-  if reply != msg:
-    error "Unexpected change between msg and reply: ",
-      msg = msg, reply = reply, conn = conn
-
-proc ensureBestValue(kad: KadDHT, key: Key, value: seq[byte]): Result[void, string] =
   kad.dataTable.get(key).withValue(existing):
-    let selectedIdx = kad.entrySelector.select(key, @[value, existing.value]).valueOr:
-      return err(error)
-    if selectedIdx != 0:
-      return err("can't replace a newer value with an older value")
-  return ok()
+    kad.entrySelector.select(key, @[value, existing.value]).withValue(selectedIdx):
+      return selectedIdx == 0
 
-proc putValue*(
-    kad: KadDHT, key: Key, value: seq[byte], timeout: Opt[int]
-): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  if not kad.entryValidator.isValid(key, value):
-    return err("invalid key/value pair")
+  true
 
-  kad.ensureBestValue(key, value).isOkOr:
-    return err(error)
-
-  let peers = await kad.findNode(key)
-  # We first prime the sends so the data is ready to go
-  let rpcBatch = peers.mapIt(kad.dispatchPutVal(it, key, value))
-  # then we do the `move`, as insert takes the data as `sink`
-  kad.dataTable.insert(key, value, $times.now().utc)
-  try:
-    # now that the all the data is where it needs to be in memory, we can dispatch the
-    # RPCs
-    await rpcBatch.allFutures().wait(chronos.seconds(timeout.get(5)))
-
-    # It's quite normal for the dispatch to timeout, as it would require all calls to get
-    # their response. Downstream users may desire some sort of functionality in the 
-    # future to get rpc telemetry, but in the meantime, we just move on...
-  except AsyncTimeoutError:
-    discard
-  return ok()
-
-# Helper function forward declaration
-proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.}
+proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
+  let ready = state.activeQueries == 0
+  let noNew = selectAlphaPeers(state).filterIt(me != it).len == 0
+  return ready and noNew
 
 proc findNode*(
     kad: KadDHT, targetId: Key
@@ -267,10 +225,47 @@ proc ping*(
 
   reply == request
 
-proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
-  let ready = state.activeQueries == 0
-  let noNew = selectAlphaPeers(state).filterIt(me != it).len == 0
-  return ready and noNew
+proc dispatchPutVal(
+    switch: Switch, peer: PeerId, key: Key, value: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+  let conn = await switch.dial(peer, KadCodec)
+  defer:
+    await conn.close()
+  let msg = Message(
+    msgType: MessageType.putValue,
+    record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
+  )
+  await conn.writeLp(msg.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+    # todo log this more meaningfully
+    error "PutValue reply decode fail", error = error, conn = conn
+    return
+  if reply != msg:
+    error "Unexpected change between msg and reply: ",
+      msg = msg, reply = reply, conn = conn
+
+proc putValue*(
+    kad: KadDHT, key: Key, value: seq[byte], timeout: Opt[int]
+): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  if not kad.entryValidator.isValid(key, value):
+    return err("invalid key/value pair")
+
+  if not kad.isBestValue(key, value):
+    return err("Value rejected, we have a better one")
+
+  let peers = await kad.findNode(key)
+
+  let rpcBatch = peers.mapIt(kad.switch.dispatchPutVal(it, key, value))
+
+  kad.dataTable.insert(key, value, $times.now().utc)
+  try:
+    await rpcBatch.allFutures().wait(chronos.seconds(timeout.get(5)))
+  except AsyncTimeoutError:
+    # Dispatch will timeout if any of the calls don't receive a response (which is normal)
+    discard
+
+  ok()
 
 proc bootstrap*(
     kad: KadDHT, bootstrapNodes: seq[PeerInfo]
@@ -392,8 +387,8 @@ proc new*(
           debug "Record is not valid", key, value
           return
 
-        kad.ensureBestValue(key, value).isOkOr:
-          error "Dropping received value", err = error
+        if not kad.isBestValue(key, value):
+          error "Dropping received value, we have a better one"
           return
 
         kad.dataTable.insert(key, value, $times.now().utc)
