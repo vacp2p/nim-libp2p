@@ -130,6 +130,9 @@ proc getStream*(
     when defined(libp2p_agents_metrics):
       qs.shortAgent = session.shortAgent
 
+    # Inherit transportDir from parent session for GossipSub outbound tracking
+    qs.transportDir = session.transportDir
+
     session.streams.add(qs)
     return qs
   except CatchableError as exc:
@@ -316,7 +319,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   await procCall Transport(transport).stop()
 
 proc wrapConnection(
-    transport: QuicTransport, connection: QuicConnection
+    transport: QuicTransport, connection: QuicConnection, dir: Direction
 ): QuicSession {.raises: [TransportOsError, MaError].} =
   let
     observedAddr =
@@ -332,6 +335,10 @@ proc wrapConnection(
     )
 
   session.initStream()
+
+  # Set the transport direction for GossipSub mesh quota tracking
+  # This is critical for outbound peer tracking in GossipSub 1.1
+  session.transportDir = dir
 
   transport.connections.add(session)
 
@@ -357,7 +364,7 @@ method accept*(
 
   try:
     let connection = await self.listener.accept()
-    return self.wrapConnection(connection)
+    return self.wrapConnection(connection, Direction.In)
   except CancelledError as exc:
     raise exc
   except QuicError as exc:
@@ -383,7 +390,7 @@ method dial*(
 
     let client = self.client.get()
     let quicConnection = await client.dial(initTAddress(address).tryGet)
-    return self.wrapConnection(quicConnection)
+    return self.wrapConnection(quicConnection, Direction.Out)
   except CancelledError as e:
     raise e
   except CatchableError as e:
