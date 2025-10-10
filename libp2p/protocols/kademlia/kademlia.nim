@@ -1,4 +1,5 @@
-import std/[times, tables, sequtils, sets]
+import std/[tables, sequtils, sets]
+from std/times import now, utc
 import chronos
 import chronicles
 import results
@@ -256,6 +257,7 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
+  # TODO: only query max of alpha peers (selectAlphaPeers)
   let rpcBatch = peers.mapIt(kad.switch.dispatchPutVal(it, key, value))
 
   kad.dataTable.insert(key, value, $times.now().utc)
@@ -266,6 +268,80 @@ proc putValue*(
     discard
 
   ok()
+
+proc dispatchGetVal(
+    switch: Switch, peer: PeerId, key: Key, received: var Table[PeerId, EntryRecord]
+) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+  # TODO: implement
+  let conn = await switch.dial(peer, KadCodec)
+  defer:
+    await conn.close()
+  let msg =
+    Message(msgType: MessageType.getValue, record: Opt.some(Record(key: Opt.some(key))))
+  await conn.writeLp(msg.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+    # todo log this more meaningfully
+    error "GetValue reply decode fail", error = error, conn = conn
+    return
+
+  let record = reply.record.valueOr:
+    error "GetValue returned empty record", msg = msg, reply = reply, conn = conn
+    return
+
+  let value = record.value.valueOr:
+    error "GetValue returned record with no value",
+      msg = msg, reply = reply, conn = conn
+    return
+
+  let time = record.timeReceived.valueOr:
+    error "GetValue returned record with no timeReceived",
+      msg = msg, reply = reply, conn = conn
+    return
+
+  received[peer] = EntryRecord(value: value, time: time)
+
+proc getValue*(
+    kad: KadDHT, key: Key, timeout: Duration = DefaultTimeout
+): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  let peers = await kad.findNode(key)
+  var received: Table[PeerId, EntryRecord]
+
+  # TODO: async handling with chronos data structures
+  # TODO: only query alpha handling (selectAlphaPeers)
+  while received.len < QuorumResponses:
+    let rpcBatch = peers.mapIt(kad.switch.dispatchGetVal(it, key, received))
+    try:
+      await rpcBatch.allFutures().wait(chronos.seconds(5))
+    except AsyncTimeoutError:
+      # Dispatch will timeout if any of the calls don't receive a response (which is normal)
+      discard
+
+  # TODO: cancel outstanding requests
+  let
+    entries = received.values().toSeq()
+    values = entries.mapIt(it.value)
+    selectedIdx = kad.entrySelector.select(key, values).valueOr:
+      return err("Could not select value")
+
+  let best = entries[selectedIdx]
+
+  # insert value to our localtable
+  kad.dataTable.insert(key, best.value, $times.now().utc)
+
+  # update peers that don't have best value
+  var rpcBatch: seq[Future[void]]
+  for p, e in received:
+    if e.value != best.value:
+      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value))
+
+  try:
+    await rpcBatch.allFutures().wait(chronos.seconds(5))
+  except AsyncTimeoutError:
+    # Dispatch will timeout if any of the calls don't receive a response (which is normal)
+    discard
+
+  ok(best)
 
 proc bootstrap*(
     kad: KadDHT, bootstrapNodes: seq[PeerInfo]
@@ -338,6 +414,42 @@ proc handleFindNode(
   # Peer is useful. adding to rtable
   discard kad.rtable.insert(conn.peerId)
 
+proc handleGetValue(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let key = msg.key.valueOr:
+    error "No key in rpc buffer", msg = msg, conn = conn
+    return
+
+  let entryRecord = kad.dataTable.get(key).valueOr:
+    try:
+      await conn.writeLp(
+        Message(
+          msgType: MessageType.getValue, key: Opt.some(key), record: Opt.none(Record)
+        ).encode().buffer
+      )
+    except LPStreamError as exc:
+      debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+    return
+
+  try:
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.getValue,
+        key: Opt.some(key),
+        record: Opt.some(
+          Record(
+            key: Opt.some(key),
+            value: Opt.some(entryRecord.value),
+            timeReceived: Opt.some(entryRecord.time),
+          )
+        ),
+      ).encode().buffer
+    )
+  except LPStreamError as exc:
+    debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+    return
+
 proc handlePutValue(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
@@ -407,6 +519,8 @@ proc new*(
         await kad.handleFindNode(conn, msg)
       of MessageType.putValue:
         await kad.handlePutValue(conn, msg)
+      of MessageType.getValue:
+        await kad.handleGetValue(conn, msg)
       of MessageType.ping:
         try:
           await conn.writeLp(buf)
