@@ -195,7 +195,9 @@ proc generateNodes*(
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
-      secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord
+      secureManagers = secureManagers,
+      sendSignedPeerRecord = sendSignedPeerRecord,
+      transport = TransportType.QUIC,
     )
     let pubsub =
       if gossip:
