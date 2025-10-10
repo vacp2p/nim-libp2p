@@ -6,5 +6,7 @@ const
   alpha* = 10 # concurrency parameter
   ttl* = 24.hours
   maxBuckets* = 256
+  QuorumResponses* = 5 # number of GetValue responses needed to decide
+  DefaultTimeout* = 5.seconds
 
 const KadCodec* = "/ipfs/kad/1.0.0"
