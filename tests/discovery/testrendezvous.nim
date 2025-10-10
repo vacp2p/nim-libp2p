@@ -11,7 +11,9 @@
 
 import sequtils
 import strformat
+import sugar
 import chronos
+
 import
   ../../libp2p/[
     protocols/rendezvous,
@@ -20,11 +22,59 @@ import
     switch,
     routing_record,
     crypto/crypto,
+    multicodec,
+    protobuf/minprotobuf,
   ]
 import ../../libp2p/discovery/discoverymngr
 import ../../libp2p/utils/offsettedseq
 import ../helpers
 import ./utils
+
+type CustomPeerRecord* = object
+  peerId*: PeerId
+  seqNo*: uint64
+  customField*: string
+
+proc payloadDomain*(T: typedesc[CustomPeerRecord]): string =
+  $multiCodec("libp2p-custom-peer-record")
+
+proc payloadType*(T: typedesc[CustomPeerRecord]): seq[byte] =
+  @[(byte) 0x05, (byte) 0x05]
+
+proc init*(T: typedesc[CustomPeerRecord], peerId: PeerId, seqNo: uint64): T =
+  CustomPeerRecord(peerId: peerId, seqNo: seqNo, customField: "customValue")
+
+proc decode*(
+    T: typedesc[CustomPeerRecord], buffer: seq[byte]
+): Result[CustomPeerRecord, ProtoError] =
+  let pb = initProtoBuffer(buffer)
+  var record = CustomPeerRecord()
+
+  ?pb.getRequiredField(1, record.peerId)
+  ?pb.getRequiredField(2, record.seqNo)
+  ?pb.getRequiredField(3, record.customField)
+
+  ok(record)
+
+proc encode*(record: CustomPeerRecord): seq[byte] =
+  var pb = initProtoBuffer()
+
+  pb.write(1, record.peerId)
+  pb.write(2, record.seqNo)
+  pb.write(3, record.customField)
+
+  pb.finish()
+  pb.buffer
+
+proc checkCustomPeerRecord(
+    spr: seq[byte], peerId: PeerId
+): Result[void, string] {.gcsafe.} =
+  if spr.len == 0:
+    return err("Empty peer record")
+  let signedEnv = ?SignedPayload[CustomPeerRecord].decode(spr).mapErr(x => $x)
+  if signedEnv.data.peerId != peerId:
+    return err("Bad Peer ID")
+  return ok()
 
 suite "RendezVous":
   teardown:
@@ -35,7 +85,7 @@ suite "RendezVous":
     nodes.startAndDeferStop()
 
     const namespace = ""
-    check nodes[0].requestLocally(namespace).len == 0
+    check rendezvous.requestLocally[PeerRecord](nodes[0], namespace).len == 0
 
   asyncTest "Request locally returns registered peers":
     let nodes = setupNodes(1)
@@ -43,7 +93,7 @@ suite "RendezVous":
 
     const namespace = "foo"
     await nodes[0].advertise(namespace)
-    let peerRecords = nodes[0].requestLocally(namespace)
+    let peerRecords = rendezvous.requestLocally[PeerRecord](nodes[0], namespace)
 
     check:
       peerRecords.len == 1
@@ -55,10 +105,10 @@ suite "RendezVous":
 
     const namespace = "foo"
     await nodes[0].advertise(namespace)
-    check nodes[0].requestLocally(namespace).len == 1
+    check rendezvous.requestLocally[PeerRecord](nodes[0], namespace).len == 1
 
     nodes[0].unsubscribeLocally(namespace)
-    check nodes[0].requestLocally(namespace).len == 0
+    check rendezvous.requestLocally[PeerRecord](nodes[0], namespace).len == 0
 
   asyncTest "Request returns 0 for empty namespace from remote":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
@@ -67,7 +117,11 @@ suite "RendezVous":
     await connectNodes(peerNodes[0], rendezvousNode)
 
     const namespace = "empty"
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 0
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 0
 
   asyncTest "Request returns registered peers from remote":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
@@ -76,8 +130,10 @@ suite "RendezVous":
     await connectNodes(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
-    await peerNodes[0].advertise(namespace)
-    let peerRecords = await peerNodes[0].request(Opt.some(namespace))
+    waitFor peerNodes[0].advertise(namespace)
+    let peerRecords = await rendezvous.request[PeerRecord](
+      peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 1
       peerRecords[0] == peerNodes[0].switch.peerInfo.signedPeerRecord.data
@@ -105,10 +161,18 @@ suite "RendezVous":
     const namespace = "foo"
     await peerNodes[0].advertise(namespace)
 
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 1
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 1
 
     await peerNodes[0].unsubscribe(namespace)
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 0
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 0
 
   asyncTest "Unsubscribe for not registered namespace is ignored":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
@@ -131,18 +195,26 @@ suite "RendezVous":
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
 
     var data = peerNodes.mapIt(it.switch.peerInfo.signedPeerRecord.data)
-    var peerRecords = await peerNodes[0].request(Opt.some(namespace), 5)
+    var peerRecords = waitFor rendezvous.request[PeerRecord](
+      peerNodes[0], Opt.some(namespace), Opt.some(5), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 5
       peerRecords.allIt(it in data)
     data.keepItIf(it notin peerRecords)
 
-    peerRecords = await peerNodes[0].request(Opt.some(namespace))
+    peerRecords = await rendezvous.request[PeerRecord](
+      peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 6
       peerRecords.allIt(it in data)
 
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 0
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 0
 
   asyncTest "Request without namespace returns all registered peers":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(10)
@@ -155,9 +227,17 @@ suite "RendezVous":
     await allFutures(peerNodes[0 ..< 5].mapIt(it.advertise(namespaceFoo)))
     await allFutures(peerNodes[5 ..< 10].mapIt(it.advertise(namespaceBar)))
 
-    check (await peerNodes[0].request()).len == 10
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.none(string), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 10
 
-    check (await peerNodes[0].request(Opt.none(string))).len == 10
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.none(string), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 10
 
   asyncTest "Consecutive requests with namespace keep cookie and retun only new peers":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(2)
@@ -171,10 +251,14 @@ suite "RendezVous":
     const namespace = "foo"
 
     await rdv0.advertise(namespace)
-    discard await rdv0.request(Opt.some(namespace))
+    discard await rendezvous.request[PeerRecord](
+      rdv0, Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+    )
 
     await rdv1.advertise(namespace)
-    let peerRecords = await rdv0.request(Opt.some(namespace))
+    let peerRecords = await rendezvous.request[PeerRecord](
+      rdv0, Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+    )
 
     check:
       peerRecords.len == 1
@@ -205,21 +289,27 @@ suite "RendezVous":
       )
 
     # Foo Page 1 with limit
-    var peerRecords = await rdv.request(Opt.some(namespaceFoo), 2)
+    var peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.some(namespaceFoo), Opt.some(2), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 2
       peerRecords.allIt(it in fooRecords)
     fooRecords.keepItIf(it notin peerRecords)
 
     # Foo Page 2 with limit
-    peerRecords = await rdv.request(Opt.some(namespaceFoo), 5)
+    peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.some(namespaceFoo), Opt.some(5), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 5
       peerRecords.allIt(it in fooRecords)
     fooRecords.keepItIf(it notin peerRecords)
 
     # Foo Page 3 with the rest
-    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.some(namespaceFoo), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 3
       peerRecords.allIt(it in fooRecords)
@@ -227,11 +317,15 @@ suite "RendezVous":
     check fooRecords.len == 0
 
     # Foo Page 4 empty
-    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.some(namespaceFoo), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check peerRecords.len == 0
 
     # Bar Page 1 with all
-    peerRecords = await rdv.request(Opt.some(namespaceBar), 30)
+    peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.some(namespaceBar), Opt.some(30), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 10
       peerRecords.allIt(it in barRecords)
@@ -243,7 +337,9 @@ suite "RendezVous":
     await allFutures(peerNodes[25 ..< 30].mapIt(it.advertise(namespaceBar)))
 
     # Foo Page 5 only new peers
-    peerRecords = await rdv.request(Opt.some(namespaceFoo))
+    peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.some(namespaceFoo), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 5
       peerRecords.allIt(
@@ -251,7 +347,9 @@ suite "RendezVous":
       )
 
     # Bar Page 2 only new peers
-    peerRecords = await rdv.request(Opt.some(namespaceBar))
+    peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.some(namespaceBar), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 5
       peerRecords.allIt(
@@ -259,7 +357,9 @@ suite "RendezVous":
       )
 
     # All records
-    peerRecords = await rdv.request(Opt.none(string))
+    peerRecords = await rendezvous.request[PeerRecord](
+      rdv, Opt.none(string), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check peerRecords.len == 30
 
   asyncTest "Request with namespace with expired peers":
@@ -276,8 +376,17 @@ suite "RendezVous":
     await allFutures(peerNodes[5 ..< 10].mapIt(it.advertise(namespaceBar)))
 
     check:
-      (await peerNodes[0].request(Opt.some(namespaceFoo))).len == 5
-      (await peerNodes[0].request(Opt.some(namespaceBar))).len == 5
+      (
+        await rendezvous.request[PeerRecord](
+          peerNodes[0], Opt.some(namespaceFoo), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 5
+
+      (
+        await rendezvous.request[PeerRecord](
+          peerNodes[0], Opt.some(namespaceBar), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 5
 
     # Overwrite register timeout loop interval
     discard rendezvousNode.deletesRegister(1.seconds)
@@ -291,8 +400,18 @@ suite "RendezVous":
     checkUntilTimeout:
       rendezvousNode.registered.offset == 10
       rendezvousNode.registered.s.len == 0
-      (await peerNodes[0].request(Opt.some(namespaceFoo))).len == 0
-      (await peerNodes[0].request(Opt.some(namespaceBar))).len == 0
+
+      (
+        waitFor rendezvous.request[PeerRecord](
+          peerNodes[0], Opt.some(namespaceFoo), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 0
+
+      (
+        waitFor rendezvous.request[PeerRecord](
+          peerNodes[0], Opt.some(namespaceBar), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 0
 
     # Advertise new peers
     await allFutures(peerNodes[10 ..< 15].mapIt(it.advertise(namespaceFoo)))
@@ -301,8 +420,18 @@ suite "RendezVous":
     check:
       rendezvousNode.registered.offset == 10
       rendezvousNode.registered.s.len == 10
-      (await peerNodes[0].request(Opt.some(namespaceFoo))).len == 5
-      (await peerNodes[0].request(Opt.some(namespaceBar))).len == 5
+
+      (
+        await rendezvous.request[PeerRecord](
+          peerNodes[0], Opt.some(namespaceFoo), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 5
+
+      (
+        await rendezvous.request[PeerRecord](
+          peerNodes[0], Opt.some(namespaceBar), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 5
 
   asyncTest "Cookie offset is reset to end (returns empty) then new peers are discoverable":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
@@ -322,11 +451,17 @@ suite "RendezVous":
     )
 
     # First request should return empty due to clamping to high()+1
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 0
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 0
 
     # Advertise a new peer, next request should return only the new one
     await peerNodes[2].advertise(namespace)
-    let peerRecords = await peerNodes[0].request(Opt.some(namespace))
+    let peerRecords = waitFor rendezvous.request[PeerRecord](
+      peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+    )
     check:
       peerRecords.len == 1
       peerRecords[0] == peerNodes[2].switch.peerInfo.signedPeerRecord.data
@@ -361,7 +496,11 @@ suite "RendezVous":
       rendezvousNode.switch.peerInfo.peerId, namespace, cookie
     )
 
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 4
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 4
 
   asyncTest "Cookie namespace mismatch resets to low (returns peers despite offset)":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
@@ -379,7 +518,11 @@ suite "RendezVous":
       rendezvousNode.switch.peerInfo.peerId, namespace, cookie
     )
 
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 3
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 3
 
   asyncTest "Peer default TTL is saved when advertised":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
@@ -458,7 +601,11 @@ suite "RendezVous":
       rendezvousNode.registered.s[0].expiration < now
 
     # Returns only one record
-    check (await peerNodes[0].request(Opt.some(namespace))).len == 1
+    check (
+      await rendezvous.request[PeerRecord](
+        peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 1
 
   asyncTest "Peer registration is ignored if limit of 1000 registrations is reached":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
@@ -501,10 +648,18 @@ suite "RendezVous":
 
     # Assert all the namespaces return Peer
     for ns in namespaces:
-      check (await requester1.request(Opt.some(ns))).len == 1
+      check (
+        await rendezvous.request[PeerRecord](
+          requester1, Opt.some(ns), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 1
 
     # Assert request without namespace returns only one Peer
-    check (await requester1.request()).len == 1
+    check (
+      await rendezvous.request[PeerRecord](
+        requester1, Opt.none(string), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 1
 
     # Unsubscribe subset of namespaces
     const unsubscribedNamespaces = namespaces[0 ..< 3]
@@ -519,11 +674,53 @@ suite "RendezVous":
     # Change the requester to avoid wrong results due to request cookie and no new peers
     # Assert unsubscribed namespaces don't return Peer
     for ns in unsubscribedNamespaces:
-      check (await requester2.request(Opt.some(ns))).len == 0
+      check (
+        await rendezvous.request[PeerRecord](
+          requester2, Opt.some(ns), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 0
 
     # Assert still subscribed namespaces return Peer
     for ns in subscribedNamespaces:
-      check (await requester2.request(Opt.some(ns))).len == 1
+      check (
+        await rendezvous.request[PeerRecord](
+          requester2, Opt.some(ns), Opt.none(int), Opt.none(seq[PeerId])
+        )
+      ).len == 1
 
     # Assert request without namespace still returns only one Peer
-    check (await requester2.request()).len == 1
+    check (
+      await rendezvous.request[PeerRecord](
+        requester2, Opt.none(string), Opt.none(int), Opt.none(seq[PeerId])
+      )
+    ).len == 1
+
+  asyncTest "Custom Peer Record Local Request":
+    let nodes = setupNodes(1)
+    nodes.startAndDeferStop()
+
+    const namespace = ""
+    check rendezvous.requestLocally[CustomPeerRecord](nodes[0], namespace).len == 0
+
+  asyncTest "Custom Peer Record Request returns registered peers from remote":
+    let (rendezvousNode, peerNodes) =
+      setupRendezvousNodeWithPeerNodes(1, checkCustomPeerRecord)
+    (rendezvousNode & peerNodes).startAndDeferStop()
+
+    await connectNodes(peerNodes[0], rendezvousNode)
+
+    const namespace = "foo"
+    let custRecord = CustomPeerRecord.init(peerNodes[0].switch.peerInfo.peerId, 1)
+    waitFor rendezvous.advertise[CustomPeerRecord](
+      peerNodes[0],
+      namespace,
+      custRecord,
+      rendezvous.MinimumDuration,
+      @[rendezvousNode.switch.peerInfo.peerId],
+    )
+    let peerRecords = await rendezvous.request[CustomPeerRecord](
+      peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
+    )
+    check:
+      peerRecords.len == 1
+      peerRecords[0] == custRecord

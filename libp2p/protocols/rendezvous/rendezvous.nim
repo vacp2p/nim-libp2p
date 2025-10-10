@@ -17,6 +17,7 @@ import
   ../protocol,
   ../../protobuf/minprotobuf,
   ../../switch,
+  ../../dial,
   ../../routing_record,
   ../../utils/heartbeat,
   ../../stream/connection,
@@ -48,6 +49,9 @@ const
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize = 5
 
+type PeerRecordValidator* =
+  proc(spr: seq[byte], peerId: PeerId): Result[void, string] {.gcsafe.}
+
 type
   RendezVousError* = object of DiscoveryError
   RegisteredData = object
@@ -77,8 +81,9 @@ type
     maxDuration: Duration
     minTTL: uint64
     maxTTL: uint64
+    peerRecordValidator: PeerRecordValidator
 
-proc checkPeerRecord(spr: seq[byte], peerId: PeerId): Result[void, string] =
+proc checkPeerRecord*(spr: seq[byte], peerId: PeerId): Result[void, string] =
   if spr.len == 0:
     return err("Empty peer record")
   let signedEnv = ?SignedPeerRecord.decode(spr).mapErr(x => $x)
@@ -170,17 +175,21 @@ proc register(rdv: RendezVous, conn: Connection, r: Register): Future[void] =
   let ttl = r.ttl.get(rdv.minTTL)
   if ttl < rdv.minTTL or ttl > rdv.maxTTL:
     return conn.sendRegisterResponseError(InvalidTTL)
-  let pr = checkPeerRecord(r.signedPeerRecord, conn.peerId)
-  if pr.isErr():
-    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
+  try:
+    let pr = rdv.peerRecordValidator(r.signedPeerRecord, conn.peerId)
+    if pr.isErr():
+      return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
+  except Exception as e:
+    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, e.msg)
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
     return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
+
   rdv.save(r.ns, conn.peerId, r)
   libp2p_rendezvous_registered.inc()
   libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
   conn.sendRegisterResponse(ttl)
 
-proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
+proc unregister*(rdv: RendezVous, conn: Connection, u: Unregister) =
   trace "Received Unregister", peerId = conn.peerId, ns = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
@@ -191,7 +200,7 @@ proc unregister(rdv: RendezVous, conn: Connection, u: Unregister) =
   except KeyError:
     return
 
-proc discover(
+proc discover*(
     rdv: RendezVous, conn: Connection, d: Discover
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Received Discover", peerId = conn.peerId, ns = d.ns
@@ -273,8 +282,25 @@ proc advertisePeer(
   await rdv.sema.acquire()
   await advertiseWrap()
 
+proc advertise*[T](
+    rdv: RendezVous, ns: string, customPeerRecord: T, ttl: Duration, peers: seq[PeerId]
+) {.async: (raises: [CancelledError, AdvertiseError]).} =
+  let signedPeerRecord = SignedPayload[T].init(
+    rdv.switch.peerInfo.privateKey, customPeerRecord
+  ).valueOr:
+    info "Can't create the signed peer record", error = error
+    return
+
+  let pBuff = signedPeerRecord.encode().valueOr:
+    raise newException(AdvertiseError, "Wrong Custom Peer Record")
+  await rdv.advertise(ns, ttl, peers, Opt.some(pBuff))
+
 proc advertise*(
-    rdv: RendezVous, ns: string, ttl: Duration, peers: seq[PeerId]
+    rdv: RendezVous,
+    ns: string,
+    ttl: Duration,
+    peers: seq[PeerId],
+    signedPeerRecord: Opt[seq[byte]],
 ) {.async: (raises: [CancelledError, AdvertiseError]).} =
   if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(AdvertiseError, "Invalid namespace")
@@ -282,8 +308,9 @@ proc advertise*(
   if ttl < rdv.minDuration or ttl > rdv.maxDuration:
     raise newException(AdvertiseError, "Invalid time to live: " & $ttl)
 
-  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
-    raise newException(AdvertiseError, "Wrong Signed Peer Record")
+  var sprBuff = signedPeerRecord.valueOr:
+    rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
+      raise newException(AdvertiseError, "Wrong Signed Peer Record")
 
   let
     r = Register(ns: ns, signedPeerRecord: sprBuff, ttl: Opt.some(ttl.seconds.uint64))
@@ -301,9 +328,9 @@ proc advertise*(
 method advertise*(
     rdv: RendezVous, ns: string, ttl: Duration = rdv.minDuration
 ) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
-  await rdv.advertise(ns, ttl, rdv.peers)
+  await rdv.advertise(ns, ttl, rdv.peers, Opt.none(seq[byte]))
 
-proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
+proc requestLocally*[T](rdv: RendezVous, ns: string): seq[T] =
   let
     nsSalted = ns & rdv.salt
     n = Moment.now()
@@ -311,92 +338,74 @@ proc requestLocally*(rdv: RendezVous, ns: string): seq[PeerRecord] =
     collect(newSeq()):
       for index in rdv.namespaces[nsSalted]:
         if rdv.registered[index].expiration > n:
-          let res = SignedPeerRecord.decode(rdv.registered[index].data.signedPeerRecord).valueOr:
+          let res = SignedPayload[T].decode(rdv.registered[index].data.signedPeerRecord).valueOr:
             continue
           res.data
-  except KeyError as exc:
+  except Exception as exc:
     @[]
 
-proc request*(
-    rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int, peers: seq[PeerId]
-): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
-  var
-    s: Table[PeerId, (PeerRecord, Register)]
-    limit: uint64
-    d = Discover(ns: ns)
+proc requestPeer(
+    rdv: RendezVous, limit: uint64, ns: Opt[string], peer: PeerId
+): Future[seq[Register]] {.
+    async: (raises: [CancelledError, DialFailedError, LPStreamError])
+.} =
+  let conn = await rdv.switch.dial(peer, RendezVousCodec)
+  defer:
+    await conn.close()
 
+  var d = Discover()
+  d.ns = ns
+  d.limit = Opt.some(limit)
+  d.cookie =
+    if ns.isSome():
+      try:
+        Opt.some(rdv.cookiesSaved[peer][ns.get()])
+      except exceptions.KeyError, CatchableError:
+        Opt.none(seq[byte])
+    else:
+      Opt.none(seq[byte])
+  await conn.writeLp(
+    encode(Message(msgType: MessageType.Discover, discover: Opt.some(d))).buffer
+  )
+  let
+    buf = await conn.readLp(MaximumMessageLen)
+    msgRcv = Message.decode(buf).valueOr:
+      debug "Message undecodable"
+      return @[]
+  if msgRcv.msgType != MessageType.DiscoverResponse:
+    debug "Unexpected discover response", msgType = msgRcv.msgType
+    return @[]
+  let resp = msgRcv.discoverResponse.valueOr:
+    debug "Discover response is empty"
+    return @[]
+  if resp.status != ResponseStatus.Ok:
+    trace "Cannot discover", ns, status = resp.status, text = resp.text
+    return @[]
+  resp.cookie.withValue(cookie):
+    if ns.isSome:
+      let namespace = ns.get()
+      if cookie.len() < 1000 and
+          rdv.cookiesSaved.hasKeyOrPut(peer, {namespace: cookie}.toTable()):
+        try:
+          rdv.cookiesSaved[peer][namespace] = cookie
+        except Exception:
+          raiseAssert "checked with hasKeyOrPut"
+  return resp.registrations
+
+proc request*[T](
+    rdv: RendezVous, ns: Opt[string], lt: Opt[int], peersOpt: Opt[seq[PeerId]]
+): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+  var
+    s: Table[PeerId, (T, Register)]
+    limit: uint64
+  let l = lt.get(DiscoverLimit.int)
+  let peers = peersOpt.get(rdv.peers)
   if l <= 0 or l > DiscoverLimit.int:
     raise newException(AdvertiseError, "Invalid limit")
   if ns.isSome() and ns.get().len > MaximumNamespaceLen:
     raise newException(AdvertiseError, "Invalid namespace")
 
   limit = l.uint64
-  proc requestPeer(
-      peer: PeerId
-  ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-    let conn = await rdv.switch.dial(peer, RendezVousCodec)
-    defer:
-      await conn.close()
-    d.limit = Opt.some(limit)
-    d.cookie =
-      if ns.isSome():
-        try:
-          Opt.some(rdv.cookiesSaved[peer][ns.get()])
-        except KeyError, CatchableError:
-          Opt.none(seq[byte])
-      else:
-        Opt.none(seq[byte])
-    await conn.writeLp(
-      encode(Message(msgType: MessageType.Discover, discover: Opt.some(d))).buffer
-    )
-    let
-      buf = await conn.readLp(MaximumMessageLen)
-      msgRcv = Message.decode(buf).valueOr:
-        debug "Message undecodable"
-        return
-    if msgRcv.msgType != MessageType.DiscoverResponse:
-      debug "Unexpected discover response", msgType = msgRcv.msgType
-      return
-    let resp = msgRcv.discoverResponse.valueOr:
-      debug "Discover response is empty"
-      return
-    if resp.status != ResponseStatus.Ok:
-      trace "Cannot discover", ns, status = resp.status, text = resp.text
-      return
-    resp.cookie.withValue(cookie):
-      if ns.isSome:
-        let namespace = ns.get()
-        if cookie.len() < 1000 and
-            rdv.cookiesSaved.hasKeyOrPut(peer, {namespace: cookie}.toTable()):
-          try:
-            rdv.cookiesSaved[peer][namespace] = cookie
-          except KeyError:
-            raiseAssert "checked with hasKeyOrPut"
-    for r in resp.registrations:
-      if limit == 0:
-        return
-      let ttl = r.ttl.get(rdv.maxTTL + 1)
-      if ttl > rdv.maxTTL:
-        continue
-      let
-        spr = SignedPeerRecord.decode(r.signedPeerRecord).valueOr:
-          continue
-        pr = spr.data
-      if s.hasKey(pr.peerId):
-        let (prSaved, rSaved) =
-          try:
-            s[pr.peerId]
-          except KeyError:
-            raiseAssert "checked with hasKey"
-        if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
-            prSaved.seqNo < pr.seqNo:
-          s[pr.peerId] = (pr, r)
-      else:
-        s[pr.peerId] = (pr, r)
-      limit.dec()
-    if ns.isSome():
-      for (_, r) in s.values():
-        rdv.save(ns.get(), peer, r, false)
 
   for peer in peers:
     if limit == 0:
@@ -405,7 +414,32 @@ proc request*(
       continue
     try:
       trace "Send Request", peerId = peer, ns
-      await peer.requestPeer()
+      let registrations = await rdv.requestPeer(limit, ns, peer)
+      for r in registrations:
+        if limit == 0:
+          break
+        let ttl = r.ttl.get(rdv.maxTTL + 1)
+        if ttl > rdv.maxTTL:
+          continue
+        let
+          spr = SignedPayload[T].decode(r.signedPeerRecord).valueOr:
+            continue
+          pr = spr.data
+        if s.hasKey(pr.peerId):
+          let (prSaved, rSaved) =
+            try:
+              s[pr.peerId]
+            except Exception:
+              raiseAssert "checked with hasKey"
+          if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
+              prSaved.seqNo < pr.seqNo:
+            s[pr.peerId] = (pr, r)
+        else:
+          s[pr.peerId] = (pr, r)
+        limit.dec()
+      if ns.isSome():
+        for (_, r) in s.values():
+          rdv.save(ns.get(), peer, r, false)
     except CancelledError as e:
       raise e
     except DialFailedError as e:
@@ -413,16 +447,6 @@ proc request*(
     except LPStreamError as e:
       trace "failed to communicate with a peer", description = e.msg
   return toSeq(s.values()).mapIt(it[0])
-
-proc request*(
-    rdv: RendezVous, ns: Opt[string], l: int = DiscoverLimit.int
-): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
-  await rdv.request(ns, l, rdv.peers)
-
-proc request*(
-    rdv: RendezVous, l: int = DiscoverLimit.int
-): Future[seq[PeerRecord]] {.async: (raises: [DiscoveryError, CancelledError]).} =
-  await rdv.request(Opt.none(string), l, rdv.peers)
 
 proc unsubscribeLocally*(rdv: RendezVous, ns: string) =
   let nsSalted = ns & rdv.salt
@@ -483,6 +507,7 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
+    peerRecordValidator: PeerRecordValidator = checkPeerRecord,
 ): T {.raises: [RendezVousError].} =
   if minDuration < MinimumAcceptedDuration:
     raise newException(RendezVousError, "TTL too short: 1 minute minimum")
@@ -508,6 +533,7 @@ proc new*(
     maxDuration: maxDuration,
     minTTL: minTTL,
     maxTTL: maxTTL,
+    peerRecordValidator: peerRecordValidator,
   )
   logScope:
     topics = "libp2p discovery rendezvous"
@@ -547,8 +573,9 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
+    peerRecordValidator: PeerRecordValidator = checkPeerRecord,
 ): T {.raises: [RendezVousError].} =
-  let rdv = T.new(rng, minDuration, maxDuration)
+  let rdv = T.new(rng, minDuration, maxDuration, peerRecordValidator)
   rdv.setup(switch)
   return rdv
 
