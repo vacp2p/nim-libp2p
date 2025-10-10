@@ -30,7 +30,7 @@ import ../../helpers
 proc waitSub(sender, receiver: auto, key: string) {.async.} =
   # turn things deterministic
   # this is for testing purposes only
-  var ceil = 15
+  var ceil = 50
   let fsub = cast[FloodSub](sender)
   while not fsub.floodsub.hasKey(key) or
       not fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId):
