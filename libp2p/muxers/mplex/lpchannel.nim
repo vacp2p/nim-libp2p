@@ -97,7 +97,7 @@ proc closeUnderlying(s: LPChannel): Future[void] {.async: (raises: []).} =
   if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
-proc reset*(s: LPChannel) {.async: (raises: []).} =
+method resetImpl*(s: LPChannel) {.async: (raises: []).} =
   if s.isClosed:
     trace "Already closed", s
     return
@@ -119,8 +119,6 @@ proc reset*(s: LPChannel) {.async: (raises: []).} =
         await s.conn.close()
 
     asyncSpawn resetMessage()
-
-  await s.closeImpl()
 
   trace "Channel reset", s
 
@@ -175,7 +173,7 @@ method readOnce*(
     trace "reset stream in readOnce", s
     raise newLPStreamResetError()
   if s.localReset:
-    raise newLPStreamClosedError()
+    raise newLPStreamResetError()
   if s.atEof():
     raise newLPStreamRemoteClosedError()
   if s.conn.closed:
@@ -204,7 +202,7 @@ proc prepareWrite(
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
-  if s.remoteReset:
+  if s.remoteReset or s.localReset:
     trace "stream is reset when prepareWrite", s
     raise newLPStreamResetError()
   if s.closedLocal:
