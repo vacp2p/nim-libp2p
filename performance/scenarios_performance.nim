@@ -16,7 +16,7 @@ setupOutputDirectory()
 
 suite "Performance Tests":
   asyncTest "Base Test TCP":
-    run("TCP")
+    run("Base Test", "TCP")
 
   asyncTest "Base Test QUIC":
-    run("QUIC")
+    run("Base Test", "QUIC")
