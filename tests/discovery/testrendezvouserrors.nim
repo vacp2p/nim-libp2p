@@ -33,11 +33,17 @@ suite "RendezVous Errors":
   asyncTest "Various local error":
     let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
     expect AdvertiseError:
-      discard await rdv.request(Opt.some("A".repeat(300)))
+      discard await rendezvous.request[PeerRecord](
+        rdv, Opt.some("A".repeat(300)), Opt.none(int), Opt.none(seq[PeerId])
+      )
     expect AdvertiseError:
-      discard await rdv.request(Opt.some("A"), -1)
+      discard await rendezvous.request[PeerRecord](
+        rdv, Opt.some("A"), Opt.some(-1), Opt.none(seq[PeerId])
+      )
     expect AdvertiseError:
-      discard await rdv.request(Opt.some("A"), 3000)
+      discard await rendezvous.request[PeerRecord](
+        rdv, Opt.some("A"), Opt.some(3000), Opt.none(seq[PeerId])
+      )
     expect AdvertiseError:
       await rdv.advertise("A".repeat(300))
     expect AdvertiseError:

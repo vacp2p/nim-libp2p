@@ -25,21 +25,25 @@ proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   .withRendezVous(rdv)
   .build()
 
-proc setupNodes*(count: int): seq[RendezVous] =
+proc setupNodes*(
+    count: int, peerRecordValidator: PeerRecordValidator = checkPeerRecord
+): seq[RendezVous] =
   doAssert(count > 0, "Count must be greater than 0")
 
   var rdvs: seq[RendezVous] = @[]
 
   for x in 0 ..< count:
-    let rdv = RendezVous.new()
+    let rdv = RendezVous.new(peerRecordValidator = peerRecordValidator)
     let node = createSwitch(rdv)
     rdvs.add(rdv)
 
   return rdvs
 
-proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]) =
+proc setupRendezvousNodeWithPeerNodes*(
+    count: int, peerRecordValidator: PeerRecordValidator = checkPeerRecord
+): (RendezVous, seq[RendezVous]) =
   let
-    rdvs = setupNodes(count + 1)
+    rdvs = setupNodes(count + 1, peerRecordValidator)
     rendezvousRdv = rdvs[0]
     peerRdvs = rdvs[1 ..^ 1]
 
