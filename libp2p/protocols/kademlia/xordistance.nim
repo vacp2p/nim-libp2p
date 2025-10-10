@@ -67,4 +67,4 @@ proc xorDistance*(a: Key, b: PeerId, hasher: Opt[XorDHasher]): XorDistance =
   xorDistance(a, b.toKey(), hasher)
 
 proc xorDistance*(a, b: PeerId, hasher: Opt[XorDHasher]): XorDistance =
-  xorDistance(a, b.toKey(), hasher)
+  xorDistance(a.toKey(), b.toKey(), hasher)

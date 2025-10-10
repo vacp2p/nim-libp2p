@@ -227,7 +227,7 @@ proc ping*(
 
 proc dispatchPutVal(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
   let conn = await switch.dial(peer, KadCodec)
   defer:
     await conn.close()
@@ -260,7 +260,7 @@ proc putValue*(
 
   kad.dataTable.insert(key, value, $times.now().utc)
   try:
-    await rpcBatch.allFutures().wait(chronos.seconds(timeout.get(5)))
+    await rpcBatch.allFutures().wait(chronos.seconds(5))
   except AsyncTimeoutError:
     # Dispatch will timeout if any of the calls don't receive a response (which is normal)
     discard
