@@ -41,17 +41,21 @@ proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
       return Opt.some(i)
   return Opt.none(int)
 
-proc replaceOldest(bucket: var Bucket, newNodeId: Key): bool =
-  if bucket.peers.len < DefaultReplic:
-    trace "Failed to replace: bucket is not full", newNodeId = newNodeId
-    return false
-
+proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
   var oldestIdx = 0
   var oldest = bucket.peers[0]
   for i, p in bucket.peers:
     if p.lastSeen < oldest.lastSeen:
       oldest = p
       oldestIdx = i
+  (oldest, oldestIdx)
+
+proc replaceOldest(bucket: var Bucket, newNodeId: Key): bool =
+  if bucket.peers.len < DefaultReplic:
+    trace "Skipping replace: bucket is not full", newNodeId = newNodeId
+    return false
+
+  let (oldest, oldestIdx) = bucket.oldestPeer()
 
   if oldest.nodeId == newNodeId:
     trace "Failed to replace: same nodeId", newNodeId = newNodeId

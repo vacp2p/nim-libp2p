@@ -23,6 +23,8 @@ proc testKey*(x: byte): Key =
 let rng = crypto.newRng()
 
 suite "routing table":
+  const TargetBucket = 6
+
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
     var rt = RoutingTable.new(selfId, Opt.none(XorDHasher))
@@ -38,37 +40,32 @@ suite "routing table":
   test "does not insert beyond capacity":
     let selfId = testKey(0)
     var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
-    let targetBucket = 6
     for _ in 0 ..< DefaultReplic + 5:
-      var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
+      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
-    check targetBucket < rt.buckets.len
-    let bucket = rt.buckets[targetBucket]
+    check TargetBucket < rt.buckets.len
+    let bucket = rt.buckets[TargetBucket]
     check bucket.peers.len <= DefaultReplic
 
   test "evicts oldest key at max capacity":
     let selfId = testKey(0)
     var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
-    let targetBucket = 6
     for _ in 0 ..< DefaultReplic + 10:
-      var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
+      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
-    check rt.buckets[targetBucket].peers.len == DefaultReplic
+    check rt.buckets[TargetBucket].peers.len == DefaultReplic
 
     # new entry should evict oldest entry
-    var newKid = randomKeyInBucketRange(selfId, targetBucket, rng)
-    var oldest = rt.buckets[targetBucket].peers[0]
-    for entry in rt.buckets[targetBucket].peers:
-      if entry.lastSeen < oldest.lastSeen:
-        oldest = entry
+    let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()
 
-    check rt.insert(newKid)
+    check rt.insert(randomKeyInBucketRange(selfId, TargetBucket, rng))
+
+    let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
 
     # oldest was evicted
-    for entry in rt.buckets[targetBucket].peers:
-      check entry.nodeId != oldest.nodeId
+    check oldest.nodeId != oldestAfterInsert.nodeId
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
@@ -95,9 +92,8 @@ suite "routing table":
 
   test "randomKeyInBucketRange returns id at correct distance":
     let selfId = testKey(0)
-    let targetBucket = 3
-    var rid = randomKeyInBucketRange(selfId, targetBucket, rng)
+    var rid = randomKeyInBucketRange(selfId, TargetBucket, rng)
     let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
     check:
-      idx == targetBucket
+      idx == TargetBucket
       rid != selfId
