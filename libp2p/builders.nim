@@ -87,7 +87,7 @@ type
     autonatV2ServiceConfig: AutonatV2ServiceConfig
     autotls: Opt[AutotlsService]
     circuitRelay: Opt[Relay]
-    rdv: Opt[RendezVous]
+    rdv: Opt[RendezVous[PeerRecord]]
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
@@ -110,7 +110,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     agentVersion: AgentVersion,
     autotls: Opt.none(AutotlsService),
     circuitRelay: Opt.none(Relay),
-    rdv: Opt.none(RendezVous),
+    rdv: Opt.none(RendezVous[PeerRecord]),
     enableWildcardResolver: true,
   )
 
@@ -325,10 +325,15 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
   b.circuitRelay = Opt.some(r)
   b
 
-proc withRendezVous*(
-    b: SwitchBuilder, rdv: RendezVous = RendezVous.new()
-): SwitchBuilder =
-  b.rdv = Opt.some(rdv)
+proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous[PeerRecord]): SwitchBuilder =
+  var lrdv = rdv
+  if rdv.isNil():
+    try:
+      lrdv = RendezVous[PeerRecord].new(peerRecordValidator = checkPeerRecord)
+    except RendezVousError:
+      # If creation fails, continue with nil
+      lrdv = nil
+  b.rdv = Opt.some(lrdv)
   b
 
 proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =

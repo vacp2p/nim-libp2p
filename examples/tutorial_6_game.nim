@@ -178,7 +178,7 @@ proc networking(g: Game) {.async.} =
   # Create our switch, similar to the GossipSub example and
   # the Discovery examples combined
   let
-    rdv = RendezVous.new()
+    rdv = RendezVous[PeerRecord].new()
     switch = SwitchBuilder
       .new()
       .withRng(newRng())
