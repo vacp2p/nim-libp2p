@@ -16,24 +16,26 @@ import ../helpers
 import ./utils
 
 type
-  MockRendezVous = ref object of RendezVous
+  MockRendezVous = ref object of RendezVous[PeerRecord]
     numAdvertiseNs1: int
     numAdvertiseNs2: int
 
   MockErrorRendezVous = ref object of MockRendezVous
 
 method advertise*(
-    self: MockRendezVous, namespace: string, ttl: Duration
+    self: MockRendezVous, namespace: string, ttl: Opt[Duration] = Opt.none(Duration)
 ) {.async: (raises: [CancelledError, AdvertiseError]).} =
   if namespace == "ns1":
     self.numAdvertiseNs1 += 1
   elif namespace == "ns2":
     self.numAdvertiseNs2 += 1
   # Forward the call to the actual implementation
-  await procCall RendezVous(self).advertise(namespace, ttl)
+  await procCall RendezVous[PeerRecord](self).advertise(namespace, ttl)
 
 method advertise*(
-    self: MockErrorRendezVous, namespace: string, ttl: Duration
+    self: MockErrorRendezVous,
+    namespace: string,
+    ttl: Opt[Duration] = Opt.none(Duration),
 ) {.async: (raises: [CancelledError, AdvertiseError]).} =
   await procCall MockRendezVous(self).advertise(namespace, ttl)
   raise newException(AdvertiseError, "MockErrorRendezVous.advertise")
@@ -61,7 +63,11 @@ suite "RendezVous Interface":
     await client.stop()
 
   asyncTest "Check timeToAdvertise interval":
-    await baseTimeToAdvertiseTest(MockRendezVous.new(newRng()))
+    await baseTimeToAdvertiseTest(
+      MockRendezVous.new(rng = newRng(), peerRecordValidator = checkPeerRecord)
+    )
 
   asyncTest "Check timeToAdvertise interval when there is an error":
-    await baseTimeToAdvertiseTest(MockErrorRendezVous.new(newRng()))
+    await baseTimeToAdvertiseTest(
+      MockErrorRendezVous.new(rng = newRng(), peerRecordValidator = checkPeerRecord)
+    )
