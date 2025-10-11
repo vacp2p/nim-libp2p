@@ -14,7 +14,7 @@ import ./discoverymngr, ../protocols/rendezvous, ../peerid, ../routing_record
 
 type
   RendezVousInterface* = ref object of DiscoveryInterface
-    rdv*: RendezVous
+    rdv*: RendezVous[PeerRecord]
     timeToRequest: Duration
     timeToAdvertise: Duration
     ttl: Duration
@@ -38,9 +38,8 @@ method request*(
       # unhandled type
       return
   while true:
-    let peerRecords: seq[PeerRecord] = await rendezvous.request[PeerRecord](
-      self.rdv, namespace, Opt.none(int), Opt.none(seq[PeerId])
-    )
+    let peerRecords: seq[PeerRecord] =
+      await self.rdv.request(namespace, Opt.none(int), Opt.none(seq[PeerId]))
     for pr in peerRecords:
       var peer: PeerAttributes
       peer.add(pr.peerId)
@@ -69,7 +68,7 @@ method advertise*(
     self.advertisementUpdated.clear()
     for toAdv in toAdvertise:
       try:
-        await self.rdv.advertise(toAdv, self.ttl)
+        await self.rdv.advertise(toAdv, Opt.some(self.ttl))
       except CatchableError as error:
         debug "RendezVous advertise error: ", description = error.msg
 
@@ -77,7 +76,7 @@ method advertise*(
 
 proc new*(
     T: typedesc[RendezVousInterface],
-    rdv: RendezVous,
+    rdv: RendezVous[PeerRecord],
     ttr: Duration = 1.minutes,
     tta: Duration = 1.minutes,
     ttl: Duration = MinimumDuration,
