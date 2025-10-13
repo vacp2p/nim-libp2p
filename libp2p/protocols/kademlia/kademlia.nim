@@ -1,5 +1,4 @@
-import std/[tables, sequtils, sets]
-from std/times import now, utc
+import std/[times, tables, sequtils, sets]
 import chronos
 import chronicles
 import results
@@ -301,32 +300,31 @@ proc dispatchGetVal(
   received[][peer] = EntryRecord(value: value, time: time)
 
 proc getValue*(
-    kad: KadDHT, key: Key, timeout: Duration = DefaultTimeout
+    kad: KadDHT, key: Key, timeout: timer.Duration = DefaultTimeout
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let peers = await kad.findNode(key)
+  var remainingPeers = await kad.findNode(key)
   var received = ReceivedTable(newTable[PeerId, EntryRecord]())
 
-  # TODO: async handling with chronos data structures
   # TODO: only query alpha handling (selectAlphaPeers)
-  let maxTries = 3
   var curTry = 0
-  while received.len < QuorumResponses and curTry < maxTries:
-    let rpcBatch = peers.mapIt(kad.switch.dispatchGetVal(it, key, received))
+  while received.len < QuorumResponses and remainingPeers.len > 0 and
+      curTry < GetValRetries:
+    let rpcBatch = remainingPeers.mapIt(kad.switch.dispatchGetVal(it, key, received))
     try:
       await rpcBatch.allFutures().wait(chronos.seconds(5))
     except AsyncTimeoutError:
       # Dispatch will timeout if any of the calls don't receive a response (which is normal)
       discard
+    # filter out peers that have responded
+    remainingPeers = remainingPeers.filterIt(not received.hasKey(it))
     curTry.inc()
 
-  # TODO: cancel outstanding requests
   let
     entries = received.values().toSeq()
     values = entries.mapIt(it.value)
     selectedIdx = kad.entrySelector.select(key, values).valueOr:
       return err("Could not select value")
-
-  let best = entries[selectedIdx]
+    best = entries[selectedIdx]
 
   # insert value to our localtable
   kad.dataTable.insert(key, best.value, $times.now().utc)
@@ -419,12 +417,10 @@ proc handleFindNode(
 proc handleGetValue(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  debug "handling getvalue"
   let key = msg.key.valueOr:
     error "No key in rpc buffer", msg = msg, conn = conn
     return
 
-  debug "getting value from dataTable"
   let entryRecord = kad.dataTable.get(key).valueOr:
     try:
       await conn.writeLp(
@@ -433,7 +429,6 @@ proc handleGetValue(
     except LPStreamError as exc:
       debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
     return
-  debug "got value from dataTable"
 
   try:
     await conn.writeLp(
@@ -510,6 +505,8 @@ proc new*(
       let buf =
         try:
           await conn.readLp(MaxMsgSize)
+        except LPStreamEOFError:
+          return
         except LPStreamError as exc:
           debug "Read error when handling kademlia RPC", conn = conn, err = exc.msg
           return
