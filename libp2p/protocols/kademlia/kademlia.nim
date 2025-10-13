@@ -49,7 +49,28 @@ type DefaultEntrySelector* = ref object of EntrySelector
 method select*(
     self: DefaultEntrySelector, key: Key, values: seq[seq[byte]]
 ): Result[int, string] {.raises: [], gcsafe.} =
-  return ok(0)
+  if values.len == 0:
+    return err("No values to choose from")
+
+  # Map value -> (count, firstIndex)
+  var counts: Table[seq[byte], (int, int)]
+  for i, v in values:
+    try:
+      let (cnt, idx) = counts[v]
+      counts[v] = (cnt + 1, idx)
+    except KeyError:
+      counts[v] = (1, i)
+
+  # Find the value with the max count
+  var bestIdx = 0
+  var maxCount = -1
+  for k, v in counts.pairs:
+    let (cnt, idx) = v
+    if cnt > maxCount:
+      maxCount = cnt
+      bestIdx = idx
+
+  return ok(bestIdx)
 
 type KadDHT* = ref object of LPProtocol
   switch: Switch

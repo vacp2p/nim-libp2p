@@ -28,19 +28,21 @@ proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
         res += 1
   return res
 
+template setupKadSwitch(validator: untyped, selector: untyped): untyped =
+  let switch = createSwitch()
+  let kad = KadDHT.new(switch, validator, selector)
+  switch.mount(kad)
+  await switch.start()
+  (switch, kad)
+
 suite "KadDHT - GetVal":
   teardown:
     checkTrackers()
 
-  asyncTest "Simple get":
-    let switch1 = createSwitch()
-    let switch2 = createSwitch()
-    var kad1 = KadDHT.new(switch1, PermissiveValidator(), CandSelector())
-    var kad2 = KadDHT.new(switch2, PermissiveValidator(), CandSelector())
-    switch1.mount(kad1)
-    switch2.mount(kad2)
+  asyncTest "Get from peer":
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    await allFutures(switch1.start(), switch2.start())
     defer:
       await allFutures(switch1.stop(), switch2.stop())
 
@@ -70,53 +72,95 @@ suite "KadDHT - GetVal":
       entered1 == value
       entered2 == value
 
-  # asyncTest "Good Time":
-  #   let switch1 = createSwitch()
-  #   let switch2 = createSwitch()
-  #   var kad1 = KadDHT.new(switch1, PermissiveValidator(), CandSelector())
-  #   var kad2 = KadDHT.new(switch2, PermissiveValidator(), CandSelector())
-  #   switch1.mount(kad1)
-  #   switch2.mount(kad2)
-  #   await allFutures(switch1.start(), switch2.start())
-  #   defer:
-  #     await allFutures(switch1.stop(), switch2.stop())
-  #   await kad2.bootstrap(@[switch1.peerInfo])
+  asyncTest "Get value that is locally present":
+    let switch1 = createSwitch()
+    let switch2 = createSwitch()
+    var kad1 = KadDHT.new(switch1, PermissiveValidator(), CandSelector())
+    var kad2 = KadDHT.new(switch2, PermissiveValidator(), CandSelector())
+    switch1.mount(kad1)
+    switch2.mount(kad2)
 
-  #   let entryKey = kad1.rtable.selfId
-  #   let entryValue = @[1.byte, 2, 3, 4, 5]
-  #   discard await kad2.putValue(entryKey, entryValue, Opt.some(1))
+    await allFutures(switch1.start(), switch2.start())
+    defer:
+      await allFutures(switch1.stop(), switch2.stop())
 
-  #   let time: string = kad1.dataTable[entryKey].time
+    await kad2.bootstrap(@[switch1.peerInfo])
 
-  #   let now = times.now().utc
-  #   let parsed = time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
+    discard await kad1.findNode(kad2.rtable.selfId)
+    discard await kad2.findNode(kad1.rtable.selfId)
 
-  #   # get the diff between the stringified-parsed and the direct "now"
-  #   let elapsed = (now - parsed)
-  #   doAssert(elapsed < times.initDuration(seconds = 2))
+    let
+      key = kad1.rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
 
-  # asyncTest "Reselect":
-  #   let switch1 = createSwitch()
-  #   let switch2 = createSwitch()
-  #   var kad1 = KadDHT.new(switch1, PermissiveValidator(), OthersSelector())
-  #   var kad2 = KadDHT.new(switch2, PermissiveValidator(), OthersSelector())
-  #   switch1.mount(kad1)
-  #   switch2.mount(kad2)
-  #   await allFutures(switch1.start(), switch2.start())
-  #   defer:
-  #     await allFutures(switch1.stop(), switch2.stop())
-  #   await kad2.bootstrap(@[switch1.peerInfo])
+    kad1.dataTable.insert(key, value, $times.now().utc)
+    kad2.dataTable.insert(key, value, $times.now().utc)
 
-  #   let entryKey = kad1.rtable.selfId
-  #   let entryValue = @[1.byte, 2, 3, 4, 5]
-  #   discard await kad1.putValue(entryKey, entryValue, Opt.some(1))
-  #   check:
-  #     kad2.dataTable.len == 1
-  #     kad2.dataTable[entryKey].value == entryValue
-  #   let emptyVal: seq[byte] = @[]
-  #   discard await kad1.putValue(entryKey, emptyVal, Opt.some(1))
-  #   check kad2.dataTable[entryKey].value == entryValue
-  #   kad2.setSelector(CandSelector())
-  #   kad1.setSelector(CandSelector())
-  #   discard await kad1.putValue(entryKey, emptyVal, Opt.some(1))
-  #   check kad2.dataTable[entryKey].value == emptyVal
+    check:
+      kad1.dataTable.len == 1
+      kad2.dataTable.len == 1
+
+    discard await kad2.getValue(key, timeout = 1.seconds)
+
+    let entered1 = kad1.dataTable[key].value
+    let entered2 = kad2.dataTable[key].value
+
+    check:
+      kad1.dataTable.len == 1
+      kad2.dataTable.len == 1
+      entered1 == value
+      entered2 == value
+
+  asyncTest "Divergent getVal responses from peers":
+    let switch1 = createSwitch()
+    let switch2 = createSwitch()
+    let switch3 = createSwitch()
+    let switch4 = createSwitch()
+    var kad1 = KadDHT.new(switch1, DefaultEntryValidator(), DefaultEntrySelector())
+    var kad2 = KadDHT.new(switch2, DefaultEntryValidator(), DefaultEntrySelector())
+    var kad3 = KadDHT.new(switch3, DefaultEntryValidator(), DefaultEntrySelector())
+    var kad4 = KadDHT.new(switch3, DefaultEntryValidator(), DefaultEntrySelector())
+    switch1.mount(kad1)
+    switch2.mount(kad2)
+    switch3.mount(kad3)
+    switch4.mount(kad3)
+
+    await allFutures(switch1.start(), switch2.start(), switch3.start(), switch4.start())
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+
+    await kad1.bootstrap(@[switch1.peerInfo, switch3.peerInfo, switch4.peerInfo])
+
+    discard await kad1.findNode(kad2.rtable.selfId)
+    discard await kad1.findNode(kad3.rtable.selfId)
+    discard await kad1.findNode(kad4.rtable.selfId)
+
+    let
+      key = kad1.rtable.selfId
+      bestValue = @[1.byte, 2, 3, 4, 5]
+      worstValue = @[1.byte, 2, 3, 4, 6]
+
+    kad2.dataTable.insert(key, bestValue, $times.now().utc)
+    kad3.dataTable.insert(key, worstValue, $times.now().utc)
+    kad4.dataTable.insert(key, bestValue, $times.now().utc)
+
+    let oldKad3Value = kad3.dataTable[key].value
+    check:
+      kad1.dataTable.len == 0
+      kad2.dataTable.len == 1
+      kad3.dataTable.len == 1
+      kad4.dataTable.len == 1
+      oldKad3Value == worstValue
+
+    discard await kad1.getValue(key, timeout = 1.seconds)
+
+    let acceptedValue = kad1.dataTable[key].value
+    let newKad3Value = kad3.dataTable[key].value
+
+    check:
+      kad1.dataTable.len == 1
+      kad2.dataTable.len == 1
+      kad3.dataTable.len == 1
+      kad4.dataTable.len == 1
+      acceptedValue == bestValue # we chose the best value
+      newKad3Value == bestValue # we updated kad3 with best value
