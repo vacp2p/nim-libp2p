@@ -29,46 +29,47 @@ type LocalTable* = Table[Key, EntryRecord]
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
-    self: EntryValidator, key: Key, value: seq[byte]
+    self: EntryValidator, key: Key, record: EntryRecord
 ): bool {.base, raises: [], gcsafe.} =
   doAssert(false, "EntryValidator base not implemented")
 
 type EntrySelector* = ref object of RootObj
 method select*(
-    self: EntrySelector, key: Key, values: seq[seq[byte]]
+    self: EntrySelector, key: Key, records: seq[EntryRecord]
 ): Result[int, string] {.base, raises: [], gcsafe.} =
   doAssert(false, "EntrySelection base not implemented")
 
 type DefaultEntryValidator* = ref object of EntryValidator
 method isValid*(
-    self: DefaultEntryValidator, key: Key, value: seq[byte]
+    self: DefaultEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
   return true
 
 type DefaultEntrySelector* = ref object of EntrySelector
 method select*(
-    self: DefaultEntrySelector, key: Key, values: seq[seq[byte]]
+    self: DefaultEntrySelector, key: Key, records: seq[EntryRecord]
 ): Result[int, string] {.raises: [], gcsafe.} =
-  if values.len == 0:
-    return err("No values to choose from")
+  if records.len == 0:
+    return err("No records to choose from")
 
   # Map value -> (count, firstIndex)
   var counts: Table[seq[byte], (int, int)]
-  for i, v in values:
+  for i, v in records.mapIt(it.value):
     try:
       let (cnt, idx) = counts[v]
       counts[v] = (cnt + 1, idx)
     except KeyError:
       counts[v] = (1, i)
 
-  # Find the value with the max count
+  # Find the first value with the highest count
   var bestIdx = 0
   var maxCount = -1
-  for k, v in counts.pairs:
-    let (cnt, idx) = v
-    if cnt > maxCount:
+  var minFirstIdx = high(int)
+  for _, (cnt, idx) in counts.pairs:
+    if cnt > maxCount or (cnt == maxCount and idx < minFirstIdx):
       maxCount = cnt
       bestIdx = idx
+      minFirstIdx = idx
 
   return ok(bestIdx)
 
@@ -136,12 +137,12 @@ proc waitRepliesOrTimeouts(
 
   return (receivedReplies, failedPeers)
 
-proc isBestValue(kad: KadDHT, key: Key, value: seq[byte]): bool =
+proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Returns whether `value` is a better value than what we have locally
   ## Always returns `true` if we don't have the value locally
 
   kad.dataTable.get(key).withValue(existing):
-    kad.entrySelector.select(key, @[value, existing.value]).withValue(selectedIdx):
+    kad.entrySelector.select(key, @[record, existing]).withValue(selectedIdx):
       return selectedIdx == 0
 
   true
@@ -271,10 +272,12 @@ proc dispatchPutVal(
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte], timeout: Opt[int]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  if not kad.entryValidator.isValid(key, value):
+  let record = EntryRecord(value: value, time: $times.now().utc)
+
+  if not kad.entryValidator.isValid(key, record):
     return err("invalid key/value pair")
 
-  if not kad.isBestValue(key, value):
+  if not kad.isBestValue(key, record):
     return err("Value rejected, we have a better one")
 
   let peers = await kad.findNode(key)
@@ -341,11 +344,10 @@ proc getValue*(
     curTry.inc()
 
   let
-    entries = received.values().toSeq()
-    values = entries.mapIt(it.value)
-    selectedIdx = kad.entrySelector.select(key, values).valueOr:
+    records = received.values().toSeq()
+    selectedIdx = kad.entrySelector.select(key, records).valueOr:
       return err("Could not select value")
-    best = entries[selectedIdx]
+    best = records[selectedIdx]
 
   # insert value to our localtable
   kad.dataTable.insert(key, best.value, $times.now().utc)
@@ -475,23 +477,24 @@ proc handlePutValue(
   let record = msg.record.valueOr:
     error "No record in message buffer", msg = msg, conn = conn
     return
-  let (key, value) =
-    if record.key.isSome() and record.value.isSome():
-      (record.key.unsafeGet(), record.value.unsafeGet())
-    else:
-      error "No key or no value in rpc buffer", msg = msg, conn = conn
+
+  let (key, entryRecord) =
+    try:
+      (record.key.get(), EntryRecord(value: record.value.get(), time: $times.now().utc))
+    except KeyError:
+      error "No key, value or timeReceived in buffer", msg = msg, conn = conn
       return
 
   # Value sanitisation done. Start insertion process
-  if not kad.entryValidator.isValid(key, value):
-    debug "Record is not valid", key, value
+  if not kad.entryValidator.isValid(key, entryRecord):
+    debug "Record is not valid", key, entryRecord
     return
 
-  if not kad.isBestValue(key, value):
+  if not kad.isBestValue(key, entryRecord):
     error "Dropping received value, we have a better one"
     return
 
-  kad.dataTable.insert(key, value, $times.now().utc)
+  kad.dataTable.insert(key, entryRecord.value, $times.now().utc)
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
   try:

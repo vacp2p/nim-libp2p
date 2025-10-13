@@ -73,14 +73,9 @@ suite "KadDHT - GetVal":
       entered2 == value
 
   asyncTest "Get value that is locally present":
-    let switch1 = createSwitch()
-    let switch2 = createSwitch()
-    var kad1 = KadDHT.new(switch1, PermissiveValidator(), CandSelector())
-    var kad2 = KadDHT.new(switch2, PermissiveValidator(), CandSelector())
-    switch1.mount(kad1)
-    switch2.mount(kad2)
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    await allFutures(switch1.start(), switch2.start())
     defer:
       await allFutures(switch1.stop(), switch2.stop())
 
@@ -112,37 +107,40 @@ suite "KadDHT - GetVal":
       entered2 == value
 
   asyncTest "Divergent getVal responses from peers":
-    let switch1 = createSwitch()
-    let switch2 = createSwitch()
-    let switch3 = createSwitch()
-    let switch4 = createSwitch()
-    var kad1 = KadDHT.new(switch1, DefaultEntryValidator(), DefaultEntrySelector())
-    var kad2 = KadDHT.new(switch2, DefaultEntryValidator(), DefaultEntrySelector())
-    var kad3 = KadDHT.new(switch3, DefaultEntryValidator(), DefaultEntrySelector())
-    var kad4 = KadDHT.new(switch3, DefaultEntryValidator(), DefaultEntrySelector())
-    switch1.mount(kad1)
-    switch2.mount(kad2)
-    switch3.mount(kad3)
-    switch4.mount(kad3)
+    var (switch1, kad1) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch2, kad2) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch3, kad3) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch4, kad4) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch5, kad5) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
 
-    await allFutures(switch1.start(), switch2.start(), switch3.start(), switch4.start())
     defer:
-      await allFutures(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+      await allFutures(
+        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
+      )
 
-    await kad1.bootstrap(@[switch1.peerInfo, switch3.peerInfo, switch4.peerInfo])
+    await kad1.bootstrap(
+      @[switch1.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
+    )
 
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad1.findNode(kad3.rtable.selfId)
     discard await kad1.findNode(kad4.rtable.selfId)
+    discard await kad1.findNode(kad5.rtable.selfId)
 
     let
-      key = kad1.rtable.selfId
+      key = kad4.rtable.selfId
       bestValue = @[1.byte, 2, 3, 4, 5]
       worstValue = @[1.byte, 2, 3, 4, 6]
 
     kad2.dataTable.insert(key, bestValue, $times.now().utc)
     kad3.dataTable.insert(key, worstValue, $times.now().utc)
     kad4.dataTable.insert(key, bestValue, $times.now().utc)
+    kad5.dataTable.insert(key, bestValue, $times.now().utc)
 
     let oldKad3Value = kad3.dataTable[key].value
     check:
@@ -150,6 +148,7 @@ suite "KadDHT - GetVal":
       kad2.dataTable.len == 1
       kad3.dataTable.len == 1
       kad4.dataTable.len == 1
+      kad5.dataTable.len == 1
       oldKad3Value == worstValue
 
     discard await kad1.getValue(key, timeout = 1.seconds)
