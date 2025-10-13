@@ -41,13 +41,36 @@ proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
       return Opt.some(i)
   return Opt.none(int)
 
+proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
+  var oldestIdx = 0
+  var oldest = bucket.peers[0]
+  for i, p in bucket.peers:
+    if p.lastSeen < oldest.lastSeen:
+      oldest = p
+      oldestIdx = i
+  (oldest, oldestIdx)
+
+proc replaceOldest(bucket: var Bucket, newNodeId: Key): bool =
+  if bucket.peers.len < DefaultReplic:
+    trace "Skipping replace: bucket is not full", newNodeId = newNodeId
+    return false
+
+  let (oldest, oldestIdx) = bucket.oldestPeer()
+
+  if oldest.nodeId == newNodeId:
+    trace "Failed to replace: same nodeId", newNodeId = newNodeId
+    return false
+
+  bucket.peers[oldestIdx] = NodeEntry(nodeId: newNodeId, lastSeen: Moment.now())
+  true
+
 proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
     return false # No self insertion
 
   let idx = bucketIndex(rtable.selfId, nodeId, rtable.hasher)
   if idx >= maxBuckets:
-    trace "cannot insert node. max buckets have been reached",
+    trace "Cannot insert node, max buckets have been reached",
       nodeId, bucketIdx = idx, maxBuckets
     return false
 
@@ -62,10 +85,9 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   elif bucket.peers.len < DefaultReplic:
     bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
   else:
-    # TODO: eviction policy goes here, rn we drop the node
-    trace "cannot insert node in bucket, dropping node",
-      nodeId, bucket = DefaultReplic, bucketIdx = idx
-    return false
+    # eviction policy: replace oldest key
+    if not bucket.replaceOldest(nodeId):
+      return false
 
   rtable.buckets[idx] = bucket
   return true
