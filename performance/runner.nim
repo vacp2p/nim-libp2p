@@ -52,6 +52,7 @@ proc startContainer*(
     hostnamePrefix: string,
     outputDir: string,
     network: string,
+    scenarioName: string,
     transportType: string,
     preExecCmd: string = "",
     postExecCmd: string = "",
@@ -60,6 +61,7 @@ proc startContainer*(
 
   var envVars = fmt"-e NODE_ID={i}"
   envVars &= fmt" -e HOSTNAME_PREFIX={hostnamePrefix}"
+  envVars &= fmt" -e SCENARIO_NAME='{scenarioName}'"
   envVars &= fmt" -e TRANSPORT_TYPE='{transportType}'"
 
   if preExecCmd != "":
@@ -96,7 +98,12 @@ proc removeContainers*(containerIds: seq[string]) =
   for containerId in containerIds:
     discard execShellCommand(fmt"docker rm -f {containerId}")
 
-proc run*(transportType: string, preExecCmd: string = "", postExecCmd: string = "") =
+proc run*(
+    scenarioName: string,
+    transportType: string,
+    preExecCmd: string = "",
+    postExecCmd: string = "",
+) =
   let outputDir = getOutputDir()
 
   setupDockerNetwork(NetworkName)
@@ -105,8 +112,8 @@ proc run*(transportType: string, preExecCmd: string = "", postExecCmd: string = 
   try:
     for i in 0 ..< NodeCount:
       let containerId = startContainer(
-        i, HostnamePrefix, outputDir, NetworkName, transportType, preExecCmd,
-        postExecCmd,
+        i, HostnamePrefix, outputDir, NetworkName, scenarioName, transportType,
+        preExecCmd, postExecCmd,
       )
       containerIds.add(containerId)
 

@@ -1,3 +1,4 @@
+import algorithm
 import json
 import sequtils
 import strformat
@@ -88,9 +89,16 @@ proc getMarkdownReport*(
   output.add "| Scenario | Nodes | Total messages sent | Total messages received | Latency min (ms) | Latency max (ms) | Latency avg (ms) |"
   output.add "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
 
-  for scenarioName, stats in results.pairs:
+  var sortedScenarios = toSeq(results.keys)
+  sortedScenarios.sort()
+
+  for scenarioName in sortedScenarios:
+    let stats = results[scenarioName]
     let nodes = validNodes[scenarioName]
-    output.add fmt"| {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {stats.latency.avgLatencyMs:.3f} |"
+    let emoji =
+      if stats.totalReceived != 0 and
+          stats.totalReceived == stats.totalSent * (nodes - 1): "✅" else: "❌"
+    output.add fmt"| {emoji} {stats.scenarioName} | {nodes} | {stats.totalSent} | {stats.totalReceived} | {stats.latency.minLatencyMs:.3f} | {stats.latency.maxLatencyMs:.3f} | {stats.latency.avgLatencyMs:.3f} |"
 
   let summaryUrl = fmt"https://github.com/vacp2p/nim-libp2p/actions/runs/{runId}"
   output.add(
@@ -108,7 +116,12 @@ proc getCsvReport*(
 ): string =
   var output: seq[string]
   output.add "Scenario,Nodes,TotalSent,TotalReceived,MinLatencyMs,MaxLatencyMs,AvgLatencyMs"
-  for scenarioName, stats in results.pairs:
+
+  var sortedScenarios = toSeq(results.keys)
+  sortedScenarios.sort()
+
+  for scenarioName in sortedScenarios:
+    let stats = results[scenarioName]
     let nodes = validNodes[scenarioName]
     output.add fmt"{stats.scenarioName},{nodes},{stats.totalSent},{stats.totalReceived},{stats.latency.minLatencyMs:.3f},{stats.latency.maxLatencyMs:.3f},{stats.latency.avgLatencyMs:.3f}"
   result = output.join("\n")

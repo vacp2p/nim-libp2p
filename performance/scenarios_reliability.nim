@@ -64,7 +64,8 @@ suite "Network Reliability Tests":
     for scenario in scenarios:
       asyncTest fmt"{scenario.name} {transport}":
         run(
+          scenario.name,
+          transport,
           preExecCmd = scenario.setupCmd,
           postExecCmd = tcCleanup,
-          transportType = transport,
         )
