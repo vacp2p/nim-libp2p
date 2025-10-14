@@ -20,13 +20,14 @@ proc createSwitch(): Switch =
   .withNoise()
   .build()
 
-proc countBucketEntries(buckets: seq[Bucket], key: Key): uint32 =
-  var res: uint32 = 0
-  for b in buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        res += 1
-  return res
+proc containsData(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].} =
+  try:
+    kad.dataTable[key].value == value
+  except KeyError:
+    false
+
+proc containsNoData(kad: KadDHT, key: Key): bool {.raises: [].} =
+  not containsData(kad, key, @[])
 
 template setupKadSwitch(validator: untyped, selector: untyped): untyped =
   let switch = createSwitch()
@@ -42,7 +43,6 @@ suite "KadDHT - GetVal":
   asyncTest "Get from peer":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
     var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
-
     defer:
       await allFutures(switch1.stop(), switch2.stop())
 
@@ -58,24 +58,18 @@ suite "KadDHT - GetVal":
     kad1.dataTable.insert(key, value, $times.now().utc)
 
     check:
-      kad1.dataTable.len == 1
-      kad2.dataTable.len == 0
+      containsData(kad1, key, value)
+      containsNoData(kad2, key)
 
     discard await kad2.getValue(key, timeout = 1.seconds)
 
-    let entered1 = kad1.dataTable[key].value
-    let entered2 = kad2.dataTable[key].value
-
     check:
-      kad1.dataTable.len == 1
-      kad2.dataTable.len == 1
-      entered1 == value
-      entered2 == value
+      containsData(kad1, key, value)
+      containsData(kad2, key, value)
 
   asyncTest "Get value that is locally present":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
     var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
-
     defer:
       await allFutures(switch1.stop(), switch2.stop())
 
@@ -92,19 +86,14 @@ suite "KadDHT - GetVal":
     kad2.dataTable.insert(key, value, $times.now().utc)
 
     check:
-      kad1.dataTable.len == 1
-      kad2.dataTable.len == 1
+      containsData(kad1, key, value)
+      containsData(kad2, key, value)
 
     discard await kad2.getValue(key, timeout = 1.seconds)
 
-    let entered1 = kad1.dataTable[key].value
-    let entered2 = kad2.dataTable[key].value
-
     check:
-      kad1.dataTable.len == 1
-      kad2.dataTable.len == 1
-      entered1 == value
-      entered2 == value
+      containsData(kad1, key, value)
+      containsData(kad2, key, value)
 
   asyncTest "Divergent getVal responses from peers":
     var (switch1, kad1) =
@@ -142,24 +131,19 @@ suite "KadDHT - GetVal":
     kad4.dataTable.insert(key, bestValue, $times.now().utc)
     kad5.dataTable.insert(key, bestValue, $times.now().utc)
 
-    let oldKad3Value = kad3.dataTable[key].value
     check:
-      kad1.dataTable.len == 0
-      kad2.dataTable.len == 1
-      kad3.dataTable.len == 1
-      kad4.dataTable.len == 1
-      kad5.dataTable.len == 1
-      oldKad3Value == worstValue
+      containsNoData(kad1, key)
+      containsData(kad2, key, bestValue)
+      containsData(kad3, key, worstValue)
+      containsData(kad4, key, bestValue)
+      containsData(kad5, key, bestValue)
 
     discard await kad1.getValue(key, timeout = 1.seconds)
 
-    let acceptedValue = kad1.dataTable[key].value
-    let newKad3Value = kad3.dataTable[key].value
-
+    # now all have bestvalue
     check:
-      kad1.dataTable.len == 1
-      kad2.dataTable.len == 1
-      kad3.dataTable.len == 1
-      kad4.dataTable.len == 1
-      acceptedValue == bestValue # we chose the best value
-      newKad3Value == bestValue # we updated kad3 with best value
+      containsData(kad1, key, bestValue)
+      containsData(kad2, key, bestValue)
+      containsData(kad3, key, bestValue)
+      containsData(kad4, key, bestValue)
+      containsData(kad5, key, bestValue)

@@ -326,10 +326,12 @@ proc dispatchGetVal(
 proc getValue*(
     kad: KadDHT, key: Key, timeout: timer.Duration = DefaultTimeout
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  # TODO: use timeout, make it configurable
   var remainingPeers = await kad.findNode(key)
   var received = ReceivedTable(newTable[PeerId, EntryRecord]())
 
   # TODO: only query alpha handling (selectAlphaPeers)
+  # TODO: make retries configurable
   var curTry = 0
   while received.len < QuorumResponses and remainingPeers.len > 0 and
       curTry < GetValRetries:
@@ -345,14 +347,15 @@ proc getValue*(
 
   let
     records = received.values().toSeq()
-    selectedIdx = kad.entrySelector.select(key, records).valueOr:
+    validRecords = records.filterIt(kad.entryValidator.isValid(key, it))
+    selectedIdx = kad.entrySelector.select(key, validRecords).valueOr:
       return err("Could not select value")
-    best = records[selectedIdx]
+    best = validRecords[selectedIdx]
 
   # insert value to our localtable
   kad.dataTable.insert(key, best.value, $times.now().utc)
 
-  # update peers that don't have best value
+  # update peers that don't have best value (or that don't have valid records)
   var rpcBatch: seq[Future[void]]
   for p, e in received:
     if e.value != best.value:
