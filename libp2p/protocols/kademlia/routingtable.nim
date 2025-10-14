@@ -13,6 +13,8 @@ import results
 logScope:
   topics = "kad-dht rtable"
 
+const NoneHasher = Opt.none(XorDHasher)
+
 type
   NodeEntry* = object
     nodeId*: Key
@@ -34,7 +36,7 @@ type
 proc new*(
     T: typedesc[RoutingTableConfig],
     replication = DefaultReplication,
-    hasher: Opt[XorDHasher] = Opt.none(XorDHasher),
+    hasher: Opt[XorDHasher] = NoneHasher,
     maxBuckets: int = DefaultMaxBuckets,
 ): T =
   RoutingTableConfig(replication: replication, hasher: hasher, maxBuckets: maxBuckets)
