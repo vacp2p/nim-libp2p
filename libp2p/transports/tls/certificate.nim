@@ -7,9 +7,8 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sequtils, exitprocs]
-
 import strutils
+import results
 import times
 import stew/byteutils
 import chronicles
@@ -56,43 +55,11 @@ type EncodingFormat* = enum
 proc cert_format_t(self: EncodingFormat): cert_format_t =
   if self == EncodingFormat.DER: CERT_FORMAT_DER else: CERT_FORMAT_PEM
 
-proc toCertBuffer*(self: seq[uint8]): cert_buffer =
-  cert_buffer(data: self[0].unsafeAddr, length: self.len.csize_t)
-
-proc toSeq*(self: ptr cert_buffer): seq[byte] =
-  toOpenArray(cast[ptr UncheckedArray[byte]](self.data), 0, self.length.int - 1).toSeq()
-
-# Initialize entropy and DRBG contexts at the module level
-var
-  cert_ctx: cert_context_t = nil
-  drbgInitialized = false
-
 func publicKey*(cert: P2pCertificate): PublicKey =
   return PublicKey.init(cert.extension.publicKey).get()
 
 func peerId*(cert: P2pCertificate): PeerId =
   return PeerId.init(cert.publicKey()).tryGet()
-
-proc initializeDRBG() {.raises: [KeyGenerationError].} =
-  ## Function to initialize entropy and DRBG context if not already initialized.
-  if not drbgInitialized:
-    # Seed the random number generator
-    let personalization = "libp2p_tls"
-    let ret = cert_init_drbg(
-      personalization.cstring, personalization.len.csize_t, addr cert_ctx
-    )
-    if ret != CERT_SUCCESS:
-      raise newException(KeyGenerationError, "Failed to seed CTR_DRBG")
-    drbgInitialized = true
-
-proc cleanupDRBG() =
-  ## Function to free entropy and DRBG context.
-  if drbgInitialized:
-    cert_free_ctr_drbg(cert_ctx)
-    drbgInitialized = false
-
-# Register cleanup function to free entropy and DRBG context
-addExitProc(cleanupDRBG)
 
 func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
   ## Creates message used for certificate signature.
@@ -108,10 +75,9 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
 func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
   let issuerDN =
     try:
-      "CN=" & $(PeerId.init(identityKeyPair.pubkey).tryGet())
+      $(PeerId.init(identityKeyPair.pubkey).tryGet())
     except LPError:
       raiseAssert "pubkey must be set"
-
   return issuerDN
 
 proc makeASN1Time(time: Time): string {.inline.} =
@@ -125,8 +91,8 @@ proc makeASN1Time(time: Time): string {.inline.} =
   return str & "Z"
 
 proc makeExtValues(
-    identityKeypair: KeyPair, certKey: cert_key_t
-): tuple[signature: cert_buffer, pubkey: cert_buffer] {.
+    identityKeypair: KeyPair, certKey: CertificateKey
+): tuple[signature: seq[byte], pubkey: seq[byte]] {.
     raises: [
       CertificatePubKeySerializationError, IdentitySigningError,
       IdentityPubKeySerializationError,
@@ -146,34 +112,29 @@ proc makeExtValues(
   ## - `CertificatePubKeySerializationError` if serialization of certificate public key fails
   ## - `IdentityPubKeySerializationError` if serialization of identity public key fails.
 
-  var derCert: ptr cert_buffer = nil
-  let ret = cert_serialize_pubk(certKey, derCert.addr, DER.cert_format_t())
-  if ret != CERT_SUCCESS:
+  let certificatePubKeyDer = cert_serialize_pubk(certKey, DER.cert_format_t()).valueOr:
     raise newException(
-      CertificatePubKeySerializationError, "Failed to serialize the certificate pubkey"
+      CertificatePubKeySerializationError,
+      "Failed to serialize the certificate pubkey: " & $error,
     )
-
-  let certificatePubKeyDer = derCert.toSeq()
 
   let msg = makeSignatureMessage(certificatePubKeyDer)
 
   # Sign the message with the Identity Key
-  let signatureResult = identityKeypair.seckey.sign(msg)
-  if signatureResult.isErr:
+  let signature = identityKeypair.seckey.sign(msg).valueOr:
     raise newException(
-      IdentitySigningError, "Failed to sign the message with the identity key"
+      IdentitySigningError,
+      "Failed to sign the message with the identity key: " & $error,
     )
-  let signature = signatureResult.get().data
 
   # Get the public key bytes
-  let pubKeyBytesResult = identityKeypair.pubkey.getBytes()
-  if pubKeyBytesResult.isErr:
+  let pubKeyBytes = identityKeypair.pubkey.getBytes().valueOr:
     raise newException(
-      IdentityPubKeySerializationError, "Failed to get identity public key bytes"
+      IdentityPubKeySerializationError,
+      "Failed to get identity public key bytes: " & $error,
     )
-  let pubKeyBytes = pubKeyBytesResult.get()
 
-  return (signature.toCertBuffer(), pubKeyBytes.toCertBuffer())
+  return (signature.data, pubKeyBytes)
 
 proc generateX509*(
     identityKeyPair: KeyPair,
@@ -201,42 +162,27 @@ proc generateX509*(
   ## - `KeyGenerationError` if key generation fails.
   ## - `CertificateCreationError` if certificate creation fails.
 
-  # Ensure DRBG contexts are initialized
-  initializeDRBG()
-
-  var certKey: cert_key_t
-  var ret = cert_generate_key(cert_ctx, certKey.addr)
-  if ret != CERT_SUCCESS:
+  var certKey = cert_generate_key().valueOr:
     raise
-      newException(KeyGenerationError, "Failed to generate certificate key - " & $ret)
+      newException(KeyGenerationError, "Failed to generate certificate key: " & $error)
 
   let issuerDN = makeIssuerDN(identityKeyPair)
   let libp2pExtension = makeExtValues(identityKeyPair, certKey)
   let validFromAsn1 = makeASN1Time(validFrom)
   let validToAsn1 = makeASN1Time(validTo)
-  var certificate: ptr cert_buffer = nil
 
-  ret = cert_generate(
-    cert_ctx, certKey, certificate.addr, libp2pExtension.signature.unsafeAddr,
-    libp2pExtension.pubkey.unsafeAddr, issuerDN.cstring, validFromAsn1.cstring,
-    validToAsn1.cstring, encodingFormat.cert_format_t,
-  )
-  if ret != CERT_SUCCESS:
-    raise
-      newException(CertificateCreationError, "Failed to generate certificate - " & $ret)
+  let certificate = cert_generate(
+    certKey, libp2pExtension.signature, libp2pExtension.pubkey, issuerDN,
+    validFromAsn1.cstring, validToAsn1.cstring, encodingFormat.cert_format_t,
+  ).valueOr:
+    raise newException(
+      CertificateCreationError, "Failed to generate certificate: " & $error
+    )
 
-  var privKDer: ptr cert_buffer = nil
-  ret = cert_serialize_privk(certKey, privKDer.addr, encodingFormat.cert_format_t)
-  if ret != CERT_SUCCESS:
-    raise newException(KeyGenerationError, "Failed to serialize privK - " & $ret)
+  let privKDer = cert_serialize_privk(certKey, encodingFormat.cert_format_t).valueOr:
+    raise newException(KeyGenerationError, "Failed to serialize privK: " & $error)
 
-  let outputCertificate = certificate.toSeq()
-  let outputPrivateKey = privKDer.toSeq()
-
-  cert_free_buffer(certificate)
-  cert_free_buffer(privKDer)
-
-  return CertificateX509(certificate: outputCertificate, privateKey: outputPrivateKey)
+  return CertificateX509(certificate: certificate, privateKey: privKDer)
 
 proc parseCertTime*(certTime: string): Time {.raises: [TimeParseError].} =
   var timeNoZone = certTime[0 ..^ 5] # removes GMT part
@@ -261,32 +207,23 @@ proc parse*(
   ## Raises:
   ## - `CertificateParsingError` if certificate parsing fails.
 
-  let certDerBuffer = certificateDer.toCertBuffer()
-  let certParsed: ptr cert_parsed = nil
-  defer:
-    cert_free_parsed(certParsed)
-
-  let ret =
-    cert_parse(certDerBuffer.unsafeAddr, DER.cert_format_t(), certParsed.unsafeAddr)
-  if ret != CERT_SUCCESS:
-    raise newException(
-      CertificateParsingError, "Failed to parse certificate, error code: " & $ret
-    )
+  let certParsed = cert_parse(certificateDer, DER.cert_format_t()).valueOr:
+    raise
+      newException(CertificateParsingError, "Failed to parse certificate: " & $error)
 
   var validFrom, validTo: Time
   try:
-    validFrom = parseCertTime($certParsed.valid_from)
-    validTo = parseCertTime($certParsed.valid_to)
+    validFrom = parseCertTime($certParsed.validFrom)
+    validTo = parseCertTime($certParsed.validTo)
   except TimeParseError as e:
     raise newException(
       CertificateParsingError, "Failed to parse certificate validity time: " & $e.msg, e
     )
 
   P2pCertificate(
-    extension: P2pExtension(
-      signature: certParsed.signature.toSeq(), publicKey: certParsed.ident_pubk.toSeq()
-    ),
-    pubKeyDer: certParsed.cert_pbuk.toSeq(),
+    extension:
+      P2pExtension(signature: certParsed.signature, publicKey: certParsed.identPubk),
+    pubKeyDer: certParsed.certPubk,
     validFrom: validFrom,
     validTo: validTo,
   )

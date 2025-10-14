@@ -5,7 +5,6 @@ type ACMEError* = object of LPError
 when defined(libp2p_autotls_support):
   import base64, strutils, chronos/apps/http/httpclient, json
   import ../../transports/tls/certificate_ffi
-  import ../../transports/tls/certificate
   import ../../crypto/crypto
   import ../../crypto/rsa
 
@@ -55,19 +54,14 @@ when defined(libp2p_autotls_support):
   proc createCSR*(
       domain: string, certKeyPair: KeyPair
   ): string {.raises: [ACMEError].} =
-    var certKey: cert_key_t
-    var certCtx: cert_context_t
-    var derCSR: ptr cert_buffer = nil
-
     # convert KeyPair to cert_key_t
     let rawSeckey: seq[byte] = certKeyPair.seckey.getRawBytes.valueOr:
       raise newException(ACMEError, "Failed to get seckey raw bytes (DER)")
-    let seckeyBuffer = rawSeckey.toCertBuffer()
-    if cert_new_key_t(seckeyBuffer.unsafeAddr, certKey.addr) != CERT_SUCCESS:
+    let certKey = cert_new_key_t(rawSeckey).valueOr:
       raise newException(ACMEError, "Failed to convert key pair to cert_key_t")
 
     # create CSR
-    if cert_signing_req(domain.cstring, certKey, derCSR.addr) != CERT_SUCCESS:
+    let derCSR = cert_signing_req(domain, certKey).valueOr:
       raise newException(ACMEError, "Failed to create CSR")
 
-    base64.encode(derCSR.toSeq, safe = true)
+    base64.encode(derCSR, safe = true)
