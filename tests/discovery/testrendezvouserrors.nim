@@ -32,8 +32,8 @@ suite "RendezVous Errors":
 
   asyncTest "Various local error":
     let rdv = RendezVous[PeerRecord].new(
-      minDuration = 1.minutes,
-      maxDuration = 72.hours,
+      minDuration = MinimumAcceptedDuration,
+      maxDuration = MaximumDuration,
       peerRecordValidator = checkPeerRecord,
     )
     expect AdvertiseError:

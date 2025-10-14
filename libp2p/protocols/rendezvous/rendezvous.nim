@@ -177,14 +177,11 @@ proc register[E](rdv: RendezVous[E], conn: Connection, r: Register): Future[void
   let ttl = r.ttl.get(rdv.minTTL)
   if ttl < rdv.minTTL or ttl > rdv.maxTTL:
     return conn.sendRegisterResponseError(InvalidTTL)
-  try:
-    let pr = rdv.peerRecordValidator(
-      rdv.switch.peerInfo.signedPeerRecord.data, r.signedPeerRecord, conn.peerId
-    )
-    if pr.isErr():
-      return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
-  except Exception as e:
-    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, e.msg)
+  let pr = rdv.peerRecordValidator(
+    rdv.switch.peerInfo.signedPeerRecord.data, r.signedPeerRecord, conn.peerId
+  )
+  if pr.isErr():
+    return conn.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
     return conn.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
 
@@ -339,7 +336,7 @@ method advertise*[E](
   let lttl = ttl.get(rdv.minDuration)
   await rdv.advertise(ns, lttl, rdv.peers, Opt.none(seq[byte]))
 
-proc requestLocally*[T](rdv: RendezVous[T], ns: string): seq[T] =
+proc requestLocally*[E](rdv: RendezVous[E], ns: string): seq[E] =
   let
     nsSalted = ns & rdv.salt
     n = Moment.now()
@@ -347,10 +344,10 @@ proc requestLocally*[T](rdv: RendezVous[T], ns: string): seq[T] =
     collect(newSeq()):
       for index in rdv.namespaces[nsSalted]:
         if rdv.registered[index].expiration > n:
-          let res = SignedPayload[T].decode(rdv.registered[index].data.signedPeerRecord).valueOr:
+          let res = SignedPayload[E].decode(rdv.registered[index].data.signedPeerRecord).valueOr:
             continue
           res.data
-  except Exception as exc:
+  except exceptions.KeyError as exc:
     @[]
 
 proc requestPeer[E](
@@ -358,18 +355,16 @@ proc requestPeer[E](
 ): Future[seq[Register]] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
 .} =
-  let conn = await rdv.switch.dial(peer, RendezVousCodec)
+  let conn = await rdv.switch.dial(peer, rdv.codec)
   defer:
     await conn.close()
 
-  var d = Discover()
-  d.ns = ns
-  d.limit = Opt.some(limit)
+  var d = Discover(ns: ns, limit: Opt.some(limit))
   d.cookie =
     if ns.isSome():
       try:
         Opt.some(rdv.cookiesSaved[peer][ns.get()])
-      except exceptions.KeyError, CatchableError:
+      except exceptions.KeyError:
         Opt.none(seq[byte])
     else:
       Opt.none(seq[byte])
@@ -397,15 +392,15 @@ proc requestPeer[E](
           rdv.cookiesSaved.hasKeyOrPut(peer, {namespace: cookie}.toTable()):
         try:
           rdv.cookiesSaved[peer][namespace] = cookie
-        except Exception:
+        except exceptions.KeyError:
           raiseAssert "checked with hasKeyOrPut"
   return resp.registrations
 
-proc request*[T](
-    rdv: RendezVous[T], ns: Opt[string], lt: Opt[int], peersOpt: Opt[seq[PeerId]]
-): Future[seq[T]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+proc request*[E](
+    rdv: RendezVous[E], ns: Opt[string], lt: Opt[int], peersOpt: Opt[seq[PeerId]]
+): Future[seq[E]] {.async: (raises: [DiscoveryError, CancelledError]).} =
   var
-    s: Table[PeerId, (T, Register)]
+    s: Table[PeerId, (E, Register)]
     limit: uint64
   let l = lt.get(DiscoverLimit.int)
   let peers = peersOpt.get(rdv.peers)
@@ -431,14 +426,14 @@ proc request*[T](
         if ttl > rdv.maxTTL:
           continue
         let
-          spr = SignedPayload[T].decode(r.signedPeerRecord).valueOr:
+          spr = SignedPayload[E].decode(r.signedPeerRecord).valueOr:
             continue
           pr = spr.data
         if s.hasKey(pr.peerId):
           let (prSaved, rSaved) =
             try:
               s[pr.peerId]
-            except Exception:
+            except exceptions.KeyError:
               raiseAssert "checked with hasKey"
           if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
               prSaved.seqNo < pr.seqNo:
@@ -586,51 +581,6 @@ proc new*(
   let rdv = T.new(rng, minDuration, maxDuration, checkPeerRecord)
   rdv.setup(switch)
   return rdv
-
-#[ proc new*[E](
-    T: typedesc[RendezVous[E]],
-    codec: string,
-    switch: Switch,
-    peerRecordValidator: PeerRecordValidator[E],
-    handler: LPProtoHandler,
-    rng: ref HmacDrbgContext = newRng(),
-    minDuration = MinimumDuration,
-    maxDuration = MaximumDuration,
-): T {.raises: [RendezVousError].} =
-  if minDuration < MinimumAcceptedDuration:
-    raise newException(RendezVousError, "TTL too short: 1 minute minimum")
-
-  if maxDuration > MaximumDuration:
-    raise newException(RendezVousError, "TTL too long: 72 hours maximum")
-
-  if minDuration >= maxDuration:
-    raise newException(RendezVousError, "Minimum TTL longer than maximum")
-
-  let
-    minTTL = minDuration.seconds.uint64
-    maxTTL = maxDuration.seconds.uint64
-
-  let rdv = T(
-    rng: rng,
-    salt: string.fromBytes(generateBytes(rng[], 8)),
-    registered: initOffsettedSeq[RegisteredData](),
-    expiredDT: Moment.now() - 1.days,
-    #registerEvent: newAsyncEvent(),
-    sema: newAsyncSemaphore(SemaphoreDefaultSize),
-    minDuration: minDuration,
-    maxDuration: maxDuration,
-    minTTL: minTTL,
-    maxTTL: maxTTL,
-    peerRecordValidator: peerRecordValidator,
-  )
-  logScope:
-    topics = "libp2p discovery rendezvous"
-
-  rdv.codec = codec
-  rdv.handleStream = handler
-  rdv.peerRecordValidator = peerRecordValidator
-  rdv.setup(switch)
-  return rdv ]#
 
 proc deletesRegister*[E](
     rdv: RendezVous[E], interval = 1.minutes
