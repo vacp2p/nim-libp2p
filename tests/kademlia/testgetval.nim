@@ -31,7 +31,9 @@ proc containsNoData(kad: KadDHT, key: Key): bool {.raises: [].} =
 
 template setupKadSwitch(validator: untyped, selector: untyped): untyped =
   let switch = createSwitch()
-  let kad = KadDHT.new(switch, config = KadDHTConfig.new(validator, selector))
+  let kad = KadDHT.new(
+    switch, config = KadDHTConfig.new(validator, selector, timeout = 1.seconds)
+  )
   switch.mount(kad)
   await switch.start()
   (switch, kad)
@@ -61,7 +63,7 @@ suite "KadDHT - GetVal":
       containsData(kad1, key, value)
       containsNoData(kad2, key)
 
-    discard await kad2.getValue(key, timeout = 1.seconds)
+    discard await kad2.getValue(key)
 
     check:
       containsData(kad1, key, value)
@@ -89,7 +91,7 @@ suite "KadDHT - GetVal":
       containsData(kad1, key, value)
       containsData(kad2, key, value)
 
-    discard await kad2.getValue(key, timeout = 1.seconds)
+    discard await kad2.getValue(key)
 
     check:
       containsData(kad1, key, value)
@@ -138,7 +140,7 @@ suite "KadDHT - GetVal":
       containsData(kad4, key, bestValue)
       containsData(kad5, key, bestValue)
 
-    discard await kad1.getValue(key, timeout = 1.seconds)
+    discard await kad1.getValue(key)
 
     # now all have bestvalue
     check:

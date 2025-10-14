@@ -63,7 +63,7 @@ suite "KadDHT - PutVal":
 
     let key = kad1.rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
-    discard await kad2.putValue(key, value, Opt.some(1))
+    discard await kad2.putValue(key, value)
 
     check:
       containsData(kad1, key, value)
@@ -80,20 +80,18 @@ suite "KadDHT - PutVal":
     let key = kad1.rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
-    let putValRes1 = await kad2.putValue(key, value, Opt.some(1))
     check:
-      (await kad2.putValue(key, value, Opt.some(1))).isErr()
+      (await kad2.putValue(key, value)).isErr()
       kad1.dataTable.len == 0
 
     kad1.config.validator = PermissiveValidator()
-    let putValRes2 = await kad2.putValue(key, value, Opt.some(1))
     check:
-      (await kad2.putValue(key, value, Opt.some(1))).isErr()
+      (await kad2.putValue(key, value)).isErr()
       kad1.dataTable.len == 0
 
     kad2.config.validator = PermissiveValidator()
     check:
-      (await kad2.putValue(key, value, Opt.some(1))).isOk()
+      (await kad2.putValue(key, value)).isOk()
       containsData(kad1, key, value)
       containsData(kad2, key, value)
 
@@ -106,7 +104,7 @@ suite "KadDHT - PutVal":
 
     let key = kad1.rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
-    discard await kad2.putValue(key, value, Opt.some(1))
+    discard await kad2.putValue(key, value)
 
     let time: string = kad1.dataTable[key].time
 
@@ -127,16 +125,16 @@ suite "KadDHT - PutVal":
     let key = kad1.rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
-    discard await kad1.putValue(key, value, Opt.some(1))
+    discard await kad1.putValue(key, value)
     check:
       kad2.dataTable.len == 1
       kad2.dataTable[key].value == value
 
     let emptyVal: seq[byte] = @[]
-    discard await kad1.putValue(key, emptyVal, Opt.some(1))
+    discard await kad1.putValue(key, emptyVal)
     check kad2.dataTable[key].value == value
 
     kad2.config.selector = CandSelector()
     kad1.config.selector = CandSelector()
-    discard await kad1.putValue(key, emptyVal, Opt.some(1))
+    discard await kad1.putValue(key, emptyVal)
     check kad2.dataTable[key].value == emptyVal
