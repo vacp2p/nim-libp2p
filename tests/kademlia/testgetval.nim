@@ -31,7 +31,7 @@ proc containsNoData(kad: KadDHT, key: Key): bool {.raises: [].} =
 
 template setupKadSwitch(validator: untyped, selector: untyped): untyped =
   let switch = createSwitch()
-  let kad = KadDHT.new(switch, validator, selector)
+  let kad = KadDHT.new(switch, config = KadDHTConfig.new(validator, selector))
   switch.mount(kad)
   await switch.start()
   (switch, kad)

@@ -73,14 +73,24 @@ method select*(
 
   return ok(bestIdx)
 
+type KadDHTConfig* = ref object
+  validator*: EntryValidator
+  selector*: EntrySelector
+
+proc new*(
+    T: typedesc[KadDHTConfig],
+    validator: EntryValidator = DefaultEntryValidator(),
+    selector: EntrySelector = DefaultEntrySelector(),
+): T {.raises: [].} =
+  KadDHTConfig(validator: validator, selector: selector)
+
 type KadDHT* = ref object of LPProtocol
   switch: Switch
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
   dataTable*: LocalTable
-  entryValidator: EntryValidator
-  entrySelector: EntrySelector
+  config*: KadDHTConfig
 
 proc insert*(
     self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
@@ -142,7 +152,7 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Always returns `true` if we don't have the value locally
 
   kad.dataTable.get(key).withValue(existing):
-    kad.entrySelector.select(key, @[record, existing]).withValue(selectedIdx):
+    kad.config.selector.select(key, @[record, existing]).withValue(selectedIdx):
       return selectedIdx == 0
 
   true
@@ -274,7 +284,7 @@ proc putValue*(
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let record = EntryRecord(value: value, time: $times.now().utc)
 
-  if not kad.entryValidator.isValid(key, record):
+  if not kad.config.validator.isValid(key, record):
     return err("invalid key/value pair")
 
   if not kad.isBestValue(key, record):
@@ -347,8 +357,8 @@ proc getValue*(
 
   let
     records = received.values().toSeq()
-    validRecords = records.filterIt(kad.entryValidator.isValid(key, it))
-    selectedIdx = kad.entrySelector.select(key, validRecords).valueOr:
+    validRecords = records.filterIt(kad.config.validator.isValid(key, it))
+    selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
       return err("Could not select value")
     best = validRecords[selectedIdx]
 
@@ -489,7 +499,7 @@ proc handlePutValue(
       return
 
   # Value sanitisation done. Start insertion process
-  if not kad.entryValidator.isValid(key, entryRecord):
+  if not kad.config.validator.isValid(key, entryRecord):
     debug "Record is not valid", key, entryRecord
     return
 
@@ -509,18 +519,11 @@ proc handlePutValue(
 proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
-    validator: EntryValidator = DefaultEntryValidator(),
-    entrySelector: EntrySelector = DefaultEntrySelector(),
+    config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
-  let kad = T(
-    rng: rng,
-    switch: switch,
-    rtable: rtable,
-    entryValidator: validator,
-    entrySelector: entrySelector,
-  )
+  let kad = T(rng: rng, switch: switch, rtable: rtable, config: config)
 
   kad.codec = KadCodec
   kad.handler = proc(
@@ -558,14 +561,6 @@ proc new*(
         error "Unhandled kad-dht message type", msg = msg
         return
   return kad
-
-proc setSelector*(kad: KadDHT, selector: EntrySelector) =
-  doAssert(selector != nil)
-  kad.entrySelector = selector
-
-proc setValidator*(kad: KadDHT, validator: EntryValidator) =
-  doAssert(validator != nil)
-  kad.entryValidator = validator
 
 method start*(kad: KadDHT): Future[void] {.async: (raises: [CancelledError]).} =
   if kad.started:
