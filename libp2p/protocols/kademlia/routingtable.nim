@@ -24,9 +24,9 @@ type
     peers*: seq[NodeEntry]
 
   RoutingTableConfig* = ref object
-    replication: int
+    replication*: int
     hasher*: Opt[XorDHasher]
-    maxBuckets: int
+    maxBuckets*: int
 
   RoutingTable* = ref object
     selfId*: Key
@@ -52,13 +52,13 @@ proc new*(
   RoutingTable(selfId: selfId, buckets: @[], config: config)
 
 proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
-  xorDistance(selfId, key, hasher).leadingZeros
+  return xorDistance(selfId, key, hasher).leadingZeros
 
 proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
     if p.nodeId == nodeId:
       return Opt.some(i)
-  Opt.none(int)
+  return Opt.none(int)
 
 proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
   var oldestIdx = 0

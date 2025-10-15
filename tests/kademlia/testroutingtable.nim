@@ -39,27 +39,25 @@ suite "routing table":
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)
-    var rt = RoutingTable.new(
-      selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
-    )
-    for _ in 0 ..< DefaultReplication + 5:
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication + 5:
       let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
     check TargetBucket < rt.buckets.len
     let bucket = rt.buckets[TargetBucket]
-    check bucket.peers.len <= DefaultReplication
+    check bucket.peers.len <= config.replication
 
   test "evicts oldest key at max capacity":
     let selfId = testKey(0)
-    var rt = RoutingTable.new(
-      selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
-    )
-    for _ in 0 ..< DefaultReplication + 10:
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication + 10:
       let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
-    check rt.buckets[TargetBucket].peers.len == DefaultReplication
+    check rt.buckets[TargetBucket].peers.len == config.replication
 
     # new entry should evict oldest entry
     let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()

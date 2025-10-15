@@ -92,15 +92,13 @@ suite "KadDHT - PutVal":
     let value = @[1.byte, 2, 3, 4, 5]
 
     discard await kad1.putValue(key, value)
-    check:
-      kad2.dataTable.len == 1
-      kad2.dataTable[key].value == value
+    check containsData(kad2, key, value)
 
     let emptyVal: seq[byte] = @[]
     discard await kad1.putValue(key, emptyVal)
-    check kad2.dataTable[key].value == value
+    check containsData(kad2, key, value)
 
     kad2.config.selector = CandSelector()
     kad1.config.selector = CandSelector()
     discard await kad1.putValue(key, emptyVal)
-    check kad2.dataTable[key].value == emptyVal
+    check containsData(kad2, key, emptyVal)
