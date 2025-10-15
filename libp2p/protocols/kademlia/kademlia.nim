@@ -23,10 +23,10 @@ proc init*(
 ): EntryRecord {.gcsafe, raises: [].} =
   EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
 
-type ReceivedTable = ref Table[PeerId, EntryRecord]
-type CandidatePeers = ref HashSet[PeerId]
-
-type LocalTable* = Table[Key, EntryRecord]
+type
+  ReceivedTable = ref Table[PeerId, Opt[EntryRecord]]
+  CandidatePeers = ref HashSet[PeerId]
+  LocalTable* = Table[Key, EntryRecord]
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
@@ -366,7 +366,28 @@ proc dispatchGetVal(
       msg = msg, reply = reply, conn = conn
     return
 
-  received[][peer] = EntryRecord(value: value, time: time)
+  received[][peer] = Opt.some(EntryRecord(value: value, time: time))
+
+proc bestValidRecord(
+    kad: KadDHT, key: Key, received: ReceivedTable
+): Result[EntryRecord, string] =
+  if received.len() == 0:
+    return err("No received records to choose from")
+
+  var validRecords: seq[EntryRecord]
+  for r in received.values():
+    let record = r.valueOr:
+      continue
+    if kad.config.validator.isValid(key, record):
+      validRecords.add(record)
+
+  if validRecords.len() == 0:
+    return err("No valid records not choose from")
+
+  let selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
+    return err("Could not select best value")
+
+  ok(validRecords[selectedIdx])
 
 proc getValue*(
     kad: KadDHT, key: Key
@@ -374,7 +395,7 @@ proc getValue*(
   let candidates = CandidatePeers()
   for p in (await kad.findNode(key)):
     candidates[].incl(p)
-  let received = ReceivedTable(newTable[PeerId, EntryRecord]())
+  let received = ReceivedTable(newTable[PeerId, Opt[EntryRecord]]())
 
   var curTry = 0
   while received.len < kad.config.quorum and candidates[].len > 0 and
@@ -391,20 +412,23 @@ proc getValue*(
     candidates[] = candidates[].filterIt(not received.hasKey(it))
     curTry.inc()
 
-  let
-    records = received.values().toSeq()
-    validRecords = records.filterIt(kad.config.validator.isValid(key, it))
-    selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
-      return err("Could not select value")
-    best = validRecords[selectedIdx]
+  let best = ?kad.bestValidRecord(key, received)
 
   # insert value to our localtable
   kad.dataTable.insert(key, best.value, $times.now().utc)
 
-  # update peers that don't have best value (or that don't have valid records)
+  # update peers that
+  # - don't have best value
+  # - don't have valid records
+  # - don't have the values at all
   var rpcBatch: seq[Future[void]]
-  for p, e in received:
-    if e.value != best.value:
+  for p, r in received:
+    let record = r.valueOr:
+      # peer doesn't have value
+      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value))
+      continue
+    if record.value != best.value:
+      # value is invalid or not best
       rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value))
 
   try:
