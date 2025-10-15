@@ -153,3 +153,12 @@ macro includeFile*(file: static[string]): untyped =
     raiseAssert("Failed to include file: " & file & ", error: " & e.msg)
 
   return res
+
+template forChunks*[T](seqData: seq[T], chunkSize: int, chunk: untyped, body: untyped) =
+  ## Iterate over `seqData` in chunks of size `chunkSize`.
+  ## Each chunk is available as `chunk` inside the body.
+  var i = 0
+  while i < seqData.len:
+    let chunk = seqData[i ..< min(i + chunkSize, seqData.len)]
+    body
+    i += chunkSize
