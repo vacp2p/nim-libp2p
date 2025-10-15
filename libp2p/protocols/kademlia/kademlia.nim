@@ -2,7 +2,7 @@ import std/[times, tables, sequtils, sets]
 import chronos
 import chronicles
 import results
-import ./[consts, xordistance, routingtable, lookupstate, requests, keys, protobuf]
+import ./[consts, xordistance, routingtable, lookupstate, keys, protobuf]
 import ../protocol
 import ../../[peerid, switch, multihash]
 import ../../utils/heartbeat
@@ -189,7 +189,7 @@ proc findNode*(
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a target ID.
 
-  var initialPeers = kad.rtable.findClosestPeers(targetId, kad.config.replication)
+  var initialPeers = kad.rtable.findClosestPeerIds(targetId, kad.config.replication)
   var state = LookupState.init(
     targetId, initialPeers, kad.config.alpha, kad.config.replication,
     kad.rtable.config.hasher,
@@ -483,6 +483,16 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng)
       discard await kad.findNode(randomKey)
 
+proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
+  var closestPeers: seq[Peer]
+  for p in kad.rtable.findClosest(target, kad.config.replication).filterIt(
+    it != kad.switch.peerInfo.peerId.toKey()
+  ):
+    let peer = p.toPeer(kad.switch).valueOr:
+      continue
+    closestPeers.add(peer)
+  return closestPeers
+
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", chronos.minutes(10):
     await kad.refreshBuckets()
@@ -496,14 +506,14 @@ proc handleFindNode(
   let targetId = PeerId.init(targetIdBytes).valueOr:
     error "FindNode message without valid key data", msg = msg, conn = conn
     return
-  let closerPeers = kad.rtable
-    .findClosest(targetId.toKey(), kad.config.replication)
-    # exclude the node requester because telling a peer about itself does not reduce the distance,
-    .filterIt(it != conn.peerId.toKey())
 
-  let responsePb = encodeFindNodeReply(closerPeers, kad.switch)
   try:
-    await conn.writeLp(responsePb.buffer)
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.findNode,
+        closerPeers: kad.findClosestPeers(targetId.toKey()),
+      ).encode().buffer
+    )
   except LPStreamError as exc:
     debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg
     return
@@ -521,7 +531,11 @@ proc handleGetValue(
   let entryRecord = kad.dataTable.get(key).valueOr:
     try:
       await conn.writeLp(
-        Message(msgType: MessageType.getValue, key: Opt.some(key)).encode().buffer
+        Message(
+          msgType: MessageType.getValue,
+          key: Opt.some(key),
+          closerPeers: kad.findClosestPeers(key),
+        ).encode().buffer
       )
     except LPStreamError as exc:
       debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
@@ -539,6 +553,7 @@ proc handleGetValue(
             timeReceived: Opt.some(entryRecord.time),
           )
         ),
+        closerPeers: kad.findClosestPeers(key),
       ).encode().buffer
     )
   except LPStreamError as exc:
