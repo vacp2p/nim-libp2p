@@ -24,6 +24,7 @@ proc init*(
   EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
 
 type ReceivedTable = ref Table[PeerId, EntryRecord]
+type CandidatePeers = ref HashSet[PeerId]
 
 type LocalTable* = Table[Key, EntryRecord]
 
@@ -329,7 +330,11 @@ proc putValue*(
   ok()
 
 proc dispatchGetVal(
-    switch: Switch, peer: PeerId, key: Key, received: ReceivedTable
+    switch: Switch,
+    peer: PeerId,
+    key: Key,
+    received: ReceivedTable,
+    candidates: CandidatePeers,
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
   let conn = await switch.dial(peer, KadCodec)
   defer:
@@ -340,6 +345,12 @@ proc dispatchGetVal(
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
     error "GetValue reply decode fail", error = error, conn = conn
     return
+
+  for peer in reply.closerPeers:
+    let p = PeerId.init(peer.id).valueOr:
+      debug "Invalid peer id received", error = error
+      continue
+    candidates[].incl(p)
 
   let record = reply.record.valueOr:
     error "GetValue returned empty record", msg = msg, reply = reply, conn = conn
@@ -360,22 +371,24 @@ proc dispatchGetVal(
 proc getValue*(
     kad: KadDHT, key: Key
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  var remainingPeers = await kad.findNode(key)
-  var received = ReceivedTable(newTable[PeerId, EntryRecord]())
+  let candidates = CandidatePeers()
+  for p in (await kad.findNode(key)):
+    candidates[].incl(p)
+  let received = ReceivedTable(newTable[PeerId, EntryRecord]())
 
   var curTry = 0
-  while received.len < kad.config.quorum and remainingPeers.len > 0 and
+  while received.len < kad.config.quorum and candidates[].len > 0 and
       curTry < kad.config.retries:
-    for chunk in remainingPeers.toChunks(kad.config.alpha):
-      let rpcBatch = chunk.mapIt(kad.switch.dispatchGetVal(it, key, received))
+    for chunk in candidates.toChunks(kad.config.alpha):
+      let rpcBatch =
+        candidates[].mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
       try:
         await rpcBatch.allFutures().wait(kad.config.timeout)
       except AsyncTimeoutError:
         # Dispatch will timeout if any of the calls don't receive a response (which is normal)
         discard
-
     # filter out peers that have responded
-    remainingPeers = remainingPeers.filterIt(not received.hasKey(it))
+    candidates[] = candidates[].filterIt(not received.hasKey(it))
     curTry.inc()
 
   let
