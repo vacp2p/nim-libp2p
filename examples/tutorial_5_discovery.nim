@@ -20,7 +20,11 @@ import libp2p/discovery/discoverymngr
 ## [RendezVous](https://github.com/libp2p/specs/blob/master/rendezvous/README.md) to be mounted on the switch using withRendezVous.
 ##
 ## Note that other discovery methods such as [Kademlia](https://github.com/libp2p/specs/blob/master/kad-dht/README.md) or [discv5](https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md) exist.
-proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
+proc createSwitch(rdv: RendezVous = nil): Switch =
+  var lrdv = rdv
+  if rdv.isNil():
+    lrdv = RendezVous.new()
+
   SwitchBuilder
   .new()
   .withRng(newRng())
