@@ -14,7 +14,7 @@ import ./discoverymngr, ../protocols/rendezvous, ../peerid, ../routing_record
 
 type
   RendezVousInterface* = ref object of DiscoveryInterface
-    rdv*: RendezVous[PeerRecord]
+    rdv*: RendezVous
     timeToRequest: Duration
     timeToAdvertise: Duration
     ttl: Duration
@@ -76,7 +76,7 @@ method advertise*(
 
 proc new*(
     T: typedesc[RendezVousInterface],
-    rdv: RendezVous[PeerRecord],
+    rdv: RendezVous,
     ttr: Duration = 1.minutes,
     tta: Duration = 1.minutes,
     ttl: Duration = MinimumDuration,

@@ -20,14 +20,10 @@ import libp2p/discovery/discoverymngr
 ## [RendezVous](https://github.com/libp2p/specs/blob/master/rendezvous/README.md) to be mounted on the switch using withRendezVous.
 ##
 ## Note that other discovery methods such as [Kademlia](https://github.com/libp2p/specs/blob/master/kad-dht/README.md) or [discv5](https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md) exist.
-proc createSwitch(rdv: RendezVous[PeerRecord] = nil): Switch =
+proc createSwitch(rdv: RendezVous = nil): Switch =
   var lrdv = rdv
   if rdv.isNil():
-    try:
-      lrdv = RendezVous[PeerRecord].new()
-    except RendezVousError:
-      # If creation fails, continue with nil
-      lrdv = nil
+    lrdv = RendezVous.new()
 
   SwitchBuilder
   .new()
@@ -74,7 +70,7 @@ proc main() {.async.} =
     discManagers: seq[DiscoveryManager] = @[]
 
   for i in 0 .. 5:
-    let rdv = RendezVous[PeerRecord].new()
+    let rdv = RendezVous.new()
     # Create a remote future to await at the end of the program
     let switch = createSwitch(rdv)
     switch.mount(DumbProto.new(i))
@@ -99,7 +95,7 @@ proc main() {.async.} =
   ## We can now create the newcomer. This peer will connect to the boot node, and use
   ## it to discover peers & greet them.
   let
-    rdv = RendezVous[PeerRecord].new()
+    rdv = RendezVous.new()
     newcomer = createSwitch(rdv)
     dm = DiscoveryManager()
   await newcomer.start()

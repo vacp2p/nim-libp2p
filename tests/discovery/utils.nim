@@ -15,14 +15,20 @@ import
     switch,
   ]
 
-proc createSwitch*[T](rdv: RendezVous[T]): Switch =
+proc createSwitch*(): Switch =
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
+  .withMemoryTransport()
+  .withMplex()
+  .withNoise()
+  .build()
+
+proc createSwitch*(rdv: RendezVous): Switch =
   var lrdv = rdv
   if rdv.isNil():
-    try:
-      lrdv = RendezVous[PeerRecord].new(peerRecordValidator = checkPeerRecord)
-    except RendezVousError:
-      # If creation fails, continue with nil
-      lrdv = nil
+    lrdv = RendezVous.new()
 
   SwitchBuilder
   .new()
@@ -34,47 +40,38 @@ proc createSwitch*[T](rdv: RendezVous[T]): Switch =
   .withRendezVous(lrdv)
   .build()
 
-proc setupNodes*[T](
-    count: int,
-    peerRecordValidator: PeerRecordValidator[T] = checkPeerRecord,
-    handler: LPProtoHandler = nil,
-): seq[RendezVous[T]] =
+proc setupNodes*(count: int): seq[RendezVous] =
   doAssert(count > 0, "Count must be greater than 0")
 
-  var rdvs: seq[RendezVous[T]] = @[]
+  var rdvs: seq[RendezVous] = @[]
 
   for x in 0 ..< count:
-    var rdv: RendezVous[T] =
-      RendezVous[T].new(peerRecordValidator = peerRecordValidator)
+    var rdv: RendezVous = RendezVous.new()
     let node = createSwitch(rdv)
     rdvs.add(rdv)
 
   return rdvs
 
-proc setupRendezvousNodeWithPeerNodes*[T](
-    count: int,
-    peerRecordValidator: PeerRecordValidator[T] = checkPeerRecord,
-    handler: LPProtoHandler = nil,
-): (RendezVous[T], seq[RendezVous[T]]) =
+proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]) =
   let
-    rdvs = setupNodes[T](count + 1, peerRecordValidator, handler)
+    rdvs = setupNodes(count + 1)
     rendezvousRdv = rdvs[0]
     peerRdvs = rdvs[1 ..^ 1]
 
   return (rendezvousRdv, peerRdvs)
 
-template startAndDeferStop*[T](nodes: seq[RendezVous[T]]) =
+template startAndDeferStop*(nodes: seq[RendezVous]) =
   await allFutures(nodes.mapIt(it.switch.start()))
   defer:
     await allFutures(nodes.mapIt(it.switch.stop()))
 
-proc connectNodes*[T](dialer: RendezVous[T], target: RendezVous[T]) {.async.} =
+proc connectNodes*(dialer: RendezVous, target: RendezVous) {.async.} =
   await dialer.switch.connect(
     target.switch.peerInfo.peerId, target.switch.peerInfo.addrs
   )
 
-proc connectNodesToRendezvousNode*[T](
-    nodes: seq[RendezVous[T]], rendezvousNode: RendezVous[T]
+proc connectNodesToRendezvousNode*(
+    nodes: seq[RendezVous], rendezvousNode: RendezVous
 ) {.async.} =
   for node in nodes:
     await connectNodes(node, rendezvousNode)
@@ -86,13 +83,13 @@ proc buildProtobufCookie*(offset: uint64, namespace: string): seq[byte] =
   pb.finish()
   pb.buffer
 
-proc injectCookieForPeer*[T](
-    rdv: RendezVous[T], peerId: PeerId, namespace: string, cookie: seq[byte]
+proc injectCookieForPeer*(
+    rdv: RendezVous, peerId: PeerId, namespace: string, cookie: seq[byte]
 ) =
   discard rdv.cookiesSaved.hasKeyOrPut(peerId, {namespace: cookie}.toTable())
 
-proc populatePeerRegistrations*[T](
-    peerRdv: RendezVous[T], targetRdv: RendezVous[T], namespace: string, count: int
+proc populatePeerRegistrations*(
+    peerRdv: RendezVous, targetRdv: RendezVous, namespace: string, count: int
 ) {.async.} =
   # Test helper: quickly populate many registrations for a peer.
   # We first create a single real registration, then clone that record
@@ -113,8 +110,8 @@ proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
   let record = PeerRecord.init(peerId, @[])
   SignedPeerRecord.init(wrongPrivKey, record).tryGet()
 
-proc sendRdvMessage*[T](
-    node: RendezVous[T], target: RendezVous[T], buffer: seq[byte]
+proc sendRdvMessage*(
+    node: RendezVous, target: RendezVous, buffer: seq[byte]
 ): Future[seq[byte]] {.async.} =
   let conn = await node.switch.dial(target.switch.peerInfo.peerId, RendezVousCodec)
   defer:
@@ -145,16 +142,14 @@ proc prepareDiscoverMessage*(
     discover: Opt.some(Discover(ns: ns, limit: limit, cookie: cookie)),
   )
 
-proc setupDiscMngrNodes*(
-    count: int
-): (seq[DiscoveryManager], seq[RendezVous[PeerRecord]]) =
+proc setupDiscMngrNodes*(count: int): (seq[DiscoveryManager], seq[RendezVous]) =
   doAssert(count > 0, "Count must be greater than 0")
 
   var dms: seq[DiscoveryManager] = @[]
-  var nodes: seq[RendezVous[PeerRecord]] = @[]
+  var nodes: seq[RendezVous] = @[]
 
   for x in 0 ..< count:
-    let node = RendezVous[PeerRecord].new(peerRecordValidator = checkPeerRecord)
+    let node = RendezVous.new()
     let switch = createSwitch(node)
     nodes.add(node)
 

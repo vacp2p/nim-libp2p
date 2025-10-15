@@ -31,21 +31,19 @@ suite "RendezVous Errors":
     checkTrackers()
 
   asyncTest "Various local error":
-    let rdv = RendezVous[PeerRecord].new(
-      minDuration = MinimumAcceptedDuration,
-      maxDuration = MaximumDuration,
-      peerRecordValidator = checkPeerRecord,
+    let rdv = RendezVous.new(
+      minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration
     )
     expect AdvertiseError:
-      discard await rendezvous.request[PeerRecord](
+      discard await rendezvous.request(
         rdv, Opt.some("A".repeat(300)), Opt.none(int), Opt.none(seq[PeerId])
       )
     expect AdvertiseError:
-      discard await rendezvous.request[PeerRecord](
+      discard await rendezvous.request(
         rdv, Opt.some("A"), Opt.some(-1), Opt.none(seq[PeerId])
       )
     expect AdvertiseError:
-      discard await rendezvous.request[PeerRecord](
+      discard await rendezvous.request(
         rdv, Opt.some("A"), Opt.some(3000), Opt.none(seq[PeerId])
       )
     expect AdvertiseError:
@@ -55,28 +53,12 @@ suite "RendezVous Errors":
     expect AdvertiseError:
       await rdv.advertise("A", Opt.some(30.seconds))
 
-  test "Various config error":
-    expect RendezVousError:
-      discard RendezVous[PeerRecord].new(
-        minDuration = 30.seconds, peerRecordValidator = checkPeerRecord
-      )
-    expect RendezVousError:
-      discard RendezVous[PeerRecord].new(
-        maxDuration = 73.hours, peerRecordValidator = checkPeerRecord
-      )
-    expect RendezVousError:
-      discard RendezVous[PeerRecord].new(
-        minDuration = 15.minutes,
-        maxDuration = 10.minutes,
-        peerRecordValidator = checkPeerRecord,
-      )
-
   let testCases =
     @[
       (
         "Register - Invalid Namespace",
         (
-          proc(node: RendezVous[PeerRecord]): Message =
+          proc(node: RendezVous): Message =
             prepareRegisterMessage(
               "A".repeat(300),
               node.switch.peerInfo.signedPeerRecord.encode().get,
@@ -88,7 +70,7 @@ suite "RendezVous Errors":
       (
         "Register - Invalid Signed Peer Record",
         (
-          proc(node: RendezVous[PeerRecord]): Message =
+          proc(node: RendezVous): Message =
             # Malformed SPR - empty bytes will fail validation
             prepareRegisterMessage("namespace", newSeq[byte](), 2.hours)
         ),
@@ -97,7 +79,7 @@ suite "RendezVous Errors":
       (
         "Register - Invalid TTL",
         (
-          proc(node: RendezVous[PeerRecord]): Message =
+          proc(node: RendezVous): Message =
             prepareRegisterMessage(
               "namespace", node.switch.peerInfo.signedPeerRecord.encode().get, 73.hours
             )
@@ -107,7 +89,7 @@ suite "RendezVous Errors":
       (
         "Discover - Invalid Namespace",
         (
-          proc(node: RendezVous[PeerRecord]): Message =
+          proc(node: RendezVous): Message =
             prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
         ),
         ResponseStatus.InvalidNamespace,
@@ -115,7 +97,7 @@ suite "RendezVous Errors":
       (
         "Discover - Invalid Cookie",
         (
-          proc(node: RendezVous[PeerRecord]): Message =
+          proc(node: RendezVous): Message =
             # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
             prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
         ),
@@ -127,7 +109,7 @@ suite "RendezVous Errors":
     let (testName, getMessage, expectedStatus) = test
 
     asyncTest &"Node returns ERROR_CODE for invalid message - {testName}":
-      let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes[PeerRecord](1)
+      let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
       (rendezvousNode & peerNodes).startAndDeferStop()
 
       await connectNodes(peerNodes[0], rendezvousNode)
@@ -148,7 +130,7 @@ suite "RendezVous Errors":
       check actualStatus == expectedStatus
 
   asyncTest "Node returns NotAuthorized when Register exceeding peer limit":
-    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes[PeerRecord](1)
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     (rendezvousNode & peerNodes).startAndDeferStop()
 
     await connectNodes(peerNodes[0], rendezvousNode)
