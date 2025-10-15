@@ -27,7 +27,7 @@ suite "routing table":
 
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
-    var rt = RoutingTable.new(selfId, Opt.none(XorDHasher))
+    var rt = RoutingTable.new(selfId)
     let other = testKey(0b10000000)
     discard rt.insert(other)
 
@@ -39,23 +39,25 @@ suite "routing table":
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)
-    var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
-    for _ in 0 ..< DefaultReplic + 5:
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication + 5:
       let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
     check TargetBucket < rt.buckets.len
     let bucket = rt.buckets[TargetBucket]
-    check bucket.peers.len <= DefaultReplic
+    check bucket.peers.len <= config.replication
 
   test "evicts oldest key at max capacity":
     let selfId = testKey(0)
-    var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
-    for _ in 0 ..< DefaultReplic + 10:
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication + 10:
       let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
-    check rt.buckets[TargetBucket].peers.len == DefaultReplic
+    check rt.buckets[TargetBucket].peers.len == config.replication
 
     # new entry should evict oldest entry
     let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()
@@ -69,7 +71,9 @@ suite "routing table":
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
-    var rt = RoutingTable.new(selfId, Opt.some(noOpHasher))
+    var rt = RoutingTable.new(
+      selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    )
     let ids = @[testKey(1), testKey(2), testKey(3), testKey(4), testKey(5)]
     for id in ids:
       discard rt.insert(id)
