@@ -10,3 +10,10 @@ try:
 except KeyError as e:
   # exception handling
 ```
+
+2. Do not use `return` at the end of function calls
+```nim
+proc myProc(someVar: bool): bool =
+  if someVar:
+    return true
+  false
