@@ -318,8 +318,7 @@ proc putValue*(
 
   kad.dataTable.insert(key, value, $times.now().utc)
 
-  var chunk: seq[PeerId]
-  forChunks(peers, kad.config.alpha, chunk):
+  for chunk in peers.toChunks(kad.config.alpha):
     let rpcBatch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value))
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
@@ -365,10 +364,9 @@ proc getValue*(
   var received = ReceivedTable(newTable[PeerId, EntryRecord]())
 
   var curTry = 0
-  var chunk: seq[PeerId]
   while received.len < kad.config.quorum and remainingPeers.len > 0 and
       curTry < kad.config.retries:
-    forChunks(remainingPeers, kad.config.alpha, chunk):
+    for chunk in remainingPeers.toChunks(kad.config.alpha):
       let rpcBatch = chunk.mapIt(kad.switch.dispatchGetVal(it, key, received))
       try:
         await rpcBatch.allFutures().wait(kad.config.timeout)
