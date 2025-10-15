@@ -1,6 +1,8 @@
 {.used.}
-import results
-import ../../libp2p/protocols/kademlia/[kademlia, keys]
+import std/tables
+import results, chronos
+import ../../libp2p/protocols/kademlia/[kademlia, routingtable, keys]
+import ../../libp2p/[switch, builders]
 
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
@@ -25,3 +27,39 @@ method select*(
   if values.len == 1:
     return ok(0)
   ok(1)
+
+proc createSwitch*(): Switch =
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .build()
+
+proc countBucketEntries*(buckets: seq[Bucket], key: Key): uint32 =
+  var res: uint32 = 0
+  for b in buckets:
+    for ent in b.peers:
+      if ent.nodeId == key:
+        res += 1
+  return res
+
+proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].} =
+  try:
+    kad.dataTable[key].value == value
+  except KeyError:
+    false
+
+proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
+  not containsData(kad, key, @[])
+
+template setupKadSwitch*(validator: untyped, selector: untyped): untyped =
+  let switch = createSwitch()
+  let kad = KadDHT.new(
+    switch, config = KadDHTConfig.new(validator, selector, timeout = chronos.seconds(1))
+  )
+  switch.mount(kad)
+  await switch.start()
+  (switch, kad)

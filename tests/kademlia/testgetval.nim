@@ -1,5 +1,4 @@
 {.used.}
-import std/[tables]
 from std/times import now, utc
 import chronicles
 import chronos
@@ -9,32 +8,6 @@ import ../../libp2p/protocols/kademlia/[kademlia, routingtable, keys]
 import ../utils/async_tests
 import ./utils.nim
 import ../helpers
-
-proc createSwitch(): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .build()
-
-proc containsData(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].} =
-  try:
-    kad.dataTable[key].value == value
-  except KeyError:
-    false
-
-proc containsNoData(kad: KadDHT, key: Key): bool {.raises: [].} =
-  not containsData(kad, key, @[])
-
-template setupKadSwitch(validator: untyped, selector: untyped): untyped =
-  let switch = createSwitch()
-  let kad = KadDHT.new(switch, validator, selector)
-  switch.mount(kad)
-  await switch.start()
-  (switch, kad)
 
 suite "KadDHT - GetVal":
   teardown:
@@ -61,7 +34,7 @@ suite "KadDHT - GetVal":
       containsData(kad1, key, value)
       containsNoData(kad2, key)
 
-    discard await kad2.getValue(key, timeout = 1.seconds)
+    discard await kad2.getValue(key)
 
     check:
       containsData(kad1, key, value)
@@ -89,7 +62,7 @@ suite "KadDHT - GetVal":
       containsData(kad1, key, value)
       containsData(kad2, key, value)
 
-    discard await kad2.getValue(key, timeout = 1.seconds)
+    discard await kad2.getValue(key)
 
     check:
       containsData(kad1, key, value)
@@ -138,7 +111,7 @@ suite "KadDHT - GetVal":
       containsData(kad4, key, bestValue)
       containsData(kad5, key, bestValue)
 
-    discard await kad1.getValue(key, timeout = 1.seconds)
+    discard await kad1.getValue(key)
 
     # now all have bestvalue
     check:

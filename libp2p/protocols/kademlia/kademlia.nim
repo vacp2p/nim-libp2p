@@ -73,19 +73,50 @@ method select*(
 
   return ok(bestIdx)
 
+type KadDHTConfig* = ref object
+  validator*: EntryValidator
+  selector*: EntrySelector
+  timeout: chronos.Duration
+  retries: int
+  replication: int
+  alpha: int
+  ttl: chronos.Duration
+  quorum: int
+
+proc new*(
+    T: typedesc[KadDHTConfig],
+    validator: EntryValidator = DefaultEntryValidator(),
+    selector: EntrySelector = DefaultEntrySelector(),
+    timeout: chronos.Duration = DefaultTimeout,
+    retries: int = DefaultRetries,
+    replication: int = DefaultReplication,
+    alpha: int = DefaultAlpha,
+    ttl: chronos.Duration = DefaultTTL,
+    quorum: int = DefaultQuorum,
+): T {.raises: [].} =
+  KadDHTConfig(
+    validator: validator,
+    selector: selector,
+    timeout: timeout,
+    retries: retries,
+    replication: replication,
+    alpha: alpha,
+    ttl: ttl,
+    quorum: quorum,
+  )
+
 type KadDHT* = ref object of LPProtocol
   switch: Switch
   rng: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop: Future[void]
   dataTable*: LocalTable
-  entryValidator: EntryValidator
-  entrySelector: EntrySelector
+  config*: KadDHTConfig
 
 proc insert*(
     self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
 ) {.raises: [].} =
-  debug "Local table insertion", key, value
+  debug "Local table insertion", key = key, value = value
   self[key] = EntryRecord(value: value, time: time)
 
 proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =
@@ -142,14 +173,14 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Always returns `true` if we don't have the value locally
 
   kad.dataTable.get(key).withValue(existing):
-    kad.entrySelector.select(key, @[record, existing]).withValue(selectedIdx):
+    kad.config.selector.select(key, @[record, existing]).withValue(selectedIdx):
       return selectedIdx == 0
 
   true
 
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
   let ready = state.activeQueries == 0
-  let noNew = selectAlphaPeers(state).filterIt(me != it).len == 0
+  let noNew = state.selectAlphaPeers().filterIt(me != it).len == 0
   return ready and noNew
 
 proc findNode*(
@@ -157,8 +188,11 @@ proc findNode*(
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a target ID.
 
-  var initialPeers = kad.rtable.findClosestPeers(targetId, DefaultReplic)
-  var state = LookupState.init(targetId, initialPeers, kad.rtable.hasher)
+  var initialPeers = kad.rtable.findClosestPeers(targetId, kad.config.replication)
+  var state = LookupState.init(
+    targetId, initialPeers, kad.config.alpha, kad.config.replication,
+    kad.rtable.config.hasher,
+  )
   var addrTable: Table[PeerId, seq[MultiAddress]]
   for p in initialPeers:
     addrTable[p] = kad.switch.peerStore[AddressBook][p]
@@ -203,7 +237,7 @@ proc findNode*(
             debug "Could not update shortlist", err = exc.msg
           # TODO: add TTL to peerstore, otherwise we can spam it with junk
         ,
-        kad.rtable.hasher,
+        kad.rtable.config.hasher,
       )
 
     for timedOut in timedOutPeers:
@@ -270,11 +304,11 @@ proc dispatchPutVal(
       msg = msg, reply = reply, conn = conn
 
 proc putValue*(
-    kad: KadDHT, key: Key, value: seq[byte], timeout: Opt[int]
+    kad: KadDHT, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let record = EntryRecord(value: value, time: $times.now().utc)
 
-  if not kad.entryValidator.isValid(key, record):
+  if not kad.config.validator.isValid(key, record):
     return err("invalid key/value pair")
 
   if not kad.isBestValue(key, record):
@@ -287,7 +321,7 @@ proc putValue*(
 
   kad.dataTable.insert(key, value, $times.now().utc)
   try:
-    await rpcBatch.allFutures().wait(chronos.seconds(5))
+    await rpcBatch.allFutures().wait(kad.config.timeout)
   except AsyncTimeoutError:
     # Dispatch will timeout if any of the calls don't receive a response (which is normal)
     discard
@@ -324,20 +358,18 @@ proc dispatchGetVal(
   received[][peer] = EntryRecord(value: value, time: time)
 
 proc getValue*(
-    kad: KadDHT, key: Key, timeout: timer.Duration = DefaultTimeout
+    kad: KadDHT, key: Key
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  # TODO: use timeout, make it configurable
   var remainingPeers = await kad.findNode(key)
   var received = ReceivedTable(newTable[PeerId, EntryRecord]())
 
   # TODO: only query alpha handling (selectAlphaPeers)
-  # TODO: make retries configurable
   var curTry = 0
-  while received.len < QuorumResponses and remainingPeers.len > 0 and
-      curTry < GetValRetries:
+  while received.len < kad.config.quorum and remainingPeers.len > 0 and
+      curTry < kad.config.retries:
     let rpcBatch = remainingPeers.mapIt(kad.switch.dispatchGetVal(it, key, received))
     try:
-      await rpcBatch.allFutures().wait(chronos.seconds(5))
+      await rpcBatch.allFutures().wait(kad.config.timeout)
     except AsyncTimeoutError:
       # Dispatch will timeout if any of the calls don't receive a response (which is normal)
       discard
@@ -347,8 +379,8 @@ proc getValue*(
 
   let
     records = received.values().toSeq()
-    validRecords = records.filterIt(kad.entryValidator.isValid(key, it))
-    selectedIdx = kad.entrySelector.select(key, validRecords).valueOr:
+    validRecords = records.filterIt(kad.config.validator.isValid(key, it))
+    selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
       return err("Could not select value")
     best = validRecords[selectedIdx]
 
@@ -426,7 +458,8 @@ proc handleFindNode(
   let targetId = PeerId.init(targetIdBytes).valueOr:
     error "FindNode message without valid key data", msg = msg, conn = conn
     return
-  let closerPeers = kad.rtable.findClosest(targetId.toKey(), DefaultReplic)
+  let closerPeers = kad.rtable
+    .findClosest(targetId.toKey(), kad.config.replication)
     # exclude the node requester because telling a peer about itself does not reduce the distance,
     .filterIt(it != conn.peerId.toKey())
 
@@ -489,7 +522,7 @@ proc handlePutValue(
       return
 
   # Value sanitisation done. Start insertion process
-  if not kad.entryValidator.isValid(key, entryRecord):
+  if not kad.config.validator.isValid(key, entryRecord):
     debug "Record is not valid", key, entryRecord
     return
 
@@ -509,18 +542,14 @@ proc handlePutValue(
 proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
-    validator: EntryValidator = DefaultEntryValidator(),
-    entrySelector: EntrySelector = DefaultEntrySelector(),
+    config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
-  var rtable = RoutingTable.new(switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
-  let kad = T(
-    rng: rng,
-    switch: switch,
-    rtable: rtable,
-    entryValidator: validator,
-    entrySelector: entrySelector,
+  var rtable = RoutingTable.new(
+    switch.peerInfo.peerId.toKey(),
+    config = RoutingTableConfig.new(replication = config.replication),
   )
+  let kad = T(rng: rng, switch: switch, rtable: rtable, config: config)
 
   kad.codec = KadCodec
   kad.handler = proc(
@@ -558,14 +587,6 @@ proc new*(
         error "Unhandled kad-dht message type", msg = msg
         return
   return kad
-
-proc setSelector*(kad: KadDHT, selector: EntrySelector) =
-  doAssert(selector != nil)
-  kad.entrySelector = selector
-
-proc setValidator*(kad: KadDHT, validator: EntryValidator) =
-  doAssert(validator != nil)
-  kad.entryValidator = validator
 
 method start*(kad: KadDHT): Future[void] {.async: (raises: [CancelledError]).} =
   if kad.started:
