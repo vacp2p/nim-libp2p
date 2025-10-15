@@ -7,29 +7,14 @@ import ../utils/async_tests
 import ./utils.nim
 import ../helpers
 
-proc createSwitch(): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .build()
-
 suite "KadDHT - Ping":
   teardown:
     checkTrackers()
 
   asyncTest "Simple ping":
-    let switch1 = createSwitch()
-    let switch2 = createSwitch()
-    var kad1 = KadDHT.new(switch1, PermissiveValidator(), CandSelector())
-    var kad2 = KadDHT.new(switch2, PermissiveValidator(), CandSelector())
-    switch1.mount(kad1)
-    switch2.mount(kad2)
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    await allFutures(switch1.start(), switch2.start())
     defer:
       await allFutures(switch1.stop(), switch2.stop())
 

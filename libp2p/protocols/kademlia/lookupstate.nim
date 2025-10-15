@@ -1,5 +1,4 @@
 import sequtils
-import ./consts
 import ./protobuf
 import ./xordistance
 import ./keys
@@ -20,7 +19,7 @@ type
     shortlist: seq[LookupNode] # current known closest node
     activeQueries*: int # how many queries in flight
     alpha: int # parallelism level
-    repliCount: int ## aka `k`: number of closest nodes to find
+    replication: int ## aka `k`: number of closest nodes to find
     done*: bool # has lookup converged
 
 proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
@@ -82,6 +81,8 @@ proc init*(
     T: type LookupState,
     targetId: Key,
     initialPeers: seq[PeerId],
+    alpha: int,
+    replication: int,
     hasher: Opt[XorDHasher],
 ): T =
   var res = LookupState(
@@ -89,7 +90,7 @@ proc init*(
     shortlist: @[],
     activeQueries: 0,
     alpha: alpha,
-    repliCount: DefaultReplic,
+    replication: replication,
     done: false,
   )
   for p in initialPeers:
@@ -113,6 +114,6 @@ proc selectClosestK*(state: LookupState): seq[PeerId] =
   var res: seq[PeerId] = @[]
   for p in state.shortlist.filterIt(not it.failed):
     res.add(p.peerId)
-    if res.len >= state.repliCount:
+    if res.len >= state.replication:
       break
   return res

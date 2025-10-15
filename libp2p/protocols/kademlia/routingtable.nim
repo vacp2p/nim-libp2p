@@ -13,6 +13,8 @@ import results
 logScope:
   topics = "kad-dht rtable"
 
+const NoneHasher = Opt.none(XorDHasher)
+
 type
   NodeEntry* = object
     nodeId*: Key
@@ -21,16 +23,33 @@ type
   Bucket* = object
     peers*: seq[NodeEntry]
 
+  RoutingTableConfig* = ref object
+    replication*: int
+    hasher*: Opt[XorDHasher]
+    maxBuckets*: int
+
   RoutingTable* = ref object
     selfId*: Key
     buckets*: seq[Bucket]
-    hasher*: Opt[XorDHasher]
+    config*: RoutingTableConfig
+
+proc new*(
+    T: typedesc[RoutingTableConfig],
+    replication = DefaultReplication,
+    hasher: Opt[XorDHasher] = NoneHasher,
+    maxBuckets: int = DefaultMaxBuckets,
+): T =
+  RoutingTableConfig(replication: replication, hasher: hasher, maxBuckets: maxBuckets)
 
 proc `$`*(rt: RoutingTable): string =
   "selfId(" & $rt.selfId & ") buckets(" & $rt.buckets & ")"
 
-proc new*(T: typedesc[RoutingTable], selfId: Key, hasher: Opt[XorDHasher]): T =
-  return RoutingTable(selfId: selfId, buckets: @[], hasher: hasher)
+proc new*(
+    T: typedesc[RoutingTable],
+    selfId: Key,
+    config: RoutingTableConfig = RoutingTableConfig.new(),
+): T =
+  RoutingTable(selfId: selfId, buckets: @[], config: config)
 
 proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
   return xorDistance(selfId, key, hasher).leadingZeros
@@ -50,8 +69,8 @@ proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
       oldestIdx = i
   (oldest, oldestIdx)
 
-proc replaceOldest(bucket: var Bucket, newNodeId: Key): bool =
-  if bucket.peers.len < DefaultReplic:
+proc replaceOldest(bucket: var Bucket, newNodeId: Key, replication: int): bool =
+  if bucket.peers.len < replication:
     trace "Skipping replace: bucket is not full", newNodeId = newNodeId
     return false
 
@@ -68,10 +87,10 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
     return false # No self insertion
 
-  let idx = bucketIndex(rtable.selfId, nodeId, rtable.hasher)
-  if idx >= maxBuckets:
+  let idx = bucketIndex(rtable.selfId, nodeId, rtable.config.hasher)
+  if idx >= rtable.config.maxBuckets:
     trace "Cannot insert node, max buckets have been reached",
-      nodeId, bucketIdx = idx, maxBuckets
+      nodeId = nodeId, bucketIdx = idx, maxBuckets = rtable.config.maxBuckets
     return false
 
   if idx >= rtable.buckets.len:
@@ -82,11 +101,11 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   let keyx = peerIndexInBucket(bucket, nodeId)
   if keyx.isSome:
     bucket.peers[keyx.unsafeValue].lastSeen = Moment.now()
-  elif bucket.peers.len < DefaultReplic:
+  elif bucket.peers.len < rtable.config.replication:
     bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
   else:
     # eviction policy: replace oldest key
-    if not bucket.replaceOldest(nodeId):
+    if not bucket.replaceOldest(nodeId, rtable.config.replication):
       return false
 
   rtable.buckets[idx] = bucket
@@ -105,7 +124,8 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
   allNodes.sort(
     proc(a, b: Key): int =
       cmp(
-        xorDistance(a, targetId, rtable.hasher), xorDistance(b, targetId, rtable.hasher)
+        xorDistance(a, targetId, rtable.config.hasher),
+        xorDistance(b, targetId, rtable.config.hasher),
       )
   )
 
