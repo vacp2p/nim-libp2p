@@ -207,12 +207,17 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">digest
-  <li><a class="reference" href="#digest%2Ctypedesc%5BMultiHash%5D%2Cint%2CopenArray%5Bbyte%5D" title="digest(mhtype: typedesc[MultiHash]; hashcode: int; data: openArray[byte]): MhResult[
-    MultiHash]">digest(mhtype: typedesc[MultiHash]; hashcode: int; data: openArray[byte]): MhResult[
-    MultiHash]</a></li>
-<li><a class="reference" href="#digest%2Ctypedesc%5BMultiHash%5D%2Cstring%2CopenArray%5Bbyte%5D" title="digest(mhtype: typedesc[MultiHash]; hashname: string; data: openArray[byte]): MhResult[
+  <li><a class="reference" href="#digest%2Ctypedesc%5BMultiHash%5D%2Cstring%2CopenArray%5Bbyte%5D" title="digest(mhtype: typedesc[MultiHash]; hashname: string; data: openArray[byte]): MhResult[
     MultiHash]">digest(mhtype: typedesc[MultiHash]; hashname: string; data: openArray[byte]): MhResult[
     MultiHash]</a></li>
+<li><a class="reference" href="#digest%2Ctypedesc%5BMultiHash%5D%2CMultiCodec%2CopenArray%5Bbyte%5D" title="digest(mhtype: typedesc[MultiHash]; mcodec: MultiCodec; data: openArray[byte]): MhResult[
+    MultiHash]">digest(mhtype: typedesc[MultiHash]; mcodec: MultiCodec; data: openArray[byte]): MhResult[
+    MultiHash]</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">digestSize
+  <li><a class="reference" href="#digestSize%2CMultiCodec" title="digestSize(codec: MultiCodec): MhResult[int]">digestSize(codec: MultiCodec): MhResult[int]</a></li>
+<li><a class="reference" href="#digestSize%2Cstring" title="digestSize(hashname: string): MhResult[int]">digestSize(hashname: string): MhResult[int]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">encode
@@ -377,8 +382,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 Return string representation of MultiHash <tt class="docutils literal"><span class="pre">value</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L634" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L634" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L648" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L648" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -390,8 +395,8 @@ Return string representation of MultiHash <tt class="docutils literal"><span cla
 <dd>
 
 Compares MultiHashes <tt class="docutils literal"><span class="pre">a</span></tt> and <tt class="docutils literal"><span class="pre">b</span></tt>, returns <tt class="docutils literal"><span class="pre">true</span></tt> if hashes are equal, <tt class="docutils literal"><span class="pre">false</span></tt> otherwise.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L612" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L612" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L626" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L626" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -400,8 +405,8 @@ Compares MultiHashes <tt class="docutils literal"><span class="pre">a</span></tt
 <dd>
 
 Compares MultiHash with nimcrypto's MDigest<a class="reference internal" href="#T">T</a>, returns <tt class="docutils literal"><span class="pre">true</span></tt> if hashes are equal, <tt class="docutils literal"><span class="pre">false</span></tt> otherwise.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L607" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L607" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L621" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L621" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -410,8 +415,8 @@ Compares MultiHash with nimcrypto's MDigest<a class="reference internal" href="#
 <dd>
 
 Compares MultiHash with nimcrypto's MDigest<a class="reference internal" href="#T">T</a>, returns <tt class="docutils literal"><span class="pre">true</span></tt> if hashes are equal, <tt class="docutils literal"><span class="pre">false</span></tt> otherwise.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L595" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L595" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L609" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L609" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -423,8 +428,8 @@ Compares MultiHash with nimcrypto's MDigest<a class="reference internal" href="#
 <dd>
 
 Return Base58 encoded string representation of MultiHash <tt class="docutils literal"><span class="pre">value</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L630" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L630" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L644" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L644" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -440,33 +445,58 @@ Return Base58 encoded string representation of MultiHash <tt class="docutils lit
 <p>On success decoded MultiHash will be stored into <tt class="docutils literal"><span class="pre">mhash</span></tt> and number of bytes consumed will be returned.</p>
 <p>On error <tt class="docutils literal"><span class="pre">-1</span></tt> will be returned.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L485" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L485" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L499" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L499" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 
 </div>
 <div id="digest-procs-all">
-  <div id="digest,typedesc[MultiHash],int,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#digest%2Ctypedesc%5BMultiHash%5D%2Cint%2CopenArray%5Bbyte%5D"><span class="Identifier">digest</span></a><span class="Other">(</span><span class="Identifier">mhtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multihash.html#MultiHash"><span class="Identifier">MultiHash</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">hashcode</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="multihash.html#MhResult"><span class="Identifier">MhResult</span></a><span class="Other">[</span>
-    <a href="multihash.html#MultiHash"><span class="Identifier">MultiHash</span></a><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-<dd>
-
-Perform digest calculation using hash algorithm with code <tt class="docutils literal"><span class="pre">hashcode</span></tt> on data array <tt class="docutils literal"><span class="pre">data</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L414" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L414" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
-
-</dd>
-</div>
-<div id="digest,typedesc[MultiHash],string,openArray[byte]" class="tohide">
+  <div id="digest,typedesc[MultiHash],string,openArray[byte]" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#digest%2Ctypedesc%5BMultiHash%5D%2Cstring%2CopenArray%5Bbyte%5D"><span class="Identifier">digest</span></a><span class="Other">(</span><span class="Identifier">mhtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multihash.html#MultiHash"><span class="Identifier">MultiHash</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">hashname</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="multihash.html#MhResult"><span class="Identifier">MhResult</span></a><span class="Other">[</span>
     <a href="multihash.html#MultiHash"><span class="Identifier">MultiHash</span></a><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Perform digest calculation using hash algorithm with name <tt class="docutils literal"><span class="pre">hashname</span></tt> on data array <tt class="docutils literal"><span class="pre">data</span></tt>.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L413" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L413" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="digest,typedesc[MultiHash],MultiCodec,openArray[byte]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#digest%2Ctypedesc%5BMultiHash%5D%2CMultiCodec%2CopenArray%5Bbyte%5D"><span class="Identifier">digest</span></a><span class="Other">(</span><span class="Identifier">mhtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multihash.html#MultiHash"><span class="Identifier">MultiHash</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">mcodec</span><span class="Other">:</span> <a href="multicodec.html#MultiCodec"><span class="Identifier">MultiCodec</span></a><span class="Other">;</span>
+            <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="multihash.html#MhResult"><span class="Identifier">MhResult</span></a><span class="Other">[</span><a href="multihash.html#MultiHash"><span class="Identifier">MultiHash</span></a><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Perform digest calculation using hash algorithm with code <tt class="docutils literal"><span class="pre">hashcode</span></tt> on data array <tt class="docutils literal"><span class="pre">data</span></tt>.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L428" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L428" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="digestSize-procs-all">
+  <div id="digestSize,MultiCodec" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#digestSize%2CMultiCodec"><span class="Identifier">digestSize</span></a><span class="Other">(</span><span class="Identifier">codec</span><span class="Other">:</span> <a href="multicodec.html#MultiCodec"><span class="Identifier">MultiCodec</span></a><span class="Other">)</span><span class="Other">:</span> <a href="multihash.html#MhResult"><span class="Identifier">MhResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
 <a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L399" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
 <a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L399" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="digestSize,string" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#digestSize%2Cstring"><span class="Identifier">digestSize</span></a><span class="Other">(</span><span class="Identifier">hashname</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="multihash.html#MhResult"><span class="Identifier">MhResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L406" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L406" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -479,8 +509,8 @@ Perform digest calculation using hash algorithm with name <tt class="docutils li
 <dd>
 
 Get MultiBase encoded representation of <tt class="docutils literal"><span class="pre">mh</span></tt> using encoding <tt class="docutils literal"><span class="pre">encoding</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L643" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L643" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L657" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L657" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -492,8 +522,8 @@ Get MultiBase encoded representation of <tt class="docutils literal"><span class
 <dd>
 
 Return hexadecimal string representation of MultiHash <tt class="docutils literal"><span class="pre">value</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L626" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L626" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L640" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L640" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -506,8 +536,8 @@ Return hexadecimal string representation of MultiHash <tt class="docutils litera
 <dd>
 
 Create MultiHash from bytes array <tt class="docutils literal"><span class="pre">data</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L562" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L562" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L576" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L576" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -517,8 +547,8 @@ Create MultiHash from bytes array <tt class="docutils literal"><span class="pre"
 <dd>
 
 Create MultiHash from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L570" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L570" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L584" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L584" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -528,8 +558,8 @@ Create MultiHash from hexadecimal string representation <tt class="docutils lite
 <dd>
 
 Create MultiHash from array of bytes <tt class="docutils literal"><span class="pre">bdigest</span></tt> and hash algorithm code <tt class="docutils literal"><span class="pre">hashcode</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L472" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L472" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L486" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L486" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -539,8 +569,8 @@ Create MultiHash from array of bytes <tt class="docutils literal"><span class="p
 <dd>
 
 Create MultiHash from array of bytes <tt class="docutils literal"><span class="pre">bdigest</span></tt> and hash algorithm code <tt class="docutils literal"><span class="pre">hashcode</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L455" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L455" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L469" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L469" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -550,8 +580,8 @@ Create MultiHash from array of bytes <tt class="docutils literal"><span class="p
 <dd>
 
 Create MultiHash from nimcrypto's <tt class="docutils literal"><span class="pre"><span class="Identifier">MDigest</span></span></tt> and hash algorithm code <tt class="docutils literal"><span class="pre">hashcode</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L442" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L442" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L456" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L456" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -561,8 +591,8 @@ Create MultiHash from nimcrypto's <tt class="docutils literal"><span class="pre"
 <dd>
 
 Create MultiHash from nimcrypto's <tt class="docutils literal"><span class="pre"><span class="Identifier">MDigest</span></span></tt> object and hash algorithm name <tt class="docutils literal"><span class="pre">hashname</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L425" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L425" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L439" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L439" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -575,8 +605,8 @@ Create MultiHash from nimcrypto's <tt class="docutils literal"><span class="pre"
 <dd>
 
 Create MultiHash from BASE58 encoded string representation <tt class="docutils literal"><span class="pre">data</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L579" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L579" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L593" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L593" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -589,8 +619,8 @@ Create MultiHash from BASE58 encoded string representation <tt class="docutils l
 <dd>
 
 Returns <tt class="docutils literal"><span class="pre">true</span></tt> if array of bytes <tt class="docutils literal"><span class="pre">data</span></tt> has correct MultiHash inside.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L532" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L532" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L546" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L546" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -603,8 +633,8 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt> if array
 <dd>
 
 Write MultiHash value <tt class="docutils literal"><span class="pre">mh</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L639" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L639" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multihash.nim#L653" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multihash.nim#L653" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -626,7 +656,7 @@ Write MultiHash value <tt class="docutils literal"><span class="pre">mh</span></
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-10-16 13:25:38 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-10-16 13:46:34 UTC</small>
       </div>
     </div>
   </div>
