@@ -153,3 +153,17 @@ macro includeFile*(file: static[string]): untyped =
     raiseAssert("Failed to include file: " & file & ", error: " & e.msg)
 
   return res
+
+proc toChunks*[T](data: seq[T], size: int): seq[seq[T]] {.raises: [].} =
+  ## Splits `data` into chunks of length `size`.
+  ## The last chunk may be smaller if data.len is not divisible by size.
+  if size <= 0:
+    return @[]
+
+  var result: seq[seq[T]] = @[]
+  var i = 0
+  while i < data.len:
+    let endIndex = min(i + size, data.len)
+    result.add(data[i ..< endIndex])
+    i = endIndex
+  return result

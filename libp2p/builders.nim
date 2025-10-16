@@ -325,10 +325,12 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
   b.circuitRelay = Opt.some(r)
   b
 
-proc withRendezVous*(
-    b: SwitchBuilder, rdv: RendezVous = RendezVous.new()
-): SwitchBuilder =
-  b.rdv = Opt.some(rdv)
+proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
+  var lrdv = rdv
+  if rdv.isNil():
+    lrdv = RendezVous.new()
+
+  b.rdv = Opt.some(lrdv)
   b
 
 proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =

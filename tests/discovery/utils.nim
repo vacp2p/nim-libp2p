@@ -1,5 +1,6 @@
 import chronos
 import sequtils
+
 import
   ../../libp2p/[
     builders,
@@ -14,7 +15,7 @@ import
     switch,
   ]
 
-proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
+proc createSwitch*(): Switch =
   SwitchBuilder
   .new()
   .withRng(newRng())
@@ -22,7 +23,21 @@ proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   .withMemoryTransport()
   .withMplex()
   .withNoise()
-  .withRendezVous(rdv)
+  .build()
+
+proc createSwitch*(rdv: RendezVous): Switch =
+  var lrdv = rdv
+  if rdv.isNil():
+    lrdv = RendezVous.new()
+
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
+  .withMemoryTransport()
+  .withMplex()
+  .withNoise()
+  .withRendezVous(lrdv)
   .build()
 
 proc setupNodes*(count: int): seq[RendezVous] =
@@ -31,7 +46,7 @@ proc setupNodes*(count: int): seq[RendezVous] =
   var rdvs: seq[RendezVous] = @[]
 
   for x in 0 ..< count:
-    let rdv = RendezVous.new()
+    var rdv: RendezVous = RendezVous.new()
     let node = createSwitch(rdv)
     rdvs.add(rdv)
 
@@ -50,13 +65,13 @@ template startAndDeferStop*(nodes: seq[RendezVous]) =
   defer:
     await allFutures(nodes.mapIt(it.switch.stop()))
 
-proc connectNodes*[T: RendezVous](dialer: T, target: T) {.async.} =
+proc connectNodes*(dialer: RendezVous, target: RendezVous) {.async.} =
   await dialer.switch.connect(
     target.switch.peerInfo.peerId, target.switch.peerInfo.addrs
   )
 
-proc connectNodesToRendezvousNode*[T: RendezVous](
-    nodes: seq[T], rendezvousNode: T
+proc connectNodesToRendezvousNode*(
+    nodes: seq[RendezVous], rendezvousNode: RendezVous
 ) {.async.} =
   for node in nodes:
     await connectNodes(node, rendezvousNode)
