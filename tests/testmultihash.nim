@@ -11,6 +11,7 @@
 
 import unittest2
 import nimcrypto/utils
+import ../libp2p/multicodec
 import ../libp2p/multihash
 
 const RustTestVectors = [
@@ -80,3 +81,7 @@ suite "MultiHash test suite":
         hex(mh1) == stripSpaces(item[2])
         hex(mh1) == hex(mh2)
         mh1 == mh2
+
+  test "gets digest size":
+    let mcodec = MultiCodec.codec("sha2-256")
+    check mcodec.digestSize.get == sha256.sizeDigest

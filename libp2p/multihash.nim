@@ -396,6 +396,20 @@ proc digestImplWithoutHash(hash: MHash, data: openArray[byte]): MultiHash =
   result.data.writeArray(data)
   result.data.finish()
 
+func digestSize*(codec: MultiCodec): MhResult[int] =
+  let hash = CodeHashes.getOrDefault(codec)
+  if isNil(hash.coder):
+    err(ErrNotSupported)
+  else:
+    ok(hash.size)
+
+func digestSize*(hashname: string): MhResult[int] =
+  let mc = MultiCodec.codec(hashname)
+  if mc == InvalidMultiCodec:
+    err(ErrIncorrectName)
+  else:
+    mc.digestSize
+
 proc digest*(
     mhtype: typedesc[MultiHash], hashname: string, data: openArray[byte]
 ): MhResult[MultiHash] {.inline.} =
@@ -412,11 +426,11 @@ proc digest*(
       ok(digestImplWithHash(hash, data))
 
 proc digest*(
-    mhtype: typedesc[MultiHash], hashcode: int, data: openArray[byte]
+    mhtype: typedesc[MultiHash], mcodec: MultiCodec, data: openArray[byte]
 ): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with code ``hashcode`` on
   ## data array ``data``.
-  let hash = CodeHashes.getOrDefault(hashcode)
+  let hash = CodeHashes.getOrDefault(mcodec)
   if isNil(hash.coder):
     err(ErrNotSupported)
   else:
