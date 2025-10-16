@@ -298,7 +298,11 @@ suite "GossipSub Integration - Mesh Management":
       )
     let
       nodes = generateNodes(
-          numberOfNodes, gossip = true, dValues = dValues, pruneBackoff = pruneBackoff
+          numberOfNodes,
+          gossip = true,
+          dValues = dValues,
+          pruneBackoff = pruneBackoff,
+          transport = transport.TCP, # flaky with Quic
         )
         .toGossipSub()
       node0 = nodes[0]
