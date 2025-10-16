@@ -53,7 +53,8 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
     "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
     "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
-    "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim "
+    "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim " &
+    "-d:libp2p_contentids_exts=../tests/multiformat_exts/contentids_exts.nim "
   runTest("multiformat_exts/testmultiformat_exts", opts)
 
 task testnative, "Runs libp2p native tests":
