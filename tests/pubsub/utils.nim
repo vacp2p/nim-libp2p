@@ -192,10 +192,13 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
+    transport: TransportType = TransportType.TCP,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
-      secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord
+      secureManagers = secureManagers,
+      sendSignedPeerRecord = sendSignedPeerRecord,
+      transport = transport,
     )
     let pubsub =
       if gossip:
