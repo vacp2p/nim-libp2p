@@ -140,13 +140,7 @@ suite "WebSocket transport":
 
 when defined(libp2p_autotls_support):
   import bearssl/pem
-  import
-    ../libp2p/[
-      autotls/service,
-      autotls/mockservice,
-      transports/tls/certificate,
-      transports/tls/certificate_ffi,
-    ]
+  import ../libp2p/[autotls/service, autotls/mockservice, transports/tls/certificate]
 
   proc generateCertAndKey(key: KeyPair): (TLSPrivateKey, TLSCertificate) =
     let certDer = generateX509(key, encodingFormat = DER).certificate
