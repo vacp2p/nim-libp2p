@@ -354,7 +354,7 @@ method accept*(
 
   try:
     let connection = await self.listener.accept()
-    return self.wrapConnection(connection, transportDir = Direction.In)
+    return self.wrapConnection(connection, Direction.In)
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
   except TransportOsError as exc:
@@ -382,7 +382,7 @@ method dial*(
 
     let client = self.client.get()
     let quicConnection = await client.dial(taAddress)
-    return self.wrapConnection(quicConnection, transportDir = Direction.Out)
+    return self.wrapConnection(quicConnection, Direction.Out)
   except QuicConfigError as e:
     raise newException(
       QuicTransportDialError, "error in quic dial: invalid tls config:" & e.msg, e
