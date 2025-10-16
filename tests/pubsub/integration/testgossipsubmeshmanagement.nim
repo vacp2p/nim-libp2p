@@ -338,6 +338,7 @@ suite "GossipSub Integration - Mesh Management":
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
 
+  # TODO: Remove loop when GossipSub tests fully switched to QUIC
   const transports = @[TransportType.TCP, TransportType.QUIC]
   for transport in transports:
     asyncTest "Outbound peers are marked correctly " & $transport:
