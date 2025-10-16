@@ -126,6 +126,9 @@ proc getStream*(
   when defined(libp2p_agents_metrics):
     qs.shortAgent = session.shortAgent
 
+  # Inherit transportDir from parent session for GossipSub outbound peer tracking
+  qs.transportDir = session.transportDir
+
   session.streams.add(qs)
   return qs
 
@@ -303,7 +306,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   await procCall Transport(transport).stop()
 
 proc wrapConnection(
-    transport: QuicTransport, connection: QuicConnection
+    transport: QuicTransport, connection: QuicConnection, transportDir: Direction
 ): QuicSession {.raises: [TransportOsError].} =
   var observedAddr: MultiAddress
   var localAddr: MultiAddress
@@ -323,6 +326,9 @@ proc wrapConnection(
     localAddr: Opt.some(localAddr),
   )
   session.initStream()
+
+  # Set the transport direction for outbound peer tracking in GossipSub 1.1
+  session.transportDir = transportDir
 
   transport.connections.add(session)
 
@@ -348,7 +354,7 @@ method accept*(
 
   try:
     let connection = await self.listener.accept()
-    return self.wrapConnection(connection)
+    return self.wrapConnection(connection, Direction.In)
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
   except TransportOsError as exc:
@@ -376,7 +382,7 @@ method dial*(
 
     let client = self.client.get()
     let quicConnection = await client.dial(taAddress)
-    return self.wrapConnection(quicConnection)
+    return self.wrapConnection(quicConnection, Direction.Out)
   except QuicConfigError as e:
     raise newException(
       QuicTransportDialError, "error in quic dial: invalid tls config:" & e.msg, e
