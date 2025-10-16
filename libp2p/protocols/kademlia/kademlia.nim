@@ -316,15 +316,15 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  # TODO: only query max of alpha peers (selectAlphaPeers)
-  let rpcBatch = peers.mapIt(kad.switch.dispatchPutVal(it, key, value))
-
   kad.dataTable.insert(key, value, $times.now().utc)
-  try:
-    await rpcBatch.allFutures().wait(kad.config.timeout)
-  except AsyncTimeoutError:
-    # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-    discard
+
+  for chunk in peers.toChunks(kad.config.alpha):
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value))
+    try:
+      await rpcBatch.allFutures().wait(kad.config.timeout)
+    except AsyncTimeoutError:
+      # Dispatch will timeout if any of the calls don't receive a response (which is normal)
+      discard
 
   ok()
 
@@ -363,16 +363,17 @@ proc getValue*(
   var remainingPeers = await kad.findNode(key)
   var received = ReceivedTable(newTable[PeerId, EntryRecord]())
 
-  # TODO: only query alpha handling (selectAlphaPeers)
   var curTry = 0
   while received.len < kad.config.quorum and remainingPeers.len > 0 and
       curTry < kad.config.retries:
-    let rpcBatch = remainingPeers.mapIt(kad.switch.dispatchGetVal(it, key, received))
-    try:
-      await rpcBatch.allFutures().wait(kad.config.timeout)
-    except AsyncTimeoutError:
-      # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-      discard
+    for chunk in remainingPeers.toChunks(kad.config.alpha):
+      let rpcBatch = chunk.mapIt(kad.switch.dispatchGetVal(it, key, received))
+      try:
+        await rpcBatch.allFutures().wait(kad.config.timeout)
+      except AsyncTimeoutError:
+        # Dispatch will timeout if any of the calls don't receive a response (which is normal)
+        discard
+
     # filter out peers that have responded
     remainingPeers = remainingPeers.filterIt(not received.hasKey(it))
     curTry.inc()
