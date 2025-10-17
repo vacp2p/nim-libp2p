@@ -77,12 +77,12 @@ method select*(
 type KadDHTConfig* = ref object
   validator*: EntryValidator
   selector*: EntrySelector
-  timeout: chronos.Duration
-  retries: int
-  replication: int
-  alpha: int
-  ttl: chronos.Duration
-  quorum: int
+  timeout*: chronos.Duration
+  retries*: int
+  replication*: int
+  alpha*: int
+  ttl*: chronos.Duration
+  quorum*: int
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -346,6 +346,8 @@ proc dispatchGetVal(
     error "GetValue reply decode fail", error = error, conn = conn
     return
 
+  received[peer] = Opt.none(EntryRecord)
+
   for peer in reply.closerPeers:
     let p = PeerId.init(peer.id).valueOr:
       debug "Invalid peer id received", error = error
@@ -353,20 +355,20 @@ proc dispatchGetVal(
     candidates[].incl(p)
 
   let record = reply.record.valueOr:
-    error "GetValue returned empty record", msg = msg, reply = reply, conn = conn
+    debug "GetValue returned empty record", msg = msg, reply = reply, conn = conn
     return
 
   let value = record.value.valueOr:
-    error "GetValue returned record with no value",
+    debug "GetValue returned record with no value",
       msg = msg, reply = reply, conn = conn
     return
 
   let time = record.timeReceived.valueOr:
-    error "GetValue returned record with no timeReceived",
+    debug "GetValue returned record with no timeReceived",
       msg = msg, reply = reply, conn = conn
     return
 
-  received[][peer] = Opt.some(EntryRecord(value: value, time: time))
+  received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
 proc bestValidRecord(
     kad: KadDHT, key: Key, received: ReceivedTable
@@ -377,6 +379,9 @@ proc bestValidRecord(
       continue
     if kad.config.validator.isValid(key, record):
       validRecords.add(record)
+
+  if validRecords.len() < kad.config.quorum:
+    return err("Not enough valid records to achieve quorum")
 
   let selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
     return err("Could not select best value")
