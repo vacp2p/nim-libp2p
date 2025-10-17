@@ -252,7 +252,7 @@ suite "Quic transport":
     await transport.stop()
     check await transport.onStop.wait().withTimeout(1.seconds)
 
-  asyncTest "EOF handling: incomplete read + repeated EOF + write after close":
+  asyncTest "EOF handling - incomplete read + repeated EOF + write after close":
     const message = "server"
 
     proc serverHandler(
@@ -266,7 +266,7 @@ suite "Quic transport":
       await stream.close()
       await conn.close()
 
-    proc runClient(server: QuicTransport) {.async.} =
+    proc runClient(server: QuicTransport, serverHandlerFut: Future[void]) {.async.} =
       let client = await createTransport()
       let conn = await client.dial("", server.addrs[0])
       let stream = await getStream(QuicSession(conn), Direction.Out)
@@ -288,9 +288,62 @@ suite "Quic transport":
       expect LPStreamEOFError:
         await stream.readExactly(addr shouldFail, 1)
 
-      # Attempting write at EOF
+      # Wait for server to fully close before attempting write to avoid race condition
+      await serverHandlerFut
+
+      # Attempting write after remote close
       expect LPStreamError:
         await stream.write("client")
+
+      await stream.close()
+      await conn.close()
+      await client.stop()
+
+    let server = await createTransport(isServer = true)
+    let serverHandlerFut = serverHandler(server)
+
+    await runClient(server, serverHandlerFut)
+    await server.stop()
+
+  asyncTest "server closeWrite, client can still write":
+    const serverMessage = "server"
+    const clientMessage = "client"
+
+    proc serverHandler(
+        server: QuicTransport
+    ) {.async: (raises: [transport.TransportError, LPStreamError, CancelledError]).} =
+      let conn = await server.accept()
+      let stream = await getStream(QuicSession(conn), Direction.In)
+
+      # Server sends data and closes its write side
+      await stream.write(serverMessage)
+      await stream.closeWrite()
+
+      # Server should still be able to read from client
+      var buffer: array[6, byte]
+      await stream.readExactly(addr buffer, clientMessage.len)
+      check string.fromBytes(buffer[0 ..< clientMessage.len]) == clientMessage
+
+      await stream.close()
+      await conn.close()
+
+    proc runClient(server: QuicTransport) {.async.} =
+      let client = await createTransport()
+      let conn = await client.dial("", server.addrs[0])
+      let stream = await getStream(QuicSession(conn), Direction.Out)
+
+      # Client reads server data
+      var buffer: array[6, byte]
+      await stream.readExactly(addr buffer, serverMessage.len)
+      check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
+
+      # Server has closed write side, so further reads should EOF
+      var extraByte: byte
+      expect LPStreamEOFError:
+        discard await stream.readOnce(addr extraByte, 1)
+
+      # Client should still be able to write back to server
+      await stream.write(clientMessage)
 
       await stream.close()
       await conn.close()
