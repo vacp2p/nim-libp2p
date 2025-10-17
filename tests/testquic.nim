@@ -251,3 +251,54 @@ suite "Quic transport":
 
     await transport.stop()
     check await transport.onStop.wait().withTimeout(1.seconds)
+
+  asyncTest "EOF handling: incomplete read + repeated EOF + write after close":
+    const message = "server"
+
+    proc serverHandler(
+        server: QuicTransport
+    ) {.async: (raises: [transport.TransportError, LPStreamError, CancelledError]).} =
+      let conn = await server.accept()
+      let stream = await getStream(QuicSession(conn), Direction.In)
+
+      await stream.write(message)
+
+      await stream.close()
+      await conn.close()
+
+    proc runClient(server: QuicTransport) {.async.} =
+      let client = await createTransport()
+      let conn = await client.dial("", server.addrs[0])
+      let stream = await getStream(QuicSession(conn), Direction.Out)
+
+      var buffer: array[12, byte]
+      expect LPStreamEOFError:
+        # Attempting readExactly incomplete data, server closes after 6
+        await stream.readExactly(addr buffer, 12)
+
+      # Verify that partial data was read before EOF
+      check string.fromBytes(buffer[0 ..< message.len]) == message
+
+      # Attempting readOnce at EOF
+      var shouldFail: byte
+      expect LPStreamEOFError:
+        discard await stream.readOnce(addr shouldFail, 1)
+
+      # Attempting readExactly at EOF
+      expect LPStreamEOFError:
+        await stream.readExactly(addr shouldFail, 1)
+
+      # Attempting write at EOF
+      expect LPStreamError:
+        await stream.write("client")
+
+      await stream.close()
+      await conn.close()
+      await client.stop()
+
+    let server = await createTransport(isServer = true)
+    let serverHandlerFut = serverHandler(server)
+
+    await runClient(server)
+    await serverHandlerFut
+    await server.stop()
