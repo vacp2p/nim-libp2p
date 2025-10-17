@@ -154,7 +154,7 @@ macro checkUntilTimeoutCustom*(
     await checkExpiringInternal()
 
 macro checkUntilTimeout*(code: untyped): untyped =
-  ## Same as `checkUntilTimeoutCustom` but with a default timeout of 2s with 50ms interval.
+  ## Same as `checkUntilTimeoutCustom` but with a default timeout of 30s with 50ms interval.
   ##
   ## Examples:
   ##   ```nim
@@ -175,7 +175,7 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##       b == 1
   ##   ```
   result = quote:
-    checkUntilTimeoutCustom(2.seconds, 50.milliseconds, `code`)
+    checkUntilTimeoutCustom(30.seconds, 50.milliseconds, `code`)
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:

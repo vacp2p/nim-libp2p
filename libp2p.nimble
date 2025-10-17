@@ -26,7 +26,7 @@ let cfg =
 import hashes, strutils
 
 proc runTest(filename: string, moreoptions: string = "") =
-  var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
+  var excstr = nimc & " " & lang & " -d:release " & cfg & " " & flags
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
