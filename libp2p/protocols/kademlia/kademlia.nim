@@ -24,7 +24,7 @@ proc init*(
   EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
 
 type
-  ReceivedTable = ref Table[PeerId, Opt[EntryRecord]]
+  ReceivedTable = TableRef[PeerId, Opt[EntryRecord]]
   CandidatePeers = ref HashSet[PeerId]
   LocalTable* = Table[Key, EntryRecord]
 
@@ -371,18 +371,12 @@ proc dispatchGetVal(
 proc bestValidRecord(
     kad: KadDHT, key: Key, received: ReceivedTable
 ): Result[EntryRecord, string] =
-  if received.len() == 0:
-    return err("No received records to choose from")
-
   var validRecords: seq[EntryRecord]
   for r in received.values():
     let record = r.valueOr:
       continue
     if kad.config.validator.isValid(key, record):
       validRecords.add(record)
-
-  if validRecords.len() == 0:
-    return err("No valid records not choose from")
 
   let selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
     return err("Could not select best value")
@@ -395,12 +389,12 @@ proc getValue*(
   let candidates = CandidatePeers()
   for p in (await kad.findNode(key)):
     candidates[].incl(p)
-  let received = ReceivedTable(newTable[PeerId, Opt[EntryRecord]]())
+  let received = ReceivedTable()
 
   var curTry = 0
   while received.len < kad.config.quorum and candidates[].len > 0 and
       curTry < kad.config.retries:
-    for chunk in candidates.toChunks(kad.config.alpha):
+    for chunk in candidates[].toSeq.toChunks(kad.config.alpha):
       let rpcBatch =
         candidates[].mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
       try:
@@ -485,9 +479,10 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
 proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
   var closestPeers: seq[Peer]
-  for p in kad.rtable.findClosest(target, kad.config.replication).filterIt(
-    it != kad.switch.peerInfo.peerId.toKey()
-  ):
+  let selfKey = kad.switch.peerInfo.peerId.toKey()
+  for p in kad.rtable.findClosest(target, kad.config.replication):
+    if p == selfKey: # do not return self as one of closest peers
+      continue
     let peer = p.toPeer(kad.switch).valueOr:
       continue
     closestPeers.add(peer)
