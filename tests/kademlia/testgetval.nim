@@ -34,6 +34,7 @@ suite "KadDHT - GetVal":
       containsData(kad1, key, value)
       containsNoData(kad2, key)
 
+    kad2.config.quorum = 1
     discard await kad2.getValue(key)
 
     check:
@@ -86,7 +87,7 @@ suite "KadDHT - GetVal":
       )
 
     await kad1.bootstrap(
-      @[switch1.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
+      @[switch2.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
     )
 
     discard await kad1.findNode(kad2.rtable.selfId)
@@ -111,6 +112,7 @@ suite "KadDHT - GetVal":
       containsData(kad4, key, bestValue)
       containsData(kad5, key, bestValue)
 
+    kad1.config.quorum = 3
     discard await kad1.getValue(key)
 
     # now all have bestvalue
@@ -120,3 +122,98 @@ suite "KadDHT - GetVal":
       containsData(kad3, key, bestValue)
       containsData(kad4, key, bestValue)
       containsData(kad5, key, bestValue)
+
+  asyncTest "Could not achieve quorum":
+    var (switch1, kad1) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch2, kad2) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch3, kad3) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch4, kad4) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch5, kad5) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+
+    defer:
+      await allFutures(
+        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
+      )
+
+    await kad1.bootstrap(
+      @[switch2.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
+    )
+
+    discard await kad1.findNode(kad2.rtable.selfId)
+    discard await kad1.findNode(kad3.rtable.selfId)
+    discard await kad1.findNode(kad4.rtable.selfId)
+    discard await kad1.findNode(kad5.rtable.selfId)
+
+    let
+      key = kad4.rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    kad2.dataTable.insert(key, value, $times.now().utc)
+
+    check:
+      containsNoData(kad1, key)
+      containsData(kad2, key, value)
+      containsNoData(kad3, key)
+      containsNoData(kad4, key)
+      containsNoData(kad5, key)
+
+    let getValueRes = (await kad1.getValue(key))
+    check getValueRes.isErr()
+    check getValueRes.error() == "Not enough valid records to achieve quorum"
+
+  asyncTest "Update peers with empty values":
+    var (switch1, kad1) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch2, kad2) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch3, kad3) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch4, kad4) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch5, kad5) =
+      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+
+    defer:
+      await allFutures(
+        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
+      )
+
+    await kad1.bootstrap(
+      @[switch2.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
+    )
+
+    discard await kad1.findNode(kad2.rtable.selfId)
+    discard await kad1.findNode(kad3.rtable.selfId)
+    discard await kad1.findNode(kad4.rtable.selfId)
+    discard await kad1.findNode(kad5.rtable.selfId)
+
+    let
+      key = kad4.rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    kad2.dataTable.insert(key, value, $times.now().utc)
+
+    check:
+      containsNoData(kad1, key)
+      containsData(kad2, key, value)
+      containsNoData(kad3, key)
+      containsNoData(kad4, key)
+      containsNoData(kad5, key)
+
+    # 1 is enough to make a decision
+    kad1.config.quorum = 1
+
+    discard await kad1.getValue(key)
+
+    # peers are updated
+    check:
+      containsData(kad1, key, value)
+      containsData(kad2, key, value)
+      containsData(kad3, key, value)
+      containsData(kad4, key, value)
+      containsData(kad5, key, value)
