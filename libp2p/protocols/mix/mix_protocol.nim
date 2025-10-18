@@ -1,4 +1,4 @@
-import chronicles, chronos, sequtils, strutils, os, results, sets
+import chronicles, chronos, sequtils, os, results, sets
 import std/[strformat, tables], metrics
 import
   ./[
