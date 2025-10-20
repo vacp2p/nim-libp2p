@@ -244,7 +244,6 @@ proc dispatchPutVal(
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
-    # todo log this more meaningfully
     error "PutValue reply decode fail", error = error, conn = conn
     return
   if reply != msg:
@@ -488,21 +487,21 @@ proc handleAddProvider(
     error "No key in message buffer", msg = msg, conn = conn
     return
 
-  # TODO: verify key is a valid CID
-  # if len(key) > 80 {
-  # 	return nil, errors.New("handleAddProvider key size too large")
-  # } else if len(key) == 0 {
-  # 	return nil, errors.New("handleAddProvider key is empty")
-  # }
-
-  # get peerInfos from peers in messages
-  # filter out infos that do not match sender's
-  # add remaining infos to peerstore
-
-  let providerPeers = msg.providerPeers
-  if providerPeers.len == 0:
-    error "No provider peers found", msg = msg, conn = conn
+  # Validate CID
+  if key.len > 80:
+    error "Key size too large", msg = msg, conn = conn, key = key
     return
+  if key.len == 0:
+    error "Key is empty", msg = msg, conn = conn, key = key
+    return
+
+  # filter out infos that do not match sender's
+  for peer in msg.providerPeers.filterIt(it.id == conn.peerId.getBytes()):
+    let p = PeerId.init(peer.id).valueOr:
+      debug "Invalid peer id received", error = error
+      continue
+    # add provider to peerstore
+    kad.switch.peerStore[AddressBook][p] = peer.addrs
 
 proc bootstrap*(
     kad: KadDHT, bootstrapNodes: seq[PeerInfo]
