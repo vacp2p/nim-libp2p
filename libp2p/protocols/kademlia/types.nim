@@ -26,6 +26,7 @@ const
   DefaultQuorum* = 5 # number of GetValue responses needed to decide
 
   KadCodec* = "/ipfs/kad/1.0.0"
+  MaxMsgSize* = 4096
 
 type Key* = seq[byte]
 
@@ -166,6 +167,20 @@ type
   ReceivedTable* = TableRef[PeerId, Opt[EntryRecord]]
   CandidatePeers* = ref HashSet[PeerId]
   LocalTable* = Table[Key, EntryRecord]
+
+proc insert*(
+    self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
+) {.raises: [].} =
+  debug "Local table insertion", key = key, value = value
+  self[key] = EntryRecord(value: value, time: time)
+
+proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =
+  if not self.hasKey(key):
+    return Opt.none(EntryRecord)
+  try:
+    return Opt.some(self[key])
+  except KeyError:
+    doAssert false, "checked with hasKey"
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
