@@ -148,6 +148,7 @@ Extend `MultiFormats`:
 | `MultiHash`    | `-d:libp2p_multihash_exts`                 | `const HashExts = []`         |
 | `MultiAddress` | `-d:libp2p_multiaddress_exts`              | `const AddressExts = []`      |
 | `MultiBase`    | `-d:libp2p_multibase_exts`                 | `const BaseExts = []`         |
+| `ContentIds`   | `-d:libp2p_contentids_exts`                | `const ContentIdsExts = []`   |
 
 For example, a file called `multihash_exts.nim` could be created and contain `MultiHash` extensions:
 ```nim
