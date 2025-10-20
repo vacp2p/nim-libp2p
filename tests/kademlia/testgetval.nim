@@ -4,7 +4,7 @@ import chronicles
 import chronos
 import unittest2
 import ../../libp2p/[switch, builders]
-import ../../libp2p/protocols/kademlia/[kademlia, routingtable, keys]
+import ../../libp2p/protocols/kademlia/[kademlia, routingtable, types]
 import ../utils/async_tests
 import ./utils.nim
 import ../helpers

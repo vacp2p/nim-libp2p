@@ -1,118 +1,21 @@
+# Nim-Libp2p
+# Copyright (c) 2023 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import std/[times, tables, sequtils, sets]
-import chronos
-import chronicles
-import results
-import ./[consts, xordistance, routingtable, lookupstate, keys, protobuf]
+import chronos, chronicles, results
+import ./[routingtable, lookupstate, protobuf, types]
 import ../protocol
 import ../../[peerid, switch, multihash]
 import ../../utils/heartbeat
 
 logScope:
   topics = "kad-dht"
-
-## Currently a string, because for some reason, that's what is chosen at the protobuf level
-## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
-type TimeStamp* = string
-
-type EntryRecord* = object
-  value*: seq[byte]
-  time*: TimeStamp
-
-proc init*(
-    T: typedesc[EntryRecord], value: Key, time: Opt[TimeStamp]
-): EntryRecord {.gcsafe, raises: [].} =
-  EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
-
-type
-  ReceivedTable = TableRef[PeerId, Opt[EntryRecord]]
-  CandidatePeers = ref HashSet[PeerId]
-  LocalTable* = Table[Key, EntryRecord]
-
-type EntryValidator* = ref object of RootObj
-method isValid*(
-    self: EntryValidator, key: Key, record: EntryRecord
-): bool {.base, raises: [], gcsafe.} =
-  doAssert(false, "EntryValidator base not implemented")
-
-type EntrySelector* = ref object of RootObj
-method select*(
-    self: EntrySelector, key: Key, records: seq[EntryRecord]
-): Result[int, string] {.base, raises: [], gcsafe.} =
-  doAssert(false, "EntrySelection base not implemented")
-
-type DefaultEntryValidator* = ref object of EntryValidator
-method isValid*(
-    self: DefaultEntryValidator, key: Key, record: EntryRecord
-): bool {.raises: [], gcsafe.} =
-  return true
-
-type DefaultEntrySelector* = ref object of EntrySelector
-method select*(
-    self: DefaultEntrySelector, key: Key, records: seq[EntryRecord]
-): Result[int, string] {.raises: [], gcsafe.} =
-  if records.len == 0:
-    return err("No records to choose from")
-
-  # Map value -> (count, firstIndex)
-  var counts: Table[seq[byte], (int, int)]
-  for i, v in records.mapIt(it.value):
-    try:
-      let (cnt, idx) = counts[v]
-      counts[v] = (cnt + 1, idx)
-    except KeyError:
-      counts[v] = (1, i)
-
-  # Find the first value with the highest count
-  var bestIdx = 0
-  var maxCount = -1
-  var minFirstIdx = high(int)
-  for _, (cnt, idx) in counts.pairs:
-    if cnt > maxCount or (cnt == maxCount and idx < minFirstIdx):
-      maxCount = cnt
-      bestIdx = idx
-      minFirstIdx = idx
-
-  return ok(bestIdx)
-
-type KadDHTConfig* = ref object
-  validator*: EntryValidator
-  selector*: EntrySelector
-  timeout*: chronos.Duration
-  retries*: int
-  replication*: int
-  alpha*: int
-  ttl*: chronos.Duration
-  quorum*: int
-
-proc new*(
-    T: typedesc[KadDHTConfig],
-    validator: EntryValidator = DefaultEntryValidator(),
-    selector: EntrySelector = DefaultEntrySelector(),
-    timeout: chronos.Duration = DefaultTimeout,
-    retries: int = DefaultRetries,
-    replication: int = DefaultReplication,
-    alpha: int = DefaultAlpha,
-    ttl: chronos.Duration = DefaultTTL,
-    quorum: int = DefaultQuorum,
-): T {.raises: [].} =
-  KadDHTConfig(
-    validator: validator,
-    selector: selector,
-    timeout: timeout,
-    retries: retries,
-    replication: replication,
-    alpha: alpha,
-    ttl: ttl,
-    quorum: quorum,
-  )
-
-type KadDHT* = ref object of LPProtocol
-  switch: Switch
-  rng: ref HmacDrbgContext
-  rtable*: RoutingTable
-  maintenanceLoop: Future[void]
-  dataTable*: LocalTable
-  config*: KadDHTConfig
 
 proc insert*(
     self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
@@ -553,11 +456,30 @@ proc handleGetValue(
     debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
     return
 
-proc addProvider*(
-    kad: KadDHT, key: Key
-): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  # TODO: find the closest nodes to the key via FIND_NODE and then send ADD_PROVIDER with self's peerInfo to each of them
-  discard
+proc dispatchAddProvider(
+    switch: Switch, peer: PeerId, key: Key
+) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+  let conn = await switch.dial(peer, KadCodec)
+  defer:
+    await conn.close()
+
+  let msg = Message(
+    msgType: MessageType.addProvider,
+    key: Opt.some(key),
+    providerPeers: @[switch.peerInfo.toPeer()],
+  )
+  await conn.writeLp(msg.encode().buffer)
+
+proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
+  ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo to each of them
+  let peers = await kad.findNode(key)
+  for chunk in peers.toChunks(kad.config.alpha):
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, key))
+    try:
+      await rpcBatch.allFutures().wait(kad.config.timeout)
+    except AsyncTimeoutError:
+      # Dispatch will timeout if any of the calls don't receive a response (which is normal)
+      discard
 
 proc handleAddProvider(
     kad: KadDHT, conn: Connection, msg: Message
@@ -567,7 +489,15 @@ proc handleAddProvider(
     return
 
   # TODO: verify key is a valid CID
-  # ???: all providerPeers that match the sender's PeerID are recorded as providers.
+  # if len(key) > 80 {
+  # 	return nil, errors.New("handleAddProvider key size too large")
+  # } else if len(key) == 0 {
+  # 	return nil, errors.New("handleAddProvider key is empty")
+  # }
+
+  # get peerInfos from peers in messages
+  # filter out infos that do not match sender's
+  # add remaining infos to peerstore
 
   let providerPeers = msg.providerPeers
   if providerPeers.len == 0:
