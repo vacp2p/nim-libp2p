@@ -2,7 +2,7 @@ import std/[times, tables, sequtils, sets]
 import chronos
 import chronicles
 import results
-import ./[consts, xordistance, routingtable, lookupstate, requests, keys, protobuf]
+import ./[consts, xordistance, routingtable, lookupstate, keys, protobuf]
 import ../protocol
 import ../../[peerid, switch, multihash]
 import ../../utils/heartbeat
@@ -23,9 +23,10 @@ proc init*(
 ): EntryRecord {.gcsafe, raises: [].} =
   EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
 
-type ReceivedTable = ref Table[PeerId, EntryRecord]
-
-type LocalTable* = Table[Key, EntryRecord]
+type
+  ReceivedTable = TableRef[PeerId, Opt[EntryRecord]]
+  CandidatePeers = ref HashSet[PeerId]
+  LocalTable* = Table[Key, EntryRecord]
 
 type EntryValidator* = ref object of RootObj
 method isValid*(
@@ -76,12 +77,12 @@ method select*(
 type KadDHTConfig* = ref object
   validator*: EntryValidator
   selector*: EntrySelector
-  timeout: chronos.Duration
-  retries: int
-  replication: int
-  alpha: int
-  ttl: chronos.Duration
-  quorum: int
+  timeout*: chronos.Duration
+  retries*: int
+  replication*: int
+  alpha*: int
+  ttl*: chronos.Duration
+  quorum*: int
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -188,7 +189,7 @@ proc findNode*(
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a target ID.
 
-  var initialPeers = kad.rtable.findClosestPeers(targetId, kad.config.replication)
+  var initialPeers = kad.rtable.findClosestPeerIds(targetId, kad.config.replication)
   var state = LookupState.init(
     targetId, initialPeers, kad.config.alpha, kad.config.replication,
     kad.rtable.config.hasher,
@@ -329,7 +330,11 @@ proc putValue*(
   ok()
 
 proc dispatchGetVal(
-    switch: Switch, peer: PeerId, key: Key, received: ReceivedTable
+    switch: Switch,
+    peer: PeerId,
+    key: Key,
+    received: ReceivedTable,
+    candidates: CandidatePeers,
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
   let conn = await switch.dial(peer, KadCodec)
   defer:
@@ -341,57 +346,88 @@ proc dispatchGetVal(
     error "GetValue reply decode fail", error = error, conn = conn
     return
 
+  received[peer] = Opt.none(EntryRecord)
+
+  for peer in reply.closerPeers:
+    let p = PeerId.init(peer.id).valueOr:
+      debug "Invalid peer id received", error = error
+      continue
+    candidates[].incl(p)
+
   let record = reply.record.valueOr:
-    error "GetValue returned empty record", msg = msg, reply = reply, conn = conn
+    debug "GetValue returned empty record", msg = msg, reply = reply, conn = conn
     return
 
   let value = record.value.valueOr:
-    error "GetValue returned record with no value",
+    debug "GetValue returned record with no value",
       msg = msg, reply = reply, conn = conn
     return
 
   let time = record.timeReceived.valueOr:
-    error "GetValue returned record with no timeReceived",
+    debug "GetValue returned record with no timeReceived",
       msg = msg, reply = reply, conn = conn
     return
 
-  received[][peer] = EntryRecord(value: value, time: time)
+  received[peer] = Opt.some(EntryRecord(value: value, time: time))
+
+proc bestValidRecord(
+    kad: KadDHT, key: Key, received: ReceivedTable
+): Result[EntryRecord, string] =
+  var validRecords: seq[EntryRecord]
+  for r in received.values():
+    let record = r.valueOr:
+      continue
+    if kad.config.validator.isValid(key, record):
+      validRecords.add(record)
+
+  if validRecords.len() < kad.config.quorum:
+    return err("Not enough valid records to achieve quorum")
+
+  let selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
+    return err("Could not select best value")
+
+  ok(validRecords[selectedIdx])
 
 proc getValue*(
     kad: KadDHT, key: Key
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  var remainingPeers = await kad.findNode(key)
-  var received = ReceivedTable(newTable[PeerId, EntryRecord]())
+  let candidates = CandidatePeers()
+  for p in (await kad.findNode(key)):
+    candidates[].incl(p)
+  let received = ReceivedTable()
 
   var curTry = 0
-  while received.len < kad.config.quorum and remainingPeers.len > 0 and
+  while received.len < kad.config.quorum and candidates[].len > 0 and
       curTry < kad.config.retries:
-    for chunk in remainingPeers.toChunks(kad.config.alpha):
-      let rpcBatch = chunk.mapIt(kad.switch.dispatchGetVal(it, key, received))
+    for chunk in candidates[].toSeq.toChunks(kad.config.alpha):
+      let rpcBatch =
+        candidates[].mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
       try:
         await rpcBatch.allFutures().wait(kad.config.timeout)
       except AsyncTimeoutError:
         # Dispatch will timeout if any of the calls don't receive a response (which is normal)
         discard
-
     # filter out peers that have responded
-    remainingPeers = remainingPeers.filterIt(not received.hasKey(it))
+    candidates[] = candidates[].filterIt(not received.hasKey(it))
     curTry.inc()
 
-  let
-    records = received.values().toSeq()
-    validRecords = records.filterIt(kad.config.validator.isValid(key, it))
-    selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
-      return err("Could not select value")
-    best = validRecords[selectedIdx]
+  let best = ?kad.bestValidRecord(key, received)
 
   # insert value to our localtable
   kad.dataTable.insert(key, best.value, $times.now().utc)
 
-  # update peers that don't have best value (or that don't have valid records)
+  # update peers that
+  # - don't have best value
+  # - don't have valid records
+  # - don't have the values at all
   var rpcBatch: seq[Future[void]]
-  for p, e in received:
-    if e.value != best.value:
+  for p, r in received:
+    let record = r.valueOr:
+      # peer doesn't have value
+      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value))
+      continue
+    if record.value != best.value:
+      # value is invalid or not best
       rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value))
 
   try:
@@ -446,6 +482,17 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng)
       discard await kad.findNode(randomKey)
 
+proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
+  var closestPeers: seq[Peer]
+  let selfKey = kad.switch.peerInfo.peerId.toKey()
+  for p in kad.rtable.findClosest(target, kad.config.replication):
+    if p == selfKey: # do not return self as one of closest peers
+      continue
+    let peer = p.toPeer(kad.switch).valueOr:
+      continue
+    closestPeers.add(peer)
+  return closestPeers
+
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", chronos.minutes(10):
     await kad.refreshBuckets()
@@ -459,14 +506,14 @@ proc handleFindNode(
   let targetId = PeerId.init(targetIdBytes).valueOr:
     error "FindNode message without valid key data", msg = msg, conn = conn
     return
-  let closerPeers = kad.rtable
-    .findClosest(targetId.toKey(), kad.config.replication)
-    # exclude the node requester because telling a peer about itself does not reduce the distance,
-    .filterIt(it != conn.peerId.toKey())
 
-  let responsePb = encodeFindNodeReply(closerPeers, kad.switch)
   try:
-    await conn.writeLp(responsePb.buffer)
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.findNode,
+        closerPeers: kad.findClosestPeers(targetId.toKey()),
+      ).encode().buffer
+    )
   except LPStreamError as exc:
     debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg
     return
@@ -484,7 +531,11 @@ proc handleGetValue(
   let entryRecord = kad.dataTable.get(key).valueOr:
     try:
       await conn.writeLp(
-        Message(msgType: MessageType.getValue, key: Opt.some(key)).encode().buffer
+        Message(
+          msgType: MessageType.getValue,
+          key: Opt.some(key),
+          closerPeers: kad.findClosestPeers(key),
+        ).encode().buffer
       )
     except LPStreamError as exc:
       debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
@@ -502,6 +553,7 @@ proc handleGetValue(
             timeReceived: Opt.some(entryRecord.time),
           )
         ),
+        closerPeers: kad.findClosestPeers(key),
       ).encode().buffer
     )
   except LPStreamError as exc:
