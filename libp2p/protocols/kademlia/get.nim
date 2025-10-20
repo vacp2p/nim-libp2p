@@ -9,10 +9,9 @@
 
 import std/[times, tables, sequtils, sets]
 import chronos, chronicles, results
-import ../../../[peerid, switch, multihash]
-import ../../protocol
-import ../[protobuf, types]
-import ./[find, put]
+import ../../[peerid, switch, multihash]
+import ../protocol
+import ./[protobuf, types, find, put]
 
 proc dispatchGetVal(
     switch: Switch,

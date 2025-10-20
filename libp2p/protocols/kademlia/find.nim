@@ -9,9 +9,9 @@
 
 import std/[tables, sequtils, sets]
 import chronos, chronicles, results
-import ../[routingtable, lookupstate, protobuf, types]
-import ../../protocol
-import ../../../[peerid, switch, multihash]
+import ../../[peerid, switch, multihash]
+import ../protocol
+import ./[routingtable, lookupstate, protobuf, types]
 
 proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
   let ready = state.activeQueries == 0

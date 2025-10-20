@@ -8,9 +8,9 @@
 # those terms.
 
 import chronos, chronicles, results
-import ../../../[peerid, switch, multihash]
-import ../../protocol
-import ../[protobuf, types]
+import ../../[peerid, switch, multihash]
+import ../protocol
+import ./[protobuf, types]
 
 proc ping*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]

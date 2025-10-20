@@ -9,10 +9,9 @@
 
 import std/[times, sequtils]
 import chronos, chronicles, results
-import ../../../[peerid, switch, multihash]
-import ../../protocol
-import ../[protobuf, types]
-import ./find
+import ../../[peerid, switch, multihash]
+import ../protocol
+import ./[protobuf, types, find]
 
 proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Returns whether `value` is a better value than what we have locally

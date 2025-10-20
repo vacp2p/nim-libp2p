@@ -12,7 +12,7 @@
 import unittest
 import chronos
 import ../../libp2p/crypto/crypto
-import ../../libp2p/protocols/kademlia/[xordistance, routingtable, consts, keys]
+import ../../libp2p/protocols/kademlia
 import results
 
 proc testKey*(x: byte): Key =
