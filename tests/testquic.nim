@@ -275,18 +275,18 @@ suite "Quic transport":
 
     # Upgrade without providing peer ID - should extract from certificate
     let muxer = await client.upgrade(clientConn, Opt.none(PeerId))
-    let extractedPeerId = muxer.connection.peerId
-    check extractedPeerId == expectedPeerId
+    check muxer.connection.peerId == expectedPeerId
 
     # Upgrade with explicit peer ID - should use the provided value
-    let serverMuxer = await server.upgrade(serverConn, Opt.some(extractedPeerId))
-    check serverMuxer.connection.peerId == extractedPeerId
+    let serverMuxer = await server.upgrade(serverConn, Opt.some(expectedPeerId))
+    check serverMuxer.connection.peerId == expectedPeerId
 
     await client.stop()
     await server.stop()
 
   asyncTest "EOF handling - incomplete read + repeated EOF + write after close":
-    const message = "server"
+    const serverMessage = "server"
+    const clientMessage = "client"
 
     proc serverHandler(
         server: QuicTransport
@@ -294,7 +294,7 @@ suite "Quic transport":
       let conn = await server.accept()
       let stream = await getStream(QuicSession(conn), Direction.In)
 
-      await stream.write(message)
+      await stream.write(serverMessage)
 
       await stream.close()
       await conn.close()
@@ -304,29 +304,28 @@ suite "Quic transport":
       let conn = await client.dial("", server.addrs[0])
       let stream = await getStream(QuicSession(conn), Direction.Out)
 
-      var buffer: array[12, byte]
+      var buffer: array[2 * serverMessage.len, byte]
       expect LPStreamEOFError:
-        # Attempting readExactly incomplete data, server closes after 6
-        await stream.readExactly(addr buffer, 12)
+        # Attempting readExactly incomplete data, server closes after serverMessage.len
+        await stream.readExactly(addr buffer, 2 * serverMessage.len)
 
       # Verify that partial data was read before EOF
-      check string.fromBytes(buffer[0 ..< message.len]) == message
+      check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
 
       # Attempting readOnce at EOF
-      var shouldFail: byte
       expect LPStreamEOFError:
-        discard await stream.readOnce(addr shouldFail, 1)
+        discard await stream.readOnce(addr buffer, 1)
 
       # Attempting readExactly at EOF
       expect LPStreamEOFError:
-        await stream.readExactly(addr shouldFail, 1)
+        await stream.readExactly(addr buffer, 1)
 
       # Wait for server to fully close before attempting write to avoid race condition
       await serverHandlerFut
 
       # Attempting write after remote close
       expect LPStreamError:
-        await stream.write("client")
+        await stream.write(clientMessage)
 
       await stream.close()
       await conn.close()
@@ -353,9 +352,9 @@ suite "Quic transport":
       await stream.closeWrite()
 
       # Server should still be able to read from client
-      var buffer: array[6, byte]
+      var buffer: array[clientMessage.len, byte]
       await stream.readExactly(addr buffer, clientMessage.len)
-      check string.fromBytes(buffer[0 ..< clientMessage.len]) == clientMessage
+      check string.fromBytes(buffer) == clientMessage
 
       await stream.close()
       await conn.close()
@@ -366,14 +365,13 @@ suite "Quic transport":
       let stream = await getStream(QuicSession(conn), Direction.Out)
 
       # Client reads server data
-      var buffer: array[6, byte]
+      var buffer: array[serverMessage.len, byte]
       await stream.readExactly(addr buffer, serverMessage.len)
-      check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
+      check string.fromBytes(buffer) == serverMessage
 
       # Server has closed write side, so further reads should EOF
-      var extraByte: byte
       expect LPStreamEOFError:
-        discard await stream.readOnce(addr extraByte, 1)
+        discard await stream.readOnce(addr buffer, 1)
 
       # Client should still be able to write back to server
       await stream.write(clientMessage)
@@ -390,19 +388,17 @@ suite "Quic transport":
     await server.stop()
 
   asyncTest "stream caching with multiple partial reads":
-    const messageSize = 100
-    const chunkSize = 10
-    let testData = (0 ..< messageSize).mapIt(byte(it))
+    const messageSize = 2048
+    const chunkSize = 256
+    let message = (0 ..< messageSize).mapIt(byte(it mod 256))
 
-    # Server writes 100 sequential bytes
     proc serverHandler(server: QuicTransport) {.async.} =
       let conn = await server.accept()
       let stream = await getStream(QuicSession(conn), Direction.In)
-      await stream.write(testData)
+      await stream.write(message)
       await stream.close()
       await conn.close()
 
-    # Client reads in small chunks
     proc runClient(server: QuicTransport) {.async.} =
       let client = await createTransport()
       let conn = await client.dial("", server.addrs[0])
@@ -410,13 +406,14 @@ suite "Quic transport":
 
       var receivedData: seq[byte] = @[]
 
-      # Read 10 chunks of 10 bytes each
-      for i in 0 ..< (messageSize div chunkSize):
+      # Read a message chunk by chunk
+      while receivedData.len < messageSize:
         var chunk: array[chunkSize, byte]
         let bytesRead = await stream.readOnce(addr chunk[0], chunkSize)
+        check bytesRead > 0
         receivedData.add(chunk[0 ..< bytesRead])
 
-      check receivedData == testData
+      check receivedData == message
 
       await stream.close()
       await client.stop()
