@@ -1,5 +1,5 @@
 {.used.}
-import chronos
+import chronos, chronicles
 import unittest2
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia/kademlia
