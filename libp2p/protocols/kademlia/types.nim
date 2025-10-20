@@ -31,7 +31,7 @@ const
 type Key* = seq[byte]
 
 proc isValid*(k: Key): bool =
-  return key.len > 0 and key.len < 80
+  return k.len > 0 and k.len < 80
 
 proc toKey*(p: PeerId): Key =
   return Key(p.data)
