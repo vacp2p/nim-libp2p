@@ -9,10 +9,9 @@
 
 import std/sequtils
 import chronos, chronicles, results
-import ../../../[peerid, switch, multihash]
-import ../../protocol
-import ../[protobuf, types]
-import ./find
+import ../../[peerid, switch, multihash]
+import ../protocol
+import ./[protobuf, types, find]
 
 proc dispatchAddProvider(
     switch: Switch, peer: PeerId, key: Key
