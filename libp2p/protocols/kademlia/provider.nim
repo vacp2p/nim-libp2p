@@ -46,15 +46,13 @@ proc handleAddProvider*(
     return
 
   # Validate CID
-  if key.len > 80:
-    error "Key size too large", msg = msg, conn = conn, key = key
-    return
-  if key.len == 0:
-    error "Key is empty", msg = msg, conn = conn, key = key
+  if not key.isValid():
+    error "Invalid key", msg = msg, conn = conn, key = key
     return
 
   # filter out infos that do not match sender's
-  for peer in msg.providerPeers.filterIt(it.id == conn.peerId.getBytes()):
+  let peerBytes = conn.peerId.getBytes()
+  for peer in msg.providerPeers.filterIt(it.id == peerBytes):
     let p = PeerId.init(peer.id).valueOr:
       debug "Invalid peer id received", error = error
       continue

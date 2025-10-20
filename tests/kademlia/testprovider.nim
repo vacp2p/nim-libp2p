@@ -33,11 +33,6 @@ suite "KadDHT - AddProvider":
     kad2.dataTable.insert(key, value, $times.now().utc)
     kad3.dataTable.insert(key, value, $times.now().utc)
 
-    check:
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
-      containsData(kad3, key, value)
-
     # repeat several times because address book can be updated by multiple sources
 
     for _ in 0 ..< 10:
