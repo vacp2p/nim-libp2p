@@ -152,6 +152,41 @@ proc sendFindNode(
 
   return reply
 
+proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
+  var closestPeers: seq[Peer]
+  let selfKey = kad.switch.peerInfo.peerId.toKey()
+  for p in kad.rtable.findClosest(target, kad.config.replication):
+    if p == selfKey: # do not return self as one of closest peers
+      continue
+    let peer = p.toPeer(kad.switch).valueOr:
+      continue
+    closestPeers.add(peer)
+  return closestPeers
+
+proc handleFindNode(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let targetIdBytes = msg.key.valueOr:
+    error "FindNode message without key data present", msg = msg, conn = conn
+    return
+  let targetId = PeerId.init(targetIdBytes).valueOr:
+    error "FindNode message without valid key data", msg = msg, conn = conn
+    return
+
+  try:
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.findNode,
+        closerPeers: kad.findClosestPeers(targetId.toKey()),
+      ).encode().buffer
+    )
+  except LPStreamError as exc:
+    debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg
+    return
+
+  # Peer is useful. adding to rtable
+  discard kad.rtable.insert(conn.peerId)
+
 proc waitRepliesOrTimeouts(
     pendingFutures: Table[PeerId, Future[Message]]
 ): Future[(seq[Message], seq[PeerId])] {.async: (raises: [CancelledError]).} =
@@ -284,6 +319,15 @@ proc ping*(
 
   reply == request
 
+proc handlePing(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  try:
+    await conn.writeLp(msg.encode().buffer)
+  except LPStreamError as exc:
+    debug "Failed to send ping reply", conn = conn, err = exc.msg
+    return
+
 proc dispatchPutVal(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte]
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
@@ -328,6 +372,38 @@ proc putValue*(
       discard
 
   ok()
+
+proc handlePutValue(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let record = msg.record.valueOr:
+    error "No record in message buffer", msg = msg, conn = conn
+    return
+
+  let (key, entryRecord) =
+    try:
+      (record.key.get(), EntryRecord(value: record.value.get(), time: $times.now().utc))
+    except KeyError:
+      error "No key, value or timeReceived in buffer", msg = msg, conn = conn
+      return
+
+  # Value sanitisation done. Start insertion process
+  if not kad.config.validator.isValid(key, entryRecord):
+    debug "Record is not valid", key, entryRecord
+    return
+
+  if not kad.isBestValue(key, entryRecord):
+    error "Dropping received value, we have a better one"
+    return
+
+  kad.dataTable.insert(key, entryRecord.value, $times.now().utc)
+  # consistent with following link, echo message without change
+  # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
+  try:
+    await conn.writeLp(msg.encode().buffer)
+  except LPStreamError as exc:
+    debug "Failed to send find-node RPC reply", conn = conn, err = exc.msg
+    return
 
 proc dispatchGetVal(
     switch: Switch,
@@ -438,6 +514,66 @@ proc getValue*(
 
   ok(best)
 
+proc handleGetValue(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let key = msg.key.valueOr:
+    error "No key in rpc buffer", msg = msg, conn = conn
+    return
+
+  let entryRecord = kad.dataTable.get(key).valueOr:
+    try:
+      await conn.writeLp(
+        Message(
+          msgType: MessageType.getValue,
+          key: Opt.some(key),
+          closerPeers: kad.findClosestPeers(key),
+        ).encode().buffer
+      )
+    except LPStreamError as exc:
+      debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+    return
+
+  try:
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.getValue,
+        key: Opt.some(key),
+        record: Opt.some(
+          Record(
+            key: Opt.some(key),
+            value: Opt.some(entryRecord.value),
+            timeReceived: Opt.some(entryRecord.time),
+          )
+        ),
+        closerPeers: kad.findClosestPeers(key),
+      ).encode().buffer
+    )
+  except LPStreamError as exc:
+    debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+    return
+
+proc addProvider*(
+    kad: KadDHT, key: Key
+): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  # TODO: find the closest nodes to the key via FIND_NODE and then send ADD_PROVIDER with self's peerInfo to each of them
+  discard
+
+proc handleAddProvider(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let key = msg.key.valueOr:
+    error "No key in message buffer", msg = msg, conn = conn
+    return
+
+  # TODO: verify key is a valid CID
+  # ???: all providerPeers that match the sender's PeerID are recorded as providers.
+
+  let providerPeers = msg.providerPeers
+  if providerPeers.len == 0:
+    error "No provider peers found", msg = msg, conn = conn
+    return
+
 proc bootstrap*(
     kad: KadDHT, bootstrapNodes: seq[PeerInfo]
 ) {.async: (raises: [CancelledError]).} =
@@ -482,115 +618,9 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng)
       discard await kad.findNode(randomKey)
 
-proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
-  var closestPeers: seq[Peer]
-  let selfKey = kad.switch.peerInfo.peerId.toKey()
-  for p in kad.rtable.findClosest(target, kad.config.replication):
-    if p == selfKey: # do not return self as one of closest peers
-      continue
-    let peer = p.toPeer(kad.switch).valueOr:
-      continue
-    closestPeers.add(peer)
-  return closestPeers
-
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", chronos.minutes(10):
     await kad.refreshBuckets()
-
-proc handleFindNode(
-    kad: KadDHT, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
-  let targetIdBytes = msg.key.valueOr:
-    error "FindNode message without key data present", msg = msg, conn = conn
-    return
-  let targetId = PeerId.init(targetIdBytes).valueOr:
-    error "FindNode message without valid key data", msg = msg, conn = conn
-    return
-
-  try:
-    await conn.writeLp(
-      Message(
-        msgType: MessageType.findNode,
-        closerPeers: kad.findClosestPeers(targetId.toKey()),
-      ).encode().buffer
-    )
-  except LPStreamError as exc:
-    debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg
-    return
-
-  # Peer is useful. adding to rtable
-  discard kad.rtable.insert(conn.peerId)
-
-proc handleGetValue(
-    kad: KadDHT, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
-  let key = msg.key.valueOr:
-    error "No key in rpc buffer", msg = msg, conn = conn
-    return
-
-  let entryRecord = kad.dataTable.get(key).valueOr:
-    try:
-      await conn.writeLp(
-        Message(
-          msgType: MessageType.getValue,
-          key: Opt.some(key),
-          closerPeers: kad.findClosestPeers(key),
-        ).encode().buffer
-      )
-    except LPStreamError as exc:
-      debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
-    return
-
-  try:
-    await conn.writeLp(
-      Message(
-        msgType: MessageType.getValue,
-        key: Opt.some(key),
-        record: Opt.some(
-          Record(
-            key: Opt.some(key),
-            value: Opt.some(entryRecord.value),
-            timeReceived: Opt.some(entryRecord.time),
-          )
-        ),
-        closerPeers: kad.findClosestPeers(key),
-      ).encode().buffer
-    )
-  except LPStreamError as exc:
-    debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
-    return
-
-proc handlePutValue(
-    kad: KadDHT, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
-  let record = msg.record.valueOr:
-    error "No record in message buffer", msg = msg, conn = conn
-    return
-
-  let (key, entryRecord) =
-    try:
-      (record.key.get(), EntryRecord(value: record.value.get(), time: $times.now().utc))
-    except KeyError:
-      error "No key, value or timeReceived in buffer", msg = msg, conn = conn
-      return
-
-  # Value sanitisation done. Start insertion process
-  if not kad.config.validator.isValid(key, entryRecord):
-    debug "Record is not valid", key, entryRecord
-    return
-
-  if not kad.isBestValue(key, entryRecord):
-    error "Dropping received value, we have a better one"
-    return
-
-  kad.dataTable.insert(key, entryRecord.value, $times.now().utc)
-  # consistent with following link, echo message without change
-  # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
-  try:
-    await conn.writeLp(msg.encode().buffer)
-  except LPStreamError as exc:
-    debug "Failed to send find-node RPC reply", conn = conn, err = exc.msg
-    return
 
 proc new*(
     T: typedesc[KadDHT],
@@ -630,12 +660,10 @@ proc new*(
         await kad.handlePutValue(conn, msg)
       of MessageType.getValue:
         await kad.handleGetValue(conn, msg)
+      of MessageType.addProvider:
+        await kad.handleAddProvider(conn, msg)
       of MessageType.ping:
-        try:
-          await conn.writeLp(buf)
-        except LPStreamError as exc:
-          debug "Failed to send ping reply", conn = conn, err = exc.msg
-          return
+        await kad.handlePing(conn, msg)
       else:
         error "Unhandled kad-dht message type", msg = msg
         return
