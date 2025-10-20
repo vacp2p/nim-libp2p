@@ -131,7 +131,7 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 
   return allNodes[0 ..< min(count, allNodes.len)]
 
-proc findClosestPeers*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
+proc findClosestPeerIds*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
   return findClosest(rtable, targetId, count)
     .mapIt(it.toPeerId())
     .filterIt(it.isOk)
