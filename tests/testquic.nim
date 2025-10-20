@@ -2,7 +2,6 @@
 
 import chronos, stew/byteutils, random
 import sequtils
-import quic
 import
   ../libp2p/[
     stream/connection,
