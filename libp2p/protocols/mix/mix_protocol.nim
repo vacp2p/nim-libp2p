@@ -45,7 +45,7 @@ type MixProtocol* = ref object of LPProtocol
   # TODO: verify if this requires cleanup for cases in which response never arrives (and connection is closed)
   connCreds: Table[SURBIdentifier, ConnCreds]
   destReadBehavior: TableRef[string, destReadBehaviorCb]
-  sendPool: Table[PeerId, Connection]
+  connPool: Table[PeerId, Connection]
 
 proc hasDestReadBehavior*(mixProto: MixProtocol, codec: string): bool =
   return mixProto.destReadBehavior.hasKey(codec)
@@ -80,16 +80,17 @@ proc getConn(
     codecs: seq[string],
     forceNewStream: bool = false,
 ): Future[Connection] {.async: (raises: [DialFailedError, CancelledError]).} =
-  if mixProto.sendPool.hasKey(pid):
-    if forceNewStream:
-      mixProto.sendPool.del(pid)
-    else:
-      try:
-        return mixProto.sendPool[pid]
-      except KeyError:
-        raiseAssert "checked with hasKey"
+  if mixProto.connPool.hasKey(pid):
+    try:
+      if forceNewStream:
+        await mixProto.connPool[pid].close()
+        mixProto.connPool.del(pid)
+      else:
+        return mixProto.connPool[pid]
+    except KeyError:
+      raiseAssert "checked with hasKey"
   let c = await mixProto.switch.dial(pid, addrs, codecs)
-  mixProto.sendPool[pid] = c
+  mixProto.connPool[pid] = c
   return c
 
 proc writeLp(
