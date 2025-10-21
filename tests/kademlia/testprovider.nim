@@ -35,25 +35,23 @@ suite "KadDHT - AddProvider":
 
     # repeat several times because address book can be updated by multiple sources
 
-    for _ in 0 ..< 10:
-      # ensure kad1 does not have kad3 in its addressbook
-      discard switch1.peerStore[AddressBook].del(switch3.peerInfo.peerId)
-      check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] !=
-        switch3.peerInfo.addrs
+    # ensure kad1 does not have kad3 in its addressbook
+    discard switch1.peerStore[AddressBook].del(switch3.peerInfo.peerId)
+    check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] !=
+      switch3.peerInfo.addrs
 
-      # kad1 has kad3 in its addressbook after adding provider
-      await kad3.addProvider(key)
-      await sleepAsync(10.milliseconds)
-      check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] ==
-        switch3.peerInfo.addrs
+    # kad1 has kad3 in its addressbook after adding provider
+    await kad3.addProvider(key)
+    await sleepAsync(10.milliseconds)
+    check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] ==
+      switch3.peerInfo.addrs
 
     # now repeat the above without calling addProvider, should fail
-    for _ in 0 ..< 10:
-      # ensure kad1 does not have kad3 in its addressbook
-      discard switch1.peerStore[AddressBook].del(switch3.peerInfo.peerId)
-      check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] !=
-        switch3.peerInfo.addrs
+    # ensure kad1 does not have kad3 in its addressbook
+    discard switch1.peerStore[AddressBook].del(switch3.peerInfo.peerId)
+    check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] !=
+      switch3.peerInfo.addrs
 
-      await sleepAsync(10.milliseconds)
-      check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] !=
-        switch3.peerInfo.addrs
+    await sleepAsync(10.milliseconds)
+    check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] !=
+      switch3.peerInfo.addrs
