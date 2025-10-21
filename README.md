@@ -116,11 +116,6 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 
 ### Compile time flags
 
-Enable quic transport support
-```bash
-nim c -d:libp2p_quic_support some_file.nim
-```
-
 Enable autotls support
 ```bash
 nim c -d:libp2p_autotls_support some_file.nim

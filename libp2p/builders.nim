@@ -23,7 +23,7 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport, wstransport, memorytransport],
+  transports/[transport, tcptransport, wstransport, quictransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[
@@ -232,14 +232,11 @@ proc withWsTransport*(
       )
   )
 
-when defined(libp2p_quic_support):
-  import transports/quictransport
-
-  proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
-    b.withTransport(
-      proc(config: TransportConfig): Transport =
-        QuicTransport.new(config.upgr, config.privateKey)
-    )
+proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  b.withTransport(
+    proc(config: TransportConfig): Transport =
+      QuicTransport.new(config.upgr, config.privateKey)
+  )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
@@ -492,12 +489,9 @@ proc newStandardSwitchBuilder*(
 
   case transport
   of TransportType.QUIC:
-    when defined(libp2p_quic_support):
-      if addrs.len == 0:
-        addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
-      b = b.withQuicTransport().withAddresses(addrs)
-    else:
-      raiseAssert "QUIC not supported in this build"
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
+    b = b.withQuicTransport().withAddresses(addrs)
   of TransportType.TCP:
     if addrs.len == 0:
       addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
