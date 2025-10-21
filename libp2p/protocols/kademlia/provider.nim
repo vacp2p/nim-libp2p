@@ -30,13 +30,10 @@ proc dispatchAddProvider(
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
   ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo to each of them
 
-  if not Cid.validate(key):
-    error "Key is an invalid CID, not sending message", key = key
-    return
-
   let peers = await kad.findNode(key)
   for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, key))
+    let rpcBatch =
+      chunk.mapIt(kad.switch.dispatchAddProvider(it, key.toCid().data.buffer))
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
     except AsyncTimeoutError:
@@ -50,8 +47,7 @@ proc handleAddProvider*(
     error "No key in message buffer", msg = msg, conn = conn
     return
 
-  # Validate CID
-  if not Cid.validate(key):
+  if Cid.init(key).isErr():
     error "Received key is an invalid CID", msg = msg, conn = conn, key = key
     return
 
