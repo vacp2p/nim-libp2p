@@ -9,7 +9,7 @@
 
 import std/sequtils
 import chronos, chronicles, results
-import ../../[peerid, switch, multihash]
+import ../../[peerid, switch, multihash, cid]
 import ../protocol
 import ./[protobuf, types, find]
 
@@ -29,6 +29,11 @@ proc dispatchAddProvider(
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
   ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo to each of them
+
+  if not Cid.validate(key):
+    error "Key is an invalid CID, not sending message", key = key
+    return
+
   let peers = await kad.findNode(key)
   for chunk in peers.toChunks(kad.config.alpha):
     let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, key))
@@ -46,8 +51,8 @@ proc handleAddProvider*(
     return
 
   # Validate CID
-  if not key.isValid():
-    error "Invalid key", msg = msg, conn = conn, key = key
+  if not Cid.validate(key):
+    error "Received key is an invalid CID", msg = msg, conn = conn, key = key
     return
 
   # filter out infos that do not match sender's
