@@ -9,7 +9,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import
-  testmemorytransport, testquic, testtcptransport, testtortransport, testwstransport
+import testmemory, testquic, testtcp, testtor, testws
 
 import tls/testcertificate
