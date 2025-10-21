@@ -152,6 +152,7 @@ method init*(p: Identify) =
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
       await conn.writeLp(pb.buffer)
+      debug "identify: encoded message", conn, info = p.peerInfo
     except CancelledError as exc:
       trace "cancelled identify handler"
       raise exc
